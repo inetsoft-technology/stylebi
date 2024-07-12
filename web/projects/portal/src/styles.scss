@@ -1,0 +1,36 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/*
+  Items in here are compiled into the styles bundle and cannot be overridden.
+  To have the option to override, please use global.scss and its imports
+*/
+
+@import '~codemirror/lib/codemirror.css';
+@import '~codemirror/addon/hint/show-hint.css';
+@import '~codemirror/addon/dialog/dialog.css';
+@import '~codemirror/addon/tern/tern.css';
+@import '~codemirror/addon/fold/foldgutter.css';
+
+// These are global imports which are meant for internal use and not to be overridden
+@import "scss/internal/moving-resize";
+@import 'scss/internal/dialog';
+@import 'scss/internal/html-override';
+@import 'scss/internal/mixins';
+@import 'scss/internal/directives';
+@import 'scss/internal/layout';
+@import 'scss/internal/ckeditor';

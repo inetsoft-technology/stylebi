@@ -1,0 +1,174 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="preview-table" [class.mobile]="mobileDevice" [style.max-width.px]="tableBodyWidth"
+     [class.table-style-applied]="tableStyleApplied">
+  <div #previewContainer class="preview-table-container" (scroll)="horizontalScroll()">
+    <table #headerTable *ngIf="tableData.length > 0" class="table-layout-fixed table-sm">
+      <thead *ngIf="tableData[0]">
+      <tr [style.height.px]="cellHeight">
+        <th *ngIf="leftOfColRangeWidth > 0"
+            [style.min-width.px]="leftOfColRangeWidth"
+            [style.max-width.px]="leftOfColRangeWidth"></th>
+        <ng-container *ngFor="let _i of columnIndexRange">
+          <th *ngIf="tableData[0][_i]"
+              [style.min-width.px]="_columnWidths[_i]"
+              [style.max-width.px]="_columnWidths[_i]"
+              [style.border-top]="tableData[0][_i].vsFormatModel?.border.top"
+              [style.border-left]="tableData[0][_i].vsFormatModel?.border.left"
+              [style.border-bottom]="tableData[0][_i].vsFormatModel?.border.bottom"
+              [style.border-right]="tableData[0][_i].vsFormatModel?.border.right"
+              [style.color]="tableData[0][_i].vsFormatModel?.foreground"
+              [style.background]="tableData[0][_i].vsFormatModel?.background"
+              [style.font]="tableData[0][_i].vsFormatModel?.font"
+              [class.cell-editor]="renaming  && isSelected(_i, 0)"
+              [class.background-clip-padding-box]="isFirefox"
+              [draggable]="draggable && !renaming " (onDragover)="dragOverTable($event, _i)"
+              [class.selected-cell]="isSelected(0, _i)"
+              (onDragleave)="onLeave($event)"
+              (drop)="dropOnTable($event)"
+              (dragstart)="dragStart($event, _i)"
+              (contextmenu)="openVisibilityContextMenu($event, 0, _i)" outOfZone>
+            <div [title]="getCellLabel(tableData[0][_i])"  *ngIf="!(renaming && isSelected(0, _i)); else headerInput"
+                 (click)="selectCell($event, 0, _i)">
+              {{getCellLabel(tableData[0][_i])}}
+              <span class="preview-header-cell-button">
+                <i *ngIf="formattingEnabled" id="split-button" title="_#(Format)"
+                   class="float-end btn-icon bg-white3 icon-size-small format-icon"
+                   [fixedDropdown]="formatDropdown" [autoClose]="false"
+                   (openChange)="formatClicked(_i, $event)" (click)="$event.stopPropagation()"></i>
+                <i *ngIf="sortEnabled"
+                   class="float-end btn-icon bg-white3 icon-size-small {{getSortLabel(_i)}}-icon"
+                   title="_#(Sort)" (click)="sortClicked($event, _i)"></i>
+              </span>
+            </div>
+            <ng-template #headerInput>
+              <input class="form-input w-100" type="text"
+                     [(ngModel)]="tableData[0][_i].cellLabel"
+                     defaultFocus [autoSelect]="true" [preventScroll]="true"
+                     outOfZone [style.color]="tableData[0][_i].vsFormatModel?.foreground"
+                     (onKeydown)="changeCellText($event)" (focusout)="changeCellText(null)" />
+            </ng-template>
+          </th>
+        </ng-container>
+        <th *ngIf="rightOfColRangeWidth > 0"
+            [style.min-width.px]="rightOfColRangeWidth"
+            [style.max-width.px]="rightOfColRangeWidth"></th>
+      </tr>
+      </thead>
+    </table>
+
+    <div #tableContainer *ngIf="tableData.length > 0" class="preview-table-body-container"
+         [style.width.px]="tableBodyWidth"
+         (wheel)="wheelScrollHandler($event)">
+      <table #table class="table-layout-fixed table-sm"
+             touchScroll (vScroll)="touchVScroll($event)" (hScroll)="touchHScroll($event)"
+             [style.top.px]="-scrollY">
+        <tbody>
+        <ng-container *ngFor="let _row of tableData; let _first = first; let i = index">
+          <tr *ngIf="!_first" [style.height.px]="cellHeight">
+            <ng-container *ngIf="isRowVisible(i)">
+              <td *ngIf="leftOfColRangeWidth > 0"
+                  [style.min-width.px]="leftOfColRangeWidth"
+                  [style.max-width.px]="leftOfColRangeWidth"></td>
+              <ng-container *ngFor="let _i of columnIndexRange; let j = index">
+                <td *ngIf="_row[_i]"
+                    [style.min-width.px]="_columnWidths[_i]"
+                    [style.max-width.px]="_columnWidths[_i]"
+                    [title]="getCellLabel(_row[_i])"
+                    [style.border-top]="_row[_i].vsFormatModel?.border.top"
+                    [style.border-left]="_row[_i].vsFormatModel?.border.left"
+                    [style.border-bottom]="_row[_i].vsFormatModel?.border.bottom"
+                    [style.border-right]="_row[_i].vsFormatModel?.border.right"
+                    [style.color]="_row[_i].vsFormatModel?.foreground"
+                    [style.background]="_row[_i].vsFormatModel?.background"
+                    [style.text-decoration]="_row[_i].vsFormatModel?.decoration"
+                    [style.font]="_row[_i].vsFormatModel?.font"
+                    [style.text-align]="_row[_i].vsFormatModel?.hAlign"
+                    [class.background-clip-padding-box]="isFirefox"
+                    [class.selected-cell]="isSelected(i, _i)"
+                    (onDragleave)="onLeave($event)"
+                    (onDragover)="dragOverTable($event, _i)" (drop)="dropOnTable($event)"
+                    (contextmenu)="openVisibilityContextMenu($event, i, _i)"
+                    (click)="selectCell($event, i, _i)" outOfZone>
+                  <a *ngIf="_row[_i].hyperlinks"
+                     [style.text-decoration]="_row[_i].hyperlinks ? 'underline' : 'none'"
+                     [target]="getTarget(_row[_i])"
+                     (click)="clickLink(_row[_i], $event)">
+                    {{getCellLabel(_row[_i])}}
+                  </a>
+                  <ng-container *ngIf="!_row[_i].hyperlinks">
+                    {{getCellLabel(_row[_i])}}
+                  </ng-container>
+                </td>
+              </ng-container>
+              <td *ngIf="rightOfColRangeWidth > 0"
+                  [style.min-width.px]="rightOfColRangeWidth"
+                  [style.max-width.px]="rightOfColRangeWidth"></td>
+            </ng-container>
+          </tr>
+        </ng-container>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="drop-line border-success" *ngIf="dropIndex != -1"
+         outOfZone (onDragover)="$event.preventDefault()"
+         [style.width.px]="6"
+         [style.height.px]="tableHeight + cellHeight"
+         [style.top.px]="1"
+         [style.left.px]="dropRect.left">
+    </div>
+
+    <div class="column-resize-container" [style.height.px]="cellHeight" *ngIf="assemblyName">
+      <ng-container *ngFor="let _i of columnIndexRange">
+        <ng-container *ngIf="tableData[0][_i]">
+          <div class="resize-handle transparent"
+               [style.left.px]="columnRightPositions[_i]" (mousedown)="startResize($event, _i)"
+               [ngStyle]="{'display': columnRightPositions[_i] < horizontalDist - scrollbarWidth ? '' : 'none'}"></div>
+          <div *ngIf="resizeLeft != undefined" class="resize-handle transparent"
+               [style.left.px]="resizeLeft"></div>
+        </ng-container>
+      </ng-container>
+    </div>
+  </div>
+  <div class="vertical-scroll-wrapper"
+       [style.top.px]="headerHeight"
+       [style.height]="'calc(100% - ' + headerHeight + 'px)'"
+       [style.width.px]="scrollbarWidth"
+       (scroll)="verticalScrollHandler($event)"
+       ngbTooltip="0"
+       placement="right"
+       outOfZone
+       (onMouseenter)="updateVerticalScrollTooltip(true)"
+       (onMouseleave)="verticalScrollTooltip.close()"
+       #verticalScrollTooltip="ngbTooltip"
+       #verticalScrollWrapper>
+    <div [style.height.px]="tableHeight">
+    </div>
+  </div>
+</div>
+<notifications #notifications *ngIf="limited" [timeout]="5000"
+               message="Table limited to 5000 rows"></notifications>
+<ng-template #formatDropdown>
+  <div class="dropdown-pane">
+    <formatting-pane [dynamic]="false" [formatModel]="formatModel"
+                     (onApply)="apply($event)"></formatting-pane>
+  </div>
+</ng-template>

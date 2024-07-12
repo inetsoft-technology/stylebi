@@ -1,0 +1,690 @@
+{
+  "endpoints": [
+    {
+      "name": "Site Users",
+      "paged": true,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/users?context={Context?:display|edit}&meta={Include Metadata?:sites,likes,...}&fields={Include Fields?:ID,title,...}&authors_only={Fetch Authors Only?:true|false}&type={Post Type?}&search={Search Text?}&search_columns={Search Columns?,:ID,user_login,user_email,...}&role={User Role?}"
+    },
+    {
+      "name": "Site User",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/users/login:{User Login}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Metadata",
+      "paged": false,
+      "suffix": "/v1.1/me?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Billing History",
+      "paged": false,
+      "suffix": "/v1.1/me/billing-history?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Settings",
+      "paged": false,
+      "suffix": "/v1.1/me/settings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Preferences",
+      "paged": false,
+      "suffix": "/v1.1/me/preferences?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Profile Links",
+      "paged": false,
+      "suffix": "/v1.1/me/settings/profile-links?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Connected Applications",
+      "paged": false,
+      "suffix": "/v1.1/me/connected-applications?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Connected Application",
+      "paged": false,
+      "suffix": "/v1.1/me/connected-applications/{Application ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Likes",
+      "paged": true,
+      "suffix": "/v1.1/me/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&after={Dated On or After?:yyyy-MM-ddTHH:mm:ss}&before={Dated On or Before?:yyyy-MM-ddTHH:mm:ss}"
+    },
+    {
+      "name": "Site Shortcodes",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/shortcodes?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Embeds",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/embeds?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site",
+      "paged": false,
+      "suffix": "/v1.2/sites/{Site ID or Domain}?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Page Templates",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/page-templates?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Post Types",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/post-types?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Post Counts by Type",
+      "paged": false,
+      "suffix": "/v1.2/sites/{Site ID or Domain}/post-counts/{Post Type}?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Widgets",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/widgets?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site WordAds Settings",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/settings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site WordAds Earnings",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/earnings?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site WordAds TOS",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/tos?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site WordAds Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/wordads/stats?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&unit={Unit?:day|week|month}&quantity={Quantity?}&date={Date?:yyyy-MM-dd}"
+    },
+    {
+      "name": "Current User Sites",
+      "paged": false,
+      "suffix": "/v1.1/me/sites?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&site_visibility={Site Visibility?:all|visible|hidden}&options={Include Options?:login_url,timezone,...}&include_domain_only={Include Domain-only Sites?:true|false}&site_activity={Site Activity?:all|active|inactive}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Site Users",
+            "Site Shortcodes",
+            "Site Embeds",
+            "Site",
+            "Site Page Templates",
+            "Site Post Types",
+            "Site Widgets",
+            "Site WordAds Settings",
+            "Site WordAds Earnings",
+            "Site WordAds TOS",
+            "Site WordAds Statistics",
+            "Site Headers",
+            "Search Posts",
+            "Recent Comments",
+            "Comment Counts",
+            "Site Categories",
+            "Site Tags",
+            "Site Followers",
+            "Current User Blog Following Status",
+            "Sharing Buttons",
+            "Site Publicize Connections",
+            "Site Statistics",
+            "Site Summary Statistics",
+            "Site Top Post Statistics",
+            "Site Referrer Statistics",
+            "Site Outbound Click Statistics",
+            "Site Views by Tag and Category",
+            "Site Top Author Statistics",
+            "Site Top Comment Statistics",
+            "Site Video Plays Statistics",
+            "Site File Download Statistics",
+            "Site Views by Country",
+            "Site Follower Statistics",
+            "Site Comment Follower Statistics",
+            "Site Publicize Follower Statistics",
+            "Site Search Term Statistics",
+            "Post Total View Statistics",
+            "Calendar Heatmap Statistics",
+            "Media Items",
+            "Navigation Menus"
+          ],
+          "jsonPath": "$.sites[*]",
+          "key": "ID",
+          "parameterName": "Site ID or Domain"
+        }
+      ]
+    },
+    {
+      "name": "Site Widget",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/widgets/widget:{Widget ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Theme Headers",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/headers/{Theme Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Headers",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/headers/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Post by ID",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Post by Slug",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/slug:{Post Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Search Posts",
+      "paged": true,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&after={Dated On or After?:yyyy-MM-ddTHH:mm:ss}&before={Dated On or Before?:yyyy-MM-ddTHH:mm:ss}&modified_after={Modified On or After?:yyyy-MM-ddTHH:mm:ss}&modified_before={Modified On or Before?:yyyy-MM-ddTHH:mm:ss}&tag={Tag Name or Slug?}&category={Category Name or Slug?}&term={Term Slugs?:term1,term2,...}&type={Post Type?}&parent_id={Parent Post ID?}&exclude={Exclude Post IDs?,:id1,id2,...}&exclude_tree={Exclude Post Tree ID?}&status={Statuses?:publish,private,draft,any,...}&sticky={Sticky?:include|exclude|require}&author={Author ID?}&search={Search Term?}&meta_key={Metadata Key?}&meta_value={Metadata Value?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Post Likes",
+            "Current User Post Like Status",
+            "Post Subscribers",
+            "Current User Post Subscription Status",
+            "Current User Post Reblog Status",
+            "Post Recent Comments",
+            "Video Post Statistics",
+            "Post View Statistics"
+          ],
+          "jsonPath": "$.posts[*]",
+          "key": "ID",
+          "parameterName": "Post ID"
+        }
+      ]
+    },
+    {
+      "name": "Current User Posts",
+      "paged": true,
+      "suffix": "/v1.1/me/posts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&author={Author ID?}&after={Dated On or After?:yyyy-MM-ddTHH:mm:ss}&before={Dated On or Before?:yyyy-MM-ddTHH:mm:ss}&modified_after={Modified On or After?:yyyy-MM-ddTHH:mm:ss}&modified_before={Modified On or Before?:yyyy-MM-ddTHH:mm:ss}&type={Post Type?}&status={Statuses?:publish,private,draft,any,...}&search={Search Text?}&lang={Search Language?}&sites={Site IDs?:id1,id2,...}&site_visibility={Site Visibility?:all|visible|hidden}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Post Likes",
+            "Current User Post Like Status",
+            "Post Subscribers",
+            "Current User Post Subscription Status",
+            "Current User Post Reblog Status",
+            "Post Recent Comments",
+            "Video Post Statistics",
+            "Post View Statistics"
+          ],
+          "jsonPath": "$.posts[*]",
+          "key": "ID",
+          "parameterName": "Post ID"
+        }
+      ]
+    },
+    {
+      "name": "Post Likes",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Post Like Status",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/likes/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Post Subscribers",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/subscribers?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Post Subscription Status",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/subscribers/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Post Reblog Status",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/reblogs/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Comment",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Recent Comments",
+      "paged": true,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/comments?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&hierarchical={Hierarchical?:true|false}&after={Dated On or After?:yyyy-MM-ddTHH:mm:ss}&before={Dated On or Before?:yyyy-MM-ddTHH:mm:ss}&type={Type?:any|comment|trackback|pingback|pings}&status={Status?:approved|unapproved|spam|trash|all}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Comment Audit History",
+            "Comment Likes",
+            "Current User Comment Like Status"
+          ],
+          "jsonPath": "$.comments[*]",
+          "key": "ID",
+          "parameterName": "Comment ID"
+        }
+      ]
+    },
+    {
+      "name": "Post Recent Comments",
+      "paged": true,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/posts/{Post ID}/replies?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&hierarchical={Hierarchical?:true|false}&after={Dated On or After?:yyyy-MM-ddTHH:mm:ss}&before={Dated On or Before?:yyyy-MM-ddTHH:mm:ss}&type={Type?:any|comment|trackback|pingback|pings}&status={Status?:approved|unapproved|spam|trash|all}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Comment Audit History",
+            "Comment Likes",
+            "Current User Comment Like Status"
+          ],
+          "jsonPath": "$.comments[*]",
+          "key": "ID",
+          "parameterName": "Comment ID"
+        }
+      ]
+    },
+    {
+      "name": "Comment Counts",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/comment-counts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&post_id={Post ID?}"
+    },
+    {
+      "name": "Comment Audit History",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/comment-history/{Comment ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Comment Likes",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}/likes?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Comment Like Status",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/comments/{Comment ID}/likes/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Categories",
+      "paged": true,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/categories?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search?}"
+    },
+    {
+      "name": "Site Tags",
+      "paged": true,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/tags?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Tag Subscription Status",
+            "Tagged Posts"
+          ],
+          "jsonPath": "$.tags[*]",
+          "key": "slug",
+          "parameterName": "Tag"
+        }
+      ]
+    },
+    {
+      "name": "Site Category",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/categories/slug:{Category Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Tag",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/tags/slug:{Tag Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Taxonomy Term",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/taxonomies/{Taxonomy}/terms/slug:{Term Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Post Type Taxonomies",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/post-types/{Post Type}/taxonomies?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Taxonomy Terms",
+      "paged": true,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/taxonomies/{Taxonomy}/terms?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search?}"
+    },
+    {
+      "name": "Site Followers",
+      "paged": true,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/follows?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Blog Following Status",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/follows/mine?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Sharing Buttons",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/sharing-buttons?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&enabled_only={Enabled Only?:true|false}&visibility={Visibility?:visible|hidden}"
+    },
+    {
+      "name": "External Services",
+      "paged": false,
+      "suffix": "/v1.1/meta/external-services?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&type={Type?:publicize|other}"
+    },
+    {
+      "name": "External Service",
+      "paged": false,
+      "suffix": "/v1.1/meta/external-services/{Service}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Publicize Connections",
+      "paged": false,
+      "suffix": "/v1.1/me/publicize-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&service={Service?}&keyring_connection_ID={Keyring Connection ID?}&site={Site?}"
+    },
+    {
+      "name": "Current User Publicize Connection",
+      "paged": false,
+      "suffix": "/v1.1/me/publicize-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Current User Keyring Connections",
+      "paged": false,
+      "suffix": "/v1.1/me/keyring-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&site={Site?}&force_external_users_refetch={Force Refetch External Users?:true|false}&force_connection_test={Force Test Connection?:true|false}"
+    },
+    {
+      "name": "Current User Keyring Connection",
+      "paged": false,
+      "suffix": "/v1.1/me/keyring-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Publicize Connections",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/publicize-connections?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&service={Service?}&user_id={User ID?}&keyring_connection_ID={Keyring Connection ID?}"
+    },
+    {
+      "name": "Site Publicize Connection",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/publicize-connections/{Connection ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "External Services with Sharing Buttons",
+      "paged": false,
+      "suffix": "/v1.1/meta/sharing-buttons?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Insights List",
+      "paged": false,
+      "suffix": "/v1.1/insights?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Insights Data",
+      "paged": false,
+      "suffix": "/v1.1/insights/{Report Slug}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&unit={Unit?:daily|monthly|cumulative|&after={Since?:Unix Timestamp}&before={Before?:Unix Timestamp}"
+    },
+    {
+      "name": "Default Reader Menu",
+      "paged": false,
+      "suffix": "/v1.1/read/menu?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Feed",
+      "paged": false,
+      "suffix": "/v1.1/read/feed/{Feed URL or ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Followed Blog Posts",
+      "paged": true,
+      "suffix": "/v1.1/read/following?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&after={Dated After?:yyyy-MM-ddTHH:mm:ss}&before={Dated Before?:yyyy-MM-ddTHH:mm:ss}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Post Likes",
+            "Current User Post Like Status",
+            "Post Subscribers",
+            "Current User Post Subscription Status",
+            "Current User Post Reblog Status",
+            "Post Recent Comments",
+            "Video Post Statistics",
+            "Post View Statistics"
+          ],
+          "jsonPath": "$.posts[*]",
+          "key": "ID",
+          "parameterName": "Post ID"
+        }
+      ]
+    },
+    {
+      "name": "Liked Blog Posts",
+      "paged": true,
+      "suffix": "/v1.1/read/liked?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&after={Dated After?:yyyy-MM-ddTHH:mm:ss}&before={Dated Before?:yyyy-MM-ddTHH:mm:ss}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Post Likes",
+            "Current User Post Like Status",
+            "Post Subscribers",
+            "Current User Post Subscription Status",
+            "Current User Post Reblog Status",
+            "Post Recent Comments",
+            "Video Post Statistics",
+            "Post View Statistics"
+          ],
+          "jsonPath": "$.posts[*]",
+          "key": "ID",
+          "parameterName": "Post ID"
+        }
+      ]
+    },
+    {
+      "name": "Tagged Posts",
+      "paged": true,
+      "suffix": "/v1.1/read/tags/{Tag}/posts?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&after={Dated After?:yyyy-MM-ddTHH:mm:ss}&before={Dated Before?:yyyy-MM-ddTHH:mm:ss}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Post Likes",
+            "Current User Post Like Status",
+            "Post Subscribers",
+            "Current User Post Subscription Status",
+            "Current User Post Reblog Status",
+            "Post Recent Comments",
+            "Video Post Statistics",
+            "Post View Statistics"
+          ],
+          "jsonPath": "$.posts[*]",
+          "key": "ID",
+          "parameterName": "Post ID"
+        }
+      ]
+    },
+    {
+      "name": "Subscribed Tags",
+      "paged": false,
+      "suffix": "/v1.2/read/tags?meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Tag Subscription Status",
+            "Tagged Posts"
+          ],
+          "jsonPath": "$.tags[*]",
+          "key": "slug",
+          "parameterName": "Tag"
+        }
+      ]
+    },
+    {
+      "name": "Trending Tags",
+      "paged": false,
+      "suffix": "/v1.2/read/trending/tags?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&lang={Language Code?}&count={Count?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Tag Subscription Status",
+            "Tagged Posts"
+          ],
+          "jsonPath": "$.tags[*]",
+          "key": "slug",
+          "parameterName": "Tag"
+        }
+      ]
+    },
+    {
+      "name": "Tag",
+      "paged": false,
+      "suffix": "/v1.1/read/tags/{Tag}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Tag Subscription Status",
+      "paged": false,
+      "suffix": "/v1.1/read/tags/{Tag}/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Followed Feeds",
+      "paged": false,
+      "suffix": "/v1.1/read/following/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Feed Search",
+      "paged": true,
+      "suffix": "/v1.1/read/feed?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&url={Site Domain or URL?}&q={Query Text?}&exclude_followed={Exclude Already Followed Sites?:true|false}"
+    },
+    {
+      "name": "Recommended Blogs",
+      "paged": false,
+      "suffix": "/v1.1/read/recommendations/mine?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&exclude={Exclude Blog IDs?,:id1,id2,...}&lang={Language Code?}&source={Source?:mobile|reader_sidebar|...}"
+    },
+    {
+      "name": "Site Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Summary Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/summary?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Period Date?:yyyy-MM-dd}&offset={Time Zone Offset?}"
+    },
+    {
+      "name": "Site Top Post Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/top-posts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summarize={Summarize Data?:true|false}"
+    },
+    {
+      "name": "Video Post Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/video/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Referrer Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/referrers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}"
+    },
+    {
+      "name": "Site Outbound Click Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/clicks?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}"
+    },
+    {
+      "name": "Site Views by Tag and Category",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/tags?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&max={Maximum Number of Results?}"
+    },
+    {
+      "name": "Site Top Author Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/top-authors?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}"
+    },
+    {
+      "name": "Site Top Comment Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/comments?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Video Plays Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/video-plays?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}"
+    },
+    {
+      "name": "Site File Download Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/file-downloads?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}"
+    },
+    {
+      "name": "Post View Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/post/{Post ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Views by Country",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/country-views?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}"
+    },
+    {
+      "name": "Site Follower Statistics",
+      "paged": true,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/followers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&type={Type?:wpcom|email}&search={Email Address?}"
+    },
+    {
+      "name": "Site Comment Follower Statistics",
+      "paged": true,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/comment-followers?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Publicize Follower Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/publicize?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Site Search Term Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/search-terms?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Periods?}&period={Period?:day|week|month|year}&date={Most Recent Day to Include?:yyyy-MM-dd}&max={Maximum Number of Results?}&offset={Time Zone Offset?}&summary={Summarize Data?:true|false}"
+    },
+    {
+      "name": "Post Total View Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/views/posts?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&num={Number of Days?:1-30}&post_ids={Post IDs:id1,id2,...}&date={Most Recent Day to Include?:yyyy-MM-dd}&offset={Time Zone Offset?}"
+    },
+    {
+      "name": "Calendar Heatmap Statistics",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/stats/streak?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&startDate={Start Date?:yyyy-MM-dd}&endDate={End Date?:yyyy-MM-dd}&max={Maximum Number of Posts to Return?}"
+    },
+    {
+      "name": "Media Item",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/media/{Media ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Media Items",
+      "paged": true,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/media?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&search={Search Query?}&post_ID={Post ID?}&mime_type={MIME Type?}&after={Uploaded After?:yyyy-MM-ddTHH:mm:ss}&before={Uploaded Before?:yyyy-MM-ddTHH:mm:ss}"
+    },
+    {
+      "name": "Navigation Menu",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/menus/{Menu ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Navigation Menus",
+      "paged": false,
+      "suffix": "/v1.1/sites/{Site ID or Domain}/menus?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    },
+    {
+      "name": "Video Metadata",
+      "paged": false,
+      "suffix": "/v1.1/videos/{Video ID}?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}&birth_month={Birth Month?}&birth_day={Birth Day?}&birth_year={Birth Year?}"
+    },
+    {
+      "name": "Video Poster",
+      "paged": false,
+      "suffix": "/v1.1/videos/{Video ID}/poster?context={Context?:display|edit}&meta={Include Metadata?:site,likes,...}&fields={Include Fields?:ID,title,...}"
+    }
+  ]
+}

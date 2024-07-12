@@ -1,0 +1,66 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:7183b3f1-e18e-496d-9248-a4fef5ca68db",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2023-04-18T20:28:55Z",
+    "tools": [
+      {
+        "vendor": "OWASP",
+        "name": "Dependency-Track",
+        "version": "4.7.1"
+      }
+    ],
+    "component": {
+      "name": "inetsoft-web",
+      "version": "13.6",
+      "type": "library",
+      "bom-ref": "762620e5-51ca-4648-91df-b497ffaad040"
+    }
+  },
+  "vulnerabilities": [
+    {
+      "bom-ref": "83f36368-bbea-461d-941d-f2ba416dbd32",
+      "id": "CVE-2022-33987",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 5,
+          "severity": "medium",
+          "method": "CVSSv2",
+          "vector": "(AV:N/AC:L/Au:N/C:N/I:P/A:N)"
+        },
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 5.3,
+          "severity": "medium",
+          "method": "CVSSv3",
+          "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N"
+        }
+      ],
+      "description": "The got package before 12.1.0 (also fixed in 11.8.5) for Node.js allows a redirect to a UNIX socket.",
+      "published": "2022-06-18T21:15:00Z",
+      "updated": "2022-06-28T16:15:00Z",
+      "analysis": {
+        "state": "false_positive",
+        "detail": "got is a development dependency and is not included in the runtime bundle."
+      },
+      "affects": [
+        {
+          "ref": "762620e5-51ca-4648-91df-b497ffaad040"
+        }
+      ]
+    }
+  ]
+}

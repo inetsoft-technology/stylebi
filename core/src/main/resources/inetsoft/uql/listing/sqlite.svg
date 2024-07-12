@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1"
+	 id="svg2985" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:svg="http://www.w3.org/2000/svg"
+	 xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="30px" height="30px"
+	 viewBox="175.926 75.302 30 30" enable-background="new 175.926 75.302 30 30" xml:space="preserve">
+<title  id="title2998">SQLite</title>
+<g>
+	<path id="solid-background" fill="#0F80CC" d="M197.036,79.464H182.11c-1,0-1.819,0.818-1.819,1.819v16.46
+		c0,1,0.819,1.818,1.819,1.818h9.831C191.829,94.671,193.5,85.178,197.036,79.464z"/>
+	
+		<linearGradient id="gradient-background_1_" gradientUnits="userSpaceOnUse" x1="-98.6123" y1="515.8857" x2="-97.2814" y2="515.8857" gradientTransform="matrix(-5.025000e-007 11.4863 11.4863 5.025000e-007 -5736.9795 1213.0249)">
+		<stop  offset="0" style="stop-color:#97D9F6"/>
+		<stop  offset="0.9202" style="stop-color:#0F80CC"/>
+		<stop  offset="1" style="stop-color:#0F80CC"/>
+	</linearGradient>
+	<path id="gradient-background" fill="url(#gradient-background_1_)" d="M196.494,79.994H182.11c-0.71,0-1.288,0.578-1.288,1.289
+		v15.259c3.257-1.25,8.147-2.329,11.528-2.28C193.028,90.71,195.025,83.749,196.494,79.994z"/>
+	<path id="feather" fill="#003B57" d="M200.518,78.925c-1.022-0.911-2.26-0.545-3.481,0.539c-0.182,0.161-0.362,0.34-0.542,0.53
+		c-2.09,2.217-4.029,6.323-4.632,9.459c0.234,0.476,0.418,1.084,0.538,1.548c0.031,0.119,0.06,0.23,0.082,0.326
+		c0.053,0.225,0.081,0.37,0.081,0.37s-0.019-0.07-0.096-0.294c-0.015-0.042-0.03-0.089-0.05-0.144
+		c-0.009-0.023-0.02-0.051-0.032-0.08c-0.137-0.317-0.514-0.985-0.68-1.277c-0.142,0.419-0.268,0.811-0.373,1.165
+		c0.479,0.877,0.771,2.379,0.771,2.379s-0.025-0.098-0.146-0.437c-0.106-0.301-0.639-1.234-0.766-1.452
+		c-0.215,0.797-0.301,1.334-0.224,1.465c0.15,0.254,0.293,0.691,0.418,1.176c0.284,1.09,0.481,2.417,0.481,2.417
+		s0.006,0.089,0.017,0.224c-0.039,0.916-0.016,1.865,0.055,2.723c0.095,1.137,0.271,2.112,0.497,2.634l0.152-0.083
+		c-0.331-1.029-0.465-2.377-0.406-3.932c0.089-2.377,0.636-5.243,1.646-8.231c1.707-4.51,4.076-8.128,6.244-9.856
+		c-1.976,1.784-4.65,7.561-5.451,9.7c-0.896,2.396-1.531,4.644-1.914,6.797c0.66-2.019,2.796-2.887,2.796-2.887
+		s1.048-1.292,2.271-3.137c-0.732,0.167-1.937,0.453-2.34,0.623c-0.596,0.249-0.756,0.335-0.756,0.335s1.928-1.174,3.581-1.705
+		C200.535,86.238,203.013,81.15,200.518,78.925"/>
+</g>
+</svg>

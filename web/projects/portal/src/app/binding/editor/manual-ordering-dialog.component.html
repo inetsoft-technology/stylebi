@@ -1,0 +1,48 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header blockMouse [title]="'_#(Manual Ordering)'" (onCancel)="cancelClicked($event)"
+              [cshid]="'ManualOrdering'">
+</modal-header>
+<div class="modal-body" blockMouse>
+  <w-large-form-field>
+    <div class="manual-order-list bordered-box bd-gray" *ngIf="manualOrders" largeFieldElement>
+      <ul>
+        <li *ngFor="let manualOrder of manualOrders5000; let i = index"
+            class="non-editable-text"
+            [class.selected]="selIndex==i" (click)="selIndex=i">
+          {{getLabel(manualOrder)}}
+        </li>
+      </ul>
+    </div>
+    <ng-container largeFieldButtons>
+      <button class="btn btn-default manual-ordering-up-btn" (click)="upClick($event)"
+              [disabled]="selIndex<=0">_#(Up)</button>
+      <button class="btn btn-default manual-ordering-down-btn" (click)="downClick($event)"
+              [disabled]="manualOrders != null && selIndex>=manualOrders.length-1">_#(Down)</button>
+    </ng-container>
+  </w-large-form-field>
+</div>
+<div class="alert alert-danger" *ngIf="manualOrders.length > 5000">
+  _#(viewer.manualorder.truncated)
+</div>
+<div class="modal-footer" blockMouse>
+  <button defaultFocus type="submit" class="btn btn-primary" (click)="okClicked($event)">_#(OK)</button>
+  <button type="button" class="btn btn-default" (click)="cancelClicked($event)">_#(Cancel)</button>
+</div>

@@ -1,0 +1,63 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="modal-body pb-0" *ngIf="model">
+  <script-pane
+    [expression]="initScriptVisible ? model.onInit : model.onLoad"
+    [columnTreeRoot]="scriptTreeModel.columnTree" [preventEscape]="true"
+    [columnTreeEnabled]="!!scriptTreeModel.columnTree" [required]="false"
+    [functionTreeRoot]="scriptTreeModel.functionTree" [cursor]="cursor"
+    [functionTreeEnabled]="!!scriptTreeModel.functionTree"
+    [operatorTreeRoot]="scriptTreeModel.operatorTree"
+    [scriptDefinitions]="scriptTreeModel.scriptDefinitions"
+    (expressionChange)="onExpressionChange($event)">
+  </script-pane>
+
+  <div class="form-row-float-label row mt-2">
+    <div class="col-3">
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="text-type" id="init"
+             [checked]="initScriptVisible" (change)="onInitClicked()">
+        <label class="form-check-label" for="init">
+          _#(onInit)
+        </label>
+      </div>
+    </div>
+    <div class="col-3">
+      <div class="form-check">
+        <input class="form-check-input" type="radio" name="text-type" id="refresh"
+             [checked]="!initScriptVisible" (change)="onRefreshClicked()">
+        <label class="form-check-label" for="refresh">
+          _#(onRefresh)
+        </label>
+      </div>
+    </div>
+  </div>
+  <div class="row justify-content-end">
+    <div class="col-auto">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" [(ngModel)]="model.enableScript"
+               id="enable">
+        <label class="form-check-label" for="enable">
+          _#(Enable Script)
+        </label>
+      </div>
+    </div>
+  </div>
+</div>

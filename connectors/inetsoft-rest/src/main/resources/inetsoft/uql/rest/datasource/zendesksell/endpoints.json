@@ -1,0 +1,229 @@
+{
+    "endpoints": [
+        {
+            "name": "Account",
+            "paged": false,
+            "suffix": "/v2/accounts/self"
+        },
+        {
+            "name": "Associated Contact",
+            "paged": true,
+            "suffix": "/v2/deals/{Deal ID}/associated_contacts"
+        },
+        {
+            "name": "Call Outcomes",
+            "paged": true,
+            "suffix": "/v2/call_outcomes"
+        },
+        {
+            "name": "Calls",
+            "paged": true,
+            "suffix": "/v2/calls?ids={Call IDs?:1,2,3,...}&resource_type={Resource Type?:lead|contact}&resource_id={Resource ID?}&associated_deal_id={Associated Deal ID?}"
+        },
+        {
+            "name": "Call",
+            "paged": false,
+            "suffix": "/v2/calls/{Call ID}"
+        },
+        {
+            "name": "Collaborations",
+            "paged": true,
+            "suffix": "/v2/collaborations?ids={Collaboration IDs?:1,2,3...}&creator_id={Creator ID?}&resource_type={Resource Type?:lead|contact|sales_account|deal}&resource_id={Resource ID?}"
+        },
+        {
+            "name": "Collaboration",
+            "paged": false,
+            "suffix": "/v2/collaborations/{Collaboration ID}"
+        },
+        {
+            "name": "Contacts",
+            "paged": true,
+            "suffix": "/v2/contacts?ids={Contact IDs?:1,2,3,...}&creator_id={Creator ID?}&owner_id={Owner ID?}&is_organization={Is Organization?:true|false}&first_name={Contact First Name?}&last_name={Contact Last Name?}&customer_status={Customer Status?:none|current|past}&prospect_status={Prospect Status?:none|current|lost}"
+        },
+        {
+            "name": "Contact",
+            "paged": false,
+            "suffix": "/v2/contacts/{Contact ID}"
+        },
+        {
+            "name": "Custom Fields",
+            "paged": false,
+            "suffix": "/v2/{Resource Type:lead|contact|deal|prospect_and_customer}/custom_fields"
+        },
+        {
+            "name": "Deal Sources",
+            "paged": true,
+            "suffix": "/v2/deal_sources?ids={Deal Source IDs?:1,2,3...}&name={Name?}"
+        },
+        {
+            "name": "Deal Source",
+            "paged": false,
+            "suffix": "/v2/deal_sources/{Deal Source ID}"
+        },
+        {
+            "name": "Deal Unqualified Reasons",
+            "paged": true,
+            "suffix": "/v2/deal_unqualified_reasons?ids={Reason ID?}&name={Name?}"
+        },
+        {
+            "name": "Deal Unqualified Reason",
+            "paged": false,
+            "suffix": "/v2/deal_unqualified_reasons/{Reason ID}"
+        },
+        {
+            "name": "Deals",
+            "paged": true,
+            "suffix": "/v2/deals?ids={Deal IDs?:1,2,3,...}&creator_id={Creator ID?}&owner_id={Owner ID?}&contact_id={Contact ID?}&organization_id={Organization ID?}&name={Name?}"
+        },
+        {
+            "name": "Deal",
+            "paged": false,
+            "suffix": "/v2/deals/{Deal ID}"
+        },
+        {
+            "name": "Documents",
+            "paged": true,
+            "suffix": "/v2/documents?resource_type={Resource Type:lead|contact|sales_account|deal}&resource_id={Resource ID}&ids={Document IDs?:1,2,3,...}&name={Document Name?}"
+        },
+        {
+            "name": "Document",
+            "paged": false,
+            "suffix": "/v2/documents/{Document ID}"
+        },
+        {
+            "name": "Lead Sources",
+            "paged": true,
+            "suffix": "/v2/lead_sources?ids={Lead Source IDs?:1,2,3,...}&name={Name?}"
+        },
+        {
+            "name": "Lead Source",
+            "paged": false,
+            "suffix": "/v2/lead_sources/{Lead Source ID}"
+        },
+        {
+            "name": "Lead Unqualified Reasons",
+            "paged": true,
+            "suffix": "/v2/lead_unqualified_reasons"
+        },
+        {
+            "name": "Leads",
+            "paged": true,
+            "suffix": "/v2/leads?ids={Lead IDs?:1,2,3,...}&creator_id={Creator ID?}&owner_id={Owner ID?}&source_id={Lead Source ID?}&first_name={First Name?}&last_name={Last Name?}&organization_name={Organization Name?}&status={Status?}&email={Email?}"
+        },
+        {
+            "name": "Lead",
+            "paged": false,
+            "suffix": "/v2/leads/{Lead ID}"
+        },
+        {
+            "name": "Line Items",
+            "paged": true,
+            "suffix": "/v2/orders/{Order ID}/line_items?ids={Line Item IDs?:1,2,3,...}&quantity={Line Item Quantity?}&value={Line Item Value?}"
+        },
+        {
+            "name": "Line Item",
+            "paged": false,
+            "suffix": "/v2/orders/{Order ID}/line_items/{Line Item ID}"
+        },
+        {
+            "name": "Loss Reasons",
+            "paged": true,
+            "suffix": "/v2/loss_reasons?ids={Reason IDs?:1,2,3,...}&name={Name?}"
+        },
+        {
+            "name": "Loss Reason",
+            "paged": false,
+            "suffix": "/v2/loss_reasons/{Reason ID}"
+        },
+        {
+            "name": "Notes",
+            "paged": true,
+            "suffix": "/v2/notes?ids={Note IDs?:1,2,3,...}&creator_id={Creator ID?}&q={Search Text?}&resource_type={Resource Type?:lead|contact|deal}&resource_id={Resource ID?}"
+        },
+        {
+            "name": "Note",
+            "paged": false,
+            "suffix": "/v2/notes/{Note ID}"
+        },
+        {
+            "name": "Orders",
+            "paged": true,
+            "suffix": "/v2/orders?ids={Order IDs?:1,2,3,...}&deal_id={Deal ID?}"
+        },
+        {
+            "name": "Order",
+            "paged": false,
+            "suffix": "/v2/orders/{Order ID}"
+        },
+        {
+            "name": "Pipelines",
+            "paged": true,
+            "suffix": "/v2/pipelines?ids={Pipeline IDs?:1,2,3,...}&name={Name?}&disabled={Return Disabled Pipelines?:true|false}"
+        },
+        {
+            "name": "Products",
+            "paged": true,
+            "suffix": "/v2/products?ids={Product IDs?:1,2,3,...}&name={Name?}&sku={SKU?}&active={Active?:true|false}"
+        },
+        {
+            "name": "Product",
+            "paged": false,
+            "suffix": "/v2/products/{Product ID}"
+        },
+        {
+            "name": "Stages",
+            "paged": true,
+            "suffix": "/v2/stages?ids={Stage IDs?:1,2,3,...}&name={Name?}&active={Active?:true|false}"
+        },
+        {
+            "name": "Tags",
+            "paged": true,
+            "suffix": "/v2/tags?ids={Tag IDs?:1,2,3,...}&creator_id={Creator ID?}&name={Name?}&resource_type={Resource Type?:lead|contact|deal}"
+        },
+        {
+            "name": "Tag",
+            "paged": false,
+            "suffix": "/v2/tags/{Tag ID}"
+        },
+        {
+            "name": "Tasks",
+            "paged": true,
+            "suffix": "/v2/tasks?ids={Task IDs?:1,2,3,...}&creator_id={Creator ID?}&owner_id={Owner ID?}&q={Search Text?}&type={Type?:floating|related}&resource_type={Resource Type?:lead|contact|deal}&completed={Completed?:true|false}&overdue={Overdue?:true|false}"
+        },
+        {
+            "name": "Task",
+            "paged": false,
+            "suffix": "/v2/tasks/{Task ID}"
+        },
+        {
+            "name": "Text Messages",
+            "paged": true,
+            "suffix": "/v2/text_messages?ids={Text Message IDs?:1,2,3,...}&resource_type={Resource Type?:lead|contact}&resource_id={Resource ID?}"
+        },
+        {
+            "name": "Text Message",
+            "paged": false,
+            "suffix": "/v2/text_messages/{Message ID}"
+        },
+        {
+            "name": "Users",
+            "paged": true,
+            "suffix": "/v2/users?ids={User IDs?:1,2,3,...}&name={Name?}&email={Email?}&role={Role?:user|admin}&role_id={Role ID?}&status={Status?:active|inactive}&confirmed={Confirmed?:true|false}"
+        },
+        {
+            "name": "User",
+            "paged": false,
+            "suffix": "/v2/users/{User ID}"
+        },
+        {
+            "name": "Visit Outcomes",
+            "paged": true,
+            "suffix": "/v2/visit_outcomes"
+        },
+        {
+            "name": "Visits",
+            "paged": true,
+            "suffix": "/v2/visits?outcome_id={Outcome ID?}&resource_type={Resource Type?:lead|contact}&resource_id={Resource ID?}&rep_location_verification_status={Location Verification Status?:verified|resource_location_too_far|location_unknown|location_services_disabled}"
+        }
+    ]
+}

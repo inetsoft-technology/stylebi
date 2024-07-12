@@ -1,0 +1,72 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Concatenation Type)'"
+   (onCancel)="cancel()"
+   [cshid]="'ChangingtheConcatenationType'">
+</modal-header>
+<div class="modal-body" enterSubmit (onEnter)="ok()" *ngIf="model">
+  <fieldset>
+    <legend>_#(Concatenation Type)</legend>
+    <div class="container-fluid">
+      <div class="form-row-float-label row">
+        <div class="col-4 text-right">{{model.leftTableName}}</div>
+        <div class="col-4">
+          <select class="form-control" [ngModel]="model.operator.operation"
+                  (ngModelChange)="updateOperation($event)">
+            <option [value]="concatenationTypes.union">_#(Union)</option>
+            <option [value]="concatenationTypes.intersect">_#(Intersect)</option>
+            <option [value]="concatenationTypes.minus">_#(Minus)</option>
+          </select>
+        </div>
+        <span class="col-4 concatenation-type-subtable-span">{{model.rightTableName}}</span>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col-4"></div>
+        <div class="col" [ngClass]="{'disabled': keepDisabled()}">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" [disabled]="keepDisabled()"
+                 [ngModel]="!model.operator.distinct" id="keepDup"
+                 (ngModelChange)="model.operator.distinct = !$event">
+            <label class="form-check-label" for="keepDup">
+              _#(Keep Duplicate Rows)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col-4"></div>
+        <div class="col">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="applyAll"
+                   [(ngModel)]="model.all">
+            <label class="form-check-label" for="applyAll">
+              _#(Apply to all concatenations)
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>

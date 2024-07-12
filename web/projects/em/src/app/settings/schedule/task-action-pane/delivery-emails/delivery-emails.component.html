@@ -1,0 +1,133 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<script src="delivery-emails.component.ts"></script>
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <mat-card-title>
+      <mat-checkbox [(ngModel)]="enabled" (change)="fireDeliveryChanged()"></mat-checkbox>
+      <label>_#(viewer.schedule.action.deliverEmail)</label>
+    </mat-card-title>
+  </mat-card-header>
+  <mat-card-content *ngIf="enabled">
+    <div [formGroup]="form">
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Sender)</mat-label>
+        <input type="email" matInput formControlName="sender" placeholder="_#(Sender)" (change)="fireDeliveryChanged()"/>
+        <mat-error *ngIf="form.controls.sender?.errors?.required">_#(em.schedule.action.emailRequired)</mat-error>
+        <mat-error *ngIf="form.controls.sender?.errors?.email">_#(em.schedule.action.invalidEmail)</mat-error>
+      </mat-form-field>
+      <em-email-picker formControlName="recipients"
+                       [isEmailBrowserEnabled]="emailBrowserEnabled"
+                       [required]="true"
+                       [users]="users"
+                       [allowVariable]="true"
+                       [groups]="groups"
+                       (onChangeEmails)="changeEmails($event)"
+                       (change)="fireDeliveryChanged()"></em-email-picker>
+      <em-email-picker formControlName="ccAddress" placeholder="_#(CC)"
+                       [isEmailBrowserEnabled]="emailBrowserEnabled"
+                       [required]="false"
+                       [users]="users"
+                       [allowVariable]="true"
+                       [groups]="groups"
+                       (onChangeEmails)="changeCCEmails($event)"
+                       (change)="fireDeliveryChanged()"></em-email-picker>
+      <em-email-picker formControlName="bccAddress" placeholder="_#(BCC)"
+                       [isEmailBrowserEnabled]="emailBrowserEnabled"
+                       [required]="false"
+                       [users]="users"
+                       [allowVariable]="true"
+                       [groups]="groups"
+                       (onChangeEmails)="changeBCCEmails($event)"
+                       (change)="fireDeliveryChanged()">
+      </em-email-picker>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Subject)</mat-label>
+        <input type="text" matInput formControlName="subject" placeholder="_#(Subject)" (change)="fireDeliveryChanged()">
+      </mat-form-field>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Format)</mat-label>
+        <mat-select formControlName="format" placeholder="_#(Format)" (selectionChange)="changeFormat()">
+          <mat-option *ngFor="let format of mailFormats" [value]="format.type">{{format.label}}</mat-option>
+        </mat-select>
+        <mat-error *ngIf="form.controls.format?.errors?.required">_#(em.schedule.action.formatRequired)</mat-error>
+      </mat-form-field>
+      <mat-radio-group class="flex-col" *ngIf="dataSizeOptionVisible" formControlName="emailMatchLayout"
+                       (change)="fireDeliveryChanged()">
+        <mat-radio-button class="mat-checkbox-field"[value]="true">_#(Match Layout)</mat-radio-button>
+        <mat-radio-button class="mat-checkbox-field" [value]="false"
+                          [disabled]="!expandEnabled">_#(Expand Components)</mat-radio-button>
+      </mat-radio-group>
+      <div class="full-width">
+        <mat-checkbox class="mat-checkbox-field" *ngIf="dataSizeOptionVisible"
+                      formControlName="emailExpandSelections"
+                      (change)="fireDeliveryChanged()">
+          _#(Expand Selection List/Tree)
+        </mat-checkbox>
+        <mat-checkbox class="mat-checkbox-field" *ngIf="type == 'viewsheet' && format == 'Excel'"
+                      formControlName="emailOnlyDataComponents"
+                      (change)="fireDeliveryChanged()">_#(Only Data Elements)
+        </mat-checkbox>
+      </div>
+      <mat-checkbox class="mat-checkbox-field" *ngIf="type == 'viewsheet' && format == 'Excel'"
+                    formControlName="exportAllTabbedTables"
+                    (change)="fireDeliveryChanged()">_#(Export All Tabbed Tables)</mat-checkbox>
+      <mat-checkbox class="mat-checkbox-field"
+                    formControlName="bundledAsZip"
+                    [disabled]="bundledDisabled" (change)="togglePasswordForm(true)">_#(Bundled as zip)</mat-checkbox>
+      <div class="zip-password" *ngIf="passwordVisible">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Password)</mat-label>
+          <input type="password" matInput formControlName="zipPassword" placeholder="_#(Password)" (change)="fireDeliveryChanged()">
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Verify Password)</mat-label>
+          <input type="password" matInput formControlName="verifyZipPassword" placeholder="_#(Verify Password)" [errorStateMatcher]="errorStateMatcher" (change)="fireDeliveryChanged()"/>
+          <mat-error *ngIf="form.errors?.passwordsMatch">_#(em.schedule.action.zipPasswordMatch)</mat-error>
+        </mat-form-field>
+      </div>
+      <em-csv-config-pane *ngIf="format == 'CSV'" [showSelectedAssemblies]="type === 'viewsheet'"
+                          [tableDataAssemblies]="tableDataAssemblies"
+                          [csvConfigModel]="csvExportModel"
+                          (csvConfigChanged)="fireDeliveryChanged()">
+      </em-csv-config-pane>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Attachment Name)</mat-label>
+        <input type="text" matInput formControlName="attachment" placeholder="_#(Attachment Name)" (change)="fireDeliveryChanged()"/>
+        <mat-error *ngIf="form.controls.attachment?.errors?.containsInvalidWindowsChars">_#(em.common.fileName.invalid)</mat-error>
+      </mat-form-field>
+      <ng-container *ngIf="!isIE else plainTextArea">
+        <mat-form-field appearance="outline" color="accent" class="message-field">
+        <mat-label>_#(Message)</mat-label>
+          <em-mat-ckeditor
+          [config]="messageConfig"
+          class="schedule-delivery-message"
+          formControlName="message"
+          ></em-mat-ckeditor>
+        </mat-form-field>
+      </ng-container>
+      <ng-template #plainTextArea>
+        <mat-label>_#(Message)</mat-label>
+        <textarea class="plain-textarea" formControlName="message"></textarea>
+      </ng-template>
+      <mat-checkbox formControlName="deliverLink" (change)="fireDeliveryChanged()">_#(Include Link)</mat-checkbox>
+    </div>
+  </mat-card-content>
+</mat-card>

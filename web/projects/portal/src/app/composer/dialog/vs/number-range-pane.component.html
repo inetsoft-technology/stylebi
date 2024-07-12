@@ -1,0 +1,74 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form" class="container-fluid">
+  <fieldset>
+    <legend>_#(Number Range)</legend>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating" [ngClass]="{ 'has-error' : !form.controls['min'].valid }">
+          <dynamic-combo-box data-test="minimumRange"
+                             [mode]="mode" [(value)]="model.min"
+                             (valueChange)="updateValue($event, 'min', 'max')"
+                             [variables]="variableValues"
+                             [editable]="true" [vsId]="vsId"></dynamic-combo-box>
+          <label>_#(Minimum)</label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-floating" [ngClass]="{ 'has-error' : !form.controls['max'].valid }">
+          <dynamic-combo-box data-test="maximumRange"
+                             [mode]="mode" [(value)]="model.max"
+                             (valueChange)="updateValue($event, 'max', 'min')"
+                             [variables]="variableValues"
+                             [editable]="true" [vsId]="vsId"></dynamic-combo-box>
+          <label>_#(Maximum)</label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-floating" [ngClass]="{ 'has-error' : !form.controls['minorIncrement'].valid }">
+          <dynamic-combo-box data-test="minorIncrementValue"
+                             [mode]="mode"
+                             [(value)]="model.minorIncrement"
+                             (valueChange)="updateValue($event, 'minorIncrement', 'majorIncrement')"
+                             [variables]="variableValues" [editable]="true" [vsId]="vsId">
+          </dynamic-combo-box>
+          <label>_#(Minor Increment)</label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-floating" [ngClass]="{ 'has-error' : !form.controls['majorIncrement'].valid }">
+          <dynamic-combo-box data-test="majorIncrementValue"
+                             [mode]="mode"
+                             [(value)]="model.majorIncrement"
+                             (valueChange)="updateValue($event, 'majorIncrement', 'minorIncrement')"
+                             [variables]="variableValues" [editable]="true" [vsId]="vsId">
+          </dynamic-combo-box>
+          <label>_#(Major Increment)</label>
+        </div>
+      </div>
+    </div>
+    <div class="alert alert-danger" *ngIf="form.controls['min'].errors && form.controls['min'].errors['required']">_#(viewer.viewsheet.numberRange.minRequired)</div>
+    <div class="alert alert-danger" *ngIf="form.controls['max'].errors && form.controls['max'].errors['required']">_#(viewer.viewsheet.numberRange.maxRequired)</div>
+    <div class="alert alert-danger" *ngIf="form.controls['max'].errors && form.controls['max'].errors['lessThan']">_#(viewer.viewsheet.numberRange.maxMinWarning)</div>
+    <div class="alert alert-danger" *ngIf="form.controls['minorIncrement'].errors && form.controls['minorIncrement'].errors['lessThanEqualToZero']">_#(viewer.viewsheet.numberRange.minorRequired)</div>
+    <div class="alert alert-danger" *ngIf="form.controls['majorIncrement'].errors && form.controls['majorIncrement'].errors['lessThanEqualToZero']">_#(viewer.viewsheet.numberRange.majorRequired)</div>
+    <div class="alert alert-danger" *ngIf="form.controls['majorIncrement'].errors && form.controls['majorIncrement'].errors['lessThan']">_#(viewer.viewsheet.numberRange.majorMinorWarning)</div>
+  </fieldset>
+</form>

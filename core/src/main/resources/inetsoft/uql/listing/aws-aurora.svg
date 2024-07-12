@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="30px" height="30px" viewBox="0 0 30 30" enable-background="new 0 0 30 30" xml:space="preserve">
+<g>
+	<polyline fill="#1A476F" points="3.664,22.128 6.318,25.238 6.557,24.955 6.557,5.059 6.318,4.758 3.664,7.868 3.664,22.128 	"/>
+	<polyline fill="#1F5B98" points="6.319,25.238 11.391,27.774 11.602,27.436 11.605,2.491 11.394,2.225 6.319,4.752 6.319,25.238 	
+		"/>
+	<polyline fill="#2D72B8" points="26.336,7.868 23.681,4.758 23.384,4.852 23.442,24.985 23.681,25.238 26.336,22.129 26.336,7.868 
+			"/>
+	<polyline fill="#5294CF" points="18.608,27.774 23.681,25.238 23.681,4.752 18.605,2.225 18.365,2.55 18.368,27.405 18.608,27.774 
+			"/>
+	<rect x="11.394" y="2.225" fill="#2D72B8" width="7.211" height="25.549"/>
+</g>
+</svg>

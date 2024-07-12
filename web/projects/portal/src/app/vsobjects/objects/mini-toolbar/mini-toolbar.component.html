@@ -1,0 +1,45 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="mini-toolbar"
+     [class.hidden-mini-toolbar]="forceHide"
+     [style.top.px]="topY"
+     [style.left.px]="left">
+  <div *ngIf="!mobileDevice"
+       class="mini-toolbar-container btn-toolbar" role="toolbar"
+       [style.min-width.px]="width"
+       [style.justify-content]="alignLeft ? 'flex-start' : null"
+       aria-label="Component Toolbar">
+    <ng-template ngFor let-group [ngForOf]="getActions()" let-i="index">
+      <div class="btn-group mini-toolbar-button-group" role="group" *ngIf="group.visible">
+        <ng-template ngFor let-action [ngForOf]="group.actions" let-j="index">
+          <button *ngIf="action.visible()" type="button" role="button"
+                  class="btn icon-hover-bg btn-sm bg-white2 bd-gray"
+                  [class.bd-selected-cell]="isFocused(i, j)"
+                  [disabled]="!action.enabled()" (click)="doAction(action, $event)"
+                  title="{{action.label()}}">
+            <i [class]="action.icon() + ' icon-size-small'" aria-hidden="true"></i>
+            <span class="visually-hidden">{{action.label()}}</span>
+          </button>
+        </ng-template>
+      </div>
+    </ng-template>
+  </div>
+  <div *ngIf="top > 0" class="mini-toolbar-bottom"></div>
+</div>

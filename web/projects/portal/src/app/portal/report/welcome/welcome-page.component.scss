@@ -1,0 +1,85 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.welcome-page-container {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+
+  .header-line {
+    font-size: 24px;
+    color: gray;
+    margin-top: auto;
+    font-weight: bold;
+  }
+
+  .cards {
+    display: flex;
+    justify-content: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin: auto;
+    width: 850px;
+  }
+
+  .cards-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 50px;
+    text-align: center;
+    font-size: 18px;
+  }
+
+  .card {
+    width: 250px;
+    min-width: 250px;
+    max-width: 250px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    font-weight: bold;
+  }
+
+  .card-footer {
+     height: 100%;
+  }
+
+  .wp-image {
+    display: block;
+    width: 250px;
+    height: 150px;
+  }
+
+  .wp-menu-right-click {
+    @extend .wp-image;
+  }
+
+  .wp-menu-corner {
+    @extend .wp-image;
+  }
+
+  .wp-menu-toolbar {
+    @extend .wp-image;
+  }
+}

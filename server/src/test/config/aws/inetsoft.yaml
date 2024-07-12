@@ -1,0 +1,66 @@
+#
+# inetsoft-server - StyleBI is a business intelligence web application.
+# Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+
+version: "13.5.0"
+cluster:
+  portNumber: 5701
+  outboundPortNumber: 0
+  multicastEnabled: true
+  multicastAddress: "224.2.2.3"
+  multicastPort: 54327
+  tcpEnabled: false
+  singleNode: true
+  tcpMembers: [ "localhost:47500..47509" ]
+pluginDirectory: "${project.build.directory}/server/config/plugins"
+keyValue:
+  type: dynamodb
+  dynamodb:
+    region: us-east-1
+    accessKeyId: accesskey
+    secretAccessKey: secretkey
+    endpoint: http://127.0.0.1:4566
+    table: inetsoft
+    provisionedReadThroughput: 300
+    provisionedWriteThroughput: 300
+secrets:
+  type: "aws"
+  fipsComplianceMode: false
+  awsSecrets:
+    region: us-east-1
+    accessKeyId: accesskey
+    secretAccessKey: secretkey
+    endpoint: http://127.0.0.1:4566
+blob:
+  type: s3
+  cacheDirectory: "${project.build.directory}/server/config/blob_cache"
+  s3:
+    region: us-east-1
+    accessKeyId: accesskey
+    secretAccessKey: secretkey
+    endpoint: http://127.0.0.1:4566
+    bucket: inetsoft
+externalStorage:
+  type: s3
+  s3:
+    region: us-east-1
+    accessKeyId: accesskey
+    secretAccessKey: secretkey
+    endpoint: http://127.0.0.1:4566
+    bucket: inetsoft-files
+additionalProperties:
+  masterPasswordCheck: "\\masterJvH+Cw++qdXFXqdYN6pDIVGOq0edVcJwjcwXHM3+xLGAXqw4QU6maufCbNhgGBEa/isngnOWadKW7IwKsrd56KTLLPNX12S3pn/u8xYZ/Ae8XA=="

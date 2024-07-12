@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="200px" height="200px" viewBox="0 0 200 200" enable-background="new 0 0 200 200" xml:space="preserve">
+<g>
+	<text transform="matrix(1 0 0 1 49.5376 113.1367)" fill="#055B75" font-family="'ArialMT'" font-size="30">99.88%</text>
+</g>
+<g>
+	<text transform="matrix(1 0 0 1 86.0967 16.002)" fill="#055B75" font-family="'ArialMT'" font-size="12">100%</text>
+</g>
+<path fill="#DFE2E5" d="M100.084,180c-44.112,0-80-35.889-80-80c0-44.112,35.888-80,80-80c44.111,0,80,35.888,80,80
+	C180.084,144.111,144.195,180,100.084,180z M100.084,45.263c-30.182,0-54.737,24.555-54.737,54.737
+	c0,30.182,24.555,54.736,54.737,54.736c30.184,0,54.736-24.555,54.736-54.736C154.82,69.819,130.268,45.263,100.084,45.263z"/>
+<path fill="#0071BC" d="M154.82,100c0,4.617-0.58,9.102-1.662,13.387l24.501,6.18c1.581-6.265,2.425-12.817,2.425-19.564
+	c0-44.112-35.889-80-80-80v25.263C130.268,45.263,154.82,69.818,154.82,100z"/>
+<g>
+	<rect x="150.484" y="98.5" fill="#022233" width="33.6" height="3"/>
+	<rect x="100.084" y="98.5" fill="#022233" fill-opacity="0" width="50.4" height="3"/>
+</g>
+<path fill="#FFFFFF" d="M156.175,111.525l-2.458-0.621c-0.167,0.826-0.349,1.65-0.554,2.466l24.496,6.194
+	c0.206-0.813,0.396-1.631,0.577-2.453C178.236,117.109,156.175,111.529,156.175,111.525z"/>
+<path fill="#FFFFFF" d="M98.75,20.017v25.28c0.445-0.011,0.887-0.034,1.334-0.034c0.4,0,0.794,0.022,1.191,0.03V20.015
+	c-0.397-0.006-0.792-0.015-1.191-0.015C99.639,20,99.194,20.009,98.75,20.017z"/>
+</svg>

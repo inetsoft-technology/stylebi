@@ -1,0 +1,31 @@
+{
+  "tests": [
+    {
+      "endpoint": "Filter Operators",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Folders",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Notification Limits",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Source": "lightningDashboardSubscribe"
+      }
+    },
+    {
+      "endpoint": "Report Types",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "expandedArrayPath": "reportTypes",
+      "parameters": {}
+    }
+  ]
+}

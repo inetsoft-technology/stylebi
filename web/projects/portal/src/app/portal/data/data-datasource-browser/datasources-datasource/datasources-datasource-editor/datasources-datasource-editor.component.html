@@ -1,0 +1,45 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="form-group mt-2 form-floating" [formGroup]="nameGroup">
+    <input type="text"
+           name="name"
+           class="form-control"
+           formControlName="name"
+           [class.is-invalid]="nameGroup?.controls['name']?.invalid"
+           [disabled]="!datasource.deletable"
+           required>
+    <label>_#(Name)</label>
+    <span class="invalid-feedback" *ngIf="nameGroup?.controls['name']?.errors?.required">
+          _#(data.datasources.enterDataSourceName)
+    </span>
+    <span class="invalid-feedback" *ngIf="nameGroup?.controls['name']?.errors?.pattern">
+          _#(data.datasources.enterAValidName)
+    </span>
+    <span class="invalid-feedback" *ngIf="nameGroup?.controls['name']?.errors?.exists">
+          _#(data.datasources.nameExists)
+    </span>
+</div>
+<div class="form-group" *ngIf="datasource.tabularView">
+  <tabular-view [rootView]="datasource.tabularView" (viewChange)="onViewChanged($event)"
+                [browseFunction]="browseFunction" (validChange)="onValidChanged($event)"
+                [panel]="true" (buttonClick)="buttonClicked($event)"
+                [cancelButtonExists]="cancelButtonExists">
+  </tabular-view>
+</div>

@@ -1,0 +1,58 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-form-field>
+  <mat-label>_#(Filter)</mat-label>
+  <input type="search" matInput [(ngModel)]="filterString" (ngModelChange)="filter($event)"/>
+  <mat-icon matSuffix fontSet="ineticons" fontIcon="search-icon"></mat-icon>
+</mat-form-field>
+
+<div class="tree-loading-indicator" *ngIf="!dataSource.data || (!filterString && dataSource.data.length == 0)">
+  <span>_#(Loading)...</span>
+  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+</div>
+
+<cdk-virtual-scroll-viewport class="security-tree" itemSize="48">
+  <ng-container *cdkVirtualFor="let node of dataSource; trackBy: trackByFn">
+    <div *ngIf="hasChild(node)" class="mat-tree-node"
+         [style.padding-left]="node.level * nodePadding + 'px'"
+         [draggable]="!node.getData().root"
+         [class.mat-active]="isSelected(node)"
+         (dragstart)="dragStart($event, node)" (click)="selectNode(node, $event)">
+      <button mat-icon-button
+              [attr.aria-label]="'toggle ' + (node.label)"
+              (click)="toggleNode(node);$event.stopPropagation()">
+        <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="treeControl.isExpanded(node) ? 'downward-icon' : 'forward-icon'">
+        </mat-icon>
+      </button>
+      <mat-icon fontSet="ineticons" [fontIcon]="node.getIcon(this.treeControl.isExpanded(node))"></mat-icon>
+      <p [title]="node.label">{{node.label}} <span *ngIf="node.data.children && isNotOrganization(node.type)" class="badge">{{node.data.children.length | number}}</span></p>
+    </div>
+
+    <div *ngIf="!hasChild(node) && matchType(node)" class="mat-tree-node"
+         [style.padding-left]="node.level * nodePadding + 'px'"
+         [draggable]="true"
+         [class.mat-active]="isSelected(node)"
+         (dragstart)="dragStart($event, node)" (click)="selectNode(node, $event)">
+      <button mat-icon-button disabled></button>
+      <mat-icon fontSet="ineticons" [fontIcon]="node.getIcon(false)"></mat-icon>
+      <p>{{node.label}}</p>
+    </div>
+  </ng-container>
+</cdk-virtual-scroll-viewport>

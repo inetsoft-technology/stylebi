@@ -1,0 +1,37 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<deviceInfos>
+  <deviceInfo class="inetsoft.uql.viewsheet.vslayout.DeviceInfo" id="8795d12e-90e7-4146-8b1c-7daafc0f2806" minWidth="1" maxWidth="767">
+    <name><![CDATA[Extra small devices]]></name>
+    <description><![CDATA[Matches devices with extra small screens, typically phones with CSS widths less than 768px.]]></description>
+  </deviceInfo>
+  <deviceInfo class="inetsoft.uql.viewsheet.vslayout.DeviceInfo" id="409f3e4a-505e-41f3-a199-0f2b5eb63139" minWidth="768" maxWidth="991">
+    <name><![CDATA[Small devices]]></name>
+    <description><![CDATA[Matches devices with small screens, typically tablets with CSS widths between 768px and 991px.]]></description>
+  </deviceInfo>
+  <deviceInfo class="inetsoft.uql.viewsheet.vslayout.DeviceInfo" id="75a882db-8a62-4d4e-904f-854e8ad1e7ac" minWidth="992" maxWidth="1199">
+    <name><![CDATA[Medium devices]]></name>
+    <description><![CDATA[Matches desktop displays with CSS widths between 992px and 1199px.]]></description>
+  </deviceInfo>
+  <deviceInfo class="inetsoft.uql.viewsheet.vslayout.DeviceInfo" id="72d90961-cfc1-4b88-9ba6-d5431f63e1ac" minWidth="1200" maxWidth="10000">
+    <name><![CDATA[Large devices]]></name>
+    <description><![CDATA[Matches large desktop displays with CSS widths of 1200px or greater.]]></description>
+  </deviceInfo>
+</deviceInfos>

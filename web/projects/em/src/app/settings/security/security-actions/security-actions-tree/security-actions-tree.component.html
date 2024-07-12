@@ -1,0 +1,44 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="security-action-container">
+  <mat-tree [dataSource]="dataSource" [treeControl]="treeControl" class="security-action-tree">
+    <mat-tree-node
+      *matTreeNodeDef="let node"
+      matTreeNodeToggle
+      matTreeNodePadding
+      [class.mat-active]="!!selectedType && selectedType === node.type && selectedResource === node.resource"
+      (click)="selectNode(node)">
+      <button mat-icon-button disabled></button>
+      <mat-icon fontSet="ineticons" [fontIcon]="getIcon(node)"></mat-icon>
+      {{node.label}}
+    </mat-tree-node>
+    <mat-tree-node
+      *matTreeNodeDef="let node; when: hasChild"
+      matTreeNodePadding
+      [class.mat-active]="!!selectedType && selectedType === node.type && selectedResource === node.resource"
+      (click)="selectNode(node)">
+      <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'toggle ' + (node.label)">
+        <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="treeControl.isExpanded(node) ? 'downward-icon' : 'forward-icon'"></mat-icon>
+      </button>
+      <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="folder-icon"></mat-icon>
+      {{node.label}}
+    </mat-tree-node>
+  </mat-tree>
+</div>

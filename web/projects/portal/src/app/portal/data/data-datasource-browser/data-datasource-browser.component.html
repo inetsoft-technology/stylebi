@@ -1,0 +1,258 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="datasource-browser-container">
+  <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden col-12 g-0 p-0">
+    <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden h-100">
+      <div class="btn-toolbar justify-content-end bb-gray bg-white2 flex-grow-0 flex-shrink-0" role="toolbar">
+        <div class="btn-group datasource-btn-group" role="group">
+          <!--
+          end user-managed drivers is dangerous, disabling for now until we figure
+          out a safe way to do this
+          -->
+          <!--<i class="btn upload-icon py-1"-->
+          <!--title="_#(data.datasources.manageDrivers)"-->
+          <!--aria-label="_#(data.datasources.manageDrivers)"-->
+          <!--(click)="manageDrivers()">-->
+          <!--</i>-->
+          <div *ngIf="searchVisible" class="search-input">
+            <input type="text" #searchInput
+                   [(ngModel)]="searchQuery"
+                   [ngbTypeahead]="searchFunc"
+                   [focusFirst]="false"
+                   (keyup.enter)="search()"
+                   (selectItem)="search($event.item)"
+                   [placeholder]="'_#(data.datasets.searchWithinFolder)'"/>
+          </div>
+          <i role="button" class="btn py-1 search-icon"
+             title="_#(data.datasets.searchWithinFolder)"
+             (click)="toggleSearch($event)">
+          </i>
+          <i *ngIf="newDatasourceEnabled && !selectionOn" class="btn database-plus-icon py-1 no-caret"
+             title="_#(data.datasources.newDataSource)"
+             aria-label="_#(data.datasources.newDataSource)"
+             (click)="showListings()">
+          </i>
+          <i role="button" class="btn py-1 folder-plus-icon"
+             *ngIf="!selectionOn"
+             title="_#(New Folder)"
+             [class.disabled]="!newDatasourceEnabled"
+             (click)="addFolder()">
+          </i>
+          <i role="button" class="btn py-1 folder-move-icon"
+             *ngIf="selectionOn"
+             [class.disabled]="moveDisable"
+             (click)="moveSelected()"
+             title="_#(data.datasets.moveSelected)">
+          </i>
+          <i role="button" class="btn py-1 trash-icon"
+             *ngIf="selectionOn"
+             [class.disabled]="selectedItems.length === 0 || !isSelectionDeletable()"
+             (click)="deleteSelected()"
+             title="_#(data.datasets.deleteSelected)">
+          </i>
+          <i role="button" class="btn py-1"
+             [class.selected-icon]="selectionOn"
+             [class.select-empty-icon]="!selectionOn"
+             [title]="toggleSelectTooltip"
+             (click)="toggleSelectionState()">
+          </i>
+        </div>
+      </div>
+      <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden">
+        <div class="d-flex align-items-center ps-1 py-1" *ngIf="searchView">
+          <i class="close-circle-icon icon-size-small action-style me-1" (click)="clearSearch()"></i>
+          <span>
+          <b>_#(data.datasets.searchResults):</b> {{currentSearchQuery}} <b>_#(data.datasets.searchIn)</b> {{currentFolderPathString || '/'}}
+        </span>
+        </div>
+      <div class="d-flex align-items-center th-cell-border flex-grow-0 flex-shrink-0">
+        <div class="col-sm-1 table-cell-padding-sm" *ngIf="selectionOn">
+          <input type="checkbox" class="align-middle"
+                 [checked]="selectAllChecked"
+                 (change)="selectAllChanged($event.target.checked)"/>
+        </div>
+        <div class="table-cell-padding-sm" [ngClass]="{'col-xl-4 col-lg-3 col-xs-3': !searchView && !selectionOn,
+                                             'col-xl-3 col-sm-3 col-3 ': !searchView && selectionOn,
+                                             'col-sm-2 col-2': searchView && !selectionOn,
+                                             'col-xl-3 col-sm-2': searchView && selectionOn}">
+          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('path')">
+            <span class="pe-1">_#(Name)</span>
+            <i class="action-color blank-icon" *ngIf="!sortOptions.keys.includes('path')"></i>
+            <i class="action-color icon-size-small" *ngIf="sortOptions.keys.includes('path')"
+               [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
+               [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+          </div>
+        </div>
+        <div class="table-cell-padding-sm col-2" *ngIf="searchView">
+          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('parentPath')">
+            <span class="pe-1">_#(Location)</span>
+            <i class="action-color blank-icon" *ngIf="sortOptions.keys.includes('parentPath')"></i>
+            <i class="action-color icon-size-small" *ngIf="sortOptions.keys.includes('parentPath')"
+               [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
+               [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+          </div>
+        </div>
+        <div class="table-cell-padding-sm col-2">
+          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('type.name')">
+            <span class="pe-1">_#(data.datasources.type)</span>
+            <i class="action-color blank-icon" *ngIf="!sortOptions.keys.includes('type.name')"></i>
+            <i class="action-color icon-size-small" *ngIf="sortOptions.keys.includes('type.name')"
+               [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
+               [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+          </div>
+        </div>
+        <div class="table-cell-padding-sm" [ngClass]="{'col-2': !selectionOn || !searchView,'col-1': selectionOn && searchView }">
+          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('statusMessage')">
+            <span class="pe-1">_#(Status)</span>
+            <i class="action-color blank-icon" *ngIf="!sortOptions.keys.includes('statusMessage')"></i>
+            <i class="action-color icon-size-small" *ngIf="sortOptions.keys.includes('statusMessage')"
+               [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
+               [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+          </div>
+        </div>
+        <div class="table-cell-padding-sm col-xl-2 col-lg-1">
+          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('createdBy')">
+            <span class="pe-1">_#(data.datasources.createdBy)</span>
+            <i class="action-color blank-icon" *ngIf="!sortOptions.keys.includes('createdBy')"></i>
+            <i class="action-color icon-size-small" *ngIf="sortOptions.keys.includes('createdBy')"
+               [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
+               [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+          </div>
+        </div>
+        <div class="table-cell-padding-sm col-xl-2 col-lg-1">
+          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('createdDate')">
+            <span class="pe-1">_#(data.datasources.creationDate)</span>
+            <i class="action-color blank-icon" *ngIf="!sortOptions.keys.includes('createdDate')"></i>
+            <i class="action-color icon-size-small" *ngIf="sortOptions.keys.includes('createdDate')"
+               [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
+               [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+          </div>
+        </div>
+      </div>
+      <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-auto"
+           (dragover)="$event.preventDefault();"
+           (dragenter)="$event.preventDefault()" (drop)="dropAssets($event, null)">
+        <div class="table-cell-padding-sm" *ngIf="datasources.length === 0 && searchView">
+          _#(data.datasets.noSearchResults)
+        </div>
+        <div *ngFor="let datasource of datasources; last as isLast; index as i"
+             class="hover-bg-primary datasource-list-item d-flex align-items-center"
+             [class.td-cell-border]="!isLast"
+             [class.bg-selected]="isSelectedItem(datasource)"
+             [draggable]="true"
+             (dragstart)="dragAsset($event, datasource)"
+             (drop)="dropAssets($event, datasource)"
+             (dragover)="$event.preventDefault();"
+             (dragenter)="$event.preventDefault()"
+             (click)="updateAssetSelection(datasource, $event)">
+          <div class="col-sm-1 table-cell-padding-sm" *ngIf="selectionOn">
+            <input type="checkbox" class="align-middle"
+                   [checked]="selectedItems.includes(datasource)"
+                   (change)="updateSelection(datasource)"
+                   (click)="$event.stopPropagation()"/>
+          </div>
+          <div class="table-cell-padding-sm" [ngClass]="{'col-xl-4 col-lg-3 col-xs-3': !searchView && !selectionOn,
+                                             'col-xl-3 col-sm-3 col-3 ': !searchView && selectionOn,
+                                             'col-xl-3 col-sm-2 col-2': searchView && !selectionOn,
+                                             'col-xl-3 col-sm-2': searchView && selectionOn}">
+            <div class="d-flex align-items-center truncate-parent">
+              <span class="d-flex align-items-center truncate-text"
+                    [title]="datasource.name"
+                    (click)="clickItem(datasource)"
+                    [class.datasources-folder]="isDataSourceFolder(datasource)">
+                <i class="{{getDatasourceIcon(datasource)}}"></i>
+                <span class="content-ellipse px-1">{{datasource.name}}</span>
+              </span>
+              <div class="d-flex align-items-center action-style" ngbDropdown>
+                <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
+                   ngbDropdownToggle></i>
+                <div class="dropdown-menu unhighlightable" ngbDropdownMenu>
+                  <button class="dropdown-item" [disabled]="!datasource.editable"
+                          *ngIf="!isDataSourceFolder(datasource)"
+                          (click)="editDataSource(datasource)">
+                    _#(Edit)
+                  </button>
+                  <button class="dropdown-item" *ngIf="isDataSourceFolder(datasource)"
+                          [disabled]="!(datasource.editable && datasource.deletable)"
+                          (click)="renameFolder(datasource)">
+                    _#(Rename)
+                  </button>
+                  <button class="dropdown-item"
+                          [disabled]="!(datasource.editable && datasource.deletable)"
+                          (click)="moveDataSource(datasource)">
+                    _#(Move)
+                  </button>
+                  <button class="dropdown-item" *ngIf="!isDataSourceFolder(datasource)"
+                          (click)="refreshDataSource(datasource)">
+                    _#(Refresh)
+                  </button>
+                  <button class="dropdown-item" [disabled]="!datasource.deletable"
+                          (click)="deleteItem(datasource, i)">
+                    _#(Delete)
+                  </button>
+                  <button class="dropdown-item" *ngIf="datasource.type?.name =='DATABASE' || datasource.type?.name == 'DATA_SOURCE'"
+                          [disabled]="!datasource.queryCreatable || !datasource.childrenCreatable || !physicalTablePermission"
+                          (click)="createQuery(datasource)">
+                    _#(New Query)
+                  </button>
+                  <button *ngIf="datasource?.type?.name =='DATABASE'" class="dropdown-item"
+                          [disabled]="isDataSourceFolder(datasource) || !datasource.editable"
+                          (click)="createPhysicalView(datasource)">
+                    _#(Add Physical View)
+                  </button>
+                  <button *ngIf="newVpmEnabled && datasource.type?.name =='DATABASE'" class="dropdown-item"
+                          [disabled]="isDataSourceFolder(datasource) || !datasource.editable"
+                          (click)="createVPM(datasource)">
+                    _#(Add Virtual Private Model)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="table-cell-padding-sm col-2" *ngIf="searchView">
+            <a class="action-style text-decoration-none" [routerLink]="'../datasources'"
+               [queryParams]="getParentRouterLinkParams(datasource.path)">
+              <div class="d-flex align-items center">
+                <i class="folder-icon"></i>
+                <span class="px-1 content-ellipse"> {{getParentPath(datasource.path)}} </span>
+              </div>
+            </a>
+          </div>
+          <div class="table-cell-padding-sm col-2 truncate-parent">
+            <span class="content-ellipse" [title]="datasource.type.label">{{datasource.type.label}}</span>
+          </div>
+          <div class="table-cell-padding-sm" [ngClass]="{'col-2': !selectionOn || !searchView,'col-1': selectionOn && searchView }" [title]="datasource.statusMessage">
+            <div class="d-flex align-items-center">
+              <i class="{{getDatasourceStatusIcon(datasource)}}"></i>
+              <span class="content-ellipse px-1">{{datasource.statusMessage}}</span>
+            </div>
+          </div>
+          <div class="table-cell-padding-sm col-xl-2 col-lg-1">
+            <span class="content-ellipse">{{datasource.createdBy}}</span>
+          </div>
+          <div class="table-cell-padding-sm col-xl-2 col-lg-1">
+            <span class="content-ellipse">{{datasource.createdDateLabel}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<data-notifications #dataNotifications></data-notifications>

@@ -1,0 +1,53 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="modal-header">
+  <h3 class="modal-title">_#(Execute As)</h3>
+  <div class="d-flex align-items-center">
+    <i [helpLink]="'EMExecuteAs'" tabindex="0"
+       aria-label="_#(Help Information)" role="link" enterClick></i>
+    <button type="button" class="btn-close" (click)="close()" aria-label="_#(Close)" title="_#(Close)"></button>
+  </div>
+</div>
+<div class="modal-body" enterSubmit (onEnter)="ok()">
+  <div class="form-group usersOverflow">
+    <identity-tree #identityTree [hidden]="searchMode" [root]="getRoot()"
+                   [showRoot]="true" [searchMode]="searchMode" [multiSelect]="false"
+                   (nodesSelected)="nodeSelected($event)"></identity-tree>
+    <identity-tree #searchIdentityTree [hidden]="!searchMode" [root]="searchTree"
+                   [showRoot]="true" [searchMode]="searchMode" [multiSelect]="false"
+                   [searchText]="searchText"
+                   (nodesSelected)="nodeSelected($event)"></identity-tree>
+  </div>
+  <div class="input-group mt-2">
+    <input type="text" class="form-control" (keyup.enter)="searchUsers()" [(ngModel)]="searchText"/>
+    <button class="btn input-group-btn-addon" (click)="searchUsers()">
+      <i class="search-icon align-middle" aria-hidden="true"></i>
+    </button>
+  </div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!selectedNode">
+    _#(OK)
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">
+    _#(Cancel)
+  </button>
+</div>
+

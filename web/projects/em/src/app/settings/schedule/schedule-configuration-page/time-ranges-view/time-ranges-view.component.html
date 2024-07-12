@@ -1,0 +1,66 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="em-card">
+  <mat-card-title>_#(Time Ranges)</mat-card-title>
+  <mat-card-content>
+    <table mat-table [dataSource]="dataSource">
+      <ng-container matColumnDef="select">
+        <th mat-header-cell *matHeaderCellDef>
+          <mat-checkbox
+            (change)="$event ? masterToggle() : null"
+            [checked]="selection.hasValue() && isAllSelected()"
+            [indeterminate]="selection.hasValue() && !isAllSelected()"
+          >
+          </mat-checkbox>
+        </th>
+        <td mat-cell *matCellDef="let row">
+          <mat-checkbox
+            (click)="$event.stopPropagation()"
+            (change)="$event ? selection.toggle(row) : null"
+            [checked]="selection.isSelected(row)"
+          >
+          </mat-checkbox>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef>_#(Name)</th>
+        <td mat-cell *matCellDef="let row" [style.fontWeight]="row.defaultRange ? 'bold' : 'inherit'">
+          <!--Don't change this again, this needs to be the programmatic name in the settings view.
+              Making it variable, based on localization, is not appropriate for this interface.-->
+          <a class="time-range-name" (click)="$event.stopPropagation(); editTimeRange(row)" [title]="row.name">{{row.name}}</a>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="startTime">
+        <th mat-header-cell *matHeaderCellDef>_#(Start Time)</th>
+        <td mat-cell *matCellDef="let row">{{formatTime(row.startTime)}}</td>
+      </ng-container>
+      <ng-container matColumnDef="endTime">
+        <th mat-header-cell *matHeaderCellDef>_#(End Time)</th>
+        <td mat-cell *matCellDef="let row">{{formatTime(row.endTime)}}</td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;" (click)="selection.toggle(row)"></tr>
+    </table>
+  </mat-card-content>
+  <mat-card-actions>
+    <button mat-button (click)="addTimeRange()">_#(Add)</button>
+    <button mat-button (click)="removeTimeRange()" [disabled]="!selection.hasValue()">_#(Delete)</button>
+  </mat-card-actions>
+</mat-card>

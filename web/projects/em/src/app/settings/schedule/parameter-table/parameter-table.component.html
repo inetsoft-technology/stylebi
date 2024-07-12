@@ -1,0 +1,67 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined">
+  <mat-card-header *ngIf="title">
+    <mat-card-title>{{title}}</mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <table mat-table class="parameter-table" [dataSource]="dataSource">
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef> _#(Name)</th>
+        <td mat-cell [title]="param.name" *matCellDef="let param"> {{param.name}}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="value">
+        <th mat-header-cell *matHeaderCellDef> _#(Value)</th>
+        <td mat-cell [title]="getParamValue(param)" *matCellDef="let param">
+          {{ getParamValue(param) }}
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="type">
+        <th mat-header-cell *matHeaderCellDef> _#(Data Type)</th>
+        <td mat-cell *matCellDef="let param"> {{ param.array ? "Array" : param.type | titlecase }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="action">
+        <th mat-header-cell *matHeaderCellDef> _#(Action)</th>
+        <td mat-cell *matCellDef="let param; let i = index">
+          <div>
+            <button mat-icon-button (click)="openParameterDialog(i)" title="_#(Edit)" aria-label="_#(Edit Condition)">
+              <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+            </button>
+            <button mat-icon-button (click)="removeParameter(i)" title="_#(Delete)" aria-label="_#(Remove Condition)">
+              <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+            </button>
+          </div>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    </table>
+    <mat-error *ngIf="missingParameters">_#(Required Parameters):&nbsp;{{missingParameters}}</mat-error>
+  </mat-card-content>
+  <mat-card-actions>
+    <button mat-button (click)="openParameterDialog()">_#(Add)</button>
+    <button *ngIf="creationParametersButtonVisible" mat-button (click)="setCreationParameters()">_#(Creation Parameters)</button>
+    <button mat-button (click)="clearAllParameters()" [disabled]="!parameters || parameters.length == 0">_#(Clear All)</button>
+  </mat-card-actions>
+</mat-card>

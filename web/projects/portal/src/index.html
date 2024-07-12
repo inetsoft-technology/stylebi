@@ -1,0 +1,52 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title data-th-text="#{InetSoft}">InetSoft</title>
+  <base href="/sree/app/" data-th-href="${linkUri + 'app/'}">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta property="og:title" data-th-attr="content=${openGraphTitle}" content="Business Intelligence Software | Dashboard Reporting">
+  <meta property="og:description" data-th-attr="content=${openGraphDescription}" content="InetSoft is a pioneer in the field of data intelligence, providing big data analytics and dashboard reporting solutions. Get data right with InetSoft.">
+  <meta property="og:site_name" data-th-attr="content=${openGraphSiteName}" content="InetSoft.com">
+  <meta property="og:url" data-th-attr="content=${openGraphUrl}" content="http://localhost:8080/sree/app/portal">
+  <meta property="og:image" data-th-attr="content=${openGraphImage}" content="http://localhost:8080/sree/images/logo.png">
+  <meta name="format-detection" content="telephone=no,email=no,address=no">
+  <link rel="icon" type="image/x-icon" href="/sree/portal/favicon" data-th-href="${linkUri + 'portal/favicon'}">
+  <link rel="stylesheet" type="text/css" href="global.css">
+  <link th:if="${customTheme} == true" rel="stylesheet" type="text/css" href="theme-variables.css">
+  <link rel="stylesheet" type="text/css" href="../codemirror-eclipse.css" data-th-href="${scriptThemeCssPath}">
+  <link rel="stylesheet" type="text/css" href="/sree/portal/font.css" data-th-href="${linkUri + 'portal/font.css'}">
+  <link data-th-each="style : ${additionalStyles}" rel="stylesheet" type="text/css" data-th-href="${style}">
+  <script data-th-each="script: ${additionalScripts}"  data-th-src="${script}"></script>
+  <script data-th-inline="javascript">
+      globalPostParams = /*[[${postParams}]]*/ null;
+  </script>
+</head>
+<body oncontextmenu="return false">
+  <div class="loading-splash is-loading">
+    <img data-th-src="${linkUri + 'app/assets/loading.svg'}" src="app/assets/loading.svg"/>
+    <span data-th-text="#{app.loading}">Loading...</span>
+    <span data-th-text="${customLoadingText}"></span>
+  </div>
+  <app-root></app-root>
+</body>
+</html>

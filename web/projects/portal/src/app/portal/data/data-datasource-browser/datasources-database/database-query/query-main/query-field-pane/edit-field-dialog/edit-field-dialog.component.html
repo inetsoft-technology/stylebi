@@ -1,0 +1,77 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="title" (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body">
+  <div class="container-fluid">
+    <div class="row form-row-float-label">
+      <div class="col-6">_#(Fields)</div>
+      <div class="col-6">_#(Functions)</div>
+    </div>
+    <div class="row">
+      <div class="col-6">
+        <div class="bordered-box bd-gray">
+          <tree *ngIf="fieldsTree" [root]="fieldsTree"
+                [showTooltip]="true" [selectOnClick]="true"
+                [showRoot]="false" [iconFunction]="iconFunction" (dblclickNode)="fieldDown($event)"
+                (nodesSelected)="selectFieldNodes($event)">
+          </tree>
+        </div>
+      </div>
+      <div class="col-6">
+        <div class="bordered-box bd-gray">
+          <tree *ngIf="functionsTree" [root]="functionsTree"
+                [showTooltip]="true" [selectOnClick]="true"
+                [showRoot]="false" [iconFunction]="expressionIconFunction" (dblclickNode)="functionDown($event)"
+                (nodesSelected)="selectFunctionNodes($event)">
+          </tree>
+        </div>
+      </div>
+    </div>
+    <div class="row downward-buttons-container">
+      <div class="col-6 d-flex justify-content-center">
+        <button type="button" class="btn" (click)="fieldDown()">
+          <i class="downward-icon" title="_#(Add Field)"></i>
+        </button>
+      </div>
+      <div class="col-6 d-flex justify-content-center">
+        <button type="button" class="btn" (click)="functionDown()">
+          <i class="downward-icon" title="_#(Add Function)"></i>
+        </button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <textarea [(ngModel)]="expression"></textarea>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12">
+        <div *ngIf="!expression" class="alert alert-danger">
+          _#(data.query.expressionNull)
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!expression">_#(OK)</button>
+  <button type="button" class="btn btn-secondary" (click)="cancel()">_#(Cancel)</button>
+</div>

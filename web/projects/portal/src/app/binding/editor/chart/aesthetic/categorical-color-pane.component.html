@@ -1,0 +1,74 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div>
+  <div class="toolbar">
+    <label class="share-color-option" *ngIf="!isDC && isVS && !frameModel.colorValueFrame">
+      <input type="checkbox" [(ngModel)]="frameModel.shareColors"
+             (ngModelChange)="shareColorsChange($event)"/>
+      _#(Share Colors)
+    </label>
+    <div *ngIf="!isDC && isVS && isDimension()" class="ml">
+      <i class="color-fill-icon icon-size-small btn-icon" title="_#(Assign Fixed Mapping)"
+         [class.icon-disabled]="frameModel.colorValueFrame"
+         (click)="clickColorMappingButton()"></i>
+    </div>
+    <div class="ms-2">
+      <i title="_#(Select Palette)" class="palette-icon icon-size-small btn-icon"
+         [class.icon-disabled]="frameModel.colorValueFrame"
+           (click)="clickPaletteButton()"></i>
+    </div>
+    <div class="ms-2">
+      <i [ngClass]="getResetButtonSrc() + ' icon-size-small btn-icon'"
+         [class.icon-disabled]="frameModel.colorValueFrame"
+         (click)="reset()" title="_#(Reset to Default)"></i>
+    </div>
+    <div class="ms-2">
+      <i class="submit-icon icon-size-small btn-icon" aria-hidden="true" (click)="applyClick()" title="_#(Apply)"></i>
+    </div>
+  </div>
+
+  <div class="content m-1" *ngIf="isPaneVisible()">
+    <i class="chevron-circle-arrow-left-icon icon-size-small btn-icon"
+       [class.fade]="currIndex <= 0"
+       aria-hidden="true" (click)="showPrevious()"></i>
+
+    <!--display eight color editors-->
+    <div *ngFor="let i of currentViewIndices" class="ms-1 me-1">
+      <static-color-editor [(color)]="frameModel.colors[i]"
+                           [isDisabled]="frameModel.colorValueFrame"
+                           (colorChanged)="changeColor($event, i)" [index]="i"
+                           [attr.data-test]="'sce' + i">
+      </static-color-editor>
+    </div>
+
+    <i class="chevron-circle-arrow-right-icon icon-size-small btn-icon"
+       [class.fade]="currIndex >= this.getNumItems() - NUM_EDITORS"
+       aria-hidden="true" (click)="showNext()"></i>
+  </div>
+  <label class="color-value-frame" *ngIf="!isDC && showColorValueFrame()">
+    <input type="checkbox" [(ngModel)]="frameModel.colorValueFrame"/>
+    _#(Use Column Values as Colors)
+  </label>
+</div>
+<ng-template #paletteDialog let-close="close" let-dismiss="dismiss">
+   <palette-dialog (confirm)="close($event)" (cancel)="dismiss($event)"
+      [colorPalettes]="colorPalettes" [currPalette]="frameModel">
+   </palette-dialog>
+</ng-template>

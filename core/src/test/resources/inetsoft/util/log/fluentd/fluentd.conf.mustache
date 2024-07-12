@@ -1,0 +1,52 @@
+{{!
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+}}
+<source>
+  @type forward
+  port {{port}}
+  {{#useTls}}
+  <transport tls>
+    min_version TLS1_2
+    max_version TLS1_3
+    insecure false
+    ca_path {{caCrtFile}}
+    cert_path {{domainCrtFile}}
+    private_key_path {{domainKeyFile}}
+    private_key_passphrase {{domainKeyPassword}}
+  </transport>
+  {{/useTls}}
+  {{#useAuthentication}}
+  <security>
+    self_hostname localhost
+    shared_key {{sharedKey}}
+    allow_anonymous_source true
+    {{#useAuthorization}}
+    user_auth true
+    <user>
+      username {{username}}
+      password {{password}}
+    </user>
+    {{/useAuthorization}}
+    {{^useAuthorization}}
+    user_auth false
+    {{/useAuthorization}}
+  </security>
+  {{/useAuthentication}}
+</source>
+<match **>
+  @type stdout
+</match>

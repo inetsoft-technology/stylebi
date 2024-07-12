@@ -1,0 +1,41 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [title]="data.title"></em-modal-header>
+<div mat-dialog-content>
+  <p style="white-space: pre-line;">{{ data.content }}</p>
+</div>
+<div mat-dialog-actions *ngIf="data.type === MessageDialogType.DELETE">
+  <button mat-raised-button color="primary" [mat-dialog-close]="true">_#(Delete)</button>
+  <button mat-button mat-dialog-close>_#(Cancel)</button>
+</div>
+<div mat-dialog-actions
+     *ngIf="data.type === MessageDialogType.INFO || data.type === MessageDialogType.WARNING ||
+            data.type === MessageDialogType.ERROR || data.type === MessageDialogType.DEPENDENCY">
+  <button mat-raised-button mat-dialog-close color="primary">_#(OK)</button>
+</div>
+<div mat-dialog-actions *ngIf="data.type === MessageDialogType.CONFIRMATION">
+  <button mat-raised-button color="primary" [mat-dialog-close]="true">_#(OK)</button>
+  <button mat-button mat-dialog-close>_#(Cancel)</button>
+</div>
+<div mat-dialog-actions *ngIf="data.type === MessageDialogType.REPLACE">
+  <button mat-raised-button color="primary" [mat-dialog-close]="true">_#(Replace)</button>
+  <button mat-raised-button color="primary" [mat-dialog-close]="false">_#(Keep)</button>
+  <button mat-button mat-dialog-close>_#(Cancel)</button>
+</div>

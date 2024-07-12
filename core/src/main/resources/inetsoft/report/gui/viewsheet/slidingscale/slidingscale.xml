@@ -1,0 +1,472 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<VSSlidingScale>
+   <face id="11" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/blue/panel.svg</panel>
+         <needle>svg/blue/needle.svg</needle>
+      </image>
+      <line y="14" height="3"/>
+      <tickLabel x="23" y="21" width="154" height="23"/>
+      <majorTick width="2" length="10" margin="2" color="255,0,100,150"/>
+      <minorTick width="1" length="8" color="255,0,100,150"/>
+      <value distance="7" color="255,0,100,150">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="12" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/green/panel.svg</panel>
+         <needle>svg/green/needle.svg</needle>
+      </image>
+      <line y="14" height="3"/>
+      <tickLabel x="24" y="21" width="154" height="23"/>
+      <majorTick width="2" length="10" margin="3" color="255,25,125,0"/>
+      <minorTick width="1" length="8" color="255,25,125,0"/>
+      <value distance="7" color="255,25,125,0">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="13" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/alloy/panel.svg</panel>
+         <needle>svg/alloy/needle.svg</needle>
+      </image>
+      <line y="14" height="3"/>
+      <tickLabel x="24" y="21" width="154" height="23"/>
+      <majorTick width="2" length="10" margin="3" color="255,50,50,50"/>
+      <minorTick width="1" length="8" color="255,50,50,50"/>
+      <value distance="7" color="255,50,50,50">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="14" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/orange/panel.svg</panel>
+         <needle>svg/orange/needle.svg</needle>
+      </image>
+      <line y="14" height="3"/>
+      <tickLabel x="24" y="21" width="154" height="23"/>
+      <majorTick width="2" length="10" margin="3" color="255,175,100,25"/>
+      <minorTick width="1" length="8" color="255,175,100,25"/>
+      <value distance="7" color="255,175,100,25">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="15" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/vista/panel.svg</panel>
+         <needle>svg/vista/needle.svg</needle>
+      </image>
+      <line y="14" height="3"/>
+      <tickLabel x="24" y="21" width="154" height="23"/>
+      <majorTick width="2" length="10" margin="3" color="255,0,0,0"/>
+      <minorTick width="1" length="8" color="255,0,0,0"/>
+      <value distance="7" color="255,0,0,0">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="16" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/alloy/panel.svg</panel>
+         <needle>svg/alloy/needle.svg</needle>
+      </image>
+      <line y="14" height="3"/>
+      <tickLabel x="24" y="21" width="154" height="23"/>
+      <majorTick width="2" length="10" margin="3" color="255,50,50,50"/>
+      <minorTick width="1" length="8" color="255,50,50,50"/>
+      <value distance="7" color="255,50,50,50">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="21" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/blue/aqua_panel.svg</panel>
+         <needle>svg/blue/aqua_needle.svg</needle>
+      </image>
+      <line y="23" height="3"/>
+      <tickLabel x="22" y="29" width="157" height="23"/>
+      <majorTick width="2" length="10" margin="3" color="255,30,30,30"/>
+      <minorTick width="1" length="8" color="255,30,30,30"/>
+      <value distance="7" color="255,0,50,100">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="22" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/green/aqua_panel.svg</panel>
+         <needle>svg/green/aqua_needle.svg</needle>
+      </image>
+      <line y="23" height="3"/>
+      <tickLabel x="22" y="29" width="157" height="23"/>
+      <majorTick width="2" length="10" margin="3" color="255,30,30,30"/>
+      <minorTick width="1" length="8" color="255,30,30,30"/>
+      <value distance="7" color="255,90,130,35">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="23" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/alloy/alloy_panel.svg</panel>
+         <needle>svg/alloy/alloy_needle.svg</needle>
+      </image>
+      <line y="11" height="3"/>
+      <tickLabel x="20" y="18" width="157" height="23"/>
+      <majorTick width="2" length="10" margin="3" color="255,30,30,30"/>
+      <minorTick width="1" length="8" color="255,30,30,30"/>
+      <value distance="7" color="255,50,50,50">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="24" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/orange/aqua_panel.svg</panel>
+         <needle>svg/orange/aqua_needle.svg</needle>
+      </image>
+      <line y="23" height="3"/>
+      <tickLabel x="23" y="29" width="156" height="23"/>
+      <majorTick width="2" length="10" margin="3" color="255,175,100,25"/>
+      <minorTick width="1" length="8" color="255,175,100,25"/>
+      <value distance="7" color="255,255,255,255">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="25" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/vista/aqua_panel.svg</panel>
+         <needle>svg/vista/aqua_needle.svg</needle>
+      </image>
+      <line y="23" height="3"/>
+      <tickLabel x="23" y="29" width="156" height="23"/>
+      <majorTick width="2" length="10" margin="3" color="255,0,0,0"/>
+      <minorTick width="1" length="8" color="255,0,0,0"/>
+      <value distance="7" color="255,0,0,0">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="26" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="70">
+      <image>
+         <panel>svg/alloy/alloy_panel.svg</panel>
+         <needle>svg/alloy/alloy_needle.svg</needle>
+      </image>
+      <line y="11" height="3"/>
+      <tickLabel x="20" y="18" width="157" height="23"/>
+      <majorTick width="2" length="10" margin="3" color="255,30,30,30"/>
+      <minorTick width="1" length="8" color="255,30,30,30"/>
+      <value distance="7" color="255,50,50,50">
+         <font><![CDATA[Arial-BOLD-12]]></font>
+      </value>
+   </face>
+
+   <face id="31" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/alloy_new/panel.svg</panel>
+         <needle>svg/alloy_new/needle.svg</needle>
+      </image>
+      <line y="24" height="2"/>
+      <tickLabel x="25" y="27" width="150" height="23"/>
+      <majorTick width="2" length="10" margin="0" color="200,88,88,88"/>
+      <minorTick width="1" length="6" color="180,88,88,88"/>
+      <value distance="-41" color="200,71,71,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="32" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/alloy_new/panel.svg</panel>
+         <needle>svg/alloy_new/needle.svg</needle>
+      </image>
+      <line y="24" height="2"/>
+      <tickLabel x="25" y="27" width="150" height="23"/>
+      <majorTick width="2" length="10" margin="0" color="200,88,88,88"/>
+      <minorTick width="1" length="6" color="180,88,88,88"/>
+      <value distance="-41" color="200,71,71,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="33" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/alloy_new/panel.svg</panel>
+         <needle>svg/alloy_new/needle.svg</needle>
+      </image>
+      <line y="24" height="2"/>
+      <tickLabel x="25" y="27" width="150" height="23"/>
+      <majorTick width="2" length="10" margin="0" color="200,88,88,88"/>
+      <minorTick width="1" length="6" color="180,88,88,88"/>
+      <value distance="-41" color="200,71,71,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="34" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/alloy_new/panel.svg</panel>
+         <needle>svg/alloy_new/needle.svg</needle>
+      </image>
+      <line y="24" height="2"/>
+      <tickLabel x="25" y="27" width="150" height="23"/>
+      <majorTick width="2" length="10" margin="0" color="200,88,88,88"/>
+      <minorTick width="1" length="6" color="180,88,88,88"/>
+      <value distance="-41" color="200,71,71,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="35" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/alloy_new/panel.svg</panel>
+         <needle>svg/alloy_new/needle.svg</needle>
+      </image>
+      <line y="24" height="2"/>
+      <tickLabel x="25" y="27" width="150" height="23"/>
+      <majorTick width="2" length="10" margin="0" color="200,88,88,88"/>
+      <minorTick width="1" length="6" color="180,88,88,88"/>
+      <value distance="-41" color="200,71,71,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="36" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/alloy_new/panel.svg</panel>
+         <needle>svg/alloy_new/needle.svg</needle>
+      </image>
+      <line y="24" height="2"/>
+      <tickLabel x="25" y="27" width="150" height="23"/>
+      <majorTick width="2" length="10" margin="0" color="200,88,88,88"/>
+      <minorTick width="1" length="6" color="180,88,88,88"/>
+      <value distance="-41" color="200,71,71,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="41" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/black/panel.svg</panel>
+         <needle>svg/black/needle.svg</needle>
+      </image>
+      <line y="19" height="2"/>
+      <tickLabel x="20" y="17" width="160" height="23"/>
+      <majorTick width="2" length="11" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="6" color="180,255,255,255"/>
+      <value distance="0" color="200,255,255,255">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="42" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/black/panel.svg</panel>
+         <needle>svg/black/needle.svg</needle>
+      </image>
+      <line y="19" height="2"/>
+      <tickLabel x="20" y="17" width="160" height="23"/>
+      <majorTick width="2" length="11" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="6" color="180,255,255,255"/>
+      <value distance="0" color="200,255,255,255">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="43" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/black/panel.svg</panel>
+         <needle>svg/black/needle.svg</needle>
+      </image>
+      <line y="19" height="2"/>
+      <tickLabel x="20" y="17" width="160" height="23"/>
+      <majorTick width="2" length="11" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="6" color="180,255,255,255"/>
+      <value distance="0" color="200,255,255,255">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="44" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/black/panel.svg</panel>
+         <needle>svg/black/needle.svg</needle>
+      </image>
+      <line y="19" height="2"/>
+      <tickLabel x="20" y="17" width="160" height="23"/>
+      <majorTick width="2" length="11" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="6" color="180,255,255,255"/>
+      <value distance="0" color="200,255,255,255">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="45" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/black/panel.svg</panel>
+         <needle>svg/black/needle.svg</needle>
+      </image>
+      <line y="19" height="2"/>
+      <tickLabel x="20" y="17" width="160" height="23"/>
+      <majorTick width="2" length="11" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="6" color="180,255,255,255"/>
+      <value distance="0" color="200,255,255,255">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="46" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/black/panel.svg</panel>
+         <needle>svg/black/needle.svg</needle>
+      </image>
+      <line y="19" height="2"/>
+      <tickLabel x="20" y="17" width="160" height="23"/>
+      <majorTick width="2" length="11" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="6" color="180,255,255,255"/>
+      <value distance="0" color="200,255,255,255">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="51" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/blue_new/panel.svg</panel>
+         <needle>svg/blue_new/needle.svg</needle>
+      </image>
+      <line y="17" height="1"/>
+      <tickLabel x="20" y="14" width="160" height="23"/>
+      <majorTick width="2" length="3" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="3" color="180,255,255,255"/>
+      <value distance="0" color="200,4,10,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="52" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/blue_new/panel.svg</panel>
+         <needle>svg/blue_new/needle.svg</needle>
+      </image>
+      <line y="17" height="1"/>
+      <tickLabel x="20" y="14" width="160" height="23"/>
+      <majorTick width="2" length="3" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="3" color="180,255,255,255"/>
+      <value distance="0" color="200,4,10,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="53" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/blue_new/panel.svg</panel>
+         <needle>svg/blue_new/needle.svg</needle>
+      </image>
+      <line y="17" height="1"/>
+      <tickLabel x="20" y="14" width="160" height="23"/>
+      <majorTick width="2" length="3" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="3" color="180,255,255,255"/>
+      <value distance="0" color="200,4,10,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="54" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/blue_new/panel.svg</panel>
+         <needle>svg/blue_new/needle.svg</needle>
+      </image>
+      <line y="17" height="1"/>
+      <tickLabel x="20" y="14" width="160" height="23"/>
+      <majorTick width="2" length="3" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="3" color="180,255,255,255"/>
+      <value distance="0" color="200,4,10,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="55" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/blue_new/panel.svg</panel>
+         <needle>svg/blue_new/needle.svg</needle>
+      </image>
+      <line y="17" height="1"/>
+      <tickLabel x="20" y="14" width="160" height="23"/>
+      <majorTick width="2" length="3" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="3" color="180,255,255,255"/>
+      <value distance="0" color="200,4,10,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+
+   <face id="56" classname="inetsoft.report.gui.viewsheet.slidingScale.VSSlidingScale"
+      width="200" height="61">
+      <image>
+         <panel>svg/blue_new/panel.svg</panel>
+         <needle>svg/blue_new/needle.svg</needle>
+      </image>
+      <line y="17" height="1"/>
+      <tickLabel x="20" y="14" width="160" height="23"/>
+      <majorTick width="2" length="3" margin="0" color="200,255,255,255"/>
+      <minorTick width="1" length="3" color="180,255,255,255"/>
+      <value distance="0" color="200,4,10,71">
+         <font><![CDATA[Arial-BOLD-8]]></font>
+      </value>
+   </face>
+</VSSlidingScale>

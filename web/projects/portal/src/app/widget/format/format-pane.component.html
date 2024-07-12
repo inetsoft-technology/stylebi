@@ -1,0 +1,115 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form" class="form-horizontal">
+  <div class="title-bar">_#(Format)</div>
+  <div class="form-group">
+    <div class="col-2 col-offset-2">
+      <div class="form-check">
+        <input type="radio" name="format" class="form-check-input" value="none" id="none"
+             formControlName="format" [(ngModel)]="model.format"
+             (change)="resetValue()">
+        <label class="form-check-label" for="none">
+          _#(None)
+        </label>
+      </div>
+    </div>
+    <div class="col-2 col-offset-1">
+      <div class="form-check">
+        <input type="radio" name="format" class="form-check-input" value="date" id="date"
+             formControlName="format" [(ngModel)]="model.format"
+             (change)="resetValue()">
+        <label class="form-check-label" for="date">
+         _#(Date)
+        </label>
+      </div>
+    </div>
+    <div class="col-2 col-offset-1">
+      <div class="form-check">
+        <input type="radio" name="format" class="form-check-input" value="text" id="text"
+             formControlName="format" [(ngModel)]="model.format" (change)="resetValue()">
+        <label class="form-check-label" for="text">
+          _#(Text)
+        </label>
+      </div>
+    </div>
+  </div>
+  <div class="form-group">
+    <div class="col-2 col-offset-2">
+      <div class="form-check">
+        <input type="radio" name="format" class="form-check-input" value="number" id="number"
+             formControlName="format" [(ngModel)]="model.format" (change)="resetValue()">
+        <label class="form-check-label" for="number">
+          _#(Number)
+        </label>
+      </div>
+    </div>
+    <div class="col-2 col-offset-1">
+      <div class="form-check">
+        <input type="radio" name="format" class="form-check-input" value="currency" id="currency"
+             formControlName="format" [(ngModel)]="model.format" (change)="resetValue()">
+        <label class="form-check-label" for="currency">
+          _#(Currency)
+        </label>
+      </div>
+    </div>
+    <div class="col-2 col-offset-1">
+      <div class="form-check">
+        <input type="radio" name="format" class="form-check-input" value="percent" id="percent"
+             formControlName="format" [(ngModel)]="model.format" (change)="resetValue()">
+        <label class="form-check-label" for="percent">
+          _#(Percent)
+        </label>
+      </div>
+    </div>
+  </div>
+  <div class="form-group">
+    <span [ngSwitch]="model.format">
+      <ng-template [ngSwitchCase]="'date'">
+        <label class="col-2">_#(Format):</label>
+        <div class="col-6">
+          <select name="select" class="form-control" [(ngModel)]="model.dateValue" [ngModelOptions]="{standalone:true}">
+            <option *ngFor="let _option of dateOptions">{{_option}}</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <select name="select" class="form-control" [(ngModel)]="model.value" [disabled]="!(model.dateValue == 'Custom')" [ngModelOptions]="{standalone:true}">
+            <option *ngFor="let _date of dateFmts">{{_date}}</option>
+          </select>
+        </div>
+      </ng-template>
+
+      <!-- User selects "Text" Radio Box-->
+      <ng-template [ngSwitchCase]="'text'">
+        <label class="col-2">_#(Format):</label>
+        <div class="col-9"><input type="text" class="form-control" id="text" [(ngModel)]="model.dateValue" [ngModelOptions]="{standalone:true}"></div>
+      </ng-template>
+
+      <!-- User selects "Number" Radio Box-->
+      <ng-template [ngSwitchCase]="'number'">
+        <label class="col-2">_#(Format):</label>
+        <div class="col-9">
+          <select class="form-control" id="number" [(ngModel)]="model.dateValue" [ngModelOptions]="{standalone:true}">
+            <option *ngFor="let _number of decimalFmts">{{_number}}</option>
+          </select>
+        </div>
+      </ng-template>
+    </span>
+  </div>
+</form>

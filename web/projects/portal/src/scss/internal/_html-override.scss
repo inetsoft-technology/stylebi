@@ -1,0 +1,100 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+body {
+  overflow: hidden; /* prevent scrollbars in FF */
+}
+
+// seems to be a chrome bug that font changes to serif after first selection
+option {
+  font-family: sans-serif;
+}
+
+//override browser dropdown arrow
+select:not([multiple]) {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--inet-dropdown-toggle-color) 50%), linear-gradient(135deg, var(--inet-dropdown-toggle-color) 50%, transparent 50%);
+  background-position: calc(98% - .44em) calc(50%), calc(98%) calc(50%);
+  background-size: 0.5em 0.4em;
+  background-repeat: no-repeat;
+
+  // Fix IE11 compatibility issues
+  &::-ms-expand {
+    display: none;
+  }
+}
+
+//should not apply background to paintable components
+select:not(.paintable-container select) {
+  // select needs to have a background on focus or the dropdown will not look good
+  // since --inet-input-focus-bg-color is not set by default and --inet-input-bg-color
+  // is transparent for the sake of the float labels then use --inet-dropdown-bg-color on focus
+  &:focus {
+    background-color: var(--inet-input-focus-bg-color, var(--inet-dropdown-bg-color));
+  }
+}
+
+// IE only
+@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
+  select:not([multiple]) {
+    background-origin: content-box;
+    background-position-x: right;
+  }
+}
+
+/** Utility method to style a span like normal href <a> */
+span.href-style {
+  cursor: pointer;
+  color: var(--inet-link-color);
+
+  &:hover {
+    text-decoration: underline;
+    color: var(--inet-link-hover-color);
+  }
+}
+
+.href-underline {
+  text-decoration: underline;
+}
+
+.unhighlightable {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.highlightable {
+  -webkit-user-select: text;
+  -khtml-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+img {
+  @extend .unhighlightable;
+}
+
+th,td {
+  &.background-clip-padding-box {
+    background-clip: padding-box !important;
+  }
+}

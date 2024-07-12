@@ -1,0 +1,42 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="scroll-controls page-control-container"
+     *ngIf="upScrollEnabled || leftScrollEnabled || downScrollEnabled || rightScrollEnabled"
+     [class.paging-enabled]="enabled"
+     [style.left.px]="startXPosition"
+     [style.top.px]="startYPosition"
+     (click)="$event.stopPropagation()">
+  <button type="button" class="up-arrow-button" [disabled]="!upScrollEnabled"
+          (click)="pageUp()">
+    <i class="bare-arrow-up-icon"></i>
+  </button>
+  <button type="button" class="left-arrow-button" [disabled]="!leftScrollEnabled"
+          (click)="pageLeft()">
+    <i class="bare-arrow-left-icon"></i>
+  </button>
+  <button type="button" class="down-arrow-button" [disabled]="!downScrollEnabled"
+          (click)="pageDown()">
+    <i class="bare-arrow-down-icon"></i>
+  </button>
+  <button type="button" class="right-arrow-button" [disabled]="!rightScrollEnabled"
+          (click)="pageRight()">
+    <i class="bare-arrow-right-icon"></i>
+  </button>
+</div>

@@ -1,0 +1,94 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+%ineticons-base {
+  @extend .#{$ineticons-css-prefix};
+}
+
+$ineticons-map: map-merge($ineticons-base-map, (
+  data-block-type-embedded-icon: $embedded-table-icon,
+  folder-expanded-icon: $folder-open-icon,
+  folder-collapsed-icon: $folder-icon,
+  file-inverted-icon: $report-icon,
+  place-holder-icon: $geo-not-mapped-icon,
+  vpm-principal-icon: $vpm-icon
+));
+
+@function unicode($str) {
+  @return unquote("\"") + $str + unquote("\"");
+}
+
+@each $icon-name, $icon-code in $ineticons-map {
+  .#{$icon-name} {
+    @extend %ineticons-base;
+  }
+  .#{$icon-name}::before {
+    content: unicode($icon-code);
+  }
+}
+
+.auto-refresh-true {
+  color: #66cc99;
+}
+
+.auto-refresh-false {
+  color: #fc575e;
+}
+
+.icon-size0 {
+  font-size: 13px !important;
+}
+
+.icon-size1 {
+  font-size: 15px !important;
+}
+
+.icon-size-small0 {
+  font-size: 16px !important;
+}
+
+/* the smallest recommended size, size0 & 1 are only to be used in extreme cases */
+.icon-size-small {
+  font-size: 18px !important;
+}
+
+.icon-size-medium {
+  font-size: 20px !important;
+}
+
+.icon-size-large {
+  font-size: 24px !important;
+}
+
+.icon-size-xlarge {
+  font-size: 30px !important;
+}
+
+
+.icon-color-default {
+  color: var(--inet-icon-color) !important;
+}
+
+.icon-disabled {
+  opacity: 0.5 !important;
+  pointer-events: none;
+}
+
+.format-painter-mode {
+  /* Change this? */
+  cursor: url('#{$brush-cursor-path}') 6 6, auto !important;
+}

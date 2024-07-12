@@ -1,0 +1,112 @@
+{
+  "endpoints": [
+    {
+      "name": "Clients",
+      "paged": true,
+      "suffix": "/v1/workspaces/{Workspace Id}/clients?archived={Archived?:true|false}&name={Name?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}"
+    },
+    {
+      "name": "Projects",
+      "paged": true,
+      "suffix": "/v1/workspaces/{Workspace Id}/projects?archived={Archived?:true|false}&name={Name?}&billable={Billable?:true|false}&clients={Clients?}&contains-client={Contains Client?:true|false}&client-status={Client Status?:ACTIVE|ARCHIVED}&users={Users?}&contains-users={Contains Users?:true|false}&is-template={Is Template?:true|false}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}"
+    },
+    {
+      "name": "Project",
+      "paged": false,
+      "suffix": "/v1/workspaces/{Workspace Id}/{Project Id}"
+    },
+    {
+      "name": "Tags",
+      "paged": true,
+      "suffix": "/v1/workspaces/{Workspace Id}/tags?archived={Archived?:true|false}&name={Name?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}"
+    },
+    {
+      "name": "Tasks",
+      "paged": true,
+      "suffix": "/v1/workspaces/{Workspace Id}/projects/{Project Id}/tasks?is-active={Is Active?:true|false}&name={Name?}"
+    },
+    {
+      "name": "Task",
+      "paged": false,
+      "suffix": "/v1/workspaces/{Workspace Id}/projects/{Project Id}/tasks/{Task Id}"
+    },
+    {
+      "name": "Time Entries",
+      "paged": true,
+      "suffix": "/v1/workspaces/{Workspace Id}/user/{User Id}/time-entries?description={Description?}&start={Start?:yyyy-MM-ddTHH:mm:ss}&end={End?:yyyy-MM-ddTHH:mm:ss}&project={Project?}&task={Task?}&tags={Tags?}&project-required={Project Required?:true|false}&task-required={Task Required?:true|false}&consider-duration-format={Consider Duration Format?:true|false}&hydrated={Hydrated?:true|false}&in-project={In Progress?:true|false}"
+    },
+    {
+      "name": "Time Entry",
+      "paged": false,
+      "suffix": "/v1/workspaces/{Workspace Id}/time-entries/{Time Entry Id}"
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/v1/user"
+    },
+    {
+      "name": "Users",
+      "paged": true,
+      "suffix": "/v1/workspaces/{Workspace Id}/users?memberships={Memberships?}&name={Name?}&email={Email?}&projectId={Project Id?}&status={Status?:PENDING|ACTIVE|DECLINED|INACTIVE}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}",
+      "lookups": [
+        {
+          "endpoint": "Time Entries",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "User Id"
+        }
+      ]
+    },
+    {
+      "name": "Groups",
+      "paged": true,
+      "suffix": "/v1/workspaces/{Workspace Id}/user-groups?name={Name?}&projectId={Project Id?}&sort-column={Sort Column?}&sort-order={Sort Order?:ASCENDING|DESCENDING}"
+    },
+    {
+      "name": "Workspaces",
+      "paged": false,
+      "suffix": "/v1/workspaces",
+      "lookups": [
+        {
+          "endpoints": [
+            "Users",
+            "Clients",
+            "Projects",
+            "Tags",
+            "Tasks",
+            "Groups"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Workspace Id"
+        }
+      ]
+    },
+    {
+      "name": "Summary Report",
+      "paged": false,
+      "post": true,
+      "suffix": "/v1/workspaces/{Workspace Id}/reports/summary",
+      "url": "https://reports.api.clockify.me",
+      "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\",\n \"summaryFilter\": {\n \"groups\": [\n \"USER\",\n \"PROJECT\",\n \"TIMEENTRY\"\n ]\n }\n }\n"
+
+    },
+    {
+      "name": "Detailed Report",
+      "paged": false,
+      "post": true,
+      "suffix": "/v1/workspaces/{Workspace Id}/reports/detailed",
+      "url": "https://reports.api.clockify.me",
+      "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\"\n}\n"
+    },
+    {
+      "name": "Weekly Report",
+      "paged": false,
+      "post": true,
+      "suffix": "/v1/workspaces/{Workspace Id}/reports/weekly",
+      "url": "https://reports.api.clockify.me",
+      "bodyTemplate": "{\n \"dateRangeStart\": \"2020-05-10T00:00:00.000Z\",\n \"dateRangeEnd\": \"2020-05-16T23:59:59.000Z\",\n \"weeklyFilter\": {\n \"group\": \"USER\",\n \"subgroup\": \"TIME\"\n }\n }\n"
+    }
+  ]
+}

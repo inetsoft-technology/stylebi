@@ -1,0 +1,57 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMSettingsLogging'" [title]="title">
+</em-modal-header>
+<mat-dialog-content>
+  <div class="log-levels-container" [formGroup]="form">
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(Context):</mat-label>
+      <mat-select formControlName="context" (selectionChange)="onFormChanged()">
+        <mat-option value="DASHBOARD">_#(Viewsheet)</mat-option>
+        <mat-option value="QUERY">_#(Query)</mat-option>
+        <mat-option value="MODEL">_#(Model)</mat-option>
+        <mat-option value="WORKSHEET">_#(Worksheet)</mat-option>
+        <mat-option value="USER">_#(User)</mat-option>
+        <mat-option value="GROUP">_#(Group)</mat-option>
+        <mat-option value="ROLE">_#(Role)</mat-option>
+        <mat-option value="SCHEDULE_TASK">_#(Schedule Task)</mat-option>
+        <mat-option value="CATEGORY">_#(Log Category)</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(Name):</mat-label>
+      <input matInput placeholder="_#(Name)" formControlName="name" (change)="onFormChanged()">
+      <mat-error *ngIf="form.controls.name?.errors?.required">_#(enter.name)</mat-error>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(Level):</mat-label>
+      <mat-select formControlName="level" (selectionChange)="onFormChanged()">
+        <mat-option value="debug">_#(Debug)</mat-option>
+        <mat-option value="info">_#(Info)</mat-option>
+        <mat-option value="warn">_#(Warning)</mat-option>
+        <mat-option value="error">_#(Error)</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-raised-button [disabled]="form.invalid" (click)="ok()" color="primary">_#(OK)</button>
+  <button mat-button mat-dialog-close>_#(Cancel)</button>
+</mat-dialog-actions>

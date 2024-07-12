@@ -1,0 +1,61 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-form-field class="query-select-form-field">
+  <mat-select #querySelect [(value)]="selectedEntry" placeholder="_#(Query)" (valueChange)="selectedEntryChanged()">
+    <mat-option>_#(None)</mat-option>
+    <mat-tree *ngIf="treeDataSource" [dataSource]="treeDataSource" [treeControl]="treeControl">
+      <mat-tree-node *matTreeNodeDef="let node" matTreeNodeToggle matTreeNodePadding
+                     [class.mat-active]="selectedEntry?.identifier === node.entry.identifier">
+        <button mat-icon-button disabled></button>
+        <mat-option [value]="node.entry" *ngIf="isSelectable(node.entry); else notSelectable">
+          <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="file-icon"></mat-icon>
+          {{node.name}}
+        </mat-option>
+        <ng-template #notSelectable>
+          <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="folder-icon"></mat-icon>
+          {{node.name}}
+        </ng-template>
+      </mat-tree-node>
+      <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding
+                     [class.mat-active]="selectedEntry?.identifier === node.entry.identifier">
+        <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'toggle ' + node.name">
+          <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="treeControl.isExpanded(node) ? 'downward-icon' : 'forward-icon'">
+          </mat-icon>
+        </button>
+        <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="folder-icon"></mat-icon>
+        {{node.name}}
+      </mat-tree-node>
+    </mat-tree>
+  </mat-select>
+</mat-form-field>
+<mat-form-field>
+  <mat-select placeholder="_#(User)" [(ngModel)]="user" (ngModelChange)="resultChanged()" [disabled]="!selectedEntry">
+    <mat-option *ngFor="let column of columnLabels; let i = index" [value]="columns[i]">
+      {{ column }}
+    </mat-option>
+  </mat-select>
+</mat-form-field>
+<mat-form-field>
+  <mat-select placeholder="_#(Email)" [(ngModel)]="email" (ngModelChange)="resultChanged()" [disabled]="!selectedEntry">
+    <mat-option *ngFor="let column of columnLabels; let i = index" [value]="columns[i]">
+      {{ column }}
+    </mat-option>
+  </mat-select>
+</mat-form-field>

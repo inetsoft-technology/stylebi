@@ -1,0 +1,3555 @@
+{
+  "dateAdd": {
+    "!type": "fn(interval: string, amount: number, date: +Date) -> +Date",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=dateAdd"
+  },
+  "dateDiff": {
+    "!type": "fn(interval: string, date1: +Date, date2: +Date) -> number",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=dateDiff"
+  },
+  "datePart": {
+    "!type": "fn(interval: string, date: +Date) -> number",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=datePart"
+  },
+  "decodeURI": {
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=decodeURI"
+  },
+  "encodeURI": {
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=encodeURI"
+  },
+  "eval": {
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=eval"
+  },
+  "formatDate": {
+    "!type": "fn(date: +Date, format_spec: string) -> +Date",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=formatDate"
+  },
+  "formatNumber": {
+    "!type": "fn(n: number, format_spec: string, round_option: string) -> string",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=formatNumber"
+  },
+  "setupGoogleMapsPlot": {
+    "!type": "fn(graph: object, urlPrefix: string, data: object, latitudeColumnName: string, longitudeColumnName: string, maxWidthPx: number, maxHeightPx: number, widthPx: number, heightPx: number)",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=setupGoogleMapsPlot"
+  },
+  "getImage": {
+    "!type": "fn(img: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=getImage"
+  },
+  "importPackage": {
+    "!type": "fn(packageName: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=importPackage"
+  },
+  "indexOf": {
+    "!type": "fn(array: [?], value: ?) -> bool",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=indexOf"
+  },
+  "isCancelled": {
+    "!type": "fn() -> bool",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=isCancelled"
+  },
+  "isDate": {
+    "!type": "fn(value: ?) -> bool",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=isDate"
+  },
+  "isNull": {
+    "!type": "fn(object: ?) -> bool",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=isNull"
+  },
+  "isNumber": {
+    "!type": "fn(object: ?) -> bool",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=isNumber"
+  },
+  "log": {
+    "!type": "fn(message: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=log"
+  },
+  "ltrim": {
+    "!type": "fn(string: string) -> string",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=ltrim"
+  },
+  "newInstance": {
+    "!type": "fn(classname: ?) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=newInstance"
+  },
+  "parseDate": {
+    "!type": "fn(string: string) -> +Date",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=parseDate"
+  },
+  "parseFloat": {
+    "!type": "fn(string: string) -> number",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=parseFloat"
+  },
+  "rtrim": {
+    "!type": "fn(string: string) -> string",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=rtrim"
+  },
+  "runQuery": {
+    "!type": "fn(query_name: string, parameters: ?) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=runQuery"
+  },
+  "trim": {
+    "!type": "fn(string: string) -> string",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=trim"
+  },
+  "inArray": {
+    "!type": "fn(arr: [?], obj: ?) -> bool",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=inArrayVS"
+  },
+  "toList": {
+    "!type": "fn(array: [?], options: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=toList"
+  },
+  "mapList": {
+    "!type": "fn(array: [?], obj: ?, options: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=mapListVS"
+  },
+  "rowList": {
+    "!type": "fn(tableLens: ?, range: string, options: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=rowListVS"
+  },
+  "toArray": {
+    "!type": "fn(obj: ?) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=toArrayVS"
+  },
+  "CALC": {
+    "datevalue": {
+      "!type": "fn(date: +Date) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCdatevalue"
+    },
+    "day": {
+      "!type": "fn(date: +Date) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCday"
+    },
+    "days360": {
+      "!type": "fn(start_date: +Date, end_date: +Date, method: bool) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCdays360"
+    },
+    "edate": {
+      "!type": "fn(date: +Date, months: number) -> +Date",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCedate"
+    },
+    "eomonth": {
+      "!type": "fn(date: +Date, months: number) -> +Date",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCeomonth"
+    },
+    "fiscalmonth": {
+      "!type": "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalmonth"
+    },
+    "fiscalmonth445": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalmonth445"
+    },
+    "fiscalmonth454": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalmonth454"
+    },
+    "fiscalmonth544": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalmonth544"
+    },
+    "fiscalquarter": {
+      "!type": "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalquarter"
+    },
+    "fiscalquarter445": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalquarter445"
+    },
+    "fiscalquarter454": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalquarter454"
+    },
+    "fiscalquarter544": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalquarter544"
+    },
+    "fiscalweek": {
+      "!type": "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalweek"
+    },
+    "fiscalweek445": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalweek445"
+    },
+    "fiscalweek454": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalweek454"
+    },
+    "fiscalweek544": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalweek544"
+    },
+    "fiscalyear": {
+      "!type": "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalyear"
+    },
+    "fiscalyear445": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalyear445"
+    },
+    "fiscalyear454": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalyear454"
+    },
+    "fiscalyear544": {
+      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfiscalyear544"
+    },
+    "hour": {
+      "!type": "fn(date: +Date) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALChour"
+    },
+    "minute": {
+      "!type": "fn(date: +Date) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCminute"
+    },
+    "month": {
+      "!type": "fn(date: +Date) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmonth"
+    },
+    "monthname": {
+      "!type": "fn(date: +Date) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmonthname"
+    },
+    "networkdays": {
+      "!type": "fn(start_date: +Date, end_date: +Date, holidays: [+Date]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCnetworkdays"
+    },
+    "now": {
+      "!type": "fn() -> +Date",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCnow"
+    },
+    "quarter": {
+      "!type": "fn(date: +Date) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCquarter"
+    },
+    "second": {
+      "!type": "fn(date: +Date) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsecond"
+    },
+    "time": {
+      "!type": "fn(hour: number, minute: number, second: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtime"
+    },
+    "timevalue": {
+      "!type": "fn(date: +Date) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtimevalue"
+    },
+    "today": {
+      "!type": "fn() -> +Date",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtoday"
+    },
+    "weekday": {
+      "!type": "fn(date: +Date, return_type: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCweekday"
+    },
+    "weekdayname": {
+      "!type": "fn(date: +Date) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCweekdayname"
+    },
+    "weeknum": {
+      "!type": "fn(date: +Date, return_type: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCweeknum"
+    },
+    "weightedavg": {
+      "!type": "fn(values: [number], weights: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=weightedavg"
+    },
+    "workday": {
+      "!type": "fn(date: +Date, days: number, holidays: [+Date]) -> +Date",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCworkday"
+    },
+    "year": {
+      "!type": "fn(date: +Date) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCyear"
+    },
+    "yearfrac": {
+      "!type": "fn(start_date: +Date, end_date: +Date, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCyearfrac"
+    },
+    "avedev": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCavedev"
+    },
+    "average": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCaverage"
+    },
+    "averagea": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCaveragea"
+    },
+    "binomdist": {
+      "!type": "fn(number: number, trials: number, probability: number, cummulative: bool) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCbinomdist"
+    },
+    "correl": {
+      "!type": "fn(array: [number], array2: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcorrel"
+    },
+    "count": {
+      "!type": "fn(array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcount"
+    },
+    "counta": {
+      "!type": "fn(array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcounta"
+    },
+    "countblank": {
+      "!type": "fn(array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcountblank"
+    },
+    "countDistinct": {
+      "!type": "fn(array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcountDistinct"
+    },
+    "countn": {
+      "!type": "fn(array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcountn"
+    },
+    "countif": {
+      "!type": "fn(array: [?], condition: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcountif"
+    },
+    "covar": {
+      "!type": "fn(array: [number], array2: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcovar"
+    },
+    "devsq": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCdevsq"
+    },
+    "expondist": {
+      "!type": "fn(x: number, lambda: number, cumulative: bool) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCexpondist"
+    },
+    "fisher": {
+      "!type": "fn(x: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfisher"
+    },
+    "fisherinv": {
+      "!type": "fn(y: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfisherinv"
+    },
+    "forecast": {
+      "!type": "fn(x: number, known_ys: [number], known_xs: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCforecast"
+    },
+    "frequency": {
+      "!type": "fn(data_array: [number], bins_array: [number]) -> [number]",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfrequency"
+    },
+    "geomean": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCgeomean"
+    },
+    "harmean": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCharmean"
+    },
+    "hypgeomdist": {
+      "!type": "fn(samples: number, num_of_sample: number, population: number, num_of_population: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALChypgeomdist"
+    },
+    "intercept": {
+      "!type": "fn(known_ys: [number], known_xs: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCintercept"
+    },
+    "kurt": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCkurt"
+    },
+    "large": {
+      "!type": "fn(array: [number], nth: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALClarge"
+    },
+    "max": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmax"
+    },
+    "maxa": {
+      "!type": "fn(array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmaxa"
+    },
+    "median": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmedian"
+    },
+    "min": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmin"
+    },
+    "mina": {
+      "!type": "fn(array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmina"
+    },
+    "mode": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmode"
+    },
+    "negbinomdist": {
+      "!type": "fn(num_of_failure: number, threshold: number, probability: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCnegbinomdist"
+    },
+    "nthmostfrequent": {
+      "!type": "fn(array: [number], n: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCnthmostfrequent"
+    },
+    "nthlargest": {
+      "!type": "fn(array: [number], n: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCnthlargest"
+    },
+    "nthsmallest": {
+      "!type": "fn(array: [number], n: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCnthsmallest"
+    },
+    "pearson": {
+      "!type": "fn(array: [number], array2: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpearson"
+    },
+    "percentile": {
+      "!type": "fn(number_array: [number], percentile: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpercentile"
+    },
+    "percentrank": {
+      "!type": "fn(array: [number], x: number, significance: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpercentrank"
+    },
+    "permut": {
+      "!type": "fn(number: number, number_chosen: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpermut"
+    },
+    "poisson": {
+      "!type": "fn(x: number, mean: number, cumulative: bool) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpoisson"
+    },
+    "prob": {
+      "!type": "fn(xrange: [number], prob_range: [number], lower_limit: number, upper_limit: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCprob"
+    },
+    "pthpercentile": {
+      "!type": "fn(array: [number], percentile: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpthpercentile"
+    },
+    "quartile": {
+      "!type": "fn(array: [number], quart: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCquartile"
+    },
+    "rank": {
+      "!type": "fn(number: number, array: [number], order: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCrank"
+    },
+    "rsq": {
+      "!type": "fn(array: [number], array2: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCrsq"
+    },
+    "skew": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCskew"
+    },
+    "slope": {
+      "!type": "fn(xarray: [number], yarray: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCslope"
+    },
+    "small": {
+      "!type": "fn(array: [number], nth: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsmall"
+    },
+    "standardize": {
+      "!type": "fn(x: number, mean: number, standard_dev: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCstandardize"
+    },
+    "stdev": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCstdev"
+    },
+    "stdeva": {
+      "!type": "fn(array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCstdeva"
+    },
+    "stdevp": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCstdevp"
+    },
+    "stdevpa": {
+      "!type": "fn(array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCstdevpa"
+    },
+    "steyx": {
+      "!type": "fn(yarray: [number], xarray: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsteyx"
+    },
+    "trimmean": {
+      "!type": "fn(array: [number], percent: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtrimmean"
+    },
+    "vara": {
+      "!type": "fn(array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCvara"
+    },
+    "varn": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCvarn"
+    },
+    "varp": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCvarp"
+    },
+    "varpa": {
+      "!type": "fn(array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCvarpa"
+    },
+    "weibull": {
+      "!type": "fn(x: number, alpha: number, beta: number, cumulative: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=weibull"
+    },
+    "abs": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCabs"
+    },
+    "acos": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCacos"
+    },
+    "acosh": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCacosh"
+    },
+    "asin": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCasin"
+    },
+    "asinh": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCasinh"
+    },
+    "atan": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCatan"
+    },
+    "atan2": {
+      "!type": "fn(x: number, y: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCatan2"
+    },
+    "atanh": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCatanh"
+    },
+    "ceiling": {
+      "!type": "fn(number: number, significance: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCceiling"
+    },
+    "combin": {
+      "!type": "fn(number: number, num_chosen: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcombin"
+    },
+    "cos": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcos"
+    },
+    "cosh": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcosh"
+    },
+    "degrees": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCdegrees"
+    },
+    "even": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCeven"
+    },
+    "exp": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCexp"
+    },
+    "fact": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfact"
+    },
+    "factdouble": {
+      "!type": "fn(double: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfactdouble"
+    },
+    "floor": {
+      "!type": "fn(number: number, significance: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfloor"
+    },
+    "gcd": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCgcd"
+    },
+    "int": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCint"
+    },
+    "integer": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCinteger"
+    },
+    "lcm": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALClcm"
+    },
+    "ln": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCln"
+    },
+    "log": {
+      "!type": "fn(number: number, base: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALClog"
+    },
+    "log10": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALClog10"
+    },
+    "mdeterm": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmdeterm"
+    },
+    "minverse": {
+      "!type": "fn(array: [[number]]) -> [[number]]",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCminverse"
+    },
+    "mmult": {
+      "!type": "fn(array: [[number]], array2: [[number]]) -> [[number]]",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmmult"
+    },
+    "mod": {
+      "!type": "fn(number: number, divisor: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmod"
+    },
+    "mround": {
+      "!type": "fn(number: number, multiple: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmround"
+    },
+    "multinomial": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmultinomial"
+    },
+    "odd": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCodd"
+    },
+    "pi": {
+      "!type": "fn() -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpi"
+    },
+    "power": {
+      "!type": "fn(number: number, power: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpower"
+    },
+    "product": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCproduct"
+    },
+    "quotient": {
+      "!type": "fn(numerator: number, denominator: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCquotient"
+    },
+    "radians": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCradians"
+    },
+    "rand": {
+      "!type": "fn() -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCrand"
+    },
+    "randbetween": {
+      "!type": "fn(bottom: number, top: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCrandbetween"
+    },
+    "roman": {
+      "!type": "fn(number: number) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCroman"
+    },
+    "round": {
+      "!type": "fn(number: number, num_digits: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCround"
+    },
+    "rounddown": {
+      "!type": "fn(number: number, num_digits: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCrounddown"
+    },
+    "roundup": {
+      "!type": "fn(number: number, num_digits: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCroundup"
+    },
+    "seriessum": {
+      "!type": "fn(x: number, n: number, m: number, coefficients: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCseriessum"
+    },
+    "sign": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsign"
+    },
+    "sin": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsin"
+    },
+    "sinh": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsinh"
+    },
+    "sqrt": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsqrt"
+    },
+    "sqrtpi": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsqrtpi"
+    },
+    "subtotal": {
+      "!type": "fn(function_num: number, array: [?]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsubtotal"
+    },
+    "sum": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsum"
+    },
+    "sumif": {
+      "!type": "fn(array: [number], condition: string, sum_range: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsumif"
+    },
+    "sumproduct": {
+      "!type": "fn(array: [[[number]]]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsumproduct"
+    },
+    "sumsq": {
+      "!type": "fn(array: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsumsq"
+    },
+    "sumx2my2": {
+      "!type": "fn(xarray: [number], yarray: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsumx2my2"
+    },
+    "sumx2py2": {
+      "!type": "fn(xarray: [number], yarray: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsumx2py2"
+    },
+    "sumxmy2": {
+      "!type": "fn(xarray: [number], yarray: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsumxmy2"
+    },
+    "tan": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtan"
+    },
+    "tanh": {
+      "!type": "fn(number: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtanh"
+    },
+    "trunc": {
+      "!type": "fn(number: number, num_digits: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtrunc"
+    },
+    "char": {
+      "!type": "fn(number: number) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCchar"
+    },
+    "character": {
+      "!type": "fn(number: number) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcharacter"
+    },
+    "code": {
+      "!type": "fn(string: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcode"
+    },
+    "concatenate": {
+      "!type": "fn(string: [string]) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCconcatenate"
+    },
+    "dollar": {
+      "!type": "fn(number: number, decimals: number) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCdollar"
+    },
+    "exact": {
+      "!type": "fn(string1: string, string2: string) -> bool",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCexact"
+    },
+    "find": {
+      "!type": "fn(find_string: string, string: string, start_pos: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfind"
+    },
+    "fixed": {
+      "!type": "fn(number: number, decimals: number, no_comma: bool) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfixed"
+    },
+    "left": {
+      "!type": "fn(string: string, num_chars: number) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCleft"
+    },
+    "len": {
+      "!type": "fn(string: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALClen"
+    },
+    "lower": {
+      "!type": "fn(string: string) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALClower"
+    },
+    "mid": {
+      "!type": "fn(string: string, start_num: number, num_chars: number) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmid"
+    },
+    "proper": {
+      "!type": "fn(string: string) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCproper"
+    },
+    "replace": {
+      "!type": "fn(string: string, start_pos: number, num_chars: number, replace_string: string) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCreplace"
+    },
+    "rept": {
+      "!type": "fn(string: string, times: number) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCrept"
+    },
+    "right": {
+      "!type": "fn(string: string, num_chars: number) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCright"
+    },
+    "search": {
+      "!type": "fn(find_string: string, string: string, start_pos: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsearch"
+    },
+    "substitute": {
+      "!type": "fn(string: string, old_string: string, new_string: string, instance_num: number) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsubstitute"
+    },
+    "t": {
+      "!type": "fn(string: string) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCt"
+    },
+    "text": {
+      "!type": "fn(double: number, format: string) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtext"
+    },
+    "trim": {
+      "!type": "fn(string: string) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtrim"
+    },
+    "upper": {
+      "!type": "fn(string: string) -> string",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCupper"
+    },
+    "value": {
+      "!type": "fn(string: string) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCvalue"
+    },
+    "and": {
+      "!type": "fn(conditions: ?) -> bool",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCand"
+    },
+    "or": {
+      "!type": "fn(conditions: ?) -> bool",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCor"
+    },
+    "not": {
+      "!type": "fn(condition: bool) -> bool",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCnot"
+    },
+    "iif": {
+      "!type": "fn(condition: bool, value_if_true: ?, value_if_false: ?) -> ?",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCiif"
+    },
+    "accrint": {
+      "!type": "fn(issue: +Date, firstCoupon: +Date, settlement: +Date, rate: number, par: number, frequency: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCaccrint"
+    },
+    "accrintm": {
+      "!type": "fn(issue: +Date, maturity: +Date, rate: number, par: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCaccrintm"
+    },
+    "amordegrc": {
+      "!type": "fn(cost: number, date_purchased: +Date, first_period: +Date, salvage: number, period: number, rate: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCamordegrc"
+    },
+    "amorlinc": {
+      "!type": "fn(cost: number, date_purchased: +Date, first_period: +Date, salvage: number, period: number, rate: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCamorlinc"
+    },
+    "coupdaybs": {
+      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcoupdaybs"
+    },
+    "coupdays": {
+      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcoupdays"
+    },
+    "coupdaysnc": {
+      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcoupdaysnc"
+    },
+    "coupncd": {
+      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcoupncd"
+    },
+    "coupnum": {
+      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcoupnum"
+    },
+    "couppcd": {
+      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcouppcd"
+    },
+    "cumipmt": {
+      "!type": "fn(rate: number, nper: number, pv: number, start_period: number, end_period: number, type: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcumipmt"
+    },
+    "cumprinc": {
+      "!type": "fn(rate: number, nper: number, pv: number, start_period: number, end_period: number, type: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCcumprinc"
+    },
+    "db": {
+      "!type": "fn(cost: number, salvage: number, life: number, period: number, month: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCdb"
+    },
+    "ddb": {
+      "!type": "fn(cost: number, salvage: number, life: number, period: number, factor: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCddb"
+    },
+    "disc": {
+      "!type": "fn(settlement: +Date, maturity: +Date, pr: number, redemption: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCdisc"
+    },
+    "duration": {
+      "!type": "fn(settlement: +Date, maturity: +Date, coupon: number, yld: number, frequency: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCduration"
+    },
+    "effect": {
+      "!type": "fn(nominal_rate: number, npery: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCeffect"
+    },
+    "fv": {
+      "!type": "fn(rate: number, nper: number, pmt: number, pv: number, type: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfv"
+    },
+    "fvschedule": {
+      "!type": "fn(principal: number, schedule: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCfvschedule"
+    },
+    "intrate": {
+      "!type": "fn(settlement: +Date, maturity: +Date, investment: number, redemption: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCintrate"
+    },
+    "ipmt": {
+      "!type": "fn(rate: number, per: number, nper: number, pv: number, fv: number, type: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCipmt"
+    },
+    "ispmt": {
+      "!type": "fn(rate: number, per: number, nper: number, pv: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCispmt"
+    },
+    "mduration": {
+      "!type": "fn(settlement: +Date, maturity: +Date, coupon: number, yld: number, frequency: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmduration"
+    },
+    "mirr": {
+      "!type": "fn(values: [number], finance_rate: number, reinvest_rate: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCmirr"
+    },
+    "nominal": {
+      "!type": "fn(effect_rate: number, npery: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCnominal"
+    },
+    "nper": {
+      "!type": "fn(rate: number, pmt: number, pv: number, fv: number, type: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCnper"
+    },
+    "npv": {
+      "!type": "fn(rate: number, values: [number]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCnpv"
+    },
+    "pmt": {
+      "!type": "fn(rate: number, nper: number, pv: number, fv: number, type: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpmt"
+    },
+    "ppmt": {
+      "!type": "fn(rate: number, per: number, nper: number, pv: number, fv: number, type: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCppmt"
+    },
+    "price": {
+      "!type": "fn(settlement: +Date, maturity: +Date, rate: number, yield: number, redemption: number, frequency: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCprice"
+    },
+    "pricedisc": {
+      "!type": "fn(settlement: +Date, maturity: +Date, discount: number, redemption: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpricedisc"
+    },
+    "pricemat": {
+      "!type": "fn(settlement: +Date, maturity: +Date, issue: +Date, rate: number, yield: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpricemat"
+    },
+    "pv": {
+      "!type": "fn(rate: number, nper: number, pmt: number, fv: number, type: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCpv"
+    },
+    "received": {
+      "!type": "fn(settlement: +Date, maturity: +Date, investment: number, discount: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCreceived"
+    },
+    "sln": {
+      "!type": "fn(cost: number, salvage: number, life: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsln"
+    },
+    "syd": {
+      "!type": "fn(cost: number, salvage: number, life: number, per: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCsyd"
+    },
+    "tbilleq": {
+      "!type": "fn(settlement: +Date, maturity: +Date, discount: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtbilleq"
+    },
+    "tbillprice": {
+      "!type": "fn(settlement: +Date, maturity: +Date, discount: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtbillprice"
+    },
+    "tbillyield": {
+      "!type": "fn(settlement: +Date, maturity: +Date, par: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCtbillyield"
+    },
+    "vdb": {
+      "!type": "fn(cost: number, salvage: number, life: number, start_period: number, end_period: number, factor: number, flag: bool) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCvdb"
+    },
+    "xnpv": {
+      "!type": "fn(rate: number, values: [number], dates: [+Date]) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCxnpv"
+    },
+    "xirr": {
+      "!type": "fn(values: [number], dates: [+Date], guess: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCxirr"
+    },
+    "yielddisc": {
+      "!type": "fn(settlement: +Date, maturity: +Date, pr: number, redemption: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCyielddisc"
+    },
+    "yieldmat": {
+      "!type": "fn(settlement: +Date, maturity: +Date, issue: +Date, rate: number, pr: number, basis: number) -> number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=CALCyieldmat"
+    }
+  },
+  "Call": {
+    "!type": "fn()",
+    "prototype": {}
+  },
+  "Continuation": {
+    "!type": "fn()",
+    "prototype": {}
+  },
+  "Iterator": {
+    "!type": "fn()",
+    "prototype": {}
+  },
+  "Namespace": {
+    "!type": "fn()",
+    "prototype": {}
+  },
+  "Packages": {
+    "!type": "fn()",
+    "prototype": {}
+  },
+  "QName": {
+    "!type": "fn()",
+    "prototype": {}
+  },
+  "Script": {
+    "!type": "fn()",
+    "prototype": {}
+  },
+  "StopIteration": "?",
+  "StyleReport": "?",
+  "TOC": "?",
+  "With": {
+    "!type": "fn()",
+    "prototype": {}
+  },
+  "XML": {
+    "!type": "fn()",
+    "prototype": {}
+  },
+  "XMLList": {
+    "!type": "fn()",
+    "prototype": {}
+  },
+  "XType": "?",
+  "alert": {
+    "!type": "fn(msg: string, level: string)",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=alert"
+  },
+  "com": "?",
+  "confirm": {
+    "!type": "fn(msg: string)",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=confirm"
+  },
+  "createBulletGraph": {
+    "!type": "fn(measure: ?, ranges: ?, target: ?, color: ?, xdims: ?, ydims: ?, opts: ?) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=createBulletGraph"
+  },
+  "dataBinding": {
+    "!type": "fn() -> ?"
+  },
+  "edu": "?",
+  "getDate": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=getDate"
+  },
+  "inGroups": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=inGroups"
+  },
+  "inetsoft": "?",
+  "intersect": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=intersect"
+  },
+  "java": "?",
+  "javax": "?",
+  "net": "?",
+  "numberToString": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=numberToString"
+  },
+  "org": "?",
+  "addImage": {
+    "!type": "fn(name: string, image: ?) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=addImage"
+  },
+  "appendRow": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=appendRow"
+  },
+  "createConnection": {
+    "!type": "fn(datasource: string, name: string, pw: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=createConnection"
+  },
+  "refreshData": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=refreshData"
+  },
+  "registerPackage": {
+    "!type": "fn(package: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=registerPackage"
+  },
+  "reprint": {
+    "!type": "fn() -> ?"
+  },
+  "saveWorksheet": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=saveWorksheet"
+  },
+  "setChanged": {
+    "!type": "fn() -> ?"
+  },
+  "setCellValue": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=setCellValue"
+  },
+  "showReport": {
+    "!type": "fn(archive_report: ?, target: ?) -> ?"
+  },
+  "split": {
+    "!type": "fn(separator: ?, limit: ?) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=split"
+  },
+  "union": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=union"
+  },
+  "importClass": {
+    "!type": "fn(className: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=importClass"
+  },
+  "Array": {
+    "prototype": {
+      "concat": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Array_Object_concat.htm"
+      },
+      "join": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Array_Object_join.htm"
+      },
+      "pop": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Array_Object_pop.htm"
+      },
+      "push": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Array_Object_push.htm"
+      },
+      "reverse": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Array_Object_reverse.htm"
+      },
+      "shift": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Array_Object_shift.htm"
+      },
+      "slice": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Array_Object_slice.htm"
+      },
+      "sort": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Array_Object_sort.htm"
+      },
+      "splice": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Array_Object_splice.htm"
+      },
+      "unshift": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Array_Object_unshift.htm"
+      },
+      "indexOf": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_indexOf.htm"
+      }
+    }
+  },
+  "String": {
+    "prototype": {
+      "charAt": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_charAt.htm"
+      },
+      "charCodeAt": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_charCodeAt.htm"
+      },
+      "concat": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_concat.htm"
+      },
+      "indexOf": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_indexOf.htm"
+      },
+      "lastIndexOf": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_lastIndexOf.htm"
+      },
+      "match": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_match.htm"
+      },
+      "replace": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_replace.htm"
+      },
+      "search": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_search.htm"
+      },
+      "slice": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_slice.htm"
+      },
+      "split": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_split.htm"
+      },
+      "substring": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_substring.htm"
+      },
+      "toLowerCase": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_toLowerCase.htm"
+      },
+      "toUpperCase": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_String_Object_toUpperCase.htm"
+      }
+    }
+  },
+  "Number": {
+    "prototype": {
+      "toExponential": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Number_Object_toExponential.htm"
+      },
+      "toFixed": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Number_Object_toFixed.htm"
+      },
+      "toLocaleString": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Number_Object_toLocaleString.htm"
+      },
+      "toPrecision": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Number_Object_toPrecision.htm"
+      },
+      "toString": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Number_Object_toString.htm"
+      }
+    }
+  },
+  "Math": {
+    "abs": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_abs.htm"
+    },
+    "acos": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_acos.htm"
+    },
+    "asin": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_asin.htm"
+    },
+    "atan": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_atan.htm"
+    },
+    "ceil": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_ceil.htm"
+    },
+    "cos": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_cos.htm"
+    },
+    "exp": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_exp.htm"
+    },
+    "floor": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_floor.htm"
+    },
+    "log": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_log.htm"
+    },
+    "max": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_max.htm"
+    },
+    "min": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_min.htm"
+    },
+    "pow": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_power.htm"
+    },
+    "random": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_random.htm"
+    },
+    "round": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_round.htm"
+    },
+    "sin": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_sin.htm"
+    },
+    "sqrt": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_sqrt.htm"
+    },
+    "tan": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Math_Object_tan.htm"
+    }
+  },
+  "Date": {
+    "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/JavascriptDate.htm",
+    "parse": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/JavascriptDateParse.htm"
+    },
+    "UTC": {
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/JavascriptDateUTC.htm"
+    },
+    "prototype": {
+      "toString": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_toString.htm"
+      },
+      "toDateString": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_toDateString.htm"
+      },
+      "toTimeString": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_toTimeString.htm"
+      },
+      "toLocaleString": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_toLocaleString.htm"
+      },
+      "toLocaleDateString": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_toLocaleDateString.htm"
+      },
+      "toLocaleTimeString": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_toLocaleTimeString.htm"
+      },
+      "valueOf": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_valueOf.htm"
+      },
+      "getTime": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getTime.htm"
+      },
+      "getFullYear": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getFullYear.htm"
+      },
+      "getUTCFullYear": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getUTCFullYear.htm"
+      },
+      "getMonth": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getMonth.htm"
+      },
+      "getUTCMonth": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getUTCMonth.htm"
+      },
+      "getDate": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/getDate.htm"
+      },
+      "getUTCDate": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/getUTCDate.htm"
+      },
+      "getDay": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/getDay.htm"
+      },
+      "getUTCDay": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/getUTCDay.htm"
+      },
+      "getHours": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getHours.htm"
+      },
+      "getUTCHours": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getUTCHours.htm"
+      },
+      "getMinutes": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getMinutes.htm"
+      },
+      "getUTCMinutes": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getUTCMinutes.htm"
+      },
+      "getSeconds": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getSeconds.htm"
+      },
+      "getUTCSeconds": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getUTCSeconds.htm"
+      },
+      "getMilliseconds": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getMilliseconds.htm"
+      },
+      "getUTCMiliseconds": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getUTCMilliseconds.htm"
+      },
+      "getTimezoneOffset": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_getTimeZoneOffset.htm"
+      },
+      "setTime": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setTime.htm"
+      },
+      "setMiliseconds": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setMilliseconds.htm"
+      },
+      "setUTCMiliseconds": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setUTCMilliseconds.htm"
+      },
+      "setSeconds": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setSeconds.htm"
+      },
+      "setUTCSeconds": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setUTCSeconds.htm"
+      },
+      "setMinutes": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setMinutes.htm"
+      },
+      "setUTCMinutes": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setUTCMinutes.htm"
+      },
+      "setHours": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setHours.htm"
+      },
+      "setUTCHours": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setUTCHours.htm"
+      },
+      "setDate": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setDate.htm"
+      },
+      "setUTCDate": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setUTCDate.htm"
+      },
+      "setMonth": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setMonth.htm"
+      },
+      "setUTCMonth": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setUTCMonth.htm"
+      },
+      "setFullYear": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setFullYear.htm"
+      },
+      "setUTCFullYear": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_setUTCFullYear.htm"
+      },
+      "toUTCString": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/CALC_Date_Object_toUTCString.htm"
+      }
+    }
+  },
+  "RegExp": {
+    "prototype": {
+      "exec": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Regular_Expression_exec.htm"
+      },
+      "test": {
+        "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#ProductDocs/commonscript/html/Common_Regular_Expression_test.htm"
+      }
+    }
+  },
+  "confirmEvent": "?",
+  "viewsheetPath": "string",
+  "viewsheetAlias": "string",
+  "viewsheetUser": "string",
+  "exportFormat": "string",
+  "StyleConstant": {
+    "AESTHETIC_COLOR": {
+      "!type": "number",
+      "!url": "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=AESTHETIC_COLOR"
+    },
+    "AESTHETIC_SHAPE": {
+      "!type": "number"
+    },
+    "AESTHETIC_SIZE": {
+      "!type": "number"
+    },
+    "AESTHETIC_TEXT": {
+      "!type": "number"
+    },
+    "ALIGN_DEFINED": {
+      "!type": "number"
+    },
+    "ALIGN_VAL_DEFINED": {
+      "!type": "number"
+    },
+    "AM_PM_DATE_GROUP": {
+      "!type": "number"
+    },
+    "AM_PM_OF_DAY_DATE_GROUP": {
+      "!type": "number"
+    },
+    "AREA_MAX_COUNT": {
+      "!type": "number"
+    },
+    "ARROW": {
+      "!type": "number"
+    },
+    "ARROWBAR": {
+      "!type": "number"
+    },
+    "ARROW_LINE_1": {
+      "!type": "number"
+    },
+    "ARROW_LINE_2": {
+      "!type": "number"
+    },
+    "ARROW_LINE_3": {
+      "!type": "number"
+    },
+    "ASSET_ERRORS": {
+      "!type": "number"
+    },
+    "AUTO": {
+      "!type": "number"
+    },
+    "AVERAGE_FORMULA": {
+      "!type": "string"
+    },
+    "BACKGROUND_CENTER": {
+      "!type": "number"
+    },
+    "BACKGROUND_DEFINED": {
+      "!type": "number"
+    },
+    "BACKGROUND_TILED": {
+      "!type": "number"
+    },
+    "BACKGROUND_VAL_DEFINED": {
+      "!type": "number"
+    },
+    "BAR_3D_MAX_COUNT": {
+      "!type": "number"
+    },
+    "BAR_MAX_COUNT": {
+      "!type": "number"
+    },
+    "BINDING_FIELD": {
+      "!type": "number"
+    },
+    "BODY": {
+      "!type": "number"
+    },
+    "BOOLEAN": {
+      "!type": "number"
+    },
+    "BORDER_COLOR_DEFINED": {
+      "!type": "number"
+    },
+    "BORDER_COLOR_VAL_DEFINED": {
+      "!type": "number"
+    },
+    "BORDER_DEFINED": {
+      "!type": "number"
+    },
+    "BORDER_VAL_DEFINED": {
+      "!type": "number"
+    },
+    "BOTTOM": {
+      "!type": "number"
+    },
+    "BOTTOM_ALIGNMENT": {
+      "!type": "number"
+    },
+    "BOX_RECTANGLE": {
+      "!type": "number"
+    },
+    "BOX_ROUNDED_RECTANGLE": {
+      "!type": "number"
+    },
+    "BREAK_BORDER": {
+      "!type": "number"
+    },
+    "BYTE": {
+      "!type": "number"
+    },
+    "CALC_FORMULA": {
+      "!type": "string"
+    },
+    "CANDLE_MAX_COUNT": {
+      "!type": "number"
+    },
+    "CENTER": {
+      "!type": "number"
+    },
+    "CENTER_ALIGNMENT": {
+      "!type": "number"
+    },
+    "CHAR": {
+      "!type": "number"
+    },
+    "CHARTACTER": {
+      "!type": "number"
+    },
+    "CHART_3D_BAR": {
+      "!type": "number"
+    },
+    "CHART_3D_BAR_3D": {
+      "!type": "number"
+    },
+    "CHART_3D_BAR_STACK": {
+      "!type": "number"
+    },
+    "CHART_3D_PIE": {
+      "!type": "number"
+    },
+    "CHART_3D_STACK_BAR": {
+      "!type": "number"
+    },
+    "CHART_AREA": {
+      "!type": "number"
+    },
+    "CHART_AREA_STACK": {
+      "!type": "number"
+    },
+    "CHART_AUTO": {
+      "!type": "number"
+    },
+    "CHART_BAR": {
+      "!type": "number"
+    },
+    "CHART_BAR_STACK": {
+      "!type": "number"
+    },
+    "CHART_BOXPLOT": {
+      "!type": "number"
+    },
+    "CHART_BUBBLE": {
+      "!type": "number"
+    },
+    "CHART_CANDLE": {
+      "!type": "number"
+    },
+    "CHART_CIRCLE_PACKING": {
+      "!type": "number"
+    },
+    "CHART_CIRCULAR": {
+      "!type": "number"
+    },
+    "CHART_CURVE": {
+      "!type": "number"
+    },
+    "CHART_FILL_RADAR": {
+      "!type": "number"
+    },
+    "CHART_FUNNEL": {
+      "!type": "number"
+    },
+    "CHART_GANTT": {
+      "!type": "number"
+    },
+    "CHART_ICICLE": {
+      "!type": "number"
+    },
+    "CHART_INV_BAR": {
+      "!type": "number"
+    },
+    "CHART_INV_CURVE": {
+      "!type": "number"
+    },
+    "CHART_INV_LINE": {
+      "!type": "number"
+    },
+    "CHART_INV_POINT": {
+      "!type": "number"
+    },
+    "CHART_INV_STACK_BAR": {
+      "!type": "number"
+    },
+    "CHART_JUMP": {
+      "!type": "number"
+    },
+    "CHART_LINE": {
+      "!type": "number"
+    },
+    "CHART_LINE_STACK": {
+      "!type": "number"
+    },
+    "CHART_MAP": {
+      "!type": "number"
+    },
+    "CHART_MAX_USER": {
+      "!type": "number"
+    },
+    "CHART_MEKKO": {
+      "!type": "number"
+    },
+    "CHART_NETWORK": {
+      "!type": "number"
+    },
+    "CHART_PARETO": {
+      "!type": "number"
+    },
+    "CHART_PIE": {
+      "!type": "number"
+    },
+    "CHART_PIE_EXPLODED_ALL": {
+      "!type": "number"
+    },
+    "CHART_PIE_EXPLODED_FIRST": {
+      "!type": "number"
+    },
+    "CHART_PIE_EXPLODED_NONE": {
+      "!type": "number"
+    },
+    "CHART_POINT": {
+      "!type": "number"
+    },
+    "CHART_POINT_STACK": {
+      "!type": "number"
+    },
+    "CHART_POLYGON": {
+      "!type": "number"
+    },
+    "CHART_RADAR": {
+      "!type": "number"
+    },
+    "CHART_RIBBON": {
+      "!type": "number"
+    },
+    "CHART_SCATTER": {
+      "!type": "number"
+    },
+    "CHART_SPEEDOMETER": {
+      "!type": "number"
+    },
+    "CHART_STACK_AREA": {
+      "!type": "number"
+    },
+    "CHART_STACK_BAR": {
+      "!type": "number"
+    },
+    "CHART_STEP": {
+      "!type": "number"
+    },
+    "CHART_STEP_STACK": {
+      "!type": "number"
+    },
+    "CHART_STEP_AREA": {
+      "!type": "number"
+    },
+    "CHART_STEP_AREA_STACK": {
+      "!type": "number"
+    },
+    "CHART_STICK": {
+      "!type": "number"
+    },
+    "CHART_STOCK": {
+      "!type": "number"
+    },
+    "CHART_SUNBURST": {
+      "!type": "number"
+    },
+    "CHART_SURFACE": {
+      "!type": "number"
+    },
+    "CHART_TREE": {
+      "!type": "number"
+    },
+    "CHART_TREEMAP": {
+      "!type": "number"
+    },
+    "CHART_USER": {
+      "!type": "number"
+    },
+    "CHART_VOLUME": {
+      "!type": "number"
+    },
+    "CHART_WATERFALL": {
+      "!type": "number"
+    },
+    "CHART_XY_LINE": {
+      "!type": "number"
+    },
+    "CIRCLE": {
+      "!type": "number"
+    },
+    "CITY": {
+      "!type": "number"
+    },
+    "CLASSIC": {
+      "!type": "number"
+    },
+    "CLOSE": {
+      "!type": "number"
+    },
+    "COLOR": {
+      "!type": "number"
+    },
+    "COLUMN": {
+      "!type": "string"
+    },
+    "COL_HEADER": {
+      "!type": "number"
+    },
+    "COMPLETED": {
+      "!type": "number"
+    },
+    "COMPONENT_SCOPE": {
+      "!type": "number"
+    },
+    "CONCAT_FORMULA": {
+      "!type": "string"
+    },
+    "CONDITION_EMPTY_STRING": {
+      "!type": "number"
+    },
+    "CONDITION_NULL_STRING": {
+      "!type": "number"
+    },
+    "CONDITION_NULL_VALUE": {
+      "!type": "number"
+    },
+    "CONDITION_REAL_NULL": {
+      "!type": "number"
+    },
+    "CORRELATION_FORMULA": {
+      "!type": "string"
+    },
+    "COUNTRY": {
+      "!type": "number"
+    },
+    "COUNT_FORMULA": {
+      "!type": "string"
+    },
+    "COVARIANCE_FORMULA": {
+      "!type": "string"
+    },
+    "CROSS": {
+      "!type": "number"
+    },
+    "CUBIC": {
+      "!type": "number"
+    },
+    "CURRENCY": {
+      "!type": "number"
+    },
+    "CURRENCY_FORMAT": {
+      "!type": "string"
+    },
+    "CURRENT_REP_CHANGED": {
+      "!type": "string"
+    },
+    "CURRENT_REP_WILL_CHANGE": {
+      "!type": "string"
+    },
+    "DASH_LINE": {
+      "!type": "number"
+    },
+    "DASH_MASK": {
+      "!type": "number"
+    },
+    "DATE": {
+      "!type": "number"
+    },
+    "DATE_FORMAT": {
+      "!type": "string"
+    },
+    "DAY": {
+      "!type": "number"
+    },
+    "DAY_DATE_GROUP": {
+      "!type": "number"
+    },
+    "DAY_INTERVAL": {
+      "!type": "number"
+    },
+    "DAY_OF_MONTH_DATE_GROUP": {
+      "!type": "number"
+    },
+    "DAY_OF_MONTH_PART": {
+      "!type": "number"
+    },
+    "DAY_OF_WEEK_DATE_GROUP": {
+      "!type": "number"
+    },
+    "DAY_OF_WEEK_PART": {
+      "!type": "number"
+    },
+    "DAY_OF_YEAR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "DECIMAL": {
+      "!type": "number"
+    },
+    "DECIMAL_FORMAT": {
+      "!type": "string"
+    },
+    "DEFAULT": {
+      "!type": "number"
+    },
+    "DEFAULT_FOOTER": {
+      "!type": "number"
+    },
+    "DEFAULT_HEADER": {
+      "!type": "number"
+    },
+    "DEFAULT_PAGE_SIZE": {
+      "!type": "number"
+    },
+    "DESIGN_MODE": {
+      "!type": "number"
+    },
+    "DIAMOND": {
+      "!type": "number"
+    },
+    "DIMENSION": {
+      "!type": "number"
+    },
+    "DISTINCTCOUNT_FORMULA": {
+      "!type": "string"
+    },
+    "DISTINCTIVE": {
+      "!type": "number"
+    },
+    "DOT_LINE": {
+      "!type": "number"
+    },
+    "DOUBLE": {
+      "!type": "number"
+    },
+    "DOUBLE_3D_LOWERED": {
+      "!type": "number"
+    },
+    "DOUBLE_3D_RAISED": {
+      "!type": "number"
+    },
+    "DOUBLE_LINE": {
+      "!type": "number"
+    },
+    "DOUBLE_MASK": {
+      "!type": "number"
+    },
+    "DOWN": {
+      "!type": "number"
+    },
+    "EMBED_PARAMETER_SHEET": {
+      "!type": "number"
+    },
+    "EMBED_SECTION": {
+      "!type": "number"
+    },
+    "ENUM": {
+      "!type": "number"
+    },
+    "EOT": {
+      "!type": "number"
+    },
+    "EVEN_PAGE_FOOTER": {
+      "!type": "number"
+    },
+    "EVEN_PAGE_HEADER": {
+      "!type": "number"
+    },
+    "EXPONENTIAL": {
+      "!type": "number"
+    },
+    "FILL": {
+      "!type": "number"
+    },
+    "FILLED_ARROW": {
+      "!type": "number"
+    },
+    "FILLED_ARROWBAR": {
+      "!type": "number"
+    },
+    "FILLED_CIRCLE": {
+      "!type": "number"
+    },
+    "FILLED_DIAMOND": {
+      "!type": "number"
+    },
+    "FILLED_SQUARE": {
+      "!type": "number"
+    },
+    "FILLED_TRIANGLE": {
+      "!type": "number"
+    },
+    "FIRST_FORMULA": {
+      "!type": "string"
+    },
+    "FIRST_PAGE_FOOTER": {
+      "!type": "number"
+    },
+    "FIRST_PAGE_HEADER": {
+      "!type": "number"
+    },
+    "FLOAT": {
+      "!type": "number"
+    },
+    "FONT_DEFINED": {
+      "!type": "number"
+    },
+    "FONT_VAL_DEFINED": {
+      "!type": "number"
+    },
+    "FOREGROUND_DEFINED": {
+      "!type": "number"
+    },
+    "FOREGROUND_VAL_DEFINED": {
+      "!type": "number"
+    },
+    "FORMAL": {
+      "!type": "number"
+    },
+    "FORMAT_DEFINED": {
+      "!type": "number"
+    },
+    "FORMAT_VAL_DEFINED": {
+      "!type": "number"
+    },
+    "FRACTION_WIDTH_MASK": {
+      "!type": "number"
+    },
+    "FULL_JOIN": {
+      "!type": "number"
+    },
+    "GLOBAL_SCOPE": {
+      "!type": "number"
+    },
+    "GREATER_EQUAL_JOIN": {
+      "!type": "number"
+    },
+    "GREATER_JOIN": {
+      "!type": "number"
+    },
+    "GROUP_OTHERS": {
+      "!type": "number"
+    },
+    "HIGH": {
+      "!type": "number"
+    },
+    "HOUR": {
+      "!type": "number"
+    },
+    "HOUR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "HOUR_INTERVAL": {
+      "!type": "number"
+    },
+    "HOUR_OF_DAY": {
+      "!type": "number"
+    },
+    "HOUR_OF_DAY_DATE_GROUP": {
+      "!type": "number"
+    },
+    "HOUR_OF_DAY_PART": {
+      "!type": "number"
+    },
+    "HYPHEN": {
+      "!type": "number"
+    },
+    "H_ALIGN_MASK": {
+      "!type": "number"
+    },
+    "H_CENTER": {
+      "!type": "number"
+    },
+    "H_CURRENCY": {
+      "!type": "number"
+    },
+    "H_LEFT": {
+      "!type": "number"
+    },
+    "H_RIGHT": {
+      "!type": "number"
+    },
+    "INNER_JOIN": {
+      "!type": "number"
+    },
+    "INTEGER": {
+      "!type": "number"
+    },
+    "IN_PLACE": {
+      "!type": "number"
+    },
+    "JOIN": {
+      "!type": "number"
+    },
+    "LANDSCAPE": {
+      "!type": "number"
+    },
+    "LARGE_DASH": {
+      "!type": "number"
+    },
+    "LAST_FORMULA": {
+      "!type": "string"
+    },
+    "LEAVE_OTHERS": {
+      "!type": "number"
+    },
+    "LEFT": {
+      "!type": "number"
+    },
+    "LEFT_ALIGNMENT": {
+      "!type": "number"
+    },
+    "LEFT_JOIN": {
+      "!type": "number"
+    },
+    "LESS_EQUAL_JOIN": {
+      "!type": "number"
+    },
+    "LESS_JOIN": {
+      "!type": "number"
+    },
+    "LINE": {
+      "!type": "number"
+    },
+    "LINEAR": {
+      "!type": "number"
+    },
+    "LINECAP_BUTT": {
+      "!type": "number"
+    },
+    "LINECAP_ROUND": {
+      "!type": "number"
+    },
+    "LINECAP_SQUARE": {
+      "!type": "number"
+    },
+    "LINEJOIN_BEVEL": {
+      "!type": "number"
+    },
+    "LINEJOIN_MITER": {
+      "!type": "number"
+    },
+    "LINEJOIN_ROUND": {
+      "!type": "number"
+    },
+    "LINE_MAX_COUNT": {
+      "!type": "number"
+    },
+    "LIVE_MODE": {
+      "!type": "number"
+    },
+    "LOCAL_QUERY": {
+      "!type": "number"
+    },
+    "LOCAL_SCOPE": {
+      "!type": "number"
+    },
+    "LOGARITHMIC": {
+      "!type": "number"
+    },
+    "LONG": {
+      "!type": "number"
+    },
+    "LOW": {
+      "!type": "number"
+    },
+    "LOWERED_3D": {
+      "!type": "number"
+    },
+    "LOWERED_MASK": {
+      "!type": "number"
+    },
+    "LSHAPE": {
+      "!type": "number"
+    },
+    "LT_ANGLE": {
+      "!type": "number"
+    },
+    "MAX_FORMULA": {
+      "!type": "string"
+    },
+    "MEASURE": {
+      "!type": "number"
+    },
+    "MEDIAN_FORMULA": {
+      "!type": "string"
+    },
+    "MEDIUM_DASH": {
+      "!type": "number"
+    },
+    "MEDIUM_LINE": {
+      "!type": "number"
+    },
+    "MEMBER": {
+      "!type": "number"
+    },
+    "MESSAGE_FORMAT": {
+      "!type": "string"
+    },
+    "MIDDLE_ALIGNMENT": {
+      "!type": "number"
+    },
+    "MILLISECOND_DATE_GROUP": {
+      "!type": "number"
+    },
+    "MINUTE": {
+      "!type": "number"
+    },
+    "MINUTE_DATE_GROUP": {
+      "!type": "number"
+    },
+    "MINUTE_INTERVAL": {
+      "!type": "number"
+    },
+    "MINUTE_OF_DAY": {
+      "!type": "number"
+    },
+    "MIN_FORMULA": {
+      "!type": "string"
+    },
+    "MODERN": {
+      "!type": "number"
+    },
+    "MODE_FORMULA": {
+      "!type": "string"
+    },
+    "MONTH": {
+      "!type": "number"
+    },
+    "MONTH_DATE_GROUP": {
+      "!type": "number"
+    },
+    "MONTH_INTERVAL": {
+      "!type": "number"
+    },
+    "MONTH_OF_YEAR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "MONTH_OF_YEAR_PART": {
+      "!type": "number"
+    },
+    "MORE_ELEM": {
+      "!type": "number"
+    },
+    "MORE_FLOW": {
+      "!type": "number"
+    },
+    "M_LINE_STYLES": {
+      "!type": "number"
+    },
+    "NIL": {
+      "!type": "number"
+    },
+    "NONE": {
+      "!type": "number"
+    },
+    "NONE_DATE_GROUP": {
+      "!type": "number"
+    },
+    "NONE_DEFINED": {
+      "!type": "number"
+    },
+    "NONE_FORMULA": {
+      "!type": "string"
+    },
+    "NORMAL_QUERY": {
+      "!type": "number"
+    },
+    "NOT_EQUAL_JOIN": {
+      "!type": "number"
+    },
+    "NO_BORDER": {
+      "!type": "number"
+    },
+    "NTHLARGEST_FORMULA": {
+      "!type": "string"
+    },
+    "NTHMOSTFREQUENT_FORMULA": {
+      "!type": "string"
+    },
+    "NTHSMALLEST_FORMULA": {
+      "!type": "string"
+    },
+    "NULL": {
+      "!type": "number"
+    },
+    "NUMBER": {
+      "!type": "number"
+    },
+    "ODD_PAGE_FOOTER": {
+      "!type": "number"
+    },
+    "ODD_PAGE_HEADER": {
+      "!type": "number"
+    },
+    "OPEN": {
+      "!type": "number"
+    },
+    "PAINTER_BREAKABLE": {
+      "!type": "number"
+    },
+    "PAINTER_NON_BREAK": {
+      "!type": "number"
+    },
+    "PAPER_10X11": {
+      "!type": "?"
+    },
+    "PAPER_10X14": {
+      "!type": "?"
+    },
+    "PAPER_11X17": {
+      "!type": "?"
+    },
+    "PAPER_15X11": {
+      "!type": "?"
+    },
+    "PAPER_9X11": {
+      "!type": "?"
+    },
+    "PAPER_A2": {
+      "!type": "?"
+    },
+    "PAPER_A3": {
+      "!type": "?"
+    },
+    "PAPER_A3_EXTRA": {
+      "!type": "?"
+    },
+    "PAPER_A3_EXTRA_TRANSVERSE": {
+      "!type": "?"
+    },
+    "PAPER_A3_TRANSVERSE": {
+      "!type": "?"
+    },
+    "PAPER_A4": {
+      "!type": "?"
+    },
+    "PAPER_A4SMALL": {
+      "!type": "?"
+    },
+    "PAPER_A4_EXTRA": {
+      "!type": "?"
+    },
+    "PAPER_A4_PLUS": {
+      "!type": "?"
+    },
+    "PAPER_A4_TRANSVERSE": {
+      "!type": "?"
+    },
+    "PAPER_A5": {
+      "!type": "?"
+    },
+    "PAPER_A5_EXTRA": {
+      "!type": "?"
+    },
+    "PAPER_A5_TRANSVERSE": {
+      "!type": "?"
+    },
+    "PAPER_A_PLUS": {
+      "!type": "?"
+    },
+    "PAPER_B4": {
+      "!type": "?"
+    },
+    "PAPER_B5": {
+      "!type": "?"
+    },
+    "PAPER_B5_EXTRA": {
+      "!type": "?"
+    },
+    "PAPER_B5_TRANSVERSE": {
+      "!type": "?"
+    },
+    "PAPER_B_PLUS": {
+      "!type": "?"
+    },
+    "PAPER_CSHEET": {
+      "!type": "?"
+    },
+    "PAPER_DSHEET": {
+      "!type": "?"
+    },
+    "PAPER_ENV_10": {
+      "!type": "?"
+    },
+    "PAPER_ENV_11": {
+      "!type": "?"
+    },
+    "PAPER_ENV_12": {
+      "!type": "?"
+    },
+    "PAPER_ENV_14": {
+      "!type": "?"
+    },
+    "PAPER_ENV_9": {
+      "!type": "?"
+    },
+    "PAPER_ENV_B4": {
+      "!type": "?"
+    },
+    "PAPER_ENV_B5": {
+      "!type": "?"
+    },
+    "PAPER_ENV_B6": {
+      "!type": "?"
+    },
+    "PAPER_ENV_C3": {
+      "!type": "?"
+    },
+    "PAPER_ENV_C4": {
+      "!type": "?"
+    },
+    "PAPER_ENV_C5": {
+      "!type": "?"
+    },
+    "PAPER_ENV_C6": {
+      "!type": "?"
+    },
+    "PAPER_ENV_C65": {
+      "!type": "?"
+    },
+    "PAPER_ENV_DL": {
+      "!type": "?"
+    },
+    "PAPER_ENV_INVITE": {
+      "!type": "?"
+    },
+    "PAPER_ENV_ITALY": {
+      "!type": "?"
+    },
+    "PAPER_ENV_MONARCH": {
+      "!type": "?"
+    },
+    "PAPER_ENV_PERSONAL": {
+      "!type": "?"
+    },
+    "PAPER_ESHEET": {
+      "!type": "?"
+    },
+    "PAPER_EXECUTIVE": {
+      "!type": "?"
+    },
+    "PAPER_FANFOLD_LGL_GERMAN": {
+      "!type": "?"
+    },
+    "PAPER_FANFOLD_STD_GERMAN": {
+      "!type": "?"
+    },
+    "PAPER_FANFOLD_US": {
+      "!type": "?"
+    },
+    "PAPER_FOLIO": {
+      "!type": "?"
+    },
+    "PAPER_ISO_B4": {
+      "!type": "?"
+    },
+    "PAPER_JAPANESE_POSTCARD": {
+      "!type": "?"
+    },
+    "PAPER_LEDGER": {
+      "!type": "?"
+    },
+    "PAPER_LEGAL": {
+      "!type": "?"
+    },
+    "PAPER_LEGAL_EXTRA": {
+      "!type": "?"
+    },
+    "PAPER_LETTER": {
+      "!type": "?"
+    },
+    "PAPER_LETTERSMALL": {
+      "!type": "?"
+    },
+    "PAPER_LETTER_EXTRA": {
+      "!type": "?"
+    },
+    "PAPER_LETTER_EXTRA_TRANSVERSE": {
+      "!type": "?"
+    },
+    "PAPER_LETTER_PLUS": {
+      "!type": "?"
+    },
+    "PAPER_LETTER_TRANSVERSE": {
+      "!type": "?"
+    },
+    "PAPER_NOTE": {
+      "!type": "?"
+    },
+    "PAPER_QUARTO": {
+      "!type": "?"
+    },
+    "PAPER_STATEMENT": {
+      "!type": "?"
+    },
+    "PAPER_TABLOID": {
+      "!type": "?"
+    },
+    "PAPER_TABLOID_EXTRA": {
+      "!type": "?"
+    },
+    "PARAM_PREFIX": {
+      "!type": "string"
+    },
+    "PARETO_MAX_COUNT": {
+      "!type": "number"
+    },
+    "PART_DATE_GROUP": {
+      "!type": "number"
+    },
+    "PATTERN_0": {
+      "!type": "number"
+    },
+    "PATTERN_1": {
+      "!type": "number"
+    },
+    "PATTERN_10": {
+      "!type": "number"
+    },
+    "PATTERN_11": {
+      "!type": "number"
+    },
+    "PATTERN_12": {
+      "!type": "number"
+    },
+    "PATTERN_13": {
+      "!type": "number"
+    },
+    "PATTERN_14": {
+      "!type": "number"
+    },
+    "PATTERN_15": {
+      "!type": "number"
+    },
+    "PATTERN_16": {
+      "!type": "number"
+    },
+    "PATTERN_17": {
+      "!type": "number"
+    },
+    "PATTERN_18": {
+      "!type": "number"
+    },
+    "PATTERN_19": {
+      "!type": "number"
+    },
+    "PATTERN_2": {
+      "!type": "number"
+    },
+    "PATTERN_3": {
+      "!type": "number"
+    },
+    "PATTERN_4": {
+      "!type": "number"
+    },
+    "PATTERN_5": {
+      "!type": "number"
+    },
+    "PATTERN_6": {
+      "!type": "number"
+    },
+    "PATTERN_7": {
+      "!type": "number"
+    },
+    "PATTERN_8": {
+      "!type": "number"
+    },
+    "PATTERN_9": {
+      "!type": "number"
+    },
+    "PATTERN_NONE": {
+      "!type": "number"
+    },
+    "PERCENTAGE_BY_COL": {
+      "!type": "number"
+    },
+    "PERCENTAGE_BY_ROW": {
+      "!type": "number"
+    },
+    "PERCENTAGE_NONE": {
+      "!type": "number"
+    },
+    "PERCENTAGE_OF_COL_GRANDTOTAL": {
+      "!type": "number"
+    },
+    "PERCENTAGE_OF_COL_GROUP": {
+      "!type": "number"
+    },
+    "PERCENTAGE_OF_GRANDTOTAL": {
+      "!type": "number"
+    },
+    "PERCENTAGE_OF_GROUP": {
+      "!type": "number"
+    },
+    "PERCENTAGE_OF_ROW_GRANDTOTAL": {
+      "!type": "number"
+    },
+    "PERCENTAGE_OF_ROW_GROUP": {
+      "!type": "number"
+    },
+    "PERCENT_FORMAT": {
+      "!type": "string"
+    },
+    "PIE_3D_MAX_COUNT": {
+      "!type": "number"
+    },
+    "PIE_MAX_COUNT": {
+      "!type": "number"
+    },
+    "POINT_MAX_COUNT": {
+      "!type": "number"
+    },
+    "POPULATIONSTANDARDDEVIATION_FORMULA": {
+      "!type": "string"
+    },
+    "POPULATIONVARIANCE_FORMULA": {
+      "!type": "string"
+    },
+    "PORTRAIT": {
+      "!type": "number"
+    },
+    "POWER": {
+      "!type": "number"
+    },
+    "PRODUCT_FORMULA": {
+      "!type": "string"
+    },
+    "PROVINCE": {
+      "!type": "number"
+    },
+    "PTHPERCENTILE_FORMULA": {
+      "!type": "string"
+    },
+    "QUADRATIC": {
+      "!type": "number"
+    },
+    "QUARTER_DATE_GROUP": {
+      "!type": "number"
+    },
+    "QUARTER_INTERVAL": {
+      "!type": "number"
+    },
+    "QUARTER_OF_YEAR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "QUARTER_OF_YEAR_PART": {
+      "!type": "number"
+    },
+    "QUERY_SCOPE": {
+      "!type": "number"
+    },
+    "RADAR_MAX_COUNT": {
+      "!type": "number"
+    },
+    "RAISED_3D": {
+      "!type": "number"
+    },
+    "RAISED_MASK": {
+      "!type": "number"
+    },
+    "REMAINDER": {
+      "!type": "number"
+    },
+    "REPORT_SCOPE": {
+      "!type": "number"
+    },
+    "REPORT_WORKSHEET": {
+      "!type": "number"
+    },
+    "REPOSITORY_SCOPE": {
+      "!type": "number"
+    },
+    "RIGHT": {
+      "!type": "number"
+    },
+    "RIGHT_ALIGNMENT": {
+      "!type": "number"
+    },
+    "RIGHT_ANGLE": {
+      "!type": "number"
+    },
+    "RIGHT_JOIN": {
+      "!type": "number"
+    },
+    "ROLE": {
+      "!type": "number"
+    },
+    "ROW_HEADER": {
+      "!type": "number"
+    },
+    "RUN_MODE": {
+      "!type": "number"
+    },
+    "SECOND_DATE_GROUP": {
+      "!type": "number"
+    },
+    "SECOND_INTERVAL": {
+      "!type": "number"
+    },
+    "SET_FORMULA": {
+      "!type": "string"
+    },
+    "SHORT": {
+      "!type": "number"
+    },
+    "SIMPLE": {
+      "!type": "number"
+    },
+    "SOLID_MASK": {
+      "!type": "number"
+    },
+    "SORT_ASC": {
+      "!type": "number"
+    },
+    "SORT_DESC": {
+      "!type": "number"
+    },
+    "SORT_NONE": {
+      "!type": "number"
+    },
+    "SORT_ORIGINAL": {
+      "!type": "number"
+    },
+    "SORT_SPECIFIC": {
+      "!type": "number"
+    },
+    "SORT_VALUE_ASC": {
+      "!type": "number"
+    },
+    "SORT_VALUE_DESC": {
+      "!type": "number"
+    },
+    "SQUARE": {
+      "!type": "number"
+    },
+    "STANDARDDEVIATION_FORMULA": {
+      "!type": "string"
+    },
+    "STAR": {
+      "!type": "number"
+    },
+    "STATE": {
+      "!type": "number"
+    },
+    "STICK": {
+      "!type": "number"
+    },
+    "STOCK_MAX_COUNT": {
+      "!type": "number"
+    },
+    "STRING": {
+      "!type": "number"
+    },
+    "SUB_QUERY_PARAM": {
+      "!type": "string"
+    },
+    "SUMSQ_FORMULA": {
+      "!type": "string"
+    },
+    "SUMWT_FORMULA": {
+      "!type": "string"
+    },
+    "SUM_FORMULA": {
+      "!type": "string"
+    },
+    "TABLE_EQUAL_WIDTH": {
+      "!type": "number"
+    },
+    "TABLE_FIT_CONTENT": {
+      "!type": "number"
+    },
+    "TABLE_FIT_CONTENT_1PP": {
+      "!type": "number"
+    },
+    "TABLE_FIT_CONTENT_PAGE": {
+      "!type": "number"
+    },
+    "TABLE_FIT_PAGE": {
+      "!type": "number"
+    },
+    "TEMPORARY_SCOPE": {
+      "!type": "number"
+    },
+    "TEXTURE_STYLES": {
+      "!type": "number"
+    },
+    "THICK_LINE": {
+      "!type": "number"
+    },
+    "THIN_LINE": {
+      "!type": "number"
+    },
+    "THIN_THIN_LINE": {
+      "!type": "number"
+    },
+    "TIME": {
+      "!type": "number"
+    },
+    "TIME_INSTANT": {
+      "!type": "number"
+    },
+    "TOP": {
+      "!type": "number"
+    },
+    "TOP_ALIGNMENT": {
+      "!type": "number"
+    },
+    "TRANS_DEFINED": {
+      "!type": "number"
+    },
+    "TRANS_VAL_DEFINED": {
+      "!type": "number"
+    },
+    "TRAY_AUTO": {
+      "!type": "number"
+    },
+    "TRAY_CASSETTE": {
+      "!type": "number"
+    },
+    "TRAY_ENVELOPE": {
+      "!type": "number"
+    },
+    "TRAY_ENVMANUAL": {
+      "!type": "number"
+    },
+    "TRAY_FORMSOURCE": {
+      "!type": "number"
+    },
+    "TRAY_LARGECAPACITY": {
+      "!type": "number"
+    },
+    "TRAY_LARGEFMT": {
+      "!type": "number"
+    },
+    "TRAY_LOWER": {
+      "!type": "number"
+    },
+    "TRAY_MANUAL": {
+      "!type": "number"
+    },
+    "TRAY_MIDDLE": {
+      "!type": "number"
+    },
+    "TRAY_ONLYONE": {
+      "!type": "number"
+    },
+    "TRAY_SMALLFMT": {
+      "!type": "number"
+    },
+    "TRAY_TRACTOR": {
+      "!type": "number"
+    },
+    "TRAY_UPPER": {
+      "!type": "number"
+    },
+    "TRENDLINE_TYPES": {
+      "!type": "number"
+    },
+    "TRIANGLE": {
+      "!type": "number"
+    },
+    "ULTRA_THIN_LINE": {
+      "!type": "number"
+    },
+    "UNKNOWN": {
+      "!type": "number"
+    },
+    "UP": {
+      "!type": "number"
+    },
+    "USER": {
+      "!type": "number"
+    },
+    "USER_DEFINED": {
+      "!type": "number"
+    },
+    "USER_SCOPE": {
+      "!type": "number"
+    },
+    "VARIANCE_FORMULA": {
+      "!type": "string"
+    },
+    "VSHAPE": {
+      "!type": "number"
+    },
+    "V_ALIGN_MASK": {
+      "!type": "number"
+    },
+    "V_ANGLE": {
+      "!type": "number"
+    },
+    "V_BASELINE": {
+      "!type": "number"
+    },
+    "V_BOTTOM": {
+      "!type": "number"
+    },
+    "V_CENTER": {
+      "!type": "number"
+    },
+    "V_TOP": {
+      "!type": "number"
+    },
+    "WATERFALL_MAX_COUNT": {
+      "!type": "number"
+    },
+    "WEEK_DATE_GROUP": {
+      "!type": "number"
+    },
+    "WEEK_INTERVAL": {
+      "!type": "number"
+    },
+    "WEEK_OF_MONTH_DATE_GROUP": {
+      "!type": "number"
+    },
+    "WEEK_OF_YEAR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "WEEK_OF_YEAR_PART": {
+      "!type": "number"
+    },
+    "WEIGHTEDAVERAGE_FORMULA": {
+      "!type": "string"
+    },
+    "WIDTH_MASK": {
+      "!type": "number"
+    },
+    "WRAPPING_DEFINED": {
+      "!type": "number"
+    },
+    "WRAPPING_VAL_DEFINED": {
+      "!type": "number"
+    },
+    "WRAP_BOTH": {
+      "!type": "number"
+    },
+    "WRAP_LEFT": {
+      "!type": "number"
+    },
+    "WRAP_NONE": {
+      "!type": "number"
+    },
+    "WRAP_RIGHT": {
+      "!type": "number"
+    },
+    "WRAP_TOP_BOTTOM": {
+      "!type": "number"
+    },
+    "X": {
+      "!type": "number"
+    },
+    "XSHAPE": {
+      "!type": "number"
+    },
+    "YEAR": {
+      "!type": "number"
+    },
+    "YEAR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "YEAR_INTERVAL": {
+      "!type": "number"
+    },
+    "ZIP": {
+      "!type": "number"
+    }
+  },
+  "Chart": {
+    "AESTHETIC_COLOR": {
+      "!type": "number"
+    },
+    "AESTHETIC_SHAPE": {
+      "!type": "number"
+    },
+    "AESTHETIC_SIZE": {
+      "!type": "number"
+    },
+    "AESTHETIC_TEXT": {
+      "!type": "number"
+    },
+    "AM_PM_DATE_GROUP": {
+      "!type": "number"
+    },
+    "AM_PM_OF_DAY_DATE_GROUP": {
+      "!type": "number"
+    },
+    "AREA_MAX_COUNT": {
+      "!type": "number"
+    },
+    "AUTO": {
+      "!type": "number"
+    },
+    "AVERAGE_FORMULA": {
+      "!type": "string"
+    },
+    "BAR_3D_MAX_COUNT": {
+      "!type": "number"
+    },
+    "BAR_MAX_COUNT": {
+      "!type": "number"
+    },
+    "BINDING_FIELD": {
+      "!type": "number"
+    },
+    "BOTTOM": {
+      "!type": "number"
+    },
+    "BOTTOM_ALIGNMENT": {
+      "!type": "number"
+    },
+    "CANDLE_MAX_COUNT": {
+      "!type": "number"
+    },
+    "CENTER": {
+      "!type": "number"
+    },
+    "CENTER_ALIGNMENT": {
+      "!type": "number"
+    },
+    "CHART_3D_BAR": {
+      "!type": "number"
+    },
+    "CHART_3D_BAR_STACK": {
+      "!type": "number"
+    },
+    "CHART_3D_PIE": {
+      "!type": "number"
+    },
+    "CHART_AREA": {
+      "!type": "number"
+    },
+    "CHART_AREA_STACK": {
+      "!type": "number"
+    },
+    "CHART_AUTO": {
+      "!type": "number"
+    },
+    "CHART_BAR": {
+      "!type": "number"
+    },
+    "CHART_BAR_STACK": {
+      "!type": "number"
+    },
+    "CHART_CANDLE": {
+      "!type": "number"
+    },
+    "CHART_BOXPLOT": {
+      "!type": "number"
+    },
+    "CHART_CIRCLE_PACKING": {
+      "!type": "number"
+    },
+    "CHART_CIRCULAR": {
+      "!type": "number"
+    },
+    "CHART_DONUT": {
+      "!type": "number"
+    },
+    "CHART_FILL_RADAR": {
+      "!type": "number"
+    },
+    "CHART_FUNNEL": {
+      "!type": "number"
+    },
+    "CHART_GANTT": {
+      "!type": "number"
+    },
+    "CHART_ICICLE": {
+      "!type": "number"
+    },
+    "CHART_JUMP": {
+      "!type": "number"
+    },
+    "CHART_LINE": {
+      "!type": "number"
+    },
+    "CHART_LINE_STACK": {
+      "!type": "number"
+    },
+    "CHART_MAP": {
+      "!type": "number"
+    },
+    "CHART_MEKKO": {
+      "!type": "number"
+    },
+    "CHART_NETWORK": {
+      "!type": "number"
+    },
+    "CHART_PARETO": {
+      "!type": "number"
+    },
+    "CHART_PIE": {
+      "!type": "number"
+    },
+    "CHART_POINT": {
+      "!type": "number"
+    },
+    "CHART_POINT_STACK": {
+      "!type": "number"
+    },
+    "CHART_POLYGON": {
+      "!type": "number"
+    },
+    "CHART_RADAR": {
+      "!type": "number"
+    },
+    "CHART_STEP": {
+      "!type": "number"
+    },
+    "CHART_STEP_STACK": {
+      "!type": "number"
+    },
+    "CHART_STEP_AREA": {
+      "!type": "number"
+    },
+    "CHART_STEP_AREA_STACK": {
+      "!type": "number"
+    },
+    "CHART_STOCK": {
+      "!type": "number"
+    },
+    "CHART_SUNBURST": {
+      "!type": "number"
+    },
+    "CHART_TREE": {
+      "!type": "number"
+    },
+    "CHART_TREEMAP": {
+      "!type": "number"
+    },
+    "CHART_WATERFALL": {
+      "!type": "number"
+    },
+    "CITY": {
+      "!type": "string"
+    },
+    "CLOSE": {
+      "!type": "number"
+    },
+    "COLUMN": {
+      "!type": "string"
+    },
+    "CONCAT_FORMULA": {
+      "!type": "string"
+    },
+    "CORRELATION_FORMULA": {
+      "!type": "string"
+    },
+    "COUNTRY": {
+      "!type": "string"
+    },
+    "COUNT_FORMULA": {
+      "!type": "string"
+    },
+    "COVARIANCE_FORMULA": {
+      "!type": "string"
+    },
+    "CUBIC": {
+      "!type": "number"
+    },
+    "DASH_LINE": {
+      "!type": "number"
+    },
+    "DASH_MASK": {
+      "!type": "number"
+    },
+    "DATE": {
+      "!type": "string"
+    },
+    "DATE_FORMAT": {
+      "!type": "string"
+    },
+    "DAY_DATE_GROUP": {
+      "!type": "number"
+    },
+    "DAY_INTERVAL": {
+      "!type": "number"
+    },
+    "DAY_OF_MONTH_DATE_GROUP": {
+      "!type": "number"
+    },
+    "DAY_OF_MONTH_PART": {
+      "!type": "number"
+    },
+    "DAY_OF_WEEK_DATE_GROUP": {
+      "!type": "number"
+    },
+    "DAY_OF_WEEK_PART": {
+      "!type": "number"
+    },
+    "DAY_OF_YEAR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "DECIMAL_FORMAT": {
+      "!type": "string"
+    },
+    "DIMENSION": {
+      "!type": "number"
+    },
+    "DISTINCTCOUNT_FORMULA": {
+      "!type": "string"
+    },
+    "DOT_LINE": {
+      "!type": "number"
+    },
+    "DROP_REGION_CLOSE": {
+      "!type": "number"
+    },
+    "DROP_REGION_COLOR": {
+      "!type": "number"
+    },
+    "DROP_REGION_GEO": {
+      "!type": "number"
+    },
+    "DROP_REGION_GROUP": {
+      "!type": "number"
+    },
+    "DROP_REGION_HIGH": {
+      "!type": "number"
+    },
+    "DROP_REGION_LOW": {
+      "!type": "number"
+    },
+    "DROP_REGION_OPEN": {
+      "!type": "number"
+    },
+    "DROP_REGION_PATH": {
+      "!type": "number"
+    },
+    "DROP_REGION_PLOT": {
+      "!type": "number"
+    },
+    "DROP_REGION_SHAPE": {
+      "!type": "number"
+    },
+    "DROP_REGION_SIZE": {
+      "!type": "number"
+    },
+    "DROP_REGION_TEXT": {
+      "!type": "number"
+    },
+    "DROP_REGION_X": {
+      "!type": "number"
+    },
+    "DROP_REGION_X2": {
+      "!type": "number"
+    },
+    "DROP_REGION_Y": {
+      "!type": "number"
+    },
+    "DROP_REGION_Y2": {
+      "!type": "number"
+    },
+    "EXPONENTIAL": {
+      "!type": "number"
+    },
+    "HIGH": {
+      "!type": "number"
+    },
+    "HOUR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "HOUR_INTERVAL": {
+      "!type": "number"
+    },
+    "HOUR_OF_DAY_DATE_GROUP": {
+      "!type": "number"
+    },
+    "HOUR_OF_DAY_PART": {
+      "!type": "number"
+    },
+    "IN_PLACE": {
+      "!type": "number"
+    },
+    "LARGE_DASH": {
+      "!type": "number"
+    },
+    "LEFT": {
+      "!type": "number"
+    },
+    "LEFT_ALIGNMENT": {
+      "!type": "number"
+    },
+    "LINEAR": {
+      "!type": "number"
+    },
+    "LINE_MAX_COUNT": {
+      "!type": "number"
+    },
+    "LOGARITHMIC": {
+      "!type": "number"
+    },
+    "LOW": {
+      "!type": "number"
+    },
+    "M_LINE_STYLES": {
+      "!type": "[number]"
+    },
+    "MAX_FORMULA": {
+      "!type": "string"
+    },
+    "MEASURE": {
+      "!type": "number"
+    },
+    "MEDIAN_FORMULA": {
+      "!type": "string"
+    },
+    "MEDIUM_DASH": {
+      "!type": "number"
+    },
+    "MEDIUM_LINE": {
+      "!type": "number"
+    },
+    "MESSAGE_FORMAT": {
+      "!type": "string"
+    },
+    "MIDDLE_ALIGNMENT": {
+      "!type": "number"
+    },
+    "MILLISECOND_DATE_GROUP": {
+      "!type": "number"
+    },
+    "MINUTE_DATE_GROUP": {
+      "!type": "number"
+    },
+    "MINUTE_INTERVAL": {
+      "!type": "number"
+    },
+    "MINUTE_OF_HOUR_PART": {
+      "!type": "number"
+    },
+    "MIN_FORMULA": {
+      "!type": "string"
+    },
+    "MODE_FORMULA": {
+      "!type": "string"
+    },
+    "MONTH_DATE_GROUP": {
+      "!type": "number"
+    },
+    "MONTH_INTERVAL": {
+      "!type": "number"
+    },
+    "MONTH_OF_YEAR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "MONTH_OF_YEAR_PART": {
+      "!type": "number"
+    },
+    "NONE": {
+      "!type": "number"
+    },
+    "NONE_DATE_GROUP": {
+      "!type": "number"
+    },
+    "NONE_FORMULA": {
+      "!type": "string"
+    },
+    "NTHLARGEST_FORMULA": {
+      "!type": "string"
+    },
+    "NTHMOSTFREQUENT_FORMULA": {
+      "!type": "string"
+    },
+    "NTHSMALLEST_FORMULA": {
+      "!type": "string"
+    },
+    "NUMBER": {
+      "!type": "string"
+    },
+    "OPEN": {
+      "!type": "number"
+    },
+    "PARETO_MAX_COUNT": {
+      "!type": "number"
+    },
+    "PART_DATE_GROUP": {
+      "!type": "number"
+    },
+    "PERCENTAGE_BY_COL": {
+      "!type": "number"
+    },
+    "PERCENTAGE_BY_ROW": {
+      "!type": "number"
+    },
+    "PERCENTAGE_NONE": {
+      "!type": "number"
+    },
+    "PERCENTAGE_OF_GRANDTOTAL": {
+      "!type": "number"
+    },
+    "PERCENTAGE_OF_GROUP": {
+      "!type": "number"
+    },
+    "PERCENT_FORMAT": {
+      "!type": "string"
+    },
+    "PIE_3D_MAX_COUNT": {
+      "!type": "number"
+    },
+    "PIE_MAX_COUNT": {
+      "!type": "number"
+    },
+    "POINT_MAX_COUNT": {
+      "!type": "number"
+    },
+    "POPULATIONSTANDARDDEVIATION_FORMULA": {
+      "!type": "string"
+    },
+    "POPULATIONVARIANCE_FORMULA": {
+      "!type": "string"
+    },
+    "POWER": {
+      "!type": "number"
+    },
+    "PRODUCT_FORMULA": {
+      "!type": "string"
+    },
+    "PROVINCE": {
+      "!type": "string"
+    },
+    "PTHPERCENTILE_FORMULA": {
+      "!type": "string"
+    },
+    "QUADRATIC": {
+      "!type": "number"
+    },
+    "QUARTER_DATE_GROUP": {
+      "!type": "number"
+    },
+    "QUARTER_INTERVAL": {
+      "!type": "number"
+    },
+    "QUARTER_OF_YEAR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "QUARTER_OF_YEAR_PART": {
+      "!type": "number"
+    },
+    "RADAR_MAX_COUNT": {
+      "!type": "number"
+    },
+    "RIGHT": {
+      "!type": "number"
+    },
+    "RIGHT_ALIGNMENT": {
+      "!type": "number"
+    },
+    "SECOND_DATE_GROUP": {
+      "!type": "number"
+    },
+    "SECOND_INTERVAL": {
+      "!type": "number"
+    },
+    "SECOND_OF_MINUTE_PART": {
+      "!type": "number"
+    },
+    "SET_FORMULA": {
+      "!type": "string"
+    },
+    "SOLID_MASK": {
+      "!type": "number"
+    },
+    "SORT_ASC": {
+      "!type": "number"
+    },
+    "SORT_DESC": {
+      "!type": "number"
+    },
+    "SORT_NONE": {
+      "!type": "number"
+    },
+    "SORT_ORIGINAL": {
+      "!type": "number"
+    },
+    "SORT_SPECIFIC": {
+      "!type": "number"
+    },
+    "SORT_VALUE_ASC": {
+      "!type": "number"
+    },
+    "SORT_VALUE_DESC": {
+      "!type": "number"
+    },
+    "STANDARDDEVIATION_FORMULA": {
+      "!type": "string"
+    },
+    "STATE": {
+      "!type": "string"
+    },
+    "STOCK_MAX_COUNT": {
+      "!type": "number"
+    },
+    "STRING": {
+      "!type": "string"
+    },
+    "SUMSQ_FORMULA": {
+      "!type": "string"
+    },
+    "SUMWT_FORMULA": {
+      "!type": "string"
+    },
+    "SUM_FORMULA": {
+      "!type": "string"
+    },
+    "TEXTURE_STYLES": {
+      "!type": "[number]"
+    },
+    "THICK_LINE": {
+      "!type": "number"
+    },
+    "THIN_LINE": {
+      "!type": "number"
+    },
+    "THIN_THIN_LINE": {
+      "!type": "number"
+    },
+    "TIME": {
+      "!type": "number"
+    },
+    "TOP": {
+      "!type": "number"
+    },
+    "TOP_ALIGNMENT": {
+      "!type": "number"
+    },
+    "TRENDLINE_TYPES": {
+      "!type": "[number]"
+    },
+    "ULTRA_THIN_LINE": {
+      "!type": "number"
+    },
+    "VARIANCE_FORMULA": {
+      "!type": "string"
+    },
+    "WATERFALL_MAX_COUNT": {
+      "!type": "number"
+    },
+    "WEEK_DATE_GROUP": {
+      "!type": "number"
+    },
+    "WEEK_INTERVAL": {
+      "!type": "number"
+    },
+    "WEEK_OF_MONTH_DATE_GROUP": {
+      "!type": "number"
+    },
+    "WEEK_OF_YEAR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "WEEK_OF_YEAR_PART": {
+      "!type": "number"
+    },
+    "WEIGHTEDAVERAGE_FORMULA": {
+      "!type": "string"
+    },
+    "WIDTH_MASK": {
+      "!type": "number"
+    },
+    "YEAR_DATE_GROUP": {
+      "!type": "number"
+    },
+    "YEAR_INTERVAL": {
+      "!type": "number"
+    },
+    "ZIP": {
+      "!type": "string"
+    }
+  }
+}

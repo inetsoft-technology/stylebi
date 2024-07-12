@@ -1,0 +1,92 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+$line-handle-height: 10px;
+$line-handle-width: 10px;
+
+.vs-annotation:active > vs-line {
+  visibility: hidden;
+}
+
+.vs-annotation__line-endpoint {
+  position: absolute;
+  width: $line-handle-width;
+  height: $line-handle-height;
+  margin-top: -$line-handle-height * 0.5;
+  margin-left: -$line-handle-width * 0.5;
+  background: transparent; // left as not themeable
+  border: none;
+}
+
+.vs-annotation__rectangle {
+  position: absolute;
+  overflow: hidden;
+}
+
+.vs-annotation__rectangle--selected {
+  border: 2px dotted darkgray;
+}
+
+.vs-annotation__rectangle-content-padding-box {
+  position: absolute;
+  overflow: hidden;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  .vs-annotation__rectangle-content {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    color: black;
+  }
+
+  .vs-annotation__rectangle-content-text {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+
+    ::ng-deep p {
+      overflow-wrap: break-word;
+      white-space: pre-wrap;
+      margin: 0;
+      -webkit-margin-before: 0;
+      -webkit-margin-after: 0;
+    }
+  }
+}
+
+.vs-annotation__rectangle-content--selected {
+  //resize: both;
+}
+
+.vs-annotation__rectangle-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.vs-annotation__hidden-icon--viewsheet {
+  position: absolute;
+}
+
+.annotition-button {
+  border: 2px outset  #cccccc;
+}

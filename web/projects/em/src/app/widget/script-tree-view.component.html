@@ -1,0 +1,39 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-form-field class="search-container">
+   <mat-label>_#(Search)</mat-label>
+   <input type="text" matInput [(ngModel)]="filterString" (ngModelChange)="filter($event)"/>
+   <button mat-icon-button matIconSuffix title="_#(Clear)" aria-label="_#(Clear)"
+           (click)="clearSearchContent()" [disabled]="!filterString">
+      <mat-icon fontSet="ineticons" fontIcon="close-circle-icon"></mat-icon>
+   </button>
+</mat-form-field>
+
+<div class="tree-loading-indicator" *ngIf="!dataSource.data || (!filterString && dataSource.data.length == 0)">
+   <span>_#(Loading)...</span>
+   <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+</div>
+<em-flat-tree-view class="script-tree-container"
+                   [wrap]="false"
+                   [dataSource]="dataSource"
+                   [treeControl]="dataSource.treeControl"
+                   (nodeSelected)="nodeSelect($event, target)"
+>
+</em-flat-tree-view>

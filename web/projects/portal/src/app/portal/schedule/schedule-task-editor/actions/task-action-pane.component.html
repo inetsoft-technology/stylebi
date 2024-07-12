@@ -1,0 +1,101 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="!listView && !!form" class="container-fluid p-1">
+  <form [formGroup]="form" class="task-action-form pt-2">
+    <div class="form-row-float-label row">
+      <div class="col-8 form-floating">
+          <div class="input-group input-with-actions scheduler-form"
+               *ngIf="action.actionType == 'ViewsheetAction' && model.viewsheetEnabled">
+            <input class="form-control" id="dashboardLabel" readonly
+                   placeholder="_#(Select a Dashboard)" aria-label="select a Dashboard"
+                   [ngModel]="getSheetPath(generalActionModel.sheet)"  [ngModelOptions]="{standalone: true}"
+                   [class.is-invalid]="selectSheetError"/>
+            <input class="form-control d-none" id="dashboard" formControlName="dashboard" readonly
+                   placeholder="_#(Select a Dashboard)" aria-label="select a Dashboard"
+                   [ngModel]="getSheetPath(generalActionModel.sheet)" [class.is-invalid]="selectSheetError"/>
+            <button type="button" class="btn btn-default" (click)="showSelectDashboardDialog()">
+              _#(Select)
+            </button>
+            <button type="button" class="btn btn-default"
+                    [disabled]="!generalActionModel.sheet"
+                    (click)="generalActionModel.sheet = null">
+              _#(Clear)
+            </button>
+          </div>
+          <ng-container *ngIf="action.actionType == 'ViewsheetAction'">
+            <label>_#(Dashboard)</label>
+            <span class="invalid-feedback" *ngIf="form.controls.dashboard.errors">_#(Must select a dashboard)</span>
+          </ng-container>
+      </div>
+    </div>
+
+    <div class="schedule-action-accordion bd-gray" *ngIf="isGeneralAction">
+      <action-accordion [action]="generalActionModel" [model]="model"
+                        [printers]="model.printers" [highlights]="highlights"
+                        [requiredParameters]="parameters" [parentForm]="form"
+                        [optionalParameters]="optionalParameters"
+                        [bookmarks]="bookmarks" [bookmarkList]="bookmarkList" [selectedBookmark]="selectedBookmark"
+                        [containsSheet]="containsSheet"
+                        [autoCompleteModel]="autoCompleteModel"
+                        [executeAsGroup]="executeAsGroup" [hasPrintLayout]="hasPrintLayout"
+                        [tableDataAssemblies]="tableDataAssemblies">
+      </action-accordion>
+    </div>
+  </form>
+
+  <div class="form-group mt-2 task-action-buttons">
+    <button type="button" class="btn btn-default" (click)="changeView(true)"
+            [disabled]="!isValid()">
+      _#(Multiple Actions)
+    </button>
+
+    <button type="button" class="btn btn-primary ms-2" (click)="save(true)"
+            [disabled]="!isValid()">_#(Save)</button>
+    <button type="button" class="btn btn-default ms-2" (click)="closeEditor.emit(model)">
+      _#(Close)
+    </button>
+    <button *ngIf="newTask" type="button" class="btn btn-default ms-2" (click)="cancelTask.emit()">
+      _#(Cancel)
+    </button>
+  </div>
+</div>
+
+<ng-container *ngIf="listView">
+  <div class="action-list-view mb-2">
+    <editable-table [title]="'Actions'" [items]="actionNames"
+                    [(selectedItems)]="selectedActions"></editable-table>
+  </div>
+  <div class="form-group">
+    <button type="button" class="btn btn-primary" (click)="addAction()">_#(Add)</button>
+    <button type="button" class="btn btn-default delete-button-id ms-2" (click)="deleteAction()"
+            [disabled]="selectedActions.length < 1 || model.actions.length < 1">_#(Delete)</button>
+    <button type="button" class="btn btn-default ms-2"
+            [disabled]="selectedActions.length != 1 || model.actions.length < 1"
+            (click)="editAction()">_#(Edit)</button>
+    <button type="button" class="btn btn-default ms-2"
+            (click)="save(true)">_#(Save)</button>
+    <button type="button" class="btn btn-default ms-2"
+            (click)="closeEditor.emit(model)">_#(Close)</button>
+    <button *ngIf="newTask" type="button" class="btn btn-default ms-2" (click)="cancelTask.emit()">
+      _#(Cancel)
+    </button>
+  </div>
+</ng-container>
+<notifications #notifications class="notifications-task-action-pane" [timeout]="5000"></notifications>

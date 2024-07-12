@@ -1,0 +1,86 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<string-value-editor *ngIf="type == XSchema.STRING" class="d-flex" [fullContainer]="true"
+                     [(value)]="value" (valueChange)="valueChange.emit($event)">
+</string-value-editor>
+<char-value-editor *ngIf="type == XSchema.CHAR || type == XSchema.CHARACTER" class="d-flex"
+                   [(value)]="value" (valueChange)="valueChange.emit($event)">
+</char-value-editor>
+<boolean-value-editor *ngIf="type == XSchema.BOOLEAN" [(value)]="value" class="d-flex"
+                      (valueChange)="valueChange.emit($event)">
+</boolean-value-editor>
+<number-value-editor *ngIf="type == XSchema.BYTE || type == XSchema.SHORT || type == XSchema.INTEGER || type == XSchema.LONG || type == XSchema.FLOAT || type == XSchema.DOUBLE"
+                     [type]="type" [(value)]="value" (valueChange)="valueChange.emit($event)">
+</number-value-editor>
+<date-value-editor *ngIf="type == XSchema.DATE" [(ngModel)]="value"
+                   (ngModelChange)="valueChange.emit($event)"
+                   [format]="DATE_FORMAT">
+</date-value-editor>
+<time-value-editor *ngIf="type == XSchema.TIME" [model]="value"
+                   (timeChange)="valueChange.emit($event)"
+                   [format]="TIME_FORMAT">
+</time-value-editor>
+<time-instant-value-editor *ngIf="type == XSchema.TIME_INSTANT"
+                           [(ngModel)]="value"
+                           (ngModelChange)="valueChange.emit($event)"
+                           (timeChange)="valueChange.emit($event)"
+                           [format]="TIME_INSTANT_FORMAT">
+</time-instant-value-editor>
+<span *ngIf="enableBrowseData && type != XSchema.BOOLEAN">
+  <button class="btn btn-sm btn-light h-100"
+          (click)="browseData()"
+          [ngbTooltip]="'_#(Browse Data)'"
+          [fixedDropdown]="dropdownMenu"
+          [autoClose]="!isOneOf">
+    <i class="value-list-icon icon-size-small align-middle"></i>
+  </button>
+</span>
+<ng-template #dropdownMenu>
+  <div class="dropdown-pane browse-data-dropdown" *ngIf="!isOneOf">
+    <a *ngFor="let choice of dataList" role="menuitem" class="dropdown-item" [title]="choice"
+       (click)="selectData(choice)">{{choice}}</a>
+    <a *ngIf="(!dataList || dataList.length === 0) && !error && !loadingDataList"
+       role="menuitem" class="dropdown-item disable-link">_#(No Data)</a>
+    <div *ngIf="loadingDataList && (!dataList || dataList.length == 0)"
+         role="menuitem" class="dropdown-item disable-link">
+      _#(Loading)
+      <span class="loading-icon loading-icon--spin"></span>
+    </div>
+    <div *ngIf="error" class="alert alert-danger mb-0">_#(common.asset.dataError)</div>
+  </div>
+  <!--select multiple values -->
+  <div class="dropdown-pane browse-data-dropdown" *ngIf="isOneOf">
+    <div *ngFor="let item of dataList; let i = index" [title]="item">
+      <div class="form-check browse-data-value">
+        <input type="checkbox" class="form-check-input" id="{{'item' + i}}"
+               [ngModel]="isSelected(item)" [value]="item" (change)="selectValues($event)">
+        <label class="form-check-label" for="{{'item' + i}}">
+          {{item}}
+        </label>
+      </div>
+    </div>
+    <div *ngIf="loadingDataList && (!dataList || dataList.length == 0)"
+         role="menuitem" class="dropdown-item disable-link">
+      _#(Loading)
+      <span class="loading-icon loading-icon--spin"></span>
+    </div>
+    <div *ngIf="error" class="alert alert-danger mb-0">_#(common.asset.dataError)</div>
+  </div>
+</ng-template>

@@ -1,0 +1,34 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<line-prop-pane [model]="model.linePropPaneModel" [variables]="variableValues" [vsId]="vsId"></line-prop-pane>
+<fill-prop-pane [model]="model.fillPropPaneModel" [variables]="variableValues" [vsId]="vsId"></fill-prop-pane>
+<form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal container-fluid">
+  <fieldset>
+    <legend>_#(Shape)</legend>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <radius-dropdown [(radius)]="model.radius" [form]="form" [max]="width < height ? width : height"></radius-dropdown>
+          <label>_#(Round Corner)</label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>

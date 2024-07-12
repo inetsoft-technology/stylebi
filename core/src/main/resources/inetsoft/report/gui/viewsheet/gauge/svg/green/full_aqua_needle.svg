@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="-143.9248 11.6914" i:rulerOrigin="309 716" i:pageBounds="-309 76 303 -716"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="199.999" height="200" viewBox="0 0 199.999 200" overflow="visible" enable-background="new 0 0 199.999 200"
+	 xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_3" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+				</g>
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<linearGradient id="XMLID_4_" gradientUnits="userSpaceOnUse" x1="99.9995" y1="0" x2="99.9995" y2="200">
+						<stop  offset="0.0056" style="stop-color:#63C762"/>
+						<stop  offset="0.7191" style="stop-color:#E0F3D6"/>
+						<stop  offset="1" style="stop-color:#B8F0E3"/>
+						<a:midPointStop  offset="0.0056" style="stop-color:#63C762"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#63C762"/>
+						<a:midPointStop  offset="0.7191" style="stop-color:#E0F3D6"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#E0F3D6"/>
+						<a:midPointStop  offset="1" style="stop-color:#B8F0E3"/>
+					</linearGradient>
+					<rect i:knockout="Off" opacity="0" fill="url(#XMLID_4_)" width="199.999" height="200"/> 
+					<g i:knockout="Off">
+						
+							<linearGradient id="XMLID_5_" gradientUnits="userSpaceOnUse" x1="-223.9487" y1="444.126" x2="-223.9487" y2="450.4668" gradientTransform="matrix(1 -6.817519e-004 -6.817519e-004 -1 347.7742 546.9845)">
+							<stop  offset="0" style="stop-color:#FF881F"/>
+							<stop  offset="1" style="stop-color:#DF1800"/>
+							<a:midPointStop  offset="0" style="stop-color:#FF881F"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#FF881F"/>
+							<a:midPointStop  offset="1" style="stop-color:#DF1800"/>
+						</linearGradient>
+						<path fill="url(#XMLID_5_)" d="M148.057,99.821c0,0.959-0.777,1.739-1.739,1.739l-45.592,1.466c-0.959,0-1.74-2.208-1.74-3.17
+							l0,0c-0.001-0.958,0.775-3.17,1.735-3.171l45.597,1.398C147.276,98.083,148.056,98.86,148.057,99.821L148.057,99.821z"/>
+						
+							<linearGradient id="XMLID_6_" gradientUnits="userSpaceOnUse" x1="-220.3296" y1="458.5918" x2="-220.3296" y2="457.0332" gradientTransform="matrix(0.9999 0.0139 0.0139 -0.9999 346.5247 559.8081)">
+							<stop  offset="0" style="stop-color:#FFB30A"/>
+							<stop  offset="1" style="stop-color:#EC4E08"/>
+							<a:midPointStop  offset="0" style="stop-color:#FFB30A"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#FFB30A"/>
+							<a:midPointStop  offset="1" style="stop-color:#EC4E08"/>
+						</linearGradient>
+						<path fill="url(#XMLID_6_)" d="M147.174,99.571c-0.004,0.206-0.172,0.371-0.379,0.37l-28.45-0.381
+							c-0.206-0.003-0.37-0.175-0.368-0.38l0.012-0.81c0.002-0.206,0.174-0.37,0.378-0.367l27.573,0.382
+							c0.206,0.004,0.371,0.173,0.369,0.379L147.174,99.571z"/>
+					</g>
+				</g>
+			</g>
+		</switch>
+	</svg>

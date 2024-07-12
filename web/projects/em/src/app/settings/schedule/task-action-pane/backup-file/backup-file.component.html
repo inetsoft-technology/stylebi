@@ -1,0 +1,78 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <mat-card-title>
+      <mat-checkbox [(ngModel)]="enabled" (change)="fireBackupChanged()"></mat-checkbox>
+      <label>_#(Backup)</label>
+    </mat-card-title>
+  </mat-card-header>
+  <mat-card-content *ngIf="enabled">
+    <mat-card-content [formGroup]="backupForm" class="mat-card-content-padding">
+      <mat-form-field floatLabel="never" appearance="outline" color="accent">
+        <input type="text" matInput formControlName="path" placeholder="_#(Path)" />
+        <mat-error *ngIf="backupForm.controls['path']?.errors?.required">_#(em.schedule.action.pathRequired)</mat-error>
+      </mat-form-field>
+      <mat-checkbox formControlName="ftp" (change)="toggleFTP()">_#(FTP/SFTP)</mat-checkbox>
+      <mat-form-field floatLabel="always" appearance="outline" color="accent">
+        <mat-label>_#(Username)</mat-label>
+        <input type="text" matInput formControlName="username" placeholder="_#(Username)" />
+      </mat-form-field>
+      <mat-form-field floatLabel="always" appearance="outline" color="accent">
+        <mat-label>_#(Password)</mat-label>
+        <input type="password" matInput formControlName="password" placeholder="_#(Password)" />
+      </mat-form-field>
+    </mat-card-content>
+
+    <div class="flex-row">
+      <mat-card appearance="outlined" class="flex-col flex-grow-1 list-container">
+        <div class="tree-loading-indicator" *ngIf="dataSource?.loading | async">
+          <span>_#(Loading)...</span>
+          <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+        </div>
+        <em-flat-tree-view [dataSource]="dataSource"
+                           [treeControl]="dataSource.treeControl"
+                           [selectedNodes]="selectedNodesObs | async"
+                           (nodeSelected)="selectNode($event)"></em-flat-tree-view>
+      </mat-card>
+      <div class="flex-col button-col flex-grow-0">
+        <button mat-mini-fab color="primary" aria-label="_#(Add)" title="_#(Add)"
+                (click)="add()" [disabled]="!entrySelected"> > </button>
+        <button mat-mini-fab color="primary" aria-label="_#(Add All)" title="_#(Add All)"
+                (click)="addChildren()" [disabled]="!folderSelected"> >* </button>
+        <button mat-mini-fab color="primary" aria-label="_#(Remove)" title="_#(Remove)"
+                (click)="remove()" [disabled]="!entitySelection.length"> < </button>
+        <button mat-mini-fab color="primary" aria-label="_#(Remove All)" title="_#(Remove All)"
+                (click)="removeAll()" [disabled]="!selectedEntities.length"> << </button>
+      </div>
+      <mat-card appearance="outlined" class="flex-col flex-grow-1 list-container">
+        <mat-list>
+          <mat-list-item *ngFor="let asset of selectedEntities"
+                         [class.selected]="entitySelection.includes(asset)"
+                         (click)="selectEntity(asset, $event)">
+            <mat-icon matListIcon fontSet="ineticons" [fontIcon]="getIcon(asset)"></mat-icon>
+            {{ asset.label }}
+          </mat-list-item>
+        </mat-list>
+        <div>{{prompt}}</div>
+      </mat-card>
+    </div>
+  </mat-card-content>
+</mat-card>

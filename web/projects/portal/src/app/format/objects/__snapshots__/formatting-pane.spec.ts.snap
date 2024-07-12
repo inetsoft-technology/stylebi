@@ -1,0 +1,9 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`FormattingPane Decrease Decimal Unit Tests currency format should decrease decimal 1`] = `"¤#.0"`;
+
+exports[`FormattingPane Increase Decimal Unit Tests currency format should increase decimal 1`] = `"¤#.000"`;
+
+exports[`FormattingPane Increase Decimal Unit Tests empty decimal format should increase decimal 1`] = `"###0.0"`;
+
+exports[`FormattingPane Increase Decimal Unit Tests percent format should increase decimal 1`] = `"#,##0.0%"`;

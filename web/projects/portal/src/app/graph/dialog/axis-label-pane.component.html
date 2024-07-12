@@ -1,0 +1,40 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <fieldset>
+    <legend>_#(Options)</legend>
+    <div class="form-row-float-label row">
+      <div class="checkbox col-auto">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="showAxisLabels"
+                 [disabled]="!model.showAxisLabelEnabled" [(ngModel)]="model.showAxisLabel">
+          <label class="form-check-label" for="showAxisLabels">
+            _#(Show Axis Labels)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>_#(Rotation)</legend>
+    <rotation-radio-group [model]="model.rotationRadioGroupModel" [auto]="true">
+    </rotation-radio-group>
+  </fieldset>
+</form>

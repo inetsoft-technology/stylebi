@@ -1,0 +1,69 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div [class.flex-col-container]="fullContainer">
+   <div class="container-fluid" [class.flex-col-container]="fullContainer">
+      <div class="script-tree-container">
+         <mat-grid-list cols="2" gutterSize="10" rowHeight="25em">
+            <mat-grid-tile class="bd-gray">
+               <div class="column-tree">
+                  <div class="tree-container">
+                     <em-script-tree-view [dataSource]="columnTreeRoot"
+                                          [target]="'columnTree'"
+                                          (nodeSelected)="nodeSelect($event)"
+                                          (onFilter)="filterDataSource($event, columnTreeRoot)"
+                     ></em-script-tree-view>
+                  </div>
+               </div>
+            </mat-grid-tile>
+            <mat-grid-tile class="bd-gray">
+               <div class="column-tree">
+                  <div class="tree-container">
+                     <em-script-tree-view [dataSource]="functionOperatorSource"
+                                          [target]="'functionTree'"
+                                          (nodeSelected)="nodeSelect($event)"
+                                          (onFilter)="filterDataSource($event, functionOperatorSource)"
+                     ></em-script-tree-view>
+                  </div>
+               </div>
+            </mat-grid-tile>
+         </mat-grid-list>
+      </div>
+      <div class="instantTooltip">
+         <div #scriptHelp [innerHTML]="'_#(composer.vs.scriptHelp)'"></div>
+         &nbsp;(<a class="cursor-pointer" triggers="click:blur" placement="bottom">_#(More)...</a>)
+         <ng-template #shortcutTooltip>
+            <div class="composer-tooltip">
+               <b>_#(composer.vs.scriptShortcut1)</b> _#(composer.vs.scriptShortcutHelp1)<br>
+               <b>_#(composer.vs.scriptShortcut2)</b> _#(composer.vs.scriptShortcutHelp2)
+            </div>
+         </ng-template>
+      </div>
+      <div class="js-config-container" [class.stretch-empty]="fullContainer">
+         <div #scriptEditorContainer class="bd-gray script-editor-container" [class.full-container]="fullContainer">
+            <textarea #scriptEditor></textarea>
+         </div>
+      </div>
+      <div class="row">
+         <div [innerHTML]="'_#(composer.vs.scriptHelp2)'"></div>
+      </div>
+   </div>
+   <mat-error *ngIf="expressionMissing">_#(common.condition.expressionNull)</mat-error>
+</div>
+

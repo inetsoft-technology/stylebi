@@ -1,0 +1,38 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="em-card">
+  <mat-card-title>_#(Cache)</mat-card-title>
+  <mat-card-content>
+    <form *ngIf="form" [formGroup]="form">
+      <div class="flex-col">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Directory)</mat-label>
+          <input matInput formControlName="directory" placeholder="_#(Directory)">
+        </mat-form-field>
+        <mat-slide-toggle formControlName="cleanUpStartup">
+          _#(Clean Cache on Startup)
+        </mat-slide-toggle>
+      </div>
+    </form>
+  </mat-card-content>
+  <mat-card-actions class="margin-top">
+    <button mat-raised-button (click)="cleanUp()">_#(Clean_up)</button>
+  </mat-card-actions>
+</mat-card>

@@ -1,0 +1,51 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="object-type-pane"
+     [style.justify-content]="!hasObjectTypes() && !originalType ? 'center' : 'flex-start'">
+  <div class="object-type-container">
+    <ng-container *ngIf="recommendations && recommendations.length > 0">
+      <div *ngFor="let rtype of allTypes" [attr.title]="getTooltip(rtype)">
+        <div class="object-type-border hover-bg-primary-selectable"
+             [class.disabled]="!isRecommended(rtype)"
+             [class.bb-highlight-primary]="selectedType == rtype"
+             [class.not-selected-border]="selectedType != rtype"
+             (click)="selectObjectType(rtype)">
+        <span class="object-type-img"
+              [class.grayout]="!isRecommended(rtype)"
+              [attr.title]="getTooltip(rtype)"
+              [ngClass]="getObjectTypeIcon(rtype)"></span>
+        </div>
+      </div>
+    </ng-container>
+    <div *ngIf="!!originalType" class="object-type-border"
+         [class.bb-highlight-primary]="selectedType == 'ORIGINAL_TYPE'"
+         [class.not-selected-border]="selectedType != 'ORIGINAL_TYPE'"
+         [attr.title]="'_#(Original)'" (click)="selectObjectType(originalType)">
+      <span class="object-type-img" [ngClass]="getObjectTypeIcon(originalType)"></span>
+    </div>
+  </div>
+  <div class="object-type-content bg-darken2"
+       *ngIf="!hasObjectTypes() && !originalType">
+    <div class="hint-icon bg-primary">
+      <i class="recommend-icon icon-size-large txt-light" aria-hidden="true"></i>
+    </div>
+    <span class="px-2">_#(vs.wizard.label)</span>
+  </div>
+</div>

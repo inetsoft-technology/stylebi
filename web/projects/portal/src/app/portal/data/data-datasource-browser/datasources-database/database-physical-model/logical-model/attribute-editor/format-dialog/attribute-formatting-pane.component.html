@@ -1,0 +1,90 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="popup-editor__container">
+  <div class="popup-editor__button-group">
+    <button (click)="increaseDecimal()" class="popup-editor__button btn"
+            title="_#(increase.decimal.tooltip)"
+            [disabled]="increaseDecimalDisabled()">
+      <i class="decimal-increase-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+    <button (click)="decreaseDecimal()" class="popup-editor__button btn"
+            title="_#(decrease.decimal.tooltip)"
+            [disabled]="decreaseDecimalDisabled()">
+      <i class="decimal-decrease-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+    <button class="popup-editor__button btn"
+            title="_#(Apply)"
+            (click)="onApply.emit(true)">
+      <i class="submit-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="form-floating">
+    <select class="formatSelect form-control" [ngModel]="formatModel?.format"
+            (ngModelChange)="typeChange($event)"
+            placeholder="_#(Format)">
+      <option [ngValue]="fmt.value" *ngFor="let fmt of formats">
+        {{fmt.label}}
+      </option>
+    </select>
+    <label><span>_#(Format Type)</span></label>
+  </div>
+  <select [ngModel]="dateFormat"
+          (ngModelChange)="updateDateFormat($event)"
+          *ngIf="formatModel?.format == 'DateFormat'" class="form-control mt-1">
+    <option [value]="dfmt.value" *ngFor="let dfmt of dateFormats">
+      {{dfmt.label}}
+    </option>
+  </select>
+  <div *ngIf="showFormatSpec()" class="mt-2">
+    <div class="form-floating" *ngIf="formatModel?.format == 'MessageFormat'">
+      <input type="text" [ngModel]="formatModel?.formatSpec"
+             (ngModelChange)="formatModel.formatSpec = $event"
+             class="form-control">
+      <label>_#(Custom Format)</label>
+    </div>
+    <div class="form-floating" *ngIf="formatModel?.format == 'DateFormat'">
+      <combo-box [dataModel]="formatModel?.formatSpec" [dataValues]="dateFmts"
+                 (onDataChange)="changeModel($event)">
+      </combo-box>
+      <label>_#(Custom Format)</label>
+    </div>
+    <div class="form-floating" *ngIf="formatModel?.format == 'DecimalFormat'">
+      <combo-box [dataModel]="formatModel?.formatSpec" [dataValues]="getDecimalFormats()"
+                 (onDataChange)="changeModel($event)">
+      </combo-box>
+      <label>_#(Custom Format)</label>
+    </div>
+    <ng-container *ngIf="formatModel?.format == 'DurationFormat'">
+      <div class="form-floating">
+        <combo-box [dataModel]="formatModel?.formatSpec" [dataValues]="durationFmts"
+                   (onDataChange)="changeModel($event)">
+        </combo-box>
+        <label>_#(Custom Format)</label>
+      </div>
+      <div class="form-check duration-pad">
+        <input type="checkbox" class="form-check-input duration-pad-check"
+               [(ngModel)]="formatModel.durationPadZeros" id="padZeros">
+        <label class="form-check-label" for="padZeros">
+          _#(Pad with Zeros)
+        </label>
+      </div>
+    </ng-container>
+  </div>
+</div>

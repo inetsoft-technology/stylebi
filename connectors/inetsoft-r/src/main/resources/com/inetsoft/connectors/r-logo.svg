@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="40px" height="30px" viewBox="342 265.5 40 30" enable-background="new 342 265.5 40 30" xml:space="preserve">
+<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="56.9019" y1="676.21" x2="56.9416" y2="676.1702" gradientTransform="matrix(721.094 0 0 -482.937 -40684.5742 326836.3125)">
+	<stop  offset="0" style="stop-color:#CBCED0"/>
+	<stop  offset="1" style="stop-color:#84838B"/>
+</linearGradient>
+<path fill="url(#SVGID_1_)" d="M361.4,288.872c-7.903,0-14.311-4.291-14.311-9.584c0-5.293,6.407-9.584,14.311-9.584
+	s14.31,4.291,14.31,9.584C375.71,284.581,369.304,288.872,361.4,288.872z M363.591,273.451c-6.007,0-10.877,2.934-10.877,6.552
+	c0,3.618,4.87,6.552,10.877,6.552c6.007,0,10.439-2.006,10.439-6.552C374.03,275.458,369.598,273.451,363.591,273.451z"/>
+<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="56.5093" y1="676.4131" x2="56.549" y2="676.3734" gradientTransform="matrix(398 0 0 -406.124 -22132.5 274983.8438)">
+	<stop  offset="0" style="stop-color:#276DC3"/>
+	<stop  offset="1" style="stop-color:#165CAA"/>
+</linearGradient>
+<path fill="url(#SVGID_2_)" d="M368.884,284.548c0,0,0.866,0.262,1.37,0.517c0.174,0.088,0.476,0.266,0.694,0.495
+	c0.213,0.228,0.316,0.457,0.316,0.457l3.413,5.756l-5.516,0.001l-2.581-4.844c0,0-0.527-0.907-0.853-1.171
+	c-0.271-0.22-0.387-0.297-0.655-0.297c-0.186,0-1.31,0-1.31,0v6.311h-4.881v-16.118h9.804c0,0,4.465,0.081,4.465,4.329
+	C373.151,284.232,368.884,284.548,368.884,284.548z M366.761,279.151l-2.957-0.001v2.74l2.957-0.002c0,0,1.37-0.003,1.37-1.393
+	C368.131,279.077,366.761,279.151,366.761,279.151z"/>
+</svg>

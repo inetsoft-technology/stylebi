@@ -1,0 +1,62 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<fieldset class="row">
+  <legend>_#(List Values)</legend>
+  <combo-box-editor [model]="model.comboBoxEditorModel" [runtimeId]="runtimeId" [general]="general"
+                    [sortType]="model.sortType" [embeddedDataDown]="model.embeddedDataDown"
+                    (isInputValid)="onValidChange($event)" [variableValues]="variableValues"
+                    [showCalendar]="isComboBox">
+  </combo-box-editor>
+</fieldset>
+
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <fieldset>
+    <legend>_#(Options)</legend>
+    <div class="form-row-float-label row">
+      <div class="col form-floating">
+        <select [(ngModel)]="model.sortType" class="form-control" placeholder="_#(Sort)">
+          <option (click)="toggleSort(1)" [value]="1">_#(Ascending)</option>
+          <option (click)="toggleSort(2)" [value]="2">_#(Descending)</option>
+          <option (click)="toggleSort(0)" [value]="0">_#(None)</option>
+        </select>
+        <label><span>_#(Sort)</span></label>
+      </div>
+      <div class="col">
+        <div class="form-check">
+          <input class="form-check-input list-embedded_id" type="checkbox" id="embedLast"
+               [disabled]="model.sortType != 0 || !model.comboBoxEditorModel.embedded || !model.comboBoxEditorModel.query"
+               [(ngModel)]="model.embeddedDataDown">
+          <label class="form-check-label" for="embedLast">
+           _#(List Embedded Items Last)
+          </label>
+        </div>
+      </div>
+      <div *ngIf="isCheckBox" class="col">
+        <div class="form-check" [title]="'_#(vs.select.first.tooltip)'">
+          <input class="form-check-input list-embedded_id" type="checkbox" id="selectFirstItem"
+                 [(ngModel)]="model.selectFirstItem">
+          <label class="form-check-label" for="selectFirstItem">
+            _#(Select First Item on Dashboard Load)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>

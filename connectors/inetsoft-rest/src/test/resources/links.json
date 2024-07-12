@@ -1,0 +1,12 @@
+{
+  "_links": [
+    {
+      "rel": "next",
+      "href": "https://api.gosquared.com/people/v1/people?limit=8%2C1"
+    },
+    {
+      "rel": "previous",
+      "href": "https://api.gosquared.com/people/v1/people?limit=0%2C1"
+    }
+  ]
+}

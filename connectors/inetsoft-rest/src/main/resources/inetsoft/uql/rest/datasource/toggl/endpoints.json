@@ -1,0 +1,189 @@
+{
+  "endpoints": [
+    {
+      "name": "Client",
+      "paged": false,
+      "suffix": "/api/v8/clients/{Client ID}"
+    },
+    {
+      "name": "Clients",
+      "paged": false,
+      "suffix": "/api/v8/clients",
+      "lookups": [
+        {
+          "endpoint": "Projects",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Client ID"
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "paged": false,
+      "suffix": "/api/v8/clients/{Client ID}/projects?active={Active?:true|false|both}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Users",
+            "Project Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Project ID"
+        }
+      ]
+    },
+    {
+      "name": "Project",
+      "paged": false,
+      "suffix": "/api/v8/projects/{Project ID}"
+    },
+    {
+      "name": "Project Users",
+      "paged": false,
+      "suffix": "/api/v8/projects/{Project ID}/project_users"
+    },
+    {
+      "name": "Project Tasks",
+      "paged": false,
+      "suffix": "/api/v8/projects/{Project ID}/tasks"
+    },
+    {
+      "name": "Workspace Project Users",
+      "paged": false,
+      "suffix": "/api/v8/workspaces/{Workspace ID}/project_users"
+    },
+    {
+      "name": "Task",
+      "paged": false,
+      "suffix": "/api/v8/tasks/{Task ID}"
+    },
+    {
+      "name": "Time Entry",
+      "paged": false,
+      "suffix": "/api/v8/time_entries/{Time Entry ID}"
+    },
+    {
+      "name": "Current Time Entry",
+      "paged": false,
+      "suffix": "/api/v8/time_entries/current"
+    },
+    {
+      "name": "Time Entries",
+      "paged": false,
+      "suffix": "/api/v8/time_entries?start_date={Start Date?:yyyy-MM-ddTHH:mm:ssZ}&end_date={End Date?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "name": "Current User",
+      "paged": false,
+      "suffix": "/api/v8/me?with_related_data={With Related Data?:true|false}&since={Changed Since?:Unix Timestamp}"
+    },
+    {
+      "name": "Workspaces",
+      "paged": false,
+      "suffix": "/api/v8/workspaces",
+      "lookups": [
+        {
+          "endpoints": [
+            "All Users",
+            "Workspace Clients",
+            "Workspace Groups",
+            "Workspace Projects",
+            "Workspace Tasks",
+            "Workspace Tags",
+            "Workspace Users",
+            "Dashboard"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Workspace ID"
+        }
+      ]
+    },
+    {
+      "name": "Workspace",
+      "paged": false,
+      "suffix": "/api/v8/workspaces/{Workspace ID}"
+    },
+    {
+      "name": "All Users",
+      "paged": false,
+      "suffix": "/api/v8/workspaces/{Workspace ID}/users"
+    },
+    {
+      "name": "Workspace Clients",
+      "paged": false,
+      "suffix": "/api/v8/workspaces/{Workspace ID}/clients",
+      "lookups": [
+        {
+          "endpoint": "Projects",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Client ID"
+        }
+      ]
+    },
+    {
+      "name": "Workspace Groups",
+      "paged": false,
+      "suffix": "/api/v8/workspaces/{Workspace ID}/groups"
+    },
+    {
+      "name": "Workspace Projects",
+      "paged": false,
+      "suffix": "/api/v8/workspaces/{Workspace ID}/projects?active={Active?:true|false|both}&actual_hours={Actual Hours?:true|false}&only_templates={Only Templates?:true|false}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Users",
+            "Project Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Project ID"
+        }
+      ]
+    },
+    {
+      "name": "Workspace Tasks",
+      "paged": false,
+      "suffix": "/api/v8/workspaces/{Workspace ID}/tasks?active={Active?:true|false|both}"
+    },
+    {
+      "name": "Workspace Tags",
+      "paged": false,
+      "suffix": "/api/v8/workspaces/{Workspace ID}/tags"
+    },
+    {
+      "name": "Workspace Users",
+      "paged": false,
+      "suffix": "/api/v8/workspaces/{Workspace ID}/workspace_users"
+    },
+    {
+      "name": "Dashboard",
+      "paged": false,
+      "suffix": "/api/v8/dashboard/{Workspace ID}"
+    },
+    {
+      "name": "Weekly Report",
+      "paged": false,
+      "suffix": "/reports/api/v2/weekly?user_agent={Your Email Address}&workspace_id={Workspace ID}&grouping={Grouping?:users|projects}&calculate={Calculate?:time|earnings}"
+    },
+    {
+      "name": "Detailed Report",
+      "paged": true,
+      "suffix": "/reports/api/v2/details?user_agent={Your Email Address}&workspace_id={Workspace ID}"
+    },
+    {
+      "name": "Summary Report",
+      "paged": false,
+      "suffix": "/reports/api/v2/summary?user_agent={Your Email Address}&workspace_id={Workspace ID}&grouping={Grouping?:users|clients|projects}&subgrouping={Subgrouping?:time_entries|tasks|users|projects}&subgrouping_ids={Include Subgroup IDs?:true|false}&grouped_time_entry_ids={Include Time Entry IDs?:true|false}"
+    },
+    {
+      "name": "Project Dashboard",
+      "paged": true,
+      "suffix": "/reports/api/v2/project?user_agent={Your Email Address}&workspace_id={Workspace ID}&project_id={Project ID}"
+    }
+  ]
+}

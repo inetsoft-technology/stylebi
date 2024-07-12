@@ -1,0 +1,49 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.current-selection {
+   position: relative;
+   display: flex;
+}
+.current-selection-selected-text {
+  white-space: nowrap;
+  border-width: 0px 0px 1px;
+  border-style: none none solid;
+  border-color: rgb(192, 192, 192);
+  overflow: hidden;
+  position: relative;
+}
+
+.vs-object:hover .current-selection-selected-text {
+  padding-right: 14px;
+}
+
+.mini-menu {
+  position: absolute;
+  right: 2px;
+  top: 0;
+  visibility: hidden;
+}
+
+.vs-object:hover .mini-menu {
+  visibility: visible;
+  z-index: 9999;
+}
+
+div.vs-object.current-selection.bd-gray {
+  border: none;
+}

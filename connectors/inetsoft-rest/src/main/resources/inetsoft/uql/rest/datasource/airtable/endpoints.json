@@ -1,0 +1,14 @@
+{
+    "endpoints": [
+        {
+            "name": "Records",
+            "paged": true,
+            "suffix": "/v0/{Base ID}/{Table Name}?fields={Fields?,:Name,Description,...}&filterByFormula={Filter by Formula?}&view={View Name?}&cellFormat={Cell Format?:string|json}&timeZone={Time Zone:America/Los_Angeles|America/New_York|...}&userLocale={User Locale:en|en-gb|es|...}"
+        },
+        {
+            "name": "Record",
+            "paged": false,
+            "suffix": "/v0/{Base ID}/{Table Name}/{Record ID}"
+        }
+    ]
+}

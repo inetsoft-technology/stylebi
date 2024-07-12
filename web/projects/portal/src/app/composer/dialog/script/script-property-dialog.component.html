@@ -1,0 +1,53 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Script Function Options)'"
+              (onCancel)="cancelChanges()">
+</modal-header>
+<div class="modal-body" [enterSubmit]="true" (onEnter)="saveChanges()">
+   <fieldset>
+      <legend>_#(Font)</legend>
+      <div class="form-row-float-label row">
+         <div class="col">
+            <div class="form-floating" [formGroup]="form">
+               <input type="number" class="form-control" formControlName="fontSize"
+                      [class.is-invalid]="form.get('fontSize').invalid"/>
+               <label>_#(Font Size)</label>
+               <span class="invalid-feedback">_#(composer.script.fontSize)</span>
+            </div>
+         </div>
+      </div>
+      <legend>_#(Content)</legend>
+      <div class="form-row-float-label row">
+         <div class="col">
+            <div class="form-floating">
+               <textarea class="form-control" [(ngModel)]="comment"
+                         placeholder="_#(Description)">
+               </textarea>
+               <label>_#(Description)</label>
+            </div>
+         </div>
+      </div>
+   </fieldset>
+</div>
+
+<div class="modal-footer">
+   <button type="submit" class="btn btn-primary" (click)="saveChanges()" [disabled]="form.invalid" #okButton>_#(OK)</button>
+   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+</div>

@@ -1,0 +1,110 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="isWorksheetEmpty()" class="intro">
+  <div class="intro-content text-muted">
+    <p>_#(common.createDataBlock)</p>
+    <ol>
+      <li>_#(common.dragTable) (<i class="db-table-icon"></i>) _#(or worksheet) (<i class="worksheet-icon"></i>) _#(common.createHere)</li>
+      <li>_#(common.useObjectIcon) (<i class="new-objects-icon"></i>) _#(common.topToolbarNewQuery)</li>
+    </ol>
+  </div>
+</div>
+<div #jspContainerMain class="jsplumb-container ws-assembly-graph-pane" tabindex="-1"
+     selectionBox selectionBoxBannedSelector=".jsplumb-draggable-handle"
+     (onSelectionBox)="onSelectionBox($event)"
+     (onDragover)="allowDrop($event)" (drop)="drop($event)"
+     (mousedown)="clearSelection($event)" (contextmenu)="openContextMenu($event)"
+     (click)="updateLastClick($event)"
+     outOfZone (onKeydown)="oozKeyDown($event)"
+     (onScroll)="oozScroll()">
+  <table-thumbnail
+    *ngFor="let _table of worksheet.tables; trackBy:trackByFn"
+    class="ws-assembly-graph-element jsplumb-element ws-graph-thumbnail bd-gray"
+    tabindex="0"
+    [ngClass]="getThumbnailClasses(_table)"
+    [sqlEnabled]="sqlEnabled" [freeFormSqlEnabled]="freeFormSqlEnabled"
+    [worksheet]="worksheet" [table]="_table" [tableEndpoints]="tableEndpoints"
+    (mousedown)="selectAssembly($event, _table)" (click)="clickAssembly($event, _table)"
+    (dblclick)="selectCompositeTable(_table, $event)" (onRemove)="removeFocusedAssemblies()"
+    (onCopy)="copyAssembly($event)" (onCut)="cutAssembly($event)"
+    (onEditCompositionTable)="selectCompositeTable($event)"
+    (onEditQuery)="onEditQuery.emit($event)"
+    (onRefreshAssembly)="refreshAssembly($event[0], $event[1])"
+    (onRegisterAssembly)="registerAssembly($event[0], $event[1])"
+    (onEditName)="editName(_table, $event)"
+    (onStartEditName)="startEditName(_table)"
+    (onNotify)="notify($event)"
+    (onDragPasteAssemblies)="dragPasteAssemblies($event)"
+    (onMoveAssemblies)="moveAssemblies($event)"
+    (onAddEndpoint)="addEndpoint($event[0], $event[1])"
+    (onToggleEndpoints)="toggleEndpoints($event)"
+    (onHideEndpoints)="hideEndpoints($event)"
+    (onSetDraggable)="setDraggable($event[0], $event[1])"
+    (onDestroy)="destroyAssembly($event)"
+    (onInsertColumns)="onInsertColumns.emit($event)"
+    (onOpenAssemblyConditionDialog)="onOpenAssemblyConditionDialog.emit($event)"
+    (onOpenAggregateDialog)="onOpenAggregateDialog.emit($event)"
+    (onOpenSortColumnDialog)="onOpenSortColumnDialog.emit($event)"
+    (onSelectDependent)="selectDependent()">
+  </table-thumbnail>
+  <variable-thumbnail
+    *ngFor="let _variable of worksheet.variables; trackBy:trackByFn"
+    class="ws-assembly-graph-element jsplumb-element ws-graph-thumbnail bd-gray"
+    tabindex="0"
+    [ngClass]="getThumbnailClasses(_variable)"
+    [variable]="_variable" [worksheet]="worksheet"
+    (mousedown)="selectAssembly($event, _variable)" (click)="clickAssembly($event, _variable)"
+    (onRemove)="removeFocusedAssemblies()"
+    (onCopy)="copyAssembly($event)" (onCut)="cutAssembly($event)"
+    (onRefreshAssembly)="refreshAssembly($event[0], $event[1])"
+    (onRegisterAssembly)="registerAssembly($event[0], $event[1])"
+    (onEditName)="editName(_variable, $event)"
+    (onStartEditName)="startEditName(_variable)"
+    (onNotify)="notify($event)"
+    (onDragPasteAssemblies)="dragPasteAssemblies($event)"
+    (onMoveAssemblies)="moveAssemblies($event)"
+    (onSetDraggable)="setDraggable($event[0], $event[1])"
+    (onDestroy)="destroyAssembly($event)"
+    (onToggleAutoUpdate)="toggleAutoUpdate(_variable)"
+    (onSelectDependent)="selectDependent()">
+  </variable-thumbnail>
+  <grouping-thumbnail
+    *ngFor="let _grouping of worksheet.groupings; trackBy:trackByFn"
+    class="ws-assembly-graph-element jsplumb-element ws-graph-thumbnail bd-gray"
+    tabindex="0"
+    [ngClass]="getThumbnailClasses(_grouping)"
+    [grouping]="_grouping" [worksheet]="worksheet"
+    (mousedown)="selectAssembly($event, _grouping)" (click)="clickAssembly($event, _grouping)"
+    (onRemove)="removeFocusedAssemblies()"
+    (onCopy)="copyAssembly($event)" (onCut)="cutAssembly($event)"
+    (onRefreshAssembly)="refreshAssembly($event[0], $event[1])"
+    (onRegisterAssembly)="registerAssembly($event[0], $event[1])"
+    (onEditName)="editName(_grouping, $event)"
+    (onStartEditName)="startEditName(_grouping)"
+    (onNotify)="notify($event)"
+    (onDragPasteAssemblies)="dragPasteAssemblies($event)"
+    (onMoveAssemblies)="moveAssemblies($event)"
+    (onSetDraggable)="setDraggable($event[0], $event[1])"
+    (onDestroy)="destroyAssembly($event)"
+    (onToggleAutoUpdate)="toggleAutoUpdate(_grouping)"
+    (onSelectDependent)="selectDependent()">
+  </grouping-thumbnail>
+  <div class="balloon-element"></div>
+</div>

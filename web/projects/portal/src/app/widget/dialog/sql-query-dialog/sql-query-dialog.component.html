@@ -1,0 +1,105 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Database Query)'"
+   [cshid]="'DatabaseQuery'"
+   (onCancel)="cancel()">
+</modal-header>
+<div *ngIf="model" class="modal-body" [enterSubmit]="formValid"
+     (keydown.escape)="checkIfNotSaved($event)"
+     (onEnter)="ok()">
+  <div class="container-fluid d-flex flex-column h-100">
+    <div class="row form-group" *ngIf="!subQuery" >
+      <div class="col">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="switchEditMode"
+                [ngModel]="model.advancedEdit" (change)="onSwitchChange($event)"
+                [disabled]="!model.freeFormSqlEnabled && model.advancedEdit">
+          <label class="form-check-label" for="switchEditMode">_#(Advanced Query)</label>
+        </div>
+      </div>
+    </div>
+    <div [formGroup]="form" class="row form-row-float-label" *ngIf="!!tables">
+      <div class="col form-floating">
+        <input type="text" class="form-control" formControlName="name" trim placeholder="_#(Name)">
+        <label>_#(Name)</label>
+        <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']"
+             class="alert alert-danger">
+          _#(designer.chartProp.specifyTargetName)
+        </div>
+        <div *ngIf="form.controls['name'].errors &&
+                 form.controls['name'].errors['nameSpecialCharacters']" class="alert alert-danger">
+          _#(viewer.worksheet.Grouping.SpecialChar)
+        </div>
+        <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['exists']"
+             class="alert alert-danger">
+          _#(viewer.worksheet.Grouping.nameAlready)
+        </div>
+      </div>
+    </div>
+    <div class="row form-group">
+      <div class="col">
+        <select *ngIf="model.dataSources?.length > 1" class="form-control"
+                [(ngModel)]="model.dataSource" (ngModelChange)="dataSourceChanged()">
+          <option *ngFor="let dataSource of model.dataSources" [value]="dataSource">
+            {{dataSource}}</option>
+        </select>
+      </div>
+    </div>
+    <ng-container *ngIf="!advancedEditing">
+      <div class="w-100 h-100">
+        <simple-query-pane [queryModel]="model" [controller]="controller" [runtimeId]="model.runtimeId"
+                           [dataSources]="model.dataSources" [dataSource]="model.dataSource"
+                           [freeFormSqlEnabled]="model.freeFormSqlEnabled"
+                           [model]="model.simpleModel" [loading]="loading"
+                           [dataSourceTreeRoot]="dataSourceTreeRoot"
+                           [supportsFullOuterJoinArr]="model.supportsFullOuterJoin"
+                           [operations]="operations" [sessionOperations]="sessionOperations"
+                           [datasource]="model.dataSource" [supportPreview]="!subQuery"
+                           (onProcessing)="processing=$event">
+        </simple-query-pane>
+      </div>
+    </ng-container>
+    <ng-container  *ngIf="advancedEditing && model && model.advancedModel">
+      <div class="row flex-grow-1 flex-shrink-1 overflow-hidden">
+        <div class="h-100 overflow-auto">
+            <database-query #advancedQueryPane [runtimeId]="model.runtimeId"
+                            [freeFormSqlEnabled]="model.freeFormSqlEnabled"
+                            [queryModel]="model.advancedModel"
+                            [dataSourceTreeRoot]="dataSourceTreeRoot"
+                            [databaseName]="model.dataSource"
+                            [operations]="operations"
+                            [sessionOperations]="sessionOperations"
+                            (groupByValidityChange)="validGroupBy = $event">
+            </database-query>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+</div>
+<div class="modal-footer">
+  <div *ngIf="mashUpData" class="d-flex justify-content-start flex-grow-1">
+    <button type="button" class="btn btn-default" (click)="ok(true)" [disabled]="isApplyBtnDisabled()">_#(Mashup Data)</button>
+  </div>
+  <button type="button" class="btn btn-default" (click)="clear()" [disabled]="clearDisabled()">_#(Clear)</button>
+  <apply-button *ngIf="applyVisible" (onApply)="apply($event)" [disabled]="isApplyBtnDisabled()"></apply-button>
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="isApplyBtnDisabled()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>
+

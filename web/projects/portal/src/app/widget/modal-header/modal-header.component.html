@@ -1,0 +1,39 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="modal-header">
+  <div class="d-flex">
+    <h3 class="modal-title">{{title}}</h3>
+    <div *ngIf="isShow">
+      <button *ngIf="!isDataTip" type="button" class="preview-btn-left"
+              (click)="onShowStyle.emit($event)" title="_#(Table Style)">
+        <i class="color-fill-icon" aria-hidden="true"></i>
+        <span class="visually-hidden">_#(Table Style)</span>
+      </button>
+      <button type="button" class="preview-btn-right" (click)="onExportTable.emit($event)" title="_#(Export)">
+        <i class="export-icon" aria-hidden="true"></i>
+        <span class="visually-hidden">_#(Export)</span>
+      </button>
+    </div>
+  </div>
+  <div class="d-flex align-items-center">
+    <i *ngIf="showHelpLink" [helpLink]="cshid" class="mx-1" tabindex="0" aria-label="_#(Help Information)" role="link" enterClick></i>
+    <button type="button" class="btn-close" (click)="onCancel.emit($event)" aria-label="_#(Close)" title="_#(Close)"></button>
+  </div>
+</div>

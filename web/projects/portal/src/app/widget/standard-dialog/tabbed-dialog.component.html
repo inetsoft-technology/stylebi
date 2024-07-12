@@ -1,0 +1,38 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="title" (onCancel)="onClose.emit($event)"
+   [cshid]="'SettingViewsheetProperties'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="submitOnEnter" (onEnter)="onSubmit.emit()">
+  <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="defaultTab" (navChange)="defaultTab = $event.nextId">
+    <ng-container [ngbNavItem]="tab.title" *ngFor="let tab of tabs">
+      <a ngbNavLink>{{tab.title}}</a>
+      <ng-template ngbNavContent>
+        <ng-container [ngTemplateOutlet]="tab.template"></ng-container>
+      </ng-template>
+    </ng-container>
+  </ul>
+  <div [ngbNavOutlet]="nav"></div>
+</div>
+
+<div class="modal-footer">
+  <div class="modal-footer-spacer"></div>
+  <ng-container [ngTemplateOutlet]="buttons.template"></ng-container>
+</div>

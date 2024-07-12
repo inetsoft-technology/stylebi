@@ -1,0 +1,151 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:root {
+  // font
+  --inet-em-font-family: "Roboto","Helvetica Neue Light","Helvetica Neue",Helvetica,Arial,"Lucida Grande",sans-serif;
+
+  // light/dark
+  --inet-em-light-primary-text: #{$light-primary-text};
+  --inet-em-dark-primary-text: #{$dark-primary-text};
+
+  // primary
+  --inet-em-primary-50: #e0e0e0;
+  --inet-em-primary-100: #bdbdbd;
+  --inet-em-primary-200: #9e9e9e;
+  --inet-em-primary-300: #757575;
+  --inet-em-primary-400: #616161;
+  --inet-em-primary-500: #424242;
+  --inet-em-primary-600: #212121;
+  --inet-em-primary-700: #101010;
+  --inet-em-primary-800: #050505;
+  --inet-em-primary-900: #000000;
+  --inet-em-primary-A100: #bdbdbd;
+  --inet-em-primary-A200: #939393;
+  --inet-em-primary-A400: #616161;
+  --inet-em-primary-A700: #101010;
+  --inet-em-primary-contrast-50: var(--inet-em-dark-primary-text);
+  --inet-em-primary-contrast-100: var(--inet-em-dark-primary-text);
+  --inet-em-primary-contrast-200: var(--inet-em-dark-primary-text);
+  --inet-em-primary-contrast-300: var(--inet-em-light-primary-text);
+  --inet-em-primary-contrast-400: var(--inet-em-light-primary-text);
+  --inet-em-primary-contrast-500: var(--inet-em-light-primary-text);
+  --inet-em-primary-contrast-600: var(--inet-em-light-primary-text);
+  --inet-em-primary-contrast-700: var(--inet-em-light-primary-text);
+  --inet-em-primary-contrast-800: var(--inet-em-light-primary-text);
+  --inet-em-primary-contrast-900: var(--inet-em-light-primary-text);
+  --inet-em-primary-contrast-A100: var(--inet-em-dark-primary-text);
+  --inet-em-primary-contrast-A200: var(--inet-em-dark-primary-text);
+  --inet-em-primary-contrast-A400: var(--inet-em-light-primary-text);
+  --inet-em-primary-contrast-A700: var(--inet-em-light-primary-text);
+
+  // accent
+  --inet-em-accent-50: #FDEEE4;
+  --inet-em-accent-100: #FAD4BB;
+  --inet-em-accent-200: #F6B88E;
+  --inet-em-accent-300: #F29C60;
+  --inet-em-accent-400: #F0863E;
+  --inet-em-accent-500: #ed711c;
+  --inet-em-accent-600: #EB6919;
+  --inet-em-accent-700: #E85E14;
+  --inet-em-accent-800: #E55411;
+  --inet-em-accent-900: #E04209;
+  --inet-em-accent-A100: #FFFFFF;
+  --inet-em-accent-A200: #FFE0D7;
+  --inet-em-accent-A400: #FFB8A4;
+  --inet-em-accent-A700: #FFA48B;
+  --inet-em-accent-contrast-50: var(--inet-em-dark-primary-text);
+  --inet-em-accent-contrast-100: var(--inet-em-dark-primary-text);
+  --inet-em-accent-contrast-200: var(--inet-em-dark-primary-text);
+  --inet-em-accent-contrast-300: var(--inet-em-dark-primary-text);
+  --inet-em-accent-contrast-400: var(--inet-em-dark-primary-text);
+  --inet-em-accent-contrast-500: var(--inet-em-light-primary-text);
+  --inet-em-accent-contrast-600: var(--inet-em-light-primary-text);
+  --inet-em-accent-contrast-700: var(--inet-em-light-primary-text);
+  --inet-em-accent-contrast-800: var(--inet-em-light-primary-text);
+  --inet-em-accent-contrast-900: var(--inet-em-light-primary-text);
+  --inet-em-accent-contrast-A100: var(--inet-em-dark-primary-text);
+  --inet-em-accent-contrast-A200: var(--inet-em-dark-primary-text);
+  --inet-em-accent-contrast-A400: var(--inet-em-light-primary-text);
+  --inet-em-accent-contrast-A700: var(--inet-em-light-primary-text);
+}
+
+$em-primary: (
+        50: var(--inet-em-primary-50),
+        100: var(--inet-em-primary-100),
+        200: var(--inet-em-primary-200),
+        300: var(--inet-em-primary-300),
+        400: var(--inet-em-primary-400),
+        500: var(--inet-em-primary-500),
+        600: var(--inet-em-primary-600),
+        700: var(--inet-em-primary-700),
+        800: var(--inet-em-primary-800),
+        900: var(--inet-em-primary-900),
+        A100: var(--inet-em-primary-A100),
+        A200: var(--inet-em-primary-A200),
+        A400: var(--inet-em-primary-A400),
+        A700: var(--inet-em-primary-A700),
+        contrast: (
+                50: var(--inet-em-primary-contrast-50),
+                100: var(--inet-em-primary-contrast-100),
+                200: var(--inet-em-primary-contrast-200),
+                300: var(--inet-em-primary-contrast-300),
+                400: var(--inet-em-primary-contrast-400),
+                500: var(--inet-em-primary-contrast-500),
+                600: var(--inet-em-primary-contrast-600),
+                700: var(--inet-em-primary-contrast-700),
+                800: var(--inet-em-primary-contrast-800),
+                900: var(--inet-em-primary-contrast-900),
+                A100: var(--inet-em-primary-contrast-A100),
+                A200: var(--inet-em-primary-contrast-A200),
+                A400: var(--inet-em-primary-contrast-A400),
+                A700: var(--inet-em-primary-contrast-A700)
+        )
+);
+
+$em-accent: (
+        50: var(--inet-em-accent-50),
+        100: var(--inet-em-accent-100),
+        200: var(--inet-em-accent-200),
+        300: var(--inet-em-accent-300),
+        400: var(--inet-em-accent-400),
+        500: var(--inet-em-accent-500),
+        600: var(--inet-em-accent-600),
+        700: var(--inet-em-accent-700),
+        800: var(--inet-em-accent-800),
+        900: var(--inet-em-accent-900),
+        A100: var(--inet-em-accent-A100),
+        A200: var(--inet-em-accent-A200),
+        A400: var(--inet-em-accent-A400),
+        A700: var(--inet-em-accent-A700),
+        contrast: (
+                50: var(--inet-em-accent-contrast-50),
+                100: var(--inet-em-accent-contrast-100),
+                200: var(--inet-em-accent-contrast-200),
+                300: var(--inet-em-accent-contrast-300),
+                400: var(--inet-em-accent-contrast-400),
+                500: var(--inet-em-accent-contrast-500),
+                600: var(--inet-em-accent-contrast-600),
+                700: var(--inet-em-accent-contrast-700),
+                800: var(--inet-em-accent-contrast-800),
+                900: var(--inet-em-accent-contrast-900),
+                A100: var(--inet-em-accent-contrast-A100),
+                A200: var(--inet-em-accent-contrast-A200),
+                A400: var(--inet-em-accent-contrast-A400),
+                A700: var(--inet-em-accent-contrast-A700),
+        )
+);

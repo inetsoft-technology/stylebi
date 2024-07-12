@@ -1,0 +1,69 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  flex-grow: 1;
+  flex-shrink: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.settings-sidenav-root {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-grow: 1;
+  flex-shrink: 1;
+}
+
+.settings-sidenav-container {
+  flex-grow: 1;
+  flex-shrink: 1;
+
+  .mat-nav-list {
+    margin-left: 8px;
+    margin-right: 8px;
+  }
+
+  .mat-mdc-form-field {
+    margin: 0 8px;
+  }
+}
+
+.settings-sidenav-mobile .settings-sidenav-container {
+  .mat-nav-list {
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+.settings-sidenav-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  padding: 0 8px;
+  overflow: auto;
+}
+
+@media screen and (max-device-width: 812px) {
+  .settings-sidenav-content {
+    padding: 0;
+  }
+}

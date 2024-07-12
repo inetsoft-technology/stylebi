@@ -1,0 +1,160 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid" xmlns="http://www.w3.org/1999/html">
+  <fieldset *ngIf="model">
+    <div class="form-row-float-label row">
+      <div class="col-3 checkbox">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="embedded"
+               [(ngModel)]="model.embedded" (ngModelChange)="updateCalendar()">
+          <label class="form-check-label" for="embedded">
+            _#(Embedded)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <button type="button" class="btn btn-default form-control embedded-btn_id" [disabled]="!model.embedded || model.calendar"
+                (click)="showVariableListDialog()">_#(Edit)</button>
+      </div>
+      <div class="col-auto">
+        <select class="form-control" [ngModel]="model.dataType"
+                [disabled]="!model.embedded || !enableDataType"
+                (ngModelChange)="updateType($event)">
+          <option [ngValue]="dataType.data" *ngFor="let dataType of dataTypeList">
+            {{dataType.label}}
+          </option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label *ngIf="enableDataType && showCalendar" class="form-check-label">
+          <input type="checkbox" class="form-check-input"
+                 [disabled]="!model.embedded || !calendarEnabled()"
+                 [(ngModel)]="model.calendar" (ngModelChange)="updateCalendar()">_#(Calendar)
+        </label>
+      </div>
+      <div class="col-auto">
+        <label *ngIf="enableDataType && showCalendar && model.calendar" class="form-check-label">
+          <input type="checkbox" class="form-check-input"
+                 [disabled]="isDate"
+                 [(ngModel)]="model.serverTZ">_#(Server Time Zone)
+        </label>
+      </div>
+    </div>
+    <fieldset [disabled]="!model.embedded || !calendarEnabled()">
+      <div class="form-row-float-label row" *ngIf="showDateRanges()">
+        <div class="col">
+          <div class="form-floating">
+            <dynamic-combo-box [promptString]="datePrompt"
+                               [(value)]="model.minDate" (valueChange)="onDateRangeChanged()"
+                               [vsId]="runtimeId" [variables]="variableValues" [editable]="true">
+            </dynamic-combo-box>
+            <label>_#(Minimum Date)</label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-floating">
+            <dynamic-combo-box [promptString]="datePrompt"
+                             [(value)]="model.maxDate" (valueChange)="onDateRangeChanged()"
+                             [vsId]="runtimeId" [variables]="variableValues" [editable]="true">
+            </dynamic-combo-box>
+            <label>_#(Maximum Date)</label>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset [disabled]="model.embedded && model.calendar">
+      <div class="form-row-float-label row">
+        <div class="col-3 checkbox">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="query"
+                   [(ngModel)]="model.query" (ngModelChange)="toggleQuery()">
+            <label class="form-check-label" for="query">
+              _#(Query)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <button type="button" class="btn btn-default form-control query-btn_id" [disabled]="!model.query"
+                  (click)="showSelectionListDialog()">_#(Edit)</button>
+        </div>
+      </div>
+    </fieldset>
+    <div *ngIf="!model.valid" class="alert alert-danger">
+      _#(embedded.value.invalid)
+    </div>
+  </fieldset>
+  <fieldset *ngIf="showCalendar">
+    <div class="form-row-float-label row">
+      <ng-container *ngIf="!model.calendar || (model.calendar && !model.embedded)">
+        <div class="col form-floating">
+            <select class="form-control defaultvalue" id="defaultvalue"
+                    [disabled]="model.noDefault || !(model.query || model.embedded)"
+                    [(ngModel)]="model.defaultValue">
+              <ng-container *ngIf="valueList">
+                <option [value]="valueList[i].value" *ngFor="let entry of valueList; let i = index" >{{entry.formatValue}}</option>
+              </ng-container>
+            </select>
+            <label>_#(Default Value)</label>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="model.calendar && model.embedded">
+        <div class="col form-floating">
+            <input class="form-control defaultvalue" [disabled]="model.noDefault"
+                   (ngModelChange)="onDefaultvalueChanged($event)"
+                   [(ngModel)]="model.defaultValue" [placeholder]="datePrompt">
+            <label>_#(Default Value)</label>
+        </div>
+      </ng-container>
+      <div class="col">
+        <div class="form-check">
+          <input class="form-check-input no-default" type="checkbox" id="nodefault"
+                 [(ngModel)]="model.noDefault" [disabled]="!(model.query || model.embedded)"
+                 (change)="changeNodefault()">
+          <label class="form-check-label" for="nodefault">
+            _#(No Default)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+  <div *ngIf="(!validateDateValue(model.minDate) || !validateDateValue(model.defaultValue)) && model.embedded && model.calendar " class="alert alert-danger">
+    _#(viewer.viewsheet.calendar.invalidDate)
+  </div>
+  <div *ngIf="!validateDateValue(model.maxDate) && model.embedded && model.calendar" class="alert alert-danger">
+    _#(viewer.viewsheet.calendar.invalidDate)
+  </div>
+  <div *ngIf="showDateRangeWarning() && model.embedded && model.calendar" class="alert alert-danger">
+    _#(viewer.viewsheet.calendar.invalidDateRange)
+  </div>
+  <div *ngIf="isdefaultValue(model.defaultValue) && model.embedded && model.calendar" class="alert alert-danger">
+    _#(viewer.viewsheet.calendar.defaultDateRange)
+  </div>
+</form>
+<ng-template #selectionListDialog let-close="close" let-dismiss="dismiss">
+  <selection-list-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                         [showApplySelection]="showApplySelection"
+                         [model]="model.selectionListDialogModel" [runtimeId]="runtimeId"></selection-list-dialog>
+</ng-template>
+<ng-template #variableListDialog let-close="close" let-dismiss="dismiss">
+  <variable-list-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                        [model]="model.variableListDialogModel"></variable-list-dialog>
+</ng-template>

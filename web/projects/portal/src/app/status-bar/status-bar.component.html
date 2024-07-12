@@ -1,0 +1,40 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="status-bar bg-white1 container-fluid">
+  <div class="row status-bar-row">
+    <div class="status-col" [class.col-6]="componentDiv.children.length === 0"
+         [class.col-5]="componentDiv.children.length > 0">
+      <div *ngIf="status" class="p-1 base-font-size" [class.status-normal]="!status.em" [class.status-em]="status.em">
+        <span [class.status-link]="!!status.clickListener" [innerHTML]="status.text"
+           [attr.title]="statusTooltip" (click)="statusClicked(status)"></span>
+      </div>
+    </div>
+    <div class="status-col" [class.col-6]="componentDiv.children.length === 0"
+         [class.col-4]="componentDiv.children.length > 0">
+      <div *ngIf="status2"  class="p-1 base-font-size" [class.status-normal]="!status2.em" [class.status-em]="status2.em">
+        <span [class.status-link]="!!status2.clickListener && editWorksheetPermission"
+           [innerHTML]="status2.text" [attr.title]="status2Tooltip" (click)="statusClicked(status2)"></span>
+      </div>
+    </div>
+    <div #componentDiv class="component-col" [class.col-3]="componentDiv.children.length > 0">
+      <ng-content select="[status-bar-component]"></ng-content>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,83 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="modal-header">
+  <h3 class="modal-title">_#(Schedule Task)</h3>
+  <button type="button" class="btn-close" (click)="close()" aria-label="Close"></button>
+</div>
+<div class="modal-body" [enterSubmit]="enterSubmit" (onEnter)="close()" *ngIf="model">
+  <form [formGroup]="form">
+    <div class="form-row-float-label row">
+      <div class="col form-floating">
+          <input type="text" class="form-control" id="taskName" formControlName="name">
+          <label>_#(Name)</label>
+      </div>
+    </div>
+    <div class="alert alert-danger"
+         *ngIf="form && !!form.controls['name'] && form.controls['name'].errors">
+      _#(vs.basicGeneral.nameCheck)
+    </div>
+  </form>
+  <ul ngbNav #nav="ngbNav" class="nav-tabs">
+    <ng-container ngbNavItem="condition">
+      <a ngbNavLink>_#(Condition)</a>
+      <ng-template ngbNavContent>
+        <task-condition-pane [model]="model.taskConditionPaneModel"
+                             [oldTaskName]="model.name"
+                             [taskName]="model.label"
+                             [timeZone]="model.timeZone"
+                             [taskDefaultTime]="model.taskDefaultTime"
+                             [parentForm]="form">
+                             (updateTaskName)="updateOldTaskName($event)"
+        </task-condition-pane>
+      </ng-template>
+    </ng-container>
+    <ng-container ngbNavItem="action">
+      <a ngbNavLink>_#(Action)</a>
+      <ng-template ngbNavContent>
+        <task-action-pane [model]="model.taskActionPaneModel"
+                          [oldTaskName]="model.name"
+                          [taskName]="model.label"
+                          [parentForm]="form">
+        </task-action-pane>
+      </ng-template>
+    </ng-container>
+    <ng-container ngbNavItem="options">
+      <a ngbNavLink>_#(Options)</a>
+      <ng-template ngbNavContent>
+        <task-options-pane [model]="model.taskOptionsPaneModel"
+                           [oldTaskName]="model.name"
+                           [taskName]="model.label"
+                           [parentForm]="form">
+                           (updateTaskName)="updateOldTaskName($event)"
+        </task-options-pane>
+      </ng-template>
+    </ng-container>
+  </ul>
+  <div [ngbNavOutlet]="nav"></div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">
+    _#(Close)
+  </button>
+</div>
+<div class="loading-container" *ngIf="showLoading">
+  <i class="loading-icon--spin icon-size-xlarge loading-icon"></i>
+</div>
+<notifications #notifications class="notifications-task-dialog" [timeout]="5000"></notifications>

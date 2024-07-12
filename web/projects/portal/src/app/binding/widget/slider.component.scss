@@ -1,0 +1,93 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Component Defaults */
+.slider {
+   position: absolute;
+   vertical-align: top;
+   text-align: left;
+}
+
+.unselectable-canvas {
+   position: relative;
+   z-index:5;
+   -moz-user-select: none;
+   -webkit-user-select: none;
+   -ms-user-select: none;
+}
+
+.slider-value {
+   display: block;
+   text-align: center;
+   vertical-align: middle;
+   width: 80px;
+   height: 20px;
+}
+
+.slider-track {
+   height: 5px;
+   width: 100%;
+   border-radius: 14px;
+   background-image: url('../../../assets/default/slider/slider_track_skin.png');
+}
+
+.slider-tracked {
+   width: 29%;
+   margin-top: -4px;
+   border-radius: 14px;
+   background-size: 100% 100%;
+   background-image: url('../../../assets/default/slider/slider_tracked_skin.png');
+}
+
+.slider-handle {
+   height: 12px;
+   width: 12px;
+   margin-left: -5px;
+   margin-top: -5px;
+   position: absolute;
+}
+
+.slider-tick {
+   position: absolute;
+   margin-left: 0px;
+   font-size: 10px;
+   color: rgb(205, 205, 205);
+   font-style: normal;
+}
+
+.slider-label {
+   position: absolute;
+   margin-left: -5.5px;
+   margin-top: 10px;
+   text-align: left;
+}
+
+.slider .slider-handle {
+   background-image: url('../../../assets/default/slider/slider_thumb_up_skin.png');
+}
+
+.slider .slider-handle:hover {
+   background-image: url('../../../assets/default/slider/slider_thumb_down_skin.png');
+}
+
+.slider .slider-handle:active {
+   background-image: url('../../../assets/default/slider/slider_thumb_down_skin.png');
+}
+
+.disabled {
+  opacity: 70%;
+}

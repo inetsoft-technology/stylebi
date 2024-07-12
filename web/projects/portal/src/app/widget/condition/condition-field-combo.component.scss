@@ -1,0 +1,71 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.condition-field-combo {
+  display: inline-flex;
+  align-items: flex-start;
+  width: 100%;
+
+  .condition-field-combo-toggle {
+    padding-right: 3px;
+    padding-left: 3px;
+    width: 160px;
+    border-radius: 0.25rem;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+
+    span {
+      flex-grow: 1;
+    }
+  }
+}
+
+.condition-field-combo-text {
+  width: 85%;
+  display: inline-flex;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.condition-field-combo-dropdown {
+  min-width: 165px;
+  max-width: 50vw;
+  max-height: 300px;
+  overflow-y: auto;
+
+  .selected {
+    border-radius: 3px;
+  }
+}
+
+.search-button, .search-close {
+  align-self: center;
+  padding-left: 2px;
+}
+
+.switch-button {
+  padding-left: 0px;
+}
+
+.search-field {
+  position: absolute;
+  padding: 0.375rem 0.75rem;
+  width: 160px;
+}

@@ -1,0 +1,134 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.dropdown-container {
+  max-height: 200px;
+  max-width: 100vw;
+  overflow-y: auto;
+
+  div {
+    a {
+      label {
+        margin-bottom: unset;
+      }
+    }
+  }
+}
+
+button.form-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-grow: 0;
+}
+
+.list-group .list-group-item {
+  padding: 0.2rem;
+}
+
+.dynamic-combo-box-body {
+  span.values-caret {
+    flex-grow: 0;
+    opacity: unset;
+  }
+
+  /* Cannot find a usage for this that is not already covered by
+    .form-floating .form-control[readonly]{} in style.scss
+
+  .form-control[readonly]:not([disabled]) {
+    background-color: white;
+  }
+  */
+
+  .expression-edit-icon {
+    width: 17px;
+    padding-left: 5px;
+  }
+
+  .custom-select {
+    text-align: left;
+  }
+
+  .type-toggle {
+    padding: 0 3px;
+    padding-top: 0.1em;
+  }
+
+  .no-select-input-text {
+    text-align: left;
+  }
+
+  .form-control[readonly] {
+    opacity: unset;
+  }
+}
+
+
+.input-label-style {
+  width: 120px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.no-select-input-text {
+  cursor: default;
+}
+
+.span-as-dropdown {
+  background-image: none;
+
+  &::after {
+    right: 2%;
+    top: calc(50% - 0.4em);
+    position: absolute;
+    display: inline-block;
+    content: "";
+    border-bottom: 0;
+    border-right: 0.4em solid transparent;
+    border-left: 0.4em solid transparent;
+    border-top: 0.5em solid var(--inet-dropdown-toggle-color);
+  }
+}
+
+.display-style {
+  min-width: 50px;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding-left: 10px;
+  flex-grow: 1;
+}
+
+.dropdown-item-label {
+  display: flex;
+  justify-content: space-between;
+}
+
+.dropdown-item-example {
+  opacity: 0.5;
+}
+
+
+
+/*
+.display-style.disabled {
+  background-color: #e9ecef;
+  opacity: 0.5;
+}
+*/

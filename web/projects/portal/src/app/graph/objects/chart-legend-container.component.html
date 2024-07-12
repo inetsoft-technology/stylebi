@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="legend"
+     class="chart-legend-wrapper"
+     #legendContainer
+     elementInteractable
+     [resizeOptions]="getResizeEdges()"
+     [isResizable]="resizeEnable"
+     [isMoveable]="moveEnable"
+     [cursorAreaName]="mouseoverLegendRegion"
+     moveableAreaName="legend_title"
+     (onStartMove)="startMoveOrResize($event, legendContainer, true)"
+     (onStartResize)="startMoveOrResize($event, legendContainer, false)"
+     (onEndResizeOrMove)="endMoveOrResize($event)"
+     [style.top.px]="legend.bounds.y"
+     [style.left.px]="legend.bounds.x"
+     [style.width.px]="legend.bounds.width"
+     [style.height.px]="legend.bounds.height"
+     [style.background]="background"
+     [style.border]="legend.border">
+  <ng-content></ng-content>
+  <div *ngIf="isMoving && !isResizing"
+       (window:mousemove)="onMove($event)">
+    <div *ngIf="draggedEnoughDistance()"
+         class="legend-container__outline-rectangle"
+         [style.width.px]="outlineWidth"
+         [style.height.px]="outlineHeight"
+         [style.top.px]="outlineTop"
+         [style.left.px]="outlineLeft">
+    </div>
+  </div>
+</div>

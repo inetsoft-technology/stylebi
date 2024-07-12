@@ -1,0 +1,57 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="chartObject"
+     class="chart-legend-area"
+     [id]="'chart-' + chartObject.areaName"
+     [style.top.px]="chartObject.layoutBounds.y"
+     [style.left.px]="chartObject.layoutBounds.x"
+     [style.width.px]="chartObject.layoutBounds.width"
+     [style.height.px]="chartObject.layoutBounds.height"
+     [style.max-height.px]="chartObject.areaName == 'legend_content' ? maxHeight : null"
+     [style.background]="chartObject.background"
+     outOfZone
+     (onMousemove)="onMove($event)"
+     (mousedown)="onDown($event)"
+     (mouseup)="onUp($event)"
+     (mouseleave)="showTooltip.emit(null)"
+     (dblclick)="onDblClick($event)">
+     <!-- add 1 to match size in VGraphPair.getSubGraphic -->
+  <ng-container *ngFor="let tile of chartObject.tiles; trackBy: trackByFn">
+    <img class="chart-legend-area__tile"
+         [style.top.px]="tile.bounds.y"
+         [style.left.px]="tile.bounds.x"
+         [src]="getSrc(tile, container)">
+<!-- use nature size to avoid scaling image
+         [style.width.px]="tile.bounds.width"
+         [style.height.px]="tile.bounds.height"
+-->
+    </ng-container>
+    <canvas #objectCanvas
+            [style.width.px]="chartObject.bounds.width + chartObject.layoutBounds.x"
+            [style.height.px]="chartObject.bounds.height + chartObject.layoutBounds.y"
+            [attr.width]="chartObject.bounds.width + chartObject.layoutBounds.x"
+            [attr.height]="chartObject.bounds.height + chartObject.layoutBounds.y"
+            [style.left.px]="-chartObject.layoutBounds.x"
+            [style.top.px]="-chartObject.layoutBounds.y"
+            [id]="chartObject.areaName + '-canvas'"
+            class="chart-object-canvas chart-legend-area__canvas"
+            [title]="chartObject.areaName == 'legend_title' ? chartObject.titleLabel : ''">
+    </canvas>
+</div>

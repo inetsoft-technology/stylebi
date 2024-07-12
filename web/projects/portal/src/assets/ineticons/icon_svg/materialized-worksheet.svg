@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="Layer_1"
+   x="0px"
+   y="0px"
+   width="24px"
+   height="24px"
+   viewBox="-0.5 -0.5 24 24"
+   enable-background="new -0.5 -0.5 24 24"
+   xml:space="preserve"
+   sodipodi:docname="materialized-worksheet.svg"
+   inkscape:version="0.92.3 (2405546, 2018-03-11)"><metadata
+   id="metadata9841"><rdf:RDF><cc:Work
+       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /><dc:title /></cc:Work></rdf:RDF></metadata><defs
+   id="defs9839" /><sodipodi:namedview
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="1278"
+   inkscape:window-height="1368"
+   id="namedview9837"
+   showgrid="false"
+   inkscape:zoom="16"
+   inkscape:cx="14.272949"
+   inkscape:cy="12"
+   inkscape:window-x="1273"
+   inkscape:window-y="0"
+   inkscape:window-maximized="0"
+   inkscape:current-layer="Layer_1" />
+
+<path
+   d="m 16.434592,1.483534 h -3.216 c -0.885,0 -1.609,0.723 -1.609,1.606 v 2.412 c 0,0.166 0.032,0.322 0.08,0.473 l -2.2809997,3.626 -2.13,-3.349 c 0.12,-0.225 0.196,-0.478 0.196,-0.75 v -2.412 c 0,-0.884 -0.725,-1.606 -1.607,-1.606 h -3.217 c -0.885,0 -1.609,0.723 -1.609,1.606 v 2.412 c 0,0.884 0.724,1.606 1.609,1.606 h 2.289 l 2.415,3.796 c -0.718,0.181 -1.26,0.902 -1.26,1.759 v 2.709 c 0,0.418 0.1397745,0.790341 0.354,1.111 l 5.2104057,-4.609811 0.215055,-0.213878 c -0.013,-0.136105 0.178538,-0.374395 -0.447461,-0.699311 l 2.424,-3.853 h 2.584 c 0.884,0 1.607,-0.723 1.607,-1.606 v -2.411 c 0,-0.883 -0.724,-1.606 -1.607,-1.606 z"
+   id="path9834"
+   inkscape:connector-curvature="0"
+   sodipodi:nodetypes="sssscccsssssssccsscccccssss" />
+<g
+   id="g941"
+   transform="matrix(0.69309602,0,0,0.69309602,9.5767909,10.463239)"><path
+     id="path925"
+     d="M 15.854,3.146 C 14.228,1.514 11.982,0.5 9.5,0.5 c -4.963,0 -9,4.038 -9,9 h 2 c 0,-3.86 3.141,-7 7,-7 1.931,0 3.666,0.799 4.931,2.069 L 11.5,7.5 h 7 v -7 z"
+     inkscape:connector-curvature="0" /><path
+     id="path927"
+     d="m 16.5,9.5 c 0,3.859 -3.141,7 -7,7 -1.931,0 -3.666,-0.799 -4.932,-2.068 L 7.5,11.5 h -7 v 7 L 3.146,15.854 C 4.773,17.486 7.018,18.5 9.5,18.5 c 4.963,0 9,-4.037 9,-9 z"
+     inkscape:connector-curvature="0" /><polyline
+     id="polyline929"
+     points="8.5,5.6 8.5,10.709 13.21,13.5 14,12.22 10,9.85 10,5.6 " /></g></svg>

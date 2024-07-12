@@ -1,0 +1,258 @@
+{
+  "endpoints": [
+    {
+      "name": "Ticket",
+      "paged": false,
+      "suffix": "/helpdesk/tickets/{Ticket ID}.json"
+    },
+    {
+      "name": "Tickets",
+      "paged": true,
+      "suffix": "/helpdesk/tickets.json?email={Requested by Email?}&filter_name={Filter?:all_tickets|new_my_open|monitored_by|spam|deleted}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Time Entries",
+            "Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "display_id",
+          "parameterName": "Module Item ID",
+          "parameters": {
+            "Module Name": "tickets"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tickets Requested By",
+      "paged": true,
+      "suffix": "/helpdesk/tickets/filter/requester/{Requester ID}?format=json"
+    },
+    {
+      "name": "Custom Ticket View",
+      "paged": true,
+      "suffix": "/helpdesk/tickets/view/{View ID}?format=json"
+    },
+    {
+      "name": "Ticket Fields",
+      "paged": false,
+      "suffix": "/ticket_fields.json"
+    },
+    {
+      "name": "Problem",
+      "paged": false,
+      "suffix": "/itil/problems/{Problem Display ID}.json"
+    },
+    {
+      "name": "Problems",
+      "paged": true,
+      "suffix": "/itil/problems.json"
+    },
+    {
+      "name": "Filtered Problems",
+      "paged": true,
+      "suffix": "/itil/problems/filter/{Filter Name:all|new_my_open|deleted}?format=json"
+    },
+    {
+      "name": "Problem Fields",
+      "paged": false,
+      "suffix": "/itil/problem_fields.json"
+    },
+    {
+      "name": "Change",
+      "paged": false,
+      "suffix": "/itil/changes/{Change ID}.json"
+    },
+    {
+      "name": "Changes",
+      "paged": true,
+      "suffix": "/itil/changes.json"
+    },
+    {
+      "name": "Filtered Changes",
+      "paged": true,
+      "suffix": "/itil/changes/filter/{Filter Name:all|new_my_open|deleted}?format=json"
+    },
+    {
+      "name": "Change Fields",
+      "paged": false,
+      "suffix": "/itil/change_fields.json"
+    },
+    {
+      "name": "Release",
+      "paged": false,
+      "suffix": "/itil/releases/{Release Display ID}.json"
+    },
+    {
+      "name": "Releases",
+      "paged": true,
+      "suffix": "/itil/releases.json"
+    },
+    {
+      "name": "Filtered Releases",
+      "paged": true,
+      "suffix": "/itil/releases/filter/{Filter Name:all|new_my_open|deleted}?format=json"
+    },
+    {
+      "name": "Release Fields",
+      "paged": false,
+      "suffix": "/itil/release_fields.json"
+    },
+    {
+      "name": "Time Entries",
+      "paged": false,
+      "suffix": "/itil/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/time_sheets.json"
+    },
+    {
+      "name": "My Tasks",
+      "paged": false,
+      "suffix": "/itil/it_tasks.json"
+    },
+    {
+      "name": "Task",
+      "paged": false,
+      "suffix": "/itil/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/it_tasks/{Task ID}.json"
+    },
+    {
+      "name": "Tasks",
+      "paged": false,
+      "suffix": "/itil/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/it_tasks.json"
+    },
+    {
+      "name": "Agent",
+      "paged": false,
+      "suffix": "/agents/{Agent ID}.json"
+    },
+    {
+      "name": "Active Agents",
+      "paged": false,
+      "suffix": "/agents.json?query={Query?}"
+    },
+    {
+      "name": "Occasional Agents",
+      "paged": false,
+      "suffix": "/agents/filter/occasional?format=json"
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/itil/requesters/{User ID}.json"
+    },
+    {
+      "name": "Users",
+      "paged": false,
+      "suffix": "/itil/requesters.json?query={Query?}"
+    },
+    {
+      "name": "Filtered Users",
+      "paged": false,
+      "suffix": "/itil/requesters?state={State:verified|unverified|all|deleted}&format=json"
+    },
+    {
+      "name": "Department",
+      "paged": false,
+      "suffix": "/itil/departments/{Department ID}.json"
+    },
+    {
+      "name": "Departments",
+      "paged": false,
+      "suffix": "/itil/departments.json"
+    },
+    {
+      "name": "Asset CI Types",
+      "paged": false,
+      "suffix": "/cmdb/ci_types.json"
+    },
+    {
+      "name": "Asset CI Type Fields",
+      "paged": false,
+      "suffix": "/cmdb/ci_types/{Asset Type ID}.json"
+    },
+    {
+      "name": "Asset",
+      "paged": false,
+      "suffix": "/cmdb/items/{Asset Display ID}.json"
+    },
+    {
+      "name": "Assets",
+      "paged": true,
+      "suffix": "/cmdb/items.json"
+    },
+    {
+      "name": "Asset Search",
+      "paged": true,
+      "suffix": "/cmdb/items/list.json?field={Field Name:name|asset_tag|serial_number}&q={Search Text}"
+    },
+    {
+      "name": "Relationship Types",
+      "paged": false,
+      "suffix": "/cmdb/relationship_types/list.json"
+    },
+    {
+      "name": "Relationships",
+      "paged": false,
+      "suffix": "/cmdb/items/{Asset Display ID}/relationships.json"
+    },
+    {
+      "name": "Solution Category",
+      "paged": false,
+      "suffix": "/solution/categories/{Category ID}.json"
+    },
+    {
+      "name": "Solution Folders",
+      "paged": false,
+      "suffix": "/solution/categories/{Category ID}.json"
+    },
+    {
+      "name": "Solution Categories",
+      "paged": false,
+      "suffix": "/solution/categories.json"
+    },
+    {
+      "name": "Solution Article",
+      "paged": false,
+      "suffix": "/solution/categories/{Category ID}/folders/{Folder ID}/articles/{Article ID}.json"
+    },
+    {
+      "name": "Solution Articles",
+      "paged": false,
+      "suffix": "/solution/categories/{Category ID}/folders/{Folder ID}/articles.json"
+    },
+    {
+      "name": "Service Items",
+      "paged": true,
+      "suffix": "/catalog/items.json"
+    },
+    {
+      "name": "Service Categories",
+      "paged": false,
+      "suffix": "/catalog/categories.json"
+    },
+    {
+      "name": "Service Category Items",
+      "paged": true,
+      "suffix": "/catalog/categories/{Category ID}/items.json"
+    },
+    {
+      "name": "Service Item",
+      "paged": false,
+      "suffix": "/catalog/items/{Item Display ID}.json"
+    },
+    {
+      "name": "Contract",
+      "paged": false,
+      "suffix": "/cmdb/contracts/{Contract Display ID}.json"
+    },
+    {
+      "name": "Contracts",
+      "paged": true,
+      "suffix": "/cmdb/contracts?format=json"
+    },
+    {
+      "name": "Filtered Contracts",
+      "paged": true,
+      "suffix": "/cmdb/contracts/filter/{Filter Name:all|active|expired|lease|maintenance|software_license|expiry_range}?format=json"
+    }
+  ]
+}

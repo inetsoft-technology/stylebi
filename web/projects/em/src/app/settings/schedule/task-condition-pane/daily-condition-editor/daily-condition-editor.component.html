@@ -1,0 +1,45 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined">
+  <mat-card-content [formGroup]="form">
+    <em-start-time-editor
+      [data]="startTimeData"
+      [timeRanges]="timeRanges"
+      [startTimeEnabled]="startTimeEnabled"
+      [timeRangeEnabled]="timeRangeEnabled"
+      [timeZone]="timeZone"
+      [timeZoneLabel]="timeZoneLabel"
+      [showMeridian]="showMeridian"
+      (startTimeChanged)="onStartTimeChanged($event)">
+      <em-time-zone-select formControlName="timeZone"
+                           [startTimeEnabled]="startTimeEnabled"
+                           [timeZoneOptions]="timeZoneOptions" [serverTimeZone]="timeZone" [enabled]="timeZoneEnabled"
+                           (labelChanged)="setTimeZoneLabel($event)" (changed)="fireModelChanged()">
+      </em-time-zone-select>
+    </em-start-time-editor>
+    <mat-checkbox formControlName="weekdayOnly" (change)="fireModelChanged()">_#(Weekdays)</mat-checkbox>
+    <mat-form-field *ngIf="!weekdayOnly" appearance="outline" color="accent">
+      <mat-label>_#(Interval)</mat-label>
+      <input type="number" matInput formControlName="interval" placeholder="_#(Interval)" (input)="fireModelChanged()"/>
+      <mat-error>_#(schedule.task.condition.dayCheck)</mat-error>
+      <mat-hint>_#(Every) <i>n</i> _#(Day_s)</mat-hint>
+    </mat-form-field>
+  </mat-card-content>
+</mat-card>

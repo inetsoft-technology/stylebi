@@ -1,0 +1,75 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-editor-panel
+  [applyDisabled]="!nameControl?.valid"
+  [resetVisible]="smallDevice || newFile"
+  resetLabel="_#(Cancel)"
+  (applyClicked)="apply()"
+  (resetClicked)="cancel()">
+  <mat-card appearance="outlined">
+    <mat-card-title>
+      <span>
+        {{newFile ? '_#(New File)' : '_#(DataSpace File Definition)'}}
+      </span>
+    </mat-card-title>
+    <mat-card-content>
+      <div class="flex-col">
+        <mat-form-field *ngIf="!newFile" appearance="outline" color="accent">
+          <mat-label>_#(Path)</mat-label>
+          <input matInput readonly placeholder="_#(Path)" [ngModel]="getFilePath()">
+        </mat-form-field>
+        <mat-form-field *ngIf="newFile" appearance="outline" color="accent">
+          <mat-label>_#(Parent Folder)</mat-label>
+          <input matInput readonly placeholder="_#(Parent Folder)" [ngModel]="parentPath">
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(File Name)</mat-label>
+          <input matInput placeholder="_#(File Name)" [formControl]="nameControl">
+          <mat-error *ngIf="nameControl?.errors?.required">_#(enter.name)</mat-error>
+          <mat-error *ngIf="nameControl?.errors?.containsSpecialCharsForName">_#(common.sree.internal.invalidCharInName)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(select.file)</mat-label>
+          <em-file-chooser [(ngModel)]="files"></em-file-chooser>
+          <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+        </mat-form-field>
+        <ng-container *ngIf="!newFile">
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Last Modified Time)</mat-label>
+            <input matInput readonly placeholder="_#(Last Modified Time)" [ngModel]="model?.lastModified">
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(File Size)</mat-label>
+            <input matInput readonly placeholder="_#(File Size)" [ngModel]="model?.size">
+          </mat-form-field>
+        </ng-container>
+      </div>
+      <em-text-file-content-view id="content" *ngIf="contentEditorVisible"
+                                 [path]="data.path" [editMode]="contentEditMode"
+                                 (contentChanged)="content = $event">
+      </em-text-file-content-view>
+    </mat-card-content>
+  </mat-card>
+  <ng-container em-editor-panel-actions>
+    <button *ngIf="!newFile" mat-raised-button (click)="download()">_#(Download)</button>
+    <button *ngIf="contentEditorVisible" mat-raised-button (click)="editContent()">_#(Edit Content)</button>
+    <button *ngIf="!newFile && canDelete" mat-raised-button (click)="delete()">_#(Delete)</button>
+  </ng-container>
+</em-editor-panel>

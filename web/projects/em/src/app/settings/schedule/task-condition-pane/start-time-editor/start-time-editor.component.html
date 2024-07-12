@@ -1,0 +1,46 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container [formGroup]="form">
+  <mat-radio-group formControlName="selectedType" (change)="fireStartTimeChanged()">
+    <div *ngIf="startTimeEnabled" class="start-time-option w-100" [class.single-option]="!timeRangeEnabled">
+      <mat-radio-button value="START_TIME"></mat-radio-button>
+      <em-time-picker class="start-time" formControlName="startTime"
+                      [meridian]="showMeridian"
+      ></em-time-picker>
+      <mat-hint class="start-time start-time-hint">HH:mm {{ timeZoneLabel }}</mat-hint>
+    </div>
+    <mat-error class="start-time-error"
+               *ngIf="startTimeEnabled && form.controls.startTime.enabled && !form.controls.startTime?.valid">
+      _#(viewer.schedule.condition.startTimeValid)
+    </mat-error>
+    <ng-content></ng-content>
+    <div *ngIf="timeRangeEnabled" class="start-time-option" [class.single-option]="!startTimeEnabled">
+      <mat-radio-button value="TIME_RANGE"></mat-radio-button>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-select formControlName="timeRange" placeholder="_#(Time Range)" [compareWith]="compareTimeRange" (selectionChange)="fireStartTimeChanged()">
+          <mat-option [value]="range" *ngFor="let range of timeRanges">{{range.label}}</mat-option>
+        </mat-select>
+        <mat-error *ngIf="!timeRanges || timeRanges.length == 0">_#(viewer.schedule.condition.timeRangeRequired)</mat-error>
+        <mat-error *ngIf="!!timeRanges && timeRanges.length != 0 && form.controls.timeRange?.invalid">
+          _#(viewer.schedule.condition.startTimeValid)</mat-error>
+      </mat-form-field>
+    </div>
+  </mat-radio-group>
+</ng-container>

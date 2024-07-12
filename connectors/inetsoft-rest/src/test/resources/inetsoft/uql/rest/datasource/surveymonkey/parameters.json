@@ -1,0 +1,12 @@
+{
+    "tests": [
+        {
+            "endpoint": "Me",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                
+            }
+        }
+    ]
+}

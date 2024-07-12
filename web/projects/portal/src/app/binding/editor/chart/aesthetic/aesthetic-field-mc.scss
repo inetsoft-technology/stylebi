@@ -1,0 +1,95 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.field-pane {
+  min-height: 40px;
+  width: 100%;
+  display: flex;
+  align-iterms: center;
+  overflow-x: clip;
+
+  &:hover {
+    overflow-x: auto;
+  }
+
+  .field-icon {
+    border: 1px solid transparent;
+    border-radius: 3px;
+  }
+}
+
+.field-pane:hover .field-icon {
+  border: 1px solid lightgray;
+}
+
+.field-container {
+  display: flex;
+  align-items: center;
+  flex-grow: 1;
+  min-width: 50px;
+  padding-left: 3px;
+}
+
+.visual-cell-container {
+  display: flex;
+  margin: 3px;
+}
+
+.visual-cell {
+  display: flex;
+  padding: 2px;
+  vertical-align: middle;
+}
+
+.visual-field {
+  width: 100%;
+  min-width: 50px;
+  display: flex;
+  vertical-align: middle;
+  margin-left: 3px;
+}
+
+.visual-edit-icon {
+  margin: 3px;
+  display: flex;
+  vertical-align: middle;
+  margin-right: 0.25rem;
+}
+
+.fake-visual-cell {
+  width: 20px;
+  height: 19px;
+  vertical-align: middle;
+}
+
+.measure-roller {
+  display: flex;
+  overflow: hidden;
+  opacity: 60%;
+  width: 500%;
+
+  &:hover {
+    opacity: 100%;
+  }
+
+  .measure-label {
+    min-width: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+    flex-grow: 100;
+  }
+}

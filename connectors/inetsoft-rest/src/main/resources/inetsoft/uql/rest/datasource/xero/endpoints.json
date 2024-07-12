@@ -1,0 +1,340 @@
+{
+    "endpoints": [
+        {
+            "name": "Attachments",
+            "paged": false,
+            "suffix": "/api.xro/2.0/{Endpoint}/{GUID}/Attachments/{File Name?}"
+        },
+        {
+            "name": "Accounts",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Accounts/{Account ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Bank Transactions",
+            "paged": true,
+            "paginationPath": "$.BankTransactions.length()",
+            "suffix": "/api.xro/2.0/BankTransactions/{Bank Transaction ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Bank Transfers",
+            "paged": false,
+            "suffix": "/api.xro/2.0/BankTransfers/{Bank Transfer ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Batch Payments",
+            "paged": false,
+            "suffix": "/api.xro/2.0/BatchPayments/{Batch Payment ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Branding Themes",
+            "paged": false,
+            "suffix": "/api.xro/2.0/BrandingThemes/{Branding Theme ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Contacts",
+            "paged": true,
+            "paginationPath": "$.Contacts.length()",
+            "suffix": "/api.xro/2.0/Contacts/{Contact ID?}?ids={IDs?}&ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}&includeArchived={Include Archived?}",
+          "lookups": [
+            {
+              "endpoints": [
+                "Aged Payables By Contact",
+                "Aged Receivables By Contact"
+              ],
+              "jsonPath": "$.Contacts.*",
+              "key": "ContactID",
+              "parameterName": "Contact ID"
+            }
+          ]
+        },
+        {
+            "name": "Contact Groups",
+            "paged": false,
+            "suffix": "/api.xro/2.0/ContactGroups/{ContactGroup ID?}?&where={Filter?}"
+        },
+        {
+            "name": "Credit Notes",
+            "paged": true,
+            "paginationPath": "$.CreditNotes.length()",
+            "suffix": "/api.xro/2.0/CreditNotes/{Credit Note ID/Number?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Currencies",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Currencies?where={Filter?}"
+        },
+        {
+            "name": "Employees",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Employees/{Employee ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Expense Claims",
+            "paged": false,
+            "suffix": "/api.xro/2.0/ExpenseClaims/{Expense Claim ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "History and Notes",
+            "paged": false,
+            "suffix": "/api.xro/2.0/{Endpoint}/{GUID}/history"
+        },
+        {
+            "name": "Invoices",
+            "paged": true,
+            "paginationPath": "$.Invoices.length()",
+            "suffix": "/api.xro/2.0/Invoices/{Invoice ID/InvoiceNumber?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&IDs={IDs?:value1,value2,...}&InvoiceNumbers={Invoice Numbers?:value1,value2,...}&ContactIDs={Contact IDs?:value1,value2,...}&Statuses={Statuses?:value1,value2,...}&where={Filter?}&createdByMyApp={Created By My App?:true|false}"
+        },
+        {
+            "name": "Invoice Reminders",
+            "paged": false,
+            "suffix": "/api.xro/2.0/InvoiceReminders/Settings/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Journals",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Journals/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&offset={Offset?}&paymentsOnly={Payments Only?:true|false}"
+        },
+        {
+            "name": "Linked Transactions (Billable Expenses)",
+            "paged": true,
+            "paginationPath": "$.LinkedTransactions.length()",
+            "suffix": "/api.xro/2.0/LinkedTransactions/{Linked Transaction ID?}?SourceTransactionID={Source Transaction ID?}&ContactID={Contact ID?}&Status={Status?}&TargetTransactionID={Target Transaction ID?}"
+        },
+        {
+            "name": "Manual Journals",
+            "paged": true,
+            "paginationPath": "$.ManualJournals.length()",
+            "suffix": "/api.xro/2.0/ManualJournals/{Manual Journal ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Organisation",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Organisation"
+        },
+        {
+            "name": "Overpayments",
+            "paged": true,
+            "paginationPath": "$.Overpayments.length()",
+            "suffix": "/api.xro/2.0/Overpayments/{Overpayment ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Payments",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Payments/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Prepayments",
+            "paged": true,
+            "paginationPath": "$.Prepayments.length()",
+            "suffix": "/api.xro/2.0/Prepayments/{Prepayment ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Purchase Orders",
+            "paged": true,
+            "paginationPath": "$.PurchaseOrders.length()",
+            "suffix": "/api.xro/2.0/PurchaseOrders/{Identifier?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&Status={Status?}&DateFrom={From Date?:yyyy-MM-dd}&DateTo={To Date?:yyyy-MM-dd}"
+        },
+        {
+            "name": "Quotes",
+            "paged": true,
+            "paginationPath": "$.Quotes.length()",
+            "suffix": "/api.xro/2.0/Quotes/{Quote ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&Status={Status?}&&DateFrom={From Date?:yyyy-MM-dd}&DateTo={To Date?:yyyy-MM-dd}&&ExpiryDateFrom={From Expiry Date?:yyyy-MM-dd}&ExpiryDateTo={To Expiry Date?:yyyy-MM-dd}&ContactID={Contact ID?}"
+        },
+        {
+            "name": "Receipts",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Receipts/{Receipt ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Repeating Invoices",
+            "paged": false,
+            "suffix": "/api.xro/2.0/RepeatingInvoices/{Repeating Invoice ID?}?&where={Filter?}"
+        },
+        {
+            "name": "1099 Report",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Reports/TenNinetyNine?reportYear={Report Year?:yyyy}"
+        },
+        {
+            "name": "Aged Payables By Contact",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Reports/AgedPayablesByContact?contactID={Contact ID}&date={Date?:yyyy-MM-dd}&fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}"
+        },
+        {
+            "name": "Aged Receivables By Contact",
+            "paged": false,
+            "suffix": "/2.0/Reports/AgedReceivablesByContact?contactID={Contact ID}&&date={Date?:yyyy-MM-dd}&fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}"
+        },
+        {
+            "name": "Balance Sheet",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Reports/BalanceSheet?date={Date?:yyyy-MM-dd}&periods={Periods?}&timeframe={Timeframe?:MONTH|QUARTER|YEAR}&trackingOptionID1={Tracking Option ID1?}&trackingOptionID2={Tracking Option ID2?}&standardLayout={Standard Layout?:true|false}&paymentsOnly={Payments Only?:true|false}"
+        },
+        {
+            "name": "Bank Summary",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Reports/BankSummary?fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}"
+        },
+        {
+            "name": "BAS Report",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Reports/{Report ID?}"
+        },
+        {
+            "name": "Budget Summary",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Reports/BudgetSummary?date={Date?:yyyy-MM-dd}&periods={Periods?}&timeframe={Timeframe?:1|3|12}"
+        },
+        {
+            "name": "Executive Summary",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Reports/ExecutiveSummary?date={Date?:yyyy-MM-dd}"
+        },
+        {
+            "name": "GST Report",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Reports/{Report ID?}"
+        },
+        {
+            "name": "Profit And Loss",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Reports/ProfitAndLoss?fromDate={From Date?:yyyy-MM-dd}&toDate={To Date?:yyyy-MM-dd}&periods={Periods?}&timeframe={Timeframe?:MONTH|QUARTER|YEAR}&trackingCategoryID={Tracking Category ID?}&trackingOptionID={Tracking Option ID?}&trackingCategoryID2={Tracking Category ID2?}&trackingOptionID2={Tracking Option ID2?}&standardLayout={Standard Layout?:true|false}&paymentsOnly={Payments Only?:true|false}"
+        },
+        {
+            "name": "Trial Balance",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Reports/TrialBalance?date={Date?:yyyy-MM-dd}&paymentsOnly={paymentsOnly?:true|false}"
+        },
+        {
+            "name": "Tax Rates",
+            "paged": false,
+            "suffix": "/api.xro/2.0/TaxRates?TaxType={Tax Type?}&where={Filter?}"
+        },
+        {
+            "name": "Tracking Categories",
+            "paged": false,
+            "suffix": "/api.xro/2.0/TrackingCategories/{Tracking Category ID?}?where={Filter?}&includeArchived={Include Archived?:true|false}"
+        },
+        {
+            "name": "Users",
+            "paged": false,
+            "suffix": "/api.xro/2.0/Users/{User ID?}?ModifiedAfter={Modified After?:yyyy-mm-ddThh:mm:ss}&where={Filter?}"
+        },
+        {
+            "name": "Assets",
+            "paged": true,
+            "paginationPath": "$.items.length()",
+            "suffix": "/assets.xro/1.0/Assets?status={Status:Draft|Registered|Disposed}&sortDirection={Sort Direction?:ASC|DESC}&filterBy={Filter By?}",
+          "lookups": [
+            {
+              "endpoint": "An Asset",
+              "jsonPath": "$.items.*",
+              "key": "assetId",
+              "parameterName": "Asset ID"
+            }
+          ]
+        },
+        {
+            "name": "An Asset",
+            "paged": false,
+            "suffix": "/assets.xro/1.0/Assets/{Asset ID}"
+        },
+        {
+            "name": "Asset Types",
+            "paged": false,
+            "suffix": "/assets.xro/1.0/AssetTypes"
+        },
+        {
+            "name": "Assets Settings",
+            "paged": false,
+            "suffix": "/assets.xro/1.0/Settings"
+        },
+        {
+            "name": "Files",
+            "paged": true,
+            "paginationPath": "$.Items.length()",
+            "suffix": "/files.xro/1.0/Files",
+          "lookups": [
+            {
+              "endpoints": [
+                "A File",
+                "Associations"
+              ],
+              "jsonPath": "$.Items.*",
+              "key": "Id",
+              "parameterName": "File ID"
+            }
+          ]
+        },
+        {
+            "name": "A File",
+            "paged": false,
+            "suffix": "/files.xro/1.0/Files/{File ID}"
+        },
+        {
+            "name": "Folders",
+            "paged": false,
+            "suffix": "/files.xro/1.0/Folders",
+          "lookups": [
+            {
+              "endpoint": "A Folder",
+              "jsonPath": "$.*",
+              "key": "Id",
+              "parameterName": "Folder ID"
+            }
+          ]
+        },
+        {
+            "name": "A Folder",
+            "paged": false,
+            "suffix": "/files.xro/1.0/Folders/{Folder ID}"
+        },
+        {
+            "name": "Associations",
+            "paged": false,
+            "suffix": "/files.xro/1.0/Files/{File ID}/Associations"
+        },
+        {
+            "name": "Projects",
+            "paged": true,
+            "paginationPath": "$.items.length()",
+            "suffix": "/projects.xro/2.0/projects?projectIDs={Project IDs?:value1,value2,...}&contactID={Contact ID?}&states={States?:INPROGRESS|CLOSED}",
+          "lookups": [
+            {
+              "endpoints": [
+                "A Project",
+                "Tasks",
+                "Time"
+              ],
+              "jsonPath": "$.items.*",
+              "key": "projectId",
+              "parameterName": "Project ID"
+            }
+          ]
+        },
+        {
+            "name": "A Project",
+            "paged": false,
+            "suffix": "/projects.xro/2.0/projects/{Project ID}"
+        },
+        {
+            "name": "Projects Users",
+            "paged": true,
+            "paginationPath": "$.items.length()",
+            "suffix": "/projects.xro/2.0/projectsusers"
+        },
+        {
+            "name": "Tasks",
+            "paged": true,
+            "paginationPath": "$.items.length()",
+            "suffix": "/projects.xro/2.0/projects/{Project ID}/tasks/{Task ID?}?taskIDs={Task IDs?:value1,value2,...}&chargeType={Charge Type?:TIME|FIXED|NON_CHARGEABLE}"
+        },
+        {
+            "name": "Time",
+            "paged": true,
+            "paginationPath": "$.items.length()",
+            "suffix": "/projects.xro/2.0/projects/{Project ID}/time/{Time EntryID?}?userID={User ID?}&taskID={Task ID?}&dateAfterUtc={Date After Utc?:yyyy-MM-ddTHH:mm:ss.SSSZ}&dateBeforeUtc={Date Before Utc?:yyyy-MM-ddTHH:mm:ss.SSSZ}&isChargeable={Is Chargeable?}&invoiceID={Invoice ID?}&contactID={Contact ID?}&states={States?}"
+        }
+    ]
+}

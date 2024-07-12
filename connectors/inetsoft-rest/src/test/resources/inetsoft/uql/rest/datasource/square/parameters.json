@@ -1,0 +1,89 @@
+{
+  "tests": [
+    {
+      "endpoint": "Catalog Info",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "List Catalog",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Types": "ITEM"
+      }
+    },
+    {
+      "endpoint": "Catalog Object",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Object ID": "OR2GZZQUIRHSF57YAKC42RMX",
+        "Include Related Objects": "true"
+      }
+    },
+    {
+      "endpoint": "Customers",
+      "jsonPath": "$.customers",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Customer",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Customer ID": "QVRBB31GN505Z321YM56A5GREC"
+      }
+    },
+    {
+      "endpoint": "Merchants",
+      "jsonPath": "$.merchant",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Merchant",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Merchant ID": "Y0Y07W31NCS8M"
+      }
+    },
+    {
+      "endpoint": "Locations",
+      "jsonPath": "$.locations",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Location",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Location ID": "DDHK42QZ574MD"
+      }
+    },
+    {
+      "endpoint": "Employees",
+      "jsonPath": "$.employees",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Employee",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Employee ID": "kwzAYcVC4MMXivY_WIZD"
+      }
+    },
+    {
+      "endpoint": "Workweek Configurations",
+      "jsonPath": "$.workweek_configs",
+      "expandArrays": false,
+      "parameters": {}
+    }
+  ]
+}

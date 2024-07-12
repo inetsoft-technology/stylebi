@@ -1,0 +1,335 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div [formGroup]="form">
+   <fieldset>
+      <legend>_#(Plot)</legend>
+      <div class="form-row-float-label row">
+         <div class="col">
+            <color-dropdown [(color)]="model.backgroundColor" label="_#(Background)"
+                            [enabled]="model.backgroundEnabled"
+                            [isBg]="true" [transEnabled]="true"></color-dropdown>
+         </div>
+         <div *ngIf="model.mapEmptyColorVisible" class="col">
+            <color-dropdown [(color)]="model.mapEmptyColor" label="_#(Map Default Color)"
+                            [isBg]="true" [transEnabled]="true"></color-dropdown>
+         </div>
+         <div *ngIf="model.borderColorVisible" class="col">
+            <color-dropdown [(color)]="model.borderColor" label="_#(Border Color)"
+                            [isBg]="false" [transEnabled]="true"></color-dropdown>
+         </div>
+         <div *ngIf="model.paretoLineColorVisible" class="col">
+            <color-dropdown [(color)]="model.paretoLineColor" label="_#(Pareto Line Color)"
+                            [isBg]="false" [transEnabled]="true"></color-dropdown>
+         </div>
+         <div class="col banding-container">
+            <div class="form-floating">
+               <alpha-dropdown [(alpha)]="model.alpha" [defaultAlpha]="model.mapPolygon ? 70 : 100"
+                               [disabled]="!model.alphaEnabled"
+                               (alphaInvalid)="alphaInvalid = $event"></alpha-dropdown>
+               <label>_#(Alpha)</label>
+            </div>
+         </div>
+      </div>
+      <div *ngIf="alphaInvalid" class="alert alert-danger">
+         _#(viewer.flash.format.invalidTransparencyError)
+      </div>
+   </fieldset>
+   <fieldset *ngIf="(model.bandingXVisible || model.bandingYVisible) && model.lineTabVisible">
+      <legend>_#(Banding)</legend>
+      <div class="form-row-float-label row">
+         <div *ngIf="model.bandingXVisible" class="banding-container col">
+            <div class="form-floating">
+               <color-dropdown [(color)]="model.bandingXColor"
+                               [isBg]="true" [transEnabled]="true"
+                               [enabled]="model.hasXDimension"></color-dropdown>
+               <label>_#(X)</label>
+            </div>
+            <div class="ms-1 form-floating">
+              <input class="form-control number-input" type="number" min="0"
+                     [(ngModel)]="model.bandingXSize" placeholder="_#(Size)"
+                     formControlName="bandingXSize">
+              <label><span>_#(Size)</span></label>
+            </div>
+         </div>
+         <div *ngIf="model.bandingYVisible" class="banding-container col">
+            <div class="form-floating">
+               <color-dropdown [(color)]="model.bandingYColor"
+                               [isBg]="true" [transEnabled]="true"
+                               [enabled]="model.hasYDimension"></color-dropdown>
+               <label>_#(Y)</label>
+            </div>
+            <div class="ms-1 form-floating">
+              <input class="form-control number-input" type="number" min="0"
+                     [(ngModel)]="model.bandingYSize" placeholder="_#(Size)"
+                     formControlName="bandingYSize">
+              <label><span>_#(Size)</span></label>
+            </div>
+         </div>
+      </div>
+      <div *ngIf="form.controls['bandingXSize']?.errors" class="alert alert-danger error">
+         _#(viewer.viewsheet.chart.bandingSize.notzeroWarning)
+      </div>
+      <div *ngIf="form.controls['bandingYSize']?.errors" class="alert alert-danger error">
+         _#(viewer.viewsheet.chart.bandingSize.notzeroWarning)
+      </div>
+   </fieldset>
+
+   <fieldset *ngIf="model.showValuesVisible || model.stackValuesVisible || model.explodedPieVisible || model.showReferenceLineVisible || model.keepElementInPlotVisible || model.polygonColorVisible || model.showPointsVisible || model.applyAestheticsToSourceVisible">
+      <legend>_#(Plot Options)</legend>
+      <div class="form-row-float-label row">
+         <div class="checkbox col-auto" *ngIf="model.showValuesVisible">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input" [(ngModel)]="model.showValues"
+                      [ngModelOptions]="{standalone: true}"
+                      [disabled]="!model.showValuesEnabled" id="showValues">
+               <label class="form-check-label" for="showValues">
+                  _#(Show Values)
+               </label>
+            </div>
+         </div>
+         <div class="checkbox col-auto" *ngIf="model.stackValuesVisible">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input" [(ngModel)]="model.stackValues"
+                      [ngModelOptions]="{standalone: true}" id="stackValue"
+                      [disabled]="!model.showValues || !model.stackValuesEnabled">
+               <label class="form-check-label" for="stackValue">
+                  _#(Stack Value)
+               </label>
+            </div>
+         </div>
+         <div class="checkbox col-auto" *ngIf="model.explodedPieVisible">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input" id="explodePie"
+                      [(ngModel)]="model.explodedPie"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="explodePie">
+                  _#(Explode Pie)
+               </label>
+            </div>
+         </div>
+         <div class="checkbox col-auto form-floating" *ngIf="model.explodedPieVisible">
+           <input class="form-control number-input pie-ratio"
+                  type="number" min="0.1" max="1" step="0.05"
+                  placeholder="_#(Pie Ratio)"
+                  [(ngModel)]="model.pieRatio"
+                  formControlName="pieRatio">
+           <label><span>_#(Pie Ratio)</span></label>
+         </div>
+         <div class="checkbox col-auto" *ngIf="model.showReferenceLineVisible">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input" id="showRef"
+                      [(ngModel)]="model.showReferenceLine"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="showRef">
+                  _#(Show Reference Line)
+               </label>
+            </div>
+         </div>
+         <div class="checkbox col-auto" *ngIf="model.keepElementInPlotVisible">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input" id="keepInPlot"
+                      [(ngModel)]="model.keepElementInPlot"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="keepInPlot">
+                  _#(Keep Element in Plot)
+               </label>
+            </div>
+         </div>
+         <div class="checkbox col-auto" *ngIf="model.polygonColorVisible">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input"
+                      [(ngModel)]="model.polygonColor" id="showColorInMap"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="showColorInMap">
+                  _#(Always Show Color in Map)
+               </label>
+            </div>
+         </div>
+         <div class="checkbox col-auto" *ngIf="model.showPointsVisible">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input"
+                      [(ngModel)]="model.showPoints" id="showPoints"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="showPoints">
+                  {{model.showPointsLabel}}
+               </label>
+            </div>
+         </div>
+         <div class="checkbox col-auto"
+              *ngIf="model.showPointsVisible && model.showPointsLabel == '_#(Show Lines)'">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input"
+                      [(ngModel)]="model.oneLine" id="oneLine"
+                      [disabled]="!model.showPoints"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="oneLine">
+                  _#(As One Line)
+               </label>
+            </div>
+         </div>
+         <div class="checkbox col-auto" *ngIf="model.includeParentLabelsVisible">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input"
+                      [(ngModel)]="model.includeParentLabels" id="includeParents"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="includeParents">
+                  _#(Include Parent Labels)
+               </label>
+            </div>
+         </div>
+         <div class="checkbox col-auto" *ngIf="model.applyAestheticsToSourceVisible">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input"
+                      [(ngModel)]="model.applyAestheticsToSource" id="includeParents"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="includeParents">
+                  _#(Apply Aesthetics to Source Nodes)
+               </label>
+            </div>
+         </div>
+         <div class="checkbox col-auto" *ngIf="model.fillGapWithDashVisible">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input"
+                      [(ngModel)]="model.fillGapWithDash" id="fillGapWithDash"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="fillGapWithDash">
+                 _#(Fill Missing Data with Dash Line)
+               </label>
+            </div>
+         </div>
+         <div class="col-auto form-floating" *ngIf="model.wordCloud">
+           <input class="form-control number-input font-multiplier"
+                  type="number" min="1" max="5" step="0.1"
+                  placeholder="_#(Font Scale)"
+                  [(ngModel)]="model.wordCloudFontScale"
+                  formControlName="fontScale">
+           <label><span>_#(Font Scale)</span></label>
+         </div>
+      </div>
+   </fieldset>
+   <div *ngIf="form.controls['pieRatio']?.errors && model.pieRatio != null" class="alert alert-danger error">
+     _#(viewer.viewsheet.chart.pieRatio.rangeWarning)
+   </div>
+   <div *ngIf="form.controls['fontScale']?.errors" class="alert alert-danger error">
+     _#(viewer.viewsheet.chart.fontScale.rangeWarning)
+   </div>
+   <fieldset *ngIf="model.contourEnabled">
+      <legend>_#(Density Contour)</legend>
+      <div class="form-row-float-label row">
+         <div class="col-3 form-floating">
+           <input class="form-control number-input" type="number" min="1"
+                  [(ngModel)]="model.contourLevels" placeholder="_#(Levels)"
+                  formControlName="contourLevels">
+           <label><span>_#(Levels)</span></label>
+         </div>
+         <div class="col-3 form-floating">
+           <input class="form-control number-input" type="number" min="1"
+                  [(ngModel)]="model.contourBandwidth" placeholder="_#(Bandwidth)"
+                  formControlName="contourBandwidth">
+           <label><span>_#(Bandwidth)</span></label>
+         </div>
+         <div class="col-3 banding-container">
+            <div class="form-floating">
+               <alpha-dropdown [(alpha)]="model.contourEdgeAlpha"
+                               (alphaInvalid)="contourEdgeAlphaInvalid = $event"></alpha-dropdown>
+               <label>_#(Edge Alpha)</label>
+            </div>
+         </div>
+         <div class="col-3 form-floating">
+           <input class="form-control number-input" type="number" min="1"
+                  [(ngModel)]="model.contourCellSize" placeholder="_#(Cell Size)"
+                  formControlName="contourCellSize">
+           <label><span>_#(Cell Size)</span></label>
+         </div>
+      </div>
+      <div *ngIf="form.controls['contourLevels']?.errors" class="alert alert-danger error">
+         _#(viewer.viewsheet.chart.densityContour.contourLevels.notzeroWarning)
+      </div>
+      <div *ngIf="form.controls['contourBandwidth']?.errors" class="alert alert-danger error">
+         _#(viewer.viewsheet.chart.densityContour.contourBandwidth.notzeroWarning)
+      </div>
+      <div *ngIf="contourEdgeAlphaInvalid" class="alert alert-danger error">
+         _#(viewer.viewsheet.chart.densityContour.contourEdgeAlpha.shouldInRangeWarning)
+      </div>
+      <div *ngIf="form.controls['contourCellSize']?.errors" class="alert alert-danger error">
+         _#(viewer.viewsheet.chart.densityContour.contourCellSize.notzeroWarning)
+      </div>
+   </fieldset>
+   <fieldset *ngIf="model.fillTimeVisible">
+      <legend>Time-Series</legend>
+      <div class="form-row-float-label row">
+         <div class="checkbox col-auto">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input" id="fillTime"
+                      [(ngModel)]="model.fillTimeGap"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="fillTime">
+                  _#(Fill Time-Series Gaps With)
+               </label>
+            </div>
+         </div>
+         <div class="col-auto">
+            <div class="form-check">
+               <input type="radio" name="fillTime" class="form-check-input"
+                      [value]="false" id="null"
+                      [(ngModel)]="model.fillZero" [disabled]="!model.fillTimeGap"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="null">
+                  _#(Null)
+               </label>
+            </div>
+         </div>
+         <div class="col-auto">
+            <div class="form-check">
+               <input type="radio" name="fillTime" class="form-check-input" id="zero"
+                      [value]="true" [(ngModel)]="model.fillZero" [disabled]="!model.fillTimeGap"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="zero">
+                  _#(Zero)
+               </label>
+            </div>
+         </div>
+      </div>
+   </fieldset>
+   <fieldset *ngIf="model.webMapVisible">
+      <legend>Web Map</legend>
+      <div class="form-row-float-label row">
+         <div class="checkbox col-auto">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input" id="webMap"
+                      [(ngModel)]="model.webMap"
+                      [ngModelOptions]="{standalone: true}">
+               <label class="form-check-label" for="webMap">
+                  _#(Use Web Map as Background)
+               </label>
+            </div>
+         </div>
+      </div>
+      <div class="col-auto" *ngIf="model.mapboxStyles">
+        <select class="form-control" [(ngModel)]="model.webMapStyle"
+                [attr.disabled]="!model.webMap ? '' : null"
+                [ngModelOptions]="{standalone: true}">
+          <option [ngValue]="style.id" *ngFor="let style of model.mapboxStyles">
+            {{style.name}}
+          </option>
+        </select>
+      </div>
+   </fieldset>
+</div>

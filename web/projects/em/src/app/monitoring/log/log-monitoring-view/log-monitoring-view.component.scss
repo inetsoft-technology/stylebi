@@ -1,0 +1,73 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.log-viewer-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 24px);
+  overflow: hidden;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.log-contents-container {
+  height: 100%;
+  overflow: auto;
+}
+
+.log-file-name {
+  flex-grow: 2;
+  padding: 0 12px;
+}
+
+.log-number-of-lines {
+  flex-grow: 1;
+  padding: 0 12px;
+}
+
+.log-option {
+  padding: 0 12px;
+}
+
+.log-contents {
+  font-family: "Courier New", Courier, monospace;
+  white-space: pre !important;
+  font-size: 14px;
+  line-height: 14px;
+}
+
+.log-buttons-container {
+  padding-bottom: 1em;
+
+  button {
+    margin-right: 0.5em;
+  }
+}
+
+/* Hide HTML5 Up and Down arrows. */
+input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+::ng-deep .mat-mdc-select-panel {
+  max-height: 60vh !important;
+}

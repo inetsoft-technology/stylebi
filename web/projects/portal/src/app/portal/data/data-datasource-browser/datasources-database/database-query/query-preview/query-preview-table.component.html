@@ -1,0 +1,93 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="preview-table" [class.mobile]="mobileDevice" [style.max-width.px]="tableBodyWidth">
+  <div #previewContainer class="preview-table-container"
+       [style.height.px]="containerHeight" (scroll)="horizontalScroll()">
+    <table #headerTable *ngIf="tableData.length > 0" class="table-layout-fixed table-sm">
+      <thead *ngIf="tableData[0]">
+      <tr [style.height.px]="cellHeight">
+        <th *ngIf="leftOfColRangeWidth > 0"
+            [style.min-width.px]="leftOfColRangeWidth"
+            [style.max-width.px]="leftOfColRangeWidth"></th>
+        <ng-container *ngFor="let _i of columnIndexRange">
+          <th *ngIf="tableData[0][_i]"
+              [style.min-width.px]="_columnWidths[_i]"
+              [style.max-width.px]="_columnWidths[_i]"
+              [class.background-clip-padding-box]="isFirefox"
+              outOfZone>
+            <div [title]="getCellLabel(tableData[0][_i])">
+              {{getCellLabel(tableData[0][_i])}}
+            </div>
+          </th>
+        </ng-container>
+        <th *ngIf="rightOfColRangeWidth > 0"
+            [style.min-width.px]="rightOfColRangeWidth"
+            [style.max-width.px]="rightOfColRangeWidth"></th>
+      </tr>
+      </thead>
+    </table>
+
+    <div #tableContainer *ngIf="tableData.length > 0" class="preview-table-body-container"
+         [style.width.px]="tableBodyWidth"
+         (wheel)="wheelScrollHandler($event)">
+      <table #table class="table-layout-fixed table-sm"
+             touchScroll (vScroll)="touchVScroll($event)" (hScroll)="touchHScroll($event)"
+             [style.top.px]="-scrollY">
+        <tbody>
+        <ng-container *ngFor="let _row of tableData; let _first = first; let i = index">
+          <tr *ngIf="!_first" [style.height.px]="cellHeight">
+            <ng-container *ngIf="isRowVisible(i)">
+              <td *ngIf="leftOfColRangeWidth > 0"
+                  [style.min-width.px]="leftOfColRangeWidth"
+                  [style.max-width.px]="leftOfColRangeWidth"></td>
+              <ng-container *ngFor="let _i of columnIndexRange; let j = index">
+                <td *ngIf="_row[_i] != null"
+                    [style.min-width.px]="_columnWidths[_i]"
+                    [style.max-width.px]="_columnWidths[_i]"
+                    [title]="getCellLabel(_row[_i])"
+                    [class.background-clip-padding-box]="isFirefox"
+                    outOfZone>
+                  <ng-container>
+                    {{getCellLabel(_row[_i])}}
+                  </ng-container>
+                </td>
+              </ng-container>
+              <td *ngIf="rightOfColRangeWidth > 0"
+                  [style.min-width.px]="rightOfColRangeWidth"
+                  [style.max-width.px]="rightOfColRangeWidth"></td>
+            </ng-container>
+          </tr>
+        </ng-container>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="vertical-scroll-wrapper"
+       [style.top.px]="headerHeight"
+       [style.height]="'calc(100% - ' + headerHeight + 'px)'"
+       [style.width.px]="scrollbarWidth"
+       (scroll)="verticalScrollHandler($event)"
+       #verticalScrollWrapper>
+    <div [style.height.px]="tableHeight">
+    </div>
+  </div>
+</div>
+<notifications #notifications *ngIf="limited" [timeout]="5000"
+               message="Table limited to 5000 rows"></notifications>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="30px" height="30px" viewBox="291 381 30 30" enable-background="new 291 381 30 30" xml:space="preserve">
+<linearGradient id="symbol_1_" gradientUnits="userSpaceOnUse" x1="336.6826" y1="668.0508" x2="432.51" y2="668.0508" gradientTransform="matrix(0.9107 0 0 -0.9107 0.0448 1004.4019)">
+	<stop  offset="0" style="stop-color:#4591ED"/>
+	<stop  offset="1" style="stop-color:#00C9FF"/>
+</linearGradient>
+<path id="symbol_2_" fill="url(#symbol_1_)" d="M318.347,398.592l-2.388-10.431c-0.126-0.565-0.66-1.131-1.226-1.288l-10.965-3.362
+	c-0.157-0.032-0.314-0.063-0.471-0.063c-0.472,0-0.974,0.188-1.257,0.471l-7.854,7.29c-0.409,0.377-0.66,1.131-0.534,1.696
+	l2.545,11.154c0.126,0.566,0.66,1.131,1.225,1.288l10.243,3.143c0.157,0.031,0.314,0.063,0.471,0.063
+	c0.472,0,0.975-0.188,1.257-0.472l8.389-7.791C318.252,399.911,318.473,399.158,318.347,398.592z M304.899,385.961l7.509,2.294
+	c0.283,0.094,0.283,0.22,0,0.282l-3.959,0.912c-0.314,0.063-0.722-0.063-0.911-0.283l-2.765-2.984
+	C304.554,385.993,304.616,385.899,304.899,385.961z M309.58,399.439c0.063,0.314-0.126,0.472-0.407,0.378l-8.107-2.482
+	c-0.283-0.094-0.346-0.346-0.126-0.534l6.221-5.781c0.22-0.22,0.472-0.126,0.534,0.157L309.58,399.439z M296.227,392.088
+	l6.598-6.127c0.22-0.22,0.565-0.188,0.786,0.032l3.298,3.55c0.221,0.22,0.189,0.565-0.031,0.786l-6.598,6.127
+	c-0.22,0.219-0.565,0.188-0.786-0.032l-3.299-3.55C296.007,392.654,296.007,392.308,296.227,392.088z M297.829,401.828l-1.759-7.635
+	c-0.063-0.314,0.032-0.346,0.252-0.125l2.765,2.984c0.22,0.221,0.314,0.661,0.22,0.942l-1.194,3.866
+	C298.049,402.11,297.892,402.11,297.829,401.828z M307.476,406.258l-8.578-2.639c-0.283-0.095-0.471-0.408-0.377-0.691l1.414-4.65
+	c0.094-0.283,0.408-0.471,0.69-0.376l8.578,2.638c0.283,0.095,0.472,0.409,0.377,0.692l-1.414,4.65
+	C308.073,406.196,307.759,406.353,307.476,406.258z M315.11,400.006l-5.75,5.341c-0.22,0.221-0.345,0.126-0.251-0.157l1.194-3.864
+	c0.094-0.283,0.407-0.598,0.722-0.66l3.959-0.911C315.268,399.691,315.33,399.817,315.11,400.006z M315.739,398.875l-4.745,1.068
+	c-0.313,0.063-0.597-0.126-0.659-0.409l-2.012-8.765c-0.063-0.314,0.126-0.598,0.409-0.661l4.745-1.068
+	c0.313-0.063,0.596,0.125,0.659,0.408l2.01,8.766C316.21,398.498,316.022,398.813,315.739,398.875z"/>
+</svg>

@@ -1,0 +1,219 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <div class="task-view-toggle-btn">
+      <button mat-icon-button
+              [matTooltip]="showTasksAsList ? '_#(schedule.task.toggle.toFolderView)' : '_#(schedule.task.toggle.toListView)'"
+              (click)="showAllTasks(!showTasksAsList)">
+        <mat-icon fontSet="ineticons" fontIcon="menu-sandwich-icon"></mat-icon>
+      </button>
+      <span>_#(Tasks)</span>
+    </div>
+    <span class="spacer"></span>
+    <mat-form-field>
+      <mat-label>_#(Filter)</mat-label>
+      <input matInput (keyup)="search($event.target.value)">
+    </mat-form-field>
+    <button mat-icon-button matTooltip="_#(Refresh)" (click)="loadTasks(true)">
+      <mat-icon fontSet="ineticons" fontIcon="refresh-icon"></mat-icon>
+    </button>
+    <mat-menu #appMenu="matMenu">
+      <button mat-menu-item [disabled]="!hasSelected()" (click)="runTasks()">_#(Run Now)</button>
+      <button mat-menu-item [disabled]="!hasSelected()" (click)="stopTasks()">_#(Stop Now)</button>
+    </mat-menu>
+    <button mat-icon-button matTooltip="_#(More Options)" [matMenuTriggerFor]="appMenu">
+      <mat-icon fontSet="ineticons" fontIcon="menu-vertical-icon"></mat-icon>
+    </button>
+  </mat-card-header>
+  <mat-card-content class="list-card-content">
+    <mat-drawer-container class="users-container" autosize>
+      <mat-drawer class="users-mat-drawer" *ngIf="!showTasksAsList" mode="side" disableClose [opened]="true"
+                  [class.repository-tree]="true">
+        <div class="mat-drawer-inner-container">
+          <em-schedule-folder-tree #folderTree
+            [treeSource]="fTreeSource"
+            [treeControl]="fTreeControl"
+            [treeFlattener]="fTreeFlattener"
+            [path]="path"
+            (selectNode)="nodeSelected($event)"
+            (errorResponse)="handleError($event)" (tasksMoved)="loadTasks()">
+          </em-schedule-folder-tree>
+        </div>
+      </mat-drawer>
+      <mat-drawer-content [class.repository-editor]="!showTasksAsList">
+        <table mat-table multiTemplateDataRows matSort class="task-list-table" [dataSource]="dataSource">
+
+          <ng-container matColumnDef="select">
+            <th mat-header-cell *matHeaderCellDef class="select">
+              <mat-checkbox (change)="$event ? masterToggle() : null"
+                            [checked]="selection.hasValue() && isAllSelected()"
+                            [indeterminate]="selection.hasValue() && !isAllSelected() && hasSelected()">
+              </mat-checkbox>
+            </th>
+            <td mat-cell *matCellDef="let element" class="select">
+              <mat-checkbox (click)="$event.stopPropagation()"
+                            (change)="$event ? selection.toggle(element) : null"
+                            [checked]="selection.isSelected(element)">
+              </mat-checkbox>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> _#(Name) </th>
+            <td mat-cell [title]="element.label" *matCellDef="let element" class="element-name">
+              <a *ngIf="canEditTask(element) && !element.entry; else taskNameText" class="links task-name-cell" [title]="element.label"
+                 [routerLink]="['/settings/schedule/tasks', getTaskName(element)]" [queryParams]="getEditorQueryParams()">
+                {{isDataCycle(element) ? element.name : element.label}}
+              </a>
+              <ng-template #taskNameText>
+                <label *ngIf="!element.entry" class="task-name-text">{{isDataCycle(element) ? element.name : element.label}}</label>
+              </ng-template>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="user">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> _#(User) </th>
+            <td mat-cell [title]="internalTask(element.name) ? '' : element.owner?.name"
+                *matCellDef="let element" class="element-name">
+              {{internalTask(element.name) ? '' : element.owner?.name}}
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="lastRunStatus">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header>_#(Last Run Status)</th>
+            <td mat-cell *matCellDef="let element">
+              <span [title]="element.status?.lastRunStatus || ''">
+                <ng-container *ngIf="element.status?.lastRunStatus === '_#(Failed)'; else status">
+                  {{ element.status.lastRunStatus}}
+                  <button mat-icon-button color="accent" (click)="openDebugDialog(element)">
+                    <mat-icon fontSet="ineticons" fontIcon="menu-horizontal-icon"></mat-icon>
+                  </button>
+                </ng-container>
+                <ng-template #status>
+                  {{ element.status?.lastRunStatus || "" }}
+                </ng-template>
+              </span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="nextRunStart">
+            <th mat-header-cell *matHeaderCellDef mat-sort-header> _#(Next Run Starting) </th>
+            <td mat-cell *matCellDef="let element"  [title]="element.status ? element.status.nextRunStart : ''">
+              {{element.status ? element.status.nextRunStart : ""}}
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="expandedDetail">
+            <td mat-cell *matCellDef="let row" [attr.colspan]="displayedColumns.length">
+              <div class="table-element-detail"
+                   [@detailExpand]="row == expandedElement ? 'expanded' : 'collapsed'">
+                <mat-list dense role="list">
+                  <mat-list-item *ngFor="let field of expandingColumns, let i = index;" role="listitem">
+                    <div [title]="row.status ? row.status[field] : ''">
+                      {{expandingHeaders[i]}}:&nbsp;&nbsp;{{row.status ? row.status[field] : ""}}
+                    </div>
+                  </mat-list-item>
+                  <mat-list-item>
+                    {{ row.enabled ? "_#(Enabled)" : "_#(Disabled)" }}
+                  </mat-list-item>
+                </mat-list>
+              </div>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row class="table-header-row" *matHeaderRowDef="displayedColumns;"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="table-row"
+              [class.table-expanded-row]="expandedElement === row"
+              [class.disabled-row]="!row.enabled"
+              (dragstart)="dragTask($event, row)" [draggable]="true"
+              (dragover)="$event.preventDefault();"
+              (dragenter)="$event.preventDefault()"
+              (click)="showExpandElement(row)"></tr>
+          <tr mat-row *matRowDef="let row; columns: ['expandedDetail']" class="table-detail-row"></tr>
+        </table>
+        <mat-paginator [pageSizeOptions]="[5, 10, 20]"
+                       [pageSize]="10"
+                       [showFirstLastButtons]="true"></mat-paginator>
+        <em-loading-spinner [loading]="loading"></em-loading-spinner>
+      </mat-drawer-content>
+    </mat-drawer-container>
+  </mat-card-content>
+  <mat-card-content>
+    <div class="show-current-server-time">
+      <label class="mat-body-1">_#(Current Server Time): {{serverTime}}</label>
+    </div>
+  </mat-card-content>
+  <mat-card-actions>
+    <button mat-raised-button color="primary" [disabled]="!isCreateTaskEnabled()" (click)="newTask()">_#(New Task)</button>
+    <button mat-button [disabled]="showTasksAsList || !(hasSelected() && canDelete() && removable())"
+            (click)="moveTasks()">_#(Move Task)</button>
+    <button mat-button [disabled]="!(hasSelected() && removable() && canDelete())"
+            (click)="removeTasks()">_#(Delete)</button>
+    <button mat-button [disabled]="isToggleTasksEnabledDisabled()" (click)="toggleTasksEnabled()">
+      {{ allSelectedAreDisabled ? "_#(Enable)" : "_#(Disable)" }}
+    </button>
+  </mat-card-actions>
+</mat-card>
+
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <div class="distribution-title">
+      <div>_#(Distribution)</div>
+      <div *ngIf="distributionType === DistributionType.WEEK">(_#(Week))</div>
+      <ng-container *ngIf="distributionType === DistributionType.DAY">
+        <div>({{getDistributionDayLabel()}})</div>
+        <button mat-icon-button (click)="showWeekDistribution()"
+                title="_#(Back)" aria-label="Back">
+          <mat-icon fontSet="ineticons" fontIcon="backward-icon"></mat-icon>
+        </button>
+      </ng-container>
+      <ng-container *ngIf="distributionType === DistributionType.HOUR">
+        <div>({{getDistributionHourLabel()}})</div>
+        <button mat-icon-button (click)="showDayDistribution()"
+                title="_#(Back)" aria-label="Back">
+          <mat-icon fontSet="ineticons" fontIcon="backward-icon"></mat-icon>
+        </button>
+      </ng-container>
+    </div>
+  </mat-card-header>
+  <mat-card-content class="chart-card-content">
+    <div #chartDiv class="distribution-chart" (resized)="onChartResized()">
+      <mat-spinner color="accent" *ngIf="!distributionChart && !loading"></mat-spinner>
+      <ng-container *ngIf="distributionChart">
+        <map name="distributionChartMap">
+          <area
+            *ngFor="let value of distributionChart.values"
+            shape="rect"
+            [coords]="getDistributionValueCoords(value)"
+            (click)="selectDistributionValue(value)"
+          />
+        </map>
+        <img
+          [width]="distributionChart.width"
+          [height]="distributionChart.height"
+          [src]="distributionChartUrl"
+          usemap="#distributionChartMap"
+        />
+      </ng-container>
+    </div>
+    <p class="mat-body-1">_#(em.schedule.distributionDesc)</p>
+  </mat-card-content>
+</mat-card>

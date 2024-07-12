@@ -1,0 +1,132 @@
+{
+  "endpoints": [
+    {
+      "paged": "false",
+      "name": "Index",
+      "suffix": "/indexes/{Index Name}?api-version=2019-05-06"
+    },
+    {
+      "paged": "false",
+      "name": "Indexes",
+      "suffix": "/indexes?api-version=2019-05-06",
+      "lookups": [
+        {
+          "endpoints": [
+            "Index",
+            "Index Statistics",
+            "Document Search",
+            "Document Count"
+          ],
+          "jsonPath": "$.value[*]",
+          "key": "name",
+          "parameterName": "Index Name"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Index Statistics",
+      "suffix": "/indexes/{Index Name}/stats?api-version=2019-05-06"
+    },
+    {
+      "paged": "true",
+      "name": "Document Search",
+      "suffix": "/indexes/{Index Name}/docs?api-version=2019-05-06&search={Search Text?}"
+    },
+    {
+      "paged": "false",
+      "name": "Document",
+      "suffix": "/indexes/{Index Name}/docs/{Document Key}?api-version=2019-05-06"
+    },
+    {
+      "paged": "false",
+      "name": "Document Count",
+      "suffix": "/indexes/{Index Name}/docs/$count?api-version=2019-05-06"
+    },
+    {
+      "paged": "false",
+      "name": "Data Source",
+      "suffix": "/datasources/{Data Source Name}?api-version=2019-05-06"
+    },
+    {
+      "paged": "false",
+      "name": "Data Sources",
+      "suffix": "/datasources?api-version=2019-05-06",
+      "lookups": [
+        {
+          "endpoint": "Data Source",
+          "jsonPath": "$.value[*]",
+          "key": "name",
+          "parameterName": "Data Source Name"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Indexer",
+      "suffix": "/indexers/{Indexer Name}?api-version=2019-05-06"
+    },
+    {
+      "paged": "false",
+      "name": "Indexer Status",
+      "suffix": "/indexers/{Indexer Name}/status?api-version=2019-05-06"
+    },
+    {
+      "paged": "false",
+      "name": "Indexers",
+      "suffix": "/indexers?api-version=2019-05-06",
+      "lookups": [
+        {
+          "endpoints": [
+            "Indexer",
+            "Indexer Status"
+          ],
+          "jsonPath": "$.value[*]",
+          "key": "name",
+          "parameterName": "Indexer Name"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Service Statistics",
+      "suffix": "/servicestats?api-version=2019-05-06"
+    },
+    {
+      "paged": "false",
+      "name": "Skillset",
+      "suffix": "/skillsets/{Skillset Name}?api-version=2019-05-06"
+    },
+    {
+      "paged": "false",
+      "name": "Skillsets",
+      "suffix": "/skillsets?api-version=2019-05-06",
+      "lookups": [
+        {
+          "endpoint": "Skillset",
+          "jsonPath": "$.value[*]",
+          "key": "name",
+          "parameterName": "Skillset Name"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Synonym Map",
+      "suffix": "/synonymmaps/{Synonym Map Name}?api-version=2019-05-06"
+    },
+    {
+      "paged": "false",
+      "name": "Synonym Maps",
+      "suffix": "/synonymmaps?api-version=2019-05-06",
+      "lookups": [
+        {
+          "endpoint": "Synonym Map",
+          "jsonPath": "$.value[*]",
+          "key": "name",
+          "parameterName": "Synonym Map Name"
+        }
+      ]
+    }
+  ]
+}

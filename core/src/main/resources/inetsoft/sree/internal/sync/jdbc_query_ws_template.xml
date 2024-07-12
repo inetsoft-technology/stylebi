@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<?inetsoft-asset classname="inetsoft.uql.asset.Worksheet" identifier="1^2^__NULL__^queryName"?>
+<!--
+  ~ This file is part of StyleBI.
+  ~
+  ~ Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  ~
+  ~ The software and information contained herein are copyrighted and
+  ~ proprietary to InetSoft Technology Corp. This software is furnished
+  ~ pursuant to a written license agreement and may be used, copied,
+  ~ transmitted, and stored only in accordance with the terms of such
+  ~ license and with the inclusion of the above copyright notice. Please
+  ~ refer to the file "COPYRIGHT" for further copyright and licensing
+  ~ information. This software and information or any other copies
+  ~ thereof may not be provided or otherwise made available to any other
+  ~ person.
+  -->
+
+<worksheet class="inetsoft.uql.asset.Worksheet" created="1705285883575" createdBy="anonymous" modified="1705287896662" modifiedBy="anonymous" offline="false">
+<Version>13.7</Version>
+<worksheetInfo>
+<worksheetInfo class="inetsoft.uql.asset.WorksheetInfo" inputmax="50000"
+messageLevels="Error,Warning,Info"/>
+</worksheetInfo>
+<primary><![CDATA[ queryName ]]></primary>
+<assemblies>
+<oneAssembly>
+<assembly class="inetsoft.uql.asset.SQLBoundTableAssembly">
+<assemblyInfo class="inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo"
+pixelHeight="60" pixelOffX="25" pixelOffY="30" pixelWidth="100"
+primary="true">
+<name><![CDATA[ queryName ]]></name>
+<class><![CDATA[ inetsoft.uql.asset.SQLBoundTableAssembly ]]></class>
+<normalColumnSelection></normalColumnSelection>
+<crosstabColumnSelection></crosstabColumnSelection>
+<source>
+<sourceInfo class="inetsoft.uql.asset.SourceInfo" type="16">
+<prefix>
+<![CDATA[ Examples/Orders ]]>
+</prefix>
+<source>
+<![CDATA[ Examples/Orders ]]>
+</source>
+<properties> </properties>
+</sourceInfo>
+</source>
+<datasource name="Examples/Orders"/>
+</assemblyInfo>
+<mvForceAppendUpdates>false</mvForceAppendUpdates>
+<conditionAssemblies> </conditionAssemblies>
+<conditions>
+<conditions></conditions>
+</conditions>
+<sqlEdited val="false"/>
+<advancedEditing val="true"/>
+<convertFromQuery val="true"/>
+</assembly>
+</oneAssembly>
+</assemblies>
+</worksheet>

@@ -1,0 +1,156 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!-- use class .binding-editor .split-content open properties dialog, cannot delete it-->
+<div class="binding-editor binding-border" *ngIf="bindingModel">
+  <div class="drag-indicator dc-applied-indicator" *ngIf="showDcAppliedTip" (click)="hideDcTip()">
+    _#(date.comparison.applied.tip)</div>
+  <div>
+    <editor-title-bar [elementName]="assemblyName" [sourceName]="sourceName"
+                      [objectType]="objectModel?.objectType" [goToWizardVisible]="goToWizardVisible"
+                      [backToReportWizardVisible]="backToReportWizardVisible" [reportMode]="rmode"
+                      (onClose)="onClose.emit($event)"
+                      (onChangeReportMode)="onChangeReportMode.emit($event)"
+                      (onOpenWizardPane)="onOpenWizardPane.emit()"
+                      (onOpenReportWizard)="onOpenReportWizard.emit()">
+    </editor-title-bar>
+  </div>
+  <div class="split-content" [ngClass]="{'adhoc-split-content': !isVS, 'vs-split-content': isVS}">
+    <split-pane direction="horizontal" [sizes]="[25, 75]" [minSize]="200"
+                [snapOffset]="0" [gutterSize]="4" (onDragEnd)="resizePane.emit()">
+      <div class="left-container split">
+        <split-pane direction="vertical" [sizes]="[55,45]"
+                    [minSize]="200" [snapOffset]="0">
+          <div class="left-top-container bb-gray treePane">
+            <div class="drag-indicator" *ngIf="showDragTip" (mouseover)="showDragTip = false">
+              _#(Drag from here)</div>
+            <data-editor-tab-pane
+              [formatPaneDisabled]="formatPaneDisabled || hideFormatPane"
+              (onSwitchTab)="switchTab($event)"
+              [(selectedTab)]="selectedTab">
+              <formats-pane #formatsPane [inactive]="formatsInactive"
+                            [format]="currentFormat"
+                            [formatPaneDisabled]="formatsDisabled"
+                            [composerPane]="isVS"
+                            [focusedAssemblies]="[objectModel]"
+                            [variableValues]="variableValues"
+                            (changeFormat)="updateFormat($event)"
+                            [vsId]="runtimeId">
+                <ng-content select="type-formats-pane"></ng-content>
+              </formats-pane>
+              <data-editor-binding-tree [grayedOutFields]="grayedOutValues"
+                                        [selectedNodes]="selectedNodes"
+                                        [inactive]="selectedTab !== SidebarTab.BINDING_TREE"
+                                        (onPopUpWarning)="popUpWarning($event)">
+              </data-editor-binding-tree>
+            </data-editor-tab-pane>
+          </div>
+          <div class="left-bottom-container">
+            <div *ngIf="bindingType == 'chart'">
+              <div class="chart-style-container bg-white2">
+                <div class="field-row float-end">
+                  <div class="field-list-label"></div>
+                  <div class="field-list">
+                    <chart-editor-toolbar [bindingModel]="bindingModel"></chart-editor-toolbar>
+                  </div>
+                </div>
+              </div>
+              <div class="high-low-pane" *ngIf="showHighLowPane()">
+                <chart-high-low-pane [bindingModel]="bindingModel"
+                                     [grayedOutValues]="grayedOutValues">
+                </chart-high-low-pane>
+              </div>
+              <aesthetic-pane [bindingModel]="bindingModel" [chartModel]="objectModel"
+                              [vsId]="runtimeId" [assemblyName]="assemblyName"
+                              [objectType]="bindingType" [grayedOutValues]="grayedOutValues"
+                              (onUpdateData)="updateData($event)" (onSizeChange)="sizeChanged()">
+              </aesthetic-pane>
+            </div>
+            <div *ngIf="bindingType == 'table'">
+              <table-option *ngIf="!isVS"
+                            [option]="tableBindingModel.option"
+                            [groupNum]="tableBindingModel.groups == null ? 0 : tableBindingModel.groups.length"
+                            [formatOptionVisible]="formatPaneVisible"
+                            [format]="currentFormat"
+                            (onChangeFormat)="updateFormat($event)">
+              </table-option>
+            </div>
+            <div *ngIf="bindingType == 'crosstab'">
+              <crosstab-option [formatOptionVisible]="formatPaneVisible && !isVS"
+                               [option]="crosstabBindingModel.option" [vsId]="runtimeId"
+                               [format]="currentFormat"
+                               [variables]="variableValues"
+                               (onChangeFormat)="updateFormat($event)">
+              </crosstab-option>
+            </div>
+            <div *ngIf="bindingType == 'calctable'">
+              <calc-option-pane>
+              </calc-option-pane>
+            </div>
+          </div>
+        </split-pane>
+      </div>
+      <div class="right-container ps-2 split">
+        <div class="right-binding-container">
+          <div class="right-top-container">
+            <chart-data-pane *ngIf="bindingType == 'chart'"
+                             [bindingModel]="bindingModel" [grayedOutValues]="grayedOutValues">
+            </chart-data-pane>
+            <table-data-pane *ngIf="bindingType == 'table'"
+                             [bindingModel]="bindingModel" [grayedOutValues]="grayedOutValues"
+                             (onPopUpWarning)="popUpWarning($event)">
+            </table-data-pane>
+            <crosstab-data-pane *ngIf="bindingType == 'crosstab'"
+                                [bindingModel]="bindingModel" [grayedOutValues]="grayedOutValues">
+            </crosstab-data-pane>
+            <calc-data-pane *ngIf="bindingType == 'calctable'"
+                            [bindingModel]="bindingModel"
+                            [vsId]="runtimeId" [assemblyName]="assemblyName">
+            </calc-data-pane>
+          </div>
+          <div class="object-view"
+               [class.right-bottom-container]="!chartMaxMode"
+               [class.chart-max-mode]="chartMaxMode">
+            <ng-content select="object-view"></ng-content>
+          </div>
+          <div *ngIf="isVS" class="status-bar">
+            <status-bar>
+              <div class="d-flex align-items-end status-bar-component" status-bar-component>
+                <button type="button" class="btn btn-sm btn-primary me-1 text-nowrap"
+                        (click)="openConsoleDialog()">
+                  _#(Console) <span class="badge text-bg-light">{{consoleMessages ? consoleMessages.length : 0}}</span>
+                </button>
+              </div>
+            </status-bar>
+          </div>
+        </div>
+      </div>
+    </split-pane>
+  </div>
+</div>
+<notifications #notifications class="notifications-binding-pane" [timeout]="5000"></notifications>
+<ng-template #consoleDialog let-close="close" let-dismiss="dismiss">
+  <console-dialog [messages]="consoleMessages"
+                  [messageLevels]="messageLevels"
+                  [runtimeId]="runtimeId"
+                  (messagesChange)="changeMessage($event)"
+                  (onClose)="dismiss($event)" (onCommit)="close($event)"
+  >
+  </console-dialog>
+</ng-template>

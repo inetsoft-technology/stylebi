@@ -1,0 +1,42 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="dialogTitle"
+  [cshid]="'AnnotatingDashboard'"
+  (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body">
+  <ng-container *ngIf="!isIE else plainTextArea">
+    <ckeditor
+      [editor]="Editor"
+      [config]="messageConfig"
+      [(ngModel)]="content"
+      [style.--ck-color-base-background]="bgColor ? bgColor + ' !important' : ''"
+      (ready)="onEditorReady($event)"
+      class="compact rich-text-editor"
+    ></ckeditor>
+  </ng-container>
+  <ng-template #plainTextArea>
+    <textarea class="plain-textarea" [rows]="5" [(ngModel)]="content"></textarea>
+  </ng-template>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()">_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>

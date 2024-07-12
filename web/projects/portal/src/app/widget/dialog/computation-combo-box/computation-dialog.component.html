@@ -1,0 +1,87 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="model.label"
+              [cshid]="'AddingTargetLineVS'"
+              (onCancel)="cancelChanges()">
+</modal-header>
+<div class="modal-body">
+  <form class="container-fluid">
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <dynamic-combo-box [(value)]="model.value" [editable]="true" [variables]="variables"
+                             [valueOnly]="hideDcombox" [vsId]="vsId">
+          </dynamic-combo-box>
+          <label>{{getLabel()}}</label>
+        </div>
+        <div class="alert alert-danger" *ngIf="model.name == 'Confidence Interval' && !isValueValid(model.value)">
+          <strong>_#(Error):</strong> _#(designer.chartProp.confidenceLevelError) {{model.value}}
+        </div>
+        <div class="alert alert-danger" *ngIf="model.name == 'Percentiles' && !isValueValid(model.value)">
+          <strong>_#(Error):</strong> _#(designer.chartProp.percentileError) {{model.value}}
+        </div>
+        <div class="alert alert-danger" *ngIf="(model.name == 'Standard Deviation' || model.name == 'Percentage') && !isValueValid(model.value)">
+          <strong>_#(Error):</strong> {{model.name}} _#(designer.chartProp.invalidNumber) {{model.value}}
+        </div>
+        <div class="alert alert-danger" *ngIf="model.name == 'Quantiles' && !isValueValid(model.value)">
+          <strong>_#(Error):</strong> _#(designer.chartProp.quantileError) {{model.value}}
+        </div>
+      </div>
+      <div class="col-auto ps-0" *ngIf="selectedIndex < 2">%</div>
+    </div>
+    <ng-container [ngSwitch]="selectedIndex">
+      <div class="form-row-float-label row" *ngSwitchCase="1">
+        <label class="col-auto">_#(calculationOf):</label>
+        <div class="col-auto">
+          <dynamic-combo-box [(type)]="valueType" [values]="percentagesValues"
+                             [(value)]="model.percentageAggregateVal" [vsId]="vsId"
+                             (valueChange)="onValueChange($event)"
+                             [variables]="variables" [editable]="isValueEditable()"
+                             [valueOnly]="hideDcombox"></dynamic-combo-box>
+        </div>
+      </div>
+      <div class="form-row-float-label row" *ngSwitchCase="4">
+        <div class="col-auto">
+          <div class="form-check">
+            <input class="form-check-input" name="group" type="radio" id="sample"
+                 [(ngModel)]="model.standardIsSample" [value]="true">
+            <label class="form-check-label" for="sample">
+              _#(Sample)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input class="form-check-input" name="group" type="radio" id="population"
+                 [(ngModel)]="model.standardIsSample" [value]="false">
+            <label class="form-check-label" for="population">
+              _#(Population)
+            </label>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="saveChanges()"
+   [disabled]="!isValueValid(model.value)">_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+</div>

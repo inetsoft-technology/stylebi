@@ -1,0 +1,192 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
+
+  <!-- Schema migration for changes made in v13.2. -->
+
+  <property name="assetDependencyIndexStorage.name" value="assetdependencystorage" dbms="postgresql"/>
+  <property name="assetDependencyIndexStorage.name" value="ASSETDEPENDENCYSTORAGE" dbms="db2"/>
+  <property name="assetDependencyIndexStorage.name" value="assetDependencyStorage" dbms="derby,h2,mssql,mysql,oracle"/>
+  <property name="assetDependencyIndexStorage.path.name" value="PATH" dbms="db2,derby"/>
+  <property name="assetDependencyIndexStorage.path.name" value="path" dbms="h2,mssql,mysql,oracle,postgresql"/>
+  <property name="assetDependencyIndexStorage.objectKey.name" value="objectkey" dbms="postgresql"/>
+  <property name="assetDependencyIndexStorage.objectKey.name" value="objectKey" dbms="db2,derby,h2,mssql,mysql,oracle"/>
+  <property name="assetDependencyIndexStorage.objectKey.length" value="255" dbms="mysql"/>
+  <property name="assetDependencyIndexStorage.objectKey.length" value="1000" dbms="db2,derby,h2,mssql,oracle,postgresql"/>
+  <property name="assetDependencyIndexStorage.content.type" value="longblob" dbms="mysql"/>
+  <property name="assetDependencyIndexStorage.content.type" value="bytea" dbms="postgresql"/>
+  <property name="assetDependencyIndexStorage.content.type" value="image" dbms="mssql"/>
+  <property name="assetDependencyIndexStorage.content.type" value="blob" dbms="db2,derby,h2,oracle"/>
+  <property name="assetDependencyIndexStorage.lastModified.name" value="lastmodified" dbms="postgresql"/>
+  <property name="assetDependencyIndexStorage.lastModified.name" value="lastModified" dbms="db2,derby,h2,mssql,mysql,oracle"/>
+
+  <property name="assetDependencyIndexStorageLastModified.name" value="adstoragelastmodified" dbms="postgresql"/>
+  <property name="assetDependencyIndexStorageLastModified.name" value="adStorageLastModified" dbms="db2,derby,h2,mssql,mysql,oracle"/>
+  <property name="assetDependencyIndexStorageLastModified.path.name" value="PATH" dbms="db2,derby"/>
+  <property name="assetDependencyIndexStorageLastModified.path.name" value="path" dbms="h2,mssql,mysql,oracle,postgresql"/>
+  <property name="assetDependencyIndexStorageLastModified.lastModified.name" value="lastmodified" dbms="postgresql"/>
+  <property name="assetDependencyIndexStorageLastModified.lastModified.name" value="lastModified" dbms="db2,derby,h2,mssql,mysql,oracle"/>
+
+  <changeSet id="changelog-13.2.0" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <customPrecondition className="inetsoft.util.db.LegacyTablePrecondition"/>
+    </preConditions>
+
+    <comment>Create the assetDependencyIndexStorage table.</comment>
+
+    <createTable tableName="${assetDependencyIndexStorage.name}">
+      <column name="${assetDependencyIndexStorage.path.name}" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="${assetDependencyIndexStorage.objectKey.name}" type="VARCHAR(${assetDependencyIndexStorage.objectKey.length})">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="content" type="${assetDependencyIndexStorage.content.type}"/>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="changelog-13.2.1" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <customPrecondition className="inetsoft.util.db.LegacyTablePrecondition"/>
+    </preConditions>
+
+    <comment>Create the assetDependencyIndexStorageLastModified table.</comment>
+
+    <createTable tableName="${assetDependencyIndexStorageLastModified.name}">
+      <column name="${assetDependencyIndexStorageLastModified.path.name}" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column defaultValueNumeric="0" name="${assetDependencyIndexStorageLastModified.lastModified.name}" type="DECIMAL(20,0)"/>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="changelog-13.2.2" author="inetsoft">
+
+    <preConditions onFail="MARK_RAN">
+      <customPrecondition className="inetsoft.util.db.LegacyTablePrecondition"/>
+    </preConditions>
+
+    <comment>Add last modified column to asset dependency indexed storage table.</comment>
+
+    <sql dbms="mssql" splitStatements="true" endDelimiter=";">
+      alter table assetDependencyStorage add lastModified datetime constraint defAdStorageModified default (getdate());
+
+      create trigger adStorageModifiedTrigger
+      on assetDependencyStorage
+      after update
+      as
+      update assetDependencyStorage set lastModified = getdate() from INSERTED i where i.path = assetDependencyStorage.path and i.objectKey = assetDependencyStorage.objectKey;
+    </sql>
+
+    <sql dbms="oracle" splitStatements="true" endDelimiter="/">
+      alter table assetDependencyStorage add lastModified timestamp default systimestamp
+      /
+
+      create trigger adStorageModifiedTrigger
+      before update on assetDependencyStorage
+      for each row
+      begin
+      :new.lastModified := systimestamp;
+      end;
+      /
+    </sql>
+
+    <sql dbms="derby" splitStatements="true" endDelimiter=";">
+      alter table assetDependencyStorage add column lastModified timestamp default current_timestamp;
+
+      create trigger adStorageModifiedTrigger
+      after update of path, objectKey, content on assetDependencyStorage
+      referencing OLD as EXISTING
+      for each row mode DB2SQL
+      update assetDependencyStorage set lastModified = current_timestamp where path = EXISTING.path and objectKey = EXISTING.objectKey;
+    </sql>
+
+    <sql dbms="db2">
+      alter table assetDependencyStorage add lastModified timestamp not null generated always for each row on update as row change timestamp
+    </sql>
+
+    <sql dbms="postgresql" splitStatements="true" endDelimiter="/">
+      alter table assetDependencyStorage add lastModified timestamp default current_timestamp
+
+      /
+      create trigger adStorageModifiedTrigger
+      before update on assetDependencyStorage
+      for each row execute procedure updateIndexStorageModified()
+      /
+    </sql>
+
+    <sql dbms="mysql">
+      alter table assetDependencyStorage add lastModified timestamp default current_timestamp on update current_timestamp
+    </sql>
+
+    <sql dbms="h2">
+      alter table assetDependencyStorage add lastModified timestamp as now()
+    </sql>
+
+    <rollback>
+      <sql dbms="oracle, derby" splitStatements="true" endDelimiter=";">
+        drop trigger adStorageModifiedTrigger;
+        alter table assetDependencyStorage drop column lastModified;
+      </sql>
+
+      <sql dbms="db2, mysql, h2">
+        alter table assetDependencyStorage drop column lastModified
+      </sql>
+
+      <sql dbms="postgresql" splitStatements="true" endDelimiter=";">
+        drop trigger adStorageModifiedTrigger on assetDependencyStorage;
+        alter table assetDependencyStorage drop column lastModified;
+      </sql>
+
+      <sql dbms="mssql" splitStatements="true" endDelimiter=";">
+        drop trigger adStorageModifiedTrigger;
+        alter table assetDependencyStorage drop constraint defAdStorageModified;
+        alter table assetDependencyStorage drop column lastModified;
+      </sql>
+    </rollback>
+
+  </changeSet>
+
+  <changeSet id="changelog-13.2.3" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <customPrecondition className="inetsoft.util.db.LegacyTablePrecondition"/>
+    </preConditions>
+
+    <comment>Fix bug in stored procedure created in 12.1.</comment>
+
+    <sql dbms="oracle" splitStatements="true" endDelimiter="/">
+      create or replace trigger indexStorageModifiedTrigger
+      before update on indexStorage
+      for each row
+      begin
+      :new.lastModified := systimestamp;
+      end;
+      /
+    </sql>
+
+    <rollback>
+    </rollback>
+  </changeSet>
+
+</databaseChangeLog>

@@ -1,0 +1,74 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<div class="row">
+  <div class="col-auto">
+    <ng-container *ngIf="selectedTable != null">
+      _#(Selected table:) {{selectedTableLabel}}
+    </ng-container>
+    <ng-container *ngIf="selectedTable == null">
+      _#(no.table.selected).
+    </ng-container>
+  </div>
+</div>
+<div class="row">
+  <div class="col-auto">
+    <ng-container *ngIf="isMergeable()">
+      _#(merge.additional.tables):
+    </ng-container>
+    <div *ngIf="!isMergeable()" class="pb-3">
+      _#(no.compatible.tables.to.merge).
+    </div>
+  </div>
+</div>
+<div *ngIf="isMergeable()" class="form-row-float-label row unhighlightable mt-3">
+  <div class="col-4">
+    <div class="form-group form-floating">
+      <div class="bordered-box bd-gray form-control" id="compatibleTables">
+        <div *ngFor="let _table of compatibleTables; let _i = index"
+             [class.selected]="compatibleTableSelection.isSelected(_i)"
+             (mousedown)="selectCompatibleTable(_i, $event)">{{_table}}</div>
+      </div>
+      <label>_#(Compatible Tables)</label>
+    </div>
+  </div>
+  <div class="btn-container-vertical col-3">
+    <button type="button" class="btn btn-sm btn-light-no-bg" title="_#(Add)"
+            (click)="addAdditionalTables()"
+            [disabled]="!compatibleTableSelection.hasSelection()">
+      <i class="forward-icon"></i>
+    </button>
+    <button type="button" class="btn btn-sm btn-light-no-bg" title="_#(Remove)"
+            (click)="removeAdditionalTables()"
+            [disabled]="!additionalTableSelection.hasSelection()">
+      <i class="backward-icon"></i>
+    </button>
+  </div>
+  <div class="col-4">
+    <div class="form-group form-floating">
+      <div class="bordered-box bd-gray form-control" id="additionalTables">
+        <div *ngFor="let _table of additionalTables; let _i = index"
+             [class.selected]="additionalTableSelection.isSelected(_i)"
+             (mousedown)="selectAdditionalTable(_i, $event)">{{_table}}</div>
+      </div>
+      <label>_#(Additional Tables)</label>
+    </div>
+  </div>
+</div>

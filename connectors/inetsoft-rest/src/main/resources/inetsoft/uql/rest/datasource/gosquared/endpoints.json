@@ -1,0 +1,252 @@
+{
+  "endpoints": [
+    {
+      "name": "Blocked Items", 
+      "suffix": "/account/v1/blocked?presenter={Presenter?:plain|tags|indexedTags}"
+    }, 
+    {
+      "name": "Blocked Bots", 
+      "suffix": "/account/v1/blocked/bots"
+    }, 
+    {
+      "name": "Blocked IPs", 
+      "suffix": "/account/v1/blocked/ips"
+    }, 
+    {
+      "name": "Blocked Visitors", 
+      "suffix": "/account/v1/blocked/visitors"
+    }, 
+    {
+      "name": "Feeds", 
+      "suffix": "/account/v1/feeds"
+    }, 
+    {
+      "name": "Report Preferences", 
+      "suffix": "/account/v1/reportPreferences"
+    }, 
+    {
+      "name": "Team Members", 
+      "suffix": "/account/v1/sharedUsers"
+    }, 
+    {
+      "name": "Sites", 
+      "suffix": "/account/v1/sites?presenter={Presenter?:grouped|flat}"
+    }, 
+    {
+      "name": "Site Domains", 
+      "suffix": "/account/v1/sites/{Site Token}/domains"
+    }, 
+    {
+      "name": "Site Domain", 
+      "suffix": "/account/v1/sites/{Site Token}/domains/{Domain}"
+    }, 
+    {
+      "name": "Tagged Visitors", 
+      "suffix": "/account/v1/taggedVisitors?presenter={Presenter?:plain|indexed}"
+    }, 
+    {
+      "name": "Trigger Types", 
+      "suffix": "/account/v1/triggerTypes"
+    }, 
+    {
+      "name": "Webhooks", 
+      "suffix": "/account/v1/webhooks",
+      "lookups": [
+        {
+          "endpoint": "Webhook Triggers",
+          "jsonPath": "$.list.[*]",
+          "key": "id",
+          "parameterName": "Webhook ID"
+        }
+      ]
+    }, 
+    {
+      "name": "Webhook", 
+      "suffix": "/account/v1/webhooks/{Webhook ID}"
+    }, 
+    {
+      "name": "Webhook Triggers", 
+      "suffix": "/account/v1/webhooks/{Webhook ID}/triggers"
+    }, 
+    {
+      "name": "Online Browsers", 
+      "suffix": "/now/v3/browsers/presenter={Presenter?:truncatedList|list|truncatedObject|object}"
+    }, 
+    {
+      "name": "Online Campaigns", 
+      "suffix": "/now/v3/campaigns"
+    }, 
+    {
+      "name": "Online Concurrent Visitors", 
+      "suffix": "/now/v3/concurrents"
+    }, 
+    {
+      "name": "Online Countries", 
+      "suffix": "/now/v3/countries"
+    }, 
+    {
+      "name": "Realtime Engagement", 
+      "suffix": "/now/v3/engagement"
+    }, 
+    {
+      "name": "Online Geographic User Info", 
+      "suffix": "/now/v3/geo?visitorsMode={Visitors Mode?:all|tagged|returning}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Online Languages", 
+      "suffix": "/now/v3/languages?presenter={Presenter?:truncatedList|list|truncatedObject|object}"
+    }, 
+    {
+      "name": "Online Notifications", 
+      "suffix": "/now/v3/notifications?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Online Organizations", 
+      "suffix": "/now/v3/organisations?presenter={Presenter?:truncatedList|list|truncatedObject|object}"
+    }, 
+    {
+      "name": "Realtime Overview", 
+      "suffix": "/now/v3/overview?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Online Pages", 
+      "suffix": "/now/v3/pages?href={Page URL?}"
+    }, 
+    {
+      "name": "Online Platforms", 
+      "suffix": "/now/v3/platforms?presenter={Presenter?:truncatedList|list|truncatedObject|object}"
+    }, 
+    {
+      "name": "Online Sources", 
+      "suffix": "/now/v3/sources?sections={Sources?:direct,site,social,organic,internal}&minimal={Compact?:true|false}"
+    }, 
+    {
+      "name": "Current Time", 
+      "suffix": "/now/v3/time"
+    }, 
+    {
+      "name": "Time Series", 
+      "suffix": "/now/v3/timeSeries?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&interval={Interval?:5min}"
+    }, 
+    {
+      "name": "Visitors", 
+      "suffix": "/now/v3/visitors?visitorsMode={Visitors Mode?:all|tagged|returning}&from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Aggregate Data", 
+      "suffix": "/trends/v2/aggregate?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&interval={Interval?:hour|day|month}"
+    }, 
+    {
+      "name": "Historical Browser Data", 
+      "suffix": "/trends/v2/browser?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Campaign Content", 
+      "suffix": "/trends/v2/campaign_content?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Campaign Medium", 
+      "suffix": "/trends/v2/campaign_medium?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Campaign Name", 
+      "suffix": "/trends/v2/campaign_name?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Campaign Source", 
+      "suffix": "/trends/v2/campaign_source?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Campaign Term", 
+      "suffix": "/trends/v2/campaign_term?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Country Data", 
+      "suffix": "/trends/v2/country?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Event Data", 
+      "suffix": "/trends/v2/event?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Language Data", 
+      "suffix": "/trends/v2/language?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Organization Data", 
+      "suffix": "/trends/v2/organisation?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical OS Data", 
+      "suffix": "/trends/v2/os?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Page Data", 
+      "suffix": "/trends/v2/page?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Base Path Data", 
+      "suffix": "/trends/v2/path1?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Screen Dimensions Data", 
+      "suffix": "/trends/v2/screenDimensions?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "Historical Sources Data", 
+      "suffix": "/trends/v2/sources?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}&dateFormat={Date Format?}&group={Group by Common Source?:true|false}"
+    }, 
+    {
+      "name": "People CRM Devices", 
+      "suffix": "/people/v1/devices"
+    }, 
+    {
+      "name": "People CRM Device", 
+      "suffix": "/people/v1/devices/{Device ID}"
+    }, 
+    {
+      "name": "People CRM Event Types", 
+      "suffix": "/people/v1/eventTypes"
+    }, 
+    {
+      "name": "People CRM Search", 
+      "suffix": "/people/v1/people?query={Search Term}&fields={Fields?:id,email,...}&dateFormat={Date Format?}"
+    }, 
+    {
+      "name": "People CRM Person", 
+      "suffix": "/people/v1/people/{Person ID}"
+    }, 
+    {
+      "name": "People CRM Property Types", 
+      "suffix": "/people/v1/propertyTypes"
+    }, 
+    {
+      "name": "People CRM Custom Property Types", 
+      "suffix": "/people/v1/propertyTypes/custom"
+    }, 
+    {
+      "name": "People CRM Property Type", 
+      "suffix": "/people/v1/propertyTypes/{Property ID}"
+    }, 
+    {
+      "name": "People CRM Smart Groups", 
+      "suffix": "/people/v1/smartgroups"
+    }, 
+    {
+      "name": "People CRM Smart Group", 
+      "suffix": "/people/v1/smartgroups/{Group ID}"
+    }, 
+    {
+      "name": "Archived Chats", 
+      "suffix": "/chat/v1/archivedChats?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}"
+    }, 
+    {
+      "name": "Active Chats", 
+      "suffix": "/chat/v1/chats?from={From Date?:yyyy-MM-ddTHH:mm:ss}&to={End Date?:yyyy-MM-ddTHH:mm:ss}"
+    }, 
+    {
+      "name": "Active Chat", 
+      "suffix": "/chat/v1/chats/{Chat ID}"
+    }
+  ]
+}

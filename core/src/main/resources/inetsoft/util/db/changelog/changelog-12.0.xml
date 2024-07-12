@@ -1,0 +1,489 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
+
+  <!-- Initial schema state, from v12.0. -->
+
+  <property name="assets_table.name" value="ASSETS_TABLE" dbms="db2"/>
+  <property name="assets_table.name" value="assets_table" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+  <property name="assets_table.id.type" value="number(10,0)" dbms="oracle"/>
+  <property name="assets_table.id.type" value="integer" dbms="db2,derby,h2,mssql,mysql,postgresql"/>
+  <property name="assets_table.existing.type" value="tinyint" dbms="mysql"/>
+  <property name="assets_table.existing.type" value="number(1,0)" dbms="oracle"/>
+  <property name="assets_table.existing.type" value="smallint" dbms="db2,derby,h2,mssql,postgresql"/>
+
+  <property name="assets_dependency_table.name" value="ASSETS_DEPENDENCY_TABLE" dbms="db2"/>
+  <property name="assets_dependency_table.name" value="assets_dependency_table" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+  <property name="assets_dependency_table.from_id.type" value="number(10,0)" dbms="oracle"/>
+  <property name="assets_dependency_table.from_id.type" value="integer" dbms="db2,derby,h2,mssql,mysql,postgresql"/>
+  <property name="assets_dependency_table.to_id.type" value="number(10,0)" dbms="oracle"/>
+  <property name="assets_dependency_table.to_id.type" value="integer" dbms="db2,derby,h2,mssql,mysql,postgresql"/>
+  <property name="assets_dependency_table.description.length" value="512" dbms="db2"/>
+  <property name="assets_dependency_table.description.length" value="1024" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+
+  <property name="dataspace_table.name" value="DATASPACE_TABLE" dbms="db2"/>
+  <property name="dataspace_table.name" value="dataspace_table" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+  <property name="dataspace_table.index_name" value="DATASPACE_INDEX" dbms="db2"/>
+  <property name="dataspace_table.index_name" value="dataspace_index" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+  <property name="dataspace_table.path.name" value="PATH" dbms="db2,derby"/>
+  <property name="dataspace_table.path.name" value="path" dbms="h2,mssql,mysql,oracle,postgresql"/>
+  <property name="dataspace_table.path.length" value="255" dbms="mysql"/>
+  <property name="dataspace_table.path.length" value="500" dbms="db2,derby,h2,mssql,oracle,postgresql"/>
+  <property name="dataspace_table.lastModified.name" value="lastmodified" dbms="postgresql"/>
+  <property name="dataspace_table.lastModified.name" value="lastModified" dbms="db2,derby,h2,mssql,mysql,oracle"/>
+  <property name="dataspace_table.isFolder.name" value="isfolder" dbms="postgresql"/>
+  <property name="dataspace_table.isFolder.name" value="isFolder" dbms="db2,derby,h2,mssql,mysql,oracle"/>
+  <property name="dataspace_table.content.type" value="longblob" dbms="mysql"/>
+  <property name="dataspace_table.content.type" value="bytea" dbms="postgresql"/>
+  <property name="dataspace_table.content.type" value="image" dbms="mssql"/>
+  <property name="dataspace_table.content.type" value="blob" dbms="db2,derby,h2,oracle"/>
+
+  <property name="indexStorage.name" value="indexstorage" dbms="postgresql"/>
+  <property name="indexStorage.name" value="INDEXSTORAGE" dbms="db2"/>
+  <property name="indexStorage.name" value="indexStorage" dbms="derby,h2,mssql,mysql,oracle"/>
+  <property name="indexStorage.path.name" value="PATH" dbms="db2,derby"/>
+  <property name="indexStorage.path.name" value="path" dbms="h2,mssql,mysql,oracle,postgresql"/>
+  <property name="indexStorage.objectKey.name" value="objectkey" dbms="postgresql"/>
+  <property name="indexStorage.objectKey.name" value="objectKey" dbms="db2,derby,h2,mssql,mysql,oracle"/>
+  <property name="indexStorage.objectKey.length" value="255" dbms="mysql"/>
+  <property name="indexStorage.objectKey.length" value="1000" dbms="db2,derby,h2,mssql,oracle,postgresql"/>
+  <property name="indexStorage.content.type" value="longblob" dbms="mysql"/>
+  <property name="indexStorage.content.type" value="bytea" dbms="postgresql"/>
+  <property name="indexStorage.content.type" value="image" dbms="mssql"/>
+  <property name="indexStorage.content.type" value="blob" dbms="db2,derby,h2,oracle"/>
+
+  <property name="indexStorageLastModified.name" value="indexstoragelastmodified" dbms="postgresql"/>
+  <property name="indexStorageLastModified.name" value="indexStorageLastModified" dbms="db2,derby,h2,mssql,mysql,oracle"/>
+  <property name="indexStorageLastModified.path.name" value="PATH" dbms="db2,derby"/>
+  <property name="indexStorageLastModified.path.name" value="path" dbms="h2,mssql,mysql,oracle,postgresql"/>
+  <property name="indexStorageLastModified.lastModified.name" value="lastmodified" dbms="postgresql"/>
+  <property name="indexStorageLastModified.lastModified.name" value="lastModified" dbms="db2,derby,h2,mssql,mysql,oracle"/>
+
+  <property name="user_profile.user_roles.length" value="1024" dbms="mysql"/>
+  <property name="user_profile.user_roles.length" value="2048" dbms="db2"/>
+  <property name="user_profile.user_roles.length" value="4000" dbms="oracle"/>
+  <property name="user_profile.user_roles.length" value="8000" dbms="mssql"/>
+  <property name="user_profile.user_roles.length" value="8192" dbms="derby,h2,postgresql"/>
+
+  <changeSet id="changelog-12.0.0" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="${assets_table.name}"/>
+      </not>
+    </preConditions>
+
+    <comment>Create the assets_table table and index.</comment>
+
+    <createTable tableName="${assets_table.name}">
+      <column name="id" type="${assets_table.id.type}">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="type" type="VARCHAR(32)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="owner" type="VARCHAR(128)"/>
+      <column name="path" type="VARCHAR(512)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="server_host_name" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column defaultValueNumeric="1" name="existing" type="${assets_table.existing.type}"/>
+    </createTable>
+
+    <createIndex tableName="${assets_table.name}" indexName="idx_assets_table">
+      <column name="type"/>
+      <column name="owner"/>
+      <column name="path"/>
+      <column name="server_host_name"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.1" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="${assets_dependency_table.name}"/>
+      </not>
+    </preConditions>
+
+    <comment>Create the assets_dependency_table table.</comment>
+
+    <createTable tableName="${assets_dependency_table.name}">
+      <column name="from_id" type="${assets_dependency_table.from_id.type}">
+        <constraints nullable="false"/>
+      </column>
+      <column name="to_id" type="${assets_dependency_table.to_id.type}">
+        <constraints nullable="false"/>
+      </column>
+      <column name="description" type="VARCHAR(${assets_dependency_table.description.length})">
+        <constraints nullable="false"/>
+      </column>
+      <column name="server_host_name" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.2" author="inetsoft" dbms="db2,derby,h2,mssql,oracle,postgresql">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <primaryKeyExists tableName="${assets_dependency_table.name}"/>
+      </not>
+    </preConditions>
+
+    <comment>Create the assets_dependency_table primary key.</comment>
+
+    <addPrimaryKey tableName="${assets_dependency_table.name}" columnNames="from_id,to_id,description,server_host_name"/>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.3" author="inetsoft" dbms="mysql">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <primaryKeyExists tableName="${assets_dependency_table.name}"/>
+      </not>
+    </preConditions>
+
+    <comment>Create the assets_dependency_table primary key.</comment>
+
+    <sql>
+      alter table ${assets_dependency_table.name}
+      add primary key (from_id, to_id, description(255), server_host_name)
+    </sql>
+
+    <rollback>
+      alter table ${assets_dependency_table.name}
+      drop primary key
+    </rollback>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.4" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <customPrecondition className="inetsoft.util.db.LegacyTablePrecondition"/>
+    </preConditions>
+
+    <comment>Create the dataspace_table table and index.</comment>
+
+    <createTable tableName="dataspace_table">
+      <column name="${dataspace_table.path.name}" type="VARCHAR(${dataspace_table.path.length})">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="folder" type="VARCHAR(500)"/>
+      <column defaultValueNumeric="0" name="${dataspace_table.lastModified.name}" type="DECIMAL(20,0)"/>
+      <column name="content" type="${dataspace_table.content.type}"/>
+      <column name="${dataspace_table.isFolder.name}" type="VARCHAR(1)"/>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.5" author="inetsoft" dbms="oracle" failOnError="false">
+    <preConditions onFail="MARK_RAN">
+      <customPrecondition className="inetsoft.util.db.LegacyTablePrecondition"/>
+    </preConditions>
+
+    <comment>Drop legacy virtual index from data space table.</comment>
+
+    <dropIndex tableName="DATASPACE_TABLE" indexName="DATASPACE_INDEX"/>
+
+    <rollback/>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.6" author="inetsoft">
+    <validCheckSum>8:5353e3ba41dd7eaf2f2e546ff25d35ba</validCheckSum>
+    <preConditions onFail="MARK_RAN">
+      <customPrecondition className="inetsoft.util.db.LegacyTablePrecondition"/>
+    </preConditions>
+
+    <comment>Create the index on the data space table</comment>
+
+    <createIndex tableName="${dataspace_table.name}" indexName="${dataspace_table.index_name}">
+      <column name="folder"/>
+      <column name="${dataspace_table.path.name}"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.7" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <customPrecondition className="inetsoft.util.db.LegacyTablePrecondition"/>
+    </preConditions>
+
+    <comment>Create the indexStorage table.</comment>
+
+    <createTable tableName="${indexStorage.name}">
+      <column name="${indexStorage.path.name}" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="${indexStorage.objectKey.name}" type="VARCHAR(${indexStorage.objectKey.length})">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="content" type="${indexStorage.content.type}"/>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.8" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <customPrecondition className="inetsoft.util.db.LegacyTablePrecondition"/>
+    </preConditions>
+
+    <comment>Create the indexStorageLastModified table.</comment>
+
+    <createTable tableName="${indexStorageLastModified.name}">
+      <column name="${indexStorageLastModified.path.name}" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column defaultValueNumeric="0" name="${indexStorageLastModified.lastModified.name}" type="DECIMAL(20,0)"/>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.9" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="sr_action"/>
+      </not>
+    </preConditions>
+
+    <comment>Create the sr_action table.</comment>
+
+    <createTable tableName="sr_action">
+      <column name="user_session_id" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="action_name" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="object_name" type="VARCHAR(1024)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="object_type" type="VARCHAR(20)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="action_timestamp" type="DECIMAL(15,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="action_status" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="action_error" type="VARCHAR(2048)"/>
+      <column name="server_host_name" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.10" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="sr_execution"/>
+      </not>
+    </preConditions>
+
+    <comment>Create the sr_execution table.</comment>
+
+    <createTable tableName="sr_execution">
+      <column name="exec_session_id" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="user_session_id" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="object_name" type="VARCHAR(1024)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="object_type" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="exec_type" type="VARCHAR(16)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="exec_timestamp" type="DECIMAL(15,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="exec_status" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="exec_error" type="VARCHAR(2048)"/>
+      <column name="server_host_name" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="changelog-12.1.11" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="sr_export"/>
+      </not>
+    </preConditions>
+
+    <comment>Create the sr_export table.</comment>
+
+    <createTable tableName="sr_export">
+      <column name="user_name" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="object_name" type="VARCHAR(1024)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="object_type" type="VARCHAR(20)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="export_type" type="VARCHAR(20)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="export_timestamp" type="DECIMAL(15,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="server_host_name" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.12" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="sr_identityinfo"/>
+      </not>
+    </preConditions>
+
+    <comment>Create the sr_identityinfo table.</comment>
+
+    <createTable tableName="sr_identityinfo">
+      <column name="identity_name" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="identity_type" type="CHAR(1)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="action_type" type="CHAR(1)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="action_timestamp" type="DECIMAL(15,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="action_error" type="VARCHAR(2048)"/>
+      <column name="server_host_name" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="identity_state" type="CHAR(1)"/>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.13" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="sr_query"/>
+      </not>
+    </preConditions>
+
+    <comment>Create the sr_query table.</comment>
+
+    <createTable tableName="sr_query">
+      <column name="exec_session_id" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="user_session_id" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="object_name" type="VARCHAR(1024)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="object_type" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="exec_type" type="VARCHAR(16)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="exec_timestamp" type="DECIMAL(15,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="exec_status" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="exec_error" type="VARCHAR(2048)"/>
+      <column name="server_host_name" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+    </createTable>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.14" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="sr_session"/>
+      </not>
+    </preConditions>
+
+    <comment>Create the sr_session table and index.</comment>
+
+    <createTable tableName="sr_session">
+      <column name="user_id" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="user_host" type="VARCHAR(255)"/>
+      <column name="user_session_id" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="op_type" type="VARCHAR(16)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="op_timestamp" type="DECIMAL(15,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="op_status" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="op_error" type="VARCHAR(2048)"/>
+      <column name="user_role" type="VARCHAR(1024)"/>
+      <column name="user_group" type="VARCHAR(1024)"/>
+      <column name="server_host_name" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+    </createTable>
+
+    <createIndex indexName="idx_user_id" tableName="sr_session">
+      <column name="user_id"/>
+    </createIndex>
+  </changeSet>
+
+  <changeSet id="changelog-12.0.15" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="user_profile"/>
+      </not>
+    </preConditions>
+
+    <comment>Create the user_profile table.</comment>
+
+    <createTable tableName="user_profile">
+      <column name="user_name" type="VARCHAR(255)">
+        <constraints primaryKey="true"/>
+      </column>
+      <column name="creation_date" type="DECIMAL(15,0)"/>
+      <column name="user_roles" type="VARCHAR(${user_profile.user_roles.length})"/>
+      <column name="user_groups" type="VARCHAR(${user_profile.user_roles.length})"/>
+    </createTable>
+  </changeSet>
+
+</databaseChangeLog>

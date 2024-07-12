@@ -1,0 +1,58 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container-fluid vpm-browser-container p-0 h-100 flex-row">
+  <div class="d-flex flex-column align-items-stretch p-0 h-100"
+       [class.col-12]="!showDetailsItem"
+       [ngClass]="{'col-6 col-sm-8 col-md-9' : !!showDetailsItem}">
+    <div class="col-12 p-0">
+      <div class="flex-fixed-container h-100">
+        <database-data-model-toolbar [database]="databaseName" [selectedItems]="selectedItems"
+                                     [model]="model" [isvpm]="true"
+                                     [searchQuery]="searchQuery" [searchVisible]="searchVisible"
+                                     (onAddVPM)="addModel()"
+                                     (onDeleteSelected)="deleteSelected()"
+                                     (onToggleSelection)="toggleSelectionState()" (onSearch)="search($event)">
+        </database-data-model-toolbar>
+        <div class="d-flex align-items-center ps-1 py-1" *ngIf="searchView">
+          <i class="close-circle-icon icon-size-small action-style me-1" (click)="clearSearch()"></i>
+          <span>
+          <b>_#(data.datasets.searchResults):</b> {{currentSearchQuery}} <b>_#(data.datasets.searchIn)</b> {{crrentSearchFolderLabel}}
+        </span>
+        </div>
+        <div class="flex-fixed-content">
+          <asset-item-list-view [assets]="models" [columns]="listColumns" [selectedItems]="selectedItems"
+                                [iconFunction]="iconFun" [sortOptions]="sortOptions"
+                                [selectionOn]="selectionOn"
+                                (sortChanged)="sortOptionsChanged()"
+                                (onContextmenu)="openTreeContextmenu($event)"
+                                (onClickItem)="editModel($event)"
+                                (onSelectedChanged)="selectedItems = $event">
+          </asset-item-list-view>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="flex h-100 col-6 col-sm-4 col-md-3 p-0" *ngIf="!!showDetailsItem">
+    <asset-description [selectedFile]="showDetailsItem"
+                       (onClose)="setShowDetailsItem(null)">
+    </asset-description>
+  </div>
+</div>
+<notifications #notifications class="notifications-portal-data" [timeout]="5000"></notifications>

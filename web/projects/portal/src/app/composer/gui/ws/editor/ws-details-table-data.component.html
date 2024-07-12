@@ -1,0 +1,140 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="table-layout-fixed ws-table-headers"
+     [style.width.px]="tableWidth + scrollbarWidth - getTableDataLeftPosition()"
+     [style.height.px]="HEADER_CELL_HEIGHT"
+     [style.left.px]="getTableDataLeftPosition()">
+  <ws-header-cell
+     #cell
+     *ngFor="let _i of columnIndexRange; trackBy: trackByFn.bind(this)"
+     [style.width.px]="table.colInfos[_i].width"
+     [attr.draggable]="headerDraggable(table.colInfos[_i])"
+     [colInfo]="table.colInfos[_i]" [table]="table" [selected]="selectedHeaderIndices.indexOf(_i) >= 0"
+     [showName]="showName"
+     [canRemoveSelectedHeaders]="canRemoveSelectedHeaders"
+     [focusedHeader]="table.colInfos[_i] === table.focusedColumnData?.column"
+     [selectingColumnSource]="selectingColumnSource"
+     [searchMatch]="searchMatches[_i]" [searchQueryLength]="searchQuery?.length"
+     [searchTarget]="isSearchTarget(_i)"
+     [wrapColumnHeaders]="wrapColumnHeaders"
+     outOfZone (onMousemove)="oozColumnMousemove($event, table.colInfos[_i])"
+     (onMouseleave)="oozColumnMouseLeave($event)"
+     (dragstart)="dragHeader($event, _i)" (mousedown)="mousedownHeader($event, _i)"
+     (onDelete)="deleteColumns()" (click)="clickHeader($event, _i, cell.hostRef)"
+     (onStartEditHeader)="startEditHeader(_i)"
+     (onFormulaButtonClicked)="onEditFormulaColumn.emit(_i)"
+     (onAggregateButtonClicked)="onEditAggregateColumn.emit()"
+     (onGroupButtonClicked)="onEditGroupColumn.emit()"
+     (onDateButtonClicked)="onEditDateColumn.emit($event)"
+     (onNumericButtonClicked)="onEditNumericColumn.emit($event)"
+     (onChangeColumnType)="onChangeColumnType.emit(_i)"
+     (onChangeColumnDescription)="onChangeColumnDescription.emit(_i)"
+     (onInsertDataEvent)="insertData(_i, 'column', $event)"
+     (onFocusHeaderReady)="focusHeader($event, table.focusedColumnData.offsetLeft)"></ws-header-cell>
+</div>
+<div class="edit-header-input-container">
+  <div class="edit-data-wrapper" [style.top.px]="0"
+       [style.left.px]="editHeaderIndex - 1 >= 0 ? columnRightPositions[editHeaderIndex - 1] : 0"
+       [style.width.px]="table.colInfos[editHeaderIndex]?.width"
+       [style.height.px]="HEADER_CELL_HEIGHT"
+       [style.display]="editHeaderIndex != null ? '' : 'none'">
+    <input #inputEditHeader id="inputEditHeader" type="text"
+           class="edit-header-input bg-white1" [formControl]="editHeaderControl"
+           [ngClass]="{'bg-danger': !editHeaderControl.valid}"
+           (keyup)="headerInputKeyup($event)" (blur)="headerInputBlur()">
+  </div>
+</div>
+<div #tableDataContainer class="table-data-container"
+     [style.width.px]="horizontalDist"
+     [style.height.px]="tableDataHeight"
+     (scroll)="verticalScrollHandler()"
+     (wheel)="wheelScrollHandler($event)"
+     touchScroll (vScroll)="scrollTableY(-$event)" (hScroll)="scrollTableX(-$event)">
+  <div #tableDataHeightPillar class="table-data__table-height-pillar"
+       [style.height.px]="getPillarHeight()"
+       (scroll)="pillarScroll()">
+    <div *ngIf="tableData" class="edit-data-wrapper"
+         [style.top.px]="getEditTableCellTop()"
+         [style.left.px]="currentEditPosition?.col - 1 >= 0 ? columnRightPositions[currentEditPosition.col - 1] : 0"
+         [style.width.px]="table.colInfos ? table.colInfos[currentEditPosition?.col]?.width : 0"
+         [style.height.px]="TABLE_CELL_HEIGHT"
+         [style.display]="currentEditPosition ? '' : 'none'">
+      <input #inputEditCell class="input-edit-data" type="text"
+             (keydown)="editKeydown($event)" (blur)="editCellBlur($event)">
+    </div>
+    <div *ngIf="tableData" class="table-data"
+         [style.width.px]="getTableDataWidth()"
+         [style.top.px]="getDataTableTopPosition(tableData.startRow + rowIndexRange.start)"
+         [style.left.px]="getTableDataLeftPosition()">
+      <div *ngIf="isFirstRowEven()" class="nth-child-parity-row"></div>
+      <div *ngFor="let _rowIndex of rowIndexRange"
+           class="table-data__row"
+           [style.height.px]="TABLE_CELL_HEIGHT"
+           (contextmenu)="contextmenuRow($event, _rowIndex)">
+        <div *ngFor="let _columnIndex of columnIndexRange" data-column-name
+             [title]="tableData.loadedRows[_rowIndex][_columnIndex]"
+             class="table-data__cell"
+             [style.width.px]="table.colInfos[_columnIndex].width"
+             [style.height.px]="TABLE_CELL_HEIGHT"
+             (contextmenu)="contextmenuCell($event, _rowIndex, _columnIndex)"
+             (mousedown)="mousedownEditCell($event, _rowIndex, _columnIndex)"
+             [class.ws-table-numeric-column]="columnTypeIsNumeric(_columnIndex)">
+          {{getCellLabel(tableData.loadedRows[_rowIndex][_columnIndex])}}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="isTableWaitingForData()"
+     class="table-data-loading-indicator"
+     [style.top.px]="0"
+     [style.left.px]="scrollLeft"><span class="loading-icon loading-icon--spin"></span></div>
+
+<div #dropTable *ngIf="dragging | async" class="drop-table"
+     [style.width.px]="tableWidth - getTableDataLeftPosition() + scrollbarWidth"
+     [style.height.px]="tableHeight"
+     [style.left.px]="getTableDataLeftPosition()"
+     outOfZone (onDragleave)="dragLeave($event, dropTable)">
+  <div *ngFor="let _columnIndex of columnIndexRange"
+       class="drop-table__column"
+       [style.width.px]="table.colInfos[_columnIndex].width"
+       [class.bl-highlight]="dropColumnIndicator === -1 && _columnIndex === 0 && !dropReplace"
+       [class.br-highlight]="dropColumnIndicator === _columnIndex && !dropReplace"
+       [class.bd-highlight]="dropColumnIndicator === _columnIndex && dropReplace && !isCrosstabColumn(_columnIndex)"
+       outOfZone (onDragover)="dragoverTable($event, _columnIndex)"
+       (drop)="dropColumns($event, _columnIndex)">
+  </div>
+  <div class="drop-table__column"
+       [class.bl-highlight]="dropColumnIndicator === table.colCount"
+       [style.width.px]="scrollbarWidth"
+       outOfZone (onDragover)="dragoverTable($event, table.colCount)"
+       (drop)="dropColumns($event, table.colCount)"></div>
+</div>
+<div class="column-resize-container" [style.height.px]="tableHeight">
+  <div *ngFor="let _colIndex of columnIndexRange" class="resize-handle transparent br-gray"
+       [style.left.px]="findResizeHandleLeftPosition(_colIndex)"
+       [ngStyle]="{'display': isColumnResizeHandleDisplayed(_colIndex) ? '' : 'none'}"
+       (mousedown)="startResize($event, _colIndex)"></div>
+  <div *ngIf="resizeLeft != undefined" class="resize-handle" [style.left.px]="resizeLeft"></div>
+</div>
+
+<notifications #notifications  class="notifications-ws-details" [timeout]="2000">
+</notifications>

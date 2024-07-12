@@ -1,0 +1,134 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Component Defaults */
+div.vs-combo-box {
+  position: absolute;
+  // don't set bg otherwise it can't be changed to transparent. the default bg is already
+  // white in combobox assembly
+  //background-color: white;
+  overflow: hidden;
+}
+
+/*Inherit format properties*/
+select,
+input {
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  vertical-align: inherit;
+  white-space: inherit;
+  text-decoration: inherit;
+//  background: inherit;  this prevent select dropdwon arrow override
+  border: none; // border drawn on container div
+  outline: none; // don't show a black border after clicking on select
+}
+
+select {
+  position: static;
+  height: 100%;
+  width: 100%;
+  padding-right: 16px;
+}
+
+select > option {
+  font: inherit;
+}
+
+input.standard-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+
+  /*TODO Input box needs to be 20px smaller than div, unsure what best approach
+    TODO is, for time being this is a stand-in solution*/
+  /* Firefox */
+  width: -moz-calc(100% - 20px);
+  /* WebKit */
+  width: -webkit-calc(100% - 20px);
+  /* Opera */
+  width: -o-calc(100% - 20px);
+  /* Standard */
+  width: calc(100% - 20px);
+}
+
+input.calendar-input {
+  border: none;
+  width: 85px;
+  min-width: 10px;
+}
+
+input.time-input {
+  width: 3ch;
+  flex-grow: 1;
+  border: none;
+}
+
+input.time-input:hover {
+  border: 1px solid lightgray;
+}
+
+select.meridian-input {
+  border: none;
+  flex-grow: 0;
+  width: 5.2ch;
+  margin-left: 2px;
+}
+
+.calendar-icon {
+  align-self: center;
+}
+
+.separator {
+  align-self: center;
+}
+
+.dropdown-datepicker {
+  background: white;
+}
+
+/* Hide HTML5 Up and Down arrows. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/*
+.vs-combo-box typeahead-container,
+.vs-combo-box typeahead-container ul,
+.vs-combo-box typeahead-container ul li,
+.vs-combo-box typeahead-container ul li a {
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  white-space: inherit;
+  text-decoration: inherit;
+  background: inherit;
+  padding: inherit;
+}
+*/
+
+.select-moving-label {
+  padding: 2px;
+  display: none;
+}

@@ -1,0 +1,87 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  flex-grow: 1;
+  flex-shrink: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: hidden;
+
+  $securityTreeWidth: 40%;
+  $securityEditorWidth: 100% - $securityTreeWidth;
+
+  > .mat-mdc-form-field {
+    padding-top: 10px;
+    flex-grow: 0;
+    flex-shrink: 0;
+  }
+
+  > .users-container {
+    height: 100%;
+
+    > .mat-drawer {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      flex-grow: 1;
+      flex-shrink: 1;
+      overflow: hidden;
+      width: 100%;
+
+      &.security-tree {
+        width: $securityTreeWidth;
+      }
+
+      .tree-view {
+        flex-grow: 1;
+        flex-shrink: 1;
+        height: calc(100% - 52px);
+        overflow: auto;
+      }
+
+      .buttons-view {
+        display: flex;
+        justify-content: space-evenly;
+        margin-top: 10px;
+        overflow: hidden;
+      }
+    }
+
+    .mat-drawer-content {
+      width: 100%;
+      
+      &.security-tree-editor {
+        width: $securityEditorWidth;
+      }
+    }
+  }
+
+  .description-view {
+    width: 80%;
+    margin: 16px auto;
+  }
+
+  .button-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25em;
+  }
+}

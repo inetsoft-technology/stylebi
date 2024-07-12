@@ -1,0 +1,88 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container-fluid">
+  <div class="row form-row-float-label">
+    <div class="col-xs-12 col-sm-6">
+      <div class="text-truncate">_#(Select an Image)</div>
+      <div class="bordered-box bd-gray">
+        <tree [root]="model.imageTree" [showRoot]="false" [selectedNodes]="selectedNodes"
+              (nodesSelected)="selectImage($event[0])"></tree>
+      </div>
+    </div>
+    <div class="col-xs-12 col-sm-6">
+      <span>_#(Image Path): {{selectedImageNode.label ? selectedImageNode.label : "emptyimage.gif" }}</span>
+      <div contenteditable="false" tabindex="1" class="bordered-box bd-gray"
+           [style.background-color]="blackBackground ? 'black' : 'transparent'">
+        <div>
+          <img [src]="imageSrc" [style.opacity]="getAlpha()">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col row">
+      <notifications #notifications [timeout]="5000"></notifications>
+      <div class="col-auto">
+        <button type="button" class="btn btn-default" (click)="openUpload()">_#(Upload)
+          <input class="hidden-input col-10" type="file" id="imageInput" name="imageInput"
+                 accept=".jpg,.gif,.png,.svg,.tif" (change)="fileChanged($event)" hidden #uploadInput/>
+        </button>
+      </div>
+      <div class="col-auto">
+        <button type="button" class="btn btn-default" (click)="deleteUpload()"
+                [disabled]="selectedImageNode.type != '^UPLOADED^'">_#(Delete)</button>
+      </div>
+      <div class="col-auto" *ngIf="model.allowNullImage">
+        <button type="button" class="btn btn-default clear_button_id" (click)="clearSelected()"
+                [disabled]="!model.selectedImage">_#(Clear)</button>
+      </div>
+    </div>
+    <div class="col row form-row-float-label">
+      <div class="col-auto" *ngIf="!model.presenter">
+        <div class="form-floating">
+          <alpha-dropdown id="imagePreviewPaneAlpha" [(alpha)]="model.alpha"
+                          (alphaInvalid)="changeAlphaWarning($event)"></alpha-dropdown>
+          <label>_#(Alpha)</label>
+        </div>
+      </div>
+      <div class="col-auto" *ngIf="animateGif">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" [(ngModel)]="model.animateGifImage"
+               [ngModelOptions]="{standalone: true}" [disabled]="layoutObject" id="animate">
+          <label class="form-check-label" for="animate">
+            _#(Animate GIF Image)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" [(ngModel)]="blackBackground"
+                 [ngModelOptions]="{standalone: true}" [disabled]="layoutObject" id="blackBackground">
+          <label class="form-check-label" for="blackBackground">
+            _#(Preview On Black Background)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div *ngIf="alphaInvalid" class="col-12 col-md-12 alert alert-danger">
+      _#(viewer.flash.format.invalidTransparencyError)
+    </div>
+  </div>
+</div>

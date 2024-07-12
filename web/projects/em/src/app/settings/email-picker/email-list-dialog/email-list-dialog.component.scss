@@ -1,0 +1,72 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+
+  > h2, .mat-mdc-dialog-actions {
+    flex-grow: 0;
+    flex-shrink: 0;
+  }
+
+  .emailListItem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .mat-mdc-dialog-content {
+    flex-grow: 1;
+    flex-shrink: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+
+    .select-email-form {
+      flex-grow: 0;
+      flex-shrink: 0;
+
+      .mat-mdc-form-field {
+        width: 100%;
+      }
+    }
+
+    > h4 {
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+
+    .mat-mdc-list {
+      flex-grow: 1;
+      flex-shrink: 1;
+      overflow-y: auto;
+    }
+    /*TODO(mdc-migration): The following rule targets internal classes of list that may no longer apply for the MDC version.
+ */
+    .mat-list-content {
+      margin-left: -12px;
+    }
+  }
+}
+
+.dropdownItem {
+  font-size: 16px !important;
+}

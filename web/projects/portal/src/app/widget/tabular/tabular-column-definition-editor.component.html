@@ -1,0 +1,112 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="_value" class="table-container">
+  <table class="table table-bordered table-sm row-header-table" [style.height.px]="getElementHeight(dataTable)">
+    <tr [style.height.px]="getElementHeight(columnRow)">
+      <th>_#(Column)</th>
+    </tr>
+    <tr [style.height.px]="getElementHeight(aliasRow)">
+      <th>_#(Alias)</th>
+    </tr>
+    <tr [style.height.px]="getElementHeight(typeRow)">
+      <th>_#(Type)</th>
+    </tr>
+    <tr [style.height.px]="getElementHeight(formatRow)">
+      <th>_#(Format)</th>
+    </tr>
+    <tr [style.height.px]="getElementHeight(selectedRow)">
+      <th>_#(Selected)</th>
+    </tr>
+  </table>
+  <div class="data-table-container">
+    <table #dataTable class="table table-bordered table-sm data-table">
+      <colgroup>
+        <col *ngFor="let _width of columnWidths" [style.width.px]="_width">
+      </colgroup>
+      <tr #columnRow>
+        <th *ngFor="let column of _value">
+          <div class="cell-content">
+            {{column.name}}
+          </div>
+        </th>
+      </tr>
+      <tr #aliasRow>
+        <td *ngFor="let column of _value">
+          <div class="cell-content">
+            <tabular-text-editor [(value)]="column.alias" (valueChange)="valueChanged()"
+                                 [enabled]="enabled"></tabular-text-editor>
+          </div>
+        </td>
+      </tr>
+      <tr #typeRow>
+        <td *ngFor="let column of _value">
+          <div class="cell-content">
+            <select class="form-control" [(ngModel)]="column.type" (ngModelChange)="valueChanged()"
+                    [disabled]="!enabled">
+              <option value="STRING">_#(String)</option>
+              <option value="CHAR">_#(Character)</option>
+              <option value="INTEGER">_#(Integer)</option>
+              <option value="BYTE">_#(Byte)</option>
+              <option value="SHORT">_#(Short)</option>
+              <option value="LONG">_#(Long)</option>
+              <option value="FLOAT">_#(Float)</option>
+              <option value="DOUBLE">_#(Double)</option>
+              <option value="BOOLEAN">_#(Boolean)</option>
+              <option value="DATE">_#(Date)</option>
+              <option value="TIME">_#(Time)</option>
+              <option value="TIME_INSTANT">_#(Time Instant)</option>
+            </select>
+          </div>
+        </td>
+      </tr>
+      <tr #formatRow>
+        <td *ngFor="let column of _value">
+          <div class="cell-content">
+            <tabular-text-editor [(value)]="column.format" (valueChange)="valueChanged()"
+                                 [enabled]="enabled"></tabular-text-editor>
+          </div>
+        </td>
+      </tr>
+      <tr #selectedRow>
+        <td *ngFor="let column of _value" class="text-center">
+          <div class="cell-content">
+            <input class="checkbox center" type="checkbox" [(ngModel)]="column.selected"
+                   (ngModelChange)="valueChanged()" [disabled]="!enabled"/>
+          </div>
+        </td>
+      </tr>
+    </table>
+
+    <div class="column-resize-container" [style.height.px]="getElementHeight(columnRow)">
+      <div *ngFor="let _left of resizePositions; let _i = index" class="resize-handle"
+           [style.left.px]="_left" (mousedown)="startResize($event, _i)"></div>
+      <div *ngIf="resizeLeft != undefined" class="resize-handle" [style.left.px]="resizeLeft"></div>
+    </div>
+  </div>
+
+</div>
+<div *ngIf="required && _value == null">
+  <div class="alert alert-danger">_#(column.def.empty)</div>
+</div>
+<div *ngIf="_value != null && duplicateAlias != null">
+  <div class="alert alert-danger" [wExpandString]="[duplicateAlias]">
+    _#(tabular.validation.alias.duplicate)
+  </div>
+</div>

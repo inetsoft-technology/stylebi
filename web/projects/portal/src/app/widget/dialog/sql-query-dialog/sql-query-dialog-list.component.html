@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="bordered-box bd-gray scroll-pane" (dragover)="dragOverContainer($event)"
+     (dragleave)="dragLeave()" (drop)="drop($event, insertPositionDragOverContainer($event))">
+  <div #item *ngFor="let _item of items; let _i = index;"
+       class="item-entry unhighlightable text-overflow hover-bg-secondary"
+       [ngClass]="{'selected': selectedIndexes.indexOf(_i) >= 0,
+                   'bb-highlight-thin': insertPosition === _i + 1,
+                   'bt-highlight-thin': _i === 0 && insertPosition === 0,
+                   'drop-target': dragService.currentlyDragging}"
+       [attr.title]="getLabel(_item)"
+       (dragover)="dragOverItem($event, _i)"
+       (mousedown)="indexSelected(_i)" (drop)="drop($event, insertPositionDragOverItem($event, _i))"
+       [draggable]="reorderName != null" (dragstart)="dragListItems($event)">
+    <span class="item-label">
+      {{getLabel(_item)}}
+    </span>
+    <span class="btn-group">
+      <button *ngIf="showEdit" type="button" class="btn btn-xs btn-light" title="_#(Edit)"
+              (click)="itemEdited.emit(_item)">
+        <span class="edit-icon icon-size-medium"></span>
+      </button>
+      <button *ngIf="showDelete" type="button" class="btn btn-xs btn-light" title="_#(Delete)"
+              (click)="deleteItem(_i)">
+        <span class="trash-icon icon-size-medium"></span>
+      </button>
+    </span>
+  </div>
+  <div *ngIf="(!items || items.length === 0) && insertPosition != null"
+       class="empty-entry bb-highlight-thin unhighlightable text-overflow"
+       (drop)="drop($event, 0)"></div>
+</div>

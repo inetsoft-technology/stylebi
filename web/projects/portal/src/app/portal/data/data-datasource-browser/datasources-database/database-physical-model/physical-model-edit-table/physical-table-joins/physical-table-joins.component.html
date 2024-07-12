@@ -1,0 +1,65 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="physical-table-joins-pane flex-fixed-container h-100">
+  <div class="physical-model-panel-heading physical-model-panel-heading-border py-1 px-2
+                          light-gray-bg justify-content-between align-items-center">
+    <div class="outjoin-toolbar">
+      <button role="button" class="btn btn-sm btn-light-no-bg" [disabled]="disabled"
+              [attr.title]="'_#(data.physicalmodel.addJoinTooltip)'"
+              (click)="addJoin()">
+        <i class="add-icon"></i>
+      </button>
+      <button role="button" class="btn btn-sm btn-light-no-bg"
+              [disabled]="isDeleteDisabled()"
+              [attr.title]="'_#(data.physicalmodel.removeJoinTooltip)'"
+              (click)="removeJoin()">
+        <i class="trash-icon"></i>
+      </button>
+      <button role="button" class="btn btn-sm btn-light-no-bg"
+              [disabled]="isEditJoinDisabled()"
+              [attr.title]="'_#(data.physicalmodel.editJoinTooltip)'"
+              (click)="editJoin()">
+        <i class="edit-icon"></i>
+      </button>
+    </div>
+  </div>
+  <div class="outgoing-tree-pane flex-fixed-content content-overflow-all d-inline-flex p-1">
+    <tree #joinsTree class="outgoing-tree"
+          [root]="foreignTableRoot"
+          [showRoot]="false"
+          [showIcon]="false"
+          [multiSelect]="true"
+          [disabled]="disabled"
+          [selectedNodes]="selectedNodes"
+          (nodesSelected)="selectNode($event)">
+    </tree>
+  </div>
+</div>
+<ng-template #addJoinDialog let-close="close" let-dismiss="dismiss">
+  <add-join-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                   [database]="databaseName" [id]="physicalModel.id"
+                   [table]="table" [tables]="physicalModel.tables" >
+  </add-join-dialog>
+</ng-template>
+<ng-template #editJoinDialog let-close="close" let-dismiss="dismiss">
+  <edit-join-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                    [removeEnabled]="false" [joinModel]="editJoinModel">
+  </edit-join-dialog>
+</ng-template>

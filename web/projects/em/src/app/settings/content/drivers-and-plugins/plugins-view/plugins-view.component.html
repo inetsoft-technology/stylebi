@@ -1,0 +1,87 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="model">
+  <ng-container *ngIf="!model.clustered">
+    <em-staged-file-chooser
+      #fileChooser
+      [header]="uploadHeader"
+      accept="application/zip, application/x-zip, application/x-zip-compressed"
+    >
+      <button mat-stroked-button (click)="createDriver()"
+              [disabled]="fileChooser.uploading || loading || !!fileChooser.value?.length">
+        _#(em.data.databases.createDriver)
+      </button>
+
+      <button
+        mat-flat-button
+        color="primary"
+        [disabled]="fileChooser.uploading || loading || !fileChooser.value || !fileChooser.value.length"
+        (click)="uploadPlugins()"
+      >
+        _#(Upload)
+      </button>
+    </em-staged-file-chooser>
+
+    <div class="file-loading-indicator" *ngIf="!fileChooser.uploading && loading">
+      <h3>_#(em.data.databases.pluginsUpdating)</h3>
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    </div>
+  </ng-container>
+
+  <mat-card appearance="outlined" class="margin-top">
+    <mat-card-content>
+      <table mat-table matSort [dataSource]="dataSource">
+        <ng-container matColumnDef="select">
+          <th mat-header-cell *matHeaderCellDef>
+            <mat-checkbox (change)="$event ? masterToggle() : null" [disabled]="model.clustered || model.plugins.length == 0"
+                          [indeterminate]="selection.hasValue() && !isAllSelected()"
+                          [checked]="selection.hasValue() && isAllSelected()"></mat-checkbox>
+          </th>
+          <td mat-cell *matCellDef="let plugin">
+            <mat-checkbox (click)="$event.stopPropagation()"
+                          (change)="$event ? selection.toggle(plugin) : null"
+                          [checked]="selection.isSelected(plugin)"
+                          [disabled]="model.clustered || plugin.readOnly"></mat-checkbox>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>_#(Name)</th>
+          <td mat-cell *matCellDef="let plugin">{{ plugin.name }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="version">
+          <th mat-header-cell *matHeaderCellDef mat-sort-header>_#(Version)</th>
+          <td mat-cell *matCellDef="let plugin">{{ plugin.version }}</td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+        <tr mat-row *matRowDef="let plugin; columns: displayedColumns;" (click)="toggleSelection(plugin)"></tr>
+      </table>
+    </mat-card-content>
+    <mat-card-actions *ngIf="!model.clustered" class="padding-left">
+      <button mat-flat-button
+              [disabled]="selection.selected.length == 0"
+              (click)="uninstallSelected()">
+        _#(Uninstall)
+      </button>
+    </mat-card-actions>
+  </mat-card>
+</ng-container>

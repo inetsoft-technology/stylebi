@@ -1,0 +1,65 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<tree [root]="root"
+      [showRoot]="showRoot"
+      [draggable]="draggable"
+      [droppable]="droppable"
+      [multiSelect]="multiSelect" [nodeSelectable]="nodeSelectable"
+      [initExpanded]="initExpanded"
+      [initSelectedNodesExpanded]="initSelectedNodesExpanded"
+      [iconFunction]="iconFunction"
+      [selectOnClick]="selectOnClick"
+      [grayedOutFields]="grayedOutFields"
+      [selectedNodes]="selectedNodes"
+      [contextmenu]="contextmenu"
+      [showIcon]="showIcon"
+      [disabled]="disabled"
+      [showTooltip]="showTooltip"
+      [showFavoriteIcon]="showFavoriteIcon"
+      [fillHeight]="fillHeight"
+      [isGrayFunction]="isGrayFunction"
+      [hasMenuFunction]="hasMenuFunction"
+      [isRejectFunction]="isRejectFunction"
+      [isRepositoryTree]="isRepositoryTree"
+      [isPortalDataSourcesTree]="isPortalDataSourcesTree"
+      [checkboxEnable]="checkboxEnable"
+      [isMobile]="isMobile"
+      [ellipsisOverflowText]="ellipsisOverflowText"
+      [hoverShowScroll]="hoverShowScroll"
+      [inputFocus]="inputFocus"
+      [showOriginalName]="showOriginalName"
+      [helpURL]="helpURL"
+      [useVirtualScroll]="useVirtualScroll"
+      [searchStr]="searchStr"
+      [searchEnabled]="searchEnabled"
+      [dataSource]="dataSource"
+      [recentEnabled]="recentEnabled"
+      [searchEndNode]="searchEndNode"
+      [getRecentTreeFun]="getRecentTreeFun"
+      [nodeEqualsFun]="nodeEqualsFun"
+      (nodeExpanded)="onNodeExpanded($event)"
+      (nodeCollapsed)="onNodeCollapsed($event)"
+      (nodesSelected)="nodesSelected.emit($event)"
+      (nodeDrag)="nodeDrag.emit($event)"
+      (nodeDrop)="nodeDrop.emit($event)"
+      (dblclickNode)="dblclickNode.emit($event)"
+      (nodeClicked)="nodeClicked.emit($event)"
+      (onContextmenu)="onContextmenu.emit($event)"
+      (searchStart)="searchStart.emit($event)"></tree>

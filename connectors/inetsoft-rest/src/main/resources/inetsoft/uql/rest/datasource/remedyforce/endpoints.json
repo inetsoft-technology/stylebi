@@ -1,0 +1,64 @@
+{
+    "endpoints": [
+        {
+            "name": "Version",
+            "paged": false,
+            "suffix": "/1.0/ServiceUtil/Version"
+        },
+        {
+            "name": "User Detail",
+            "paged": false,
+            "suffix": "/1.0/ServiceUtil/UserDetail"
+        },
+        {
+            "name": "Categories",
+            "paged": false,
+            "suffix": "/1.0/Category"
+        },
+        {
+            "name": "Queues",
+            "paged": false,
+            "suffix": "/1.0/Queue/{Object Name}"
+        },
+        {
+            "name": "Queue",
+            "paged": false,
+            "suffix": "/1.0/Queue/{Record ID}"
+        },
+        {
+            "name": "Knowledge Articles",
+            "paged": false,
+            "suffix": "/1.0/KnowledgeArticle"
+        },
+        {
+            "name": "Knowledge Article",
+            "paged": false,
+            "suffix": "/1.0/KnowledgeArticle/{Article ID}"
+        },
+        {
+            "name": "Service Requests",
+            "paged": false,
+            "suffix": "/1.0/ServiceRequest?query={Query?}&date={Date?:Unix Timestamp}&batchSize={Batch Size?}"
+        },
+        {
+            "name": "Service Request",
+            "paged": false,
+            "suffix": "/1.0/ServiceRequest/{Request ID}"
+        },
+        {
+            "name": "Pending Approval Request",
+            "paged": false,
+            "suffix": "/1.0/Approval"
+        },
+        {
+            "name": "CMDB Parent and Child Class Attributes",
+            "paged": false,
+            "suffix": "/1.0/cmdb/getClassAttributes/{Class Name}/all"
+        },
+        {
+            "name": "CMDB Class Attributes",
+            "paged": false,
+            "suffix": "/1.0/cmdb/getClassAttributes/{Class Name}/specific"
+        }
+    ]
+}

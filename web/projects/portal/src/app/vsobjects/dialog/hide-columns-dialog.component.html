@@ -1,0 +1,66 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header
+  [title]="'_#(Hide Columns)'"
+  (onCancel)="cancel()"
+  [cshid]="'HidingTableColumns'">
+</modal-header>
+<div class="modal-body" enterSubmit (onEnter)="ok()" *ngIf="model">
+  <div class="row">
+    <div class="col-sm-6">
+      <label>_#(Available Columns):</label>
+    </div>
+    <div class="col-sm-5">
+      <label>_#(Hidden Columns):</label>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-sm-5">
+      <div class="selectable-list">
+        <div class="unhighlightable" *ngFor="let column of model.availableColumns; let _i = index"
+             [style.display]="model.hiddenColumns.indexOf(column) != -1 ? 'none' : 'block'"
+             [class.selected]="isAvailableSelected(_i)"
+             (click)="selectAvailable($event, _i)" >
+          {{column}}
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-1">
+      <button type="button" class="btn btn-default btn-wide" (click)="add()"
+              [disabled]="selectedAvailableColumnIndexes.length == 0">&gt;</button>
+      <button type="button" class="btn btn-default btn-wide" (click)="remove()"
+              [disabled]="selectedHiddenColumnIndexes.length == 0">&lt;</button>
+    </div>
+    <div class="col-sm-6">
+      <div class="selectable-list">
+        <div class="unhighlightable" *ngFor="let column of model.hiddenColumns; let _i = index"
+             [class.selected]="isHiddenSelected(_i)"
+             (click)="selectHidden($event, _i)">
+          {{column}}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-footer">
+  <apply-button (onApply)="apply($event)"></apply-button>
+  <button type="button" class="btn btn-primary" (click)="ok()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>

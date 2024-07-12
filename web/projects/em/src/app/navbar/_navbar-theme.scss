@@ -1,0 +1,110 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@import '../../../../../node_modules/@angular/material/theming';
+
+@mixin navbar-theme($theme) {
+  $is-dark: map-get($theme, is-dark);
+  $primary: map-get($theme, primary);
+  $accent: map-get($theme, accent);
+  $warn: map-get($theme, warn);
+  $background: map-get($theme, background);
+  $foreground: map-get($theme, foreground);
+
+  @if $is-dark {
+    $primary: map-get($theme, accent);
+    $accent: map-get($theme, primary);
+  }
+
+  .em-navbar-name-menu {
+    @if $is-dark {
+      color: mat-color($foreground, base) !important;
+      border-left: solid 5px mat-color($primary) !important;
+    }
+    @else {
+      color: inherit !important;
+      border-left: solid 5px mat-color($accent) !important;
+    }
+
+    opacity: 1 !important;
+  }
+
+  em-navbar {
+    color: var(--inet-em-navbar-text-color, mat-color($primary, default-contrast));
+
+    .em-navbar, .em-navbar-header {
+      background: var(--inet-em-navbar-bg-color, mat-color($primary, 500));
+
+      > .em-logo {
+        img {
+          color: var(--inet-em-navbar-logo-color, mat-color($accent));
+          font-size: 50px;
+          height: 50px;
+          vertical-align: middle;
+        }
+
+        .mat-icon {
+          margin-top: 2px;
+          padding-left: 12px;
+          padding-right: 12px;
+          color: var(--inet-em-navbar-logo-color, mat-color($accent));
+          font-size: 50px;
+          width: 50px;
+          height: 46px;
+        }
+      }
+
+      > .em-home {
+        text-decoration: none;
+        padding-right: 12px;
+
+        .mat-icon {
+          background-color: var(--inet-em-navbar-home-bg-color, mat-color($accent));
+          color: var(--inet-em-navbar-home-icon-color, var(--inet-em-navbar-text-color, mat-color($primary, '500-contrast')));
+          font-size: 24px;
+          width: 48px;
+          height: 52px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+      }
+
+      .mat-mdc-select-value, .mat-mdc-select-arrow {
+        color: inherit;
+      }
+
+      .mat-mdc-icon-button {
+        height: 52px;
+        border-radius: unset;
+
+        &.active {
+          border-bottom: 4px solid var(--inet-em-navbar-selected-border-color, mat-color($accent));
+
+          .mat-icon {
+            color: var(--inet-em-navbar-text-color, mat-color($accent, '500-contrast'));
+          }
+        }
+
+        .mat-icon {
+          color: var(--inet-em-navbar-text-color, mat-color($accent, '500-contrast'));
+          font-size: 24px;
+        }
+      }
+    }
+  }
+}

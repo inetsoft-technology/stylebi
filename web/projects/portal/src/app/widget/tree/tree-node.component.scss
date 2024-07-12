@@ -1,0 +1,131 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  position: relative;
+  display: block;
+}
+
+.tree-node {
+  white-space: nowrap;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  align-content: center;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.tree-node > span, .tree-node > span > span, .tree-node > span > label {
+  line-height: 1em;
+}
+
+.tree-node span.tree-node-toggle {
+  line-height: 1em;
+  padding-right: 4px;
+  flex-grow: 0;
+  flex-shrink: 0;
+  flex-basis: auto;
+}
+
+.tree-node span.tree-node-label-container {
+  line-height: 1em;
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: auto;
+  justify-content: flex-start;
+  display: flex;
+  align-items: center;
+  align-content: center;
+}
+
+.tree-node span.ellipsis-node-container {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.tree-node span.tree-node-icon {
+  line-height: 1em;
+  flex-grow: 0;
+  flex-shrink: 0;
+  flex-basis: auto;
+}
+
+.tree-node label.tree-node-label {
+  line-height: 1em;
+  padding-left: 8px;
+  margin-bottom: 0;
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: auto;
+  justify-content: flex-start;
+}
+
+.tree-node label.ellipsis-node-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2em !important;
+}
+
+.hideToggleIcon {
+  visibility: hidden;
+}
+
+.repository-tree, .portal-data-source-tree, .checkbox-enabled:not(.inherit-background) {
+  :not(.bg-node-selected) {
+    background-color: inherit;
+  }
+
+  .tree-node-label-container, .tree-node-icon {
+    .tree-node-label {
+      cursor:pointer;
+    }
+  }
+}
+
+.repository-tree.tree-node:first-of-type > .tree-node {
+  padding-top: 4px;
+}
+
+.repository-tree.bg-portal-node-selected, .portal-data-source-tree.bg-portal-node-selected, .checkbox-enabled.bg-portal-node-selected {
+    .tree-node-label-container, .tree-node-icon {
+      .tree-node-label.has-font-weight {
+        font-weight: bold;
+      }
+    }
+
+    :not(.inherit-background) {
+      &:hover, &:active {
+        background-color: unset;
+      }
+    }
+}
+
+.tree-node:hover {
+  .menu-trigger {
+    visibility: visible;
+  }
+}
+
+.menu-trigger {
+  visibility: hidden;
+}

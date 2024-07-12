@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="41.9785 599.8853" i:rulerOrigin="0 0" i:pageBounds="0 792 612 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/" width="200" height="200"
+	 viewBox="0 0 200 200" overflow="visible" enable-background="new 0 0 200 200" xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_2" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#FFFF4F004F00">
+				</g>
+				<g id="Layer_6" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#FFFF4F00FFFF">
+				</g>
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<rect i:knockout="Off" opacity="0" fill="#9B9B9B" width="200" height="200"/> 
+					<g>
+						<g>
+							<path fill="#D3D3D3" d="M150.676,48.028C104.812,2.165,41.115-6.734,20.087,14.294C10.522,23.86,5.762,42.15,11.779,61.543
+								l-0.002,73.816c-5.168,6.442-8.267,14.617-8.267,23.519c0,20.778,16.844,37.623,37.622,37.623
+								c9.094,0,17.433-3.227,23.937-8.597h79.419c14.437,3.875,41.643,7.332,49.487-14.926
+								C202.207,149.623,190.861,88.215,150.676,48.028z"/>
+							<path fill="none" stroke="#E16F00" stroke-width="2.7852" d="M150.676,48.028C104.812,2.165,41.115-6.734,20.087,14.294
+								C10.522,23.86,5.762,42.15,11.779,61.543l-0.002,73.816c-5.168,6.442-8.267,14.617-8.267,23.519
+								c0,20.778,16.844,37.623,37.622,37.623c9.094,0,17.433-3.227,23.937-8.597h79.419c14.437,3.875,41.643,7.332,49.487-14.926
+								C202.207,149.623,190.861,88.215,150.676,48.028z"/>
+						</g>
+						<g>
+							<path fill="#E16F00" d="M150.244,170.672c-5.574-0.213-9.748-5.688-10.147-12.013c-3.133-52.519-44.419-93.996-96.922-97.373
+								c-6.323-0.427-11.779-4.627-11.965-10.203l0,0c-0.2-5.556,6.152-10.464,13.917-9.957
+								c62.371,4.012,111.418,53.285,115.139,115.675C160.737,164.567,155.801,170.898,150.244,170.672L150.244,170.672z"/>
+						</g>
+						<g i:knockout="Off">
+							<circle fill="#E16F00" cx="41.229" cy="157.11" r="26.256"/> 
+						</g>
+						<polygon fill="#828282" stroke="#5B5B5B" stroke-width="0.9284" points="102.204,160.208 127.256,160.156 127.27,166.91 
+							135.223,161.853 143.173,156.798 135.201,151.774 127.228,146.752 127.243,153.506 66.454,153.635 66.454,153.689 
+							41.402,153.742 41.414,160.39 102.204,160.264 "/>
+					</g>
+				</g>
+				<g id="Layer_5" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#FFFFFFFF4F00">
+				</g>
+				<g id="Layer_4" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F004F00FFFF">
+				</g>
+				<g id="Layer_3" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+				</g>
+			</g>
+		</switch>
+	</svg>

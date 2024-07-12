@@ -1,0 +1,74 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.scroll-controls.paging-enabled, :host-context(.show-hints) .scroll-controls {
+  opacity: 1;
+  transition: opacity 0s;
+  pointer-events: all;
+}
+
+.scroll-controls {
+  position: fixed;
+  width: 80px;
+  height: 80px;
+  z-index: 9999;
+  background: white;
+  border: 1px solid lightgray;
+  border-radius: 60px;
+  pointer-events: none;
+  transition: opacity 1s linear;
+  opacity: 0;
+
+  button {
+    border: none;
+    background: transparent;
+    padding: 0;
+    outline: none;
+  }
+
+  button:disabled {
+    opacity: 0.5;
+  }
+
+  i {
+    font-size: 30px;
+  }
+
+  .up-arrow-button {
+    position: absolute;
+    top: 2px;
+    left: 24px;
+  }
+
+  .down-arrow-button {
+    position: absolute;
+    top: 50px;
+    left: 24px;
+  }
+
+  .left-arrow-button {
+    position: absolute;
+    top: 24px;
+    left: 0px;
+  }
+
+  .right-arrow-button {
+    position: absolute;
+    top: 24px;
+    left: 50px;
+  }
+}

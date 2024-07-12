@@ -1,0 +1,343 @@
+<?xml version="1.0"  encoding="utf-8" ?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<dateConditions>
+<xCondition class="inetsoft.uql.asset.DateCondition$YearCondition" type="date" negated="false" operation="11" equal="false" year="1">
+<name><![CDATA[Last year]]></name>
+<label><![CDATA[Last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$YearCondition" type="date" negated="false" operation="11" equal="false" year="0">
+<name><![CDATA[This year]]></name>
+<label><![CDATA[This year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$QuarterCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="0">
+<name><![CDATA[This quarter]]></name>
+<label><![CDATA[This quarter]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$QuarterCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="1">
+<name><![CDATA[Last quarter]]></name>
+<label><![CDATA[Last quarter]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$QuarterCondition" type="date" negated="false" operation="11" equal="false" year="1" quarter="0">
+<name><![CDATA[This quarter last year]]></name>
+<label><![CDATA[This quarter last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$QuarterCondition" type="date" negated="false" operation="11" equal="false" year="1" quarter="1">
+<name><![CDATA[Last quarter last year]]></name>
+<label><![CDATA[Last quarter last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthQuarterCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="0">
+<name><![CDATA[1st quarter this year]]></name>
+<label><![CDATA[1st Quarter this year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthQuarterCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="1">
+<name><![CDATA[2nd quarter this year]]></name>
+<label><![CDATA[2nd Quarter this year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthQuarterCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="2">
+<name><![CDATA[3rd quarter this year]]></name>
+<label><![CDATA[3rd Quarter this year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthQuarterCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="3">
+<name><![CDATA[4th quarter this year]]></name>
+<label><![CDATA[4th Quarter this year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthQuarterCondition" type="date" negated="false" operation="11" equal="false" year="1" quarter="0">
+<name><![CDATA[1st quarter last year]]></name>
+<label><![CDATA[1st Quarter last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthQuarterCondition" type="date" negated="false" operation="11" equal="false" year="1" quarter="1">
+<name><![CDATA[2nd quarter last year]]></name>
+<label><![CDATA[2nd Quarter last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthQuarterCondition" type="date" negated="false" operation="11" equal="false" year="1" quarter="2">
+<name><![CDATA[3rd quarter last year]]></name>
+<label><![CDATA[3rd Quarter last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthQuarterCondition" type="date" negated="false" operation="11" equal="false" year="1" quarter="3">
+<name><![CDATA[4th quarter last year]]></name>
+<label><![CDATA[4th Quarter last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthHalfYearCondition" type="date" negated="false" operation="11" equal="false" year="0" halfYear="0">
+<name><![CDATA[1st half of this year]]></name>
+<label><![CDATA[1st half of this year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthHalfYearCondition" type="date" negated="false" operation="11" equal="false" year="0" halfYear="1">
+<name><![CDATA[2nd half of this year]]></name>
+<label><![CDATA[2nd half of this year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthHalfYearCondition" type="date" negated="false" operation="11" equal="false" year="1" halfYear="0">
+<name><![CDATA[1st half of last year]]></name>
+<label><![CDATA[1st half of last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthHalfYearCondition" type="date" negated="false" operation="11" equal="false" year="1" halfYear="1">
+<name><![CDATA[2nd half of last year]]></name>
+<label><![CDATA[2nd half of last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="0">
+<name><![CDATA[This month]]></name>
+<label><![CDATA[This month]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="1">
+<name><![CDATA[Last month]]></name>
+<label><![CDATA[Last month]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="2">
+<name><![CDATA[Last 1 months]]></name>
+<label><![CDATA[Last 1 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="4">
+<name><![CDATA[Last 3 months]]></name>
+<label><![CDATA[Last 3 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="7">
+<name><![CDATA[Last 6 months]]></name>
+<label><![CDATA[Last 6 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="13">
+<name><![CDATA[Last 12 months]]></name>
+<label><![CDATA[Last 12 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="19">
+<name><![CDATA[Last 18 months]]></name>
+<label><![CDATA[Last 18 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="25">
+<name><![CDATA[Last 24 months]]></name>
+<label><![CDATA[Last 24 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="37">
+<name><![CDATA[Last 36 months]]></name>
+<label><![CDATA[Last 36 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="49">
+<name><![CDATA[Last 48 months]]></name>
+<label><![CDATA[Last 48 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="61">
+<name><![CDATA[Last 60 months]]></name>
+<label><![CDATA[Last 60 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="73">
+<name><![CDATA[Last 72 months]]></name>
+<label><![CDATA[Last 72 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="85">
+<name><![CDATA[Last 84 months]]></name>
+<label><![CDATA[Last 84 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="97">
+<name><![CDATA[Last 96 months]]></name>
+<label><![CDATA[Last 96 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="109">
+<name><![CDATA[Last 108 months]]></name>
+<label><![CDATA[Last 108 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthsCondition" type="date" negated="false" operation="11" equal="false" from="0" to="121">
+<name><![CDATA[Last 120 months]]></name>
+<label><![CDATA[Last 120 months]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="0">
+<name><![CDATA[This month last year]]></name>
+<label><![CDATA[This month last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$MonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="1">
+<name><![CDATA[Last month last year]]></name>
+<label><![CDATA[Last month last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="0">
+<name><![CDATA[This January]]></name>
+<label><![CDATA[This January]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="1">
+<name><![CDATA[This February]]></name>
+<label><![CDATA[This February]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="2">
+<name><![CDATA[This March]]></name>
+<label><![CDATA[This March]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="3">
+<name><![CDATA[This April]]></name>
+<label><![CDATA[This April]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="4">
+<name><![CDATA[This May]]></name>
+<label><![CDATA[This May]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="5">
+<name><![CDATA[This June]]></name>
+<label><![CDATA[This June]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="6">
+<name><![CDATA[This July]]></name>
+<label><![CDATA[This July]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="7">
+<name><![CDATA[This August]]></name>
+<label><![CDATA[This August]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="8">
+<name><![CDATA[This September]]></name>
+<label><![CDATA[This September]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="9">
+<name><![CDATA[This October]]></name>
+<label><![CDATA[This October]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="10">
+<name><![CDATA[This November]]></name>
+<label><![CDATA[This November]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="0" month="11">
+<name><![CDATA[This December]]></name>
+<label><![CDATA[This December]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="0">
+<name><![CDATA[Last January]]></name>
+<label><![CDATA[Last January]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="1">
+<name><![CDATA[Last February]]></name>
+<label><![CDATA[Last February]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="2">
+<name><![CDATA[Last March]]></name>
+<label><![CDATA[Last March]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="3">
+<name><![CDATA[Last April]]></name>
+<label><![CDATA[Last April]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="4">
+<name><![CDATA[Last May]]></name>
+<label><![CDATA[Last May]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="5">
+<name><![CDATA[Last June]]></name>
+<label><![CDATA[Last June]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="6">
+<name><![CDATA[Last July]]></name>
+<label><![CDATA[Last July]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="7">
+<name><![CDATA[Last August]]></name>
+<label><![CDATA[Last August]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="8">
+<name><![CDATA[Last September]]></name>
+<label><![CDATA[Last September]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="9">
+<name><![CDATA[Last October]]></name>
+<label><![CDATA[Last October]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="10">
+<name><![CDATA[Last November]]></name>
+<label><![CDATA[Last November]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$NthMonthCondition" type="date" negated="false" operation="11" equal="false" year="1" month="11">
+<name><![CDATA[Last December]]></name>
+<label><![CDATA[Last December]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$WeekCondition" type="date" negated="false" operation="11" equal="false" week="0">
+<name><![CDATA[This week]]></name>
+<label><![CDATA[This week]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$WeekCondition" type="date" negated="false" operation="11" equal="false" week="1">
+<name><![CDATA[Last week]]></name>
+<label><![CDATA[Last week]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$WeekCondition" type="date" negated="false" operation="11" equal="false" week="2">
+<name><![CDATA[Week before last week]]></name>
+<label><![CDATA[Week before last week]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$WeeksCondition" type="date" negated="false" operation="11" equal="false" from="0" to="5">
+<name><![CDATA[Last 4 weeks]]></name>
+<label><![CDATA[Last 4 weeks]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$WeeksCondition" type="date" negated="false" operation="11" equal="false" from="5" to="9">
+<name><![CDATA[Last 5-8 weeks]]></name>
+<label><![CDATA[Last 5-8 weeks]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$DaysCondition" type="date" negated="false" operation="11" equal="false" from="0" to="8">
+<name><![CDATA[Last 7 days]]></name>
+<label><![CDATA[Last 7 days]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$DaysCondition" type="date" negated="false" operation="11" equal="false" from="8" to="15">
+<name><![CDATA[Last 8-14 days]]></name>
+<label><![CDATA[Last 8-14 days]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$DaysCondition" type="date" negated="false" operation="11" equal="false" from="0" to="31">
+<name><![CDATA[Last 30 days]]></name>
+<label><![CDATA[Last 30 days]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$DaysCondition" type="date" negated="false" operation="11" equal="false" from="31" to="61">
+<name><![CDATA[Last 31-60 days]]></name>
+<label><![CDATA[Last 31-60 days]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$DayCondition" type="date" negated="false" operation="11" equal="false" day="0">
+<name><![CDATA[Today]]></name>
+<label><![CDATA[Today]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$DayCondition" type="date" negated="false" operation="11" equal="false" day="-1">
+<name><![CDATA[Tomorrow]]></name>
+<label><![CDATA[Tomorrow]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$DayCondition" type="date" negated="false" operation="11" equal="false" day="1">
+<name><![CDATA[Yesterday]]></name>
+<label><![CDATA[Yesterday]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$ToDateCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="0" month="0" start="YEAR">
+<name><![CDATA[Year to date]]></name>
+<label><![CDATA[Year to date]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$ToDateCondition" type="date" negated="false" operation="11" equal="false" year="1" quarter="0" month="0" start="YEAR">
+<name><![CDATA[Year to date last year]]></name>
+<label><![CDATA[Year to date last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$ToDateCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="0" month="0" start="QUARTER">
+<name><![CDATA[Quarter to date]]></name>
+<label><![CDATA[Quarter to date]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$ToDateCondition" type="date" negated="false" operation="11" equal="false" year="1" quarter="0" month="0" start="QUARTER">
+<name><![CDATA[Quarter to date last year]]></name>
+<label><![CDATA[Quarter to date last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$ToDateCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="1" month="0" start="QUARTER">
+<name><![CDATA[Quarter to date last quarter]]></name>
+<label><![CDATA[Quarter to date last quarter]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$ToDateCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="0" month="0" start="MONTH">
+<name><![CDATA[Month to date]]></name>
+<label><![CDATA[Month to date]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$ToDateCondition" type="date" negated="false" operation="11" equal="false" year="1" quarter="0" month="0" start="MONTH">
+<name><![CDATA[Month to date last year]]></name>
+<label><![CDATA[Month to date last year]]></label>
+</xCondition>
+<xCondition class="inetsoft.uql.asset.DateCondition$ToDateCondition" type="date" negated="false" operation="11" equal="false" year="0" quarter="0" month="1" start="MONTH">
+<name><![CDATA[Month to date last month]]></name>
+<label><![CDATA[Month to date last month]]></label>
+</xCondition>
+</dateConditions>

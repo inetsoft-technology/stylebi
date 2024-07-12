@@ -1,0 +1,286 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.ws-assembly-thumbnail-image--table-default {
+  @extend .data-table-icon;
+  @extend .icon-size-small;
+}
+
+.ws-assembly-thumbnail-image--table-sql {
+  @extend .db-table-icon;
+  @extend .icon-size-small;
+}
+
+.ws-assembly-thumbnail-image--table-embedded {
+  @extend .embedded-table-icon;
+  @extend .icon-size-small;
+}
+
+.ws-assembly-thumbnail-image--table-composite {
+  @extend .composite-table-icon;
+  @extend .icon-size-small;
+}
+
+.ws-assembly-thumbnail-image--variable {
+  @extend .variable-icon;
+  @extend .icon-size-small;
+}
+
+.ws-assembly-thumbnail-image--grouping {
+  @extend .grouping-icon;
+  @extend .icon-size-small;
+}
+
+.ws-details-table-button--search-toggle {
+  @extend .search-icon;
+}
+
+.ws-details-table-button--clear-search {
+  @extend .close-circle-icon;
+}
+
+.ws-details-table-button--search-previous {
+  @extend .upward-icon;
+}
+
+.ws-details-table-button--search-next {
+  @extend .downward-icon;
+}
+
+.ws-details-table-button--wrap-column-headers {
+  @extend .wrap-icon;
+}
+
+.ws-details-table-button--condition {
+  @extend .condition-icon;
+}
+
+.ws-details-table-button--has-condition {
+  @extend .condition-icon;
+}
+
+.ws-details-table-button--group {
+  @extend .summary-icon;
+}
+
+.ws-details-table-button--sort {
+  @extend .sort-icon;
+}
+
+.ws-details-table-button--edit-query {
+  @extend .edit-icon;
+}
+
+.ws-details-table-button--expression {
+  @extend .formula-icon;
+}
+
+.ws-details-table-button--visible {
+  @extend .eye-icon;
+}
+
+.ws-details-table-button--reorder-columns {
+  @extend .order-column-icon;
+}
+
+.ws-details-table-button--import-data-file {
+  @extend .upload-icon;
+}
+
+.ws-details-table-button--default {
+  @extend .view-summary-meta-icon;
+
+}
+
+.ws-details-table-button--live {
+  @extend .view-summary-live-icon;
+}
+
+.ws-details-table-button--runtime {
+  @extend .view-detail-live-icon;
+}
+
+.ws-details-table-button--full {
+  @extend .view-detail-meta-icon;
+}
+
+.ws-details-table-button--detail {
+  @extend .view-detail-live-icon;
+}
+
+.ws-details-table-button--edit {
+  @extend .edit-icon;
+}
+
+.ws-details-table-button--export {
+  @extend .export-icon;
+}
+
+.ws-details-table-button--mirror-auto-update-enabled {
+  @extend .auto-reload-icon;
+}
+
+.ws-details-table-button--mirror-auto-update-disabled {
+  @extend .reload-no-icon;
+}
+
+.ws-details-table-button--run-query {
+  @extend .arrow-right-circle-outline-icon;
+}
+
+.ws-details-table-button--stop-query {
+  @extend .stop-icon;
+}
+
+.ws-details-table-button--refresh-data {
+  @extend .refresh-icon;
+}
+
+.ws-header-cell-button-date_range {
+  @extend .date-range-icon;
+}
+
+.ws-header-cell-button-numeric_range {
+  @extend .num-range-icon;
+}
+
+.ws-header-cell-button-text {
+  @extend .text-field-icon;
+}
+
+.ws-header-cell-button-date {
+  @extend .date-field-icon;
+}
+
+.ws-header-cell-button-time {
+  @extend .datetime-field-icon;
+}
+
+.ws-header-cell-button-timeinstant {
+  @extend .datetime-field-icon;
+}
+
+.ws-header-cell-button-boolean {
+  @extend .boolean-field-icon;
+}
+
+.ws-header-cell-button-numeric {
+  @extend .number-field-icon;
+}
+
+.ws-header-cell-button-expression {
+  @extend .formula-icon;
+}
+
+.ws-header-cell-button-sort {
+  @extend .sort-icon;
+}
+
+.ws-header-cell-button-sort-asc {
+  @extend .sort-ascending-icon;
+}
+
+.ws-header-cell-button-sort-desc {
+  @extend .sort-descending-icon;
+}
+
+.ws-header-cell-button-visible {
+  @extend .eye-icon;
+}
+
+.ws-header-cell-button-invisible {
+  @extend .eye-off-icon;
+}
+
+.ws-header-cell-button-aggregate {
+  @extend .summary-icon;
+}
+
+.ws-header-cell-button-group {
+  @extend .grouping-icon;
+}
+
+.caret-down-icon {
+   @extend .bare-arrow-down-icon;
+   @extend .icon-size0;
+}
+
+.caret-right-icon {
+   @extend .bare-arrow-right-icon;
+   @extend .icon-size0;
+}
+
+.caret-up-icon {
+   @extend .bare-arrow-up-icon;
+   @extend .icon-size0;
+}
+
+.caret-left-icon {
+   @extend .bare-arrow-left-icon;
+   @extend .icon-size0;
+}
+
+.loading-icon--spin {
+  @extend %ineticons-base;
+  @extend .ineticons-spin;
+
+  &::before {
+    content: $loading-icon;
+  }
+}
+
+.table-endpoint-join {
+  &::before {
+    @extend .ineticons;
+    content: unicode($join-icon);
+  }
+}
+
+.table-endpoint-concat {
+  &::before {
+    @extend .ineticons;
+    content: unicode($concat-icon);
+  }
+}
+
+.compatible-tables-loading-icon {
+  @extend .loading-icon--spin;
+}
+
+.rotation--90 {
+  @extend .title-rotate-L90-icon;
+}
+
+.rotation--45 {
+  @extend .title-rotate-L45-icon;
+}
+
+.rotation-0 {
+  @extend .text-field-icon;
+}
+
+.rotation-45 {
+  @extend .title-rotate-R45-icon;
+}
+
+.rotation-90 {
+  @extend .title-rotate-R90-icon;
+}
+
+.rotation-auto {
+  @extend .title-auto-icon;
+}

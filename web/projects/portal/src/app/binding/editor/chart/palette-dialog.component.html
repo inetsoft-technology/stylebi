@@ -1,0 +1,57 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header blockMouse [title]="'_#(Select Palette)'"
+              [cshid]="'SelectPalette'"
+              (onCancel)="cancelChanges($event)">
+</modal-header>
+<div class="modal-body" *ngIf="colorPalettes" (click)="openColorOption($event)" blockMouse>
+  <!--palette selector-->
+  <div *ngIf="colorPalettes">
+    <div class="form-floating">
+      <select class="form-control" [(ngModel)]="_selectedIndex" id="selectedIndex">
+        <option *ngFor="let p of colorPalettes; let i = index" [value]="i">
+          {{p.name}}
+        </option>
+      </select>
+      <label for="selectedIndex"><span>_#(Select Palette)</span></label>
+    </div>
+  </div>
+
+  <!--display colors of the selected palette-->
+  <div *ngIf="displayPalette" class="color-cell-container">
+    <span *ngFor="let color of displayPalette.colors; index as i">
+      <label class="color-cell" [ngStyle]="{'background-color': color}">
+      </label>
+      <br *ngIf="(i + 1) % 8 == 0"/>
+    </span>
+  </div>
+
+  <div class="form-check">
+    <input type="checkbox" class="form-check-input" id="reverse" [(ngModel)]="_reversed"/>
+    <label class="form-check-label" for="reverse">
+      _#(Reverse)
+    </label>
+  </div>
+</div>
+<div class="modal-footer" blockMouse>
+  <button type="submit" class="btn btn-primary" (click)="saveChanges($event)">_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal"
+          (click)="cancelChanges($event)">_#(Cancel)</button>
+</div>

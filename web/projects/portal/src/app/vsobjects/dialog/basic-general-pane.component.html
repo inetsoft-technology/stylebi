@@ -1,0 +1,128 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form" class="container-fluid">
+  <fieldset>
+    <legend>_#(General)</legend>
+    <div class="form-row-float-label row">
+      <div class="col form-floating">
+          <input type="text" class="form-control" id="basicGeneralPaneName" trim
+                 [ngClass]="{ 'has-error' : form.controls['name'].invalid}"
+                 placeholder="_#(Name)" formControlName="name" [(ngModel)]="model.name"
+                 defaultFocus [autoSelect]="true">
+          <label>_#(Name)</label>
+      </div>
+    </div>
+    <div *ngIf="form.controls['name'].errors && !layoutObject &&
+      (form.controls['name'].errors['nameSpecialCharacters'] ||
+       form.controls['name'].errors['doesNotStartWithNumber'])"
+         class="alert alert-danger">
+      _#(vs.basicGeneral.nameCheck)
+    </div>
+    <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['exists'] && !layoutObject" class="alert alert-danger">_#(vs.basicGeneral.nameAlready)</div>
+    <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required'] && !layoutObject" class="alert alert-danger">_#(designer.chartProp.specifyTargetName)</div>
+    <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['notWhiteSpace'] && !layoutObject" class="alert alert-danger">_#(designer.chartProp.specifyTargetName)</div>
+    <div *ngIf="model.containerType != 'VSSelectionContainer'" class="form-row-float-label row">
+      <div class="col-8">
+        <div class="form-floating">
+          <dynamic-combo-box id="visible" [mode]="mode"
+                             [values]="visibleValues" [variables]="variableValues"
+                             [value]="visibleValue" (valueChange)="updateVisible($event)"
+                             [disable]="layoutObject" [vsId]="vsId"
+                             [assemblyName]="assemblyName"
+                             [isCondition]="true"
+                             [columnTreeRoot]="columnTreeRoot"
+                             [functionTreeRoot]="functionTreeRoot"
+                             [operatorTreeRoot]="operatorTreeRoot"
+                             [scriptDefinitions]="scriptDefinitions">
+          </dynamic-combo-box>
+          <label>_#(Visible)</label>
+        </div>
+      </div>
+      <div class="col-4">
+        <div class="form-check">
+          <input class="form-check-input visible_in_external_vs_id" type="checkbox"
+                 checked="checked" id="external"
+               [ngModelOptions]="{standalone: true}"
+               [(ngModel)]="model.primary" [disabled]="layoutObject">
+          <label class="form-check-label" for="external">
+            _#(Visible in External Viewsheets)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>
+<ng-content select="[generalProp]"></ng-content>
+<form class="container-fluid">
+  <fieldset class="mt-0">
+    <div class="form-row-float-label row"
+         *ngIf="model.showShadowCheckbox || model.showEnabledCheckbox || model.showRefreshCheckbox ||
+          model.showEditableCheckbox">
+      <div class="col-auto" *ngIf="model.showShadowCheckbox">
+        <div class="checkbox">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="shadow"
+                   [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.shadow" [disabled]="layoutObject">
+            <label class="form-check-label" for="shadow">
+              _#(Shadow)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="col-auto" *ngIf="model.showEnabledCheckbox">
+        <div class="checkbox">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="enabled"
+                   [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.enabled" [disabled]="layoutObject">
+            <label class="form-check-label" for="enabled">
+              _#(Enabled)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="col-auto" *ngIf="model.showRefreshCheckbox">
+        <div class="checkbox">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="refresh"
+                   [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.refresh" [disabled]="layoutObject || !submitOnChange">
+            <label class="form-check-label" for="refresh">
+              _#(Refresh Viewsheet after Submit)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="col-auto" *ngIf="model.showEditableCheckbox">
+        <div class="checkbox">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="editable"
+                   [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.editable" [disabled]="layoutObject">
+            <label class="form-check-label" for="editable">
+              _#(Editable)
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>

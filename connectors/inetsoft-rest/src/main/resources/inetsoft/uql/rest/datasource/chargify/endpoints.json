@@ -1,0 +1,345 @@
+{
+  "endpoints": [
+    {
+      "name": "Management Link",
+      "suffix": "/portal/customers/{Customer ID}/management_link.json",
+      "paged": false
+    },
+    {
+      "name": "Component by Handle",
+      "suffix": "/components/lookup.json?handle={Component Handle}",
+      "paged": false
+    },
+    {
+      "name": "Product Family Components",
+      "suffix": "/product_families/{Product Family ID}/components.json?include_archived={Include Archived?:true/false}",
+      "paged": false
+    },
+    {
+      "name": "Product Family Component",
+      "suffix": "/product_families/{Product Family ID}/components/{Component ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Product Family Component by Handle",
+      "suffix": "/product_families/{Product Family ID}/components/handle:{Component Handle}.json",
+      "paged": false
+    },
+    {
+      "name": "Subscription Components",
+      "suffix": "/subscriptions/{Subscription ID}/components.json",
+      "paged": false
+    },
+    {
+      "name": "Components",
+      "suffix": "/components.json",
+      "paged": true,
+      "lookups": [
+        {
+          "endpoints": [
+            "Component Price Points"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "component.id",
+          "parameterName": "Component ID"
+        }
+      ]
+    },
+    {
+      "name": "Subscription Component",
+      "suffix": "/subscriptions/{Subscription ID}/components/{Component ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Subscription Component Usage",
+      "suffix": "/subscriptions/{Subscription ID}/components/{Component ID}/usages.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
+      "paged": true
+    },
+    {
+      "name": "Subscription Component Allocations",
+      "suffix": "/subscriptions/{Subscription ID}/components/{Component ID}/allocations.json",
+      "paged": false
+    },
+    {
+      "name": "Component Price Points",
+      "suffix": "/components/{Component ID}/price_points.json",
+      "paged": false
+    },
+    {
+      "name": "Product Family Coupons",
+      "suffix": "/product_families/{Product Family ID}/coupons.json",
+      "paged": true
+    },
+    {
+      "name": "Product Family Coupon",
+      "suffix": "/product_families/{Product Family ID}/coupons/{Coupon ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Coupon Usage",
+      "suffix": "/coupons/{Coupon ID}/usage.json",
+      "paged": false
+    },
+    {
+      "name": "Coupon Search",
+      "suffix": "/coupons/find.json?product_family_id={Product Family ID?}&code={Coupon Code?}",
+      "paged": false
+    },
+    {
+      "name": "Default Product Family Coupons",
+      "suffix": "/coupons.json",
+      "paged": true
+    },
+    {
+      "name": "Coupon Subcodes",
+      "suffix": "/coupons/{Coupon ID}/codes.json",
+      "paged": false
+    },
+    {
+      "name": "Customers",
+      "suffix": "/customers.json",
+      "paged": true
+    },
+    {
+      "name": "Customer",
+      "suffix": "/customers/{Customer ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Customer by Reference",
+      "suffix": "/customers/lookup.json?reference={Reference ID}",
+      "paged": false
+    },
+    {
+      "name": "Customer Subscriptions",
+      "suffix": "/customers/{Customer ID}/subscriptions.json",
+      "paged": false
+    },
+    {
+      "name": "Customer Search",
+      "suffix": "/customers.json?q={Search Term?:email,ID,reference,organization}",
+      "paged": false
+    },
+    {
+      "name": "Subscription Events",
+      "suffix": "/subscriptions/{Subscription ID}/events.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&filter={Filter?}",
+      "paged": true
+    },
+    {
+      "name": "Events",
+      "suffix": "/events.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&filter={Filter?}",
+      "paged": true
+    },
+    {
+      "name": "Event Count",
+      "suffix": "/events/count.json?since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&filter={Filter?}",
+      "paged": false
+    },
+    {
+      "name": "Invoices",
+      "suffix": "/invoices.json?subscription_id={Subscription ID?}&start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}&status={Status?:draft|open|paid|pending|voided}&line_items={Include Line Items?:true|false}&discounts={Include Discounts?:true|false}&taxes={Include Taxes Data?:true|false}&credits={Include Credits Data?:true|false}&payments={Include Payments Data?:true|false}&custom_fields={Include Custom Fields?:true|false}",
+      "paged": true
+    },
+    {
+      "name": "Invoice",
+      "suffix": "/invoices/{Invoice ID}.json?start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}",
+      "paged": false
+    },
+    {
+      "name": "Invoice Payments",
+      "suffix": "/invoices/{Invoice ID}/payments.json?start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}",
+      "paged": false
+    },
+    {
+      "name": "Invoice Events",
+      "suffix": "/invoices/events.json?since_id={IDs Greater Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&invoice_uid={Invoice ID?}",
+      "paged": true
+    },
+    {
+      "name": "Credit Notes",
+      "suffix": "/credit_notes.json?subscription_id={Subscription ID?}&line_items={Include Line Items?:true|false}&discounts={Include Discounts?:true|false}&taxes={Include Taxes Data?:true|false}&refunds={Include Credits Data?:true|false}&applications={Include Payments Data?:true|false}",
+      "paged": false
+    },
+    {
+      "name": "Credit Note",
+      "suffix": "/credit_notes/{Credit Note ID}",
+      "paged": false
+    },
+    {
+      "name": "Notes",
+      "suffix": "/subscriptions/{Subscription ID}/notes.json",
+      "paged": true
+    },
+    {
+      "name": "Note",
+      "suffix": "/subscriptions/{Subscription ID}/notes/{Note ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Offers",
+      "suffix": "/offers.json",
+      "paged": false
+    },
+    {
+      "name": "Offer",
+      "suffix": "/offers/{Offer ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Payment Profiles",
+      "suffix": "/payment_profiles.json?customer_id={Customer ID?}",
+      "paged": true
+    },
+    {
+      "name": "Payment Profile",
+      "suffix": "/payment_profiles/{Payment Profile ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Products",
+      "suffix": "/product_families/{Product Family ID}/products.json?include_archived={Include Archived?:true|false}",
+      "paged": false
+    },
+    {
+      "name": "Product",
+      "suffix": "/products/{Product ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Product by Handle",
+      "suffix": "/products/handle/{Product Handle}.json",
+      "paged": false
+    },
+    {
+      "name": "Product Price Points",
+      "suffix": "/products/{Product ID}/price_points.json",
+      "paged": false
+    },
+    {
+      "name": "Product Price Point",
+      "suffix": "/products/{Product ID}/price_points/{Price Point ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Product Families",
+      "suffix": "/product_families.json",
+      "paged": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Product Family",
+            "Product Family Components",
+            "Product Family Coupons",
+            "Products"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "product_family.id",
+          "parameterName": "Product Family ID"
+        }
+      ]
+    },
+    {
+      "name": "Product Family",
+      "suffix": "/product_families/{Product Family ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Reason Codes",
+      "suffix": "/reason_codes.json",
+      "paged": true
+    },
+    {
+      "name": "Reason Code",
+      "suffix": "/reason_codes/{Reason Code ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Validate Referral Code",
+      "suffix": "/referral_codes/validate.json?code={Referral Code}",
+      "paged": false
+    },
+    {
+      "name": "Subscription Statement IDs",
+      "suffix": "/subscriptions/{Subscription ID}/statements/ids.json?settled_since={Settled Since?:UNIX timestamp}",
+      "paged": false
+    },
+    {
+      "name": "Statement IDs",
+      "suffix": "/statements/ids.json?settled_since={Settled Since?:UNIX timestamp}",
+      "paged": false
+    },
+    {
+      "name": "Subscription Statements",
+      "suffix": "/subscriptions/{Subscription ID}/statements.json",
+      "paged": true
+    },
+    {
+      "name": "Statements",
+      "suffix": "/statements.json",
+      "paged": false
+    },
+    {
+      "name": "Statement",
+      "suffix": "/statements/{Statement ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Stats",
+      "suffix": "/stats.json",
+      "paged": false
+    },
+    {
+      "name": "Subscription",
+      "suffix": "/subscriptions/{Subscription ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Subscriptions",
+      "suffix": "/subscriptions.json?state={State?:active|canceled|expired|...}&product={Product ID?}&product_revision_number={Product Revision Number?}&coupon={Coupon ID?}&date_field={Date Field?:current_period_ends_at|current_period_starts_at|...}&start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}&start_datetime={Start Date Time?:yyyy-MM-dd HH:mm:ss}&end_datetime={End Date Time?:yyyy-MM-dd HH:mm:ss}",
+      "paged": false,
+      "lookups": [
+        {
+          "endpoints": [
+            "Subscription Components",
+            "Notes",
+            "Subscription Statements",
+            "Subscription Statement IDs"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "subscription.id",
+          "parameterName": "Subscription ID"
+        }
+      ]
+    },
+    {
+      "name": "Subscription by Reference",
+      "suffix": "/subscriptions/lookup.json?reference={Reference}",
+      "paged": false
+    },
+    {
+      "name": "Transactions",
+      "suffix": "/transactions.json?kinds[]={Transactions Types?,:charge,payment,credit,...}&since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
+      "paged": true
+    },
+    {
+      "name": "Transaction",
+      "suffix": "/transactions/{Transaction ID}.json",
+      "paged": false
+    },
+    {
+      "name": "Subscription Transactions",
+      "suffix": "/subscriptions/{Subscription ID}/transactions.json?kinds[]={Transactions Types?,:charge,payment,credit,...}&since_id={IDs Greater Than or Equal To?}&max_id={IDs Less Than or Equal To?}&since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
+      "paged": true
+    },
+    {
+      "name": "Transaction Count",
+      "suffix": "/transactions/count.json",
+      "paged": false
+    },
+    {
+      "name": "Webhooks",
+      "suffix": "/webhooks.json?since_date={Since Date?:yyyy-MM-dd}&until_date={Until Date?:yyyy-MM-dd}",
+      "paged": true
+    }
+  ]
+}

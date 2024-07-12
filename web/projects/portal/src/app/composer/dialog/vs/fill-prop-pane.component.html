@@ -1,0 +1,59 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal container-fluid">
+  <fieldset>
+    <legend>_#(Fill)</legend>
+    <div class="form-row-float-label row">
+      <div class="col pe-0">
+        <div class="form-floating">
+          <dynamic-combo-box #colorType [value]="model.color" [variables]="variables"
+                             (typeChange)="fixColor($event)" (valueChange)="colorChange($event)"
+                             [vsId]="vsId"></dynamic-combo-box>
+          <label>_#(Color)</label>
+        </div>
+      </div>
+      <div class="col-auto">
+         <label class="form-check-label">
+            <input type="checkbox" class="form-check-input" [disabled]="!gradientEnabled"
+                   [(ngModel)]="model.gradientColor.apply"/>
+            _#(Gradient)
+         </label>
+      </div>
+      <div class="col-auto ps-1" [class.disable-actions-fade]="model.color != 'Static'">
+        <color-editor data-test = "fillColorPicker"
+                      [gradient]="model.gradientColor.apply" [(color)]="model.colorValue"
+                      [(gradientModel)]="model.gradientColor"
+                      [palette]="fillColors"></color-editor>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <alpha-dropdown [(alpha)]="model.alpha" (alphaInvalid)="changeAlphaWarning($event)">
+          </alpha-dropdown>
+          <label>_#(Alpha)</label>
+        </div>
+      </div>
+    </div>
+    <div *ngIf=alphaInvalid class="alert alert-danger">
+      _#(viewer.flash.format.invalidTransparencyError)
+    </div>
+  </fieldset>
+</form>

@@ -1,0 +1,41 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<split-pane [sizes]="[30, 70]" [minSize]="200" [snapOffset]="0" [gutterSize]="5">
+  <div class="split data-tree-pane">
+    <div class="tree-container h-100">
+      <tree *ngIf="dataSourceTreeRoot" #tree class="unhighlightable h-100"
+            [root]="dataSourceTreeRoot" [selectedNodes]="selectedNodes"
+            [showRoot]="false" [iconFunction]="iconFunction"
+            [selectOnClick]="true" [draggable]="true" [multiSelect]="true" [disabled]="isJoinEditView()"
+            (nodeExpanded)="nodeExpanded($event)" (nodeClicked)="nodeClicked($event)"></tree>
+    </div>
+  </div>
+  <div class="split">
+    <div class="link-container h-100 w-100">
+      <query-link-graph-pane #graphPane *ngIf="runtimeID && linkModel"
+                             [datasource]="databaseName"
+                             [runtimeId]="runtimeID"
+                             [selectedGraphNodePath]="selectedGraphNodePath"
+                             (onNodeSelected)="onNodeSelected($event)"
+                             (onQueryPropertiesChanged)="queryModelService.emitModelChange()">
+      </query-link-graph-pane>
+    </div>
+  </div>
+</split-pane>

@@ -1,0 +1,157 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container-fluid row">
+  <div class="col-6"></div>
+  <div class="col-6">
+    <div class="title-bar">_#(Column Header)</div>
+    <div class="row pb-1">
+      <div class="col-5">
+        <select id="headerColumnRef" class="form-control"
+                [ngModel]="getIndexOfRef(refList, columnHeader)"
+                (ngModelChange)="resetGroupHeader(columnHeader, $event)">
+          <option *ngFor="let _ref of refList; let _i = index" [value]="_i"
+                  [attr.title]="getTooltip(_ref)"
+                  [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
+        </select>
+      </div>
+      <div class="col-7">
+        <dynamic-combo-box id="headerColumnGroup"
+                           [valueOnly]="true"
+                           [disable]="!columnHeader.availableGroups"
+                           [value]="getGroupVal(columnHeader)"
+                           [values]="getGroupValues(columnHeader)"
+                           [examples]="columnHeader.dateLevelExamples"
+                           (valueChange)="headerGroupChange(columnHeader, $event)">
+        </dynamic-combo-box>
+      </div>
+      <div class="col-5"></div>
+      <div class="col-7">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="timeSeries"
+                 [disabled]="isTimeSeriesDisabled(columnHeader)"
+                 [ngModel]="columnHeader.timeSeries"
+                 (ngModelChange)="columnHeader.timeSeries = $event; updateState()">
+          <label class="form-check-label" for="timeSeries">
+            _#(As time series)
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid row">
+  <div class="col-6">
+    <div class="title-bar">_#(Row Header)</div>
+    <div *ngFor="let _header of rowHeaders; let _i = index" class="row pb-1">
+      <div class="col-5">
+        <select id="headerRowRef" class="form-control"
+                [ngModel]="getIndexOfRef(refList, _header)"
+                (ngModelChange)="resetGroupHeader(_header, $event, _i)">
+          <option *ngFor="let _ref of refList; let _i = index" [value]="_i"
+                  [attr.title]="getTooltip(_ref)"
+                  [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
+        </select>
+      </div>
+      <div class="col-7">
+        <dynamic-combo-box id="headerRowGroup"
+                           [valueOnly]="true"
+                           [disable]="!_header.availableGroups"
+                           [value]="getGroupVal(_header)"
+                           [values]="getGroupValues(_header)"
+                           [examples]="_header.dateLevelExamples"
+                           (valueChange)="headerGroupChange(_header, $event)">
+        </dynamic-combo-box>
+      </div>
+      <div class="col-5"></div>
+      <div class="col-7">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [id]="'timeSerise' + _i"
+                 [disabled]="isTimeSeriesDisabled(_header) || _i != rowHeaders.length - 2"
+                 [ngModel]="_header.timeSeries"
+                 (ngModelChange)="_header.timeSeries = $event; updateState()">
+          <label class="form-check-label" [for]="'timeSerise' + _i">
+            _#(As time series)
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6">
+    <div class="title-bar">_#(Measure)</div>
+    <div class="row pb-1">
+      <div class="col-5">
+        <select id="measureColumnRef" class="form-control"
+                [ngModel]="getIndexOfRef(refList, measure)"
+                (ngModelChange)="resetAggregateMeasure($event)">
+          <option *ngFor="let _ref of refList; let _i = index" [value]="_i"
+                  [attr.title]="getTooltip(_ref)"
+                  [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
+        </select>
+      </div>
+      <div class="col-7">
+        <select id="measureAggregateFormula" class="form-control"
+                [disabled]="!measure.availableAggregates"
+                [ngModel]="getAggregateIndex()" (ngModelChange)="aggregateChange($event)">
+          <option *ngFor="let _aggregate of measure.availableAggregates; let _i = index"
+                  [value]="_i">{{_aggregate.label}}</option>
+        </select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-6">
+        <select *ngIf="measure.aggregate?.twoColumns" id="measureAggregateRef"
+                class="form-control"
+                [ngModel]="getIndexOfRef(aggregateRefList, measure, true)  "
+                (ngModelChange)="measure.aggregateRef = aggregateRefList[$event]; updateState()">
+          <option *ngFor="let _ref of aggregateRefList; let _i = index" [value]="_i"
+                  [attr.title]="getTooltip(_ref)"
+                  [class.grayed-out-field]="trapField(_ref)">{{_ref.name}}</option>
+        </select>
+      </div>
+      <div *ngIf="measure.aggregate?.hasN" class="col-6">
+        <div class="form-check form-floating">
+          <input type="text" id="num" class="form-control"
+                 [ngModel]="measure.n"
+                 (ngModelChange)="measure.n = $event; updateState()"/>
+          <label><span>{{getNPLabel(measure.aggregate)}}</span></label>
+        </div>
+      </div>
+      <div class="col-5 pt-1" *ngIf="measure.aggregate?.hasN"></div>
+      <div class="col-7 pt-1">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="percentage"
+                 [disabled]="!measure.aggregate || measure.aggregate.twoColumns"
+               [ngModel]="measure.percentage" (ngModelChange)="measure.percentage = $event; updateState()">
+          <label class="form-check-label" for="percentage">
+            _#(Percentage)
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 mt-1">
+    <div *ngIf="!valid"
+         class="alert alert-danger">
+      <strong>_#(Error):&nbsp;</strong>_#(composer.dialog.crosstabPane.selectColumn)
+    </div>
+  </div>
+</div>

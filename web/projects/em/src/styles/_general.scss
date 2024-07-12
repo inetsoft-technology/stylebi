@@ -1,0 +1,156 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.em-button[md-button], .em-button[md-raised-button] {
+  text-transform: uppercase;
+}
+
+h1, h2 {
+  font-weight: 400;
+}
+
+.em-primary-header {
+  padding-left: 20px;
+
+  h1 {
+    font-weight: 300;
+    margin: 0;
+    padding: 28px 8px;
+    font-size: 20px;
+  }
+}
+
+.em-card {
+  margin: 0 auto 24px; // md
+  max-width: 680px;
+  padding: 16px;
+
+  &.fill-width {
+    max-width: 100%;
+  }
+
+  > .mat-mdc-card-title {
+    padding-bottom: 8px;
+  }
+
+  > .mat-mdc-card-subtitle {
+    padding-bottom: 8px;
+  }
+
+  > .mat-mdc-card-content {
+    padding: 0 !important;
+  }
+
+  > .mat-mdc-card-actions {
+    padding: 0;
+    min-height: 0;
+  }
+
+  > .mat-mdc-card {
+    padding: 16px;
+  }
+
+  >.mat-mdc-text-field {
+    padding-top: 5px;
+  }
+}
+
+.mat-mdc-card:not(.em-card) > .mat-mdc-card-header:last-child {
+  padding-bottom: 16px;
+}
+
+.mat-mdc-card > h3:first-child, .mat-mdc-card-content > h3:first-child {
+  margin-top: 0;
+}
+
+.em-content-container {
+  padding-top: 16px;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.mat-mdc-slide-toggle.mat-checkbox-field,
+.mat-button-toggle-group.mat-checkbox-field
+{
+  margin-bottom: 1.25em;
+}
+
+.actions-section button, .mat-mdc-card-actions .mat-mdc-raised-button , .mat-mdc-card-actions .mat-mdc-outlined-button, .mat-mdc-card-actions .mat-mdc-unelevated-button {
+  margin: 0 4px;
+}
+
+.mat-mdc-card-subtitle.visible-subtitle {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+
+section.visible-subtitle {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.mat-mdc-card.tab-block {
+  flex: 1 1 90%;
+  padding: 1px 12px;
+}
+
+.dialog-resize-handle {
+  display: block;
+  position: absolute;
+  font-size: 15px;
+  bottom: 0;
+  right: 0;
+  top: unset;
+  left: unset;
+  cursor: se-resize;
+}
+
+/*
+  Layout CSS for CodeMirror component primarily used currently in Script Pane
+*/
+
+div.CodeMirror {
+  height: calc(100vh - 617px);
+  min-height: 7em;
+}
+
+.full-container div.CodeMirror {
+  height: 100%;
+}
+
+.CodeMirror-hints,
+.CodeMirror-Tern-tooltip {
+  z-index: 20000;
+}
+
+.CodeMirror-lint-markers {
+  width: 16px;
+  min-width: 16px;
+}
+
+/*
+  By default the picker indicator is hidden by material
+*/
+input.mat-mdc-input-element::-webkit-calendar-picker-indicator {
+  display: block;
+}
+
+.tooltip-custom-css .mdc-tooltip__surface {
+  max-width: 300px !important;
+}

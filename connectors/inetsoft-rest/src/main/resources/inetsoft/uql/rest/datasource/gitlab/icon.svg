@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns:sketch="http://www.bohemiancoding.com/sketch/ns"
+	 xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="30px" height="30px"
+	 viewBox="90 82 30 30" enable-background="new 90 82 30 30" xml:space="preserve">
+<title>Group</title>
+<desc>Created with Sketch.</desc>
+<g id="Page-1" sketch:type="MSPage">
+	<g id="Fill-1-_x2B_-Group-24" sketch:type="MSLayerGroup">
+		<g id="Group-24" sketch:type="MSShapeGroup">
+			<g id="Group">
+				<path id="Fill-4" fill="#E24329" d="M105.009,109.587L105.009,109.587l5.023-15.46H99.985L105.009,109.587L105.009,109.587z"/>
+				<path id="Fill-6" fill="#E24329" d="M91.351,84.413"/>
+				<path id="Fill-8" fill="#FC6D26" d="M105.009,109.587l-5.023-15.46h-7.04L105.009,109.587z"/>
+				<path id="Fill-10" fill="#FC6D26" d="M91.351,84.413"/>
+				<path id="Fill-12" fill="#FCA326" d="M92.946,94.127L92.946,94.127l-1.527,4.698c-0.139,0.428,0.014,0.897,0.378,1.163
+					l13.212,9.599L92.946,94.127z"/>
+				<path id="Fill-14" fill="#FCA326" d="M91.351,84.413"/>
+				<path id="Fill-16" fill="#E24329" d="M92.946,94.127h7.04l-3.025-9.311c-0.155-0.479-0.833-0.479-0.989,0L92.946,94.127z"/>
+				<path id="Fill-18" fill="#FC6D26" d="M105.009,109.587l5.023-15.46h7.04L105.009,109.587z"/>
+				<path id="Fill-20" fill="#FCA326" d="M117.072,94.127L117.072,94.127l1.525,4.698c0.14,0.428-0.013,0.897-0.377,1.163
+					l-13.212,9.599L117.072,94.127z"/>
+				<path id="Fill-22" fill="#E24329" d="M117.072,94.127h-7.04l3.025-9.311c0.155-0.479,0.833-0.479,0.989,0L117.072,94.127z"/>
+			</g>
+		</g>
+	</g>
+</g>
+</svg>

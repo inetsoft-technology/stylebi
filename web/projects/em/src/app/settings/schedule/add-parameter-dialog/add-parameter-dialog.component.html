@@ -1,0 +1,120 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="cshid" [title]="title">
+</em-modal-header>
+<div class="mat-body-2">
+  <mat-radio-group *ngIf="parameterType" [(ngModel)]="parameterType" class="flex-row">
+    <mat-radio-button class="mat-checkbox-field" value="Init">_#(Initialization Parameter)</mat-radio-button>
+    <mat-radio-button class="mat-checkbox-field" value="Creation">_#(Creation Parameter)</mat-radio-button>
+  </mat-radio-group>
+  <form *ngIf="form" [formGroup]="form" class="flex-col">
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(Parameter Name)</mat-label>
+      <input type="text" matInput placeholder="_#(Parameter Name)" formControlName="name"
+             [matAutocomplete]="parameterNameAutocomplete">
+      <mat-error *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']">
+        _#(parameter.name.emptyValid)
+      </mat-error>
+      <mat-error *ngIf="form.controls['name'].errors && form.controls['name'].errors['duplicateName']">
+        _#(parameter.name.duplicate)
+      </mat-error>
+      <mat-error *ngIf="form.controls['name'].errors && form.controls['name'].errors['variableSpecialCharacters']">
+        _#(parameter.name.characterValid)
+      </mat-error>
+    </mat-form-field>
+
+    <mat-autocomplete #parameterNameAutocomplete="matAutocomplete">
+      <mat-option *ngFor="let name of parameterNames" [value]="name">{{name}}</mat-option>
+    </mat-autocomplete>
+
+    <div class="flex-row">
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Type)</mat-label>
+        <mat-select placeholder="_#(Type)" formControlName="type">
+          <mat-option *ngFor="let type of dataTypeList" [value]="type.data">{{type.label}}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-checkbox [style.margin-top]="'-21px'" formControlName="array" class="mat-form-field-wrapper" (click)="convertToArray()">
+        _#(Array)
+      </mat-checkbox>
+    </div>
+    <ng-container *ngIf="isSupportDynamic()">
+      <em-dynamic-value-editor [valueModel]="model.value"
+                               [type]="model.type"
+                               [columnTreeRoot]="treeDataSource"
+                               [form]="form.controls['dynamicValue']"
+                               [isArray]="model.array"
+                               [expressionSubmitCallback]="getScriptTester()"
+                               [task]="true"
+                               (onValueModelChange)="valueModelChange()"
+      >
+      </em-dynamic-value-editor>
+    </ng-container>
+    <ng-container *ngIf="!isSupportDynamic()">
+      <ng-container *ngIf="model.type == XSchema.BOOLEAN && !model.array">
+        <mat-checkbox formControlName="value">
+          _#(Value)
+        </mat-checkbox>
+      </ng-container>
+
+      <ng-container *ngIf="model.type != XSchema.BOOLEAN && !model.array">
+        <em-date-time-editor *ngIf="model.type == XSchema.TIME_INSTANT || model.type == XSchema.DATE || model.type == XSchema.TIME"
+                             formControlName="value" [type]="model.type" [format]="getDateFormat()">
+        </em-date-time-editor>
+        <mat-form-field *ngIf="model.type == XSchema.STRING || model.type == XSchema.CHARACTER"
+                        appearance="outline" color="accent">
+          <mat-label>_#(Value)</mat-label>
+          <input type="text" matInput formControlName="value" placeholder="_#(Value)">
+        </mat-form-field>
+        <mat-form-field *ngIf="XSchema.isNumericType(model.type)" appearance="outline" color="accent">
+          <mat-label>_#(Value)</mat-label>
+          <input type="number" matInput formControlName="value" placeholder="_#(Value)">
+          <mat-error *ngIf="form.controls['value'].errors && form.controls['value'].errors['integerInRange']">
+            _#(em.common.param.number.outNegativeRange)
+          </mat-error>
+          <mat-error *ngIf="form.controls['value'].errors && form.controls['value'].errors">
+            _#(em.common.param.numberInvalid)
+          </mat-error>
+        </mat-form-field>
+      </ng-container>
+
+      <ng-container *ngIf="model.array">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Value)</mat-label>
+          <input type="text" matInput formControlName="value">
+          <mat-error *ngIf="form.controls['value'].errors && form.controls['value'].errors['required']">
+            _#(parameter.value.emptyValid)
+          </mat-error>
+          <mat-error *ngIf="form.controls['value'].errors && !form.controls['value'].errors['required']">
+            _#(common.value.invalid)
+          </mat-error>
+        </mat-form-field>
+      </ng-container>
+    </ng-container>
+
+    <p class="flex-row">{{ confirmMessage }}</p>
+  </form>
+
+  <mat-dialog-actions>
+    <button mat-raised-button color="primary" (click)="ok()" [disabled]="form && !form.valid">_#(OK)</button>
+    <button mat-button mat-dialog-close>_#(Cancel)</button>
+  </mat-dialog-actions>
+</div>

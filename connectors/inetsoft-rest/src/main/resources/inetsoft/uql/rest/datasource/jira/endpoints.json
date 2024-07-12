@@ -1,0 +1,924 @@
+{
+  "endpoints": [
+    {
+      "name": "Application Roles",
+      "paged": true,
+      "suffix": "/rest/api/2/applicationrole"
+    },
+    {
+      "name": "Application Role",
+      "paged": false,
+      "suffix": "/rest/api/2/applicationrole/{Role Key}"
+    },
+    {
+      "name": "Audit Records",
+      "paged": true,
+      "suffix": "/rest/api/2/auditing/record?&filter={Filter?}&from={From?:yyyy-MM-ddTHH:mm:ssZ}&to={To?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "name": "System Avatars",
+      "paged": true,
+      "suffix": "/rest/api/2/avatar/{Type:issuetype|project|user}/system"
+    },
+    {
+      "name": "Avatars",
+      "paged": true,
+      "suffix": "/rest/api/2/universal_avatar/type/{Type:project|issuetype}/owner/{Entity ID}"
+    },
+    {
+      "name": "Dashboards",
+      "paged": true,
+      "suffix": "/rest/api/2/dashboard?filter={Filter?:favourite|my}"
+    },
+    {
+      "name": "Dashboard Search",
+      "paged": true,
+      "suffix": "/rest/api/2/dashboard/search?dashboardName={Dashboard Name?}&accountId={Account Id?}&owner={Owner?}&groupname={Group Name?}&projectId={Project ID?}&expand={Expand?:description,owner...}"
+    },
+    {
+      "name": "Dashboard Item Properties",
+      "paged": true,
+      "suffix": "/rest/api/2/dashboard/{Dashboard ID}/items/{Item ID}/properties"
+    },
+    {
+      "name": "Dashboard Item Property",
+      "paged": true,
+      "suffix": "/rest/api/2/dashboard/{Dashboard ID}/items/{Item ID}/properties/{Property Key}"
+    },
+    {
+      "name": "Dashboard",
+      "paged": false,
+      "suffix": "/rest/api/2/dashboard/{Dashboard ID}"
+    },
+    {
+      "name": "Favorite Filters",
+      "paged": true,
+      "suffix": "/rest/api/2/filter/favourite?expand={Expand?:sharedUsers,subscriptions}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Columns",
+            "Share Permissions"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Filter ID"
+        }
+      ]
+    },
+    {
+      "name": "Filters",
+      "paged": true,
+      "suffix": "/rest/api/2/filter/my?expand={Expand?:sharedUsers,subscriptions}&includeFavourites={Include Favorites?:false|true}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Columns",
+            "Share Permissions"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Filter ID"
+        }
+      ]
+    },
+    {
+      "name": "Filter Search",
+      "paged": true,
+      "suffix": "/rest/api/2/filter/search?filterName={Filter Name?}&accountId={Account ID?}&owner={Owner?}&groupname={Group Name?}&projectId={Project ID?}&expand={Expand?:description,favourite,favouritedCount...}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Columns",
+            "Share Permissions"
+          ],
+          "jsonPath": "$.values[*]",
+          "key": "id",
+          "parameterName": "Filter ID"
+        }
+      ]
+    },
+    {
+      "name": "Filter",
+      "paged": false,
+      "suffix": "/rest/api/2/filter/{Filter ID}?expand={Expand?:sharedUsers,subscriptions}"
+    },
+    {
+      "name": "Columns",
+      "paged": true,
+      "suffix": "/rest/api/2/filter/{Filter ID}/columns"
+    },
+    {
+      "name": "Filter Sharing",
+      "paged": true,
+      "suffix": "/rest/api/2/filter/defaultShareScope"
+    },
+    {
+      "name": "Share Permissions",
+      "paged": true,
+      "suffix": "/rest/api/2/filter/{Filter ID}/permission"
+    },
+    {
+      "name": "Share Permission",
+      "paged": false,
+      "suffix": "/rest/api/2/filter/{Filter ID}/permission/{Permission ID}"
+    },
+    {
+      "name": "User and Group Search",
+      "paged": true,
+      "suffix": "/rest/api/2/groupuserpicker?query={Query}&showAvatar={Show Avatar?:false|true}&fieldId={Field ID?}&projectId={Project ID?}&issueTypeId={Issue Type ID?}&avatarSize={Avatar Size?:xsmall|xsmall@2x|xsmall@3x|...}&caseInsensitive={Case Insensitive?:false|true}&excludeConnectAddons={Exclude Connect Addons?:false|true}"
+    },
+    {
+      "name": "Group Users",
+      "paged": true,
+      "suffix": "/rest/api/2/group/member?groupname={Group Name}&includeInactiveUsers={Include Inactive Users?:false|true}"
+    },
+    {
+      "name": "Groups",
+      "paged": true,
+      "suffix": "/rest/api/2/groups/picker?accountId={Account ID?}&query={Query?}&exclude={Exclude?}&userName={User Name?}"
+    },
+    {
+      "name": "Create Issue Metadata",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/createmeta?projectIds={Project Ids?}&projectKeys={Project Keys?}&issuetypeIds={Issue Type Ids?}&issuetypeNames={Issue Type Names?}&expand={Expand?}"
+    },
+    {
+      "name": "Issue",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}?fields={Fields?:*all,*navigable,...}&fieldsByKeys={Fields By Keys?:false|true}&expand={Expand?:renderedFields,names,schema...}&properties={Properties?:all...}&updateHistory={Update History?:false|true}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Change Logs",
+            "Edit Issue Metadata",
+            "Transitions",
+            "Comments",
+            "Issue Properties",
+            "Remote Issue Links",
+            "Votes",
+            "Issue Watchers",
+            "Worklogs"
+          ],
+          "jsonPath": "$.*",
+          "key": "id",
+          "parameterName": "Issue ID or Key"
+        }
+      ]
+    },
+    {
+      "name": "Change Logs",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/changelog"
+    },
+    {
+      "name": "Edit Issue Metadata",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/editmeta?overrideScreenSecurity={Override Screen Security?:false|true}&overrideEditableFlag={Override Editable Flag?:false|true}"
+    },
+    {
+      "name": "Transitions",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/transitions?expand={Expand?}&transitionId={Transition ID?}&skipRemoteOnlyCondition={Skip Remote Only Condition?:false|true}"
+    },
+    {
+      "name": "Attachment Settings",
+      "paged": true,
+      "suffix": "/rest/api/2/attachment/meta"
+    },
+    {
+      "name": "Attachment Metadata",
+      "paged": true,
+      "suffix": "/rest/api/2/attachment/{Attachment ID}"
+    },
+    {
+      "name": "Comments",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/comment?expand={Expand?}",
+      "lookups": [
+        {
+          "endpoint": "Comment Properties",
+          "jsonPath": "$.comments[*]",
+          "key": "id",
+          "parameterName": "Comment ID"
+        }
+      ]
+    },
+    {
+      "name": "Comment",
+      "paged": false,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/comment/{Comment ID}?expand={Expand?}"
+    },
+    {
+      "name": "Comment Properties",
+      "paged": true,
+      "suffix": "/rest/api/2/comment/{Comment ID}/properties"
+    },
+    {
+      "name": "Comment Property",
+      "paged": false,
+      "suffix": "/rest/api/2/comment/{Comment ID}/properties/{Property Key}"
+    },
+    {
+      "name": "Fields",
+      "paged": true,
+      "suffix": "/rest/api/2/field",
+      "lookups": [
+        {
+          "endpoints": [
+            "Field Screens"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Custom Field ID"
+        },
+        {
+          "endpoints": [
+            "Issue Field Options",
+            "Selectable Issue Field Options",
+            "Visible Issue Field Options"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Field Key"
+        }
+      ]
+    },
+    {
+      "name": "Field Options",
+      "paged": true,
+      "suffix": "/rest/api/2/customField/{Schema Custom ID}/option"
+    },
+    {
+      "name": "Custom Field Option",
+      "paged": false,
+      "suffix": "/rest/api/2/customFieldOption/{Field ID}"
+    },
+    {
+      "name": "Issue Field Options",
+      "paged": true,
+      "suffix": "/rest/api/2/field/{Field Key}/option"
+    },
+    {
+      "name": "Selectable Issue Field Options",
+      "paged": true,
+      "suffix": "/rest/api/2/field/{Field Key}/option/suggestions/edit?projectId={Project ID?}"
+    },
+    {
+      "name": "Visible Issue Field Options",
+      "paged": true,
+      "suffix": "/rest/api/2/field/{Field Key}/option/suggestions/search?projectId={Project ID?}"
+    },
+    {
+      "name": "Issue Field Option",
+      "paged": true,
+      "suffix": "/rest/api/2/field/{Field Key}/option/{Option ID}"
+    },
+    {
+      "name": "Issue Link",
+      "paged": false,
+      "suffix": "/rest/api/2/issueLink/{Link ID}"
+    },
+    {
+      "name": "Issue Link Types",
+      "paged": true,
+      "suffix": "/rest/api/2/issueLinkType"
+    },
+    {
+      "name": "Issue Link Type",
+      "paged": false,
+      "suffix": "/rest/api/2/issueLinkType/{Issue Link Type ID}"
+    },
+    {
+      "name": "Issue Navigator Default Columns",
+      "paged": true,
+      "suffix": "/rest/api/2/settings/columns"
+    },
+    {
+      "name": "Notification Schemes",
+      "paged": true,
+      "suffix": "/rest/api/2/notificationscheme?expand={Expand?:all,field,group...}"
+    },
+    {
+      "name": "Notification Scheme",
+      "paged": true,
+      "suffix": "/rest/api/2/notificationscheme/{Scheme ID}?expand={Expand?:all,field,group...}"
+    },
+    {
+      "name": "Priorities",
+      "paged": true,
+      "suffix": "/rest/api/2/priority"
+    },
+    {
+      "name": "Priority",
+      "paged": false,
+      "suffix": "/rest/api/2/priority/{Priority ID}"
+    },
+    {
+      "name": "Issue Properties",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/properties"
+    },
+    {
+      "name": "Issue Property",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/properties/{Property Key}"
+    },
+    {
+      "name": "Remote Issue Links",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/remotelink?globalId={Global ID?}"
+    },
+    {
+      "name": "Remote Issue Link",
+      "paged": false,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/remotelink/{Link ID}"
+    },
+    {
+      "name": "Resolutions",
+      "paged": true,
+      "suffix": "/rest/api/2/resolution"
+    },
+    {
+      "name": "Resolution",
+      "paged": true,
+      "suffix": "/rest/api/2/resolution/{Resolution ID}"
+    },
+    {
+      "name": "Issue Picker Suggestions",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/picker?query={Query?}&currentJQL={CurrentJQL?}&currentProjectId={Current Project ID?}&showSubTasks={Show Subtasks?:false|true}&showSubTaskParent={Show Subtask Parent?:false|true}"
+    },
+    {
+      "name": "JQL Query",
+      "paged": true,
+      "suffix": "/rest/api/2/search?jql={JQL?}&validateQuery={Validate Query?:strict|warn|none}&fields={Fields?:*all,*navigable,...}&expand={Expand?:renderedFields,names,schema...}&properties={Properties?}&fieldsByKeys={Fields by Keys?:false|true}"
+    },
+    {
+      "name": "Issue Security Level",
+      "paged": true,
+      "suffix": "/rest/api/2/securitylevel/{Security Level ID}"
+    },
+    {
+      "name": "Issue Security Schemes",
+      "paged": true,
+      "suffix": "/rest/api/2/issuesecurityschemes"
+    },
+    {
+      "name": "Issue Security Scheme",
+      "paged": true,
+      "suffix": "/rest/api/2/issuesecurityschemes/{Security Scheme ID}"
+    },
+    {
+      "name": "Issue Types",
+      "paged": true,
+      "suffix": "/rest/api/2/issuetype",
+      "lookups": [
+        {
+          "endpoints": [
+            "Alternative Issue Types",
+            "Issue Type Properties"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Issue Type ID"
+        }
+      ]
+    },
+    {
+      "name": "Issue Type",
+      "paged": false,
+      "suffix": "/rest/api/2/issuetype/{Issue Type ID}"
+    },
+    {
+      "name": "Alternative Issue Types",
+      "paged": true,
+      "suffix": "rest/api/2/issuetype/{Issue Type ID}/alternatives"
+    },
+    {
+      "name": "Issue Type Properties",
+      "paged": true,
+      "suffix": "/rest/api/2/issuetype/{Issue Type ID}/properties"
+    },
+    {
+      "name": "Issue Type Property",
+      "paged": true,
+      "suffix": "/rest/api/2/issuetype/{Issue Type ID}/properties/{Property Key}"
+    },
+    {
+      "name": "Votes",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/votes"
+    },
+    {
+      "name": "Issue Watchers",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/watchers"
+    },
+    {
+      "name": "Worklogs",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog?startedAfter={StartedAfter?}&expand={Expand?}"
+    },
+    {
+      "name": "Worklog",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog/{id}?expand={Expand?}"
+    },
+    {
+      "name": "Deleted Worklogs",
+      "paged": true,
+      "suffix": "/rest/api/2/worklog/deleted?since={Since?}"
+    },
+    {
+      "name": "Updated Worklogs",
+      "paged": true,
+      "suffix": "/rest/api/2/worklog/updated?since={Since?}&expand={Expand?}"
+    },
+    {
+      "name": "Worklog Properties",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog/{Worklog ID}/properties"
+    },
+    {
+      "name": "Worklog Property",
+      "paged": true,
+      "suffix": "/rest/api/2/issue/{Issue ID or Key}/worklog/{Worklog ID}/properties/{Property Key}"
+    },
+    {
+      "name": "Application Properties",
+      "paged": true,
+      "suffix": "/rest/api/2/application-properties?key={Key?}&permissionLevel={Permission Level?}&keyFilter={Key Filter?}"
+    },
+    {
+      "name": "Advanced Settings",
+      "paged": true,
+      "suffix": "/rest/api/2/application-properties/advanced-settings"
+    },
+    {
+      "name": "Global Settings",
+      "paged": true,
+      "suffix": "/rest/api/2/configuration"
+    },
+    {
+      "name": "Field Reference Data",
+      "paged": true,
+      "suffix": "/rest/api/2/jql/autocompletedata"
+    },
+    {
+      "name": "Field Autocomplete Suggestions",
+      "paged": true,
+      "suffix": "/rest/api/2/jql/autocompletedata/suggestions?fieldName={FieldName?}&fieldValue={FieldValue?}&predicateName={PredicateName?}&predicateValue={PredicateValue?}"
+    },
+    {
+      "name": "Labels",
+      "paged": true,
+      "suffix": "/rest/api/2/label"
+    },
+    {
+      "name": "Preference",
+      "paged": true,
+      "suffix": "/rest/api/2/mypreferences?key={Key}"
+    },
+    {
+      "name": "Locale",
+      "paged": false,
+      "suffix": "/rest/api/2/mypreferences/locale"
+    },
+    {
+      "name": "Current User",
+      "paged": true,
+      "suffix": "/rest/api/2/myself?expand={Expand?:groups,applicationRoles}"
+    },
+    {
+      "name": "Current User Permissions",
+      "paged": true,
+      "suffix": "/rest/api/2/mypermissions?permissions={Permissions}&projectKey={Project Key?}&projectId={Project ID?}&issueKey={Issue Key?}&issueId={Issue ID?}&permissions={Permissions?}&projectUuid={Project UUID?}&projectConfigurationUuid={Project Configuration UUID?}"
+    },
+    {
+      "name": "Permissions",
+      "paged": true,
+      "suffix": "/rest/api/2/permissions"
+    },
+    {
+      "name": "Permission Schemes",
+      "paged": true,
+      "suffix": "/rest/api/2/permissionscheme?expand={Expand?:all,field,group...}"
+    },
+    {
+      "name": "Permission Scheme",
+      "paged": false,
+      "suffix": "/rest/api/2/permissionscheme/{Scheme ID}?expand={Expand?:all,field,group...}"
+    },
+    {
+      "name": "Permission Scheme Grant",
+      "paged": false,
+      "suffix": "/rest/api/2/permissionscheme/{Scheme ID}/permission/{Permission ID}?expand={Expand?:all,field,group...}"
+    },
+    {
+      "name": "Projects",
+      "paged": true,
+      "suffix": "/rest/api/2/project/search?query={Query?}&typeKey={Type Key?}&categoryId={Category ID?}&searchBy={Search By?}&action={Action?:view|browse|edit}&expand={Expand?:description,projectKeys...}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Statuses",
+            "Issue Type Hierarchy",
+            "Project Notification Scheme",
+            "Project Avatars",
+            "Components",
+            "Security Scheme",
+            "Assigned Permission Scheme",
+            "Security Levels",
+            "Project Properties",
+            "Project Roles",
+            "Project Role Details",
+            "Versions"
+          ],
+          "jsonPath": "$.values[*]",
+          "key": "id",
+          "parameterName": "Project ID or Key"
+        }
+      ]
+    },
+    {
+      "name": "Project",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}?expand={Expand?:description,issueTypes...}&properties={Properties?}"
+    },
+    {
+      "name": "Project Statuses",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/statuses"
+    },
+    {
+      "name": "Issue Type Hierarchy",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/hierarchy"
+    },
+    {
+      "name": "Project Notification Scheme",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/notificationscheme?expand={Expand?:all,field...}"
+    },
+    {
+      "name": "Project Avatars",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/avatars"
+    },
+    {
+      "name": "Categories",
+      "paged": true,
+      "suffix": "/rest/api/2/projectCategory"
+    },
+    {
+      "name": "Category",
+      "paged": false,
+      "suffix": "/rest/api/2/projectCategory/{Category ID}"
+    },
+    {
+      "name": "Component",
+      "paged": true,
+      "suffix": "/rest/api/2/component/{Component ID}"
+    },
+    {
+      "name": "Component Issue Count",
+      "paged": false,
+      "suffix": "/rest/api/2/component/{Component ID}/relatedIssueCounts"
+    },
+    {
+      "name": "Components",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/component?query={Query?}",
+      "lookups": [
+        {
+          "endpoint": "Component Issue Count",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Component ID"
+        }
+      ]
+    },
+    {
+      "name": "Security Scheme",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/issuesecuritylevelscheme"
+    },
+    {
+      "name": "Assigned Permission Scheme",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/permissionscheme?expand={Expand?:all,field...}"
+    },
+    {
+      "name": "Security Levels",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/securitylevel"
+    },
+    {
+      "name": "Project Properties",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/properties"
+    },
+    {
+      "name": "Project Property",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/properties/{Property Key}"
+    },
+    {
+      "name": "Project Roles",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/role"
+    },
+    {
+      "name": "Project Role",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/role/{Role ID}"
+    },
+    {
+      "name": "Project Role Details",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/roledetails?currentMember={Current Member?:false|true}&excludeConnectAddons={Exclude Connect Addons?:false|true}"
+    },
+    {
+      "name": "Roles",
+      "paged": true,
+      "suffix": "/rest/api/2/role"
+    },
+    {
+      "name": "Role",
+      "paged": true,
+      "suffix": "/rest/api/2/role/{Role ID}"
+    },
+    {
+      "name": "Role Actors",
+      "paged": true,
+      "suffix": "/rest/api/2/role/{Role ID}/actors"
+    },
+    {
+      "name": "Project Types",
+      "paged": true,
+      "suffix": "/rest/api/2/project/type"
+    },
+    {
+      "name": "Project Type",
+      "paged": true,
+      "suffix": "/rest/api/2/project/type/{Project Type Key:software|service_desk|business}"
+    },
+    {
+      "name": "Accessible Project Type",
+      "paged": true,
+      "suffix": "/rest/api/2/project/type/{Project Type Key:software|service_desk|business}/accessible"
+    },
+    {
+      "name": "Versions",
+      "paged": true,
+      "suffix": "/rest/api/2/project/{Project ID or Key}/version?query={Query?}&status={Status?}&expand={Expand?:issuesstatus,operations}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Version Related Issue Count",
+            "Version Unresolved Issue Count"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Version ID"
+        }
+      ]
+    },
+    {
+      "name": "Version",
+      "paged": true,
+      "suffix": "/rest/api/2/version/{Version ID}?expand={Expand?:operations,issuesstatus}"
+    },
+    {
+      "name": "Version Related Issue Count",
+      "paged": true,
+      "suffix": "/rest/api/2/version/{Version ID}/relatedIssueCounts"
+    },
+    {
+      "name": "Version Unresolved Issue Count",
+      "paged": false,
+      "suffix": "/rest/api/2/version/{Version ID}/unresolvedIssueCount"
+    },
+    {
+      "name": "Field Screens",
+      "paged": false,
+      "suffix": "/rest/api/2/field/{Custom Field ID}/screens"
+    },
+    {
+      "name": "Screens",
+      "paged": true,
+      "suffix": "/rest/api/2/screens",
+      "lookups": [
+        {
+          "endpoints": [
+            "Screen Fields",
+            "Screen Tabs"
+          ],
+          "jsonPath": "$.values[*]",
+          "key": "id",
+          "parameterName": "Screen ID"
+        }
+      ]
+    },
+    {
+      "name": "Screen Fields",
+      "paged": true,
+      "suffix": "/rest/api/2/screens/{Screen ID}/availableFields"
+    },
+    {
+      "name": "Screen Tabs",
+      "paged": true,
+      "suffix": "/rest/api/2/screens/{Screen ID}/tabs?projectKey={Project Key?}",
+      "lookups": [
+        {
+          "endpoint": "Screen Tab Fields",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Tab ID"
+        }
+      ]
+    },
+    {
+      "name": "Screen Tab Fields",
+      "paged": true,
+      "suffix": "/rest/api/2/screens/{Screen ID}/tabs/{Tab ID}/fields?&projectKey={Project Key?}"
+    },
+    {
+      "name": "Screen Schemes",
+      "paged": true,
+      "suffix": "/rest/api/2/screenscheme"
+    },
+    {
+      "name": "Server Info",
+      "paged": true,
+      "suffix": "/rest/api/2/serverInfo"
+    },
+    {
+      "name": "Task",
+      "paged": true,
+      "suffix": "/rest/api/2/task/{Task ID}"
+    },
+    {
+      "name": "Time Tracking Provider",
+      "paged": false,
+      "suffix": "/rest/api/2/configuration/timetracking"
+    },
+    {
+      "name": "Time Tracking Providers",
+      "paged": true,
+      "suffix": "/rest/api/2/configuration/timetracking/list"
+    },
+    {
+      "name": "Time Tracking Settings",
+      "paged": false,
+      "suffix": "/rest/api/2/configuration/timetracking/options"
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/rest/api/2/user?accountId={Account ID?}&username={Username?}&key={Key?}&expand={Expand?:groups,applicationRoles}"
+    },
+    {
+      "name": "User Default Columns",
+      "paged": true,
+      "suffix": "/rest/api/2/user/columns?accountId={Account ID?}&username={Username?}"
+    },
+    {
+      "name": "User Groups",
+      "paged": true,
+      "suffix": "/rest/api/2/user/groups?accountId={Account ID}&username={Username?}&key={Key?}"
+    },
+    {
+      "name": "Users",
+      "paged": true,
+      "suffix": "/rest/api/2/users"
+    },
+    {
+      "name": "User Properties",
+      "paged": true,
+      "suffix": "/rest/api/2/user/properties?accountId={Account ID?}&userKey={User Key?}&username={Username?}"
+    },
+    {
+      "name": "User Property",
+      "paged": true,
+      "suffix": "/rest/api/2/user/properties/{Property Key}?accountId={Account ID?}&userKey={User Key?}&username={Username?}"
+    },
+    {
+      "name": "Users Assignable to Projects",
+      "paged": true,
+      "suffix": "/rest/api/2/user/assignable/multiProjectSearch?query={Query?}&username={Username?}&accountId={Account ID?}&projectKeys={Project Keys}"
+    },
+    {
+      "name": "Users Assignable to Issues",
+      "paged": true,
+      "suffix": "/rest/api/2/user/assignable/search?project={Project?}&issueKey={Issue Key?}&actionDescriptorId={Action Descriptor ID?}&query={Query?}&sessionId={Session ID?}&username={Username?}&accountId={Account ID?}&recommend={Recommend?:false|true}"
+    },
+    {
+      "name": "Users with Permissions",
+      "paged": true,
+      "suffix": "/rest/api/2/user/permission/search?query={Query?}&username={Username?}&accountId={Account ID?}&permissions={Permissions}&issueKey={Issue Key?}&projectKey={Project Key?}"
+    },
+    {
+      "name": "Users for Picker",
+      "paged": true,
+      "suffix": "/rest/api/2/user/picker?query={Query}&showAvatar={Show Avatar?:false|true}&exclude={Exclude?}&excludeAccountIds={Exclude Account Ids?}&avatarSize={Avatar Size?}&excludeConnectUsers={Exclude Connect Users?:false|true}"
+    },
+    {
+      "name": "User Search",
+      "paged": true,
+      "suffix": "/rest/api/2/user/search/query?query={Query}"
+    },
+    {
+      "name": "Users with Browse Permission",
+      "paged": true,
+      "suffix": "/rest/api/2/user/viewissue/search?query={Query?}&username={Username?}&accountId={Account ID?}&issueKey={Issue Key?}&projectKey={Project Key?}"
+    },
+    {
+      "name": "Workflows",
+      "paged": true,
+      "suffix": "/rest/api/2/workflow/search?workflowName={Workflow Name?}&expand={Expand?:transitions,transitions.rules...}"
+    },
+    {
+      "name": "Workflow Transition Rule Configurations",
+      "paged": true,
+      "suffix": "/rest/api/2/workflow/rule/config?types={Types:postfunction,condition,validator}&keys={Keys?}&expand={Expand?}"
+    },
+    {
+      "name": "Workflow Schemes",
+      "paged": true,
+      "suffix": "/rest/api/2/workflowscheme",
+      "lookups": [
+        {
+          "endpoints": [
+            "Default Workflow",
+            "Workflow Issue Types"
+          ],
+          "jsonPath": "$.values[*]",
+          "key": "id",
+          "parameterName": "Scheme ID"
+        }
+      ]
+    },
+    {
+      "name": "Workflow Scheme",
+      "paged": false,
+      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}?returnDraftIfExists={Return Draft If Exists?:false|true}"
+    },
+    {
+      "name": "Default Workflow",
+      "paged": false,
+      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}/default?returnDraftIfExists={Return Draft If Exists?:false|true}"
+    },
+    {
+      "name": "Issue Type Workflow",
+      "paged": false,
+      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}/issuetype/{Issue Type ID}?returnDraftIfExists={Return Draft If Exists?:false|true}"
+    },
+    {
+      "name": "Workflow Issue Types",
+      "paged": false,
+      "suffix": "/rest/api/2/workflowscheme/{Scheme ID}/workflow?workflowName={Workflow Name}&returnDraftIfExists={Return Draft If Exists?:false|true}"
+    },
+    {
+      "name": "Workflow Scheme Projects",
+      "paged": true,
+      "suffix": "/rest/api/2/workflowscheme/project?projectId={Project ID}"
+    },
+    {
+      "name": "Statuses",
+      "paged": true,
+      "suffix": "/rest/api/2/status"
+    },
+    {
+      "name": "Status",
+      "paged": true,
+      "suffix": "/rest/api/2/status/{Status ID or Name}"
+    },
+    {
+      "name": "Status Categories",
+      "paged": true,
+      "suffix": "/rest/api/2/statuscategory"
+    },
+    {
+      "name": "Status Category",
+      "paged": false,
+      "suffix": "/rest/api/2/statuscategory/{Category ID or Key}"
+    },
+    {
+      "name": "Workflow Transition Properties",
+      "paged": true,
+      "suffix": "/rest/api/2/workflow/transitions/{Transition ID}/properties?includeReservedKeys={Include Reserved Keys?:false|true}&key={Key?}&workflowName={Workflow Name}&workflowMode={Workflow Mode?:live|draft}"
+    },
+    {
+      "name": "Addon Application Properties",
+      "paged": true,
+      "suffix": "/rest/atlassian-connect/1/addons/{Addon Key}/properties"
+    },
+    {
+      "name": "Addon Application Property",
+      "paged": false,
+      "suffix": "/rest/atlassian-connect/1/addons/{Addon Key}/properties/{Property Key}"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<!DOCTYPE exporters [
+  <!ELEMENT exporters (exporter+)>
+  <!ELEMENT exporter (description,designerKey?,supplementalId*,reportData?)>
+  <!ELEMENT description (#PCDATA)>
+  <!ELEMENT designerKey (#PCDATA)>
+  <!ELEMENT supplementalId EMPTY>
+  <!ELEMENT reportData (icon?)>
+  <!ELEMENT icon (#PCDATA)>
+  <!ATTLIST exporter
+    formatId CDATA #REQUIRED
+    formatOption CDATA #REQUIRED
+    factoryClass CDATA #REQUIRED
+    actionClass CDATA #IMPLIED
+    extension CDATA #REQUIRED
+    mimeType CDATA #REQUIRED
+    mailSupported CDATA #REQUIRED
+    exportSupported CDATA #REQUIRED
+    index CDATA #REQUIRED
+    visible CDATA #IMPLIED>
+  <!ATTLIST supplementalId
+    formatId CDATA #REQUIRED>
+  <!ATTLIST reportData
+    type CDATA #IMPLIED
+    compressed CDATA #IMPLIED
+    refid CDATA #IMPLIED>
+]>
+
+<exporters>
+  <exporter formatId="9" formatOption="PDF"
+            factoryClass="inetsoft.report.io.export.PDF3GeneratorFactory"
+            actionClass="inetsoft.report.gui.reportsheet.action.PDFAction"
+            extension="pdf" mimeType="application/pdf" mailSupported="true"
+            exportSupported="true" index="0">
+    <description><![CDATA[PDF]]></description>
+    <designerKey><![CDATA[PDF]]></designerKey>
+    <supplementalId formatId="1001"/>
+    <reportData type="pdf">
+      <icon><![CDATA[/inetsoft/sree/web/images/filepdf.gif]]></icon>
+    </reportData>
+  </exporter>
+
+</exporters>

@@ -1,0 +1,98 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form" class="container-fluid">
+  <fieldset>
+    <legend>_#(Options)</legend>
+    <div class="form-row-float-label row">
+      <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['headerRowCount'].valid}">
+          <input class="form-control" type="number" min="0" formControlName="headerRowCount"
+                 [(ngModel)]="model.headerRowCount" placeholder="_#(Header Rows)">
+          <label>_#(Header Rows)</label>
+      </div>
+      <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['headerColCount'].valid}">
+          <input class="form-control" type="number" min="0" formControlName="headerColCount"
+                 [(ngModel)]="model.headerColCount" placeholder="_#(Header Columns)">
+          <label>_#(Header Columns)</label>
+      </div>
+      <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['trailerRowCount'].valid}">
+          <input class="form-control" type="number" min="0" formControlName="trailerRowCount"
+                 [(ngModel)]="model.trailerRowCount" placeholder="_#(Trailer Rows)">
+          <label>_#(Trailer Rows)</label>
+      </div>
+      <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['trailerColCount'].valid}">
+          <input class="form-control" type="number" min="0" formControlName="trailerColCount"
+                 [(ngModel)]="model.trailerColCount" placeholder="_#(Trailer Columns)">
+          <label>_#(Trailer Columns)</label>
+      </div>
+    </div>
+    <div *ngIf="form.controls['headerRowCount'].errors" class="alert alert-danger">
+      _#(viewer.dialog.calcTableAdvance.headerRowPositiveNumber)
+    </div>
+    <div *ngIf="form.controls['headerColCount'].errors" class="alert alert-danger">
+      _#(viewer.dialog.calcTableAdvance.headerColPositiveNumber)
+    </div>
+    <div *ngIf="form.controls['trailerRowCount'].errors" class="alert alert-danger">
+      _#(viewer.dialog.calcTableAdvance.trailerColPositiveNumber)
+    </div>
+    <div *ngIf="form.controls['trailerColCount'].errors" class="alert alert-danger">
+      _#(viewer.dialog.calcTableAdvance.trailerColPositiveNumber)
+    </div>
+    <div class="header-row-warning-container" *ngIf="showHeaderColumnWarning">
+      <p class="alert alert-danger header-row-warning">_#(header.column.invalid)</p>
+    </div>
+    <div class="header-row-warning-container" *ngIf="showHeaderRowWarning">
+      <p class="alert alert-danger header-row-warning">_#(header.row.invalid)</p>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col-auto checkbox">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="shrink"
+                 [ngModelOptions]="{standalone: true}"
+               [(ngModel)]="model.shrink" (ngModelChange)="shrinkChanged($event)">
+          <label class="form-check-label" for="shrink">
+            _#(Shrink To Fit)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto checkbox">
+        <div class="form-check">
+          <input class="form-check-input" id="isBlankBox" type="checkbox"
+                 [ngModelOptions]="{standalone: true}"
+               [(ngModel)]="model.fillBlankWithZero">
+          <label class="form-check-label" for="isBlankBox">
+            _#(Fill Blank Cell With Zero)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto checkbox" *ngIf="model.sortOthersLastEnabled">
+        <div class="form-check">
+          <input class="form-check-input" id="sortOthers" type="checkbox"
+                 [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.sortOthersLast">
+          <label class="form-check-label" for="sortOthers">
+            _#(Sort Others Last)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>
+<tip-pane [model]="model.tipPaneModel"></tip-pane>
+<notifications #notifications class="notifications-dialog" [timeout]="5000"></notifications>

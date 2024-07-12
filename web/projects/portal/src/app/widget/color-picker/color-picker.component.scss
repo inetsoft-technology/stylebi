@@ -1,0 +1,88 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.color-picker .no-display {
+  display: none !important;
+}
+
+.color-picker > span.input-group-addon {
+  padding: 0.25em 0.5em;
+}
+
+.transparent-swatch {
+  background-image: linear-gradient(45deg, #c0c0c0 25%, transparent 25%), linear-gradient(-45deg, #c0c0c0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #c0c0c0 75%), linear-gradient(-45deg, transparent 75%, #c0c0c0 75%) !important;
+  background-size: 10px 10px !important;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px !important;
+}
+
+.color-picker > span.input-group-btn > button {
+  width: 3.5em;
+  color: #333;
+  margin-left: 0px;
+  padding-left: 0.5em;
+  padding-right: 0.1em;
+  font-size: inherit;
+  border-bottom-left-radius: unset;
+  border-top-left-radius: unset;
+}
+
+.color-picker .color-picker-swatch {
+  width: 1.5em;
+  height: 1.5em;
+  margin: 0px;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  box-shadow: 2px 2px 1px #cccccc;
+}
+
+.color-picker > span.input-group-btn {
+  font-size: inherit;
+}
+
+.color-picker > span > button > span {
+  -webkit-filter: none;
+}
+
+.color-picker > span > button > .color-picker-swatch {
+  display: inline-block;
+  float: left;
+  box-shadow: none;
+}
+
+.color-picker form {
+  width: 100%;
+}
+
+.color-picker form > .form-group:first-of-type {
+  width: 100%;
+  margin-left: 0.5em;
+  padding-right: 1em;
+}
+
+.color-picker .input-group {
+  width: 100%;
+}
+
+.color-picker .input-group .form-control {
+  width: auto;
+}
+
+.style-text-width {
+  min-width: 155px;
+  width: 100%;
+}

@@ -1,0 +1,40 @@
+<?xml encoding="US-ASCII"?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<!ELEMENT personnel (employee)+>
+<!ELEMENT employee (name,birthday,salary,location,skill*,link?)>
+<!ATTLIST employee id ID #REQUIRED>
+<!ELEMENT lastname (#PCDATA)>
+<!ELEMENT firstname (#PCDATA)>
+<!ELEMENT name (lastname,firstname)>
+<!ELEMENT birthday (#PCDATA)>
+<!ELEMENT salary (#PCDATA)>
+<!ELEMENT location ((city|lcode),state,zip?)>
+<!ELEMENT city (#PCDATA)>
+<!ELEMENT lcode (#PCDATA)>
+<!ELEMENT state (#PCDATA)>
+<!ELEMENT zip (#PCDATA)>
+<!ELEMENT skill (#PCDATA|description)*>
+<!ELEMENT description (#PCDATA)>
+<!ELEMENT link EMPTY>
+<!ATTLIST link
+  manager IDREF #IMPLIED
+  subordinates IDREFS #IMPLIED>

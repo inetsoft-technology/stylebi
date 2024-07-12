@@ -1,0 +1,56 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="field-list-pane bd-gray" (drop)="onDrop($event)"
+  outOfZone (onDragover)="$event.preventDefault()">
+   <div class="fieldmc-container">
+     <div class="fieldmc-outer" *ngFor="let ref of refs; let i = index">
+       <div class="field-divider" [class.bg-success]="activeIdx == i && !replaceField"
+            (dragenter)="dragOverField($event, i, false)"
+            (dragleave)="dragLeave($event)"
+            outOfZone (onDragover)="$event.preventDefault()">
+       </div>
+       <div class="fieldmc-border" [class.bg-success]="activeIdx == i && replaceField">
+         <table-fieldmc #fieldComponents [implyDynamic]="true"
+           [bindingModel]="bindingModel"
+           [fieldType]="fieldType" [groupNum]="groupNum" [field]="ref"
+           [dragIndex]="i" [grayedOutValues]="grayedOutValues"
+           (dragenter)="dragOverField($event, i, true)"
+           (dragleave)="dragLeave($event)"
+           outOfZone (onDragover)="$event.preventDefault()"
+           (onPopUpWarning)="onPopUpWarning.emit($event)">
+         </table-fieldmc>
+       </div>
+     </div>
+     <div class="field-divider" [class.bg-success]="activeIdx == refs.length && !replaceField"
+          (dragenter)="dragOverField($event, refs.length, false)"
+          (dragleave)="dragLeave($event)"
+          outOfZone (onDragover)="$event.preventDefault()">
+     </div>
+     <div class="field-remainder" (dragenter)="dragOverField($event, refs.length, false)"
+          (dragleave)="dragLeave($event)"
+          outOfZone (onDragover)="$event.preventDefault()">
+     </div>
+   </div>
+   <div class="field-mc-hint primary-label txt-primary" *ngIf="refs.length == 0"
+        (dragenter)="dragOverField($event, 0, false)" (dragleave)="dragLeave($event)"
+        outOfZone (onDragover)="$event.preventDefault()">
+     <span class="unhighlightable">_#(common.DataEditor.dragColumns)</span>
+   </div>
+</div>

@@ -1,0 +1,45 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="loading-container viewsheet-loading-container" [class.allow-interaction]="allowInteraction">
+  <div class="viewsheet-loading-icon" *ngIf="showIcon">
+    <div *ngIf="!justShowIcon && preparingData" class="loading-message prepare-label">_#(vs.mv.prepare)</div>
+    <div *ngIf="!justShowIcon && !!message" class="loading-message message-label">{{message}}</div>
+    <i class="loading-icon--spin icon-size-xlarge loading-icon" aria-hidden="true"
+       [class.icon-4x]="!assemblyLoading"
+       [class.icon-2x]="assemblyLoading"></i>
+    <div *ngIf="!justShowIcon" class="loading-btns-container" [style.justify-content]="getBtnsPosition()">
+        <button class="btn btn-primary" *ngIf="!!runtimeId && showSwitchToMeta"
+                         (click)="switchToMetaMode()"
+                         [disabled]="switchingToMeta">
+          {{switchingToMeta ? "_#(Switching to metadata)" : "_#(Use Metadata)"}}
+        </button>
+        <button class="btn btn-primary" *ngIf="!!runtimeId && showCancelLoading"
+                (click)="cancelViewsheetLoading()"
+                [disabled]="loadingCanceled">
+          {{loadingCanceled ? "_#(common.viewsheet.canceling)" : "_#(Cancel)"}}
+        </button>
+    </div>
+    <div *ngIf="!!mvHintMessage && !!runtimeId && !justShowIcon && showCancelLoading"
+         class="loading-message materialize-hint-label">
+      <span class="px-3">{{mvHintMessage}}</span>
+    </div>
+    <span class="visually-hidden" *ngIf="!message && !preparingData">_#(Loading)</span>
+  </div>
+</div>

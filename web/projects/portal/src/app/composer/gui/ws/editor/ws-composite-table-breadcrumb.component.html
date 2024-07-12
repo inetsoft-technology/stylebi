@@ -1,0 +1,39 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="composite-breadcrumb-container">
+  <ng-container *ngFor="let _breadcrumb of breadcrumbs; let _last = last">
+    <button class="composite-breadcrumb btn hover-bg-primary" [attr.title]="_breadcrumb.compositeTable.name"
+            [class.selected]="_breadcrumb === selectedBreadcrumb"
+            (click)="selectBreadcrumb(_breadcrumb)">{{_breadcrumb.compositeTable.name}}</button>
+    <span *ngIf="!_last" class="composite-breadcrumb-separator"></span>
+  </ng-container>
+
+  <div class="composite-close-container">
+    <button type="button" class="btn-toolbar btn btn-sm help-button"
+      [helpLink]="'JoinEditor'">
+    </button>
+    <button type="button" class="btn btn-primary btn-sm" (click)="cancel()">
+      _#(Cancel)
+    </button>
+    <button type="button" class="btn btn-primary btn-sm" (click)="close()">
+      _#(Done)
+    </button>
+  </div>
+</div>

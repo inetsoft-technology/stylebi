@@ -1,0 +1,63 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<script src="restore-asset-dialog.component.ts"></script>
+<em-modal-header [cshid]="'EMRestoreAssets'" [title]="'_#(Restore Assets)'">
+</em-modal-header>
+<div mat-dialog-content [formGroup]="form">
+  <mat-card appearance="outlined" class="mat-elevation-z0 property-card">
+    <mat-card-content>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Name)</mat-label>
+        <input matInput formControlName="fileName" placeholder="_#(Restore Name)"/>
+        <mat-error *ngIf="form.controls.fileName?.errors?.required">_#(viewer.nameValid)</mat-error>
+        <mat-error *ngIf="form.controls.fileName?.errors?.assetEntryBannedCharacters">_#(composer.sheet.checkSpeChar)</mat-error>
+        <mat-error *ngIf="form.controls.fileName?.errors?.assetNameStartWithCharDigit">_#(asset.tree.checkStart)</mat-error>
+      </mat-form-field>
+      <mat-checkbox formControlName="overwrite">_#(Overwrite Existing Files)</mat-checkbox>
+    </mat-card-content>
+  </mat-card>
+  <div><h3 class="select-folder-label">_#(Select Folder)</h3></div>
+  <div class="asset-card-container">
+    <mat-card appearance="outlined" class="mat-card mat-focus-indicator asset-card">
+      <mat-card-content class="tree-pane">
+        <mat-tree [dataSource]="dataSource" [treeControl]="treeControl" class="select-viewsheet-tree">
+          <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding (click)="selectNode(node)"
+                         [class.selected-node]="selectedFolder == node.id">
+            <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'_#(Toggle) ' + node.name">
+              <mat-icon fontSet="ineticons" [fontIcon]="treeControl.isExpanded(node) ? 'downward-icon' : 'forward-icon'">
+              </mat-icon>
+            </button>
+            <mat-icon fontSet="ineticons" fontIcon="folder-icon"></mat-icon>
+            <span class="flat-tree-node-label">{{node.name}}</span>
+          </mat-tree-node>
+        </mat-tree>
+      </mat-card-content>
+    </mat-card>
+  </div>
+  <div class="progress-bar-container">
+    <h3 *ngIf="loading">_#(Loading)...</h3>
+    <mat-progress-bar *ngIf="loading" mode="indeterminate" class="viewsheet-tree-progress"></mat-progress-bar>
+  </div>
+</div>
+<div class="mat-dialog-actions">
+  <button mat-raised-button color="primary" [disabled]="form.invalid || loading"
+          (click)="restore()">_#(Restore)</button>
+  <button mat-button (click)="cancel()">_#(Cancel)</button>
+</div>

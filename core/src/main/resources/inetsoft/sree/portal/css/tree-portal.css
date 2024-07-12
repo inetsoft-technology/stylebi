@@ -1,0 +1,101 @@
+/**
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.isii_JSTree{
+   border: 1px solid #bbb;
+   padding: 0;
+   overflow: auto;
+   width: 100%;
+   position: relative;
+}
+
+.isii_JSTree a{
+   text-decoration: none;
+   color:black;
+   cursor: default;
+}
+
+.JSTreeTableDiv{
+   height: 16px;
+   padding: 4px 0px 0px 0px;
+}
+
+.JSTreeRow{
+}
+
+.JSTreeTable{
+   table-layout:fixed;
+   overflow: auto;
+   border-collapse: separate;
+}
+
+.JSTreeTR:hover {
+}
+
+.selected {
+   white-space: nowrap;
+}
+
+.selected div, .selected a {
+   font-weight: bold;
+}
+
+.selected, .JSTreeTR:hover, .JSTreeLabel_drag {
+   background-color: #e4e7ed;
+}
+
+.JSTreeLabel_active {
+   font-size: 11px;
+   white-space: nowrap;
+}
+
+.JSTreeLabel_disabled {
+   font-size: 11px;
+   white-space: nowrap;
+   color: grey;
+}
+
+.JSTreeLabel_drag {
+   font-size: 11px;
+   color: #eb6100;
+   white-space: nowrap;
+}
+
+.JSTreeLabel {
+   font-size: 11px;
+   color: black;
+   white-space: nowrap;
+}
+
+.JSTreeIndent {
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreeIcon {
+   background-repeat: no-repeat;
+   background-position: center;
+   width: 16px;
+   height: 16px;
+}
+
+/* Refresh and Organize icon div */
+#linkDiv {
+   padding-top: 2px;
+   padding-right: 7px;
+}

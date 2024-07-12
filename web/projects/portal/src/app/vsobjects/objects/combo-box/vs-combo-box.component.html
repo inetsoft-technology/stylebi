@@ -1,0 +1,126 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model" class="vs-combo-box"
+     [id]="model.absoluteName"
+     VSDataTip [dataTipName]="getAssemblyName()"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex"
+     [style.text-align]="model.objectFormat.hAlign"
+     [safeFont]="model.objectFormat.font"
+     [style.background]="model.objectFormat.background"
+     [style.color]="model.objectFormat.foreground"
+     [style.text-decoration]="model.objectFormat.decoration"
+     [style.border-bottom]="model.objectFormat.border.bottom"
+     [style.border-top]="model.objectFormat.border.top"
+     [style.border-left]="model.objectFormat.border.left"
+     [style.border-right]="model.objectFormat.border.right"
+     [style.border-radius.px]="model.objectFormat.roundCorner"
+     [style.white-space]="model.objectFormat.wrapping.whiteSpace"
+     [style.word-wrap]="model.objectFormat.wrapping.wordWrap"
+     [style.overflow]="model.objectFormat.wrapping.overflow"
+     [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
+     [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+     [style.width.px]="model.objectFormat.width"
+     [style.height.px]="model.objectFormat.height"
+     [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+     [style.display]="getVisible() ? (showCalendar() || showTime() ? 'flex': null) : 'none'"
+     [style.align-items]="showTime() ? 'stretch' : null"
+     [class.fade-assembly]="!viewer && !model.visible"
+     [class.disable-actions-fade]="!model.enabled"
+     [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
+     [class.prevent-drag]="firefox">
+  <ng-container *ngIf="!model.calendar">
+    <select #selection class="ps-1"
+            [attr.aria-label]="model.absoluteName + ' _#(ComboBox)'"
+            [ngModel]="model.selectedLabel" (ngModelChange)="onChange($event)"
+            [style.text-align-last]="model.objectFormat.hAlign"
+            [style.background-color]="model.objectFormat.background == '' ? 'transparent' : model.objectFormat.background">
+      <option [value]="entry" *ngFor="let entry of model.labels">{{entry}}</option>
+    </select>
+    <div class="select-moving-label">{{model.selectedLabel}}</div>
+    <input #comboBoxInput *ngIf="model.editable"
+           class="standard-input" [ngModel]="model.selectedLabel"
+           [style.background]="model.objectFormat.background"
+           [attr.aria-label]="model.absoluteName + ' _#(Auto Complete)'"
+           (keyup.enter)="onChange($event.target.value)" (blur)="onBlur($event.target.value)"
+           (keydown)="preventPropagation($event)"
+           [ngbTypeahead]="labelSearch" (selectItem)="onChange($event.item)"
+           [placeholder]="inputPlaceholder">
+  </ng-container>
+
+  <ng-container *ngIf="showCalendar()">
+    <input #comboBoxInput class="calendar-input" *ngIf="model.editable" [placeholder]="inputPlaceholder"
+           [attr.aria-label]="model.absoluteName + ' _#(Date Input)'" [ngModel]="getDateString()"
+           (keydown)="preventPropagation($event)" [style.background]="model.objectFormat.background"
+           (blur)="onInputDate($event.target.value)" (keyup.enter)="onEnter($event.target.value)"
+           [style.flex-grow]="10">
+    <input class="calendar-input" *ngIf="!model.editable" readonly [placeholder]="inputPlaceholder"
+           [attr.aria-label]="model.absoluteName + ' _#(Date Input)'" [ngModel]="getDateString()"
+           [style.background]="model.objectFormat.background"
+           [style.flex-grow]="10">
+    <i #calendarButton class="calendar-icon" [class.bd-selected-cell]="focused == FocusRegions.CALENDAR"
+       [style.color]="model.objectFormat.foreground"
+       tabindex="-1" enterClick role="button"
+       aria-haspopup="true" [attr.aria-label]="model.absoluteName + ' _#(Date Input)'"
+       [fixedDropdown]="dropdownCalendar" [autoClose]="false" dropdownPlacement="bottom"></i>
+  </ng-container>
+
+  <ng-template #dropdownCalendar>
+    <div class="dropdown-datepicker">
+      <ngb-datepicker #dp defaultFocus [autoSelect]="false"
+                      [minDate]="minDate" [maxDate]="maxDate" [firstDayOfWeek]="firstDayOfWeek"
+                      [startDate]="selectedDate"
+                      [attr.aria-label]="model.absoluteName + ' _#(Date Input) _#(Calendar)'"
+                      (ngModelChange)="updateDate($event)"
+                      [ngModel]="selectedDate"
+                      [footerTemplate]="footerTemplate">
+      </ngb-datepicker>
+    </div>
+  </ng-template>
+
+  <ng-template #footerTemplate>
+    <ng-container *ngIf="showCalendar() || showTime()">
+      <hr class="my-0" />
+      <button class="btn btn-default btn-sm m-2 float-end" (click)="clearCalendar()">_#(Clear)</button>
+    </ng-container>
+  </ng-template>
+
+  <ng-container *ngIf="showTime()">
+    <input #hour type="number" class="time-input" [ngModel]="hours" aria-label="HH _#(Input)"
+           (ngModelChange)="updateHours($event)" placeholder="HH" blockMouse [isBlockMouse]="isSelected()"
+           [style.background-color]="model.objectFormat.background">
+    <div class="separator">:</div>
+    <input #minute type="number" class="time-input" [ngModel]="minutes" aria-label="MM _#(Input)"
+           (ngModelChange)="updateMinutes($event)" placeholder="MM" blockMouse [isBlockMouse]="isSelected()"
+           [style.background-color]="model.objectFormat.background">
+    <div class="separator">:</div>
+    <input #second type="number" class="time-input" [ngModel]="seconds" aria-label="SS _#(Input)"
+           (ngModelChange)="updateSeconds($event)" placeholder="SS" blockMouse  [isBlockMouse]="isSelected()"
+           [style.background-color]="model.objectFormat.background">
+    <select #meridianRef [ngModel]="meridian" (ngModelChange)="updateMeridian($event)"
+            class="meridian-input"
+            [attr.aria-label]="model.absoluteName + ' _#(dformat.help.ampm)'"
+            [style.background-color]="model.objectFormat.background">
+      <option [value]="'AM'">_#(AM)</option>
+      <option [value]="'PM'">_#(PM)</option>
+    </select>
+  </ng-container>
+</div>

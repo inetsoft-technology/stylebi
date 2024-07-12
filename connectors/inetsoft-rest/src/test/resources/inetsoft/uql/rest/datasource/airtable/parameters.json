@@ -1,0 +1,25 @@
+{
+  "tests": [
+    {
+      "endpoint": "Records",
+      "jsonPath": "$.records",
+      "expandArrays": false,
+      "parameters": {
+        "Base ID": "appy9o1BQs420BXMe",
+        "Table Name": "Stories",
+        "Time Zone": "America/New_York",
+        "User Locale": "en-us"
+      }
+    },
+    {
+      "endpoint": "Record",
+      "jsonPath": "$.fields",
+      "expandArrays": false,
+      "parameters": {
+        "Base ID": "appy9o1BQs420BXMe",
+        "Table Name": "Stories",
+        "Record ID": "rec2L7p8oqMEJZ3xW"
+      }
+    }
+  ]
+}

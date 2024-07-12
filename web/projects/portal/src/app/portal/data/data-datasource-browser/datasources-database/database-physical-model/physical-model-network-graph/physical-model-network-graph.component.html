@@ -1,0 +1,48 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div #graphPane class="physical-model-network-graph" (scroll)="scrollPosition()">
+  <div class="scale-container" [style.transform]="'scale(' + scale + ')'">
+    <div #jspContainerMain class="w-100 jsplumb-container" outOfZone tabindex="-1"
+         selectionBox selectionBoxBannedSelector=".jsplumb-draggable-handle"
+         [selectionBoxScale]="scale"
+         (onSelectionBox)="onSelectionBox($event)" (mousedown)="clearSelection($event)">
+      <!-- Using tabindex to make node can getting focus, then hidden endpoint when blur -->
+      <join-node-graph tabindex="0" *ngFor="let graph of graphViewModel.graphs"
+                                 class="ws-assembly-graph-element jsplumb-element"
+                                 [class.physical-graph-columns-popped]="graph.showColumns"
+                                 [ngClass]="getThumbnailClasses(graph)"
+                                 [runtimeId]="runtimeId"
+                                 [selected]="getSelectedNode(graph.node)"
+                                 [graph]="graph" [graphEndpoints]="graphEndpoints"
+                                 (onCreateAutoAlias)="onCreateAutoAlias.emit($event)"
+                                 (onEditInlineView)="onEditInlineView.emit($event)"
+                                 (onNodeSelected)="selectNode($event, graph)"
+                                 (onAddEndpoint)="addEndpoint($event[0], $event[1])"
+                                 (onShowEndpoints)="showEndpoints($event)"
+                                 (onHideEndpoints)="hideEndpoints($event)"
+                                 (onMoveNodes)="moveNodes($event)"
+                                 (onModified)="onModified.emit($event)"
+                                 (onRemoveSelectedNodes)="removeSelectTables()"
+                                 (onRegisterNode)="registerNode($event[0], $event[1])"
+                                 (onSetDraggable)="setDraggable($event[0], $event[1])">
+      </join-node-graph>
+    </div>
+  </div>
+</div>

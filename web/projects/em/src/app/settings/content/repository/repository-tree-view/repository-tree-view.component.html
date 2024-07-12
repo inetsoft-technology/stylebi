@@ -1,0 +1,154 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="repository-tree-panel">
+  <mat-toolbar class="toolbar-raised-button repository-toolbar" [class.search-hidden]="!searchOpen">
+    <button mat-icon-button title="_#(Search)" aria-label="_#(Search)" (click)="toggleSearch()">
+      <mat-icon fontSet="ineticons" fontIcon="search-icon"></mat-icon>
+    </button>
+    <mat-form-field class="repository-search">
+      <mat-label>_#(Search)</mat-label>
+      <input matInput [(ngModel)]="searchQuery" placeholder="_#(Search)"/>
+      <button mat-icon-button matSuffix title="_#(Clear)" aria-label="_#(Clear)"
+              (click)="searchQuery = ''" [disabled]="!searchQuery">
+        <mat-icon fontSet="ineticons" fontIcon="close-circle-icon"></mat-icon>
+      </button>
+    </mat-form-field>
+    <span *ngIf="!searchOpen && collapseToolbar" class="toolbar-spacer"></span>
+    <button *ngIf="searchOpen || collapseToolbar" mat-icon-button title="_#(Menu)" [matMenuTriggerFor]="toolbarMenu">
+      <mat-icon fontSet="ineticons" fontIcon="menu-sandwich-icon"></mat-icon>
+    </button>
+    <ng-container *ngIf="!searchOpen && !collapseToolbar">
+      <button mat-icon-button title="_#(Filter)" [matMenuTriggerFor]="filterMenu">
+        <mat-icon fontSet="ineticons" fontIcon="condition-icon"></mat-icon>
+      </button>
+      <button mat-icon-button title="_#(New)" [matMenuTriggerFor]="appMenu">
+        <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
+      </button>
+      <button mat-icon-button title="_#(Delete)" (click)="deleteNode()" [disabled]="deleteDisabled">
+        <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+      </button>
+      <button mat-icon-button title="_#(Move)" (click)="onMoveAsset()" [disabled]="moveDisabled">
+        <mat-icon fontSet="ineticons" fontIcon="folder-move-icon"></mat-icon>
+      </button>
+      <button mat-icon-button *ngIf="smallDevice" title="_#(Edit)" (click)="editNodeAction()" [disabled]="selectedNodes.length != 1">
+        <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+      </button>
+      <button mat-icon-button title="_#(Materialize)" (click)="openMaterialize()" [disabled]="!enableMaterialize">
+        <mat-icon fontSet="ineticons" fontIcon="materialized-viewsheet-icon"></mat-icon>
+      </button>
+      <button mat-icon-button title="_#(Import Asset)" *ngIf="isSiteAdmin" (click)="importAsset.emit()">
+        <mat-icon fontSet="ineticons" fontIcon="upload-icon"></mat-icon>
+      </button>
+      <button mat-icon-button title="_#(Export Asset)" *ngIf="isSiteAdmin" (click)="onExportAsset()" [disabled]="exportDisabled">
+        <mat-icon fontSet="ineticons" fontIcon="export-icon"></mat-icon>
+      </button>
+    </ng-container>
+  </mat-toolbar>
+  <div class="repository-tree" emTopScroll>
+    <div class="tree-loading-indicator" *ngIf="dataSource?.loading | async">
+      <span>_#(Loading)...</span>
+      <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+    </div>
+    <div class="repository-tree__container">
+      <em-flat-tree-view [dataSource]="dataSource"
+                         [treeControl]="dataSource.treeControl"
+                         [selectedNodes]="selectedNodes"
+                         (nodeSelected)="nodeSelected.emit($event)"
+                         (onDrop)="onDrop.emit($event)"
+                         (dblClicked)="dblClicked.emit($event)"
+                         (onContextMenu)="onContextMenu($event.node, $event.menu)">
+      </em-flat-tree-view>
+    </div>
+  </div>
+  <div class="treeStatus">
+    <ng-container *ngIf="this.selectedNodes?.length == 1">
+      <span *ngFor="let metaTypeEntry of selectedNodes[0].getNodeMetaMap().entries()" class="treeStatusItem">
+        <span class="badge">{{metaTypeEntry[0]}}: {{metaTypeEntry[1]}}
+        </span>
+      </span>
+    </ng-container>
+  </div>
+  <!-- Duplicate buttons, maybe this can be factored out in an ng-template or subcomponent-->
+  <mat-menu #toolbarMenu="matMenu">
+    <button mat-menu-item class="dropdown-import-button" [matMenuTriggerFor]="filterMenu">
+      <mat-icon fontSet="ineticons" fontIcon="condition-icon"></mat-icon>
+      _#(Filter)
+    </button>
+    <button mat-menu-item class="dropdown-import-button" [matMenuTriggerFor]="appMenu">
+      <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
+      _#(New)
+    </button>
+    <button mat-menu-item class="dropdown-import-button" (click)="deleteNode()" [disabled]="deleteDisabled">
+      <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+      _#(Delete)
+    </button>
+    <button mat-menu-item class="dropdown-import-button" (click)="onMoveAsset()" [disabled]="moveDisabled">
+      <mat-icon fontSet="ineticons" fontIcon="folder-move-icon"></mat-icon>
+      _#(Move)
+    </button>
+    <button mat-menu-item class="dropdown-import-button" (click)="editNodeAction()" [disabled]="selectedNodes.length != 1">
+      <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+      _#(Edit)
+    </button>
+    <button mat-menu-item class="dropdown-import-button" (click)="openMaterialize()"
+            [disabled]="!enableMaterialize">
+      <mat-icon fontSet="ineticons" fontIcon="materialized-viewsheet-icon"></mat-icon>
+      _#(Materialize)
+    </button>
+    <button mat-menu-item class="dropdown-import-button" (click)="importAsset.emit()">
+      <mat-icon fontSet="ineticons" fontIcon="upload-icon"></mat-icon>
+      _#(Import)
+    </button>
+    <button mat-menu-item class="dropdown-import-button" (click)="exportAsset.emit()">
+      <mat-icon fontSet="ineticons" fontIcon="export-icon"></mat-icon>
+      _#(Export)
+    </button>
+  </mat-menu>
+  <mat-menu #appMenu="matMenu">
+    <button mat-menu-item class="filter-button"
+            (click)="createDashboard()"
+            [disabled]="newDashboardDisabled"
+            *ngIf="licensedComponents?.dashboards">
+      _#(New Dashboard)
+    </button>
+    <button mat-menu-item class="filter-button"
+            (click)="createFolder()"
+            [disabled]="newFolderDisabled">
+      _#(New Folder)
+    </button>
+  </mat-menu>
+  <mat-menu #filterMenu="matMenu" [formGroup]="filterForm" class="mat-body-2">
+    <div mat-menu-item>
+      <mat-checkbox formControlName="user" (click)="$event.stopPropagation()">
+        _#(User Folders)
+      </mat-checkbox>
+    </div>
+    <div mat-menu-item>
+      <mat-checkbox formControlName="viewsheet" (click)="$event.stopPropagation()">
+        _#(Viewsheets)
+      </mat-checkbox>
+    </div>
+    <div mat-menu-item>
+      <mat-checkbox formControlName="worksheet" (click)="$event.stopPropagation()">
+        _#(Worksheets)
+      </mat-checkbox>
+    </div>
+  </mat-menu>
+</div>

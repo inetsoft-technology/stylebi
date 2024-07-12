@@ -1,0 +1,192 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model && form">
+  <form [formGroup]="form" class="container-fluid">
+    <fieldset>
+      <legend>_#(Data Source)</legend>
+      <div class="row form-row-float-label">
+        <div class="input-group col-12 input-with-actions">
+          <input type="text" class="form-control" [ngModelOptions]="{standalone: true}" readonly
+                 placeholder="_#(Select data source)" aria-label="Select data source"
+                 [ngModel]="model.selectDataSourceDialogModel.dataSource && (model.selectDataSourceDialogModel.dataSource.description || model.selectDataSourceDialogModel.dataSource.path)"/>
+          <button type="button" class="btn btn-default" (click)="showSelectDataSourceDialog()">
+            _#(Select)
+          </button>
+          <button type="button" class="btn btn-default"
+                  [disabled]="!model.selectDataSourceDialogModel.dataSource" (click)="clear()">
+            _#(Clear)
+          </button>
+        </div>
+      </div>
+      <div *ngIf="isLogicModelDataSource()" class="row form-row-float-label">
+        <div class="col-12">
+          <span class="href-style" (click)="convertToWorksheet()">_#(convert.source.to.worksheet)</span>
+        </div>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>_#(Options)</legend>
+      <div class="row form-row-checkbox multiple-checkboxes">
+        <div class="col">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" [(ngModel)]="model.useMetaData"
+                 [ngModelOptions]="{standalone: true}" id="metadata"/>
+            <label class="form-check-label" for="metadata">
+              _#(Use Metadata)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" [(ngModel)]="model.selectionAssociation"
+                 [ngModelOptions]="{standalone: true}" id="association"/>
+            <label class="form-check-label" for="association">
+              _#(Selection Association)
+            </label>
+          </div>
+        </div>
+        <div class="col" *ngIf="model.onDemandMvEnabled">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" [(ngModel)]="model.createMv"
+                 [ngModelOptions]="{standalone: true}" id="mvOnDemand"/>
+            <label class="form-check-label" for="mvOnDemand">
+              _#(Create MV On-demand)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" [(ngModel)]="model.maxRowsWarning"
+                 [ngModelOptions]="{standalone: true}" id="maxRowsWarning"/>
+            <label class="form-check-label" for="maxRowsWarning">
+              _#(Max Rows Warning)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="row form-row-checkbox">
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" [(ngModel)]="model.promptForParams"
+                 [ngModelOptions]="{standalone: true}" id="prompt"/>
+            <label class="form-check-label" for="prompt">
+              _#(Prompt for Parameters)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <button type="button" class="btn btn-default" [disabled]="!model.promptForParams"
+                  (click)="showViewsheetParametersDialog()">
+            _#(Customize)
+          </button>
+        </div>
+      </div>
+      <div class="row form-row-float-label form-check">
+        <div class="form-floating col-6">
+          <div class="input-group">
+            <input type="number" class="form-control" formControlName="maxRows"
+                   [(ngModel)]="model.maxRows"
+                   [class.is-invalid]="form.controls['maxRows'].errors"/>
+            <span class="invalid-feedback">The sample size should be non-zero integer.</span>
+          </div>
+          <label><span>_#(Design mode sample data size)</span></label>
+        </div>
+        <div class="form-floating col-6">
+          <div class="input-group">
+            <input type="number" class="form-control" step="5" formControlName="snapGrid"
+                   [(ngModel)]="model.snapGrid"
+                   [class.is-invalid]="form.controls['snapGrid'].errors"/>
+            <span class="invalid-feedback">_#(composer.vs.options.snapGrid)</span>
+          </div>
+          <label><span>_#(Snap Grid)</span></label>
+        </div>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>_#(Deployment)</legend>
+      <div class="row form-row-float-label">
+        <div class="col-12">
+          <div class="form-floating">
+            <input type="text" formControlName="alias" class="form-control" placeholder="_#(Alias)" [(ngModel)]="model.alias"
+                   [class.is-invalid]="form.controls['alias'].errors && (form.controls['alias'].errors['containsSpecialChars'] || form.controls['alias'].errors['doesNotStartWithNumber'])"/>
+            <label><span>_#(Alias)</span></label>
+            <span class="invalid-feedback">_#(viewer.nameSpecialChar)</span>
+          </div>
+        </div>
+      </div>
+      <div class="row form-row-checkbox">
+        <div class="col-12">
+          <div class="form-floating">
+            <textarea class="form-control input-lg" [ngModelOptions]="{standalone: true}"
+                      [(ngModel)]="model.desc" placeholder="_#(Description)">
+            </textarea>
+            <label><span>_#(Description)</span></label>
+          </div>
+        </div>
+      </div>
+      <div class="row form-row-checkbox">
+        <div class="col-auto">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.serverSideUpdate"
+                 (ngModelChange)="changeServerSideUpdate()"
+                 [disabled]="!model.autoRefreshEnabled"
+                 aria-label="Server-Side Update"
+                 title="Server-Side Update" id="serverUpdate"/>
+            <label class="form-check-label" for="serverUpdate">
+              _#(Server-Side Update)
+            </label>
+          </div>
+        </div>
+        <div class="col form-floating">
+          <div class="input-group">
+            <input type="number" class="form-control" formControlName="touchInterval"
+                   [class.is-invalid]="form.controls['touchInterval'].errors"
+                   placeholder="_#(Refresh Interval)"
+                   [(ngModel)]="model.touchInterval"/>
+            <span class="invalid-feedback">
+              _#(composer.vs.options.refreshIntervalValid)
+            </span>
+          </div>
+          <label><span>_#(Refresh Interval [seconds])</span></label>
+        </div>
+      </div>
+      <div class="row form-row-float-label">
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="onPortal"
+                   [ngModelOptions]="{standalone: true}" [(ngModel)]="model.listOnPortalTree"/>
+            <label class="form-check-label" for="onPortal">
+              _#(List on Portal Tree)
+            </label>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+  </form>
+</div>
+<ng-template #viewsheetParametersDialog let-close="close" let-dismiss="dismiss">
+  <viewsheet-parameters-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                               [model]="viewsheetParametersModel"></viewsheet-parameters-dialog>
+</ng-template>
+<ng-template #selectDataSourceDialog let-close="close" let-dismiss="dismiss">
+  <select-data-source-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                             [model]="selectDataSourceModel"></select-data-source-dialog>
+</ng-template>

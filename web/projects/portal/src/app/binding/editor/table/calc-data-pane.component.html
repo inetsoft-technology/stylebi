@@ -1,0 +1,190 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container top-pane" *ngIf="cellBinding" outOfZone (onKeydown)="checkDeleteKey($event)">
+  <fieldset [disabled]="!cellSelected">
+    <div class="row form-row-float-label">
+      <div class="col form-floating">
+        <select class="form-control" [(ngModel)]="columnValue" placeholder="_#(Cell Binding)">
+          <option [value]="col.value"
+                  [class.grayed-out-field]="isGrayedOut(col.value)"
+                  *ngFor="let col of valueList"
+                  [title]="col.tooltip">
+            {{col.label}}
+          </option>
+        </select>
+        <label><span>_#(Cell Binding)</span></label>
+      </div>
+      <div class="col cellName_id form-floating">
+        <input type="text" class="form-control" [ngModel]="cellName"
+               (change)="setCellName($event.target.value)"/>
+        <label><span>_#(Cell Name)</span></label>
+      </div>
+    </div>
+    <div class="row form-row-float-label">
+      <div class="col-5 group_check_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [ngModel]="isGroup" id="group"
+               (change)="setGroupType($event)"
+               [disabled]="isGroupAggregateDisabled()">
+          <label class="form-check-label" for="group">
+            _#(Group)
+          </label>
+        </div>
+      </div>
+      <div class="col-1 group_edit_id" (mousedown)="toggleDropdown(0)">
+        <button [disabled]="!cellBindingEnabled || cellBinding.type != 2 || cellBinding.btype != 1"
+                [fixedDropdown]="groupDropdown" [zIndex]="10000"
+                (openChange)="toggled($event)" [autoClose]="false"
+                [closeOnOutsideClick]="!dialogOpened"
+                class="btn btn-light btn-sm">
+          <i class="edit-icon"
+             [class.icon-disabled]="cellBinding.type != 2 || cellBinding.btype != 1"
+             title="_#(Edit)" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="col-6 form-floating">
+        <select class="form-control" [(ngModel)]="cellBinding.rowGroup"
+                [disabled]="!cellGroupEnabled"
+                (ngModelChange)="changeGroup()"
+                placeholder="_#(Row Group)">
+          <option [value]="cname.value" *ngFor="let cname of getCellNames()"
+                  [disabled]="cellBinding.runtimeName != null && cellBinding.runtimeName === cname.value">
+            {{cname.label}}
+          </option>
+        </select>
+        <label><span>_#(Row Group)</span></label>
+      </div>
+    </div>
+    <div class="row form-row-float-label">
+      <div class="col-5 summary_check_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [ngModel]="isSum" id="summarize"
+               (change)="setSumType($event)"
+               [disabled]="isGroupAggregateDisabled()">
+          <label class="form-check-label" for="summarize">
+            _#(Summarize)
+          </label>
+        </div>
+      </div>
+      <div class="col-1 summary_edit_id" (mousedown)="toggleDropdown(1)">
+        <button [disabled]="isGroupAggregateDisabled() || !cellBindingEnabled || cellBinding.btype != 3 || cellBinding.type != 2"
+          [fixedDropdown]="aggregateDropdown" [zIndex]="10000"
+          (openChange)="toggled($event)" [autoClose]="false"
+          class="btn btn-light btn-sm">
+            <i class="edit-icon"
+               [class.icon-disabled]="isGroupAggregateDisabled() || cellBinding.btype != 3 || cellBinding.type != 2"
+               title="_#(Edit)" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="col col_group_id form-floating">
+        <select class="form-control" [(ngModel)]="cellBinding.colGroup"
+                [disabled]="!cellGroupEnabled"
+                (ngModelChange)="changeGroup()"
+                placeholder="_#(Column Group)">
+          <option [value]="cname.value" *ngFor="let cname of getCellNames()"
+                  [disabled]="cellBinding.runtimeName != null && cellBinding.runtimeName === cname.value">
+            {{cname.label}}
+          </option>
+        </select>
+        <label><span>_#(Column Group)</span></label>
+      </div>
+    </div>
+    <div class="row form-row-checkbox">
+      <div class="col-3">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [ngModel]="expansionModel"
+               (change)="setExpansionValue($event)" id="expand">
+          <label class="form-check-label" for="expand">
+            _#(Expand Cell)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input type="radio" class="form-check-input" id="horizontal" name="expansion" value="1"
+               (change)="setExpansion(1)" [checked]="cellBinding.expansion == 1">
+          <label class="form-check-label" for="horizontal">
+            _#(Horizontal)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input type="radio" class="form-check-input" id="vertical" name="expansion" value="2"
+               (change)="setExpansion(2)" [checked]="cellBinding.expansion == 2">
+          <label class="form-check-label" for="vertical">
+            _#(Vertical)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="row form-row-float-label fromula_id">
+      <div class="col-2">
+        <div class="form-check">
+          <input type="radio" class="form-check-input" id="formula" value="3"
+                 [checked]="cellBinding.type == 3" (change)="changeCellType(3)">
+          <label class="form-check-label" for="formula">
+            _#(Formula)
+          </label>
+        </div>
+      </div>
+      <div class="col-8">
+        <input class="form-control" type="text" [ngModel]="formulaValue"
+               (change)="setCellValue($event.target.value)"
+               [disabled]="cellBinding.type != 3"/>
+      </div>
+      <div class="col-2">
+        <button class="btn btn-default btn-md" [disabled]="cellBinding.type != 3"
+                (click)="openFormulaEdit()">_#(Edit)</button>
+      </div>
+    </div>
+    <div class="row form-row-float-label text_id">
+      <div class="col-2">
+        <div class="form-check">
+          <input type="radio" class="form-check-input" id="text" value="1"
+                 [checked]="cellBinding.type == 1" (change)="changeCellType(1)">
+          <label class="form-check-label" for="text">
+            _#(Text)
+          </label>
+        </div>
+      </div>
+      <div class="col-8">
+        <input class="form-control" type="text" [ngModel]="textValue"
+               (change)="setCellValue($event.target.value)"
+               [disabled]="cellBinding.type != 1"/>
+      </div>
+     </div>
+  </fieldset>
+</div>
+
+<ng-template #groupDropdown>
+  <div class="dropdown-pane">
+    <calc-group-option [cellBinding]="cellBinding" [runtimeId]="vsId" [assemblyName]="assemblyName"
+                       [sourceName]="bindingModel.source?.source" (apply)="toggled($event)"
+                       [field]="field" [aggregates]="getAggregates" (dialogOpen)="dialogOpened = $event"
+                       [variableValues]="this.bindingService.variableValues">
+    </calc-group-option>
+  </div>
+</ng-template>
+<ng-template #aggregateDropdown>
+  <div class="dropdown-pane">
+    <calc-aggregate-option [dataRef]="field" (apply)="toggled($event)"></calc-aggregate-option>
+  </div>
+</ng-template>

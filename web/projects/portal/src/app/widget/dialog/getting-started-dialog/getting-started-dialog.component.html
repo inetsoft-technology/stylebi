@@ -1,0 +1,79 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Create Visualization)'" (onCancel)="cancel()"></modal-header>
+<div class="modal-body">
+    <div class="step-item font-weight-bold normal-step"
+         [class.current-step]="isCurrentStep(StepIndex.CONNECT_TO_OR_UPLOAD)"
+         [class.active]="isCurrentStep(StepIndex.CONNECT_TO_OR_UPLOAD)"
+         (click)="dataCollapse.toggle()">
+        <div class="step-icon"><div class="step-icon-content">1</div></div>
+        <span class="step-text">_#(Prepare Your Data)</span>
+        <span class="arrow-icon" [ngClass]="dataCollapsed ? 'downward-icon' : 'upward-icon'"></span>
+    </div>
+
+    <div #dataCollapse="ngbCollapse" [(ngbCollapse)]="dataCollapsed">
+        <div class="sub-step-pane" [class.active]="isCurrentStep(StepIndex.CONNECT_TO_OR_UPLOAD)">
+            <div class="step-item row font-weight-bold normal-step sub-step-item cursor-pointer hover-bg-primary"
+                 (click)="clickConnectTo()">
+                <span class="col-auto link-text">_#(Connect to Data Source)</span>
+            </div>
+            <div class="step-item row font-weight-bold normal-step sub-step-item cursor-pointer hover-bg-primary"
+                 (click)="clickUpload()">
+                <span class="col-9 link-text">_#(Upload Data File)</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="step-item font-weight-bold cursor-pointer normal-step"
+         [class.current-step]="isCurrentStep(StepIndex.CREATE_QUERY_EMPTY_WS)"
+         [class.active]="isCurrentStep(StepIndex.CREATE_QUERY_EMPTY_WS)"
+         (click)="queryCollapse.toggle()" [attr.aria-expanded]="!queryCollapsed">
+        <div class="step-icon"><div class="step-icon-content">2</div></div>
+        <span class="step-text">_#(getting.started.create.queryOrWs)</span>
+        <span class="arrow-icon" [ngClass]="queryCollapsed ? 'downward-icon' : 'upward-icon'"></span>
+    </div>
+
+    <div #queryCollapse="ngbCollapse" [(ngbCollapse)]="queryCollapsed">
+        <div class="sub-step-pane" [class.active]="isCurrentStep(StepIndex.CREATE_QUERY_EMPTY_WS)">
+            <div class="step-item row font-weight-bold normal-step sub-step-item cursor-pointer hover-bg-primary"
+                 (click)="createQuery()">
+                <span class="col-auto link-text">{{createQueryLabel}}</span>
+            </div>
+            <div class="step-item row font-weight-bold normal-step sub-step-item cursor-pointer hover-bg-primary"
+                 (click)="createWs()">
+                <span class="col-9 link-text">_#(Start from Scratch)</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="step-item font-weight-bold normal-step cursor-pointer hover-bg-primary"
+         [class.current-step]="isCurrentStep(StepIndex.CREATE_DASHBOARD)"
+         [class.active]="isCurrentStep(StepIndex.CREATE_DASHBOARD)"
+         (click)="createVs()">
+        <div class="step-icon"><div class="step-icon-content">3</div></div>
+        <span class="step-text">_#(composer.vs.createDashboard)</span>
+        <span class="arrow-icon arrow-right-circle-outline-icon"></span>
+    </div>
+
+    <div class="no-show">
+      <input (change)="noShow()" class="" type="checkbox" id="no-show">
+      <label class="form-check-label" for="no-show">_#(getting.started.noshow)</label>
+    </div>
+</div>

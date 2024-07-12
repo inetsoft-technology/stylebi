@@ -1,0 +1,429 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/* layout, sizing, spacing classes */
+.form-row-base {
+  align-items: center;
+}
+
+.form-row-float-label {
+  @extend .form-row-base;
+  margin-bottom: 0.75rem;
+}
+
+.form-row-checkbox {
+  @extend .form-row-base;
+  margin-top: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+legend + .form-row-checkbox {
+  margin-top: 0;
+}
+
+label.has-float-label {
+  margin-bottom: 0;
+}
+
+.bordered-box {
+  padding: 0.25em;
+  overflow: auto;
+  height: 10em;
+}
+
+.bordered-box.bordered-box-md {
+  height: 16em;
+}
+
+.bordered-box.bordered-box-lg {
+  height: 24em;
+}
+
+.btn-container-vertical {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: nowrap;
+
+  button {
+    margin: 0.25em;
+    width: 100%;
+    padding: 0.25rem 0.75rem;
+  }
+}
+
+.hide-overflow {
+  overflow: hidden;
+}
+
+/*
+  Layout CSS for CodeMirror component primarily used currently in Script Pane
+*/
+
+div.CodeMirror {
+  height: calc(100vh - 617px);
+  min-height: 7em;
+  font-family: Roboto;
+}
+
+.full-container div.CodeMirror {
+  height: 100%;
+}
+
+.CodeMirror-hints,
+.CodeMirror-Tern-tooltip {
+  z-index: 20000;
+}
+
+.CodeMirror-lint-markers {
+  width: 16px;
+  min-width: 16px;
+}
+
+.composer-header {
+  .btn:focus,.btn:active {
+    box-shadow: none !important;
+  }
+
+  .btn-default, .btn-default:active {
+    background-color: unset;
+    color: unset;
+    &:disabled {
+      background-color: unset;
+      color: unset;
+    }
+    &:hover {
+      background-color: unset;
+      color: unset;
+    }
+  }
+
+  .btn-toolbar-pull-right {
+     position: absolute;
+     right: 10px;
+  }
+
+  .btn-toolbar .btn {
+    min-width: 58px;
+    max-width: 92px;
+    height: 52px;
+  }
+
+  .btn-toolbar .btn > i {
+    display: block;
+    font-size: 16px;
+  }
+
+  .btn-toolbar label.btn > i {
+    margin-top: 6px;
+  }
+
+  .btn-toolbar .btn span {
+    white-space: normal;
+    max-width: 84px;
+    display: inline-block;
+    font-size: .8em;
+  }
+
+  .dropdown-toggle {
+    &::after {
+       border: 0px !important;
+    }
+  }
+}
+
+/* does not work in component-level */
+.composer-body {
+  ws-composite-table-sidebar-pane {
+    .gutter-vertical {
+       border-right: 0px;
+    }
+  }
+}
+
+/*Execute only on IE browser.*/
+@media screen and (-ms-high-contrast:active),(-ms-high-contrast:none) {
+   .composer-header {
+     .btn-default, .btn-default:active {
+       color: white;
+       &:disabled {
+         color: white;
+       }
+       &:hover {
+         background-color: rgba(255, 255, 255, 0);
+         color: white;
+       }
+     }
+   }
+}
+
+.popup-editor__container {
+  padding: 0 4px;
+}
+
+.popup-editor__button-group {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.popup-editor__button {
+  padding: 0;
+  height: 20px;
+  margin-bottom: 2px;
+  margin-left: 3px;
+}
+
+/*made icon color the same as btn color*/
+.btn-icon-color {
+  color: inherit;
+}
+
+.btn-secondary, .btn-default, .btn-primary {
+  &:focus {
+    box-shadow: none;
+    outline: none;
+  }
+}
+
+.btn-wide {
+  width: 100% !important;
+}
+
+.btn-icon {
+  padding: 2px;
+}
+
+.icon-hover-bg {
+  //  background: transparent; leave the background alone
+  //  border: none;
+  display: inline-flex;
+  align-items: center;
+
+  &:focus {
+    outline: none !important;
+  }
+}
+
+.toolbar-btn {
+  font-size: 13px;
+  border-radius: 0;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  border-width: 0 !important;
+}
+
+.img-button {
+  padding: 2px;
+  border: 1px solid transparent;
+  margin: 2px;
+  height: inherit;
+  align-content: center;
+
+  active {
+    background: #ccc !important;
+  }
+}
+
+.iframe-full-no-border {
+  border: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  display: block;
+  height: 100%;
+}
+
+/* replace font awesome class used */
+.pull-right {
+  float: right;
+}
+
+.outer-scroll {
+  overflow: hidden;
+  position: absolute;
+  width: 100%;
+}
+
+[tabindex] {
+  outline: none;
+}
+
+.no-spinner {
+  -moz-appearance:textfield !important;
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+  }
+}
+
+table.table-layout-fixed {
+  table-layout: fixed;
+}
+
+.dropdown-pane {
+  padding: 5px;
+}
+
+.dropdown-item--check-right {
+  &::after {
+    content: '\a0\a0\a0\2714';
+  }
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+//background not themeable
+.loading-container {
+  background: rgba(#000, 0.3);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10499; // below modal dialog
+}
+
+a.nav-link {
+  cursor: default;
+}
+
+/*************selectable list related ******************/
+
+.selectable-list > * {
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+}
+
+.selectable-list {
+  overflow: auto;
+  max-height: 20em;
+  min-height: 8em;
+  padding: 0;
+  margin-bottom: 10px;
+  border-radius: 4px;
+}
+
+.sm-selectable-list {
+  @extend .selectable-list;
+  max-height: 6em;
+  min-height: 6em;
+}
+
+.form-row .selectable-list,
+.form-row .sm-selectable-list {
+  margin-bottom: 0;
+}
+
+.dropdown-menu .line-display {
+  width: 100%;
+}
+
+li.active, a.active {
+  font-weight: bold;
+}
+
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.fade {
+  transition: none;
+  height: 100%;
+}
+
+
+.fade:not(.modal):not(.tab-pane):not(ngb-alert) {
+  opacity: 0.5;
+  animation: modal-fade-in 0.25s ease-out;
+}
+
+/* Used for composer assemblies that have visible set to false,
+  need to overwrite element style opacity */
+.fade-assembly {
+  opacity: 0.5 !important;
+}
+
+.transparent {
+  opacity: 0;
+}
+
+.text-overflow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hyperlink {
+  text-decoration: underline;
+}
+
+.form-group-column {
+  display: flex;
+  flex-flow: column wrap;
+  align-items: stretch;
+  -ms-flex-flow: column wrap;
+  -ms-flex-align: stretch;
+  -webkit-box-orient: vertical;
+  -webkit-box-direction: normal;
+  -webkit-box-align: stretch;
+}
+
+.truncate-parent {
+  display: flex;
+
+  .truncate-text {
+    flex: 0 1 auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .truncate-addon {
+    flex: 0 0 auto;
+  }
+}
+
+.top-tooltip {
+  z-index: 10999;
+}
+
+.notifications-portal-data {
+   width: 400px;
+   position: fixed;
+   top: 75px;
+   right: 20px;
+   z-index: 10000;
+}
+
+.binding-editor, .embed-chart-container {
+  .mini-toolbar {
+    z-index: 9999 !important;
+  }
+}

@@ -1,0 +1,116 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="item-pane">
+  <div class="row align-items-start g-0">
+    <div class="col-auto value-editor-container">
+      <one-of-vpm-condition-editor *ngIf="leftOneOf; else leftConditionEditor"
+                                   [operation]="condition.operation"
+                                   [fields]="fields"
+                                   [valueTypes]="valueTypes1"
+                                   [dataFunction]="dataFunction1"
+                                   [enableBrowseData]="isBrowseDataEnabled(1)"
+                                   [valueType]="getValueFieldType(1)"
+                                   [valueModel]="condition.value1" [datasource]="datasource"
+                                   (valueChange)="changeConditionValue()"
+                                   [varShowDate]="showDefDateValue"
+                                   [isWSQuery]="provider.isWSQuery">
+      </one-of-vpm-condition-editor>
+
+      <ng-template #leftConditionEditor>
+        <vpm-condition-editor [operation]="condition.operation"
+                              [fields]="fields"
+                              [valueTypes]="valueTypes1"
+                              [dataFunction]="dataFunction1"
+                              [enableBrowseData]="isBrowseDataEnabled(1)"
+                              [type]="getValueFieldType(1)"
+                              [primaryValue]="true" [datasource]="datasource"
+                              [(value)]="condition.value1"
+                              [varShowDate]="showDefDateValue"
+                              (valueChange)="changeField($event)"
+                              [isWSQuery]="provider.isWSQuery">
+        </vpm-condition-editor>
+      </ng-template>
+    </div>
+    <div class="col-auto">
+      <select class="form-control isNot_check_id" [(ngModel)]="condition.negated" (ngModelChange)="conditionChange.emit(this.condition)">
+        <option [ngValue]="false">_#(is)</option>
+        <option [ngValue]="true">_#(is not)</option>
+      </select>
+    </div>
+    <div class="col-auto form-group-column">
+      <select class="form-control operation_check_id" [(ngModel)]="optSymbol" (ngModelChange)="optionChange($event)">
+        <option *ngFor="let opt of operations" [ngValue]="opt.symbol">
+          {{opt.name}}
+        </option>
+      </select>
+      <div *ngIf="supportEqualsOperation()" class="checkbox">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [ngModel]="equalsOperation"
+                 id="equal" (ngModelChange)="equalsChanged($event)">
+          <label class="form-check-label" for="equal">
+            _#(or equal to)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="col-auto form-group pt-0 value-editor-container" *ngIf="!isUnaryOperation"
+         [ngSwitch]="condition.operation.symbol">
+      <vpm-trinary-condition-editor *ngSwitchCase="ClauseOperationSymbols.BETWEEN"
+                                    [operation]="condition.operation"
+                                    [fields]="fields"
+                                    [valueTypes2]="valueTypes2"
+                                    [valueTypes3]="valueTypes3"
+                                    [dataFunction2]="dataFunction2"
+                                    [dataFunction3]="dataFunction3"
+                                    [enableBrowseData2]="isBrowseDataEnabled(2)"
+                                    [enableBrowseData3]="isBrowseDataEnabled(3)"
+                                    [valueFieldType2]="getValueFieldType(2)"
+                                    [valueFieldType3]="getValueFieldType(3)"
+                                    [value2]="condition.value2"
+                                    [value3]="condition.value3"
+                                    [varShowDate]="showDefDateValue" [datasource]="datasource"
+                                    [isWSQuery]="provider.isWSQuery"
+                                    (valuesChange)="trinaryConditionChanged($event)">
+      </vpm-trinary-condition-editor>
+      <one-of-vpm-condition-editor *ngSwitchCase="ClauseOperationSymbols.IN"
+                            [operation]="condition.operation"
+                            [fields]="fields"
+                            [valueTypes]="valueTypes2"
+                            [dataFunction]="dataFunction2"
+                            [enableBrowseData]="isBrowseDataEnabled(2)"
+                            [valueType]="getValueFieldType(2)"
+                            [valueModel]="condition.value2" [datasource]="datasource"
+                            (valueChange)="changeConditionValue()"
+                            [varShowDate]="showDefDateValue" [isWSQuery]="provider.isWSQuery">
+      </one-of-vpm-condition-editor>
+      <vpm-condition-editor *ngSwitchDefault [operation]="condition.operation"
+                            [fields]="fields"
+                            [valueTypes]="valueTypes2"
+                            [dataFunction]="dataFunction2"
+                            [enableBrowseData]="isBrowseDataEnabled(2)"
+                            [type]="getValueFieldType(2)"
+                            [(value)]="condition.value2" [datasource]="datasource"
+                            (valueChange)="changeConditionValue()"
+                            [varShowDate]="showDefDateValue"
+                            [isWSQuery]="provider.isWSQuery">
+      </vpm-condition-editor>
+    </div>
+  </div>
+</div>

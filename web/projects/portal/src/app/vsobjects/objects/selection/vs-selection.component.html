@@ -1,0 +1,272 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="vs-object"
+     [class.mobile]="mobileDevice"
+     [class.in-container]="inContainer"
+     role="list"
+     VSDataTip [dataTipName]="getAssemblyName()"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex"
+     [class.disable-actions-fade]="!model.enabled"
+     [style.position]="position"
+     [style.display]="getVisible() ? null : 'none'"
+     [style.top.px]="topPosition"
+     [style.left.px]="(viewer || embeddedVS) && model.containerType !== 'VSSelectionContainer' && !model.maxMode ? leftPos : null"
+     [style.width.px]="width"
+     [style.height.px]="height"
+     [style.z-index]="disPlayZIndex"
+     [style.color]="model.objectFormat.foreground"
+     [style.border-bottom]="model.objectFormat.border.bottom"
+     [style.border-top]="model.objectFormat.border.top"
+     [style.border-left]="model.objectFormat.border.left"
+     [style.border-right]="model.objectFormat.border.right"
+     [style.border-radius.px]="model.objectFormat.roundCorner"
+     [style.margin-left.px]="(model.containerType === 'VSSelectionContainer') ? leftMargin : null"
+     [style.background-color]="model.objectFormat.background"
+     [safeFont]="model.objectFormat.font"
+     outOfZone (onDocKeydown)="onKeyDown($event)">
+  <div class="selection-list">
+    <div class="selection-list-header"
+         *ngIf="model.titleVisible || !controller.isAdhocFilter() && !(viewer && !model.dropdown && model.containerType !== 'VSSelectionContainer')"
+         [class.inactive]="!viewer && !model.titleVisible && model.containerType !== 'VSSelectionContainer'"
+         [style.width.px]="getTitleWidth()"
+         [style.height.px]="getTitleHeight()"
+         [style.border-bottom]="headerBorderBottom"
+         [style.border-top]="model.titleFormat.border.top"
+         [style.border-left]="model.titleFormat.border.left"
+         [style.border-right]="model.titleFormat.border.right"
+         [style.margin-top.px]="topMarginTitle"
+         [style.margin-left.px]="leftMarginTitle"
+         [style.border-radius.px]="model.titleFormat.roundCorner"
+         (click)="headerClick()"
+         >
+      <div *ngIf="model.dropdown || model.containerType == 'VSSelectionContainer'"
+           [class.force-toolbar]="keyNavFocused || mobileDevice"
+           [style.color]="model.titleFormat.foreground"
+           [style.background-color]="'rgba(255,255,255,0.75)'"
+           class="selection-list__header-buttons h-100 d-flex align-items-center">
+        <mini-menu #menu *ngIf="!mobileDevice"
+                   role="menu"
+                   aria-haspopup="true"
+                   aria-label="_#(Mini Menu)"
+                   tabindex="-1"
+                   [keyNav]="keyNavFocused"
+                   [actions]="actions?.toolbarActions"
+                   [keyNavigation]="keyboardNavObservable"
+                   (onClose)="miniMenuClosed()"
+                   class="mini-menu"
+                   [class.mobile-spacing]="mobileDevice"
+                   [style.z-index]="viewer ? model.objectFormat.zIndex + 1 : null"
+                   [class.bd-selected-cell]="lastCellSelectedIndex == FocusRegions.MENU">
+        </mini-menu>
+        <collapse-toggle-button #dropdownToggleRef
+                                tabindex="-1"
+                                role="button"
+                                aria-label="_#(Dropdown)"
+                                [attr.aria-expanded]="!model.hidden"
+                                [actionNames]="model.actionNames"
+                                [collapsed]="model.hidden"
+                                (hideClicked)="onHide()"
+                                (showClicked)="onShow()"
+                                [class.bd-selected-cell]="lastCellSelectedIndex == FocusRegions.DROPDOWN">
+        </collapse-toggle-button>
+      </div>
+      <div class="float-start align-middle"
+           [class.separator-visible]="model.containerType === 'VSSelectionContainer'"
+           [style.width.px]="(model.container && listSelectedString ? model.objectFormat.width * model.titleRatio : model.objectFormat.width)"
+           [style.max-width.%]="(model.container && listSelectedString ? model.titleRatio * 100 : 100)"
+           [style.height.px]="model.titleFormat.height"
+           [style.border-right-color]="headerSeparatorBorderColor"
+           [draggable]="true"
+           (dragstart)="dragStart($event)">
+        <title-cell [titleFormat]="model.titleFormat"
+                    [titleHeight]="getTitleCellHeight()"
+                    [titleContent]="getTitle()"
+                    [(editingTitle)]="editingTitle"
+                    [editable]="!viewer"
+                    [selected]="selected"
+                    [inSelectionContainer]="model.containerType == 'VSSelectionContainer'"
+                    [formatPainterMode]="vsInfo?.formatPainterMode"
+                    [titleSelected]="isTitleSelected()"
+                    [inactive]="!viewer && !model.titleVisible"
+                    [resizable]="!model.container"
+                    [forceResizable]="model.dropdown"
+                    (cellClick)="selectTitle($event)"
+                    (updateTitle)="updateTitle($event)"
+                    (onTitleResizeMove)="titleResizeMove($event)"
+                    (onTitleResizeEnd)="titleResizeEnd()"></title-cell>
+      </div>
+      <div *ngIf="model.container && listSelectedString"
+           class="float-start align-middle selection-list-selected-text"
+           [style.width.px]="model.objectFormat.width - (model.objectFormat.width * model.titleRatio)"
+           [style.max-width.%]="100 - (model.titleRatio * 100)"
+           [style.height.px]="model.titleFormat.height"
+           [style.justify-content]="model.titleFormat.justifyContent"
+           [style.background]="model.titleFormat.background"
+           wInteractable
+           [interactableResizable]="!viewer && selected"
+           [resizableTopEdge]="false"
+           [resizableBottomEdge]="false"
+           [resizableRightEdge]="false"
+           [resizableMargin]="5"
+           [wTooltip]="listSelectedString"
+           (onResizableMove)="title2ResizeMove($event)"
+           (onResizableEnd)="title2ResizeEnd()">
+         <div class="selection-title-cell"
+              [style.height.px]="model.titleFormat.height"
+              [style.text-align]="model.titleFormat.hAlign"
+              [style.vertical-align]="model.titleFormat.vAlign"
+              [style.color]="model.titleFormat.foreground"
+              [safeFont]="model.titleFormat.font"
+              [style.white-space]="model.titleFormat.wrapping.whiteSpace"
+              [style.wordWrap]="model.titleFormat.wrapping.wordWrap"
+              [style.overflow]="model.titleFormat.wrapping.overflow"
+              [style.text-decoration]="model.titleFormat.decoration"
+              [style.position]="!viewer && selected ? 'relative' : null"
+              [style.padding-top.px]="model.titleFormat?.padding?.top"
+              [style.padding-bottom.px]="model.titleFormat?.padding?.bottom"
+              [style.padding-left.px]="model.titleFormat?.padding?.left"
+              [style.padding-right.px]="model.titleFormat?.padding?.right">
+           <div [innerHtml]="listSelectedString"></div>
+         </div>
+      </div>
+    </div>
+    <div class="selection-list-search-container"
+         [style.height.px]="model.titleFormat.height"
+         [hidden]="!model.searchDisplayed">
+      <input #selectionListSearchInput
+             type="text" role="searchbox"
+             aria-label="_#(Search)"
+             class="selection-list-search-input"
+             [safeFont]="model.titleFormat.font"
+             [class.bd-selected-cell]="lastCellSelectedIndex == FocusRegions.SEARCH_BAR"
+             (keydown)="preventPropagation($event)"
+             (keyup)="onSearchKeyUp()"
+             [(ngModel)]="model.searchString"
+             (blur)="hideSearchDisplay()">
+      <div #clearSearch
+           [style.top.px]="(model.titleFormat.height - 20) / 2"
+           class="selection-list-search-close close-icon"
+           role="button" aria-label="_#(Clear Search)" tabindex="-1"
+           [class.bd-selected-cell]="lastCellSelectedIndex == FocusRegions.CLEAR_SEARCH"
+           (mousedown)="onCloseSearch()">
+      </div>
+    </div>
+    <div *ngIf="showScroll" [style.width.px]="scrollbarWidth"
+    	   class="vertical-scrollbar-wrapper-container">
+      <div class="vertical-scroll-wrapper vertical-scrollbar-offset"
+           [style.width.px]="scrollbarWidth + 1"
+           [style.height.px]="getBodyHeight()"
+           [style.top.px]="verticalScrollbarTop"
+           outOfZone (onScroll)="verticalScrollHandler($event.target.scrollTop)"
+           (onMousedown)="$event.stopPropagation()"
+           #verticalScrollWrapper>
+        <div [style.height.px]="scrollHeight">
+        </div>
+      </div>
+    </div>
+    <div *ngIf="!isHidden"
+         touchScroll (vScroll)="touchVScroll($event)"
+         [touchScrollEnabled]="mobileDevice && inContainer ? true : selected"
+         #scrollBody
+         class="selection-list-body"
+         [class.selection-list-body-contained]="model.container == 'VSSelectionContainer'"
+         [style.width.px]="getBodyWidth()"
+         [style.height.px]="getBodyHeight()"
+         [style.margin-left.px]="(model.containerType !== 'VSSelectionContainer') ? leftMargin : null"
+         (wheel)="wheelScrollHandler($event)">
+      <div #cellContent>
+        <div *ngFor="let row of selectionValuesTable; let i = index; trackBy: trackByIdx"
+             class="selection-list-cell-row"
+             [style.width.px]="getBodyWidth()">
+          <div *ngFor="let value of row; let j = index; trackBy: trackByIdx"
+               class="selection-list-cell-column">
+            <selection-list-cell *ngIf="!!value"
+                                 class="selection-list-cell-host"
+                                 [class.list-type]="model.objectType === 'VSSelectionList'"
+                                 [class.tree-type]="model.objectType === 'VSSelectionTree'"
+                                 [style.width.px]="cellWidth"
+                                 [selectionValue]="value"
+                                 [indent]="controller.indent"
+                                 (selectionStateChanged)="updateSelectionState(value, $event)"
+                                 [isEmbedded]="model.inEmbeddedViewsheet"
+                                 [scrollbarWidth]="scrollbarWidth"
+                                 [measureMin]="measureMin"
+                                 [measureMax]="measureMax"
+                                 [measureRatio]="measureRatio"
+                                 [cellWidth]="cellWidth"
+                                 [barWidth]="model.barWidth"
+                                 [textWidth]="model.textWidth"
+                                 [minWidth]="minTextWidth"
+                                 [selectedCells]="selectedCells"
+                                 [keyNav]="keyNavFocused"
+                                 (regionClicked)="selectRegion($event.event, getIndex(i ,j), $event.region, $event.selectionValue)"
+                                 (resizeCell)="resizeCells($event)"
+                                 (resizeCellHeight)="showResizeBoundary($event, true)"
+                                 (resizeMeasures)="updateMeasures($event)">
+            </selection-list-cell>
+          </div>
+        </div>
+        <div class="selection-list-cell-row others-container">
+          <div *ngIf="selectionValues.length > visibleValues && model.objectType == 'VSSelectionList'" class="show-others"
+               [style.margin-left.px]="controller.indent"
+               [style.color]="othersFormat?.foreground"
+               [style.background]="othersFormat?.background"
+               [safeFont]="othersFormat?.font"
+               [style.width.px]="model.objectFormat.width">
+            <i class="plus-box-outline-icon icon-size1 show-others-icon" aria-hidden="true"
+               [style.color]="othersFormat?.foreground"
+               (click)="expandList($event)"></i>
+            <span>_#(More) ({{selectionValues.length - visibleValues}})</span>
+          </div>
+          <div class="show-others" *ngIf="controller.showOther"
+               [style.margin-left.px]="controller.model.levels > 1 ? 0 : controller.indent"
+               [style.width.px]="getBodyWidth()"
+               [style.color]="othersFormat?.foreground"
+               [style.background]="othersFormat?.background"
+               [safeFont]="othersFormat?.font">
+            <i class="plus-box-outline-icon icon-size1 show-others-icon"
+               [style.color]="othersFormat?.foreground"
+               (click)="showAllValues($event)"></i>
+            _#(Others)...
+          </div>
+        </div>
+      </div>
+      <div *ngIf="showResizeBorder"
+           class="cell-resize-border bd-primary"
+           [style.top.px]="resizeCellTop"
+           [style.height.px]="resizeCellHeight"
+           [style.left.px]="resizeCellLeft"
+           [style.width.px]="resizeCellWidth">
+        <div class="resize-label"
+             [style.top.px]="resizeCellHeight"
+             [style.left.px]="resizeCellWidth / 2 - 20">{{resizeCellHeight}}</div>
+      </div>
+    </div>
+  </div>
+
+  <ng-template [ngIf]="resizeColumns.length > 0" ngFor let-column [ngForOf]="resizeColumns">
+    <div class="resize-template" [style.width.px]="resizeColumnWidth"></div>
+  </ng-template>
+  <i *ngIf="pendingSubmit" class="pending-submit-icon pending-alert"
+     [class.left]="model.dropdown || model.maxMode || inContainer"
+     [class.top]="!model.titleVisible"
+     title="_#(common.viewsheet.pending.submit)"></i>
+</div>

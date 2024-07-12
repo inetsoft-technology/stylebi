@@ -1,0 +1,127 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <fieldset>
+    <legend>_#(Options)</legend>
+    <div class="form-row-float-label row">
+      <div class="checkbox col">
+        <div class="form-check">
+          <input class="form-check-input" id="isBlankBox" type="checkbox"
+               [disabled]="model.crosstabInfoNull" [(ngModel)]="model.fillBlankWithZero">
+          <label class="form-check-label" for="isBlankBox">
+            _#(Fill Blank Cell With Zero)
+          </label>
+        </div>
+      </div>
+      <div class="checkbox col">
+        <div class="form-check">
+          <input class="form-check-input" id="isSideBox" type="checkbox"
+               [disabled]="model.crosstabInfoNull" [(ngModel)]="model.summarySideBySide">
+          <label class="form-check-label" for="isSideBox">
+            _#(Summary Cells Side By Side)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="checkbox col">
+        <div class="form-check">
+          <input class="form-check-input" id="isEnabled" type="checkbox"
+               [disabled]="model.crosstabInfoNull" [(ngModel)]="model.drillEnabled">
+          <label class="form-check-label" for="isEnabled">
+            _#(Enable Drilling)
+          </label>
+        </div>
+      </div>
+      <div class="checkbox col">
+        <div class="form-check">
+          <input class="form-check-input" id="isShrink" type="checkbox"
+               [disabled]="model.crosstabInfoNull" [(ngModel)]="model.shrink"
+                 (ngModelChange)="shrinkChanged($event)">
+          <label class="form-check-label" for="isShrink">
+            _#(Shrink To Fit)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="checkbox col">
+        <div class="form-check">
+          <input class="form-check-input" id="isAdHoc" type="checkbox"
+               [(ngModel)]="model.enableAdhoc">
+          <label class="form-check-label" for="isAdHoc">
+            _#(Enable Ad Hoc Editing)
+          </label>
+        </div>
+      </div>
+      <div class="checkbox col">
+        <div class="form-check">
+          <input class="form-check-input" id="isMergeSpan" type="checkbox"
+                 [(ngModel)]="model.mergeSpan">
+          <label class="form-check-label" for="isMergeSpan">
+            _#(Merge Expanded Cells)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="checkbox col" *ngIf="!viewer && model.dateComparisonSupport">
+        <div class="form-check">
+          <input class="form-check-input" id="dateComparison" type="checkbox"
+               [(ngModel)]="model.dateComparisonEnabled">
+          <label class="form-check-label" for="dateComparison">
+            _#(Enable Date Comparison)
+          </label>
+        </div>
+      </div>
+      <div class="checkbox col" *ngIf="model.sortOthersLastEnabled">
+        <div class="form-check">
+          <input class="form-check-input" id="sortOthers" type="checkbox"
+                 [(ngModel)]="model.sortOthersLast">
+          <label class="form-check-label" for="sortOthers">
+            _#(Sort Others Last)
+          </label>
+        </div>
+      </div>
+      <div class="checkbox col" *ngIf="(!(!viewer && model.dateComparisonSupport) || !model.sortOthersLastEnabled)">
+        <div class="form-check">
+          <input class="form-check-input" id="calculateTotal" type="checkbox"
+                 [(ngModel)]="model.calculateTotal">
+          <label class="form-check-label" for="calculateTotal">
+            _#(Compute Trend and Comparison for Totals)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="checkbox col" *ngIf="(!viewer && model.dateComparisonSupport) && model.sortOthersLastEnabled">
+        <div class="form-check">
+          <input class="form-check-input" id="calculateTotal" type="checkbox"
+                 [(ngModel)]="model.calculateTotal">
+          <label class="form-check-label" for="calculateTotal">
+            _#(Compute Trend and Comparison for Totals)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>
+<tip-pane *ngIf="model" [model]="model.tipPaneModel"></tip-pane>
+<notifications #notifications class="notifications-dialog" [timeout]="5000"></notifications>

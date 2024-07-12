@@ -1,0 +1,177 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container-fluid radio">
+  <div class="form-row-float-label item-container">
+    <fieldset [disabled]="disableDate">
+      <div class="col-sm-6 px-0 mt-1">
+        <div class="form-check" [title]="getDateLevelExample(yearInterval)">
+          <input type="radio" name="date" class="form-check-input" id="year"
+                 [(ngModel)]="selectedMember.option" [value]="yearInterval">
+          <label class="form-check-label" for="year">
+            _#(Year)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-6 px-0">
+        <div class="form-check" [title]="getDateLevelExample(quarterInterval)">
+          <input type="radio" name="date" class="form-check-input" id="quarterInterval"
+                 [(ngModel)]="selectedMember.option" [value]="quarterInterval">
+          <label class="form-check-label" for="quarterInterval">
+            _#(Quarter)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-6 px-0">
+        <div class="form-check" [title]="getDateLevelExample(monthInterval)">
+          <input type="radio" name="date" class="form-check-input" id="monthInterval"
+                 [(ngModel)]="selectedMember.option" [value]="monthInterval">
+          <label class="form-check-label" for="monthInterval">
+            _#(Month)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-6 px-0">
+        <div class="form-check" [title]="getDateLevelExample(weekInterval)">
+          <input type="radio" name="date" class="form-check-input" id="weekInterval"
+                 [(ngModel)]="selectedMember.option" [value]="weekInterval">
+          <label class="form-check-label" for="weekInterval">
+            _#(Week)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-6 px-0">
+        <div class="form-check" [title]="getDateLevelExample(dayInterval)">
+          <input type="radio" name="date" class="form-check-input" id="dayInterval"
+                 [(ngModel)]="selectedMember.option" [value]="dayInterval">
+          <label class="form-check-label" for="dayInterval">
+            _#(Day)
+          </label>
+        </div>
+      </div>
+    </fieldset>
+    <fieldset [disabled]="disableTime">
+      <div class="col-sm-6 px-0">
+        <div class="form-check" [title]="getDateLevelExample(hourInterval)">
+          <input type="radio" name="date" class="form-check-input" id="hourInterval"
+                 [(ngModel)]="selectedMember.option" [value]="hourInterval">
+          <label class="form-check-label" for="hourInterval">
+            _#(Hour)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-6 px-0">
+        <div class="form-check" [title]="getDateLevelExample(minuteInterval)">
+          <input type="radio" name="date" class="form-check-input" id="minuteInterval"
+                 [(ngModel)]="selectedMember.option" [value]="minuteInterval">
+          <label class="form-check-label" for="minuteInterval">
+            _#(Minute)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-6 px-0">
+        <div class="form-check" [title]="getDateLevelExample(secondInterval)">
+          <input type="radio" name="date" class="form-check-input" id="secondInterval"
+                 [(ngModel)]="selectedMember.option" [value]="secondInterval">
+          <label class="form-check-label" for="secondInterval">
+            _#(Second)
+          </label>
+        </div>
+      </div>
+    </fieldset>
+  </div>
+  <div class="form-row-float-label item-container">
+    <fieldset [disabled]="disableDate">
+      <div class="col-sm-12 px-0 mt-1">
+        <div class="form-check" [title]="getDateLevelExample(quarterOfYearPart)">
+          <input type="radio" name="date" class="form-check-input" id="quarterOfYear"
+               [(ngModel)]="selectedMember.option" [value]="quarterOfYearPart">
+          <label class="form-check-label" for="quarterOfYear">
+            _#(Quarter of Year)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-12 px-0">
+        <div class="form-check" [title]="getDateLevelExample(monthOfYearPart)">
+          <input type="radio" name="date" class="form-check-input" id="monthOfYear"
+               [(ngModel)]="selectedMember.option" [value]="monthOfYearPart">
+          <label class="form-check-label" for="monthOfYear">
+            _#(Month of Year)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-12 px-0">
+        <div class="form-check" [title]="getDateLevelExample(weekOfYearPart)">
+          <input type="radio" name="date" class="form-check-input" id="weekOfYear"
+                 [(ngModel)]="selectedMember.option" [value]="weekOfYearPart">
+          <label class="form-check-label" for="weekOfYear">
+            _#(Week of Year)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-12 px-0">
+        <div class="form-check" [title]="getDateLevelExample(dayOfMonthPart)">
+          <input type="radio" name="date" class="form-check-input" id="dayOfMonth"
+               [(ngModel)]="selectedMember.option" [value]="dayOfMonthPart">
+          <label class="form-check-label" for="dayOfMonth">
+            _#(Day of Month)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-12 px-0">
+        <div class="form-check" [title]="getDateLevelExample(dayOfWeekPart)">
+          <input type="radio" name="date" class="form-check-input" id="dayOfWeek"
+               [(ngModel)]="selectedMember.option" [value]="dayOfWeekPart">
+          <label class="form-check-label" for="dayOfWeek">
+            _#(Day of Week)
+          </label>
+        </div>
+      </div>
+    </fieldset>
+    <fieldset [disabled]="disableTime">
+      <div class="col-sm-12 px-0">
+        <div class="form-check" [title]="getDateLevelExample(hourOfDayPart)">
+          <input type="radio" name="date" class="form-check-input" id="hourOfDay"
+               [(ngModel)]="selectedMember.option" [value]="hourOfDayPart">
+          <label class="form-check-label" for="hourOfDay">
+            _#(Hour of Day)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-12 px-0">
+        <div class="form-check" [title]="getDateLevelExample(minuteOfHourPart)">
+          <input type="radio" name="date" class="form-check-input" id="minuteOfHour"
+                 [(ngModel)]="selectedMember.option" [value]="minuteOfHourPart">
+          <label class="form-check-label" for="minuteOfHour">
+            _#(Minute of Hour)
+          </label>
+        </div>
+      </div>
+      <div class="col-sm-12 px-0">
+        <div class="form-check" [title]="getDateLevelExample(secondOfMinutePart)">
+          <input type="radio" name="date" class="form-check-input" id="secondOfMinute"
+                 [(ngModel)]="selectedMember.option" [value]="secondOfMinutePart">
+          <label class="form-check-label" for="secondOfMinute">
+            _#(Second of Minute)
+          </label>
+        </div>
+      </div>
+    </fieldset>
+  </div>
+</div>

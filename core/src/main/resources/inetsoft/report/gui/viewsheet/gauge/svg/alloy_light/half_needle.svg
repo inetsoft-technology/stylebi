@@ -1,0 +1,40 @@
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<svg width="200" height="123.566" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 123.566">
+	<defs>
+		<linearGradient id="SVGID_5_" x1="0.5" y1="-0.00042" x2="0.50002" y2="0.99953">
+			<stop offset="0" stop-color="#FFFFFF"/>
+			<stop offset="0.0964" stop-color="#FFDBDB"/>
+			<stop offset="0.2863" stop-color="#FF9999"/>
+			<stop offset="0.4672" stop-color="#FF6363"/>
+			<stop offset="0.6339" stop-color="#FF3838"/>
+			<stop offset="0.7835" stop-color="#FF1919"/>
+			<stop offset="0.9105" stop-color="#FF0707"/>
+			<stop offset="1" stop-color="#FF0000"/>
+		</linearGradient>
+	</defs>
+	<g>
+		<title>background</title>
+		<rect fill="none" id="canvas_background" height="125.566" width="202" y="-1" x="-1"/>
+	</g>
+	<g>
+		<title>Layer 1</title>
+		<g id="svg_2" class="layer">
+			<polygon fill="url(#SVGID_5_)" stroke="#8E8E8E" points="98.54299926757812,86.98199462890625 98.54199981689453,76 167.89999389648438,81.65899658203125" id="svg_1"/>
+		</g>
+	</g>
+</svg>

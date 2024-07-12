@@ -1,0 +1,59 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-editor-panel
+  [applyDisabled]="!canEdit || !nameControl?.valid"
+  resetLabel="_#(Cancel)"
+  [resetDisabled]="!newFolder"
+  (applyClicked)="apply()"
+  (resetClicked)="cancel()"
+>
+  <mat-card appearance="outlined" class="margin-bottom">
+    <mat-card-title>
+    <span>
+      {{newFolder ? '_#(New Folder)' : '_#(DataSpace Folder Definition)'}}
+    </span>
+    </mat-card-title>
+    <mat-card-content>
+      <div class="flex-col">
+        <mat-form-field *ngIf="!newFolder" appearance="outline" color="accent">
+          <mat-label>_#(Path)</mat-label>
+          <input matInput readonly placeholder="_#(Path)" [ngModel]="model?.path">
+        </mat-form-field>
+        <mat-form-field *ngIf="newFolder && model" appearance="outline" color="accent">
+          <mat-label>_#(Parent Folder)</mat-label>
+          <input matInput readonly placeholder="_#(Parent Folder)" [(ngModel)]="model.path">
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Folder Name)</mat-label>
+          <input matInput [readonly]="!canEdit" placeholder="_#(Folder Name)" [formControl]="nameControl">
+          <mat-error *ngIf="nameControl?.errors?.required">_#(enter.name)</mat-error>
+          <mat-error *ngIf="nameControl?.errors?.containsSpecialCharsForName">_#(common.sree.internal.invalidCharInName)</mat-error>
+        </mat-form-field>
+      </div>
+    </mat-card-content>
+  </mat-card>
+  <ng-container em-editor-panel-actions>
+    <button *ngIf="canDelete" (click)="delete()" mat-raised-button>_#(Delete)</button>
+    <button *ngIf="!newFolder" (click)="newFileClicked.emit()" mat-raised-button>_#(New File)</button>
+    <button *ngIf="!newFolder" (click)="newFolderClicked.emit()" mat-raised-button>_#(New Folder)</button>
+    <button *ngIf="!newFolder" (click)="uploadFilesClicked.emit()" mat-raised-button>_#(Upload Files)</button>
+    <button *ngIf="!newFolder" (click)="download()" mat-raised-button>_#(Download)</button>
+  </ng-container>
+</em-editor-panel>

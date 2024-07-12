@@ -1,0 +1,67 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="range-container">
+  <ng-container *ngFor="let period of customPeriodPaneModel.datePeriods; let i = index">
+    <div class="form-row-float-label row g-0">
+      <div class="col-5">
+        <dynamic-value-editor [valueModel]="period.start" [disable]="disable"
+                              [variableValues]="variableValues"
+                              [columnTreeRoot]="columnTreeRoot"
+                              [functionTreeRoot]="functionTreeRoot"
+                              [operatorTreeRoot]="operatorTreeRoot"
+                              [scriptDefinitions]="scriptDefinitions"
+                              (onValueModelChange)="onValueChange()">
+        </dynamic-value-editor>
+      </div>
+      <div class="col-1 text-center">
+        <span>_#(to)</span>
+      </div>
+      <div class="col-5">
+        <dynamic-value-editor [valueModel]="period.end" [disable]="disable"
+                              [variableValues]="variableValues"
+                              [columnTreeRoot]="columnTreeRoot"
+                              [functionTreeRoot]="functionTreeRoot"
+                              [operatorTreeRoot]="operatorTreeRoot"
+                              [scriptDefinitions]="scriptDefinitions"
+                              (onValueModelChange)="onValueChange()">
+        </dynamic-value-editor>
+      </div>
+      <div class="col-1">
+        <button type="button" class="btn btn-sm btn-light-no-bg icon-size-medium trash-icon"
+                title="_#(Remove)" [disabled]="isRemoveDisable"
+                (click)="delDatePeriod(i)">
+        </button>
+      </div>
+    </div>
+  </ng-container>
+</div>
+<div class="form-row-float-label row g-0">
+  <div class="col-11">
+    <div class="alert alert-danger mb-0" *ngIf="!isValidCustomPeriod() && !disable">
+      _#(date.common.dateValid)
+    </div>
+  </div>
+  <div class="col-1">
+    <button type="button" class="btn btn-sm btn-light-no-bg icon-size-medium add-icon"
+            title="_#(Add)" [disabled]="disable"
+            (click)="addDatePeriod()">
+    </button>
+  </div>
+</div>

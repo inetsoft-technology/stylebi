@@ -1,0 +1,501 @@
+/**
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@namespace mx "http://www.adobe.com/2006/mxml";
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace widget "inetsoft.fl.widget.*";
+@namespace gui "inetsoft.fl.gui.*";
+@namespace ws "inetsoft.fl.gui.ws.*";
+@namespace vs "inetsoft.fl.gui.vs.*";
+@namespace vsdialog "inetsoft.fl.gui.vs.dialog.*";
+@namespace graph "inetsoft.fl.graph.dialog.*";
+
+s|Application {
+   themeColor:#949494;
+   backgroundColor: #f2f2f2;
+   backgroundGradientAlphas: 0, 0;
+}
+
+s|RichText {
+   color: #494a57;
+}
+
+global {
+   loadingLarge:Embed(source="loading/loading.swf", symbol="loadinglargeaction");
+   loadingSmall:Embed(source="loading/loading.swf", symbol="loadingsmallaction");
+   rollOverColor:#E0E0E0;
+   selectedColor:#95c6ef;
+   themeBackground:#e1e6e5;
+}
+
+widget|VSMenuItem {
+   rollOverBGColor:#E0E0E0;
+}
+
+s|TitleWindow {
+   titleBackgroundSkin:Embed(source="window/window.png", scaleGridTop="16",
+      scaleGridBottom="17", scaleGridLeft="22", scaleGridRight="24");
+   borderSkin:Embed(source="window/window_border_skin.png", scaleGridTop="30",
+      scaleGridBottom="84", scaleGridLeft="9", scaleGridRight="91");
+   borderColor: #888888;
+
+   titleHilite: false;
+   titleTextColor: #282828;
+   titleFill: false;
+   titleColor1:#D2D2D2;
+   titleColor2:#9A9A9A;
+}
+
+.EATreePaneAccordion {
+    headerHeight:21;
+}
+
+mx|AccordionHeader {
+   upSkin:Embed(source="treebutton/treebutton_up.png", scaleGridTop="2",
+      scaleGridBottom="16", scaleGridLeft="3", scaleGridRight="4");
+   overSkin:Embed(source="treebutton/treebutton_over.png", scaleGridTop="2",
+      scaleGridBottom="16", scaleGridLeft="3", scaleGridRight="4");
+   downSkin:Embed(source="treebutton/treebutton_down.png", scaleGridTop="2",
+      scaleGridBottom="16", scaleGridLeft="3", scaleGridRight="4");
+   disabledSkin:Embed(source="treebutton/treebutton_disabled.png",
+      scaleGridTop="2", scaleGridBottom="16", scaleGridLeft="3",
+      scaleGridRight="4");
+   selectedUpSkin:Embed(source="treebutton/treebutton_selected_up.png",
+      scaleGridTop="2", scaleGridBottom="16", scaleGridLeft="3",
+      scaleGridRight="4");
+   selectedOverSkin:Embed(source="treebutton/treebutton_selected_over.png",
+      scaleGridTop="2", scaleGridBottom="16", scaleGridLeft="3",
+      scaleGridRight="4");
+   selectedDownSkin:Embed(source="treebutton/treebutton_selected_down.png",
+      scaleGridTop="2", scaleGridBottom="16", scaleGridLeft="3",
+      scaleGridRight="4");
+   selectedDisabledSkin:Embed(source="treebutton/treebutton_selected_disabled.png",
+      scaleGridTop="2", scaleGridBottom="16", scaleGridLeft="3",
+      scaleGridRight="4");
+   focusRoundedCorners:"none";
+   headerHeight: 21;
+   fontSize:11;
+   color:#404040;
+   textRollOverColor:#303030;
+}
+
+widget|Alert2 {
+   titleBackgroundSkin:Embed(source="window/window.png", scaleGridTop="16",
+      scaleGridBottom="17", scaleGridLeft="22", scaleGridRight="24");
+   borderSkin:Embed(source="window/window_border_skin.png", scaleGridTop="31",
+      scaleGridBottom="84", scaleGridLeft="8", scaleGridRight="82");
+}
+
+widget|Button2 {
+   upSkin:Embed(source="button/button_up.png", scaleGridTop="5",
+      scaleGridBottom="17", scaleGridLeft="3", scaleGridRight="4");
+   overSkin:Embed(source="button/button_over.png", scaleGridTop="5",
+      scaleGridBottom="17", scaleGridLeft="3", scaleGridRight="4");
+   downSkin:Embed(source="button/button_down.png", scaleGridTop="5",
+      scaleGridBottom="17", scaleGridLeft="3", scaleGridRight="4");
+   disabledSkin:Embed(source="button/button_up.png", scaleGridTop="5",
+      scaleGridBottom="17", scaleGridLeft="3", scaleGridRight="4");
+   cornerRadius:0;
+   focusRoundedCorners:"none";
+}
+
+widget|ToolTip2 {
+   background:Embed(source="titlebutton/title_button_down.png",
+      scaleGridTop="4", scaleGridBottom="56", scaleGridLeft="4",
+      scaleGridRight="5");
+}
+
+s|ComboBox {
+   upSkin:Embed(source="combobox/combobox_up.png", scaleGridTop="9",
+      scaleGridBottom="10", scaleGridLeft="2", scaleGridRight="3");
+   overSkin:Embed(source="combobox/combobox_over.png", scaleGridTop="9",
+      scaleGridBottom="10", scaleGridLeft="2", scaleGridRight="3");
+   downSkin:Embed(source="combobox/combobox_down.png", scaleGridTop="9",
+      scaleGridBottom="10", scaleGridLeft="2", scaleGridRight="3");
+   disabledSkin:Embed(source="combobox/combobox_disabled.png", scaleGridTop="9",
+      scaleGridBottom="10", scaleGridLeft="2", scaleGridRight="3");
+   editableUpSkin:Embed(source="combobox/combobox_edit_up.png");
+   editableOverSkin:Embed(source="combobox/combobox_edit_over.png");
+   editableDownSkin:Embed(source="combobox/combobox_edit_down.png");
+   editableDisabledSkin:Embed(source="combobox/combobox_edit_disabled.png");
+   focusRoundedCorners:"tr br";
+   cornerRadius:0;
+}
+
+widget|DynamicComboBox {
+   noneItembackgroundColor:#E0E0E0;
+}
+
+.combo {
+   upSkin:Embed(source="combobox/combobox_edit_up.png");
+   overSkin:Embed(source="combobox/combobox_edit_over.png");
+   downSkin:Embed(source="combobox/combobox_edit_down.png");
+   disabledSkin:Embed(source="combobox/combobox_edit_disabled.png");
+}
+
+.titleBar {
+   backgroundImage:Embed(source="treebutton/title_bar.png", scaleGridTop="1",
+      scaleGridBottom="20", scaleGridLeft="1", scaleGridRight="4");
+   upSkin:Embed(source="treebutton/treehead_up.png");
+   overSkin:Embed(source="treebutton/treehead_over.png");
+   downSkin:Embed(source="treebutton/treehead_down.png");
+   disableSkin:Embed(source="treebutton/treehead_disable.png");
+   selectedUpSkin:Embed(source="treebutton/treehead_up.png");
+   selectedOverSkin:Embed(source="treebutton/treehead_over.png");
+   selectedDownSkin:Embed(source="treebutton/treehead_down.png");
+   selectedDisableSkin:Embed(source="treebutton/treehead_disable.png");
+}
+
+s|CheckBox {
+   upIcon:Embed(source="checkbox/check_false_up.png");
+   overIcon:Embed(source="checkbox/check_false_over.png");
+   downIcon:Embed(source="checkbox/check_false_over.png");
+   disabledIcon:Embed(source="checkbox/check_false_up.png");
+   selectedUpIcon:Embed(source="checkbox/check_true_up.png");
+   selectedOverIcon:Embed(source="checkbox/check_true_over.png");
+   selectedDownIcon:Embed(source="checkbox/check_true_over.png");
+   selectedDisabledIcon:Embed(source="checkbox/check_true_up.png");
+   focusRoundedCorners:"none";
+}
+
+s|RadioButton {
+   upIcon:Embed(source="radiobutton/radiobutton_icon.png");
+   overIcon:Embed(source="radiobutton/radiobutton_over_icon.png");
+   downIcon:Embed(source="radiobutton/radiobutton_over_icon.png");
+   disabledIcon:Embed(source="radiobutton/radiobutton_icon.png");
+   selectedUpIcon:Embed(source="radiobutton/radiobutton_selected_up_icon.png");
+   selectedOverIcon:Embed(source="radiobutton/radiobutton_selected_over_icon.png");
+   selectedDownIcon:Embed(source="radiobutton/radiobutton_selected_over_icon.png");
+   selectedDisabledIcon:Embed(source="radiobutton/radiobutton_selected_up_icon.png");
+}
+
+mx|ScrollBar {
+   downArrowUpSkin:Embed(source="scrollbar/scroll_down_arrow_up.png");
+   downArrowOverSkin:Embed(source="scrollbar/scroll_down_arrow_over.png");
+   downArrowDownSkin:Embed(source="scrollbar/scroll_down_arrow_down.png");
+   downArrowDisabledSkin:Embed(source="scrollbar/scroll_down_arrow_disabled.png");
+   thumbUpSkin:Embed(source="scrollbar/vscroll_thumb_up.png",
+      scaleGridTop="3", scaleGridBottom="4",scaleGridLeft="1",
+      scaleGridRight="12");
+   thumbOverSkin:Embed(source="scrollbar/vscroll_thumb_over.png",
+      scaleGridTop="3", scaleGridBottom="4",scaleGridLeft="1",
+      scaleGridRight="12");
+   thumbDownSkin:Embed(source="scrollbar/vscroll_thumb_down.png",
+      scaleGridTop="3", scaleGridBottom="4",scaleGridLeft="1",
+      scaleGridRight="12");
+   trackSkin:Embed(source="scrollbar/vscroll_track.png");
+   upArrowUpSkin:Embed(source="scrollbar/scroll_up_arrow_up.png");
+   upArrowOverSkin:Embed(source="scrollbar/scroll_up_arrow_over.png");
+   upArrowDownSkin:Embed(source="scrollbar/scroll_up_arrow_down.png");
+   upArrowDisabledSkin:Embed(source="scrollbar/scroll_up_arrow_disabled.png");
+}
+
+s|Button {
+   downArrowUpSkin:Embed(source="scrollbar/scroll_down_arrow_up.png");
+   downArrowOverSkin:Embed(source="scrollbar/scroll_down_arrow_over.png");
+   downArrowDownSkin:Embed(source="scrollbar/scroll_down_arrow_down.png");
+   downArrowDisabledSkin:Embed(source="scrollbar/scroll_down_arrow_disabled.png");
+   vthumbUpSkin:Embed(source="scrollbar/vscroll_thumb_up.png",
+      scaleGridTop="3", scaleGridBottom="4",scaleGridLeft="1",
+      scaleGridRight="12");
+   vthumbOverSkin:Embed(source="scrollbar/vscroll_thumb_over.png",
+      scaleGridTop="3", scaleGridBottom="4",scaleGridLeft="1",
+      scaleGridRight="12");
+   vthumbDownSkin:Embed(source="scrollbar/vscroll_thumb_down.png",
+      scaleGridTop="3", scaleGridBottom="4",scaleGridLeft="1",
+      scaleGridRight="12");
+   vtrackSkin:Embed(source="scrollbar/vscroll_track.png");
+   upArrowUpSkin:Embed(source="scrollbar/scroll_up_arrow_up.png");
+   upArrowOverSkin:Embed(source="scrollbar/scroll_up_arrow_over.png");
+   upArrowDownSkin:Embed(source="scrollbar/scroll_up_arrow_down.png");
+   upArrowDisabledSkin:Embed(source="scrollbar/scroll_up_arrow_disabled.png");
+
+   leftArrowUpSkin:Embed(source="scrollbar/scroll_left_arrow_up.png");
+   leftArrowOverSkin:Embed(source="scrollbar/scroll_left_arrow_over.png");
+   leftArrowDownSkin:Embed(source="scrollbar/scroll_left_arrow_down.png");
+   leftArrowDisabledSkin:Embed(source="scrollbar/scroll_left_arrow_disabled.png");
+   hthumbUpSkin:Embed(source="scrollbar/hscroll_thumb_up.png",
+      scaleGridLeft="3", scaleGridRight="4",scaleGridTop="1",
+      scaleGridBottom="12");
+   hthumbOverSkin:Embed(source="scrollbar/hscroll_thumb_over.png",
+      scaleGridLeft="3", scaleGridRight="4",scaleGridTop="1",
+      scaleGridBottom="12");
+   hthumbDownSkin:Embed(source="scrollbar/hscroll_thumb_down.png",
+      scaleGridLeft="3", scaleGridRight="4",scaleGridTop="1",
+      scaleGridBottom="12");
+   htrackSkin:Embed(source="scrollbar/hscroll_track.png");
+   rightArrowUpSkin:Embed(source="scrollbar/scroll_right_arrow_up.png");
+   rightArrowOverSkin:Embed(source="scrollbar/scroll_right_arrow_over.png");
+   rightArrowDownSkin:Embed(source="scrollbar/scroll_right_arrow_down.png");
+   rightArrowDisabledSkin:Embed(source="scrollbar/scroll_right_arrow_disabled.png");
+}
+
+s|NumericStepper {
+   downArrowUpSkin:Embed(source="stepper/stepper_down_arrow_up.png");
+   downArrowOverSkin:Embed(source="stepper/stepper_down_arrow_over.png");
+   downArrowDownSkin:Embed(source="stepper/stepper_down_arrow_down.png");
+   downArrowDisabledSkin:Embed(source="stepper/stepper_down_arrow_disabled.png");
+   upArrowUpSkin:Embed(source="stepper/stepper_up_arrow_up.png");
+   upArrowOverSkin:Embed(source="stepper/stepper_up_arrow_over.png");
+   upArrowDownSkin:Embed(source="stepper/stepper_up_arrow_down.png");
+   upArrowDisabledSkin:Embed(source="stepper/stepper_up_arrow_disabled.png");
+   cornerRadius: 0;
+}
+
+widget|TabbedPane {
+   tabHeight:21;
+   selectedLineHeight:1;
+   topShadowBorderSkin:Embed(source="tabbedpane/border/top_shadow_border.png",
+      scaleGridTop="6", scaleGridBottom="90", scaleGridLeft="2",
+      scaleGridRight="90");
+   topNoShadowBorderSkin:Embed(source="tabbedpane/border/top_noshadow_border.png",
+      scaleGridTop="6", scaleGridBottom="98", scaleGridLeft="2",
+      scaleGridRight="98");
+   bottomShadowBorderSkin:Embed(source="tabbedpane/border/bottom_noshadow_border.png",
+      scaleGridTop="10", scaleGridBottom="94", scaleGridLeft="2",
+      scaleGridRight="90");
+   bottomNoShadowBorderSkin:Embed(source="tabbedpane/border/bottom_noshadow_border.png",
+      scaleGridTop="2", scaleGridBottom="94", scaleGridLeft="2",
+      scaleGridRight="98");
+}
+
+.topTab {
+   upSkin:Embed(source="tabbedpane/tab/top/tab_up.png", scaleGridTop="4",
+      scaleGridBottom="16", scaleGridLeft="2", scaleGridRight="3");
+   overSkin:Embed(source="tabbedpane/tab/top/tab_over.png", scaleGridTop="4",
+      scaleGridBottom="16", scaleGridLeft="2", scaleGridRight="3");
+   downSkin:Embed(source="tabbedpane/tab/top/tab_down.png", scaleGridTop="4",
+      scaleGridBottom="16", scaleGridLeft="2", scaleGridRight="3");
+   disabledSkin:Embed(source="tabbedpane/tab/top/tab_disabled.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+   selectedUpSkin:Embed(source="tabbedpane/tab/top/tab_selected_up.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+   selectedOverSkin:Embed(source="tabbedpane/tab/top/tab_selected_up.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+   selectedDownSkin:Embed(source="tabbedpane/tab/top/tab_selected_down.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+   selectedDisabledSkin:Embed(source="tabbedpane/tab/top/tab_selected_disabled.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+}
+
+.bottomTab {
+   upSkin:Embed(source="tabbedpane/tab/bottom/tab_up.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+   overSkin:Embed(source="tabbedpane/tab/bottom/tab_over.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+   downSkin:Embed(source="tabbedpane/tab/bottom/tab_down.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+   disabledSkin:Embed(source="tabbedpane/tab/bottom/tab_disabled.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+   selectedUpSkin:Embed(source="tabbedpane/tab/bottom/tab_selected_up.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+   selectedOverSkin:Embed(source="tabbedpane/tab/bottom/tab_selected_up.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+   selectedDownSkin:Embed(source="tabbedpane/tab/bottom/tab_selected_down.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+   selectedDisabledSkin:Embed(source="tabbedpane/tab/bottom/tab_selected_disabled.png",
+      scaleGridTop="4", scaleGridBottom="16", scaleGridLeft="2",
+      scaleGridRight="3");
+}
+
+widget|TitleButton {
+   upBG:Embed(source="titlebutton/title_button_up.png");
+   downBG:Embed(source="titlebutton/title_button_down.png", scaleGridTop="10", scaleGridBottom="50", scaleGridLeft="4", scaleGridRight="5");
+   overBG:Embed(source="titlebutton/title_button_down.png", scaleGridTop="10", scaleGridBottom="50", scaleGridLeft="4", scaleGridRight="5");
+   disabledBG:Embed(source="titlebutton/title_button_up.png", scaleGridTop="10", scaleGridBottom="50", scaleGridLeft="4", scaleGridRight="5");
+   selectedupBG:Embed(source="titlebutton/title_button_down.png", scaleGridTop="10", scaleGridBottom="50", scaleGridLeft="4", scaleGridRight="5");
+   selecteddownBG:Embed(source="titlebutton/title_button_down.png", scaleGridTop="10", scaleGridBottom="50", scaleGridLeft="4", scaleGridRight="5");
+   selectedoverBG:Embed(source="titlebutton/title_button_down.png", scaleGridTop="10", scaleGridBottom="50", scaleGridLeft="4", scaleGridRight="5");
+   selecteddisabledBG:Embed(source="titlebutton/title_button_up.png", scaleGridTop="10", scaleGridBottom="50", scaleGridLeft="4", scaleGridRight="5");
+   overAlpha:0.6;
+}
+
+widget|RemoteWindow {
+   borderSkin:Embed(source="window/remote_window_background.png", scaleGridTop="31", scaleGridBottom="86", scaleGridLeft="14", scaleGridRight="86");
+}
+
+widget|TitleWindow2 {
+   borderSkin:Embed(source="window/remote_window_background.png", scaleGridTop="31", scaleGridBottom="86", scaleGridLeft="14", scaleGridRight="86");
+}
+
+ws|WSObject {
+   borderSkin:Embed(source="window/window_border_skin.png", scaleGridTop="30",
+      scaleGridBottom="84", scaleGridLeft="9", scaleGridRight="91");
+}
+
+widget|LineCell {
+   selectedColor:#BFBFBF;
+   rollOverColor:#E0E0E0;
+}
+
+gui|ToolbarPane {
+   backgroundImage:Embed(source="../toolbarbg.png", scaleGridTop="1",
+                  scaleGridBottom="67", scaleGridLeft="1", scaleGridRight="2");
+}
+
+.EABackground{
+   backgroundColor:#F1F2F8;
+}
+
+widget|SliderBase {
+   sliderThumbDown: Embed(source="slider/slider_thumb_down_skin.png");
+   sliderThumbUp: Embed(source="slider/slider_thumb_up_skin.png");
+   sliderThumbOver: Embed(source="slider/slider_thumb_over_skin.png");
+   sliderThumbDisabled: Embed(source="slider/slider_thumb_up_skin.png");
+   sliderTrack: Embed(source="slider/slider_track_skin.png", scaleGridTop="1",
+      scaleGridBottom="2", scaleGridLeft="4", scaleGridRight="5");
+   sliderTrack2: Embed(source="timeslider/track.png", scaleGridTop="2",
+      scaleGridBottom="3", scaleGridLeft="4", scaleGridRight="5");
+   buttonDown: Embed(source="timeslider/button_down.png");
+   buttonUp: Embed(source="timeslider/button_up.png");
+   buttonOver: Embed(source="timeslider/button_over.png");
+   buttonDisabled: Embed(source="timeslider/button_up.png");
+   gripDown: Embed(source="timeslider/thumb_grip_down.png");
+   gripUp: Embed(source="timeslider/thumb_grip_up.png");
+   gripOver: Embed(source="timeslider/thumb_grip_down.png");
+   gripDisabled: Embed(source="timeslider/thumb_grip_up.png");
+   thumbDown: Embed(source="timeslider/thumb_middle_down.png",
+                    scaleGridTop="2", scaleGridBottom="3",
+                    scaleGridLeft="1", scaleGridRight="2");
+   thumbUp: Embed(source="timeslider/thumb_middle_up.png",
+                    scaleGridTop="2", scaleGridBottom="3",
+                    scaleGridLeft="1", scaleGridRight="2");
+   thumbOver: Embed(source="timeslider/thumb_middle_down.png",
+                    scaleGridTop="2", scaleGridBottom="3",
+                    scaleGridLeft="1", scaleGridRight="2");
+   thumbDisabled: Embed(source="timeslider/thumb_middle_up.png",
+                    scaleGridTop="2", scaleGridBottom="3",
+                    scaleGridLeft="1", scaleGridRight="2");
+}
+
+gui|GridObject {
+   chartSelectedColor:#222222;
+   chartRollOverColor:#222222;
+   chartSelectedAlpha:0.2;
+   chartRollOverAlpha:0.12;
+
+   calendarBackground:Embed(source="calendar/background.png", scaleGridTop="73",
+      scaleGridBottom="74", scaleGridLeft="104", scaleGridRight="105");
+   calendarBgLeftGap:1;
+   calendarBgTopGap:1;
+   calendarBgRightGap:2;
+   calendarBgBottomGap:2;
+}
+
+widget|UIComponent2 {
+   tabBarLeftButtonUpSkin:Embed(source="tabbedpane/tab/leftbutton/up.png");
+   tabBarLeftButtonOverSkin:Embed(source="tabbedpane/tab/leftbutton/down.png");
+   tabBarLeftButtonDownSkin:Embed(source="tabbedpane/tab/leftbutton/down.png");
+   tabBarLeftButtonDisabledSkin:Embed(source="tabbedpane/tab/leftbutton/up.png");
+   tabBarRightButtonUpSkin:Embed(source="tabbedpane/tab/rightbutton/up.png");
+   tabBarRightButtonOverSkin:Embed(source="tabbedpane/tab/rightbutton/down.png");
+   tabBarRightButtonDownSkin:Embed(source="tabbedpane/tab/rightbutton/down.png");
+   tabBarRightButtonDisabledSkin:Embed(source="tabbedpane/tab/rightbutton/up.png");
+   tabBarBottomImage:Embed(source="tabbedpane/border/top_border_bar.png",
+                    scaleGridTop="1", scaleGridBottom="2",
+                    scaleGridLeft="1", scaleGridRight="8");
+   tabBarArrowWidth:9;
+   tabBarArrowHeight:13;
+   tabBarBottomImageHeight:3;
+   tabBarBottomImageOverlap:1;
+
+   timeSliderButtonDown: Embed(source="timeslider/button_down.png");
+   timeSliderButtonUp: Embed(source="timeslider/button_up.png");
+   timeSliderButtonOver: Embed(source="timeslider/button_over.png");
+   timeSliderButtonDisabled: Embed(source="timeslider/button_up.png");
+   timeSliderGripDown: Embed(source="timeslider/thumb_grip_down.png");
+   timeSliderGripUp: Embed(source="timeslider/thumb_grip_up.png");
+   timeSliderGripOver: Embed(source="timeslider/thumb_grip_down.png");
+   timeSliderGripDisabled: Embed(source="timeslider/thumb_grip_up.png");
+   timeSliderThumbDown: Embed(source="timeslider/thumb_middle_down.png",
+                    scaleGridTop="2", scaleGridBottom="3",
+                    scaleGridLeft="1", scaleGridRight="2");
+   timeSliderThumbUp: Embed(source="timeslider/thumb_middle_up.png",
+                    scaleGridTop="2", scaleGridBottom="3",
+                    scaleGridLeft="1", scaleGridRight="2");
+   timeSliderThumbOver: Embed(source="timeslider/thumb_middle_down.png",
+                    scaleGridTop="2", scaleGridBottom="3",
+                    scaleGridLeft="1", scaleGridRight="2");
+   timeSliderThumbDisabled: Embed(source="timeslider/thumb_middle_up.png",
+                    scaleGridTop="2", scaleGridBottom="3",
+                    scaleGridLeft="1", scaleGridRight="2");
+   sliderTrack: Embed(source="timeslider/track.png", scaleGridTop="2",
+      scaleGridBottom="3", scaleGridLeft="4", scaleGridRight="5");
+
+   thumbheight:8;
+   lineheight:6;
+   ticklength:3;
+}
+
+vsdialog|Face {
+   selectedColor:#666666;
+   rollOverColor:#999999;
+}
+
+graph|ChartStyleItem {
+   selectedColor:#BFBFBF;
+   rollOverColor:#E0E0E0;
+}
+
+vs|CellLocationPane {
+   rollOverColor:#E0E0E0;
+   selectedColor:#BFBFBF;
+}
+
+widget|DragLabel {
+   backgroundColor:#CCCCCC;
+   borderColor:#777777;
+   color:#000000;
+}
+
+vs|MaxModeView {
+   borderSkin:Embed(source="window/remote_window_background.png",
+      scaleGridTop="31", scaleGridBottom="86", scaleGridLeft="14",
+      scaleGridRight="86");
+}
+
+graph|LineComboBox {
+   focusRoundedCorners:"tr br";
+   cornerRadius:0;
+}
+
+widget|LineCombo {
+   focusRoundedCorners:"tr br";
+   cornerRadius:0;
+}
+
+graph|TextureComboBox {
+   focusRoundedCorners:"tr br";
+   cornerRadius:0;
+}
+
+graph|ShapeComboBox {
+   focusRoundedCorners:"tr br";
+   cornerRadius:0;
+}

@@ -1,0 +1,51 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="form-group form-row">
+  <fieldset class="col">
+    <legend>_#(Query)</legend>
+    <div class="bordered-box bd-gray bordered-box-md">
+      <asset-tree [datasources]="true" [physical]="false" [columns]="false"
+                  [viewsheets]="false" [worksheets]="false"
+                  [initSelectedNodesExpanded]="true"
+                  [dataSourcePath]="dataSourcePath"
+                  (nodeSelected)="selectQuery($event)"
+      >
+      </asset-tree>
+    </div>
+  </fieldset>
+</div>
+<div class="form-group form-row one-col-form-flex">
+  <div class="form-floating col">
+    <select class="form-control" [ngModel]="user" (ngModelChange)="updateUser($event)">
+      <option *ngFor="let column of columnLabels; let i = index"
+              [value]="columns[i]">{{ column }}</option>
+    </select>
+    <label>_#(User)</label>
+  </div>
+</div>
+<div class="form-group form-row one-col-form-flex">
+  <div class="form-floating col">
+    <select class="form-control" [ngModel]="email" (ngModelChange)="updateEmail($event)">
+      <option *ngFor="let column of columnLabels; let i = index"
+              [value]="columns[i]">{{ column }}</option>
+    </select>
+    <label>_#(Email)</label>
+  </div>
+</div>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="200px" height="200px" viewBox="0 0 200 200" enable-background="new 0 0 200 200" xml:space="preserve">
+<g>
+	<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="101.4521" y1="162.5742" x2="101.4521" y2="143.7705">
+		<stop  offset="0" style="stop-color:#B8E5F4"/>
+		<stop  offset="1" style="stop-color:#FFFFFF"/>
+	</linearGradient>
+	<path fill="url(#SVGID_1_)" d="M131.616,161.254c0,0.729-0.591,1.32-1.32,1.32H72.608c-0.729,0-1.32-0.592-1.32-1.32V145.09
+		c0-0.729,0.591-1.319,1.32-1.319h57.688c0.729,0,1.32,0.591,1.32,1.319V161.254z"/>
+	<path fill="#87B9CC" d="M130.58,160.322c0,0.658-0.571,1.193-1.275,1.193H73.6c-0.704,0-1.275-0.535-1.275-1.193V145.72
+		c0-0.659,0.571-1.192,1.275-1.192h55.705c0.704,0,1.275,0.533,1.275,1.192V160.322z"/>
+</g>
+</svg>

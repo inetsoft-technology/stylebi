@@ -1,0 +1,61 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<h1 mat-dialog-title>_#(Export Tasks)</h1>
+<div mat-dialog-content>
+  <ng-container>
+    <div class="task-card-container">
+      <mat-card appearance="outlined" class="task-card">
+        <mat-card-title>_#(Dependency Tasks)</mat-card-title>
+        <mat-card-content>
+          <table mat-table matSort [dataSource]="dataSource">
+            <ng-container matColumnDef="selected">
+              <th mat-header-cell *matHeaderCellDef class="selected-cell">
+                <mat-checkbox (change)="$event ? masterToggle() : null"
+                              [checked]="selection.hasValue() && isAllSelected()"
+                              [indeterminate]="selection.hasValue() && !isAllSelected()">
+                </mat-checkbox>
+              </th>
+              <td mat-cell *matCellDef="let row" class="selected-cell">
+                <mat-checkbox (click)="$event.stopPropagation()"
+                              (change)="$event ? toggleRow(row) : null"
+                              [checked]="selection.isSelected(row)">
+                </mat-checkbox>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="task">
+              <th mat-header-cell *matHeaderCellDef>_#(Task)</th>
+              <td mat-cell *matCellDef="let row" [attr.title]="row"> {{row.task}}</td>
+            </ng-container>
+            <ng-container matColumnDef="requiredBy">
+              <th mat-header-cell *matHeaderCellDef>_#(Required By)</th>
+              <td mat-cell *matCellDef="let row" [attr.title]="row"> {{row.dependency}}</td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="displayColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayColumns;" class="table-row"></tr>
+          </table>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </ng-container>
+</div>
+<div mat-dialog-actions>
+  <button mat-raised-button color="primary" (click)="finish()">_#(Finish)</button>
+  <button mat-button (click)="cancel()">_#(Cancel)</button>
+</div>

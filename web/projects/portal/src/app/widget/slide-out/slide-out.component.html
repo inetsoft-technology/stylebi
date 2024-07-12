@@ -1,0 +1,62 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="slide-out-wrapper h-100 d-flex {{side}}" *ngIf="visible">
+  <div class="slide-out-toggle-container bg-white3">
+    <div class="slide-out-toggle">
+      <div class="slide-out-label rotate align-middle cursor-pointer" (click)="toggle()">
+        <span class="ps-1 pe-1">{{title ? title : "_#(Dialog)"}}</span>
+        <i class="ps-1 pe-1"
+           [class.chevron-circle-arrow-up-icon]="open"
+           [class.chevron-circle-arrow-down-icon]="!open"></i>
+        <i class="ps-1 pe-1 close-icon cursor-pointer" (click)="dismissComponent(null)"></i>
+        <ng-container *ngIf="getCurrentSlideouts().length > 1">
+          <div class="spacer"></div>
+          <div class="count-label txt-primary" blockMouse
+               [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom">
+            {{getCurrentSlideouts().length}}
+          </div>
+          <ng-template #dropdownMenu>
+            <div class="dropdown-pane p-1">
+              <button class="form-control" (click)="dismissAll()">_#(Close All)</button>
+              <div class="slideout-list mt-2">
+                <div *ngFor="let slideout of getCurrentSlideouts(); let i = index"
+                     class="dropdown-item"
+                     [class.selected]="isSlideoutOnTop(i)"
+                     (click)="showSlideout(i)">
+                  {{slideout.title}}
+                </div>
+              </div>
+            </div>
+          </ng-template>
+        </ng-container>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="open" #contentContainer
+       class="slide-out-content-container bg-white1 {{windowClass}} {{sizeClass}}"
+       [style.width.px]="actualWidth" [style.max-width.px]="actualWidth">
+    <div class="content-div">
+      <ng-content></ng-content>
+    </div>
+    <div class="v-resizer bg-white4" (mousedown)="startResize($event)"></div>
+  </div>
+</div>
+<notifications *ngIf="changedByOthers" class="warning-message" [timeout]="0"
+               message="_#(common.widget.slidOut.changedByOthers)"></notifications>

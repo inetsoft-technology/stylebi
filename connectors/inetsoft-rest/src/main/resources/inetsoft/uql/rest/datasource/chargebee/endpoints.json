@@ -1,0 +1,370 @@
+{
+  "endpoints": [
+    {
+      "paged": "true", 
+      "name": "Subscriptions", 
+      "suffix": "/v2/subscriptions?include_deleted={Include Deleted?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Subscription Renewal Estimate",
+          "jsonPath": "$.list[*].subscription",
+          "key": "id",
+          "parameterName": "Subscription ID"
+        },
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.list[*].subscription",
+          "key": "id",
+          "parameterName": "Entity ID",
+          "parameters": {
+            "Entity Type": "subscription"
+          }
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Subscription", 
+      "suffix": "/v2/subscriptions/{Subscription ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Subscription with Scheduled Changes", 
+      "suffix": "/v2/subscriptions/{Subscription ID}/retrieve_with_scheduled_changes"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Customers", 
+      "suffix": "/v2/customers?include_deleted={Include Deleted?:true|false}",
+      "lookups": [
+        {
+          "endpoints": ["Contacts for a Customer", "Hierarchy", "Customer's card", "Upcoming Invoices Estimates"],
+          "jsonPath": "$.list[*].customer",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.list[*].customer",
+          "key": "id",
+          "parameterName": "Entity ID",
+          "parameters": {
+            "Entity Type": "customer"
+          }
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Customer", 
+      "suffix": "/v2/customers/{Customer ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contacts for a Customer", 
+      "suffix": "/v2/customers/{Customer ID}/contacts"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Hierarchy", 
+      "suffix": "/v2/customers/{Customer ID}/hierarchy?hierarchy_operation_type={Hierarchy Operation Type?:complete_hierarchy|subordinates|path_to_root}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Payment Sources", 
+      "suffix": "/v2/payment_sources"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Payment Source", 
+      "suffix": "/v2/payment_sources/{Customer Payment Source ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Virtual Bank Accounts", 
+      "suffix": "/v2/virtual_bank_accounts"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Virtual Bank Account", 
+      "suffix": "/v2/virtual_bank_accounts/{Virtual Bank Account ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Customer's card", 
+      "suffix": "/v2/cards/{Customer ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Promotional Credits", 
+      "suffix": "/v2/promotional_credits"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Promotional Credit", 
+      "suffix": "/v2/promotional_credits/{Account Credit ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Invoices", 
+      "suffix": "/v2/invoices?include_deleted={Include Deleted?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.list[*].invoice",
+          "key": "id",
+          "parameterName": "Entity ID",
+          "parameters": {
+            "Entity Type": "invoice"
+          }
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Invoice", 
+      "suffix": "/v2/invoices/{Invoice ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Credit Notes", 
+      "suffix": "/v2/credit_notes?include_deleted={Include Deleted?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.list[*].credit_note",
+          "key": "id",
+          "parameterName": "Entity ID",
+          "parameters": {
+            "Entity Type": "credit_note"
+          }
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Credit Note", 
+      "suffix": "/v2/credit_notes/{credit_note_id}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Unbilled Charges", 
+      "suffix": "/v2/unbilled_charges?include_deleted={Include Deleted?:true|false}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Orders", 
+      "suffix": "/v2/orders?include_deleted={Include Deleted?:true|false}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Order", 
+      "suffix": "/v2/orders/{Order ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Gifts", 
+      "suffix": "/v2/gifts"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Gift", 
+      "suffix": "/v2/gifts/{Gift ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Transactions", 
+      "suffix": "/v2/transactions?include_deleted={Include Deleted?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.list[*].transaction",
+          "key": "id",
+          "parameterName": "Entity ID",
+          "parameters": {
+            "Entity Type": "transaction"
+          }
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Transaction", 
+      "suffix": "/v2/transactions/{Transaction ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Hosted Pages", 
+      "suffix": "/v2/hosted_pages"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Hosted Page", 
+      "suffix": "/v2/hosted_pages/{Hosted Page ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Subscription Renewal Estimate", 
+      "suffix": "/v2/subscriptions/{Subscription ID}/renewal_estimate?include_delayed_charges={Include Delayed Charges?}&use_existing_balances={Use Existing Balances?}&ignore_scheduled_cancellation={Ignore Scheduled Cancellation}&ignore_scheduled_changes={Ignore Scheduled Changes?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Upcoming Invoices Estimates", 
+      "suffix": "/v2/customers/{Customer ID}/upcoming_invoices_estimate"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Quotes", 
+      "suffix": "/v2/quotes?include_deleted={Include Deleted?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.list[*].quote",
+          "key": "id",
+          "parameterName": "Entity ID",
+          "parameters": {
+            "Entity Type": "quote"
+          }
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Quote", 
+      "suffix": "/v2/quotes/{Quote ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Plans", 
+      "suffix": "/v2/plans",
+      "lookups": [
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.list[*].plan",
+          "key": "id",
+          "parameterName": "Entity ID",
+          "parameters": {
+            "Entity Type": "plan"
+          }
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Plan", 
+      "suffix": "/v2/plans/{Plan ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Addons", 
+      "suffix": "/v2/addons",
+      "lookups": [
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.list[*].addon",
+          "key": "id",
+          "parameterName": "Entity ID",
+          "parameters": {
+            "Entity Type": "addon"
+          }
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Addon", 
+      "suffix": "/v2/addons/{Addon ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Coupons", 
+      "suffix": "/v2/coupons",
+      "lookups": [
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.list[*].coupon",
+          "key": "id",
+          "parameterName": "Entity ID",
+          "parameters": {
+            "Entity Type": "coupon"
+          }
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Coupon", 
+      "suffix": "/v2/coupons/{coupon_id}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Coupon Sets", 
+      "suffix": "/v2/coupon_sets"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Coupon Set", 
+      "suffix": "/v2/coupon_sets/{Coupon Set ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Coupon Codes", 
+      "suffix": "/v2/coupon_codes"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Coupon Code", 
+      "suffix": "/v2/coupon_codes/{Coupon Code Code}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Addresses", 
+      "suffix": "/v2/addresses?subscription_id={Subscription ID}&label={Label}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Events", 
+      "suffix": "/v2/events"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Event", 
+      "suffix": "/v2/events/{Event ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Comments", 
+      "suffix": "/v2/comments?entity_type={Entity Type?}&entity_id={Entity ID?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Comment", 
+      "suffix": "/v2/comments/{Comment ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Portal Session", 
+      "suffix": "/v2/portal_sessions/{Portal Session ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Site Migration Details", 
+      "suffix": "/v2/site_migration_details"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Time Machine", 
+      "suffix": "/v2/time_machines/{Time Machine Name}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Export", 
+      "suffix": "/v2/exports/{Export ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Payment Intent", 
+      "suffix": "/v2/payment_intents/{Payment Intent ID}"
+    }
+  ]
+}

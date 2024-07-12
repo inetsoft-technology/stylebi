@@ -1,0 +1,84 @@
+{
+    "endpoints": [
+        {
+            "name": "Caluculated Metrics",
+            "paged": false,
+            "suffix": "/calculatedmetrics?expansion={Additional Fields?}&rsids={RSIDs?}&ownerId={Owner ID?}&filterByIds={IDs?}&locale={Locale?:en_US}&name={Name?}&tagNames={Tage Names?}&includeType={Include Type?:all|shared|templates}"
+        },
+        {
+            "name": "Calculated Metric",
+            "paged": false,
+            "suffix": "/calculatedmetrics/{ID}?expansion={Additional Fields?}&locale={Locale?:en_US}"
+        },
+        {
+            "name": "Calculated Metric Functions",
+            "paged": false,
+            "suffix": "/calculatedmetrics/functions?locale={Locale?:en_US}"
+        },
+        {
+            "name": "Calculated Metric Function",
+            "paged": false,
+            "suffix": "/calculatedmetrics/functions/{ID}?locale={Locale?:en_US}"
+        },
+        {
+            "name": "Report Suites",
+            "paged": false,
+            "suffix": "/collections/suites?expansion={Additional Fields?}&rsids={RSIDs?}&rsidContains{RSID Contains?}"
+        },
+        {
+            "name": "Report Suite",
+            "paged": false,
+            "suffix": "/collections/suites/{RSID}?expansion={Additional Fields?}"
+        },
+        {
+            "name": "Dateranges",
+            "paged": false,
+            "suffix": "/dateranges?expansion={Additional Fields?}&locale={Locale?:en_US}&filterByIds={Daterange IDs}&includeType={Include Type?:all|shared|templates}"
+        },
+        {
+            "name": "Daterange",
+            "paged": false,
+            "suffix": "/dateranges/{Daterange ID}?expansion={Additional Fields?}&locale={Locale?:en_US}"
+        },
+        {
+            "name": "Dimensions",
+            "paged": false,
+            "suffix": "/dimensions?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}&segmentable={Segmentable?}&reportable={Reportable?}&classifiable={Classifiable?}"
+        },
+        {
+            "name": "Dimension",
+            "paged": false,
+            "suffix": "/dimensions/{Dimension ID}?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}"
+        },
+        {
+            "name": "Metrics",
+            "paged": false,
+            "suffix": "/metrics?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}&segmentable={Segmentable?}"
+        },
+        {
+            "name": "Metric",
+            "paged": false,
+            "suffix": "/metrics/{ID}?rsid={RSID}&expansion={Additional Fields?}&locale={Locale?:en_US}"
+        },
+        {
+            "name": "Segments",
+            "paged": false,
+            "suffix": "/segments?expansion={Additional Fields?}&rsids={RSIDs?}&segmentFilter={IDs?}&locale={Locale?:en_US}&name={Name?}&tagNames={Tag Names?}&filterByPublishedSegments={Filter by Published Segments}&includeType={Include Type?:all|shared|templates}"
+        },
+        {
+            "name": "Segment",
+            "paged": false,
+            "suffix": "/segments/{ID}?expansion={Additional Fields?}&locale={Locale?:en_US}"
+        },
+        {
+            "name": "Users",
+            "paged": false,
+            "suffix": "/users"
+        },
+        {
+            "name": "Current User",
+            "paged": false,
+            "suffix": "/users/me"
+        }
+    ]
+}

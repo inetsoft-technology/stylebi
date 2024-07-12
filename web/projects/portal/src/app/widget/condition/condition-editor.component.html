@@ -1,0 +1,89 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="editor-container">
+  <div class="form-group"
+       *ngIf="operation == ConditionOperation.TOP_N || operation == ConditionOperation.BOTTOM_N; else elseBlock">
+    <top-n-editor [field]="field" [fields]="fieldsModel.list" [type]="value.type"
+       [(value)]="value.value" (valueChange)="valueChanged()"
+       [variablesFunction]="variablesFunction"></top-n-editor>
+  </div>
+  <ng-template #elseBlock>
+    <div *ngIf="value.type == ConditionValueType.VALUE" class="form-group">
+      <value-editor [field]="field" [operation]="operation"
+         [dataFunction]="dataFunction"
+         [type]="field ? field.dataType : XSchema.STRING"
+         [enableBrowseData]="enableBrowseData"
+         (addValue)="addValue.emit($event)"
+         (openBrowse)="closeDropDown()"
+         [value]="value.value" [values]="getSelectValues()"
+         [isOneOf]="isOneOf"
+         (valueChange)="conditionValueChanged($event)"
+         (valueChanges)="conditionValuesChanged($event)">
+      </value-editor>
+    </div>
+    <div *ngIf="value.type == ConditionValueType.VARIABLE" class="form-group">
+      <variable-editor [(value)]="value.value" (valueChange)="valueChanged()"
+                       [showUseList]="showUseList" [useList]="!!value.choiceQuery"
+                       (updateChoiceQuery)="updateChoiceQuery($event)"
+                       [variablesFunction]="variablesFunction"></variable-editor>
+    </div>
+    <div *ngIf="value.type == ConditionValueType.EXPRESSION" class="form-group">
+      <expression-editor [columnTreeFunction]="columnTreeFunction"
+                         [scriptDefinitionsFunction]="scriptDefinitionsFunction"
+                         [isHighlight]="isHighlight" [vsId]="vsId"
+                         [expressionTypes]="expressionTypes" [isVSContext]="isVSContext"
+                         [(value)]="value.value" (valueChange)="conditionValueChanged($event)"
+                         [showOriginalName]="showOriginalName"
+                         class="d-flex align-items-start">
+      </expression-editor>
+    </div>
+    <div *ngIf="value.type == ConditionValueType.FIELD" class="form-group">
+      <field-editor [fieldsModel]="fieldsModel" [grayedOutFields]="grayedOutFields"
+                    [(value)]="value.value"
+                    [showOriginalName]="showOriginalName"
+                    (valueChange)="valueChanged()"></field-editor>
+    </div>
+    <div *ngIf="value.type == ConditionValueType.SUBQUERY" class="form-group">
+      <subquery-editor [subqueryTables]="subqueryTables" [(value)]="value.value"
+                       [showOriginalName]="showOriginalName"
+                       (valueChange)="valueChanged()"></subquery-editor>
+    </div>
+    <div *ngIf="value.type == ConditionValueType.SESSION_DATA" class="form-group">
+      <session-data-editor [(value)]="value.value" (valueChange)="valueChanged()">
+      </session-data-editor>
+    </div>
+  </ng-template>
+  <div *ngIf="!!field && !field.fakeNone" class="d-flex align-items-start" keyboardNav="true">
+    <div id="simple-btn-keyboard-nav"
+         class="value-type-list-icon btn btn-sm btn-light"
+         [fixedDropdown]="dropdownMenu"
+         (openChange)="openChange($event)"
+         title="_#(Change Value Type)">
+    </div>
+  </div>
+</div>
+<ng-template #dropdownMenu>
+  <ul role="menu" class="dropdown-pane">
+    <a *ngFor="let type of valueTypes" class="dropdown-item" (click)="selectType(type)"
+       role="menuitem" [class.selected]="value.type == type">
+      {{type | conditionValueTypeToString}}
+    </a>
+  </ul>
+</ng-template>

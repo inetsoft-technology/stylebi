@@ -1,0 +1,82 @@
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<svg  xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="200px" height="123.566px" viewBox="0 0 200 123.566" version="1.1">
+ <defs>
+  <linearGradient y2="0.5" x2="1" y1="0.5" x1="0" id="SVGID_1_">
+   <stop stop-color="#FFFFFF" style="stop-color:#FFFFFF" offset="0"/>
+      <stop stop-color="#D2D2D4" style="stop-color:#D2D2D4" offset="0.0836"/>
+      <stop stop-color="#A4A5A9" style="stop-color:#A4A5A9" offset="0.1802"/>
+      <stop stop-color="#808287" style="stop-color:#808287" offset="0.273"/>
+      <stop stop-color="#67696F" style="stop-color:#67696F" offset="0.3596"/>
+      <stop stop-color="#575960" style="stop-color:#575960" offset="0.4377"/>
+      <stop stop-color="#52545B" style="stop-color:#52545B" offset="0.5"/>
+      <stop stop-color="#595B62" style="stop-color:#595B62" offset="0.5573"/>
+      <stop stop-color="#6C6E74" style="stop-color:#6C6E74" offset="0.6405"/>
+      <stop stop-color="#8C8E92" style="stop-color:#8C8E92" offset="0.7397"/>
+      <stop stop-color="#B8B9BC" style="stop-color:#B8B9BC" offset="0.8511"/>
+      <stop stop-color="#F1F1F1" style="stop-color:#F1F1F1" offset="0.9713"/>
+      <stop stop-color="#FFFFFF" style="stop-color:#FFFFFF" offset="1"/>
+  </linearGradient>
+     <linearGradient y2="0.00001" x2="0.5" y1="1.00001" x1="0.5" id="SVGID_2_">
+   <stop stop-color="#FFFFFF" style="stop-color:#FFFFFF" offset="0"/>
+         <stop stop-color="#D2D2D4" style="stop-color:#D2D2D4" offset="0.0836"/>
+         <stop stop-color="#A4A5A9" style="stop-color:#A4A5A9" offset="0.1802"/>
+         <stop stop-color="#808287" style="stop-color:#808287" offset="0.273"/>
+         <stop stop-color="#67696F" style="stop-color:#67696F" offset="0.3596"/>
+         <stop stop-color="#575960" style="stop-color:#575960" offset="0.4377"/>
+         <stop stop-color="#52545B" style="stop-color:#52545B" offset="0.5"/>
+         <stop stop-color="#595B62" style="stop-color:#595B62" offset="0.5573"/>
+         <stop stop-color="#6C6E74" style="stop-color:#6C6E74" offset="0.6405"/>
+         <stop stop-color="#8C8E92" style="stop-color:#8C8E92" offset="0.7397"/>
+         <stop stop-color="#B8B9BC" style="stop-color:#B8B9BC" offset="0.8511"/>
+         <stop stop-color="#F1F1F1" style="stop-color:#F1F1F1" offset="0.9713"/>
+         <stop stop-color="#FFFFFF" style="stop-color:#FFFFFF" offset="1"/>
+  </linearGradient>
+     <linearGradient y2="-0.00001" x2="0.5" y1="1" x1="0.5" id="SVGID_3_">
+   <stop stop-color="#FFFFFF" style="stop-color:#FFFFFF" offset="0"/>
+         <stop stop-color="#F2F2F2" style="stop-color:#F2F2F2" offset="0.1559"/>
+         <stop stop-color="#D1D1D1" style="stop-color:#D1D1D1" offset="0.442"/>
+         <stop stop-color="#C9C9C9" style="stop-color:#C9C9C9" offset="0.5"/>
+         <stop stop-color="#D7D7D7" style="stop-color:#D7D7D7" offset="0.6028"/>
+         <stop stop-color="#F4F4F4" style="stop-color:#F4F4F4" offset="0.8557"/>
+         <stop stop-color="#FFFFFF" style="stop-color:#FFFFFF" offset="1"/>
+  </linearGradient>
+     <linearGradient y2="-0.00001" x2="0.50556" y1="1.72279" x1="0.50556" id="SVGID_4_">
+   <stop stop-color="#FFFFFF" style="stop-color:#FFFFFF" offset="0"/>
+         <stop stop-color="#F1F1F1" style="stop-color:#F1F1F1" offset="0.0392"/>
+         <stop stop-color="#A3A3A3" style="stop-color:#A3A3A3" offset="0.2623"/>
+         <stop stop-color="#737373" style="stop-color:#737373" offset="0.4214"/>
+         <stop stop-color="#606060" style="stop-color:#606060" offset="0.5"/>
+         <stop stop-color="#FFFFFF" style="stop-color:#FFFFFF" offset="1"/>
+  </linearGradient>
+ </defs>
+    <g>
+  <title>background</title>
+        <rect fill="none" id="canvas_background" height="125.566" width="202" y="-1" x="-1"/>
+ </g>
+    <g>
+  <title>Layer 1</title>
+        <path id="svg_1" d="m200,100.000001c0,14.39 -44.771,23.566 -100,23.566c-55.229,0 -100,-5.778 -100,-23.566c0,-55.229 44.772,-100 100,-100c55.229,0 100,44.771 100,100z" fill="url(#SVGID_1_)"/>
+        <path id="svg_2" d="m191.855,100.569002c0,10.936 -16.715,4.763 -55.004,7.162c-8.352,0.522 -18.822,14.65 -37.563,14.65c-19.691,0 -25.03,-13.999 -32.729,-14.31c-39.412,-1.592 -59.839,6.27 -59.839,-7.504c0,-51.125 41.445,-92.567 92.568,-92.567c51.124,0.003 92.567,41.446 92.567,92.569z" fill="url(#SVGID_2_)"/>
+        <path id="svg_3" d="m188.652,99.361001c0,10.557 -16.137,4.598 -53.103,6.914c-8.063,0.508 -18.17,14.146 -36.263,14.146c-19.01,0 -24.164,-13.514 -31.597,-13.814c-38.047,-1.537 -57.768,6.054 -57.768,-7.244c0,-49.354 40.011,-89.363 89.365,-89.363c49.359,-0.003 89.366,40.006 89.366,89.361z" fill="url(#SVGID_3_)"/>
+        <g id="svg_4" opacity="0.7">
+   <g id="svg_5">
+    <path id="svg_6" d="m156.26,85.279004c0.005,-0.039 0.005,-0.078 0.008,-0.117c0.111,-1.416 0.187,-2.842 0.187,-4.285c0,-30.86 -25.33,-55.877 -56.572,-55.877c-31.244,0 -56.573,25.017 -56.573,55.877c0,1.324 0.067,2.632 0.163,3.933c-0.003,0.08 -0.012,0.158 -0.012,0.238c0,3.145 2.55,5.694 5.694,5.694c3.145,0 5.694,-2.55 5.694,-5.694c0,-0.433 -0.053,-0.854 -0.144,-1.259c-0.066,-0.963 -0.115,-1.932 -0.115,-2.912c0,-24.708 20.278,-44.735 45.293,-44.735c25.014,0 45.293,20.027 45.293,44.735c0,1.202 -0.063,2.39 -0.156,3.567l0.012,0.001c-0.003,0.08 -0.012,0.159 -0.012,0.24c0,3.112 2.523,5.637 5.637,5.637c2.844,0 5.188,-2.108 5.574,-4.845l0.018,0.002c0.004,-0.066 0.006,-0.134 0.011,-0.2z" fill="url(#SVGID_4_)"/>
+   </g>
+  </g>
+ </g>
+</svg>

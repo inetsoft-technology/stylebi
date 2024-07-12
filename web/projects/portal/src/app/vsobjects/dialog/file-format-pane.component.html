@@ -1,0 +1,161 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()">
+  <div class="ms-2 mt-2">
+    <div class="form-row-float-label">
+      <div *ngIf="types" class="form-floating">
+        <select class="form-control" [ngModel]="model.formatType"
+          (ngModelChange)="changeFormatType($event)">
+          <option [value]="type.value" *ngFor="let type of types">{{type.label}}</option>
+        </select>
+        <label>_#(Format)</label>
+      </div>
+    </div>
+    <ng-container *ngIf="model.formatType != FileFormatType.EXPORT_TYPE_SNAPSHOT">
+      <fieldset *ngIf="matchLayoutVisible"
+         class="float-title bd-gray container-fluid form-row-float-label pb-1">
+        <legend>_#(Data Size)</legend>
+        <div class="row form-row-float-label">
+          <div class="col">
+            <div class="form-check">
+              <input type="radio" name="DataSizeRadioOptions" class="form-check-input"
+                     id="match"
+                     [value]="true" [(ngModel)]="model.matchLayout"
+                     (ngModelChange)="updateOnlyDataComponents($event)">
+              <label class="form-check-label" for="match">
+                _#(Match Layout)
+              </label>
+            </div>
+          </div>
+          <div class="col">
+            <div class="form-check">
+              <input type="radio" name="DataSizeRadioOptions" class="form-check-input"
+                     id="expand"
+                     [disabled]="!model.expandEnabled"
+                     [value]="false" [(ngModel)]="model.matchLayout">
+              <label class="form-check-label" for="expand">
+                _#(Expand Components)
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="row form-row-float-label">
+          <div class="col">
+            <div class="form-check">
+              <input type="checkbox" name="DataSizeRadioOptions" class="form-check-input"
+                     id="expandSelections"
+                     [disabled]="!model.expandEnabled || model.matchLayout || model.onlyDataComponents && model.formatType == FileFormatType.EXPORT_TYPE_EXCEL"
+                     [(ngModel)]="model.expandSelections">
+              <label class="form-check-label" for="expandSelections">
+                _#(Expand Selection List/Tree)
+              </label>
+            </div>
+          </div>
+          <div class="col" *ngIf="model.formatType == FileFormatType.EXPORT_TYPE_EXCEL">
+            <div class="form-check">
+              <input type="checkbox" name="DataSizeRadioOptions" class="form-check-input"
+                     id="onlyDataComponents"
+                     [disabled]="!model.expandEnabled || model.matchLayout"
+                     [(ngModel)]="model.onlyDataComponents">
+              <label class="form-check-label" for="onlyDataComponents">
+                _#(Only Data Elements)
+              </label>
+            </div>
+          </div>
+          <div class="col" *ngIf="model.formatType == FileFormatType.EXPORT_TYPE_EXCEL">
+            <div class="form-check">
+              <input type="checkbox" name="exportAllTabbedTables" class="form-check-input"
+                     id="exportAllTabbedTables"
+                     [(ngModel)]="model.exportAllTabbedTables">
+              <label class="form-check-label" for="exportAllTabbedTables">
+                _#(Export All Tabbed Tables)
+              </label>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+      <fieldset class="float-title bd-gray container-fluid form-row-float-label pb-1">
+        <legend>_#(Content)</legend>
+        <div class="row">
+          <div class="col">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" [value]="true" id="current"
+                   [(ngModel)]="model.includeCurrent"
+                   [disabled]="model.formatType==FileFormatType.EXPORT_TYPE_HTML">
+              <label class="form-check-label" for="current">
+                _#(Current View)
+              </label>
+            </div>
+          </div>
+          <div class="col">
+            <label *ngIf="model.linkVisible" class="form-check-label">
+              <input type="checkbox" class="form-check-input" [value]="true"
+                     [(ngModel)]="model.sendLink">_#(Include Link)</label>
+          </div>
+        </div>
+      </fieldset>
+    </ng-container>
+    <ng-container *ngIf="model.formatType == FileFormatType.EXPORT_TYPE_CSV">
+      <csv-config-pane [model]="model.csvConfig" [parentForm]="parentForm"
+                       [selectAssemblyEnable]="supportCSVTableSelect"
+                       [tableDataAssemblies]="model.tableDataAssemblies"></csv-config-pane>
+    </ng-container>
+  </div>
+  <fieldset class="container-fluid" [disabled]="model.formatType == FileFormatType.EXPORT_TYPE_HTML"
+    *ngIf="model.formatType != FileFormatType.EXPORT_TYPE_SNAPSHOT">
+    <legend>_#(Bookmark)</legend>
+    <w-large-form-field>
+      <div class="bordered-box bd-gray" largeFieldElement>
+        <div [class.cursor-pointer]="model.formatType!=FileFormatType.EXPORT_TYPE_HTML"
+             role="listitem" tabindex="-1"
+             *ngFor="let bookmark of model.allBookmarks; let i = index;"
+             [attr.aria-selected]="model.selectedBookmarks.indexOf(bookmark) != -1"
+             [class.selected]="model.selectedBookmarks.indexOf(bookmark) != -1"
+             (click)="selectBookmark(bookmark, i, $event)" enterClick>
+          {{bookmark}}
+        </div>
+      </div>
+      <ng-container largeFieldButtons>
+        <button type="button" class="btn btn-sm btn-default"
+                (click)="selectAll()" [disabled]="model.formatType == FileFormatType.EXPORT_TYPE_HTML">_#(Select All)</button>
+        <button type="button" class="btn btn-sm btn-default"
+                (click)="clearAll()" [disabled]="model.formatType == FileFormatType.EXPORT_TYPE_HTML">_#(Clear)</button>
+      </ng-container>
+    </w-large-form-field>
+  </fieldset>
+  <fieldset *ngIf="model.formatType == FileFormatType.EXPORT_TYPE_SNAPSHOT"
+            class="float-title bd-gray container pb-1">
+    <legend>_#(Content)</legend>
+    <div class="row">
+      <div class="col" [hidden]="!model.linkVisible">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [value]="true" id="includeLink"
+               [(ngModel)]="model.sendLink">
+          <label class="form-check-label" for="includeLink">
+            _#(Include Link)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div>
+      _#(em.repository.partialDeploymentHyper)
+    </div>
+  </fieldset>
+</form>

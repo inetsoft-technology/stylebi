@@ -1,0 +1,94 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="tree-div force-focus-highlight"
+     [style.width]="'100%'"
+     [style.min-width]="fillHeight || _searchEnabled ? '100%' : 'fit-content'"
+     [style.height]="fillHeight || _searchEnabled ? '100%' : null"
+     tabindex="0" role="tree" (keyup)="onKey($event)">
+  <div class="py-1 px-1 search-box" *ngIf="_searchEnabled">
+    <ng-container *ngIf="_searchEnabled">
+      <div class="p-1 search-input-container">
+        <input #searchInput class="form-control form-control-sm" type="text" placeholder="_#(Search)"
+               [ngModel]="searchStr" (ngModelChange)="search($event)"  [disabled]="disabled"/>
+      </div>
+      <div class="p-1 search-icon-container">
+        <i class="close-icon icon-size-medium" aria-hidden="true" (click)="clearSearchContent()"
+           title="_#(Delete)"></i>
+      </div>
+      <i *ngIf="showHelpLink" class="help-question-mark-icon cursor-pointer" (click)="openHelp()" tabindex="0"
+         aria-label="_#(Help Information)" role="link" title="_#(Help)"></i>
+    </ng-container>
+    <ng-container *ngIf="recentEnabled && getRecentTreeFun">
+      <div class="p-1 search-icon-container">
+        <i class="recent-icon icon-size-medium" [class.bb-highlight-primary]="isRecentView"
+           aria-hidden="true" (click)="switchRecent()" title="_#(Recent)">
+        </i>
+      </div>
+    </ng-container>
+  </div>
+  <div *ngIf="empty && searchStr && searchStr.trim() && (!root || !root.loading)">_#(common.searchFailed)</div>
+  <div class="tree-container" #treeContainer
+       [style.width]="'100%'"
+       [style.min-width]="fillHeight || _searchEnabled ? '100%' : 'fit-content'"
+       [style.max-height]="treeContainerMaxHeight"
+       [style.min-height]="useVirtualScroll && maxHeight > 0 ? treeContainerMaxHeight : '0px'"
+       [class.vscrollable-always]="(fillHeight || vscrollY > 0 || isMobile)"
+       [class.vscrollable-on-hover]="hoverShowScroll && !isMobile"
+       (drop)="onDrop({node: null, evt: $event})"
+       outOfZone (onDragover)="onDragOver($event)" (onScroll)="onScroll($event)"
+       [class.disabled]="disabled"
+       [class.grayed-out-field]="disabled">
+    <div [style.height.px]="virtualTop"></div>
+    <ng-container *ngIf="useVirtualScroll && !outerScrollContainer">
+      <div [style.height.px]="virtualMid">
+        <tree-node [node]="root" [showRoot]="showRoot" [draggable]="draggable" [tree]="treeRef"
+                   [multiSelect]="multiSelect" [nodeSelectable]="nodeSelectable"
+                   [droppable]="droppable" [iconFunction]="iconFunction"
+                   [isRepositoryTree]="isRepositoryTree" [checkboxEnable]="checkboxEnable"
+                   [isPortalDataSourcesTree]="isPortalDataSourcesTree"
+                   [isSelectedNode]="isSelectedNode" [selectOnClick]="selectOnClick"
+                   [contextmenu]="contextmenu" [searchStr]="searchStr?.trim()" [showIcon]="showIcon"
+                   [showTooltip]="showTooltip" [showFavoriteIcon]="showFavoriteIcon"
+                   [ellipsisOverflowText]="ellipsisOverflowText"
+                   [dataSource]="dataSource"
+                   [useVirtualScroll]="useVirtualScroll"
+                   [showOriginalName]="showOriginalName" [searchEndNode]="searchEndNode"
+                   (onContextmenu)="onContextmenu.emit([$event[0], $event[1], selectedNodes])">
+        </tree-node>
+      </div>
+    </ng-container>
+    <ng-container *ngIf="!(useVirtualScroll && !outerScrollContainer)">
+      <tree-node [node]="root" [showRoot]="showRoot" [draggable]="draggable" [tree]="treeRef"
+                 [multiSelect]="multiSelect" [nodeSelectable]="nodeSelectable"
+                 [droppable]="droppable" [iconFunction]="iconFunction"
+                 [isRepositoryTree]="isRepositoryTree" [checkboxEnable]="checkboxEnable"
+                 [isPortalDataSourcesTree]="isPortalDataSourcesTree"
+                 [isSelectedNode]="isSelectedNode" [selectOnClick]="selectOnClick"
+                 [contextmenu]="contextmenu" [searchStr]="searchStr?.trim()" [showIcon]="showIcon"
+                 [showTooltip]="showTooltip" [showFavoriteIcon]="showFavoriteIcon"
+                 [ellipsisOverflowText]="ellipsisOverflowText"
+                 [showOriginalName]="showOriginalName"
+                 [dataSource]="dataSource" [useVirtualScroll]="useVirtualScroll" [searchEndNode]="searchEndNode"
+                 (onContextmenu)="onContextmenu.emit([$event[0], $event[1], selectedNodes])">
+      </tree-node>
+    </ng-container>
+    <div [style.height.px]="getVirtualBottom()"></div>
+  </div>
+</div>

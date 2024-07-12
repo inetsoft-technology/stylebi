@@ -1,0 +1,123 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
+
+  <!-- Schema migration for changes made in v13.1. -->
+
+  <property name="user_profile.user_roles.length" value="1024" dbms="mysql"/>
+  <property name="user_profile.user_roles.length" value="2048" dbms="db2"/>
+  <property name="user_profile.user_roles.length" value="4000" dbms="oracle"/>
+  <property name="user_profile.user_roles.length" value="8000" dbms="mssql"/>
+  <property name="user_profile.user_roles.length" value="8192" dbms="derby,h2,postgresql"/>
+
+  <property name="assets_table.name" value="ASSETS_TABLE" dbms="db2"/>
+  <property name="assets_table.name" value="assets_table" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+  <property name="assets_table.path.name" value="PATH" dbms="db2"/>
+  <property name="assets_table.path.name" value="path" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+  <property name="assets_table.type.name" value="TYPE" dbms="db2"/>
+  <property name="assets_table.type.name" value="TYPE" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+
+  <changeSet id="changelog-13.1.0" author="inetsoft">
+    <preConditions onFail="MARK_RAN">
+      <tableExists tableName="user_profile"/>
+    </preConditions>
+
+    <comment>Remove audit user profile table.</comment>
+
+    <dropTable tableName="user_profile"/>
+
+    <rollback>
+      <createTable tableName="user_profile">
+        <column name="user_name" type="VARCHAR(255)">
+          <constraints nullable="false" primaryKey="true"/>
+        </column>
+        <column name="creation_date" type="DECIMAL(15, 0)"/>
+        <column name="user_roles" type="VARCHAR(${user_profile.user_roles.length})"/>
+        <column name="user_groups" type="VARCHAR(${user_profile.user_roles.length})"/>
+      </createTable>
+    </rollback>
+  </changeSet>
+
+  <changeSet id="changelog-13.1.1" author="inetsoft">
+   <preConditions onFail="MARK_RAN">
+      <not>
+        <tableExists tableName="execution_breakdown"/>
+      </not>
+    </preConditions>
+
+    <comment>Create execution_breakdown table.</comment>
+
+    <createTable tableName="execution_breakdown">
+      <column name="object_name" type="VARCHAR(1024)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="object_type" type="VARCHAR(16)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="cycle_name" type="VARCHAR(30)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="start_timestamp" type="DECIMAL(15,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="end_timestamp" type="DECIMAL(15,0)">
+        <constraints nullable="false"/>
+      </column>
+      <column name="server_host_name" type="VARCHAR(255)">
+        <constraints nullable="false"/>
+      </column>
+    </createTable>
+  </changeSet>
+
+  <!--fix Bug #44504, for has created asset_table in db2, the 'path' and 'type' column name should be uppercase-->
+  <changeSet id="changelog-13.1.2" author="inetsoft" dbms="db2">
+    <preConditions onFail="MARK_RAN">
+      <and>
+        <tableExists tableName="${assets_table.name}"/>
+      </and>
+      <and>
+        <columnExists tableName="${assets_table.name}" columnName="path"/>
+      </and>
+      <and>
+        <columnExists tableName="${assets_table.name}" columnName="type"/>
+      </and>
+    </preConditions>
+
+    <comment>modify the asset_table path and type column.</comment>
+
+    <dropIndex tableName="${assets_table.name}" indexName="idx_assets_table"/>
+
+    <renameColumn tableName="${assets_table.name}" oldColumnName="path" newColumnName="${assets_table.path.name}"/>
+
+    <renameColumn tableName="${assets_table.name}" oldColumnName="type" newColumnName="${assets_table.type.name}"/>
+
+    <createIndex tableName="${assets_table.name}" indexName="idx_assets_table">
+      <column name="${assets_table.path.name}"/>
+      <column name="owner"/>
+      <column name="${assets_table.type.name}"/>
+      <column name="server_host_name"/>
+    </createIndex>
+  </changeSet>
+
+</databaseChangeLog>

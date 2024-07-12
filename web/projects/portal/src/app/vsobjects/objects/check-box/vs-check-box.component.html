@@ -1,0 +1,113 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model" class="vs-check-box"
+     [id]="model.absoluteName"
+     VSDataTip [dataTipName]="getAssemblyName()"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex"
+     [class.disable-actions-fade]="!model.enabled"
+     [class.fade-assembly]="!viewer && !model.visible"
+     [style.display]="getVisible() ? null : 'none'"
+     [style.text-align]="model.objectFormat.hAlign"
+     [style.vertical-align]="model.objectFormat.vAlign"
+     [safeFont]="model.objectFormat.font"
+     [style.background]="model.objectFormat.background"
+     [style.color]="model.objectFormat.foreground"
+     [style.text-decoration]="model.objectFormat.decoration"
+     [style.border-bottom]="model.objectFormat.border.bottom"
+     [style.border-top]="model.objectFormat.border.top"
+     [style.border-left]="model.objectFormat.border.left"
+     [style.border-right]="model.objectFormat.border.right"
+     [style.border-radius.px]="model.objectFormat.roundCorner"
+     [style.white-space]="model.objectFormat.wrapping.whiteSpace"
+     [style.word-wrap]="model.objectFormat.wrapping.wordWrap"
+     [style.overflow]="model.objectFormat.wrapping.overflow"
+     [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
+     [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+     [style.width.px]="model.objectFormat.width"
+     [style.height.px]="model.objectFormat.height"
+     [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+>
+  <div class="default-border bd-gray"
+       [style.margin-top]="model.titleVisible ? null : 0"
+       [style.height]="model.titleVisible ? null : '100%'"
+       *ngIf="defaultBorder"></div>
+  <vs-title *ngIf="model.titleVisible"
+            [titleContent]="model.title"
+            [titleFormat]="model.titleFormat"
+            [titleSelected]="isTitleSelected()"
+            [titleVisible]="model.titleVisible"
+            [titleWidth]="model.titleFormat.width"
+            [textBackground]="model.objectFormat.background || 'white'"
+            [selected]="selected"
+            [formatPainterMode]="vsInfo?.formatPainterMode"
+            [floating]="defaultBorder"
+            (selectTitle)="selectTitle($event)"
+            (changeTitle)="changeTitle($event)"
+            (titleResizeMove)="titleResizeMove($event)"
+            (titleResizeEnd)="titleResizeEnd()">
+  </vs-title>
+  <div #listBody class="checkbox-body">
+      <div class="checkbox d-flex compound-cell" #checkbox
+           *ngFor="let entry of model.labels; let i = index"
+           [safeFont]="model.detailFormat.font"
+           [style.background]="getCellFormat(i).background"
+           [style.color]="getCellFormat(i).foreground"
+           [style.border-bottom]="model.detailFormat.border.bottom"
+           [style.border-top]="model.detailFormat.border.top"
+           [style.border-left]="model.detailFormat.border.left"
+           [style.border-right]="model.detailFormat.border.right"
+           [style.white-space]="model.detailFormat.wrapping.whiteSpace"
+           [style.word-wrap]="model.detailFormat.wrapping.wordWrap"
+           [style.overflow]="model.detailFormat.wrapping.overflow"
+           [style.top.px]="getDataTopCSS(i)"
+           [style.left.px]="getDataLeftCSS(i)"
+           [style.width.px]="model.detailFormat.width"
+           [style.height.px]="model.detailFormat.height"
+           [style.align-items]="detailVAlign"
+           [style.justify-content]="model.detailFormat.justifyContent"
+           wInteractable
+           [interactableResizable]="!viewer && isCellSelected(i)"
+           [resizableTopEdge]="false"
+           [resizableLeftEdge]="false"
+           [resizableRightEdge]="false"
+           (onResizableMove)="detailResizeMove($event, i)"
+           (onResizableEnd)="detailResizeEnd()"
+           [class.selected-cell]="isCellSelected(i)"
+           tabindex="-1"
+           role="checkbox"
+           [attr.aria-label]="entry"
+           [attr.aria-checked]="isSelected(i)">
+        <label class="radio d-flex"
+               [style.text-decoration]="model.detailFormat.decoration"
+               [style.width.px]="getColWidth(i)"
+               tooltipIf
+               (mousedown)="selectCell($event, i)">
+          <input type="checkbox" [checked]="isSelected(i)" [value]="i"
+                 (change)="onChange(i)">
+          {{entry}}</label>
+      </div>
+    <div *ngIf="resizingCell >= 0" class="resize-label"
+         [style.top.px]="getDataTopCSS(resizingCell) + model.detailFormat.height"
+         [style.left.px]="getDataLeftCSS(resizingCell) + model.detailFormat.width / 2 - 20"
+         >{{model.detailFormat.height}}</div>
+  </div>
+</div>

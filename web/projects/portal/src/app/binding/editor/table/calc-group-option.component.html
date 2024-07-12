@@ -1,0 +1,149 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="order != null && topN != null" class="popup-editor__container">
+  <div class="popup-editor__button-group">
+    <button class="popup-editor__button btn" title="_#(Apply)"
+            (click)="apply.emit(false)">
+      <i class="submit-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col form-floating">
+      <select class="form-control" [(ngModel)]="order.type" placeholder="_#(Sort)"
+              [disabled]="cellBinding.timeSeries">
+        <ng-container *ngFor="let sort of sorts">
+          <option *ngIf="sortItemVisible(sort)" [value]="sort.value">{{sort.label}}</option>
+        </ng-container>
+      </select>
+      <label><span>_#(Sort)</span></label>
+    </div>
+    <div class="col">
+      <div class="form-floating by_label_id" *ngIf="(order.type==17 || order.type==18)">
+        <select class="form-control" placeholder="_#(By)" [(ngModel)]="sortValue"
+                [disabled]="cellBinding.timeSeries">
+          <option [value]="agg.view" *ngFor="let agg of aggrs">{{agg.view}}
+          </option>
+        </select>
+        <label><span>_#(By)</span></label>
+      </div>
+      <span (click)="openManualDialog()" *ngIf="order.type == 8">
+          <i class="btn-icon edit-icon icon-size-medium icon-color-default" aria-hidden="true"
+             title="_#(Edit)"></i>
+        </span>
+    </div>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col-4 pe-0">
+      <div class="form-floating ranking_label_id">
+        <select class="form-control" [(ngModel)]="topN.type" placeholder="_#(Ranking)"
+                (ngModelChange)="changeTopnType($event)"
+                [disabled]="isDisableRanking()">
+          <option [value]="top.value" *ngFor="let top of TOP_OPTION">{{top.label}}</option>
+        </select>
+        <label><span>_#(Ranking)</span></label>
+      </div>
+    </div>
+    <div class="col-2 ps-1">
+      <div class="form-floating topn_label_id">
+        <input type="number" class="form-control" [(ngModel)]="topN.topn" placeholder="_#(N)"
+               [disabled]="topN.type == 0 || isDisableRanking()">
+        <label><span>_#(N)</span></label>
+      </div>
+    </div>
+    <div class="col">
+      <div class="form-floating of_label_id">
+        <select class="form-control"
+                [disabled]="topN.type == 0 || isDisableRanking()"
+                [(ngModel)]="sumColValue" placeholder="_#(calculationOf)">
+          <option [value]="agg.view" *ngFor="let agg of aggrs">{{agg.view}}
+          </option>
+        </select>
+        <label><span>_#(calculationOf)</span></label>
+      </div>
+    </div>
+  </div>
+  <div class="row form-row-float-label" *ngIf="topN.type != 0">
+    <div class="col group_other_id">
+      <div class="form-check">
+        <input type="checkbox" id="groupOthers" class="form-check-input"
+               [(ngModel)]="topN.others"
+               [disabled]="isDisableRanking()">
+        <label class="form-check-label" for="groupOthers">
+          _#(Group all others together)
+        </label>
+      </div>
+    </div>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col">
+      <div class="form-floating namedGroup_label_id">
+        <select class="form-control" [ngModel]="order.info?.name"
+                (ngModelChange)="changeNamedGroup($event)" placeholder="_#(Named Group)"
+                [disabled]="cellBinding.timeSeries">
+          <option [ngValue]="name.name" *ngFor="let name of ngNames">
+            {{name.label}}
+          </option>
+        </select>
+        <label><span>_#(Named Group)</span></label>
+      </div>
+    </div>
+    <div class="col-auto ps-0">
+      <button class="form-control" (click)="openNamedGroupEdit()"
+              [disabled]="isDisabledNamedGroup()">_#(Edit)</button>
+    </div>
+  </div>
+  <div class="row form-row-float-label" *ngIf="isDateType()">
+    <div class="col-6">
+      <div class="form-floating level_label_id">
+        <dynamic-combo-box [valueOnly]="true"
+                           [values]="dateLevelOpts" [value]="order.option"
+                           [examples]="dateLevelExamples"
+                           (valueChange)="levelChanged($event)">
+        </dynamic-combo-box>
+        <label>_#(Level)</label>
+      </div>
+
+    </div>
+    <div class="col">
+      <div class="form-floating periods_label_id">
+        <input type="number" class="form-control" [(ngModel)]="order.interval"
+               min="1" [max]="getMaxForLevel()"
+               [disabled]="isDateIntervalDisabled() || cellBinding.timeSeries">
+        <label><span>_#(Periods)</span></label>
+      </div>
+    </div>
+    <div class="col-auto">
+      <div class="form-check">
+        <input type="checkbox" id="timeSeries" class="form-check-input"
+               [(ngModel)]="cellBinding.timeSeries"
+               (ngModelChange)="changeTimeSeries()"
+               [disabled]="isDateIntervalDisabled()">
+        <label class="form-check-label" for="timeSeries">_#(As time series)</label>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="isDateType() && !(isDateIntervalDisabled() || cellBinding.timeSeries)
+        && order.interval <= 0" class="alert alert-danger">
+    _#(viewer.dialog.calcTableAdvance.periodsPositiveNumber)
+  </div>
+  <div class="alert alert-danger" *ngIf="!isValidN()">
+    _#(common.widget.SortOption.enterPositiveTop)
+  </div>
+</div>

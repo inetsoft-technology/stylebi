@@ -1,0 +1,103 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container-fluid h-100 w-100 g-0">
+  <div class="query-main-container">
+    <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="activeTab" (navChange)="updateQueryTab($event)">
+      <ng-container ngbNavItem="links">
+        <a ngbNavLink>_#(Links)</a>
+        <ng-template ngbNavContent>
+          <query-link-pane #queryLinkPane class="tab-pane-content"
+                           [queryName]="queryModel.name"
+                           [runtimeID]="runtimeId"
+                           [linkModel]="queryModel.linkPaneModel"
+                           [databaseName]="databaseName"
+                           [dataSourceTreeRoot]="dataSourceTreeRoot">
+          </query-link-pane>
+        </ng-template>
+      </ng-container>
+      <ng-container ngbNavItem="fields" [disabled]="isTabDisabled('fields')">
+        <a ngbNavLink>_#(Fields)</a>
+        <ng-template ngbNavContent>
+          <query-fields-pane class="tab-pane-content"
+                             [runtimeId]="runtimeId"
+                             [model]="queryModel.fieldPaneModel">
+          </query-fields-pane>
+        </ng-template>
+      </ng-container>
+      <ng-container ngbNavItem="conditions" [disabled]="isTabDisabled('conditions')">
+        <a ngbNavLink>_#(Conditions)</a>
+        <ng-template ngbNavContent>
+          <query-conditions-pane #queryConditionsPane class="tab-pane-content"
+                                 [runtimeId]="runtimeId"
+                                 [model]="queryModel.conditionPaneModel"
+                                 [databaseName]="databaseName"
+                                 [operations]="operations"
+                                 [sessionOperations]="sessionOperations">
+          </query-conditions-pane>
+        </ng-template>
+      </ng-container>
+      <ng-container ngbNavItem="sort" [disabled]="isTabDisabled('sort')">
+        <a ngbNavLink>_#(Sort)</a>
+        <ng-template ngbNavContent>
+          <query-sort-pane class="tab-pane-content"
+                           [runtimeId]="runtimeId"
+                           [model]="queryModel.sortPaneModel"
+                           [queryFieldsMap]="getQueryFieldsMap()">
+          </query-sort-pane>
+        </ng-template>
+      </ng-container>
+      <ng-container ngbNavItem="grouping" [disabled]="isTabDisabled('grouping')">
+        <a ngbNavLink>_#(Grouping)</a>
+        <ng-template ngbNavContent>
+          <query-grouping-pane #queryGroupingPane class="tab-pane-content"
+                               [runtimeId]="runtimeId"
+                               [model]="queryModel.groupingPaneModel"
+                               [databaseName]="databaseName"
+                               [operations]="operations"
+                               [sessionOperations]="sessionOperations"
+                               [queryFieldsMap]="getQueryFieldsMap()"
+                               (groupByValidityChange)="groupByChanged($event)">
+          </query-grouping-pane>
+        </ng-template>
+      </ng-container>
+      <ng-container *ngIf="freeFormSqlEnabled" ngbNavItem="sql-string">
+        <a ngbNavLink>_#(SQL String)</a>
+        <ng-template ngbNavContent>
+          <free-form-sql-pane class="tab-pane-content" [runtimeId]="runtimeId"
+                              [model]="queryModel.freeFormSQLPaneModel"
+                              (onUpdated)="changeQueryModel($event)"
+                              (sqlEdited)="queryModel.sqlEdited = $event">
+          </free-form-sql-pane>
+        </ng-template>
+      </ng-container>
+      <ng-container ngbNavItem="preview">
+        <a ngbNavLink>_#(Preview)</a>
+        <ng-template ngbNavContent>
+          <sql-query-preview-pane class="tab-pane-content"
+                                  [runtimeId]="runtimeId"
+                                  [sqlString]="queryModel?.freeFormSQLPaneModel?.sqlString"
+                                  [tableCount]="queryModel?.linkPaneModel?.tables?.length">
+          </sql-query-preview-pane>
+        </ng-template>
+      </ng-container>
+    </ul>
+    <div [ngbNavOutlet]="nav"></div>
+  </div>
+</div>

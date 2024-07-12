@@ -1,0 +1,175 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<table [class.w-100]="panel">
+  <tr *ngFor="let row of tabularGrid.rows">
+    <ng-container *ngFor="let col of tabularGrid.cols">
+      <ng-container *ngIf="tabularGrid.getCell(row, col); let cell; else emptyCell;">
+        <td *ngIf="!cell.skip" class="pb-2"
+            [style.width]="cell.view.align != 'FILL' ? null : '99%'"
+            [attr.rowspan]="cell.view.rowspan"
+            [attr.colspan]="cell.type == 'COMPONENT' ? cell.view.colspan + 1 : cell.view.colspan"
+            [style.text-align]="cell.type === 'EDITOR' ? cell.view.editor.align : cell.view.align"
+            [style.vertical-align]="cell.type === 'EDITOR' ? cell.view.editor.verticalAlign : cell.view.verticalAlign">
+          <div [style.padding-left.px]="cell.view.paddingLeft"
+               [style.padding-right.px]="cell.view.paddingRight"
+               [style.padding-top.px]="cell.view.paddingTop"
+               [style.padding-bottom.px]="cell.view.paddingBottom">
+            <div *ngIf="cell.type === 'COMPONENT' || cell.type === 'LABEL'"
+                 [class.form-floating]="cell.type === 'COMPONENT' && cell.view.editor.type !== 'REST_PARAMETERS'"
+                 [class.list-group-item]="cell.type == 'COMPONENT' && cell.view.editor.subtype == 'HTTP_PARAMETER'"
+                 [class.not-selectable]="cell.type == 'COMPONENT' && cell.view.editor.subtype == 'HTTP_PARAMETER'"
+                 [style.color]="cell.view.color" [style.font]="cell.view.font">
+              <ng-container *ngIf="cell.type === 'COMPONENT'">
+                <ng-container *ngTemplateOutlet="editorTemplate"></ng-container>
+              </ng-container>
+              <label [innerHTML]="cell.view.displayLabel" *ngIf="cell.type !== 'COMPONENT' || cell.view.editor.type !== 'REST_PARAMETERS' && cell.view.editor.type != 'BOOLEAN'"
+                     [style.white-space]="cell.type === 'COMPONENT' ? 'nowrap' : null"></label>
+            </div>
+            <ng-container *ngIf="cell.type === 'EDITOR'">
+              <ng-container *ngTemplateOutlet="editorTemplate"></ng-container>
+            </ng-container>
+            <ng-template #editorTemplate>
+              <tabular-text-editor *ngIf="cell.view.editor.type == 'TEXT'"
+                                   [(value)]="cell.view.editor.value"
+                                   (valueChange)="viewChanged(cell.view)"
+                                   [password]="cell.view.password"
+                                   [pattern]="cell.view.pattern ? cell.view.pattern[0] : null"
+                                   [rows]="cell.view.editor.rows"
+                                   [columns]="cell.view.editor.columns"
+                                   [enabled]="cell.view.editor.enabled"
+                                   [required]="cell.view.required"
+                                   (validChange)="validChanged($event, cell)"></tabular-text-editor>
+              <tabular-boolean-editor *ngIf="cell.view.editor.type == 'BOOLEAN'"
+                                      [(value)]="cell.view.editor.value"
+                                      (valueChange)="viewChanged(cell.view)"
+                                      [label]="cell.view.displayLabel"
+                                      [enabled]="cell.view.editor.enabled"
+                                      [required]="cell.view.required"></tabular-boolean-editor>
+              <tabular-number-editor
+                *ngIf="cell.view.editor.type == 'BYTE' || cell.view.editor.type == 'SHORT' || cell.view.editor.type == 'INT' || cell.view.editor.type == 'LONG' || cell.view.editor.type == 'FLOAT' || cell.view.editor.type == 'DOUBLE'"
+                [(value)]="cell.view.editor.value" (valueChange)="viewChanged(cell.view)"
+                [enabled]="cell.view.editor.enabled" [max]="cell.view.max" [min]="cell.view.min"
+                [required]="cell.view.required"
+                (validChange)="validChanged($event, cell)"></tabular-number-editor>
+              <tabular-tags-editor *ngIf="cell.view.editor.type == 'TAGS'"
+                                   [(value)]="cell.view.editor.value"
+                                   (valueChange)="viewChanged(cell.view)"
+                                   [tags]="cell.view.editor.tags" [labels]="cell.view.editor.labels"
+                                   [enabled]="cell.view.editor.enabled"
+                                   [required]="cell.view.required"
+                                   [editorPropertyNames]="cell.view.editor.editorPropertyNames"
+                                   [editorPropertyValues]="cell.view.editor.editorPropertyValues"
+                                   (validChange)="validChanged($event, cell)"></tabular-tags-editor>
+              <tabular-column-definition-editor *ngIf="cell.view.editor.type == 'COLUMN'"
+                                                [(value)]="cell.view.editor.value"
+                                                (valueChange)="viewChanged(cell.view)"
+                                                [enabled]="cell.view.editor.enabled"
+                                                [required]="cell.view.required"
+                                                (validChange)="validChanged($event, cell)"></tabular-column-definition-editor>
+              <tabular-date-editor *ngIf="cell.view.editor.type == 'DATE'"
+                                   [(value)]="cell.view.editor.value"
+                                   (valueChange)="viewChanged(cell.view)"
+                                   [enabled]="cell.view.editor.enabled"
+                                   [required]="cell.view.required"
+                                   (validChange)="validChanged($event, cell)"></tabular-date-editor>
+              <tabular-http-parameter-editor *ngIf="cell.view.editor.type === 'HTTP_PARAMETER'"
+                                             [(value)]="cell.view.editor.value"
+                                             (valueChange)="viewChanged(cell.view)"
+                                             [enabled]="cell.view.editor.enabled"
+                                             [required]="cell.view.required"
+                                             [editorPropertyNames]="cell.view.editor.editorPropertyNames"
+                                             [editorPropertyValues]="cell.view.editor.editorPropertyValues"
+                                             (validChange)="validChanged($event, cell)"></tabular-http-parameter-editor>
+              <tabular-query-parameter-editor *ngIf="cell.view.editor.type == 'PARAMETER'"
+                                              [(value)]="cell.view.editor.value"
+                                              (valueChange)="viewChanged(cell.view)"
+                                              [enabled]="cell.view.editor.enabled"
+                                              [required]="cell.view.required"
+                                              (validChange)="validChanged($event, cell)"></tabular-query-parameter-editor>
+              <tabular-rest-parameters-editor *ngIf="cell.view.editor.type === 'REST_PARAMETERS'"
+                                              [(value)]="cell.view.editor.value"
+                                              (valueChange)="viewChanged(cell.view)"
+                                              [enabled]="cell.view.editor.enabled"
+                                              [required]="cell.view.required"
+                                              (validChange)="validChanged($event, cell)"></tabular-rest-parameters-editor>
+              <tabular-list-editor *ngIf="cell.view.editor.type == 'LIST'"
+                                   [(value)]="cell.view.editor.value"
+                                   (valueChange)="viewChanged(cell.view)"
+                                   [type]="cell.view.editor.subtype" [password]="cell.view.password"
+                                   [label]="cell.view.displayLabel" [property]="cell.view.value"
+                                   [editorPropertyNames]="cell.view.editor.editorPropertyNames"
+                                   [editorPropertyValues]="cell.view.editor.editorPropertyValues"
+                                   [pattern]="cell.view.pattern" [rows]="cell.view.editor.rows"
+                                   [columns]="cell.view.editor.columns"
+                                   [enabled]="cell.view.editor.enabled"
+                                   [required]="cell.view.required"
+                                   [tags]="cell.view.editor.tags"
+                                   [labels]="cell.view.editor.labels"
+                                   (validChange)="validChanged($event, cell)"></tabular-list-editor>
+              <tabular-file-editor *ngIf="cell.view.editor.type == 'FILE'"
+                                   [(value)]="cell.view.editor.value"
+                                   (valueChange)="viewChanged(cell.view)"
+                                   [property]="cell.view.value"
+                                   [editorPropertyNames]="cell.view.editor.editorPropertyNames"
+                                   [editorPropertyValues]="cell.view.editor.editorPropertyValues"
+                                   [pattern]="cell.view.pattern" [browseFunction]="browseFunction"
+                                   [enabled]="cell.view.editor.enabled"
+                                   [required]="cell.view.required"
+                                   (validChange)="validChanged($event, cell)"></tabular-file-editor>
+              <tabular-autocomplete-editor *ngIf="cell.view.editor.type == 'AUTOCOMPLETE'"
+                                           [(value)]="cell.view.editor.value"
+                                           (valueChange)="viewChanged(cell.view)"
+                                           [tags]="cell.view.editor.tags"
+                                           [enabled]="cell.view.editor.enabled"
+                                           [required]="cell.view.required"
+                                           (validChange)="validChanged($event, cell)"></tabular-autocomplete-editor>
+            </ng-template>
+            <button type="button" *ngIf="cell.type === 'BUTTON'" class="btn btn-default"
+                    [class.btn-google-auth]="cell.view?.button?.style === 'GOOGLE_AUTH'"
+                    [style.color]="cell.view.color" [style.font]="cell.view.font"
+                    [disabled]="cell.view?.button?.loading === true || !cell.view?.button?.enabled"
+                    (click)="buttonClicked(cell.view)">
+              <ng-container *ngIf="cell.view?.button?.style == null || cell.view?.button?.style === 'PLAIN'">
+                <i *ngIf="cell.view?.button?.loading" [style.color]="cell.view.color"
+                   class="loading-icon--spin icon-size-small loading-icon btn-icon-color align-middle"
+                   aria-hidden="true"></i>
+                <span class="align-middle" [class.pl-1]="cell.view?.button?.loading">{{cell.view.displayLabel}}</span>
+              </ng-container>
+            </button>
+            <div *ngIf="cell.type === 'PANEL'">
+              <label *ngIf="cell.view.displayLabel" [style.color]="cell.view.color"
+                     [style.font]="cell.view.font">
+                {{cell.view.displayLabel}}
+              </label>
+              <tabular-view [rootView]="cell.view" [browseFunction]="browseFunction"
+                            [panel]="cell.view.align != 'LEFT'" [cancelButtonExists]="cancelButtonExists"
+                            (viewChange)="viewsChanged($event)"
+                            (validChange)="validChanged($event, cell)"
+                            (buttonClick)="buttonClick.emit($event)"></tabular-view>
+            </div>
+          </div>
+        </td>
+      </ng-container>
+      <ng-template #emptyCell>
+        <td></td>
+      </ng-template>
+    </ng-container>
+  </tr>
+</table>

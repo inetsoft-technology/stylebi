@@ -1,0 +1,99 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Subquery)'"
+              (onCancel)="cancel()"
+              [cshid]="'DataBlockConditions'">
+</modal-header>
+<div class="modal-body">
+  <form ngNoForm (submit)="$event.preventDefault()">
+    <fieldset>
+      <legend>_#(Retrieve data from)</legend>
+      <div class="row form-row-float-label">
+        <div class="col form-floating">
+          <select class="form-control" [ngModel]="value.query"
+                  (ngModelChange)="changeSelectedTable($event)">
+            <option *ngFor="let _subqueryTable of getAvailableTables()"
+                    [value]="_subqueryTable.name" [attr.title]="_subqueryTable.description">
+              {{_subqueryTable.name}}
+            </option>
+          </select>
+          <label>_#(Subquery)</label>
+        </div>
+      </div>
+      <div class="row form-row-float-label">
+        <div class="col form-floating">
+          <select class="form-control" [compareWith]="dataRefsEqual"
+                  [ngModel]="value.attribute"
+                  (ngModelChange)="attributeChanged($event)">
+            <option *ngFor="let _field of selectedTable?.columns"
+                    [ngValue]="_field"
+                    [attr.title]="getTooltip(_field)">
+              {{_field.name}}
+            </option>
+          </select>
+          <label>_#(In column)</label>
+        </div>
+      </div>
+      <div *ngIf="!isValid()" class="alert alert-danger">
+        The identification columns should be both empty or non-empty.
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>_#(Where)</legend>
+      <div class="row form-row-float-label">
+        <div class="col form-floating">
+          <select class="form-control" [compareWith]="dataRefsEqual"
+                  [ngModel]="value.subAttribute"
+                  (ngModelChange)="subAttributeChanged($event)">
+            <option [ngValue]="null"></option>
+            <option *ngFor="let _field of selectedTable?.columns"
+                    [ngValue]="_field"
+                    [attr.title]="getTooltip(_field)">
+              {{_field.name}}
+            </option>
+          </select>
+          <label>_#(Subquery column)</label>
+        </div>
+      </div>
+      <div class="row form-row-float-label">
+        <div class="col ms-2"><strong>=</strong></div>
+      </div>
+      <div class="row form-row-float-label">
+        <div class="col form-floating">
+          <select class="form-control" [compareWith]="dataRefsEqual"
+                  [ngModel]="value.mainAttribute"
+                  (ngModelChange)="mainAttributeChanged($event)">
+            <option [ngValue]="null"></option>
+            <option *ngFor="let _field of getCurrentTableColumns()"
+                    [ngValue]="_field"
+                    [attr.title]="getTooltip(_field)">
+              {{_field.name}}
+            </option>
+          </select>
+          <label>_#(Current table column)</label>
+        </div>
+      </div>
+    </fieldset>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!isValid()">_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>

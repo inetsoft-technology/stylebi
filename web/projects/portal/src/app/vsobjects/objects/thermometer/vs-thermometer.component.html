@@ -1,0 +1,38 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<img *ngIf="model"
+   (click)="onClick($event)"
+   [title]="model.absoluteName"
+   [src]="getSrc()"
+   VSDataTip [dataTipName]="getAssemblyName()"
+   VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+   [popZIndex]="model.objectFormat.zIndex"
+   [style.display]="getVisible() ? null : 'none'"
+   [class.disable-actions-fade]="!model.enabled"
+   [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
+   [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+   [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+   [style.width.px]="model.objectFormat.width"
+   [style.height.px]="model.objectFormat.height"
+   [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+   [style.border-bottom]="model.objectFormat.border.bottom"
+   [style.border-top]="model.objectFormat.border.top"
+   [style.border-left]="model.objectFormat.border.left"
+   [style.border-right]="model.objectFormat.border.right">

@@ -1,0 +1,118 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
+
+    <!-- Schema migration for changes made in v13.7. -->
+
+    <changeSet id="changelog-13.7.0" author="inetsoft">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="sr_bookmark"/>
+            </not>
+        </preConditions>
+
+        <comment>Create the sr_bookmark table.</comment>
+
+        <createTable tableName="sr_bookmark">
+            <column name="user_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_role" type="VARCHAR(1024)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_active_status" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="user_email" type="VARCHAR(1024)">
+            </column>
+            <column name="user_last_login" type="DECIMAL(15,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="action_type" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="action_exec_timestamp" type="DECIMAL(15,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="dashboard_name" type="VARCHAR(1024)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="dashboard_alias" type="VARCHAR(1024)">
+            </column>
+            <column name="bookmark_name" type="VARCHAR(1024)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="bookmark_type" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="bookmark_read_only" type="VARCHAR(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="bookmark_create_date" type="DECIMAL(15,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="bookmark_last_update_date" type="DECIMAL(15,0)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="server_host_name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="changelog-13.7.1" author="inetsoft">
+        <preConditions onFail="MARK_RAN">
+            <tableExists tableName="sr_bookmark"/>
+        </preConditions>
+
+        <comment>Modify the user_role and bookmark_read_only column constraints.</comment>
+
+        <sql dbms="mssql, h2">
+            alter table sr_bookmark alter column user_role VARCHAR(1024) null;
+            alter table sr_bookmark alter column bookmark_read_only VARCHAR(16) null;
+        </sql>
+
+        <sql dbms="mysql, oracle">
+            alter table sr_bookmark modify user_role VARCHAR(1024) null;
+            alter table sr_bookmark modify bookmark_read_only VARCHAR(16) null;
+        </sql>
+
+        <sql dbms="derby, postgresql">
+            alter table sr_bookmark alter column user_role drop not null;
+            alter table sr_bookmark alter column bookmark_read_only drop not null;
+        </sql>
+
+        <!-- In DB2 databases, using the ALTER COLUMN statement may cause the corresponding table to be in a "pending" state,
+        leading to SQL error with 'SQLState: 57016' when performing operations on the table.
+        Therefore, executing REORG TABLE is necessary to resolve this issue. -->
+        <sql dbms="db2">
+            alter table sr_bookmark alter column user_role drop not null;
+            alter table sr_bookmark alter column bookmark_read_only drop not null;
+            call SYSPROC.ADMIN_CMD('REORG table sr_bookmark');
+        </sql>
+
+        <rollback/>
+    </changeSet>
+
+</databaseChangeLog>

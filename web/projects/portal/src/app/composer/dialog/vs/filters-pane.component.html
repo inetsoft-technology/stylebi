@@ -1,0 +1,81 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div>
+  <form class="container-fluid">
+    <fieldset>
+      <legend>_#(Shared Filters)</legend>
+      <div class="container-fluid">
+        <w-shuffle-list class="unhighlightable" leftTitle="_#(Filters)" rightTitle="_#(Shared Filters)">
+          <div shuffleLeft>
+            <table class="table table-bordered table-sm table-hover filters-table" wScrollableTable>
+              <thead>
+                <tr>
+                  <th class="filters-col">_#(Filter)</th>
+                </tr>
+              </thead>
+              <tbody>
+              <tr *ngFor="let filter of model.filters; let _i = index">
+                <td class="filters-col" [class.selected]="isFilterSelected(_i)"
+                    (click)="selectFilter(_i, $event)">
+                  <w-elided-cell [text]="filter.column"></w-elided-cell>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+          <ng-container shuffleButtons>
+            <button type="button" class="btn btn-light-no-bg btn-sm mb-1" (click)="add()" [disabled]="!isAddEnabled()">
+              <i class="forward-icon"></i>
+              <span class="visually-hidden">_#(Add)</span>
+            </button>
+            <button type="button" class="btn btn-light-no-bg btn-sm" (click)="remove()" [disabled]="!isRemoveEnabled()">
+              <i class="backward-icon"></i>
+              <span class="visually-hidden">_#(Remove)</span>
+            </button>
+          </ng-container>
+          <div shuffleRight>
+            <table class="table table-bordered table-sm table-hover filters-table"
+                   wScrollableTable [fixedWidths]="[0.6, 0.4]">
+              <thead>
+              <tr class="active">
+                <th class="component-col">_#(Filter)</th>
+                <th class="text-id-col">_#(ID)</th>
+              </tr>
+              </thead>
+              <tbody>
+              <tr *ngFor="let filter of model.sharedFilters; let _i = index"
+                  [class.selected]="isSharedFilterSelected(_i)"
+                  (click)="selectSharedFilter(_i, $event)">
+                <td class="component-col">
+                  <w-elided-cell [text]="filter.column"></w-elided-cell>
+                </td>
+                <td class="text-id-col">
+                  <input type="text" class="form-control" [(ngModel)]="filter.filterId" [name]="filter.column"
+                         placeholder="_#(Filter ID)" tooltipIf />
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </w-shuffle-list>
+      </div>
+    </fieldset>
+  </form>
+</div>

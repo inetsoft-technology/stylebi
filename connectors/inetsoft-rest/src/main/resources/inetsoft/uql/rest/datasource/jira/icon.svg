@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="30px" height="30px" viewBox="291 271 30 30" enable-background="new 291 271 30 30" xml:space="preserve">
+<g>
+	<path fill="#2684FF" d="M315.951,275.156h-10.444c0,2.602,2.109,4.712,4.714,4.712h1.923v1.859c0.002,2.597,2.104,4.703,4.7,4.71
+		v-10.374C316.845,275.567,316.446,275.162,315.951,275.156z"/>
+	
+		<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="41.5845" y1="-70.8657" x2="41.0038" y2="-70.2672" gradientTransform="matrix(7.65 0 0 7.65 -6.6508 822.5014)">
+		<stop  offset="0.18" style="stop-color:#0052CC"/>
+		<stop  offset="1" style="stop-color:#2684FF"/>
+	</linearGradient>
+	<path fill="url(#SVGID_1_)" d="M310.783,280.358h-10.444c0,2.603,2.109,4.712,4.713,4.712h1.924v1.859
+		c0.002,2.601,2.111,4.71,4.713,4.711v-10.378C311.688,280.763,311.282,280.358,310.783,280.358L310.783,280.358L310.783,280.358z"
+		/>
+	
+		<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="40.9463" y1="-70.1826" x2="40.2752" y2="-69.5293" gradientTransform="matrix(7.65 0 0 7.65 -6.6508 822.5014)">
+		<stop  offset="0.18" style="stop-color:#0052CC"/>
+		<stop  offset="1" style="stop-color:#2684FF"/>
+	</linearGradient>
+	<path fill="url(#SVGID_2_)" d="M305.612,285.56h-10.456c0,2.604,2.114,4.715,4.718,4.714c0.003,0,0.006,0,0.01,0h1.924v1.857
+		c0,2.604,2.11,4.713,4.713,4.713v-10.376C306.521,285.967,306.114,285.56,305.612,285.56L305.612,285.56z"/>
+</g>
+</svg>

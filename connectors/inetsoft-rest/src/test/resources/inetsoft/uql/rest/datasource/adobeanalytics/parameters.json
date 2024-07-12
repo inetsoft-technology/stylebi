@@ -1,0 +1,173 @@
+{
+    "tests": [
+        {
+            "endpoint": "Caluculated Metrics",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "Additional Fields": "",
+                "RSIDs": "",
+                "Owner ID": "",
+                "IDs": "",
+                "Locale": "",
+                "Name": "",
+                "Tage Names": "",
+                "Include Type": ""
+            }
+        },
+        {
+            "endpoint": "Calculated Metric",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "ID": "",
+                "Additional Fields": "",
+                "Locale": ""
+            }
+        },
+        {
+            "endpoint": "Calculated Metric Functions",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "Locale": ""
+            }
+        },
+        {
+            "endpoint": "Calculated Metric Function",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "ID": "",
+                "Locale": ""
+            }
+        },
+        {
+            "endpoint": "Report Suites",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "Additional Fields": "",
+                "RSIDs": "",
+                "RSID Contains": ""
+            }
+        },
+        {
+            "endpoint": "Report Suite",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "RSID": "",
+                "Additional Fields": ""
+            }
+        },
+        {
+            "endpoint": "Dateranges",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "Additional Fields": "",
+                "Locale": "",
+                "Daterange IDs": "",
+                "Include Type": ""
+            }
+        },
+        {
+            "endpoint": "Daterange",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "Daterange ID": "",
+                "Additional Fields": "",
+                "Locale": ""
+            }
+        },
+        {
+            "endpoint": "Dimensions",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "RSID": "",
+                "Additional Fields": "",
+                "Locale": "",
+                "Segmentable": "",
+                "Reportable": "",
+                "Classifiable": ""
+            }
+        },
+        {
+            "endpoint": "Dimension",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "Dimension ID": "",
+                "RSID": "",
+                "Additional Fields": "",
+                "Locale": ""
+            }
+        },
+        {
+            "endpoint": "Metrics",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "RSID": "",
+                "Additional Fields": "",
+                "Locale": "",
+                "Segmentable": ""
+            }
+        },
+        {
+            "endpoint": "Metric",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "ID": "",
+                "RSID": "",
+                "Additional Fields": "",
+                "Locale": ""
+            }
+        },
+        {
+            "endpoint": "Segments",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "Additional Fields": "",
+                "RSIDs": "",
+                "IDs": "",
+                "Locale": "",
+                "Name": "",
+                "Tag Names": "",
+                "Filter by Published Segments": "",
+                "Include Type": ""
+            }
+        },
+        {
+            "endpoint": "Segment",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "ID": "",
+                "Additional Fields": "",
+                "Locale": ""
+            }
+        },
+        {
+            "endpoint": "Users",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                
+            }
+        },
+        {
+            "endpoint": "Current User",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                
+            }
+        }
+    ]
+}

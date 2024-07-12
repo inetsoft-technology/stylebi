@@ -1,0 +1,26 @@
+Replet
+	id	replet.id
+	orientation	replet.orientation
+	pageSize	replet.pageSize
+	parameters["create"]	replet.repletParameters["create"]
+	parameters["customize"]	replet.repletParameters["customize"]
+	principal	replet.principal
+	roles	replet.roles
+	sortOnHeader	replet.sortOnHeader
+RepletParameters
+	requestDialogClass	replet.requestDialogClass
+	requestDialogHTML	replet.requestDialogHTML
+	requestDialogHTMLSize	replet.requestDialogHTMLSize
+In Replet
+	parameter["name"]	parameter[]
+	replet	replet
+	request["name"]	request[]
+	request.requestName	request.requestName
+In onClick
+	event (Selection Event)	event
+Request Event
+	repletRequest	event.repletRequest
+Selection Event
+	elementID	event.elementID
+	row	row
+	column	column

@@ -1,0 +1,652 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="action && form">
+  <div class="action-accordion-content">
+    <form [formGroup]="form">
+      <div class="card m-1" *ngIf="isDashboard">
+        <div class="card-body">
+          <label class="form-check-label card-title">_#(Bookmarks)</label>
+          <div class="form-row-float-label row align-items-start">
+            <div class="col form-floating">
+                <select class="form-control" id="bookmark" *ngIf="action.actionType == 'ViewsheetAction'"
+                        [ngModelOptions]="{standalone: true}" title="_#(Bookmark Tooltip)"
+                        [(ngModel)]="selectedBookmark"
+                        [compareWith]="bookmarksEquivalent">
+                  <option *ngFor="let bookmark of bookmarks" [ngValue]="bookmark">{{ bookmark.label }}</option>
+                </select>
+                <label>_#(Bookmark)</label>
+            </div>
+          </div>
+          <div class="form-row-float-label row align-items-start">
+            <div class="col-10">
+              <generic-selectable-list [itemList]="bookmarkList"
+                                       [selectedIndex]="selectedBookmarkListIndex"
+                                       (selectedIndexChange)="editBookmark($event)"></generic-selectable-list>
+            </div>
+            <div class="col-2">
+              <button type="button" class="btn btn-default w-100 mb-2" (click)="addBookmark()"
+                      [disabled]="bookmarks.length < 1">
+                _#(Add)
+              </button>
+              <button type="button" class="btn btn-default w-100 mb-2" (click)="modifyBookmark()"
+                      [disabled]="selectedBookmarkListIndex < 0 || bookmarks.length < 1">
+                _#(Modify)
+              </button>
+              <button type="button" class="btn btn-default w-100 delete_file_id mb-2"
+                      [disabled]="selectedBookmarkListIndex < 0 || bookmarkList.length <= 1" (click)="removeBookmark()">
+                _#(Remove)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card m-1" *ngIf="model.notificationEmailEnabled">
+        <div class="card-body">
+          <div class="form-check form-check-inline form-row-float-label">
+            <input class="form-check-input" type="checkbox" id="notification"
+                   [ngModelOptions]="{standalone: true}"
+                   [ngModel]="action.notificationEnabled"
+                   (ngModelChange)="updateNotificationStatus($event)"
+                   [value]="true">
+            <label class="form-check-label" for="notification">
+              _#(viewer.schedule.action.notifyTask)
+            </label>
+          </div>
+          <fieldset class="ms-4" *ngIf="action.notificationEnabled">
+            <div class="form-row-float-label row">
+              <div class="col-auto form-floating">
+                  <div class="input-group">
+                    <input type="text" class="form-control" id="notify"
+                           [class.is-invalid]="!form.controls['notification'].valid"
+                           title="_#(Notify Tooltip)"
+                           formControlName="notification"
+                           [ngbTypeahead]="searchNotify"
+                           [resultTemplate]="emailAutocompleteResult"
+                           [inputFormatter]="formatEmails"
+                           (ngModelChange)="updateNotificationEmails($event)">
+                    <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-default"
+                            title="_#(Email Browser)"
+                            (click)="openEmailDialogNotify()">...</button>
+                  </div>
+                  <label>_#(Notify)</label>
+                  <span class="invalid-feedback"
+                        *ngIf="form && !!form.controls['notification'] && form.controls['notification'].errors
+                          && form.controls['notification'].errors['required']">
+                     _#(viewer.schedule.action.notificationValid)
+                  </span>
+                  <span class="invalid-feedback"
+                        *ngIf="form && !!form.controls['notification'] && form.controls['notification'].errors
+                          && !form.controls['notification'].errors['required']
+                          && form.controls['notification'].errors['email']">
+                    _#(viewer.schedule.action.notificationFormat)
+                  </span>
+                  <span class="invalid-feedback"
+                        *ngIf="form && !!form.controls['notification'] && form.controls['notification'].errors
+                          && !form.controls['notification'].errors['required']
+                          && !form.controls['notification'].errors['email']
+                          && form.controls['notification'].errors['duplicateTokens']">
+                    _#(viewer.schedule.action.notification.duplicateEmail)
+                  </span>
+              </div>
+              <div class="form-check form-check-inline form-row-float-label col-auto">
+                <input class="form-check-input" type="checkbox" name="notifyWhenFail"
+                       [ngModelOptions]="{standalone: true}" id="notifyFailed"
+                       [(ngModel)]="action.notifyIfFailed" [value]="true">
+                <label class="form-check-label" for="notifyFailed">
+                  _#(Notify only if failed)
+                </label>
+              </div>
+              <div *ngIf="action?.actionType !== 'BurstAction'"
+                   class="form-check form-check-inline form-row-float-label col-auto" >
+                <input class="form-check-input" type="checkbox" name="includeLink"
+                       [ngModelOptions]="{standalone: true}" id="includeLink"
+                       [(ngModel)]="action.link" [value]="true">
+                <label class="form-check-label" for="includeLink">
+                  _#(Include Link)
+                </label>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+      <div class="card m-1" *ngIf="model.emailDeliveryEnabled">
+        <div class="card-body">
+          <div class="form-check form-check-inline form-row-float-label">
+            <input class="form-check-input" type="checkbox" id="deliverEmail"
+                   [ngModelOptions]="{standalone: true}"
+                   [ngModel]="this.action.deliverEmailsEnabled"
+                   (ngModelChange)="updateEmailDeliveryStatus($event)"
+                   [value]="true">
+            <label class="form-check-label" for="deliverEmail">
+              _#(viewer.schedule.action.deliverEmail)
+            </label>
+          </div>
+          <fieldset class="ms-4" *ngIf="this.action.deliverEmailsEnabled">
+            <div class="form-row-float-label row">
+              <div class="col form-floating">
+                  <input type="text" class="form-control" id="from"
+                         formControlName="from"
+                         [ngbTypeahead]="searchFrom"
+                         [resultTemplate]="emailAutocompleteResult"
+                         [inputFormatter]="formatEmails"
+                         title="_#(from.email.tooltip)"
+                         (ngModelChange)="updateFromEmails($event)">
+                  <label>_#(From)</label>
+              </div>
+            </div>
+            <div class="form-row-float-label row">
+              <div class="col form-floating">
+                  <div class="input-group">
+                    <input type="text" class="form-control"
+                           [class.is-invalid]="!form.controls['to'].valid"
+                           formControlName="to"
+                           [ngbTypeahead]="searchTo"
+                           [resultTemplate]="emailAutocompleteResult"
+                           [inputFormatter]="formatEmails"
+                           title="_#(viewer.schedule.action.emailTooltip)">
+                     <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-default"
+                             title="_#(Email Browser)"
+                             (click)="openEmailDialogTo()">...</button>
+                  </div>
+                  <label>_#(To)</label>
+                  <span class="invalid-feedback"
+                       *ngIf="form && !!form.controls['to'] && form.controls['to'].errors
+                          && form.controls['to'].errors['required']">
+                    _#(viewer.schedule.action.emailRequired)
+                  </span>
+                  <span class="invalid-feedback"
+                        *ngIf="form && !!form.controls['to'] && form.controls['to'].errors
+                          && !form.controls['to'].errors['required']
+                          && form.controls['to'].errors['email']">
+                    _#(viewer.schedule.action.emailFormat)
+                  </span>
+                  <span class="invalid-feedback"
+                        *ngIf="form && !!form.controls['to'] && form.controls['to'].errors
+                          && !form.controls['to'].errors['required']
+                          && !form.controls['to'].errors['email']
+                          && form.controls['to'].errors['duplicateTokens']">
+                    _#(viewer.schedule.action.email.duplicateEmail)
+                  </span>
+              </div>
+            </div>
+            <div class="form-row-float-label row">
+              <div class="col form-floating">
+                  <div class="input-group">
+                    <input type="text" class="form-control" formControlName="cc"
+                           [ngbTypeahead]="searchTo"
+                           [resultTemplate]="emailAutocompleteResult"
+                           [class.is-invalid]="!form.controls['cc'].valid"
+                           [inputFormatter]="formatEmails">
+                    <span class="invalid-feedback" *ngIf="form.controls['cc'].errors && form.controls['cc'].errors['email']">
+                      _#(viewer.schedule.action.emailFormat)
+                    </span>
+                    <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-default"
+                            title="_#(Email Browser)"
+                            (click)="openEmailDialogCC()">...</button>
+                  </div>
+                  <label>_#(CC)</label>
+              </div>
+            </div>
+            <div class="form-row-float-label row">
+              <div class="col form-floating">
+                  <div class="input-group">
+                    <input type="text" class="form-control" formControlName="bcc"
+                           [ngbTypeahead]="searchTo"
+                           [resultTemplate]="emailAutocompleteResult"
+                           [class.is-invalid]="!form.controls['bcc'].valid"
+                           [inputFormatter]="formatEmails">
+                    <span class="invalid-feedback" *ngIf="form.controls['bcc'].errors && form.controls['bcc'].errors['email']">
+                      _#(viewer.schedule.action.emailFormat)
+                    </span>
+                    <button *ngIf="model.emailButtonVisible && model.securityEnabled" type="button" class="btn btn-default"
+                            title="_#(Email Browser)"
+                            (click)="openEmailDialogCC(true)">...</button>
+                  </div>
+                  <label>_#(BCC)</label>
+              </div>
+            </div>
+            <div class="form-row-float-label row">
+              <div class="col form-floating">
+                  <input [ngModelOptions]="{standalone: true}"
+                         type="text" class="form-control" id="subject"
+                         [(ngModel)]="action.subject"
+                         title="_#(Subject Tooltip)">
+                  <label>_#(Subject)</label>
+              </div>
+            </div>
+            <div class="form-row-float-label row">
+              <div class="col-auto form-floating">
+                  <select class="form-control" id="format"
+                          [ngModelOptions]="{standalone: true}"
+                          [ngModel]="formatValue"
+                          (ngModelChange)="updateFormatValue($event)"
+                          title="_#(Format Tooltip)">
+                    <ng-container *ngFor="let format of mailFormats">
+                      <option [value]="format.type">
+                        {{format.label}}
+                      </option>
+                    </ng-container>
+                  </select>
+                  <label>_#(Format)</label>
+              </div>
+              <div class="form-check col-auto">
+                <input class="form-check-input" type="checkbox" id="zip"
+                       [ngModelOptions]="{standalone: true}"
+                       [ngModel]="action.bundledAsZip"
+                       [disabled]="bundledDisabled"
+                       (ngModelChange)="updateBundledValue($event)"
+                       [value]="true"
+                       title="_#(schedule.bundled.zip.tooltip)">
+                <label class="form-check-label" for="zip">
+                  _#(Bundled as zip)
+                </label>
+              </div>
+            </div>
+            <div class="form-row-float-label row">
+              <div class="col form-floating" *ngIf="!isPasswordDisable()">
+                  <input type="password" class="form-control" id="password"
+                         formControlName="password"
+                         [class.is-invalid]="form && form.hasError('passwordsDoNotMatch')"
+                         [(ngModel)]="action.password"
+                         title="_#(schedule.zip.password)">
+                  <label>_#(Password)</label>
+              </div>
+              <div class="col form-floating" *ngIf="!isPasswordDisable()">
+                  <input type="password" class="form-control" id="confirmPassword"
+                         formControlName="confirmPassword"
+                         [class.is-invalid]="form && form.hasError('passwordsDoNotMatch')"
+                         [(ngModel)]="confirmPassword"
+                         title="_#(confirm.zip.password)">
+                  <label>_#(Confirm Password)</label>
+                  <span *ngIf="form && form.hasError('passwordsDoNotMatch')" class="invalid-feedback">
+                    _#(em.changePassword.mustMatch)
+                  </span>
+              </div>
+            </div>
+            <div class="form-row-float-label row">
+              <div class="col">
+                <csv-config-pane *ngIf="action.format === 'CSV'"
+                                 [formId]="'export-csv-config'"
+                                 [selectAssemblyEnable]="isDashboard"
+                                 [tableDataAssemblies]="tableDataAssemblies" [parentForm]="form"
+                                 [model]="action.csvExportModel">
+                </csv-config-pane>
+              </div>
+            </div>
+            <div class="form-check mb-2 flex-wrap" *ngIf="dataSizeOptionVisible">
+              <div class="col-auto emailSpacing">
+                <input class="form-check-input" type="radio" id="match" name="emailMatch"
+                       [ngModelOptions]="{standalone: true}"
+                       [(ngModel)]="action.emailMatchLayout"
+                       [value]="true" (ngModelChange)="updateEmailDataOnlyFormat()">
+                <label class="form-check-label match-layout-id" for="match">
+                  _#(Match Layout)
+                </label>
+              </div>
+              <div class="col-auto emailSpacing">
+                <input class="form-check-input" type="radio" id="expand" name="emailMatch"
+                       [attr.disabled]="model.expandEnabled ? null : ''"
+                       [ngModelOptions]="{standalone: true}"
+                       [(ngModel)]="action.emailMatchLayout"
+                       [value]="false">
+                <label class="form-check-label expand-tables-and-charts-id" for="expand">
+                  _#(Expand Components)
+                </label>
+              </div>
+              <div class="col-auto emailSpacing">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input"
+                         id="expandSelections"
+                         [attr.disabled]="model.expandEnabled && !action.emailMatchLayout && !action.emailOnlyDataComponents ? null : ''"
+                         [ngModelOptions]="{standalone: true}"
+                         [(ngModel)]="action.emailExpandSelections">
+                  <label class="form-check-label" for="expandSelections">
+                    _#(Expand Selection List/Tree)
+                  </label>
+                </div>
+              </div>
+              <div *ngIf="action.format === 'Excel'" class="col-auto emailSpacing">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input"
+                         id="onlyDataComponents"
+                         [attr.disabled]="model.expandEnabled && !action.emailMatchLayout ? null : ''"
+                         [ngModelOptions]="{standalone: true}"
+                         [(ngModel)]="action.emailOnlyDataComponents">
+                  <label class="form-check-label" for="onlyDataComponents">
+                    _#(Only Data Elements)
+                  </label>
+                </div>
+              </div>
+
+              <div *ngIf="action.format === 'Excel'" class="col-auto emailSpacing">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input"
+                         id="exportAllTabbedTables"
+                         [ngModelOptions]="{standalone: true}"
+                         [(ngModel)]="action.exportAllTabbedTables">
+                  <label class="form-check-label" for="exportAllTabbedTables">
+                    _#(Export All Tabbed Tables)
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div class="form-row-float-label row">
+              <div class="col form-floating">
+                  <input type="text" class="form-control" id="attachmentName"
+                         formControlName="attachmentName"
+                         [class.is-invalid]="!form.controls['attachmentName'].valid"
+                         [(ngModel)]="action.attachmentName"
+                         title="_#(Attachment name Tooltip)">
+                  <label>_#(Attachment Name)</label>
+                  <span class="invalid-feedback"
+                        *ngIf="form && !!form.controls['attachmentName'] &&
+                              !!form.controls['attachmentName'].errors &&
+                              !!form.controls['attachmentName'].errors['containsInvalidWindowsChars']">
+                    schedule.task.name.invalid)
+                  </span>
+              </div>
+            </div>
+            <div class="form-row-float-label row">
+              <div class="col form-floating">
+                <ng-container *ngIf="!isIE else plainTextArea">
+                  <ckeditor
+                    [editor]="Editor"
+                    [config]="deliveryMessageConfig"
+                    [(ngModel)]="deliveryMessage"
+                    [ngModelOptions]="{standalone: true}"
+                    class="schedule-delivery-message"
+                  ></ckeditor>
+                </ng-container>
+                <ng-template #plainTextArea>
+                  <textarea class="form-control" formControlName="deliveryMessage"
+                            (ngModelChange)="updateDeliverMessage($event)"></textarea>
+                </ng-template>
+                <label>_#(Message)</label>
+              </div>
+            </div>
+            <div class="form-row-float-label row">
+              <div *ngIf="action?.actionType !== 'BurstAction'"
+                   class="form-check form-check-inline form-row-float-label col-auto emailSpacing">
+                <input class="form-check-input" type="checkbox" name="dincludeLink"
+                       [ngModelOptions]="{standalone: true}" id="dincludeLink"
+                       [(ngModel)]="action.deliverLink" [value]="true">
+                <label class="form-check-label" for="dincludeLink">
+                  _#(Include Link)
+                </label>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+
+      <div class="card m-1" *ngIf="model.saveToDiskEnabled">
+        <div class="card-body">
+          <div class="form-check form-check-inline form-row-float-label">
+            <input class="form-check-input" type="checkbox" id="saveToServer"
+                   [ngModelOptions]="{standalone: true}"
+                   [(ngModel)]="action.saveToServerEnabled"
+                   [value]="true">
+            <label class="form-check-label" for="saveToServer">
+              _#(Save to Disk)
+            </label>
+          </div>
+          <fieldset class="ms-4" *ngIf="action.saveToServerEnabled">
+            <div class="form-row-float-label row">
+              <div class="col form-floating" *ngIf="hasLocations">
+                  <select class="form-control" id="location"
+                          [ngModelOptions]="{standalone: true}" [(ngModel)]="locationPath"
+                          title="_#(Path Tooltip Schedule)" [class.is-invalid]="!locationPath">
+                    <option *ngFor="let location of locations" [value]="location.path">{{location.label}}</option>
+                  </select>
+                  <label>_#(Location)</label>
+                  <span class="invalid-feedback">_#(em.schedule.action.serverLocationRequired)</span>
+              </div>
+              <div class="col">
+                <div class="form-row-float-label row">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" id="path" [class.is-invalid]="!filePath"
+                           [ngModelOptions]="{standalone: true}"
+                           [(ngModel)]="filePath"
+                           title="_#(Path Tooltip Schedule)">
+                    <label>_#(Path)</label>
+                    <span class="invalid-feedback">_#(em.schedule.action.pathRequired)</span>
+                  </div>
+                </div>
+                <ng-container *ngIf="!hasLocations">
+                  <div class="form-check form-check-inline form-row-float-label">
+                    <input type="checkbox" class="form-check-input" id="ignoreNull"
+                           [ngModelOptions]="{standalone: true}"
+                           [(ngModel)]="ftp">
+                    <label class="form-check-label" for="ignoreNull">
+                      _#(FTP/SFTP)
+                    </label>
+                  </div>
+                  <div class="form-row-float-label row">
+                    <div class="form-floating">
+                      <input type="text" class="form-control" id="username"
+                             [disabled]="!ftp"
+                             [ngModelOptions]="{standalone: true}"
+                             [(ngModel)]="username">
+                      <label>_#(Username)</label>
+                    </div>
+                  </div>
+                  <div class="form-row-float-label row">
+                    <div class="form-floating">
+                      <input type="password" class="form-control" id="ftpPassword"
+                             [disabled]="!ftp"
+                             [ngModelOptions]="{standalone: true}"
+                             [(ngModel)]="password">
+                      <label>_#(Password)</label>
+                    </div>
+                  </div>
+                </ng-container>
+              </div>
+              <div class="col-2"></div>
+            </div>
+            <div class="form-row-float-label row">
+              <div class="col-10 form-floating" [class.form-row-float-label]="saveFormat === '3'">
+                  <select class="form-control" id="fileFormat"
+                          [ngModelOptions]="{standalone: true}"
+                          [(ngModel)]="saveFormat"
+                          title="_#(viewer.schedule.action.saveFormat)">
+                    <ng-container *ngFor="let format of saveFormats">
+                      <option [value]="format.type">
+                        {{ format.label }}
+                      </option>
+                    </ng-container>
+                  </select>
+                  <label>_#(Format)</label>
+              </div>
+            </div>
+            <div *ngIf="isCSVFormat(saveFormat)" class="col-10 mb-2">
+              <csv-config-pane [model]="action.csvSaveModel" [selectAssemblyEnable]="isDashboard"
+                               [tableDataAssemblies]="tableDataAssemblies">
+              </csv-config-pane>
+            </div>
+            <div class="form-row-float-label row align-items-start">
+              <div class="col-10">
+
+                <generic-selectable-list [itemList]="saveStrings"
+                                         [selectedIndex]="selectedFormatIndex"
+                                         (selectedIndexChange)="editFile($event)"></generic-selectable-list>
+                <div class="alert alert-danger"
+                     *ngIf="action.saveToServerEnabled && (!saveStrings || saveStrings.length == 0)">
+                  _#(viewer.schedule.action.saveFileWarning)
+                </div>
+              </div>
+              <div class="col-2">
+                <button type="button" class="btn btn-default w-100 mb-2" (click)="addFile()"
+                        [disabled]="!filePath || hasLocations && !locationPath || !isVSCSVFileValid()">
+                  _#(Add)
+                </button>
+                <button type="button" class="btn btn-default w-100 delete_file_id mb-2"
+                        [disabled]="selectedFormatIndex < 0" (click)="deleteFile()">
+                  _#(Delete)
+                </button>
+                <button type="button" class="btn btn-default w-100" (click)="modifyFile()"
+                        [disabled]="selectedFormatIndex < 0 || !filePath || hasLocations && !locationPath">
+                  _#(Modify)
+                </button>
+              </div>
+            </div>
+            <div class="row" *ngIf="showMatchAndExpand">
+              <div class="col-auto">
+                <input class="form-check-input" type="radio" id="match2" name="saveMatch"
+                       [ngModelOptions]="{standalone: true}"
+                       [(ngModel)]="action.saveMatchLayout"
+                       [value]="true" (ngModelChange)="updateDataOnlyFormat()">
+                <label class="form-check-label match-layout-id" for="match2">
+                  _#(Match Layout)
+                </label>
+              </div>
+              <div class="col-auto">
+                <input class="form-check-input" type="radio" id="expand2" name="saveMatch"
+                       [attr.disabled]="model.expandEnabled ? null : ''"
+                       [ngModelOptions]="{standalone: true}"
+                       [(ngModel)]="action.saveMatchLayout"
+                       [value]="false">
+                <label class="form-check-label expand-tables-and-charts-id" for="expand2">
+                  _#(Expand Components)
+                </label>
+              </div>
+              <div class="col-auto">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input"
+                         id="expandSelections2"
+                         [disabled]="!model.expandEnabled || action.saveMatchLayout || action.saveOnlyDataComponents"
+                         [ngModelOptions]="{standalone: true}"
+                         [(ngModel)]="action.saveExpandSelections">
+                  <label class="form-check-label" for="expandSelections2">
+                    _#(Expand Selection List/Tree)
+                  </label>
+                </div>
+              </div>
+              <div *ngIf="hasExcelFormat()" class="col-auto">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input"
+                         id="onlyDataComponents2"
+                         [disabled]="!model.expandEnabled || action.saveMatchLayout"
+                         [ngModelOptions]="{standalone: true}"
+                         [(ngModel)]="action.saveOnlyDataComponents">
+                  <label class="form-check-label" for="onlyDataComponents2">
+                    _#(Only Data Elements)
+                  </label>
+                </div>
+              </div>
+              <div *ngIf="hasExcelFormat()" class="col-auto">
+                <div class="form-check">
+                  <input type="checkbox" class="form-check-input"
+                         id="saveExportAllTabbedTables"
+                         [ngModelOptions]="{standalone: true}"
+                         [(ngModel)]="action.saveExportAllTabbedTables">
+                  <label class="form-check-label" for="onlyDataComponents2">
+                    _#(Export All Tabbed Tables)
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div *ngIf="showMatchMessage" class="row html-match-message">
+               <span class="col-auto">_#(schedule.task.action.htmlFileFormat.doNotApplyMatch)<br>_#(schedule.task.action.excelFileFormat.justApplyTabbedTable)</span>
+            </div>
+          </fieldset>
+        </div>
+      </div>
+
+      <div class="card m-1">
+        <div class="card-body">
+          <label class="form-check-label card-title">_#(Creation Parameters)</label>
+          <parameter-table [(parameters)]="parameters"
+                           [parameterNames]="allParameters"
+                           [containsSheet]="containsSheet">
+          </parameter-table>
+          <div *ngIf="missingParameters" class="py-2">
+            <span>_#(Required Parameters):&nbsp;</span>
+            <span>{{missingParameters}}</span>
+          </div>
+          <div *ngIf="optionalParameters && optionalParameters.length > 0" class="py-2">
+            <span>Optional Parameters:</span>
+            <span *ngFor="let param of optionalParameters; let last = last">
+              {{param + (last ? '' : ', ')}}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card m-1" *ngIf="!!highlights && highlights.length > 0">
+        <div class="card-body">
+          <label class="form-check-label card-title">_#(Alert)</label>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="underHighlightCondition"
+                   [(ngModel)]="action.highlightsSelected" [value]="true"
+                   [ngModelOptions]="{standalone: true}" id="execHighlight">
+            <label class="form-check-label" for="execHighlight">
+              _#(schedule.alert.enabled)
+            </label>
+          </div>
+          <div class="form-group" *ngIf="action.highlightsSelected">
+            <table class="table table-bordered table-sm w-100">
+              <thead class="thead-default">
+                <tr>
+                  <th>_#(Select)</th>
+                  <th>_#(Assembly)</th>
+                  <th>_#(Highlight)</th>
+                  <th>_#(Condition)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let highlight of highlights">
+                  <td>
+                    <input class="text-center align-middle"
+                           type="checkbox"
+                           [checked]="isHighlightSelected(highlight.element, highlight.highlight)"
+                           (click)="highlightSelectionChange(highlight.element, highlight.highlight)" />
+                  </td>
+                  <td>{{ highlight.element }}</td>
+                  <td>{{ getHighlightLabel(highlight.highlight, highlight.count) }}</td>
+                  <td>{{ getHighlightConditionLabel(highlight.condition) }}</td>
+                </tr>
+                <tr class="txt-danger cross-out" *ngFor="let highlight of disabledHighlights">
+                  <td>
+                    <input class="text-center align-middle"
+                           type="checkbox"
+                           [checked]="isHighlightSelected(highlight.element, highlight.highlight)"
+                           (click)="highlightSelectionChange(highlight.element, highlight.highlight)" />
+                  </td>
+                  <td>{{ highlight.element }}</td>
+                  <td>{{ getHighlightLabel(highlight.highlight, highlight.count) }}</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</ng-container>
+<ng-template #emailAddrDialog let-close="close" let-dismiss="dismiss">
+  <email-addr-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                     [embeddedOnly]="embeddedOnly" [model]="emailDialogModel"
+                     [addresses]="initialAddresses">
+  </email-addr-dialog>
+</ng-template>
+<ng-template #emailAutocompleteResult let-r="result" let-t="term">
+  <ngb-highlight [result]="r.label" [term]="t"></ngb-highlight>
+</ng-template>

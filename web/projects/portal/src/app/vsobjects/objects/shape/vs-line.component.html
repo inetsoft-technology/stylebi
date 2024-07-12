@@ -1,0 +1,119 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="vs-object">
+  <div class="vs-line" #objectContainer
+       *ngIf="model"
+       VSDataTip [dataTipName]="model.absoluteName"
+       VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+       [popZIndex]="model.objectFormat.zIndex"
+       [style.display]="getVisible() ? null : 'none'"
+       [style.top.px]="model.objectFormat.top"
+       [style.left.px]="model.objectFormat.left"
+       [class.fade-assembly]="!viewer && !model.visible"
+       [style.z-index]="model.objectFormat.zIndex">
+    <svg style="position: absolute"
+         [style.opacity]="model.objectFormat.alpha"
+       [style.width.px]="model.objectFormat.width"
+       [style.height.px]="model.objectFormat.height">
+      <defs>
+        <marker [attr.id]="'filled-arrow-end' + markerSuffix"
+                markerWidth="15" markerHeight="25" refX="14" refY="7"
+                orient="auto" markerUnits="userSpaceOnUse" viewBox="0 0 25 25">
+          <path d="M0,0 L18,7 L0,14" [attr.fill]="model.color" stroke-linejoin="miter"/>
+        </marker>
+
+        <marker [attr.id]="'white-arrow-end' + markerSuffix"
+                markerWidth="15" markerHeight="25" refX="14" refY="7"
+                orient="auto" markerUnits="userSpaceOnUse" viewBox="0 0 25 25">
+          <path d="M0,0 L18,7 L0,14 L0,0" [attr.stroke]="model.color" fill="white"
+                stroke-width="2" stroke-linejoin="miter"/>
+          <path d="M2,0 L2,14" [attr.stroke]="model.color" fill="white" stroke-width="2"
+                stroke-linejoin="miter"/>
+        </marker>
+
+        <marker [attr.id]="'empty-arrow-end' + markerSuffix"
+                markerWidth="15" markerHeight="25" refX="14" refY="7"
+                orient="auto" markerUnits="userSpaceOnUse" viewBox="0 0 25 25">
+          <path d="M0,0 L18,7 L0,14" [attr.stroke]="model.color" fill="transparent"
+                stroke-width="3" stroke-linejoin="miter"/>
+        </marker>
+
+        <marker [attr.id]="'filled-arrow-start' + markerSuffix"
+                markerWidth="15" markerHeight="25" refX="2" refY="7"
+                orient="auto" markerUnits="userSpaceOnUse" viewBox="0 0 25 25">
+          <path d="M18,0 L0,7 L18,14" [attr.fill]="model.color" stroke-linejoin="miter"/>
+        </marker>
+
+        <marker [attr.id]="'white-arrow-start' + markerSuffix"
+                markerWidth="15" markerHeight="25" refX="2" refY="7"
+                orient="auto" markerUnits="userSpaceOnUse" viewBox="0 0 25 25">
+          <path d="M18,0 L0,7 L18,14 L18,0" [attr.stroke]="model.color" fill="white" stroke-width="2" stroke-linejoin="miter"/>
+          <path d="M16,0 L16,14" [attr.fill]="model.color" stroke-width="2" stroke-linejoin="miter"/>
+        </marker>
+
+        <marker [attr.id]="'empty-arrow-start' + markerSuffix"
+                markerWidth="15" markerHeight="25" refX="2" refY="7"
+                orient="auto" markerUnits="userSpaceOnUse" viewBox="0 0 25 25">
+          <path d="M18,0 L0,7 L18,14" [attr.stroke]="model.color" fill="transparent" stroke-width="3" stroke-linejoin="miter"/>
+        </marker>
+      </defs>
+
+      <ng-container *ngIf="doubleLine">
+        <line #line1 x1="0" y1="0" x2="0" y2="0" [attr.stroke]="model.color" stroke-width="1px"/>
+        <line #line2 x1="0" y1="0" x2="0" y2="0" [attr.stroke]="model.color" stroke-width="1px"/>
+      </ng-container>
+
+      <line [attr.x1]="model.startLeft"
+            [attr.y1]="model.startTop"
+            [attr.x2]="model.endLeft"
+            [attr.y2]="model.endTop"
+            [attr.stroke]="doubleLine ? 'none' : model.color"
+            [attr.stroke-width]="lineWidth"
+            [style.marker-start]="arrowStartUrl"
+            [style.marker-end]="arrowEndUrl"
+            [attr.stroke-dasharray]="lineDash"></line>
+    </svg>
+  </div>
+  <!-- Use indicator box as way to mark where line actually is so that vs pane can show scrollbars correctly. -->
+  <div class="vs-line-indicator"
+       [style.top.px]="model.objectFormat.top + model.startTop"
+       [style.left.px]="model.objectFormat.left + model.startLeft"
+       [style.width.px]="lineLength"
+       [style.transform]="'rotate(' + lineRotationAngle + 'rad)'">
+  </div>
+  <div [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
+       [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+       [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'">
+    <div class="annotation-hidden-container" *ngIf="viewer">
+      <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
+    </div>
+    <ng-container *ngIf="viewer">
+      <vs-annotation *ngFor="let annotationModel of model.assemblyAnnotationModels"
+                     [model]="annotationModel"
+                     [actions]="actions"
+                     [restrictTo]="objectContainer"
+                     [vsInfo]="vsInfo"
+                     [selected]="isAnnotationSelected(annotationModel)"
+                     (remove)="removeAnnotation(annotationModel)"
+                     (mouseSelect)="selectAnnotation($event)">
+      </vs-annotation>
+    </ng-container>
+  </div>
+</div>

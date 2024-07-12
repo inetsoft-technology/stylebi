@@ -1,0 +1,27 @@
+<svg width="64" height="64" xmlns="http://www.w3.org/2000/svg" class="icon">
+ <defs>
+  <style type="text/css"/>
+ </defs>
+ <g>
+  <title>background</title>
+  <rect x="-1" y="-1" width="66" height="66" id="canvas_background" fill="none"/>
+ </g>
+ <g>
+  <title>Layer 1</title>
+  <defs>
+   <style type="text/css"/>
+  </defs>
+  <defs>
+   <style type="text/css"/>
+  </defs>
+  <defs>
+   <style type="text/css"/>
+  </defs>
+  <defs>
+   <style type="text/css"/>
+  </defs>
+  <ellipse stroke="#f7f7f7" ry="31.868744" rx="31.813122" id="svg_2" cy="32" cx="32" stroke-opacity="null" stroke-width="null" fill="#bdbdbd"/>
+  <line stroke="#ffffff" stroke-linecap="null" stroke-linejoin="null" id="svg_6" y2="32.055617" x2="46.571745" y1="31.944382" x1="17.428254" fill-opacity="null" stroke-opacity="null" stroke-width="2" fill="none"/>
+  <line transform="rotate(90.07836151123047 32,31.999999999999993) " stroke="#ffffff" stroke-linecap="null" stroke-linejoin="null" id="svg_8" y2="32.055617" x2="46.571746" y1="31.944382" x1="17.428255" fill-opacity="null" stroke-opacity="null" stroke-width="2" fill="none"/>
+ </g>
+</svg>

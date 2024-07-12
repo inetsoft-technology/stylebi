@@ -1,0 +1,79 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<split-pane class="w-100" [sizes]="[40, 60]" [minSize]="50" [snapOffset]="0" [gutterSize]="5">
+  <div class="split flex-fixed-container">
+    <div class="physical-model-panel-heading physical-model-panel-heading-border py-1 px-2
+                light-gray-bg truncate-parent justify-content-between align-items-center">
+      <span class="truncate-text font-weight-bold">
+        _#(data.logicalmodel.attribute.expressionProperties)
+      </span>
+    </div>
+    <div class="flex-fixed-content content-overflow-all p-2">
+      <logical-model-attribute-editor [attribute]="attribute"
+                                      [form]="form" [isExpression]="true"
+                                      [databaseName]="databaseName"
+                                      [physicalModelName]="physicalModelName"
+                                      [additional]="additional"
+                                      [existNames]="existNames"
+                                      [logicalModelParent]="logicalModelParent"
+                                      [entities]="entities"
+                                      (onAttributeChanged)="apply()">
+      </logical-model-attribute-editor>
+      <div class="form-group">
+        <div class="checkbox">
+          <label class="control-label">
+            <input type="checkbox" [(ngModel)]="attribute.aggregate" [disabled]="!editable"/>
+            <span>_#(Aggregate Formula)</span>
+          </label>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="checkbox">
+          <label class="control-label">
+            <input type="checkbox" [(ngModel)]="attribute.parseable" [disabled]="!editable"/>
+            <span>_#(Parseable)</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="split flex-fixed-container">
+    <div class="physical-model-panel-heading physical-model-panel-heading-border py-1 px-2
+                light-gray-bg truncate-parent justify-content-between align-items-center">
+      <span class="truncate-text font-weight-bold">
+        _#(data.logicalmodel.attribute.expressionEditor)
+      </span>
+    </div>
+    <div class="flex-fixed-content content-overflow-all p-2">
+      <script-pane [sql]="true" [expression]="attribute.expression" [disabled]="!editable"
+                   [fullContainer]="true"
+                   (expressionChange)="updateExpression($event)"
+                   [columnTreeRoot]="columnTreeRoot"
+                   [columnTreeEnabled]="!!columnTreeRoot"
+                   [functionTreeRoot]="functionTreeRoot"
+                   [functionTreeEnabled]="!!functionTreeRoot"
+                   [operatorTreeRoot]="operatorTreeRoot"
+                   [required]="true"
+                   [cursor]="cursor"
+                   [preventEscape]="true">
+      </script-pane>
+    </div>
+  </div>
+</split-pane>

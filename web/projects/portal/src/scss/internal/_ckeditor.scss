@@ -1,0 +1,60 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.compact {
+  .ck.ck-content {
+    p {
+      margin-bottom: 0 !important;
+    }
+  }
+}
+
+.ck.ck-dropdown .ck-dropdown__panel.ck-dropdown__panel-visible {
+  min-width: 100px;
+  max-height: 40vh;
+}
+
+.ck.ck-dropdown .ck-font-size-dropdown, .ck.ck-dropdown .ck-font-family-dropdown,
+.ck.ck-dropdown.ck-font-size-dropdown, .ck.ck-dropdown.ck-font-family-dropdown{
+  .ck.ck-list {
+    max-height: 200px;
+    overflow-y: scroll;
+  }
+}
+
+.modal-body .ck-editor__editable {
+  min-height: 40vh;
+  max-height: 40vh;
+}
+
+.schedule-delivery-message .ck-editor__editable {
+  min-height: 200px;
+  max-height: 200px;
+}
+
+:root {
+  --ck-color-base-foreground: var(--inet-toolbar-bg-color) !important;
+  --ck-color-base-background: var(--inet-dialog-bg-color) !important;
+  --ck-color-button-default-hover-background: var(--inet-hover-primary-bg-color) !important;
+  --ck-color-button-on-background: var(--inet-selected-item-bg-color) !important;
+  --ck-color-base-text: var(--inet-input-text-color) !important;
+  --ck-color-base-active: var(--inet-selected-item-bg-color) !important;
+  --ck-color-base-active-focus: var(--inet-primary-color) !important;
+  --ck-color-focus-border: var(--inet-primary-color) !important;
+  --ck-color-list-button-on-text: var(--inet-selected-item-text-color) !important;
+  --ck-color-focus-outer-shadow: var(--inet-primary-color-light) !important;
+}

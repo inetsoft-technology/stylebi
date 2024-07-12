@@ -1,0 +1,487 @@
+{
+  "endpoints": [
+    {
+      "name": "Attachment",
+      "paged": true,
+      "suffix": "/1.0/attachments/{Attachment}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Task Attachments",
+      "paged": true,
+      "suffix": "/1.0/tasks/{Task}/attachments?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Custom Field",
+      "paged": false,
+      "suffix": "/1.0/custom_fields/{Custom Field}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Workspace Custom Fields",
+      "paged": true,
+      "suffix": "/1.0/workspaces/{Workspace}/custom_fields?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Project Custom Fields",
+      "paged": true,
+      "suffix": "/1.0/projects/{Project}/custom_field_settings?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Portfolio Custom Fields",
+      "paged": true,
+      "suffix": "/1.0/portfolios/{Portfolio}/custom_field_settings?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Events",
+      "paged": true,
+      "suffix": "/1.0/events?resource={Resource}&sync={Sync?}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Job",
+      "paged": false,
+      "suffix": "/1.0/jobs/{Job}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Organization Export Request",
+      "paged": true,
+      "suffix": "/1.0/organization_exports/{Organization Export}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Portfolios",
+      "paged": true,
+      "suffix": "/1.0/portfolios?workspace={Workspace}&owner={Owner}&opt_fields={Returned Fields?}",
+      "lookups": [
+        {
+          "endpoint": "Portfolio Memberships",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Portfolio"
+        }
+      ]
+    },
+    {
+      "name": "Portfolio",
+      "paged": false,
+      "suffix": "/1.0/portfolios/{Portfolio}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Portfolio Items",
+      "paged": true,
+      "suffix": "/1.0/portfolios/{Portfolio}/items?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Portfolio Memberships",
+      "paged": true,
+      "suffix": "/1.0/portfolio_memberships?portfolio={Portfolio?}&workspace={Workspace?}&user={User?}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Portfolio Membership",
+      "paged": false,
+      "suffix": "/1.0/portfolio_memberships/{Portfolio Membership}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Memberships from a Portfolio",
+      "paged": true,
+      "suffix": "/1.0/portfolios/{Portfolio}/portfolio_memberships?user={User?}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Projects",
+      "paged": true,
+      "pageRequiredParameter": "Workspace",
+      "suffix": "/1.0/projects?workspace={Workspace?}&team={Team?}&archived={Archived?:false|true}&opt_fields={Returned Fields?}",
+      "lookups": [
+        {
+          "endpoint": "Project",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Project"
+        },
+        {
+          "endpoint": "Project Memberships",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Project"
+        },
+        {
+          "endpoint": "Project Statuses",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Project"
+        },
+        {
+          "endpoint": "Project Sections",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Project"
+        },
+        {
+          "endpoint": "Tasks",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Project",
+          "inheritParameters": false
+        }
+      ]
+    },
+    {
+      "name": "Project",
+      "paged": false,
+      "suffix": "/1.0/projects/{Project}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Task Projects",
+      "paged": true,
+      "suffix": "/1.0/tasks/{Task}/projects?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Team Projects",
+      "paged": true,
+      "suffix": "/1.0/teams/{Team}/projects?archived={Archived?:false|true}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Workspace Projects",
+      "paged": true,
+      "suffix": "/1.0/workspaces/{Workspace}/projects?archived={Archived?:false|true}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Project Task Count",
+      "paged": false,
+      "suffix": "/1.0/projects/{Project}/task_counts?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Project Membership",
+      "paged": false,
+      "suffix": "/1.0/project_memberships/{Project Membership}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Project Memberships",
+      "paged": true,
+      "suffix": "/1.0/projects/{Project}/project_memberships?user={User?}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Project Status",
+      "paged": false,
+      "suffix": "/1.0/project_statuses/{Project Status}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Project Statuses",
+      "paged": true,
+      "suffix": "/1.0/projects/{Project}/project_statuses?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Section",
+      "paged": false,
+      "suffix": "/1.0/sections/{Section}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Project Sections",
+      "paged": true,
+      "suffix": "/1.0/projects/{Project}/sections?opt_fields={Returned Fields?}",
+      "lookups": [
+        {
+          "endpoint": "Tasks",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Section",
+          "inheritParameters": false
+        }
+      ]
+    },
+    {
+      "name": "Story",
+      "paged": false,
+      "suffix": "/1.0/stories/{Story}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Task Stories",
+      "paged": true,
+      "suffix": "/1.0/tasks/{Task}/stories?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Tags",
+      "paged": true,
+      "suffix": "/1.0/tags?workspace={Workspace?}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Tag",
+      "paged": false,
+      "suffix": "/1.0/tags/{Tag}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Task Tags",
+      "paged": true,
+      "suffix": "/1.0/tasks/{Task}/tags?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Workspace Tags",
+      "paged": false,
+      "suffix": "/1.0/workspaces/{Workspace}/tags?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Tasks",
+      "paged": true,
+      "suffix": "/1.0/tasks?assignee={Assignee?}&project={Project?}&section={Section?}&workspace={Workspace?}&completed_since={Completed Since?:yyyy-MM-ddTHH:mm:ssZ}&modified_since={Modified Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "lookups": [
+        {
+          "endpoints": ["Task", "Task Stories"],
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Task"
+        }
+      ]
+    },
+    {
+      "name": "Task",
+      "paged": false,
+      "suffix": "/1.0/tasks/{Task}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Project Tasks",
+      "paged": true,
+      "suffix": "/1.0/projects/{Project}/tasks?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Section Tasks",
+      "paged": true,
+      "suffix": "/1.0/sections/{Section}/tasks?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Tag Tasks",
+      "paged": true,
+      "suffix": "/1.0/tags/{Tag}/tasks?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "User Task List Tasks",
+      "paged": true,
+      "suffix": "/1.0/user_task_lists/{User Task List}/tasks?completed_since={Completed Since?:yyyy-MM-ddTHH:mm:ssZ}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Task Subtasks",
+      "paged": true,
+      "suffix": "/1.0/tasks/{Task}/subtasks?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Task Dependencies",
+      "paged": true,
+      "suffix": "/1.0/tasks/{Task}/dependencies?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Task Dependents",
+      "paged": true,
+      "suffix": "/1.0/tasks/{Task}/dependents?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Workspace Task Search",
+      "paged": false,
+      "suffix": "/1.0/workspaces/{Workspace}/tasks/search?limit=100&text={Text?}&resource_subtype={Resource Subtype?}&assignee.any={Assignee?}&projects.any={Projects?}&tags.any={Tags?}&teams.any={Teams?}"
+    },
+    {
+      "name": "Team",
+      "paged": false,
+      "suffix": "/1.0/teams/{Team}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Organization Teams",
+      "paged": true,
+      "suffix": "/1.0/organizations/{Workspace}/teams?opt_fields={Returned Fields?}",
+      "lookups": [
+        {
+          "endpoint": "Team Memberships",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Team"
+        }
+      ]
+    },
+    {
+      "name": "User Teams",
+      "paged": true,
+      "suffix": "/1.0/users/{User}/teams?organization={Organization}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Team Membership",
+      "paged": false,
+      "suffix": "/1.0/team_memberships/{Team Membership}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Team Memberships",
+      "paged": true,
+      "suffix": "/1.0/team_memberships?team={Team?}&user={User?}&workspace={Workspace?}"
+    },
+    {
+      "name": "Memberships from a Team",
+      "paged": true,
+      "suffix": "/1.0/teams/{Team}/team_memberships?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Memberships from a User",
+      "paged": true,
+      "suffix": "/1.0/users/{User}/team_memberships?workspace={Workspace}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Typeahead Search",
+      "paged": true,
+      "suffix": "/1.0/workspaces/{Workspace}/typeahead?resource_type={Resource Type:custom_field|project|portfolio|tag|task|user}&type={Type?}&query={Query?}&count={Count?}"
+    },
+    {
+      "name": "Users",
+      "paged": true,
+      "pageRequiredParameter": "Workspace",
+      "suffix": "/1.0/users?workspace={Workspace?}&opt_fields={Returned Fields?}",
+      "lookups": [
+        {
+          "endpoint": "User",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "User"
+        },
+        {
+          "endpoint": "Team Memberships",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "User"
+        },
+        {
+          "endpoint": "Portfolios",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Owner"
+        },
+        {
+          "endpoint": "User's Task List",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "User"
+        },
+        {
+          "endpoint": "User Workspace Memberships",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "User"
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/1.0/users/{User}?opt_fields={Returned Fields?}",
+      "lookups": [
+        {
+          "endpoint": "User Teams",
+          "jsonPath": "$.data.workspaces.[*]",
+          "key": "$(User)",
+           "parameterName": "User",
+           "parameters": {
+              "Organization": "$.gid"
+           }
+        }
+      ]
+    },
+    {
+      "name": "User Favorites",
+      "paged": true,
+      "suffix": "/1.0/users/{User}/favorites?resource_type={Resource Type:project|team|portfolio|user|tag}&workspace={Workspace}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Team Users",
+      "paged": true,
+      "suffix": "/1.0/teams/{Team}/users?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Workspace Users",
+      "paged": true,
+       "suffix": "/1.0/workspaces/{Workspace}/users?opt_fields={Returned Fields?}",
+      "lookups": [
+        {
+          "endpoint": "Portfolios",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Owner"
+        }
+      ]
+    },
+    {
+      "name": "User Task List",
+      "paged": true,
+      "suffix": "/1.0/user_task_lists/{User Task List}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "User's Task List",
+      "paged": true,
+      "suffix": "/1.0/users/{User}/user_task_list?workspace={Workspace}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Webhooks",
+      "paged": true,
+      "suffix": "/1.0/webhooks?workspace={Workspace}&resource={Resource?}&opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Webhook",
+      "paged": false,
+      "suffix": "/1.0/webhooks/{Webhook}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Workspaces",
+      "paged": true,
+      "suffix": "/1.0/workspaces?opt_fields={Returned Fields?}",
+      "lookups": [
+        {
+          "endpoint": "Workspace",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Workspace"
+        },
+        {
+          "endpoint": "Projects",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Workspace"
+        },
+        {
+          "endpoint": "Workspace Tags",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Workspace"
+        },
+        {
+          "endpoint": "Workspace Users",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Workspace"
+        },
+        {
+          "endpoint": "Tasks",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Workspace",
+          "inheritParameters": false
+        },
+        {
+          "endpoint": "Workspace Memberships",
+          "jsonPath": "$.data.[*]",
+          "key": "gid",
+          "parameterName": "Workspace"
+        }
+      ]
+    },
+    {
+      "name": "Workspace",
+      "paged": false,
+      "suffix": "/1.0/workspaces/{Workspace}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Workspace Membership",
+      "paged": false,
+      "suffix": "/1.0/workspace_memberships/{Workspace Membership}?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "User Workspace Memberships",
+      "paged": true,
+      "suffix": "/1.0/users/{User}/workspace_memberships?opt_fields={Returned Fields?}"
+    },
+    {
+      "name": "Workspace Memberships",
+      "paged": true,
+      "suffix": "/1.0/workspaces/{Workspace}/workspace_memberships?user={User?}&opt_fields={Returned Fields?}"
+    }
+  ]
+}

@@ -1,0 +1,134 @@
+#
+# inetsoft-docker-community - StyleBI is a business intelligence web application.
+# Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+
+---
+# shared configuration for the server and scheduler, generates the inetsoft.yaml configuration file
+x-shared-config: &sharedenv
+  # the cluster communication port number
+  INETSOFTCONFIG_CLUSTER_PORTNUMBER: "5701"
+  # enables multicast discovery for the cluster
+  INETSOFTCONFIG_CLUSTER_MULTICASTENABLED: "true"
+  # the IP address used for multicast discovery
+  INETSOFTCONFIG_CLUSTER_MULTICASTADDRESS: "224.2.2.3"
+  # the port number used for multicast discovery
+  INETSOFTCONFIG_CLUSTER_MULTICASTPORT: "54327"
+  # disables TCP discovery for the cluster
+  INETSOFTCONFIG_CLUSTER_TCPENABLED: "false"
+  # flag indicating that the cluster is not running as a single node
+  INETSOFTCONFIG_CLUSTER_SINGLENODE: "false"
+  # the directory used for local plugin storage
+  INETSOFTCONFIG_PLUGINDIRECTORY: "/var/lib/inetsoft/plugins"
+  # disables FIPS compliance mode
+  INETSOFTCONFIG_SECRETS_FIPSCOMPLIANCEMODE: "false"
+  # use the MapDB key-value engine
+  INETSOFTCONFIG_KEYVALUE_TYPE: "mapdb"
+  # the path to the directory containing the MapDB database files
+  INETSOFTCONFIG_KEYVALUE_MAPDB_DIRECTORY: "/var/lib/inetsoft/kv"
+  # use the shared filesystem blob engine
+  INETSOFTCONFIG_BLOB_TYPE: "filesystem"
+  # the path to the local cache for blobs
+  INETSOFTCONFIG_BLOB_CACHEDIRECTORY: "/var/lib/inetsoft/blob-cache"
+  # the path to shared blob storage directory
+  INETSOFTCONFIG_BLOB_FILESYSTEM_DIRECTORY: "/var/lib/inetsoft/blob"
+  # use a shared directory for external storage
+  INETSOFTCONFIG_EXTERNALSTORAGE_TYPE: "filesystem"
+  # the path to the external storage shared directory
+  INETSOFTCONFIG_EXTERNALSTORAGE_FILESYSTEM_DIRECTORY: "/var/lib/inetsoft/files"
+
+services:
+  storage:
+    # this container initializes the storage before the first start
+    image: "${inetsoft.docker.repository}/stylebi-community:latest"
+    restart: no
+    volumes:
+      - "inetsoft_kv:/var/lib/inetsoft/kv"
+      - "inetsoft_blob:/var/lib/inetsoft/blob"
+      - "inetsoft_files:/var/lib/inetsoft/files"
+    environment:
+      # initialize storage with these properties
+      # the password for the "admin" user
+      INETSOFT_ADMIN_PASSWORD: "admin"
+      # set the cluster mode flag, required when using Docker (server.type property)
+      INETSOFTENV_SERVER_TYPE: "server_cluster"
+      # SMTP server settings (mail.smtp.host and mail.smtp.port properties)
+      INETSOFTENV_MAIL_SMTP_HOST: "mail.inetsoft.com"
+      INETSOFTENV_MAIL_SMTP_PORT: "587"
+      # Java command line options, overridden to set min and max heap memory
+      JAVA_MEMORY_OPTS: "-Xms1g -Xmx1g"
+      <<: *sharedenv
+    command:
+      - "init"
+  server:
+    image: "${inetsoft.docker.repository}/stylebi-community:latest"
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - "inetsoft_kv:/var/lib/inetsoft/kv"
+      - "inetsoft_blob:/var/lib/inetsoft/blob"
+      - "inetsoft_files:/var/lib/inetsoft/files"
+    environment:
+      # Java command line options, overridden to set min and max heap memory
+      JAVA_MEMORY_OPTS: "-Xms2g -Xmx2g"
+      <<: *sharedenv
+    command:
+      - "server"
+    depends_on:
+      storage:
+        condition: service_completed_successfully
+    healthcheck:
+      test: "curl --fail http://localhost:8081/health/readiness || exit 1"
+      interval: 20s
+      retries: 10
+      start_period: 20s
+      timeout: 10s
+  scheduler:
+    image: "${inetsoft.docker.repository}/stylebi-community:latest"
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    volumes:
+      - "inetsoft_kv:/var/lib/inetsoft/kv"
+      - "inetsoft_blob:/var/lib/inetsoft/blob"
+      - "inetsoft_files:/var/lib/inetsoft/files"
+    environment:
+      # Java command line options, overridden to set min and max heap memory
+      JAVA_MEMORY_OPTS: "-Xms1g -Xmx1g"
+      <<: *sharedenv
+    command:
+      - "scheduler"
+volumes:
+  inetsoft_kv:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${inetsoft.docker.directory}/docker-test/local/kv"
+  inetsoft_blob:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${inetsoft.docker.directory}/docker-test/local/blob"
+  inetsoft_files:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "${inetsoft.docker.directory}/docker-test/local/files"

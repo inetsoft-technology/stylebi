@@ -1,0 +1,67 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="modal-header">
+  <h4 class="modal-title">_#(Insert Cells)</h4>
+  <button type="button" class="btn-close" (click)="close()" aria-label="Close"></button>
+</div>
+<div class="modal-body" enterSubmit (onEnter)="ok()" *ngIf="model">
+  <div class="container-fluid">
+    <div class="radio">
+      <div class="form-check">
+        <input type="radio" class="form-check-input" name="shift" id="shiftRight"
+             [(ngModel)]="model.action" value="shiftCellsRight">
+        <label class="form-check-label" for="shiftRight">
+          _#(Shift Cells Right)
+        </label>
+      </div>
+    </div>
+    <div class="radio">
+      <div class="form-check">
+        <input type="radio" class="form-check-input" name="shift" id="shiftDown"
+             [(ngModel)]="model.action" value="shiftCellsDown">
+        <label class="form-check-label" for="shiftDown">
+          _#(Shift Cells Down)
+        </label>
+      </div>
+    </div>
+    <div class="radio">
+      <div class="form-check">
+        <input type="radio" class="form-check-input" name="shift" id="entireRow"
+             [(ngModel)]="model.action" value="entireRow">
+        <label class="form-check-label" for="entireRow">
+          _#(Entire Row)
+        </label>
+      </div>
+    </div>
+    <div class="radio">
+      <div class="form-check">
+        <input type="radio" class="form-check-input" name="shift" id="entireColumn"
+             [(ngModel)]="model.action" value="entireColumn">
+        <label class="form-check-label" for="entireColumn">
+          _#(Entire Column)
+        </label>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+</div>

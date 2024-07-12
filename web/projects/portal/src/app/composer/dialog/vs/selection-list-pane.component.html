@@ -1,0 +1,44 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid" *ngIf="model">
+  <div class="form-row-float-label row pt-1">
+    <div class="col-9">
+      <div class="bordered-box bd-gray bordered-box-md">
+        <tree [root]="model.targetTree" [showRoot]="false" [showTooltip]="true"
+         [grayedOutFields]="model.grayedOutFields"
+         (nodesSelected)="selectNode($event[0])" [iconFunction]="getCSSIcon"
+         (nodeExpanded)="expandNode($event)"></tree>
+      </div>
+    </div>
+  </div>
+</form>
+<div class="container-fluid">
+  <additional-table-selection-pane
+    [tree]="model.targetTree"
+    [selectedTable]="model.selectedTable"
+    [additionalTables]="model.additionalTables"
+    [selectedColumns]="getSelectedColumns()"
+    (onAdditionalTablesChanged)="additionalTablesChanged($event)">
+  </additional-table-selection-pane>
+</div>
+<selection-measure-pane
+  [runtimeId]="runtimeId" [variableValues]="variableValues" [grayedOutValues]="grayedOutValues"
+  [model]="model.selectionMeasurePaneModel" [tables]="getSelectedTables()">
+</selection-measure-pane>

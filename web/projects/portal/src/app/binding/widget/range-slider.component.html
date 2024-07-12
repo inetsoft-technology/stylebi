@@ -1,0 +1,38 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div [style.width] = "model.width + 'px'" style="height: 30px;"
+     class="vs-range-slider" #rangeSlider>
+   <div class="range-slider" [style.width]="model.width + 'px'"></div>
+   <div class="range-line" [style.left]="getRangeX() + 'px'"
+        [style.width]="getRangeWidth() + 'px'">
+      <div class="range-slider-handle range-slider-left-handle" #leftHandle
+           (mousedown)="mouseDown($event, handleType.Left)"></div>
+      <div class="range-slider-handle range-slider-right-handle"
+           (mousedown)="mouseDown($event, handleType.Right)"></div>
+      <div class="thumb-middle" [style.width]="getRangeWidth() + 'px'"
+           (mousedown)="mouseDown($event, handleType.Middle)"></div>
+   </div>
+   <div class="current-value"
+        [style.left]="(getRangeX() + getRangeWidth() / 2 - 40) + 'px'">
+      {{getCurrentLabel()}}
+   </div>
+   <!-- header cell -->
+   <div class="tick" *ngFor="let tick of ticks" [style.left]="tick.left">|</div>
+</div>

@@ -1,0 +1,54 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="matTableDataSource" class="em-regular-table table-container" [style.max-height.px]="maxHeight">
+  <table mat-table [dataSource]="matTableDataSource" class="table-body" matSort>
+    <ng-container matColumnDef="selected">
+      <th mat-header-cell *matHeaderCellDef>
+        <mat-checkbox (change)="$event ? masterToggle() : null"
+                      [disabled]="matTableDataSource.data.length == 0"
+                      [checked]="selection.hasValue() && isAllSelected()"
+                      [disableRipple]="true"
+                      [indeterminate]="selection.hasValue() && !isAllSelected()">
+        </mat-checkbox>
+      </th>
+      <td mat-cell *matCellDef="let row" class="selected-cell">
+        <mat-checkbox (click)="$event.stopPropagation()"
+                      (change)="$event ? toggleRow(row) : null"
+                      [disableRipple]="true"
+                      [checked]="selection.isSelected(row)">
+        </mat-checkbox>
+      </td>
+    </ng-container>
+    <ng-container *ngFor="let field of fields, let i = index;" [matColumnDef]=field>
+      <ng-container class="detail-cell">
+        <th mat-header-cell class="table-header-col table-col" *matHeaderCellDef mat-sort-header [title]="headers[i]"> {{headers[i]}}</th>
+        <td mat-cell class="table-col" [class.hyperlink]="hasLink(field)"
+            *matCellDef="let row" [title]="row[field]" (click)="clickTableCell(row, field)">
+          <div class="table-child">
+            {{row[field]}}
+          </div>
+        </td>
+      </ng-container>
+    </ng-container>
+    <tr mat-header-row class="table-header-row"
+        *matHeaderRowDef="displayColumns; sticky: true"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayColumns;" class="table-row" (click)="toggleRow(row)"></tr>
+  </table>
+</div>

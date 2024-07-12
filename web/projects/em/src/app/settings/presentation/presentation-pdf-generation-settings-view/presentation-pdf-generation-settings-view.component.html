@@ -1,0 +1,70 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="em-card">
+  <mat-card-title>_#(PDF Generation)</mat-card-title>
+  <mat-card-content>
+    <form *ngIf="form" [formGroup]="form">
+      <div class="flex-col">
+        <h3 class="fontStyle">_#(Compress Options)</h3>
+        <mat-checkbox class="mat-checkbox-field" formControlName="compressText">
+          _#(Compress Text)
+        </mat-checkbox>
+        <mat-checkbox class="mat-checkbox-field" formControlName="compressImage">
+          _#(Compress Image)
+        </mat-checkbox>
+        <mat-checkbox class="mat-checkbox-field" formControlName="asciiOnly">
+          _#(ASCII Only)
+        </mat-checkbox>
+
+        <h3 class="fontStyle">_#(Font Options)</h3>
+        <mat-checkbox class="mat-checkbox-field" formControlName="mapSymbols">
+          _#(Map Symbols)
+        </mat-checkbox>
+        <mat-checkbox class="mat-checkbox-field" formControlName="pdfEmbedCmap">
+          _#(Embed CMap in PDF)
+        </mat-checkbox>
+        <mat-checkbox class="mat-checkbox-field" formControlName="pdfEmbedFont">
+          _#(Embed Font in PDF)
+        </mat-checkbox>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(TrueType/CID Font Path)</mat-label>
+          <input matInput formControlName="cidFontPath" placeholder="_#(TrueType/CID Font Path)">
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(AFM Font Path)</mat-label>
+          <input matInput formControlName="afmFontPath" placeholder="_#(AFM Font Path)">
+        </mat-form-field>
+
+        <h3 class="fontStyle">_#(Other Options)</h3>
+        <mat-radio-group formControlName="openFirst" class="flex-col">
+          <mat-radio-button class="mat-checkbox-field" value="bookmark" title="_#(em.presentation.openBookmarkTip)">_#(Open Bookmark)</mat-radio-button>
+          <mat-radio-button class="mat-checkbox-field" value="thumbnail" title="_#(em.presentation.openThumbnailTip)">_#(Open Thumbnail)</mat-radio-button>
+          <mat-radio-button class="mat-checkbox-field" [value]="null">_#(None)</mat-radio-button>
+        </mat-radio-group>
+        <mat-checkbox class="mat-checkbox-field" formControlName="browserEmbedPdf">
+          _#(Embed PDF in Browser)
+        </mat-checkbox>
+        <mat-checkbox class="mat-checkbox-field" formControlName="pdfHyperlinks">
+          _#(Keep Hyperlinks in PDF)
+        </mat-checkbox>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

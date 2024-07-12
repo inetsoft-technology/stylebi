@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg  xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="200" height="200" viewBox="0 0 200 200" overflow="visible" enable-background="new 0 0 200 200" xml:space="preserve">
+		<g id="Layer_1">
+			<g>
+				
+					<image opacity="0.4"  a:adobe-blending-mode="multiply"  a:adobe-opacity-share="1" width="68" height="11" id="XMLID_1_" xlink:href="data:;base64,iVBORw0KGgoAAAANSUhEUgAAAEQAAAALCAYAAADGHSsLAAAACXBIWXMAAAsSAAALEgHS3X78AAAA
+BGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAEFSURB
+VHjaYmAYBSgAIIAY0dhMaGLDGfwH4n9QGg4AAgjmeWYgZgNiDig93AMGFBC/gfgHEP8C4r9QMQaA
+AGKBehwUCMJALAPEIkDMDg2U4ZoqQIHwEYhfAfE7IP4MFfsHEEAsUI+DUoY0EJsDsRoQ8w/TAEEO
+jGdAfBeI7wHxU6jYb4AAYoEqBNG8QCwBxIpALATNRsMtdYCyySco/xM04kH4LRB/AckDBBAsQP5A
+k80LIOaDJiOmYRggP4H4NRA/gqaQN1D8HVqOMAAEECMUc4yAMgQ5hbyBZpEf0ED6AZX7BxBAI62W
+Qa5dfiNVu/DqFyCARmI7BGv7AwYAAmgUoQGAAAMAR71DhSZj1YAAAAAASUVORK5CYII=" transform="matrix(1 0 0 1 96.1753 95.3965)"/>
+				<g>
+					<polygon fill="#282828" points="160.261,99.519 153.997,100.703 99.663,100.674 99.664,98.456 153.998,98.486 "/>
+				</g>
+			</g>
+			<rect opacity="0" fill="#FFFFFF" width="200" height="200"/> 
+		</g>
+	</svg>

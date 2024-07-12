@@ -1,0 +1,112 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div blockMouse>
+  <modal-header
+    [title]="'_#(Geographic Mapping)'"
+    (onCancel)="cancel($event)"
+    [cshid]="cshid">
+  </modal-header>
+  <div class="modal-body geo-mapping-dialog" *ngIf="model">
+    <div class="container-fluid">
+      <div class="form-row-float-label row">
+        <div class="col form-floating">
+          <select class="form-control" placeholder="_#(Algorithm)" [(ngModel)]="algorithm"
+             (ngModelChange)="changeAlgorithm()">
+            <option *ngFor="let _algorithm of showAlgorithms" [value]="_algorithm.value">
+                {{_algorithm.label}}
+            </option>
+          </select>
+          <label><span>_#(Algorithm)</span></label>
+        </div>
+        <div class="col form-floating">
+          <input class="form-control" [(ngModel)]="filter" type="text"
+                 (ngModelChange)="filterFeatures()" placeholder="_#(Search)"/>
+          <label><span>_#(Search)</span></label>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="bordered-box bd-gray region-list">
+            <div *ngFor="let _region of model.regions; let _y = indexY" class="list-item"
+                 [class.selected]="model.currentSelection.region == _region"
+                 (click)="unmatchedListChange(_region)">
+              {{_region.label ? _region.label : "&nbsp;"}}
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="bordered-box bd-gray city-list">
+            <div *ngFor="let _city of model.cities; let _j = indexJ" class="list-item"
+                 [class.selected]="model.currentSelection.city == _city"
+                 (click)="model.currentSelection.city = _city" (dblclick)="add()">
+              {{_city.label}}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="checkbox col">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="showMatched"
+                   [(ngModel)]="model.selected"
+                 (ngModelChange)="populateMappingDialogModel()">
+            <label class="form-check-label" for="showMatched">
+              _#(Show automatically matched values)
+            </label>
+          </div>
+        </div>
+      </div>
+      <w-large-form-field>
+        <div largeFieldElement >
+          <table class="col table table-bordered table-sm" wScrollableTable>
+            <thead>
+              <tr>
+                <th>_#(Value)</th>
+                <th>_#(Code)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let _val of model.list; let _i = index"
+                  (click)="model.selectedIndex = _i"
+                  [class.selected]="_i === model.selectedIndex">
+                <td>{{_val.region}}</td>
+                <td>{{_val.city}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ng-container largeFieldButtons>
+          <button type="button" class="btn btn-default btn-wide add-btn_id" (click)="add()"
+                  [disabled]="model.currentSelection.city == null ||
+                  model.currentSelection.region == null">_#(Add)</button>
+          <button type="button" class="btn btn-default btn-wide top-index remove-btn_id"
+                  (click)="remove()"
+                  [disabled]="model.selectedIndex < 0">_#(Remove)</button>
+        </ng-container>
+      </w-large-form-field>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button type="button" class="btn btn-primary" (click)="ok($event)">_#(OK)</button>
+    <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel($event)">
+      _#(Cancel)
+    </button>
+  </div>
+</div>

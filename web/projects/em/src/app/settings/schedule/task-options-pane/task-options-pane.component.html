@@ -1,0 +1,111 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container [formGroup]="optionsForm">
+  <div class="flex-row margin-top margin-bottom">
+    <mat-slide-toggle formControlName="taskEnabled"
+                      (change)="fireModelChanged()">
+      _#(Enabled)
+    </mat-slide-toggle>
+  </div>
+  <ng-container *ngIf="model?.enabled">
+    <ng-container *ngIf="!internal">
+      <div class="flex-row margin-bottom">
+        <mat-checkbox formControlName="deleteIfNotScheduledToRun"
+                      (change)="fireModelChanged()">
+          _#(schedule.task.options.isDelete)
+        </mat-checkbox>
+      </div>
+      <div class="flex-row">
+        <mat-form-field class="margin-right" appearance="outline" color="accent">
+          <mat-label>_#(Start From)</mat-label>
+          <input matInput #start [matDatepicker]="startPicker" placeholder="_#(Start From)" readonly
+                 (dateChange)="fireModelChanged()" [errorStateMatcher]="groupErrorState"
+                 formControlName="startDate">
+          <mat-datepicker-toggle matSuffix [for]="startPicker"></mat-datepicker-toggle>
+          <mat-datepicker #startPicker disabled="false"></mat-datepicker>
+          <mat-error>_#(em.scheduler.options.stopDateIsEarlierError)</mat-error>
+        </mat-form-field>
+        <mat-form-field class="margin-right" appearance="outline" color="accent">
+          <mat-label>_#(Stop On)</mat-label>
+          <input matInput #stop [matDatepicker]="endPicker" placeholder="_#(Stop On)" readonly
+                 (dateChange)="fireModelChanged()" [errorStateMatcher]="groupErrorState"
+                 formControlName="endDate">
+          <mat-datepicker-toggle matSuffix [for]="endPicker"></mat-datepicker-toggle>
+          <mat-datepicker #endPicker disabled="false"></mat-datepicker>
+        </mat-form-field>
+        <button mat-button type="button" (click)="clearDates()" class="margin-bottom margin-right">_#(Clear)
+        </button>
+      </div>
+      <div class="flex-row">
+        <mat-form-field class="full-width" appearance="outline" color="accent">
+          <mat-label>_#(Description)</mat-label>
+          <textarea matInput placeholder="_#(Description)"
+                    rows="3" formControlName="description"
+                    (change)="fireModelChanged()">
+        </textarea>
+        </mat-form-field>
+      </div>
+      <div class="flex-row">
+        <mat-form-field class="margin-right" appearance="outline" color="accent">
+          <mat-label>_#(Locale)</mat-label>
+          <mat-select
+            formControlName="locale"
+            [multiple]="false"
+            placeholder="_#(Locale)"
+            (selectionChange)="fireModelChanged()">
+            <mat-option value="Default">_#(Default)</mat-option>
+            <mat-option *ngFor="let loc of model?.locales" value="{{ loc }}">
+              {{ loc }}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+      <div class="flex-row" *ngIf="model?.securityEnabled">
+        <mat-form-field class="margin-right" appearance="outline" color="accent">
+          <mat-label>_#(Owner)</mat-label>
+          <input matInput placeholder="_#(Owner)" formControlName="owner"
+                 [matAutocomplete]="auto" (change)="fireModelChanged()">
+          <mat-autocomplete #auto="matAutocomplete" (optionSelected)="fireModelChanged()">
+            <mat-option *ngFor="let user of filteredUsers | async" [value]="user.name">{{ user?.name }}</mat-option>
+          </mat-autocomplete>
+          <mat-error *ngIf="optionsForm.controls['owner'].errors && optionsForm.controls['owner'].errors['invalid']">
+            _#(Invalid user)
+          </mat-error>
+          <mat-spinner matSuffix *ngIf="adminName == ''" mode="indeterminate" diameter="17"></mat-spinner>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Execute As)</mat-label>
+          <input matInput placeholder="_#(Execute As)"
+                 formControlName="executeAs"
+                 (change)="fireModelChanged()">
+          <div class="flex-row" matSuffix>
+            <mat-spinner *ngIf="adminName == ''" mode="indeterminate" diameter="17"></mat-spinner>
+            <button mat-icon-button (click)="openExecuteAsDialog()" matTooltip="_#(Select User)" [disabled]="!adminName">
+              <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+            </button>
+            <button mat-icon-button (click)="clearUser()" matTooltip="_#(Clear User)" [disabled]="!adminName">
+              <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+            </button>
+          </div>
+        </mat-form-field>
+      </div>
+    </ng-container>
+  </ng-container>
+</ng-container>

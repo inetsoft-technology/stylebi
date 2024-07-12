@@ -1,0 +1,83 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="frameModels" class="dropdown-pane">
+  <div [ngSwitch]="dropDownType">
+    <div *ngSwitchCase="'StaticColor'">
+      <static-color-pane [(frame)]="frameModels[0]"></static-color-pane>
+    </div>
+    <div *ngSwitchCase="'CombinedColor'">
+      <combined-color-pane></combined-color-pane>
+    </div>
+    <div *ngSwitchCase="'CategoricalColor'">
+      <categorical-color-pane [(frameModel)]="frameModels[0]"
+         (apply)="applyClick($event)">
+      </categorical-color-pane>
+    </div>
+    <div *ngSwitchCase="'LinearColor'">
+      <linear-color-pane [(frame)]="frameModels[0]"
+        (onChangeColorFrame)="changeColorFrame($event)"
+        (apply)="applyClick($event)">
+      </linear-color-pane>
+    </div>
+    <div *ngSwitchCase="'StaticShape'">
+      <static-shape-pane [shapeStr]="frameModels[0].shape"
+         [nilSupported]="nilSupported"
+         (shapeChanged)="frameModels[0].shape = $event")>
+      </static-shape-pane>
+    </div>
+    <div *ngSwitchCase="'CombinedShape'">
+      <combined-shape-pane></combined-shape-pane>
+    </div>
+    <div *ngSwitchCase="'CategoricalShape'">
+      <categorical-shape-pane [(frameModel)]="frameModels[0]"
+        (apply)="applyClick($event)">
+      </categorical-shape-pane>
+    </div>
+    <div *ngSwitchCase="'LinearShape'">
+      <linear-shape-pane [(frameModel)]="frameModels[0]">
+      </linear-shape-pane>
+    </div>
+    <div *ngSwitchCase="'StaticTexture'">
+      <static-texture-pane [(frameModel)]="frameModels[0]" [(aggr)]="aggr">
+      </static-texture-pane>
+    </div>
+    <div *ngSwitchCase="'StaticLine'">
+      <static-line-pane [(frameModel)]="frameModels[0]"></static-line-pane>
+    </div>
+    <div *ngSwitchCase="'LinearLine'">
+      <linear-line-pane></linear-line-pane>
+    </div>
+    <div *ngSwitchCase="'LinearTexture'">
+      <linear-texture-pane [(frameModel)]="frameModels[0]"></linear-texture-pane>
+    </div>
+    <div *ngSwitchCase="'StaticSize'">
+      <static-size-pane [frameModel]="frameModels[0]" [aggr]="aggr">
+      </static-size-pane>
+    </div>
+    <div *ngSwitchCase="'BindingSize'">
+      <binding-size-pane [frameModel]="frameModels[0]"
+        (apply)="applyClick($event)" [singleValue]="isInterval()">
+      </binding-size-pane>
+    </div>
+    <div *ngSwitchCase="'CombinedSize'">
+      <combined-size-pane></combined-size-pane>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,149 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <h3 class="modal-title">_#(Formula Editor)</h3>
+        <button type="button" class="btn-close" aria-label="Close" (click)="cancelChanges()"></button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="modal-body" *ngIf="shown && model && form">
+        <span [ngSwitch]="field">
+
+          <!-- Client chose Detail radio button -->
+          <ng-template [ngSwitchCase]="'detail'">
+            <form [formGroup]="form" class="form-inline">
+              <div class="form-row-float-label">
+                <label for="nameDetail">_#(Name):</label>
+                <input type="text" class="form-control" id="nameDetail" trim
+                       formControlName="name" [(ngModel)]="model.name">
+              </div>
+              <div class="form-row-float-label col-offset-1">
+                <label for="returnDetail">_#(Return Data Type):</label>
+                <select id="returnDetail" class="form-control" formControlName="dataType" [(ngModel)]="model.dataType">
+                      <option *ngFor="let dataType of dataTypeList">{{dataType.label}}</option>
+                </select>
+              </div>
+              <div class="form-row-float-label col-offset-2">
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="view" id="sqlDetail"
+                         value="sql" formControlName="view" [(ngModel)]="model.view">
+                  <label class="form-check-label" for="sqlDetail">
+                    _#(SQL)
+                  </label>
+                </div>
+                <div class="form-check">
+                  <input type="radio" class="form-check-input" name="view" id="scriptDetail"
+                       value="script" formControlName="view" [(ngModel)]="model.view">
+                  <label class="form-check-label" for="scriptDetail">
+                    _#(Script)
+                  </label>
+                </div>
+              </div>
+            </form>
+            <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
+              <div class="form-row-float-label">
+                <div class="col-12">
+                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']" class="alert alert-danger">
+                    <strong>_#(Error)</strong> _#(binding.nameInput.isEmpty)
+                  </div>
+                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['calcSpecialCharacters']" class="alert alert-danger">
+                    <strong>_#(Error)</strong>_#(formula.editor.charValid)
+                  </div>
+                </div>
+              </div>
+            </form>
+          </ng-template>
+
+          <!-- Client choose Aggregate radio button -->
+          <ng-template [ngSwitchCase]="'aggregate'">
+            <form [formGroup]="form" class="form-inline">
+              <div class="row form-row-float-label">
+                <div class="col form-floating">
+                  <input type="text" class="form-control" id="nameAggregate" trim
+                         formControlName="name" [(ngModel)]="model.name" placeholder="_#(Name)">
+                  <label><span>_#(Name)</span></label>
+                </div>
+                <div class="col form-floating">>
+                  <select id="returnAggregate" class="form-control" formControlName="dataType"
+                          [(ngModel)]="model.dataType" placeholder="_#(Return Data Type)">
+                    <option *ngFor="let dataType of dataTypeList">{{dataType.label}}</option>
+                  </select>
+                  <label><span>_#(Return Data Type):</span></label>
+                </div>
+                <div class="col">
+                  <div class="form-check">
+                    <input type="radio" class="form-check-input" name="view" id="sqlAggregate"
+                         value="sql" formControlName="view" [(ngModel)]="model.view"
+                         (change)="showWarning = true">
+                    <label class="form-check-label" for="sqlAggregate">
+                      _#(SQL)
+                    </label> <!-- (change)="showWarning()" -->
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="form-check">
+                    <input type="radio" class="form-check-input" name="view" id="scriptAggregate"
+                         value="script" formControlName="view" [(ngModel)]="model.view">
+                    <label class="form-check-label" for="scriptAggregate">
+                      _#(Script)
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </form>
+            <form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
+              <div class="form-row-float-label">
+                <div class="col-12">
+                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']" class="alert alert-danger">
+                    <strong>_#(Error)</strong> _#(binding.nameInput.isEmpty)
+                  </div>
+                  <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['calcSpecialCharacters']" class="alert alert-danger">
+                    <strong>_#(Error)</strong>_#(formula.editor.charValid)
+                  </div>
+                </div>
+              </div>
+            </form>
+            <div class="alert alert-danger" *ngIf="showWarning">
+              <strong>_#(Error)</strong> _#(common.calcfieldAggrSqlUnsupport)
+              <button type="button" class="close" aria-label="Close" (click)="showWarning = false"><span aria-hidden="true">&times;</span></button>
+            </div>
+          </ng-template>
+
+          <!-- This will never happen -->
+          <ng-template ngSwitchDefault></ng-template>
+        </span>
+        <span [ngSwitch]="model.view">
+          <ng-template [ngSwitchCase]="'sql'">
+            <vsassembly-script-pane [model]="model.vsassemblyScriptPaneModel" [view]="model.view"></vsassembly-script-pane>
+          </ng-template>
+          <ng-template [ngSwitchCase]="'script'">
+            <vsassembly-script-pane [model]="model.vsassemblyScriptPaneModel" [view]="model.view"></vsassembly-script-pane>
+          </ng-template>
+          <!-- This will never happen -->
+          <ng-template ngSwitchDefault></ng-template>
+        </span>
+        </div>
+
+      <!-- Modal Footer -->
+      <div class="modal-footer" *ngIf="shown && model && form">
+        <button type="button" class="btn btn-primary" (click)="saveChanges()" [disabled]="!form.valid">_#(OK)</button>
+        <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+      </div>

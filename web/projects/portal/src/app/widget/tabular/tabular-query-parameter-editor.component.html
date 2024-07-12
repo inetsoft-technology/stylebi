@@ -1,0 +1,61 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div>
+  <form ngNoForm (submit)="$event.preventDefault()" class="form-inline small align-items-start">
+    <div class="form-group flex-grow-1">
+      <tabular-text-editor [(value)]="value.name" (valueChange)="valueChanged()" [placeholder]="'Name'" [enabled]="enabled"></tabular-text-editor>
+    </div>
+    <div class="form-group align-items-start flex-column ps-1">
+      <select class="form-control" [(ngModel)]="value.type" (ngModelChange)="valueChanged()" [disabled]="!enabled">
+        <option value="STRING">_#(String)</option>
+        <option value="CHAR">_#(Character)</option>
+        <option value="INTEGER">_#(Integer)</option>
+        <option value="BYTE">_#(Byte)</option>
+        <option value="SHORT">_#(Short)</option>
+        <option value="LONG">_#(Long)</option>
+        <option value="FLOAT">_#(Float)</option>
+        <option value="DOUBLE">_#(Double)</option>
+        <option value="BOOLEAN">_#(Boolean)</option>
+        <option value="DATE">_#(Date)</option>
+        <option value="TIME">_#(Time)</option>
+        <option value="TIME_INSTANT">_#(Time Instant)</option>
+      </select>
+      <div class="form-check mt-1">
+        <label class="no-float-label form-check-label">
+          <input type="checkbox" class="form-check-input"
+                 [(ngModel)]="value.variable"
+                 (ngModelChange)="valueChanged()">
+          _#(Variable)
+        </label>
+      </div>
+    </div>
+    <div class="form-group flex-grow-1 ps-1">
+      <div id="valueField" *ngIf="!value.variable">
+        <tabular-text-editor *ngIf="value.type == 'STRING' || value.type == 'CHAR'" [(value)]="value.value" (valueChange)="valueChanged()" [password]="false" [rows]="1" [enabled]="enabled"></tabular-text-editor>
+        <tabular-boolean-editor *ngIf="value.type == 'BOOLEAN'" [(value)]="value.value" (valueChange)="valueChanged()" [label]="" [enabled]="enabled"></tabular-boolean-editor>
+        <tabular-number-editor *ngIf="value.type == 'INTEGER' || value.type == 'LONG' || value.type == 'BYTE' || value.type == 'SHORT' || value.type == 'FLOAT' || value.type == 'DOUBLE'" [(value)]="value.value" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-number-editor>
+        <tabular-date-editor *ngIf="value.type == 'DATE' || value.type == 'TIME' || value.type == 'TIME_INSTANT'" [(value)]="value.value" (valueChange)="valueChanged()" [enabled]="enabled" [type]="value.type"></tabular-date-editor>
+      </div>
+      <div id="variableField" *ngIf="value.variable">
+        <tabular-text-editor [(value)]="value.value" (valueChange)="valueChanged()" [password]="false" [rows]="1" [enabled]="enabled"></tabular-text-editor>
+      </div>
+    </div>
+  </form>
+</div>

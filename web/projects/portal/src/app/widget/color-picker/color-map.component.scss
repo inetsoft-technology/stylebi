@@ -1,0 +1,65 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.color-map {
+    display: inline-block;
+    position: relative;
+    border-radius: 4px;
+}
+
+.color-map > .saturation-bg,
+.color-map > .brightness-bg {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 4px;
+}
+
+.color-map > .saturation-bg {
+    background: linear-gradient(to right, #fff 0%, rgba(255,255,255,0) 100%);
+}
+
+.color-map > .brightness-bg {
+    background: linear-gradient(to bottom, transparent 0%, #000 100%);
+}
+
+.color-map > .color-indicator {
+    position: absolute;
+    z-index: 2000;
+    width: 8px;
+}
+
+.color-map > .color-indicator > .color-outer-indicator,
+.color-map > .color-indicator > .color-inner-indicator {
+    position: absolute;
+}
+
+.color-map > .color-indicator > .color-outer-indicator {
+    margin-left: -9px;
+    margin-top: -9px;
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+}
+
+.color-map > .color-indicator > .color-inner-indicator {
+    margin-left: -6px;
+    margin-top: -6px;
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+}

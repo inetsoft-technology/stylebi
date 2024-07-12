@@ -1,0 +1,45 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<fieldset>
+  <legend>_#(Pre-aggregate Conditions)</legend>
+  <condition-list [subqueryTables]="subqueryTables" [provider]="prePostProvider"
+                  [fields]="preAggregateFields" [conditionList]="preAggregateConditionList"
+                  [isVSContext]="false"
+                  [showOriginalName]="true"
+                  (conditionListChange)="preAggregateConditionListChange.emit($event)">
+  </condition-list>
+</fieldset>
+<fieldset>
+  <legend>_#(Post-aggregate Conditions)</legend>
+  <condition-list [subqueryTables]="subqueryTables" [provider]="prePostProvider"
+                  [fields]="postAggregateFields" [conditionList]="postAggregateConditionList"
+                  [isVSContext]="false"
+                  [showOriginalName]="true"
+                  (conditionListChange)="postAggregateConditionListChange.emit($event)">
+  </condition-list>
+</fieldset>
+<fieldset>
+  <legend>_#(Ranking Conditions)</legend>
+  <condition-list [subqueryTables]="subqueryTables" [simplePane]="true"
+                  [provider]="rankingProvider" [fields]="rankingFields"
+                  [conditionList]="rankingConditionList" [isVSContext]="false"
+                  [showOriginalName]="true"
+                  (conditionListChange)="rankingConditionListChange.emit($event)"></condition-list>
+</fieldset>

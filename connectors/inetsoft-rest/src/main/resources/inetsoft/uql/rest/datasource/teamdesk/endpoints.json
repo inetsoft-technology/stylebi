@@ -1,0 +1,49 @@
+{
+    "endpoints": [
+        {
+            "name": "Application",
+            "paged": false,
+            "suffix": "/describe.json"
+        },
+        {
+            "name": "User",
+            "paged": false,
+            "suffix": "/user.json"
+        },
+        {
+            "name": "Table",
+            "paged": false,
+            "suffix": "/{Table Name}/describe.json"
+        },
+        {
+            "name": "Select Table",
+            "paged": true,
+            "suffix": "/{Table Name}/select.json?column={Columns?,:column1,column2,...}&filter={Filter?}"
+        },
+        {
+            "name": "Select View",
+            "paged": true,
+            "suffix": "/{Table Name}/{View Name}/select.json?filter={Filter?}"
+        },
+        {
+            "name": "Retrieve Records",
+            "paged": false,
+            "suffix": "/{Table Name}/retrieve.json?column={Columns?,:column1,column2,...}&key={Key Column Values?,:1,2,3...}&id={Row IDs,:1,2,3...}"
+        },
+        {
+            "name": "Updated Records",
+            "paged": false,
+            "suffix": "/{Table Name}/updated.json?from={From Date?:YYYY-MM-DDTHH:MM:SS+00:00}&to={To Date?:YYYY-MM-DDTHH:MM:SS+00:00}"
+        },
+        {
+            "name": "Deleted Records",
+            "paged": false,
+            "suffix": "/{Table Name}/deleted.json?from={From Date?:YYYY-MM-DDTHH:MM:SS+00:00}&to={To Date?:YYYY-MM-DDTHH:MM:SS+00:00}"
+        },
+        {
+            "name": "Attachments",
+            "paged": false,
+            "suffix": "/{Table Name}/{Column Name}/attachments.json?key={Key Column Value?}&id={Row ID*?}&revisions={Number of Revisions?}"
+        }
+    ]
+}

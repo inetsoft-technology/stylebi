@@ -1,0 +1,251 @@
+{
+  "endpoints": [
+    {
+      "name": "Client Contacts",
+      "paged": true,
+      "suffix": "/v2/contacts?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Client Contact",
+      "paged": false,
+      "suffix": "/v2/contacts/{Contact ID}"
+    },
+    {
+      "name": "Clients",
+      "paged": true,
+      "suffix": "/v2/clients?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Client",
+      "paged": false,
+      "suffix": "/v2/clients/{Client ID}"
+    },
+    {
+      "name": "Company",
+      "paged": false,
+      "suffix": "/v2/company"
+    },
+    {
+      "name": "Invoice Messages",
+      "paged": true,
+      "suffix": "/v2/invoices/{Invoice ID}/messages?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Invoice Payments",
+      "paged": true,
+      "suffix": "/v2/invoices/{Invoice ID}/payments?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Invoices",
+      "paged": true,
+      "suffix": "/v2/invoices?client_id={Client ID?}&project_id={Project ID?}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}&from={Issued On or After?:yyyy-MM-dd}&to={Issued On or Before?:yyyy-MM-dd}&state={State?:draft|open|paid|closed}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Invoice Messages",
+            "Invoice Payments"
+          ],
+          "jsonPath": "$.invoices[*]",
+          "key": "id",
+          "parameterName": "Invoice ID"
+        }
+      ]
+    },
+    {
+      "name": "Invoice",
+      "paged": false,
+      "suffix": "/v2/invoices/{Invoice ID}"
+    },
+    {
+      "name": "Invoice Item Categories",
+      "paged": true,
+      "suffix": "/v2/invoice_item_categories?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Invoice Item Category",
+      "paged": false,
+      "suffix": "/v2/invoice_item_categories/{Invoice Item Category ID}"
+    },
+    {
+      "name": "Estimate Messages",
+      "paged": true,
+      "suffix": "/v2/estimates/{Estimate ID}/messages?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Estimates",
+      "paged": true,
+      "suffix": "/v2/estimates?client_id={Client ID?}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}&from={Issued On or After?:yyyy-MM-dd'T'HH:mm:ss}&to={Issued On or Before?:yyyy-MM-dd'T'HH:mm:ss}&state={State?:draft|sent|accepted|declined}",
+      "lookups": [
+        {
+          "endpoint": "Estimate Messages",
+          "jsonPath": "$.estimates[*]",
+          "key": "id",
+          "parameterName": "Estimate ID"
+        }
+      ]
+    },
+    {
+      "name": "Estimate",
+      "paged": false,
+      "suffix": "/v2/estimates/{Estimate ID}"
+    },
+    {
+      "name": "Estimate Item Categories",
+      "paged": true,
+      "suffix": "/v2/estimate_item_categories?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Estimate Item Category",
+      "paged": false,
+      "suffix": "/v2/estimate_item_categories/{Estimate Item Category ID}"
+    },
+    {
+      "name": "Expenses",
+      "paged": true,
+      "suffix": "/v2/expenses?user_id={User ID?}&client_id={Client ID?}&project_id={Project ID?}&is_billed={Billed Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}&from={Spent On or After?:yyyy-MM-dd'T'HH:mm:ss}&to={Spent On or Before?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Expense",
+      "paged": false,
+      "suffix": "/v2/expenses/{Expense ID}"
+    },
+    {
+      "name": "Expense Categories",
+      "paged": true,
+      "suffix": "/v2/expense_categories?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Expense Category",
+      "paged": false,
+      "suffix": "/v2/expense_categories/{Expense Category ID}"
+    },
+    {
+      "name": "Tasks",
+      "paged": true,
+      "suffix": "/v2/tasks?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Task",
+      "paged": false,
+      "suffix": "/v2/tasks/{Task ID}"
+    },
+    {
+      "name": "Time Entries",
+      "paged": true,
+      "suffix": "/v2/time_entries?user_id={User ID?}&client_id={Client ID?}&project_id={Project ID?}&task_id={Task ID?}&is_billed={Billed Only?:true|false}&is_running={Running Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}&from={Spent On or After?:yyyy-MM-dd'T'HH:mm:ss}&to={Spent On or Before?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Time Entry",
+      "paged": false,
+      "suffix": "/v2/time_entries/{Time Entry ID}"
+    },
+    {
+      "name": "User Assignments",
+      "paged": true,
+      "suffix": "/v2/user_assignments?user_id={User ID?}&is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Project User Assignments",
+      "paged": true,
+      "suffix": "/v2/projects/{Project ID}/user_assignments?user_id={User ID?}&is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "User Assignment",
+      "paged": false,
+      "suffix": "/v2/projects/{Project ID}/user_assignments/{User Assignment ID}"
+    },
+    {
+      "name": "Task Assignments",
+      "paged": true,
+      "suffix": "/v2/task_assignments?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Project Task Assignments",
+      "paged": true,
+      "suffix": "/v2/projects/{Project ID}/task_assignments?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Task Assignment",
+      "paged": false,
+      "suffix": "/v2/projects/{Project ID}/task_assignments/{Task Assignment ID}"
+    },
+    {
+      "name": "Projects",
+      "paged": true,
+      "suffix": "/v2/projects?is_active={Active Only?:true|false}&client_id={Client ID?}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project User Assignments",
+            "Project Task Assignments"
+          ],
+          "jsonPath": "$.projects[*]",
+          "key": "id",
+          "parameterName": "Project ID"
+        }
+      ]
+    },
+    {
+      "name": "Project",
+      "paged": false,
+      "suffix": "/v2/projects/{Project ID}"
+    },
+    {
+      "name": "Roles",
+      "paged": true,
+      "suffix": "/v2/roles"
+    },
+    {
+      "name": "Role",
+      "paged": false,
+      "suffix": "/v2/roles/{Role ID}"
+    },
+    {
+      "name": "User Billable Rates",
+      "paged": true,
+      "suffix": "/v2/users/{User ID}/billable_rates"
+    },
+    {
+      "name": "User Billable Rate",
+      "paged": false,
+      "suffix": "/v2/users/{User ID}/billable_rates/{Billable Rate ID}"
+    },
+    {
+      "name": "User Cost Rates",
+      "paged": true,
+      "suffix": "/v2/users/{User ID}/cost_rates"
+    },
+    {
+      "name": "User Cost Rate",
+      "paged": false,
+      "suffix": "/v2/users/{User ID}/cost_rates/{Cost Rate ID}"
+    },
+    {
+      "name": "User Project Assignments",
+      "paged": true,
+      "suffix": "/v2/users/{User ID}/project_assignments?updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}"
+    },
+    {
+      "name": "Users",
+      "paged": true,
+      "suffix": "/v2/users?is_active={Active Only?:true|false}&updated_since={Updated Since?:yyyy-MM-dd'T'HH:mm:ss}",
+      "lookups": [
+        {
+          "endpoints": [
+            "User Billable Rates",
+            "User Cost Rates",
+            "User Project Assignments"
+          ],
+          "jsonPath": "$.users[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/v2/users/{User ID}"
+    }
+  ]
+}

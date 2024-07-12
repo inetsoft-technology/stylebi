@@ -1,0 +1,60 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="modal-header">
+  <h3 class="modal-title">_#(em.schedule.task.folderEdit)</h3>
+  <button type="button" class="btn-close" (click)="cancel()" [attr.title]="'_#(Close)'" aria-label="Close">
+  </button>
+</div>
+<div class="modal-body">
+  <form class="container-fluid" [formGroup]="form">
+    <div class="row">
+      <div class="col form-floating">
+          <input #inputFocus id="inputNameField" type="text" class="form-control" autofocus
+                 formControlName="folderName"
+                 [placeholder]="'_#(Folder Name)'"
+                 [class.is-invalid]="form.controls.folderName?.invalid || duplicate || unchanged">
+          <label>_#(Folder Name)</label>
+          <span class="invalid-feedback" *ngIf="form.controls.folderName?.errors?.required">
+            _#(viewer.nameValid)
+          </span>
+          <span *ngIf="form.controls['folderName'].errors &&
+                       form.controls['folderName'].errors['invalidTaskName']"
+                class="invalid-feedback">
+            _#(schedule.task.name.invalid)
+          </span>
+          <span class="invalid-feedback"
+                *ngIf="duplicate && !(form.errors && form.errors['folderName'])">
+            _#(Duplicate Name)
+          </span>
+          <span class="invalid-feedback" *ngIf="unchanged">
+            _#(Name is unchanged)
+          </span>
+      </div>
+    </div>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="form.invalid">
+    _#(OK)
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">
+    _#(Cancel)
+  </button>
+</div>

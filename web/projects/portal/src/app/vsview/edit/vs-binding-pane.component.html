@@ -1,0 +1,70 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<binding-editor #bindingEditor *ngIf="objectModel"
+                wInteractContainer
+                [linkUri]="linkUri"
+                [formatPaneDisabled]="formatPaneDisabled"
+                [runtimeId]="runtimeId"
+                [assemblyName]="assemblyName"
+                [objectType]="objectType"
+                [variableValues]="variableValues"
+                [bindingModel]="bindingModel"
+                [objectModel]="objectModel"
+                [currentFormat]="currentFormat"
+                [grayedOutFields]="grayedOutFields"
+                (onUpdateData)="updateData($event)"
+                [sourceName]="sourceName"
+                [goToWizardVisible]="goToWizardVisible"
+                [consoleMessages]="consoleMessages"
+                (onMessageChange)="messageChange($event)"
+                (onClose)="closeHandler($event)"
+                (onOpenWizardPane)="goToWizard()" (resizePane)="resizeObjectView()">
+  <vs-formats-pane ngProjectAs="type-formats-pane" [vsId]="bindingEditor.runtimeId"
+                   [format]="bindingEditor.currentFormat"
+                   [formatPaneDisabled]="bindingEditor.formatsDisabled"
+                   [inactive]="bindingEditor.formatsInactive"
+                   [focusedAssemblies]="[bindingEditor.objectModel]"
+                   [variableValues]="bindingEditor.variableValues"
+                   (onPresenterPropertiesChange)="updatePresenterProperties($event[0], $event[1])"
+                   (onChangeFormat)="bindingEditor.formatsPane?.onFormatChanged($event)">
+  </vs-formats-pane>
+  <vs-object-view #objectView ngProjectAs="object-view" [model]="objectModel" [linkUri]="linkUri"
+                  [variableValues]="variableValues"
+                  (onUpdateData)="bindingEditor.updateData($event)"
+                  (onAddVSObjectCommand)="processAddVSObjectCommand($event)"
+                  (onRefreshVSObjectCommand)="processRefreshVSObjectCommand($event)"
+                  (chartMaxModeChange)="bindingEditor.updateChartMaxMode($event)"
+                  (onOpenWizardPane)="onOpenWizardPane.emit($event)"
+                  (onOpenFormatPane)="bindingEditor.updateData($event)"
+                  (onPopupNotifications)="popupNotifications($event)">
+  </vs-object-view>
+</binding-editor>
+<notifications #notifications class="notifications-binding-pane" [timeout]="5000"></notifications>
+<div *ngIf="blocking" class="loading-container"
+     (contextmenu)="$event.stopPropagation(); $event.preventDefault();">
+  <div class="loading-content">
+    <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i>
+  </div>
+</div>
+<vs-loading-display *ngIf="loading"
+                    [preparingData]="false"
+                    [runtimeId]="runtimeId"
+                    (cancelLoading)="cancelViewsheetLoading()">
+</vs-loading-display>

@@ -1,0 +1,44 @@
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="200px" height="123.566px" viewBox="0 0 200 123.566" version="1.1">
+ <defs>
+  <linearGradient y2="0.853549" x2="0.853566" y1="0.146442" x1="0.14646" id="SVGID_4_">
+   <stop stop-color="#FFFFFF" style="stop-color:#FFFFFF" offset="0"/>
+	  <stop stop-color="#D2D2D4" style="stop-color:#D2D2D4" offset="0.0836"/>
+	  <stop stop-color="#A4A5A9" style="stop-color:#A4A5A9" offset="0.1802"/>
+	  <stop stop-color="#808287" style="stop-color:#808287" offset="0.273"/>
+	  <stop stop-color="#67696F" style="stop-color:#67696F" offset="0.3596"/>
+	  <stop stop-color="#575960" style="stop-color:#575960" offset="0.4377"/>
+	  <stop stop-color="#52545B" style="stop-color:#52545B" offset="0.5"/>
+	  <stop stop-color="#595B62" style="stop-color:#595B62" offset="0.5573"/>
+	  <stop stop-color="#6C6E74" style="stop-color:#6C6E74" offset="0.6405"/>
+	  <stop stop-color="#8C8E92" style="stop-color:#8C8E92" offset="0.7397"/>
+	  <stop stop-color="#B8B9BC" style="stop-color:#B8B9BC" offset="0.8511"/>
+	  <stop stop-color="#F1F1F1" style="stop-color:#F1F1F1" offset="0.9713"/>
+	  <stop stop-color="#FFFFFF" style="stop-color:#FFFFFF" offset="1"/>
+  </linearGradient>
+ </defs>
+	<g>
+  <title>background</title>
+		<rect fill="none" id="canvas_background" height="125.566" width="202" y="-1" x="-1"/>
+ </g>
+	<g>
+  <title>Layer 1</title>
+		<circle id="svg_1" r="17.16" cy="81" cx="101.118" fill="#636363"/>
+		<circle id="svg_2" r="17.16" cy="81" cx="99.779" fill="url(#SVGID_4_)"/>
+ </g>
+</svg>

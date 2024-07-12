@@ -1,0 +1,47 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+$breadcrumbHeight: 24px;
+$breadcrumbContainerVerticalPadding: 4px;
+$breadcrumbContainerHeight: $breadcrumbHeight + $breadcrumbContainerVerticalPadding * 2;
+
+.composite-table-focus-pane-container {
+  height: calc(100% - #{$breadcrumbContainerHeight});
+  width: 100%;
+  padding-top: 10px;
+  padding-left: 10px;
+}
+
+ws-composite-table-breadcrumb {
+  display: block;
+  position: relative;
+  width: 100%;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: $breadcrumbContainerVerticalPadding 20px $breadcrumbContainerVerticalPadding 0;
+}
+
+ws-concatenation-editor-pane {
+  display: block;
+  position: relative;
+  transform: translateZ(0); // creates stacking context for fixed position close button
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 19px;
+}

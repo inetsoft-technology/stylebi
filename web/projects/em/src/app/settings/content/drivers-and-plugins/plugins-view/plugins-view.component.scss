@@ -1,0 +1,71 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-grow: 1;
+  flex-shrink: 1;
+  overflow: hidden;
+
+  .em-staged-file-chooser {
+    flex-grow: 1;
+    flex-shrink: 1;
+  }
+
+  .file-loading-indicator {
+    flex-grow: 0;
+    flex-shrink: 1;
+  }
+
+  >.mat-mdc-card {
+    flex-grow: 1;
+    flex-shrink: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: hidden;
+
+    .mat-mdc-card-content {
+      flex-grow: 1;
+      flex-shrink: 1;
+      overflow-y: auto;
+      padding: 0px;
+    }
+
+    .mat-mdc-card-actions {
+      flex-grow: 0;
+      flex-shrink: 1;
+    }
+  }
+}
+
+.mat-mdc-card-actions {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.no-right-border-radius {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.no-left-border-radius {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}

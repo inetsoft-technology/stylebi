@@ -1,0 +1,84 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="em-card mat-small">
+  <mat-card-title>
+    _#(Data Source Type Visibility)
+  </mat-card-title>
+
+  <mat-card-content class="margin-bottom-sm" *ngIf="model">
+    <mat-card-content>
+      <section class="visible-subtitle">
+        <h3 class="mat-h3">_#(Visible Data Source Types)</h3>
+        <span class="spacer"></span>
+        <button mat-mini-fab color="accent" matTooltip="_#(Add Visible Data Source)" (click)="addVisible()">
+          <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
+        </button>
+      </section>
+      <span *ngIf="model.visibleDataSources.length == 0">_#(em.presentation.dataSource.emptyVisibleList)</span>
+
+      <section class="flex-row">
+        <mat-card class="tab-block portal-card" *ngFor="let dataSource of model.visibleDataSources, let i = index;">
+          <mat-card-subtitle class="visible-subtitle">
+            <h4 class="tab-name mat-subtitle-2">{{dataSource}}</h4>
+            <span class="spacer"></span>
+            <button mat-icon-button
+                    title="_#(Delete)"
+                    (click)="deleteVisible(i)">
+              <mat-icon matListIcon fontSet="ineticons"fontIcon="trash-icon"></mat-icon>
+            </button>
+          </mat-card-subtitle>
+          <mat-divider></mat-divider>
+        </mat-card>
+      </section>
+
+    </mat-card-content>
+
+  </mat-card-content>
+
+  <mat-card-content class="margin-bottom-sm" *ngIf="model">
+    <mat-card-content>
+      <section class="visible-subtitle">
+        <h3 class="mat-h3">_#(Hidden Data Source Types)</h3>
+        <span class="spacer"></span>
+        <button mat-mini-fab color="accent" matTooltip="_#(Add Hidden Data Source)" (click)="addHidden()">
+          <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
+        </button>
+      </section>
+      <span *ngIf="model.hiddenDataSources.length == 0">_#(em.presentation.dataSource.emptyHiddenList)</span>
+
+      <section class="flex-row">
+        <mat-card class="tab-block portal-card" *ngFor="let dataSource of model.hiddenDataSources, let i = index;">
+          <mat-card-subtitle class="visible-subtitle">
+            <h4 class="tab-name mat-subtitle-2">{{dataSource}}</h4>
+            <span class="spacer"></span>
+            <button mat-icon-button
+                    title="_#(Delete)"
+                    (click)="deleteHidden(i)">
+              <mat-icon matListIcon fontSet="ineticons"fontIcon="trash-icon"></mat-icon>
+            </button>
+          </mat-card-subtitle>
+          <mat-divider></mat-divider>
+        </mat-card>
+      </section>
+
+    </mat-card-content>
+
+  </mat-card-content>
+</mat-card>

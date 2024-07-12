@@ -1,0 +1,365 @@
+{
+  "tests": [
+    {
+      "endpoint": "Component by Handle",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Component Handle": "email-messages"
+      }
+    },
+    {
+      "endpoint": "Product Family Components",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product Family ID": "1441398"
+      }
+    },
+    {
+      "endpoint": "Product Family Component",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product Family ID": "1441398",
+        "Component ID": "869665"
+      }
+    },
+    {
+      "endpoint": "Product Family Component by Handle",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product Family ID": "1441398",
+        "Component Handle": "email-messages"
+      }
+    },
+    {
+      "endpoint": "Subscription Components",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Subscription ID": "30024510"
+      }
+    },
+    {
+      "endpoint": "Subscription Component",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Subscription ID": "30024510",
+        "Component ID": "869661"
+      }
+    },
+    {
+      "endpoint": "Component Price Points",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Component ID": "869665"
+      }
+    },
+    {
+      "endpoint": "Product Family Coupons",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product Family ID": "1441398"
+      }
+    },
+    {
+      "endpoint": "Product Family Coupon",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product Family ID": "1441398",
+        "Coupon ID": "353284"
+      }
+    },
+    {
+      "endpoint": "Coupon Usage",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Coupon ID": "353284"
+      }
+    },
+    {
+      "endpoint": "Coupon Search",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product Family ID": "1441398",
+        "Coupon Code": "1000CREDIT"
+      }
+    },
+    {
+      "endpoint": "Default Product Family Coupons",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Coupon Subcodes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Coupon ID": "353284"
+      }
+    },
+    {
+      "endpoint": "Customers",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Customer",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Customer ID": "30963904"
+      }
+    },
+    {
+      "endpoint": "Customer Subscriptions",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Customer ID": "30963904"
+      }
+    },
+    {
+      "endpoint": "Customer Search",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Search Term": "zita35@example.com"
+      }
+    },
+    {
+      "endpoint": "Subscription Events",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Subscription ID": "30024510"
+      }
+    },
+    {
+      "endpoint": "Events",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Event Count",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Invoices",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Invoice",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Invoice ID": "inv_8q969vdxz29vh"
+      }
+    },
+    {
+      "endpoint": "Invoice Events",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Credit Notes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Offers",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Payment Profiles",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Payment Profile",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Payment Profile ID": "21249358"
+      }
+    },
+    {
+      "endpoint": "Products",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product Family ID": "1441398"
+      }
+    },
+    {
+      "endpoint": "Product",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product ID": "5117205"
+      }
+    },
+    {
+      "endpoint": "Product by Handle",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product Handle": "server-standard"
+      }
+    },
+    {
+      "endpoint": "Product Price Points",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product ID": "5117205"
+      }
+    },
+    {
+      "endpoint": "Product Price Point",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product ID": "5117205",
+        "Price Point ID": "791913"
+      }
+    },
+    {
+      "endpoint": "Product Families",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Product Family",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Product Family ID": "1441398"
+      }
+    },
+    {
+      "endpoint": "Reason Codes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Reason Code",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Reason Code ID": "9483"
+      }
+    },
+    {
+      "endpoint": "Subscription Statement IDs",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Subscription ID": "30024510"
+      }
+    },
+    {
+      "endpoint": "Statement IDs",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Subscription Statements",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Subscription ID": "30024510"
+      }
+    },
+    {
+      "endpoint": "Statements",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Statement",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Statement ID": "162593229"
+      }
+    },
+    {
+      "endpoint": "Stats",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Subscription",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Subscription ID": "30024510"
+      }
+    },
+    {
+      "endpoint": "Subscriptions",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Transactions",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Transaction",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Transaction ID": "345098752"
+      }
+    },
+    {
+      "endpoint": "Subscription Transactions",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Subscription ID": "30024510"
+      }
+    },
+    {
+      "endpoint": "Transaction Count",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    }
+  ]
+}

@@ -1,0 +1,158 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.data-model-edit-pane {
+   position: absolute;
+   width: 100%;
+   height: 100%;
+}
+
+.data-model-toolbar {
+   width: 100%;
+   height: 40px;
+   display: flex;
+   justify-content: space-between;
+   line-height: 40px;
+   padding-left: 5px;
+   border-bottom: 1px solid #e0e0e0;
+   margin:0;
+}
+
+.data-model-name {
+   font-size: 20px;
+   font-weight: bold;
+   padding-left: 5px;
+}
+
+.data-model-title {
+  display: flex;
+  align-items: center;
+}
+
+.data-model-edit-container {
+   width: 100%;
+   margin: 0;
+   height: calc(100% - 40px);
+}
+
+.data-model-horizontal-split {
+   width: 100%;
+   height: 100%;
+}
+
+.data-model-left-top {
+   height: calc(100% - 40px - 33px);
+   overflow: auto;
+}
+
+.data-model-left-pane {
+   margin: 0;
+   padding-bottom: 0;
+   width: 100%;
+   height: 100%;
+   position: relative;
+}
+
+.data-model-left-pane-scrollbar {
+   overflow: auto;
+}
+
+.data-model-left-pane-min-width {
+   min-width: 200px;
+}
+
+.data-model-left-top-pane {
+   @extend .data-model-left-pane;
+   overflow: hidden;
+   padding-left: 0;
+}
+
+.data-model-right-pane {
+   margin: 0;
+   padding-bottom: 0;
+   overflow: hidden;
+   width: 100%;
+   height: 100%;
+}
+
+.data-model-right-pane-min-width {
+   min-width: 200px;
+}
+
+.data-model-header-pane {
+   height: 40px;
+   width: 100%;
+   display: flex;
+   line-height: 40px;
+   justify-content: space-between;
+   align-content: center;
+   padding-left: 7px;
+}
+
+.data-model-right-content {
+   height: 100%;
+}
+
+.bottom-status-bar {
+   height: calc(100% - 30px);
+}
+
+.notifications-data-model {
+   width: 400px;
+   position: fixed;
+   top: 125px;
+   right: 20px;
+   z-index: 10000;
+}
+
+.flex-fixed-container {
+   display: flex;
+   flex-direction: column;
+   flex-wrap: nowrap;
+   overflow: hidden;
+
+   .flex-fixed-content {
+      flex-grow: 1;
+      overflow-x: hidden;
+      overflow-y: auto;
+
+      &.content-overflow-all {
+         overflow: auto;
+      }
+
+      &.d-inline-flex > tree {
+         flex-grow: 1;
+      }
+   }
+}
+
+$data-tab-gutter-margin: 16px;
+$data-tab-gutter-width: 6px;
+
+.collapse-pane-button {
+   display: flex;
+   align-items: center;
+   justify-content: center;
+   position: absolute;
+   top: calc(50% - 50px);
+   right: calc((#{-$data-tab-gutter-margin} + #{-$data-tab-gutter-width}));
+   height: 100px;
+   width: calc(#{$data-tab-gutter-margin} + #{$data-tab-gutter-width});
+   z-index: 6;
+   cursor: pointer;
+   border-radius: 4px;
+}

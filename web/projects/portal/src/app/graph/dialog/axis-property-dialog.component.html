@@ -1,0 +1,55 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Axis Properties)'" (onCancel)="close()"
+   [cshid]="'EditingaChartAxis'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
+  <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="defaultTab" (navChange)="defaultTab = $event.nextId">
+    <li ngbNavItem="labelTab">
+      <a ngbNavLink>_#(Label)</a>
+      <ng-template ngbNavContent>
+         <axis-label-pane [model]="model.axisLabelPaneModel">
+         </axis-label-pane>
+      </ng-template>
+    </li>
+    <li title="_#(Line)" ngbNavItem="lineTab">
+      <a ngbNavLink>_#(Line)</a>
+      <ng-template ngbNavContent>
+        <axis-line-pane [linear]="model.linear" [outer]="model.outer"
+                        [incrementValid]="incrementValid"
+                        [minmaxValid]="minmaxValid"
+                        [timeSeries]="model.timeSeries" [form]="lineForm"
+                        [model]="model.axisLinePaneModel"></axis-line-pane></ng-template>
+    </li>
+    <li *ngIf="!model.linear && model.aliasSupported" ngbNavItem="aliasTab">
+      <a ngbNavLink>_#(Alias)</a>
+      <ng-template ngbNavContent>
+        <alias-pane [model]="model.aliasPaneModel"></alias-pane>
+      </ng-template>
+    </li>
+  </ul>
+  <div [ngbNavOutlet]="nav"></div>
+</div>
+<div class="modal-footer">
+  <apply-button (onApply)="apply($event)"
+                [disabled]="!form.valid || !minmaxValid || !incrementValid"></apply-button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="form.invalid || !minmaxValid || !incrementValid">_#(OK)</button>
+</div>

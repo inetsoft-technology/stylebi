@@ -1,0 +1,53 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-audit-table-view [dateRangeVisible]="false" [displayedColumns]="getDisplayedColumns()" [columnRenderers]="columnRenderers" [parameterForm]="form" [fetchParameters]="fetchParameters" [fetchData]="fetchData">
+  <section class="flex-row" [formGroup]="form">
+    <mat-form-field appearance="outline" color="primary" class="flex">
+      <mat-label>_#(Target Asset Type)</mat-label>
+      <mat-select formControlName="selectedDependentType">
+        <mat-option *ngFor="let type of dependentTypes" [value]="type.value">{{type.label}}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+      <mat-label>_#(Target Asset User)</mat-label>
+      <mat-select formControlName="selectedDependentUser">
+        <mat-option *ngFor="let user of dependentUsers" [value]="user.value">{{user.label}}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+      <mat-label>_#(Target Asset Names)</mat-label>
+      <mat-select formControlName="selectedDependentAssets" multiple>
+        <mat-option *ngFor="let asset of dependentAssets" [value]="asset.assetId">{{asset.label}}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+      <mat-label>_#(Required Asset Types)</mat-label>
+      <mat-select formControlName="selectedTargetTypes" multiple>
+        <mat-option *ngFor="let type of targetTypes" [value]="type.value">{{type.label}}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+      <mat-label>_#(Required Asset Users)</mat-label>
+      <mat-select formControlName="selectedTargetUsers" multiple>
+        <mat-option *ngFor="let user of targetUsers" [value]="user.value">{{user.label}}</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </section>
+</em-audit-table-view>

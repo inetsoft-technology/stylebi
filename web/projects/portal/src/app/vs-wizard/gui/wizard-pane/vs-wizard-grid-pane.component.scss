@@ -1,0 +1,108 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.vs-grid-table {
+  display: table;
+  border-collapse: collapse;
+  position: relative;
+
+  .vs-grid-table-row {
+    display: table-row;
+    position: relative;
+
+    &.odd-row {
+      .odd-col {
+        border-right-color: var(--inet-default-border-color);
+        border-bottom-color: var(--inet-default-border-color);
+      }
+
+      .even-col {
+        border-left-color: var(--inet-default-border-color);
+        border-bottom-color: var(--inet-default-border-color);
+      }
+    }
+
+    &.even-row {
+      .even-col {
+        border-left-color: var(--inet-default-border-color);
+        border-top-color: var(--inet-default-border-color);
+      }
+
+      .odd-col {
+        border-right-color: var(--inet-default-border-color);
+        border-top-color: var(--inet-default-border-color);
+      }
+    }
+
+    .vs-grid-table-cell {
+      position: relative;
+      display: table-cell;
+      border: 1px dashed transparent;
+      vertical-align: middle;
+      text-align: center;
+
+      .wizard-add {
+        display: flex;
+        position: relative;
+        visibility: visible;
+        height: 100%;
+        width: 100%;
+        opacity: 0;
+        vertical-align: middle;
+        align-items: center;
+        justify-content: center;
+
+        img {
+          width: 25px;
+          height: 25px;
+        }
+
+        i {
+          position: absolute;
+          right: -5px;
+          top: 0;
+        }
+      }
+    }
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      border: 1px dashed var(--inet-default-border-color);
+      opacity: 0.2;
+      width: inherit;
+      height: inherit;
+    }
+  }
+
+  .vs-grid-col-container {
+    position: absolute;
+    display: flex;
+    width: 100%;
+    height: 100%;
+
+    .vs-grid-table-col {
+      position: relative;
+      border: 1px dashed var(--inet-default-border-color);
+      opacity: 0.2;
+    }
+  }
+}

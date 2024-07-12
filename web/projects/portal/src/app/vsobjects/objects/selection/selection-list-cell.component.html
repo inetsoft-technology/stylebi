@@ -1,0 +1,167 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div #cell class="selection-list-cell" *ngIf="cellFormat != null"
+     [style.height]="height"
+     [style.background-color]="cellFormat.background"
+     [style.border-bottom]="cellFormat.border.bottom"
+     [style.border-top]="cellFormat.border.top"
+     [style.border-left]="cellFormat.border.left"
+     [style.border-right]="cellFormat.border.right"
+     [style.margin-bottom.px]="bottomMargin"
+     [class.selected-cell]="!contextProvider.viewer && labelSelected"
+     [style.padding-top.px]="cellFormat.vAlign == 'top' ? 2 : 0"
+     tabindex="-1"
+     [attr.aria-label]="selectionValue.label"
+     [attr.aria-expanded]="ariaExpanded"
+     [attr.aria-checked]="ariaSelected"
+     role="listitem"
+     draggable="true"
+     (dragstart)="onDragStart($event)"
+     wInteractable
+     [interactableResizable]="!contextProvider.viewer && labelSelected"
+     [interactableIgnoreFrom]="'.selection-list-cell-handle.right'"
+     [resizableMargin]="5" [resizablePreserveAspectRatio]="false"
+     [resizableLeftEdge]="false"
+     [resizableRightEdge]="false"
+     [resizableTopEdge]="false"
+     [resizableBottomEdge]="'.selection-list-cell-handle.bottom'"
+     (onResizableStart)="onResizeCellHeightStart()"
+     (onResizableMove)="onResizeCellHeight($event)"
+     (onResizableEnd)="onResizeCellHeightEnd()">
+  <div class="selection-list-cell-container"
+       [style.vertical-align]="cellFormat.vAlign">
+    <div class="label-container"
+         (click)="selectRegion($event, CellRegion.LABEL)"
+         (contextmenu)="selectRegion($event, CellRegion.LABEL)"
+         [style.padding-top.px]="cellFormat?.padding?.top"
+         [style.padding-bottom.px]="cellFormat?.padding?.bottom"
+         [style.vertical-align]="cellFormat.vAlign">
+      <div class="icon-label-content"
+           tooltipIf [disableTooltipIf]="toggleEnabled">
+        <div [ngClass]="getTreeIconClass()"
+             [style.color]="cellFormat.foreground"
+             *ngIf="isFolder()" (click)="toggleFolder($event)"
+             [style.padding-left.px]="nodeIndent - indent">
+        </div>
+        <div [class.unselectable-icon]="isFolder() && singleSelection && !isParentIDTree"
+             class="selection-list-icon-layout"
+             [ngClass]="getIconClass()"
+             [title]="getCellTooltip()"
+             [style.padding-left.px]="isFolder() ? 1 : nodeIndent"
+             [style.color]="cellFormat.foreground"
+             (click)="click($event)">
+        </div>
+        <div class="selection-list-cell-label" tooltipIf
+             [style.justify-content]="cellFormat.justifyContent"
+             [style.width.px]="labelWidth"
+             [style.min-width.px]="labelWidth"
+             [style.color]="cellFormat.foreground"
+             [safeFont]="cellFormat.font"
+             [style.white-space]="cellFormat.wrapping.whiteSpace"
+             [style.text-decoration]="cellFormat.decoration"
+             [style.left.px]="labelLeft + nodeIndent"
+             [style.padding-left.px]="cellFormat?.padding?.left"
+             [style.padding-right.px]="cellFormat?.padding?.right"
+             (click)="clickLabel($event)">
+          <div *ngIf="htmlLabel" class="selection-value d-block"
+               [style.justify-content]="cellFormat.justifyContent"
+               [style.wordWrap]="cellFormat.wrapping.wordWrap"
+               [innerHTML]="htmlLabel">
+          </div>
+          <div *ngIf="!htmlLabel" class="selection-value"
+               [style.justify-content]="cellFormat.justifyContent"
+               [style.wordWrap]="cellFormat.wrapping.wordWrap">
+            {{selectionValue.label}}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="selection-list-cell-content" *ngIf="showText || showBar">
+      <div *ngIf="showText"
+           tooltipIf
+           class="selection-list-measure-text"
+           [style.width.px]="_textWidth"
+           [style.right.px]="textRight"
+           [style.justify-content]="measureTextHAlign"
+           [style.align-items]="measureTextVAlign"
+           [style.color]="measureTextFormat.foreground"
+           [style.background-color]="measureTextFormat.background"
+           [safeFont]="measureTextFormat.font"
+           [style.white-space]="measureTextFormat.wrapping.whiteSpace"
+           [style.wordWrap]="measureTextFormat.wrapping.wordWrap"
+           [style.overflow]="measureTextFormat.wrapping.overflow"
+           [style.text-decoration]="measureTextFormat.decoration"
+           [style.border-bottom]="measureTextFormat.border.bottom"
+           [style.border-top]="measureTextFormat.border.top"
+           [style.border-left]="measureTextFormat.border.left"
+           [style.border-right]="measureTextFormat.border.right"
+           [class.selected-cell]="measureTextSelected"
+           [style.padding-top.px]="cellFormat.vAlign == 'top' ? 2 : 0"
+           [style.padding-right.px]="valuePadding"
+           (click)="selectRegion($event, CellRegion.MEASURE_TEXT)"
+           (contextmenu)="selectRegion($event, CellRegion.MEASURE_TEXT)"
+           wInteractable
+           [interactableResizable]="!contextProvider.viewer && measureTextSelected"
+           [resizableMargin]="5" [resizablePreserveAspectRatio]="false"
+           [resizableRightEdge]="false" [resizableTopEdge]="false" [resizableBottomEdge]="false"
+           (onResizableMove)="onResizeMeasuresMove($event, CellRegion.MEASURE_TEXT)"
+           (onResizableEnd)="onResizeMeasuresEnd()">
+        <div class="selection-list-cell-handle left bg-primary middle" *ngIf="measureTextSelected"></div>
+        {{selectionValue.measureLabel}}
+      </div>
+      <div *ngIf="showBar"
+           class="selection-list-bar-outer"
+           [class.resize-border]="barResizing"
+           [class.selected-cell]="measureNBarSelected || measureBarSelected"
+           [style.width.px]="_barWidth"
+           [style.background-color]="selectionValue.measureValue < 0 && measureNBarFormat.background ? measureNBarFormat.background : measureBarFormat.background"
+           wInteractable
+           [interactableResizable]="!contextProvider.viewer && (measureBarSelected || measureNBarSelected)"
+           [resizableMargin]="5" [resizablePreserveAspectRatio]="false"
+           [resizableRightEdge]="false" [resizableTopEdge]="false" [resizableBottomEdge]="false"
+           (onResizableMove)="onResizeMeasuresMove($event, CellRegion.MEASURE_BAR)"
+           (onResizableEnd)="onResizeMeasuresEnd()"
+           (click)="selectRegion($event, null)"
+           (contextmenu)="selectRegion($event, null)">
+        <div class="selection-list-cell-handle bg-primary left middle" *ngIf="(measureBarSelected || measureNBarSelected)"></div>
+        <div class="selection-list-bar-inner"
+             title="{{selectionValue.measureLabel}}"
+             [style.top]="barY"
+             [style.left.px]="barX"
+             [style.width.px]="barSize">
+          <div *ngIf="selectionValue.measureValue < 0"
+               class="measure-n-bar"
+               [style.background-color]="measureNBarFormat.foreground">
+          </div>
+          <div *ngIf="selectionValue.measureValue >= 0"
+               class="measure-bar"
+               [style.background-color]="measureBarFormat.foreground">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="!contextProvider.viewer && labelSelected && !vsWizard"
+       class="selection-list-cell-handle bg-primary bottom middle"></div>
+  <div *ngIf="resizeshow && !vsWizard" class="resize-label">{{resizeBorderHeight}}</div>
+  <div *ngIf="!contextProvider.viewer && isList && labelSelected && !vsWizard"
+       class="selection-list-cell-handle bg-primary right middle"
+       (mousedown)="startResize($event)"></div>
+</div>

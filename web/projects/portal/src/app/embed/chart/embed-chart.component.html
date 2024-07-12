@@ -1,0 +1,45 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="viewer-root vs-object-container viewer-container embed-chart-container"
+     oncontextmenu="return false"
+     #viewerRoot tabindex="0"
+     [attr.runtime-id]="runtimeId"
+     (mouseenter)="onMouseEnter($event)">
+  <vs-chart *ngIf="vsObject && runtimeId"
+            [model]="vsObject" [actions]="vsObjectActions"
+            [appSize]="appSize"
+            [vsInfo]="vsInfo"
+            [container]="viewerRoot"
+            [variableValues]="variableValuesFunction"
+            (contextmenu)="onOpenContextMenu($event)">
+  </vs-chart>
+
+  <mini-toolbar *ngIf="isMiniToolbarVisible()"
+                [actions]="vsObjectActions"
+                [top]="getToolbarTop(vsObject)"
+                [left]="getToolbarLeft(vsObject)"
+                [width]="getToolbarWidth(vsObject)"
+                [assembly]="vsObject.absoluteName"
+                [forceHide]="!showMiniToolbar()">
+  </mini-toolbar>
+</div>
+
+<dl-download-target
+  (downloadStarted)="downloadStarted($event)"></dl-download-target>

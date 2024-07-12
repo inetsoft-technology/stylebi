@@ -1,0 +1,36 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div #jspContainerSchema class="jsplumb-container" (dragover)="allowDrop($event)" tabindex="-1"
+     [class.jsplumb-container--two-step-join]="(getTwoStepJoinColumnObs() | async) != null"
+     selectionBox (onSelectionBox)="onSelectionBox($event)" selectionBoxBannedSelector="schema-table-thumbnail"
+     (drop)="dropSchemaTable($event)" (mousedown)="jsplumbContainerMousedown($event)" outOfZone
+     (onKeydown)="oozKeydown($event)">
+  <schema-table-thumbnail *ngFor="let _pair of tableColumnsPairs" class="bd-gray" tabindex="0"
+                          [schemaTable]="_pair.table"
+                          [selected]="worksheet.selectedSubtables.indexOf(_pair.table) !== -1"
+                          [columns]="_pair.columns"
+                          [joinTable]="joinTable"
+                          [twoStepJoinColumn]="getTwoStepJoinColumnObs() | async"
+                          (onSubtableInteraction)="selectSubtable($event)"
+                          (onFocusCompositeTable)="focusCompositeTable($event)"
+                          (onDelete)="deleteSubtables()"
+                          (onResizeSchemaTable)="resizeSchemaTable($event)"></schema-table-thumbnail>
+  <div class="balloon-element"></div>
+</div>

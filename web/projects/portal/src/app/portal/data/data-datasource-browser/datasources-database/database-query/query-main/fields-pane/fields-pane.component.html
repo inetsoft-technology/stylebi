@@ -1,0 +1,94 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="row form-row-float-label mt-2">
+  <div class="col-6 pe-0">_#(Available Fields)</div>
+  <div class="col-1"></div>
+  <div class="col ps-0">{{fieldListLabel}}</div>
+  <div class="col-auto pe-0 query-toolbar-btn" title="_#(Move Up)">
+    <i class="icon-size-medium shape-arrow-up-bold-icon txt-secondary"
+       [class.icon-disabled]="isUpDisabled()" (click)="moveUp()">
+    </i>
+  </div>
+  <div class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Move Down)">
+    <i class="icon-size-medium shape-arrow-down-bold-icon txt-secondary"
+       [class.icon-disabled]="isDownDisabled()" (click)="moveDown()">
+    </i>
+  </div>
+  <ng-container *ngIf="!grouping">
+    <div class="col-auto ps-2 pe-0 query-toolbar-btn" title="_#(Browse Data)">
+      <i class="icon-size-medium value-list-icon txt-secondary"
+         [class.icon-disabled]="!selectedField || selectedFieldIndexes?.length > 1"
+         (click)="browseColumnData()">
+      </i>
+    </div>
+    <div class="col-auto ps-2 query-toolbar-btn" title="_#(Order)">
+      <i class="icon-size-medium sort-icon txt-secondary"
+         [class.icon-disabled]="!selectedField" (click)="changeOrder()">
+      </i>
+    </div>
+  </ng-container>
+</div>
+<div class="row form-row-float-label">
+  <div class="col-6 pe-0">
+    <div class="bordered-box bd-gray" [class.bordered-box-group]="grouping"
+         (dragover)="$event.preventDefault()"
+         (drop)="drop($event, true)">
+      <tree *ngIf="fieldsTree" [root]="fieldsTree"
+            [showTooltip]="true" [multiSelect]="true" [selectOnClick]="true"
+            [showRoot]="false" [draggable]="true" [iconFunction]="iconFunction"
+            [selectedNodes]="selectedNodes" (nodesSelected)="selectNodes($event)"
+            [showOriginalName]="true" (dblclickNode)="dbClickToAdd($event)"
+            (nodeDrop)="drop($event, true)">
+      </tree>
+    </div>
+  </div>
+  <div class="col-1 btn-container-vertical">
+    <button type="button" class="fields-button btn btn-default"
+            [disabled]="!selectedNodes || selectedNodes.length == 0 || isDisabledAdd()" (click)="add()">
+      <i class="forward-icon" title="_#(Add)"></i>
+    </button>
+    <button type="button" class="fields-button btn btn-default"
+            [disabled]="!selectedField" (click)="remove()">
+      <i class="backward-icon" title="_#(Remove)"></i>
+    </button>
+  </div>
+  <div class="col-5 ps-0 pe-0">
+    <div class="bordered-box bd-gray"
+         [class.bordered-box-group]="grouping"
+         (dragover)="$event.preventDefault()"
+         (drop)="drop($event)">
+      <ng-container *ngIf="fields">
+        <div class="field-item" *ngFor="let field of fields; let i = index"
+             [title]="getFieldTitle(field)" [draggable]="true"
+             (mousedown)="selectField($event, i)"
+             (dblclick)="removeField(i)"
+             [class.selected]="isSelectedField(i)">
+          <i *ngIf="!grouping" class="icon-size-medium txt-secondary" [ngClass]="getOrderIcon(i)"></i>
+          {{ field }}
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>
+<ng-template #browseFieldValues let-close="close">
+  <browse-field-values-dialog [title]="selectedField" [values]="columnValues"
+                              (onClose)="close($event)">
+  </browse-field-values-dialog>
+</ng-template>

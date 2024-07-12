@@ -1,0 +1,32 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="p-1">
+  <div class="named-group-tree bd-gray" *ngIf="root">
+    <tree [root]="root" [showRoot]="false" (nodesSelected)="selectNode($event)"
+          [draggable]="true" [multiSelect]="true" [droppable]="true"
+          (nodeDrop)="dropToNode($event)" (nodeDrag)="dragNode($event)">
+    </tree>
+  </div>
+  <div class="named-group-buttons mt-2">
+    <button class="btn btn-default" title="_#(Add Group)" (click)="addClick($event)">_#(Add)</button>
+    <button class="btn btn-default ms-2" title="_#(Delete Group)" (click)="deleteClick($event)"
+            [disabled]="!deleteEnabled()">_#(Delete)</button>
+  </div>
+</div>

@@ -1,0 +1,599 @@
+options {
+   STATIC = false;
+   //UNICODE_INPUT = true;
+}
+
+PARSER_BEGIN(SQLParser)
+
+package inetsoft.uql.util.sql;
+
+import inetsoft.uql.util.*;
+import inetsoft.uql.jdbc.*;
+import inetsoft.uql.schema.*;
+import java.util.*;
+import java.io.*;
+
+/**
+ * SQL parser. This parser is currently only used to get the selection
+ * list.
+ */
+public class SQLParser {
+   public static void main(String args[]) {
+      SQLParser parser;
+      try {
+	 parser = new SQLParser(new java.io.FileInputStream(args[0]));
+      } catch (java.io.FileNotFoundException e) {
+	 e.printStackTrace();
+	 return;
+      }
+
+      try {
+	 SQLSelection xselect = new SQLSelection();
+	 parser.query_spec(xselect);
+         //parser.search_condition();
+         System.err.println(xselect);
+      } catch (ParseException e) {
+	 e.printStackTrace();
+      }
+   }
+
+   String strip(String str) {
+      int last = (str != null) ? str.length() - 1 : 0;
+      return (str != null && str.length() > 1 &&
+	      (str.charAt(0)=='\'' && str.charAt(last)=='\'' ||
+	       str.charAt(0)=='"' && str.charAt(last)=='"' ||
+	       str.charAt(0)=='`' && str.charAt(last)=='`'))
+	 ? str.substring(1, str.length()-1) : str;
+   }
+}
+
+PARSER_END(SQLParser)
+
+/*
+ * Tokens to ignore in the BNF follow.
+ */
+
+SKIP :
+{
+  < " " >
+| < "\t" >
+| < "\n" >
+| < "\r" >
+}
+
+void query_spec(SQLSelection xselect):
+{}
+{
+   <SELECT> opt_all_distinct() selection(xselect) table_exp(xselect) {
+   }
+}
+
+void selection(SQLSelection xselect):
+{}
+{
+   scalar_exp_commalist(xselect) {}
+   | "*" { xselect.addColumn("*"); }
+}
+
+void table_exp(SQLSelection xselect):
+{}
+{
+   from_clause(xselect)
+      [where_clause()]
+      [order_by_clause(xselect)]
+      [group_by_clause()]
+      [having_clause()]
+}
+
+void from_clause(SQLSelection xselect):
+{}
+{
+   <FROM> table_ref_commalist(xselect) {}
+}
+
+void table_ref_commalist(SQLSelection xselect):
+{}
+{
+   table_ref(xselect) (LOOKAHEAD(2000) "," table_ref(xselect) {})*
+}
+
+void table_ref(SQLSelection xselect):
+{
+   String str = "";
+   String alias = null;
+}
+{
+   [LOOKAHEAD(2000) str = table()] [(<NAME> | <STRING>) {
+      alias = strip(getToken(0).image); } ] {
+      xselect.addTable(str);
+
+      for(int i = 0; i < xselect.getColumnCount(); i++) {
+	 String col = xselect.getColumn(i);
+	 if(col.equals("*")) {
+	    xselect.setColumn(i, str + ".*");
+	 }
+	 else if(col.startsWith(alias + ".")) {
+	    xselect.setColumn(i, str + col.substring(alias.length()));
+	 }
+      }
+   }
+}
+
+void where_clause():
+{}
+{
+   <WHERE> search_condition() {}
+}
+
+void order_by_clause(SQLSelection xselect):
+{}
+{
+   <ORDER> <BY> ordering_spec_commalist(xselect) {}
+}
+
+void ordering_spec_commalist(SQLSelection xselect):
+{}
+{
+   ordering_spec(xselect) (LOOKAHEAD(2000) "," ordering_spec(xselect) {})*
+}
+
+void ordering_spec(SQLSelection xselect):
+{
+   String col;
+   String asc;
+}
+{
+   <INTEGER> opt_asc_desc() {}
+   | col = column_ref() asc = opt_asc_desc() { xselect.setSorting(col, asc); }
+}
+
+String opt_asc_desc():
+{}
+{
+   [<ASC> { return "asc"; } | <DESC> { return "desc"; }] { return ""; }
+}
+
+void group_by_clause():
+{}
+{
+   <GROUP> <BY> column_ref_commalist() {}
+}
+
+void column_ref_commalist():
+{}
+{
+   column_ref() (LOOKAHEAD(2000) "," column_ref() {})*
+}
+
+void having_clause():
+{}
+{
+   <HAVING> search_condition() {}
+}
+
+SqlExpr search_condition():
+{
+   SqlExpr expr, expr2;
+}
+{
+   expr = search_term() (LOOKAHEAD(2000) <OR> expr2 = search_term() {
+      expr = new BiSqlExpr(SqlExpr.OR, expr, expr2);
+   })* { return expr; }
+}
+
+SqlExpr search_term():
+{
+   SqlExpr expr, expr2;
+}
+{
+   expr = search_fact() (LOOKAHEAD(2000) <AND> expr2 = search_fact() {
+      expr = new BiSqlExpr(SqlExpr.AND, expr, expr2);
+   })* { return expr; }
+}
+
+SqlExpr search_fact():
+{
+   SqlExpr expr;
+}
+{
+   <NOT> expr = search_condition() {
+      return new UniSqlExpr(SqlExpr.NOT, expr);
+   }
+   | LOOKAHEAD(2000) "(" expr = search_condition() ")" { return expr; }
+   | LOOKAHEAD(2000) expr = predicate() { return expr; }
+}
+
+SqlExpr predicate():
+{
+   SqlExpr expr;
+}
+{
+   LOOKAHEAD(2000) expr = comparison_predicate() { return expr; }
+   | LOOKAHEAD(2000) expr = between_predicate() { return expr; }
+   | LOOKAHEAD(2000) expr = like_predicate() { return expr; }
+   | LOOKAHEAD(2000) expr = test_for_null() { return expr; }
+   | LOOKAHEAD(2000) expr = in_predicate() { return expr; }
+   | LOOKAHEAD(2000) all_or_any_predicate() { return null; }
+   | LOOKAHEAD(2000) existence_test() { return null; }
+}
+
+SqlExpr comparison_predicate():
+{
+   Object expr1, expr2;
+   String op;
+}
+{
+   LOOKAHEAD(2000) expr1 = scalar_exp() <COMPARISON> {
+      op = getToken(0).image.toLowerCase();
+   }
+   expr2 = scalar_exp() {
+      return new BiSqlExpr(op, expr1, expr2);
+   }
+   | LOOKAHEAD(2000) scalar_exp() <COMPARISON> subquery() {
+      // not supported yet
+      return null;
+   }
+}
+
+SqlExpr between_predicate():
+{
+   Object expr1, expr2, expr3;
+}
+{
+   LOOKAHEAD(2000) expr1 = scalar_exp() <NOT> <BETWEEN> expr2 = scalar_exp()
+      <AND> expr3 = scalar_exp()
+   {
+      return new BiSqlExpr(SqlExpr.NOT_BETWEEN, expr1, new Object[] {
+         expr2, expr3});
+   }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <BETWEEN> expr2 = scalar_exp()
+        <AND> expr3 = scalar_exp()
+     {
+        return new BiSqlExpr(SqlExpr.BETWEEN, expr1, new Object[] {
+           expr2, expr3});
+     }
+}
+
+SqlExpr like_predicate():
+{
+   Object expr1, expr2;
+}
+{
+   LOOKAHEAD(2000) expr1 = scalar_exp() <NOT> <LIKE> expr2 = atom()
+      opt_escape() { return new BiSqlExpr(SqlExpr.NOT_LIKE, expr1, expr2); }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <LIKE> expr2 = atom() opt_escape() {
+      return new BiSqlExpr(SqlExpr.LIKE, expr1, expr2);
+   }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <NOT> <MATCH> expr2 = atom()
+      opt_escape() { return new BiSqlExpr(SqlExpr.NOT_MATCH, expr1, expr2); }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <MATCH> expr2 = atom() opt_escape() {
+      return new BiSqlExpr(SqlExpr.MATCH, expr1, expr2);
+   }
+}
+
+void opt_escape():
+{}
+{
+   [<ESCAPE> atom() {}]
+}
+
+SqlExpr test_for_null():
+{
+   Object col;
+}
+{
+   LOOKAHEAD(2000) col = column_ref() <IS> <NOT> <NULLX> {
+      return new UniSqlExpr(SqlExpr.IS_NOT_NULL, col);
+   }
+   | LOOKAHEAD(2000) col = column_ref() <IS> <NULLX> {
+      return new UniSqlExpr(SqlExpr.IS_NULL, col);
+   }
+}
+
+SqlExpr in_predicate():
+{
+   Object expr;
+   Object value;
+}
+{
+   LOOKAHEAD(2000) expr = scalar_exp() <NOT> <IN> "(" subquery() ")" {
+      // not supported
+      return null;
+   }
+   | LOOKAHEAD(2000) scalar_exp() <IN> "(" subquery() ")" {
+      // not supported
+      return null;
+   }
+   | LOOKAHEAD(2000) expr = scalar_exp() <NOT> <IN> "("
+        value = atom_commalist(new Vector()) ")" {
+           return new BiSqlExpr(SqlExpr.NOT_IN, expr, value);
+   }
+   | LOOKAHEAD(2000) expr = scalar_exp() <IN> "(" value = atom_commalist(new Vector()) ")"
+     {
+        return new BiSqlExpr(SqlExpr.IN, expr, value);
+   }
+}
+
+Object[] atom_commalist(Vector list):
+{
+   Object val;
+   if(list == null) {
+   	list = new Vector();
+   }
+}
+{
+   val = scalar_exp() { list.addElement(val);}
+   (LOOKAHEAD(2000) "," atom_commalist(list) {})* {
+      Object[] arr = new Object[list.size()];
+      list.copyInto(arr);
+      return arr;
+   }
+}
+
+void all_or_any_predicate():
+{}
+{
+   scalar_exp() <COMPARISON> any_all_some() subquery() {}
+}
+
+void any_all_some():
+{}
+{
+   <ANY> {}
+   | <ALL> {}
+   | <SOME> {}
+}
+
+void existence_test():
+{}
+{
+   <EXISTS> subquery() {}
+}
+
+void subquery():
+{
+   SQLSelection xselect = new SQLSelection();
+}
+{
+   "(" <SELECT> opt_all_distinct() selection(xselect) table_exp(xselect) ")" {}
+}
+
+void opt_all_distinct():
+{}
+{
+   [<ALL> | <DISTINCT> | <TOP> scalar_exp()] {}
+}
+
+String scalar_exp():
+{
+   StringBuffer buf = new StringBuffer();
+   String str;
+}
+{
+   str = scalar_term() {
+      buf.append(str);
+   } (LOOKAHEAD(2000)
+      ("+" { buf.append("+"); } | "-" { buf.append("-"); } |
+      "||" { buf.append("||"); } )
+      str = scalar_term() {
+	 buf.append(str);
+      })* {
+      return buf.toString();
+   }
+}
+
+String scalar_term():
+{
+   StringBuffer buf = new StringBuffer();
+   String str;
+}
+{
+   str = scalar_fact() {
+      buf.append(str);
+   } (LOOKAHEAD(2000)
+      ("*" { buf.append("*"); } | "/" { buf.append("/"); } )
+      str = scalar_fact() {
+	 buf.append(str);
+      })* {
+      return buf.toString();
+   }
+}
+
+String scalar_fact():
+{
+   String str;
+}
+{
+   "+" str = scalar_exp() { return "+" + str; }
+   | "-" str = scalar_exp() { return "-" + str; }
+   | LOOKAHEAD(2000) str = function_ref() { return str; }
+   | LOOKAHEAD(2000) str = column_ref() { return str; }
+   | LOOKAHEAD(2000) str = atom() { return str; }
+   | LOOKAHEAD(2000) subquery() { return "subquery"; }
+   | LOOKAHEAD(2000) "(" str = scalar_exp() ")" { return "(" + str + ")"; }
+}
+
+void scalar_exp_commalist(SQLSelection xselect):
+{
+   String expr = null;
+   String alias = null;
+}
+{
+   expr = scalar_exp() [<NAME> {alias=getToken(0).image;} |
+      (<AS> (<STRING> | <NAME>) {alias=getToken(0).image;})]
+
+   {
+      xselect.addColumn(expr);
+      xselect.setAlias(xselect.getColumnCount() - 1, strip(alias));
+      alias = null;
+   }
+   (LOOKAHEAD(2000) "," expr = scalar_exp() [<NAME> {alias = getToken(0).image;} |
+      (<AS> (<STRING> | <NAME>) { alias = getToken(0).image;})]
+   {
+      xselect.addColumn(expr);
+      xselect.setAlias(xselect.getColumnCount() - 1, strip(alias));
+      alias = null;
+   })*
+}
+
+String atom():
+{
+   String str;
+}
+{
+   str = parameter_ref() { return str; }
+   | str = literal() { return str; }
+   | <USER> { return getToken(0).image; }
+   | "$" "(" ( <NAME> | <STRING> ) { str = getToken(0).image; } ")" {
+      return "$(" + str + ")";
+   }
+   | "{d" <STRING> { str = getToken(0).image; } "}" {
+      //return "{d '" + str + "'}";
+      return "{d " + str + "}";
+   }
+   | "{fn" <NAME> { str = getToken(0).image; } "(" ")" "}" {
+      return "{fn " + str + "()}";
+   }
+}
+
+String parameter_ref():
+{
+   String str1, str2;
+}
+{
+   LOOKAHEAD(2000) str1 = parameter() { return str1; }
+   | LOOKAHEAD(2000) str1 = parameter() str2 = parameter() {
+      return str1 + " " + str2;
+   }
+   | LOOKAHEAD(2000) str1 = parameter() <INDICATOR> str2 = parameter() {
+      return str1 + " " + getToken(1).image + " " + str2;
+   }
+}
+
+String parameter():
+{}
+{
+   <PARAMETER> { return getToken(0).image; }
+}
+
+String function_ref():
+{
+   String func, str, s2;
+}
+{
+   LOOKAHEAD(2000) func = AMMSC() "(" "*" ")" { return func + "(*)"; }
+   | LOOKAHEAD(2000) func = AMMSC() "(" <DISTINCT> str = column_ref() ")" {
+      return func + "(distinct " + str + ")";
+   }
+   | LOOKAHEAD(2000) func = AMMSC() "(" <ALL> str = scalar_exp() ")" {
+      return func + "(all " + str + ")";
+   }
+   | LOOKAHEAD(2000) func = AMMSC() "(" <TOP> str = scalar_exp() ")" {
+      return func + "(top " + str + ")";
+   }
+   | LOOKAHEAD(2000) func = AMMSC() "(" str = scalar_exp()
+	("," s2 = scalar_exp() { str += "," + s2; } )* ")" {
+      return func + "(" + str + ")";
+   }
+}
+
+String AMMSC():
+{}
+{
+   <AVG> { return "avg"; }
+   | <MIN> { return "min"; }
+   | <MAX> { return "max"; }
+   | <SUM> { return "sum"; }
+   | <COUNT> { return "count"; }
+   | <NAME> { return getToken(0).image; }
+}
+
+String literal():
+{}
+{
+   <STRING> { return strip(getToken(0).image); }
+   | <INTEGER> { return strip(getToken(0).image); }
+   | <FLOAT> { return strip(getToken(0).image); }
+}
+
+String table():
+{
+   StringBuffer buf = new StringBuffer();
+}
+{
+   (<NAME> | <STRING>) {
+      buf.append(strip(getToken(0).image));
+   }
+   [ ("." | ":") {
+      buf.append(strip(getToken(0).image));
+   } (<NAME> | <STRING>) {
+      buf.append( strip(getToken(0).image));
+   }] {
+      return buf.toString();
+   }
+}
+
+String column_ref():
+{
+   StringBuffer buf = new StringBuffer();
+}
+{
+   (<NAME> | <STRING>) { buf.append(strip(getToken(0).image)); }
+   (LOOKAHEAD(2000) ("." | ":") {
+      buf.append(strip(getToken(0).image));
+   } (<NAME> | <STRING>) {
+      buf.append(strip(getToken(0).image)); } )* {
+      return buf.toString();
+   }
+}
+
+TOKEN [IGNORE_CASE] :
+{
+<WHERE: "where">
+	   | <SELECT: "select">
+	   | <FROM: "from">
+	   | <OR: "or">
+	   | <AND: "and">
+	   | <NOT: "not">
+	   | <BETWEEN: "between">
+	   | <LIKE: "like">
+           | <MATCH: "match">
+	   | <ESCAPE: "escape">
+	   | <NULLX: "null">
+	   | <GROUP: "group">
+	   | <BY: "by">
+	   | <ORDER: "order">
+	   | <HAVING: "having">
+	   | <ASC: "asc">
+	   | <DESC: "desc">
+	   | <IS: "is">
+	   | <IN: "in">
+	   | <ANY: "any">
+	   | <ALL: "all">
+	   | <TOP: "top">
+	   | <EXISTS: "exists">
+	   | <SOME: "some">
+	   | <DISTINCT: "distinct">
+	   | <AVG: "avg">
+	   | <MIN: "min">
+	   | <MAX: "max">
+	   | <SUM: "sum">
+	   | <COUNT: "count">
+	   | <INDICATOR: "indicator">
+	   | <USER: "user">
+	   | <PARAMETER: "parameter">
+	   | <AS: "as">
+	   | <COMPARISON: "<" | ">" | "<=" | ">=" | "=" | "==" | "<>" | "!=">
+| <#ALPHA:	["a"-"z","A"-"Z","_","@"]	>
+| <#NUM:		["0"-"9"]			>
+| <#ALPHANUM:	<ALPHA> | <NUM>			>
+| <NAME:	<ALPHA> ( <ALPHANUM> | "-" )*		>
+| <STRING: "\"" (~["\""] | "''")* "\"" | "\'" (~["\'"] | "''")* "\'" | "`" (~["`"] | "''")* "`" >
+| < #EXPONENT: ["e","E"] (["+","-"])? (["0"-"9"])+ >
+| < FLOAT: (["0"-"9"])+ "." (["0"-"9"])* (<EXPONENT>)? (["f","F","d","D"])?
+      | "." (["0"-"9"])+ (<EXPONENT>)? (["f","F","d","D"])?
+      | (["0"-"9"])+ <EXPONENT> (["f","F","d","D"])?
+      | (["0"-"9"])+ (<EXPONENT>)? ["f","F","d","D"]
+  >
+| <INTEGER: (["0"-"9"])+>
+}

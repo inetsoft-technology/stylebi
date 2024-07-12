@@ -1,0 +1,70 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="field-container" [draggable]="true" (dragstart)="dragStart($event)" >
+  <div class="drag-handle" *ngIf="isDynamicValue()"></div>
+  <div class="fieldmc"
+       [class.fieldmc-label]="fieldType == 'details'"
+       [class.fieldmc-combo]="fieldType != 'details'">
+    <dynamic-combo-box #combobox class="fieldCombo"
+                       [valueOnly]="fieldType == 'details'"
+                       [normalColumn]="isNormalColumn()"
+                       [value]="cellValue" [vsId]="vsId" [assemblyName]="assemblyName"
+                       [tooltip]="tooltip" [type]="field.comboType"
+                       [variables]="variables" (valueChange)="changeColumnValue($event)">
+    </dynamic-combo-box>
+    <div *ngIf="showFieldOption()" class="fieldEditIcon" (click)="openFieldOption($event)">
+      <i class="icon-size-small btn-icon setting-icon"
+         title="_#(Field Option)"></i>
+    </div>
+    <div (openChange)="toggled($event)" [autoClose]="false" class="fieldEditIcon"
+         *ngIf="isEditEnable()" [closeOnOutsideClick]="!dialogOpened"
+         [fixedDropdown]="dropdownMenu" [zIndex]="10000">
+      <i class="icon-size-small btn-icon"
+         [class.dimension-setting-icon]="getFieldClassType() == 'Dimension'"
+         [class.measure-setting-icon]="getFieldClassType() == 'Measure'"
+         title="{{getTitle()}}"></i>
+    </div>
+    <detail-option [attr.data-test]="getFieldName() + ' detail option'"
+                   *ngIf="fieldType==='details'" [field]="field" [fieldType]="'details'"
+                   [col]="dragIndex" [embedded]="tableBindingModel?.embedded"
+                   (onPopUpWarning)="onPopUpWarning.emit($event)">
+    </detail-option>
+  </div>
+</div>
+<ng-template #fieldOptionDialog let-close="close" let-dismiss="dismiss">
+  <field-option (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                [allRows]="isAllRows"></field-option>
+</ng-template>
+<ng-template #dropdownMenu>
+  <div class="dropdown-pane">
+    <group-option [field]="field" [fieldType]="fieldType"
+                  *ngIf="fieldType==='groups'||fieldType==='rows'||fieldType==='cols'"
+                  [dragIndex]="dragIndex" [vsId]="vsId" [variables]="variables"
+                  [grayedOutValues]="grayedOutValues" (apply)="toggled($event)"
+                  [isOuterDimRef]="isOuterDimRef()" [source]="bindingModel.source"
+                  (dialogOpen)="dialogOpened = $event">
+    </group-option>
+    <aggregate-option *ngIf="fieldType==='aggregates'" [groupNum]="groupNum"
+                      [aggregate]="field" [vsId]="vsId" [variables]="variables"
+                      [availableFields]="bindingModel.availableFields"
+                      (apply)="toggled($event)" [grayedOutValues]="grayedOutValues">
+    </aggregate-option>
+  </div>
+</ng-template>

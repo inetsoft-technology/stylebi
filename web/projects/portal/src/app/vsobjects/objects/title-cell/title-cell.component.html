@@ -1,0 +1,74 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="selection-list-title"
+     [style.height.px]="titleHeight"
+     [style.background-color]="titleFormat.background"
+     [style.justify-content]="titleFormat.justifyContent"
+     [style.align-items]="titleFormat.alignItems"
+     [class.selected-cell]="titleSelected"
+     [class.inactive]="inactive"
+     wInteractable
+     [interactableDraggable]="false"
+     [interactableResizable]="!viewer && (titleSelected || forceResizable) && resizable"
+     [resizableTopEdge]="false"
+     [resizableLeftEdge]="false"
+     [resizableRightEdge]="false"
+     [resizableBottomEdge]="resizable ? '.bottom' : false"
+     (click)="vsWizardPreview ? changeEditing(true) : handleClick($event)"
+     (dblclick)="changeEditing(true)"
+     (onResizableMove)="titleResizeMove($event)"
+     (onResizableEnd)="titleResizeEnd()">
+   <div *ngIf="!editingTitle" tooltipIf
+        class="selection-list-title-label non-editable-text"
+        [class.wrap-text]="titleFormat.wrapping.wordWrap == 'break-word'"
+        [class.title-move-zone]="!editingTitle && !viewer && selected && !inSelectionContainer"
+        [class.vs-wizard]="vsWizardPreview"
+        [style.color]="titleFormat.foreground"
+        [safeFont]="titleFormat.font"
+        [style.white-space]="titleFormat.wrapping.whiteSpace"
+        [style.wordWrap]="titleFormat.wrapping.wordWrap"
+        [style.overflow]="titleFormat.wrapping.overflow"
+        [style.text-decoration]="titleFormat.decoration"
+        [style.padding-top.px]="titleFormat?.padding?.top"
+        [style.padding-bottom.px]="titleFormat?.padding?.bottom"
+        [style.padding-left.px]="titleFormat?.padding?.left"
+        [style.padding-right.px]="titleFormat?.padding?.right"
+        [style.vertical-align]="titleFormat.vAlign"
+        [style.text-align]="titleFormat.hAlign"
+        (click)="handleClick($event)" [innerHTML]="getHTMLText()">
+   </div>
+   <div class="title-resize-handle bg-primary bottom middle" *ngIf="showResizeHandle"></div>
+   <div class="title-resize-handle bg-primary bottom middle resize-line"
+        *ngIf="showResizeHandle && titleFormat.width < 120"></div>
+   <input *ngIf="!viewer && editingTitle" class="component-input w-100"
+          [(ngModel)]="titleContent"
+          [readonly]="!editable"
+          defaultFocus [autoSelect]="true"
+          (focusout)="changeTitle($event.target.value)"
+          (keyup.enter)="$event.target.blur(); changeEditing(false)"
+          [style.color]="titleFormat.foreground"
+          [style.background]="titleFormat.background"
+          [safeFont]="titleFormat.font"
+          [style.white-space]="titleFormat.wrapping.whiteSpace"
+          [style.wordWrap]="titleFormat.wrapping.wordWrap"
+          [style.overflow]="titleFormat.wrapping.overflow"
+          [style.text-decoration]="titleFormat.decoration"/>
+   <div *ngIf="rowResizeLabel" class="row-resize-label">{{rowResizeLabel}}</div>
+</div>

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg  xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="131.111" height="20.221" viewBox="0 0 131.111 20.221" overflow="visible" enable-background="new 0 0 131.111 20.221"
+	 xml:space="preserve">
+		<g id="图层_1_副本">
+			<g>
+				
+					<linearGradient id="XMLID_3_" gradientUnits="userSpaceOnUse" x1="-180.1069" y1="888.0874" x2="-195.5139" y2="931.9354" gradientTransform="matrix(1 0 0 -1 253.3652 920.1201)">
+					<stop  offset="0.0056" style="stop-color:#A8A8A8"/>
+					<stop  offset="0.0433" style="stop-color:#C1C1C1"/>
+					<stop  offset="0.0886" style="stop-color:#D8D8D8"/>
+					<stop  offset="0.1313" style="stop-color:#E6E6E6"/>
+					<stop  offset="0.1685" style="stop-color:#EBEBEB"/>
+					<stop  offset="0.5899" style="stop-color:#A4A4A4"/>
+					<stop  offset="1" style="stop-color:#404040"/>
+					<a:midPointStop  offset="0.0056" style="stop-color:#A8A8A8"/>
+					<a:midPointStop  offset="0.5" style="stop-color:#A8A8A8"/>
+					<a:midPointStop  offset="0.0433" style="stop-color:#C1C1C1"/>
+					<a:midPointStop  offset="0.5" style="stop-color:#C1C1C1"/>
+					<a:midPointStop  offset="0.0886" style="stop-color:#D8D8D8"/>
+					<a:midPointStop  offset="0.5" style="stop-color:#D8D8D8"/>
+					<a:midPointStop  offset="0.1313" style="stop-color:#E6E6E6"/>
+					<a:midPointStop  offset="0.5" style="stop-color:#E6E6E6"/>
+					<a:midPointStop  offset="0.1685" style="stop-color:#EBEBEB"/>
+					<a:midPointStop  offset="0.5" style="stop-color:#EBEBEB"/>
+					<a:midPointStop  offset="0.5899" style="stop-color:#A4A4A4"/>
+					<a:midPointStop  offset="0.5" style="stop-color:#A4A4A4"/>
+					<a:midPointStop  offset="1" style="stop-color:#404040"/>
+				</linearGradient>
+				<ellipse fill="url(#XMLID_3_)" cx="65.555" cy="10.11" rx="64.012" ry="10.024"/> 
+				<linearGradient id="XMLID_4_" gradientUnits="userSpaceOnUse" x1="1.543" y1="10.1104" x2="129.5664" y2="10.1104">
+					<stop  offset="0.0056" style="stop-color:#A8A8A8"/>
+					<stop  offset="0.0833" style="stop-color:#B0B0B0"/>
+					<stop  offset="0.2013" style="stop-color:#C5C5C5"/>
+					<stop  offset="0.3315" style="stop-color:#E3E3E3"/>
+					<stop  offset="0.7135" style="stop-color:#A4A4A4"/>
+					<stop  offset="0.9719" style="stop-color:#747474"/>
+					<a:midPointStop  offset="0.0056" style="stop-color:#A8A8A8"/>
+					<a:midPointStop  offset="0.5" style="stop-color:#A8A8A8"/>
+					<a:midPointStop  offset="0.0833" style="stop-color:#B0B0B0"/>
+					<a:midPointStop  offset="0.5" style="stop-color:#B0B0B0"/>
+					<a:midPointStop  offset="0.2013" style="stop-color:#C5C5C5"/>
+					<a:midPointStop  offset="0.5" style="stop-color:#C5C5C5"/>
+					<a:midPointStop  offset="0.3315" style="stop-color:#E3E3E3"/>
+					<a:midPointStop  offset="0.5" style="stop-color:#E3E3E3"/>
+					<a:midPointStop  offset="0.7135" style="stop-color:#A4A4A4"/>
+					<a:midPointStop  offset="0.5" style="stop-color:#A4A4A4"/>
+					<a:midPointStop  offset="0.9719" style="stop-color:#747474"/>
+				</linearGradient>
+				<ellipse opacity="0.7" fill="url(#XMLID_4_)" enable-background="new    " cx="65.555" cy="10.11" rx="64.012" ry="10.024"/> 
+			</g>
+			<rect opacity="0" fill="#FFFFFF" width="131.111" height="20.221"/> 
+		</g>
+		<g id="Layer_1">
+		</g>
+	</svg>

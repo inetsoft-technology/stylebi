@@ -1,0 +1,136 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ul role="menu" class="dropdown-pane bookmark-dropdown" [class.mobile-dropdown]="mobileDevice">
+   <li class="dropdown-item icon-with-dropdown-item"
+       [class.disabled]="addBookmarkDisabled"
+       tabindex="0" aria-labelledby="save-as-bookmark" defaultFocus [autoSelect]="false" [preventScroll]="true"
+       (click)="addBookmark()" enterClick>
+      <i class="save-as-icon viewer-toolbar-icon-align me-1 icon-size-small icon-hover-bg" aria-hidden="true"></i>
+      <span id="save-as-bookmark">_#(Save as New Bookmark)</span>
+   </li>
+   <li class="dropdown-item icon-with-dropdown-item"
+       [class.disabled]="saveCurrentBookmarkDisabled"
+       tabindex="0" aria-labelledby="save-current-bookmark"
+       (click)="saveBookmark()" enterClick>
+      <i class="save-icon viewer-toolbar-icon-align me-1 icon-size-small icon-hover-bg" aria-hidden="true"></i>
+      <span id="save-current-bookmark">_#(Save Current Bookmark)</span>
+   </li>
+   <li class="dropdown-divider"></li>
+   <div class="bookmark-search">
+      <div class="my-1 mx-1 search-container" blockMouse>
+         <input class="form-control form-control-sm" type="text" [(ngModel)]="searchString"
+                placeholder="_#(Search)" aria-label="_#(Search Repository Tree)">
+         <i *ngIf="searchString" class="close-icon icon-size-medium icon-color-default"
+            aria-hidden="true" (click)="resetSearchMode()"></i>
+      </div>
+      <ul class="nav nav-inline ms-auto">
+         <li class="nav-item">
+            <a class="nav-link nav-icon icon-size-medium p-2" role="button" (click)="onDeleteBookmarks.emit()"
+               title="_#(Remove Bookmarks)" tabindex="0" aria-label="_#(Remove Bookmarks)">
+               <i class="trash-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
+               <span class="visually-hidden">_#(Remove Bookmarks)</span>
+            </a>
+         </li>
+      </ul>
+      <ul class="nav nav-inline ms-auto" blockMouse>
+         <li class="nav-item">
+            <a [fixedDropdown]="bookmarkFilterDropdown" dropdownPlacement="bottom" [autoClose]="false"
+               class="nav-link nav-icon icon-size-medium p-2" role="button"
+               title="_#(Filter)" tabindex="0" aria-label="_#(Filter)" enterClick>
+               <i class="condition-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
+               <span class="visually-hidden">_#(Filter)</span>
+            </a>
+         </li>
+      </ul>
+   </div>
+   <ng-container *ngFor="let bookmark of vsBookmarkList">
+      <li *ngIf="bookmarkVisible(bookmark)" class="dropdown-item bookmark-item hover-bg-primary"
+          [class.bg-bold-selected]="bookmark.currentBookmark"
+          [class.icon-with-dropdown-item]="bookmark.defaultBookmark"
+          (click)="gotoBookmark(bookmark)"
+          [attr.aria-label]="bookmark.label"
+          tabindex="0" enterClick [attr.aria-selected]="bookmark.currentBookmark">
+         <i [class.me-1]="bookmark.defaultBookmark" [class.bookmark-default-icon]="bookmark.defaultBookmark"
+            class="icon-size-small" aria-hidden="true"></i>
+         <span class="bookmark-label" title="{{bookmark.label + '\n' + bookmark.tooltip}}">{{bookmark.label}}</span>
+         <span>
+         <button *ngIf="isSetDefaultBookmarkVisible(bookmark)"
+                 class="btn btn-link btn-xs force-focus-highlight"
+                 [disabled]="setDefaultBookmarkDisabled"
+                 title="_#(viewer.viewsheet.bookmark.setDefault)"
+                 (click)="setDefaultBookmark(bookmark); $event.stopPropagation();">
+                  <i [class.bookmark-set-default-icon]="!bookmark.defaultBookmark"
+                     class="icon-size-small align-middle"
+                     (click)="preview ? $event.stopPropagation() : null"></i>
+         </button>
+         <button class="btn btn-link btn-xs force-focus-highlight" title="_#(Edit)"
+                 [disabled]="isEditBookmarkDisabled(bookmark)"
+                 *ngIf="isEditBookmarkVisible(bookmark)"
+                 (click)="editBookmark(bookmark)">
+            <i class="edit-icon icon-size-small align-middle"
+               (click)="isEditBookmarkDisabled(bookmark) ? $event.stopPropagation() : null"></i>
+         </button>
+         <button class="btn btn-link btn-xs force-focus-highlight" title="_#(Remove)"
+                 [disabled]="isEditBookmarkDisabled(bookmark)"
+                 *ngIf="isEditBookmarkVisible(bookmark)"
+                 (click)="deleteBookmark(bookmark)">
+            <i class="trash-icon icon-size-small align-middle"
+               (click)="isEditBookmarkDisabled(bookmark) ? $event.stopPropagation() : null"></i>
+         </button>
+      </span>
+      </li>
+   </ng-container>
+</ul>
+<ng-template #bookmarkFilterDropdown>
+   <div class="dropdown-pane" blockMouse>
+      <div class="row-auto">
+         <div class="form-check">
+            <input class="form-check-input" type="radio" name="bookmarkFilter" id="all"
+                   [ngModelOptions]="{standalone: true}"
+                   [value]="BookmarkFilter.ALL" [(ngModel)]="filterByValue" (ngModelChange)="closeFilterDropDown()">
+            <label class="form-check-label" for="all" [attr.title]="'_#(All)'">
+               _#(All)
+            </label>
+         </div>
+      </div>
+      <div class="row-auto">
+         <div class="form-check">
+            <input class="form-check-input" type="radio" name="bookmarkFilter" id="sharedByOthers"
+                   [ngModelOptions]="{standalone: true}"
+                   [(ngModel)]="filterByValue" [value]="BookmarkFilter.SHARE_BY_OTHERS"
+                   (ngModelChange)="closeFilterDropDown()">
+            <label class="form-check-label" for="sharedByOthers" [attr.title]="'_#(Shared By Others)'">
+               _#(Shared By Others)
+            </label>
+         </div>
+      </div>
+      <div class="row-auto">
+         <div class="form-check">
+            <input class="form-check-input" type="radio" name="bookmarkFilter" id="ownedByMe"
+                   [ngModelOptions]="{standalone: true}"
+                   [value]="BookmarkFilter.OWNED_BY_ME" [(ngModel)]="filterByValue"
+                   (ngModelChange)="closeFilterDropDown()">
+            <label class="form-check-label" for="ownedByMe" [attr.title]="'_#(Owned by Me)'">
+               _#(Owned by Me)
+            </label>
+         </div>
+      </div>
+   </div>
+</ng-template>

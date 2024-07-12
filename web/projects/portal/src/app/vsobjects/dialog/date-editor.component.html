@@ -1,0 +1,50 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form" class="container-fluid">
+  <div class="row form-row-float-label">
+    <div class="col form-floating">
+        <input class="form-control" (ngModelChange)="updateMinDate($event)"
+               placeholder="yyyy-mm-dd" formControlName="min" [ngModel]="minDate"
+               ngbDatepicker #datepickerMin="ngbDatepicker">
+        <i class="calendar-icon date-editor-toggle" (click)="datepickerMin.toggle()"></i>
+        <label>_#(Minimum)</label>
+    </div>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col form-floating">
+        <input class="form-control" (ngModelChange)="updateMaxDate($event)"
+               formControlName="max" placeholder="yyyy-mm-dd" d [ngModel]="maxDate"
+               ngbDatepicker #datepickerMax="ngbDatepicker">
+        <i class="calendar-icon date-editor-toggle" (click)="datepickerMax.toggle()"></i>
+        <label>_#(Maximum)</label>
+    </div>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col form-floating">
+        <textarea class="form-control" [(ngModel)]="_model.errorMessage"
+                  (ngModelChange)="onUpdate.emit(_model)"
+                  [ngModelOptions]="{standalone: true}" placeholder="_#(Error Message)"></textarea>
+        <label>_#(Error Message)</label>
+    </div>
+  </div>
+  <div *ngIf="form.hasError('dateGreaterThan')" class="alert alert-danger">
+    _#(viewer.formEditor.minMaxValid)
+  </div>
+</form>

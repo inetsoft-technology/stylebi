@@ -1,0 +1,103 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Auto Alias)'"
+              [cshid]="'AutoAlias'"
+              (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body">
+  <div class="container-fluid auto-alias-containner">
+    <div class="form-group form-check">
+      <label class="form-check-label">
+        <input class="form-check-input enableAutoAlias_check_id" type="checkbox"
+               [disabled]="table.autoAliases.length == 0"
+               [ngModel]="table.autoAliasesEnabled"
+               (ngModelChange)="enableAutoAlias($event)">
+        _#(data.physicalmodel.enableAutoAliasing)
+      </label>
+    </div>
+    <div *ngIf="table.autoAliasesEnabled">
+      <div *ngFor="let autoAlias of table.autoAliases">
+        <div class="form-group form-check offset-1">
+          <label class="form-check-label">
+            <input class="form-check-input foreignTable_check_id" type="checkbox"
+                   [checked]="isTableSelected(autoAlias.foreignTable)"
+                   (change)="updateSelection(autoAlias, $event.target.checked)">
+            {{autoAlias.foreignTable}}
+          </label>
+        </div>
+        <div class="offset-1 col-11">
+          <div class="form-group">
+            <div class="form-floating">
+              <input type="text" #aliasCtrl="ngModel"
+                     name="alias"
+                     [class.is-invalid]="aliasCtrl.invalid"
+                     class="form-control"
+                     [disabled]="!isTableSelected(autoAlias.foreignTable)"
+                     [(ngModel)]="autoAlias.alias"
+                     (ngModelChange)="checkAliasValid(autoAlias)"
+                     nameExists [names]="getExistsNames(autoAlias)"
+                     required/>
+              <label>_#(Table Alias)</label>
+              <span class="invalid-feedback auto-alias-invalid-feedback"
+                    *ngIf="aliasCtrl.hasError('required')">
+              _#(data.physicalmodel.aliasRequired)
+            </span>
+              <span class="invalid-feedback auto-alias-invalid-feedback"
+                    *ngIf="aliasCtrl.hasError('exists')">
+              _#(data.physicalmodel.tableAliasNameDuplicate)
+            </span>
+            </div>
+          </div>
+          <div class="form-group form-check">
+            <label class="form-check-label">
+              <input class="form-check-input keepOutGoing_check_id" type="checkbox"
+                     [disabled]="!isTableSelected(autoAlias.foreignTable)"
+                     [(ngModel)]="autoAlias.keepOutgoing"/>
+              _#(data.physicalmodel.keepOutgoingLinks)
+            </label>
+          </div>
+          <div class="form-group">
+            <div class="form-floating">
+              <input type="text" #prefixCtrl="ngModel"
+                     name="prefix"
+                     [class.is-invalid]="prefixCtrl.invalid"
+                     class="form-control"
+                     [disabled]="!autoAlias.keepOutgoing || !isTableSelected(autoAlias.foreignTable)"
+                     [(ngModel)]="autoAlias.prefix"
+                     required/>
+              <label>_#(Table Prefix)</label>
+              <span class="invalid-feedback auto-alias-invalid-feedback" *ngIf="prefixCtrl.invalid">
+              _#(data.physicalmodel.prefixRequired)
+            </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-footer">
+  <button defaultFocus type="button" class="btn btn-primary" (click)="ok()">
+    _#(OK)
+  </button>
+  <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="cancel()">
+    _#(Cancel)
+  </button>
+</div>

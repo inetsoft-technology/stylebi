@@ -1,0 +1,85 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form">
+  <fieldset [disabled]="disabled" [class.disabled]="disabled">
+    <div class="ngb-tp">
+      <div class="ngb-tp-hour">
+        <button *ngIf="spinners" type="button" class="btn-link form-control-md" [ngClass]="buttonSize"
+                (click)="changeHour(hourStep)" [disabled]="disabled" [class.disabled]="disabled">
+          <span class="upward-icon icon-size-large"></span>
+          <span class="visually-hidden">_#(Increment Hours)</span> -->
+        </button>
+        <input type="text" class="form-control" formControlName="hourInput" [ngClass]="formControlSize" maxlength="2" size="2" placeholder="HH"
+               [value]="formattedHour"
+               (change)="updateHour($event.target.value)"
+               (keydown)="handleHour($event)"
+               [readonly]="readonlyInputs" aria-label="Hours">
+        <button *ngIf="spinners" type="button" class="btn-link" [ngClass]="buttonSize" (click)="changeHour(-hourStep)"
+                [disabled]="disabled" [class.disabled]="disabled">
+          <span class="downward-icon icon-size-large"></span>
+          <span class="visually-hidden">_#(Decrement Hours)</span>
+        </button>
+      </div>
+      <div class="ngb-tp-spacer">:</div>
+      <div class="ngb-tp-minute">
+        <button *ngIf="spinners" type="button" class="btn-link" [ngClass]="buttonSize" (click)="changeMinute(minuteStep)"
+                [disabled]="disabled" [class.disabled]="disabled">
+          <span class="upward-icon icon-size-large"></span>
+          <span class="visually-hidden">_#(Increment Minutes)</span>
+        </button>
+        <input type="text" class="form-control" formControlName="minuteInput" [ngClass]="formControlSize" maxlength="2" size="2" placeholder="MM"
+               [value]="formattedMinute"
+               (change)="updateMinute($event.target.value)"
+               (keydown)="handleMinute($event)"
+               [readonly]="readonlyInputs" aria-label="Minutes">
+        <button *ngIf="spinners" type="button" class="btn-link" [ngClass]="buttonSize" (click)="changeMinute(-minuteStep)"
+                [disabled]="disabled" [class.disabled]="disabled">
+          <span class="downward-icon icon-size-large"></span>
+          <span class="visually-hidden">_#(Decrement Minutes)</span>
+        </button>
+      </div>
+      <div *ngIf="seconds" class="ngb-tp-spacer">:</div>
+      <div *ngIf="seconds" class="ngb-tp-second">
+        <button *ngIf="spinners" type="button" class="btn-link" [ngClass]="buttonSize" (click)="changeSecond(secondStep)"
+                [disabled]="disabled" [class.disabled]="disabled">
+          <span class="upward-icon icon-size-large"></span>
+          <span class="visually-hidden">_#(Increment Seconds)</span>
+        </button>
+        <input type="text" class="form-control" formControlName="secondInput" [ngClass]="formControlSize" maxlength="2" size="2" placeholder="SS"
+               [value]="formattedSecond"
+               (change)="updateSecond($event.target.value)"
+               (keydown)="handleSecond($event)"
+               [readonly]="readonlyInputs" aria-label="Seconds">
+        <button *ngIf="spinners" type="button" class="btn-link" [ngClass]="buttonSize" (click)="changeSecond(-secondStep)"
+                [disabled]="disabled" [class.disabled]="disabled">
+          <span class="downward-icon icon-size-large"></span>
+          <span class="visually-hidden">_#(Decrement Seconds)</span>
+        </button>
+      </div>
+      <div *ngIf="meridian" class="ngb-tp-meridian ms-1">
+        <button type="button" class="btn btn-default" [ngClass]="buttonSize"
+                [disabled]="disabled" [class.disabled]="disabled"
+                (click)="toggleMeridian()">
+          {{model?.hour >= 12 ? 'PM' : 'AM'}}
+        </button>
+      </div>
+    </div>
+  </fieldset>
+</form>

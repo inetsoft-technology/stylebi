@@ -1,0 +1,92 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.object-wizard-pane {
+  position: relative;
+  height: calc(100% - 52px);
+
+  .right-pane {
+    position: relative;
+  }
+}
+
+.object-wizard-pane-container {
+  height: 100%;
+}
+
+.left-top-container, .left-bottom-container {
+  margin: 0px;
+  padding-bottom: 0px;
+  padding-left: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+.notifications-wizard-pane {
+  width: 400px;
+  position: absolute;
+  right: 0px;
+  top: 60px;
+}
+
+.wizard-left-container {
+  height: 100%
+}
+
+.object-wizard-left-top {
+  height: calc(100% - 33px);
+  overflow: hidden;
+}
+
+.wizard-aggregate-toolbar {
+  height: 33px !important;
+  padding-bottom: 0px;
+  margin-bottom: 0px;
+  margin-right: 0px;
+
+  .aggregate-pane-title {
+    padding-left: 20px;
+    line-height: 33px;
+    font-weight: bold;
+    font-size: medium;
+  }
+}
+
+.group-aggregate-pane-title {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  font-weight: bold;
+  font-size: medium;
+}
+
+.wizard-aggregate-toolbar-toggle-btn {
+  padding-right: 5px;
+  text-align: right;
+  height: 33px;
+  width: 33px;
+}
+
+.wizard-aggregate-toggle-icon {
+  line-height: 33px;
+  flex: 1;
+}
+
+.aggregate-scroll-pane {
+  overflow-x: auto;
+}

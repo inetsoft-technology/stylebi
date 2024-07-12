@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="200px" height="60.742px" viewBox="0 0 200 60.742" enable-background="new 0 0 200 60.742" xml:space="preserve">
+<g>
+	<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="19.9863" y1="36.0728" x2="19.9863" y2="13.3989">
+		<stop  offset="0" style="stop-color:#4C0303"/>
+		<stop  offset="0.4908" style="stop-color:#A20202"/>
+		<stop  offset="1" style="stop-color:#FF0000"/>
+	</linearGradient>
+	<polygon fill="url(#SVGID_1_)" points="19.986,36.073 16.976,24.736 13.966,13.399 19.986,13.399 26.006,13.399 22.997,24.736 	"/>
+	<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="19.9238" y1="30.3394" x2="19.9238" y2="13.9858">
+		<stop  offset="0" style="stop-color:#3A3A3A"/>
+		<stop  offset="0.221" style="stop-color:#3D3D3D"/>
+		<stop  offset="0.3757" style="stop-color:#464646"/>
+		<stop  offset="0.5101" style="stop-color:#555555"/>
+		<stop  offset="0.6331" style="stop-color:#6B6B6B"/>
+		<stop  offset="0.7482" style="stop-color:#888888"/>
+		<stop  offset="0.8574" style="stop-color:#ABABAB"/>
+		<stop  offset="0.9601" style="stop-color:#D3D3D3"/>
+		<stop  offset="1" style="stop-color:#E5E5E5"/>
+	</linearGradient>
+	<polygon opacity="0.4" fill="url(#SVGID_2_)" points="19.924,30.339 17.753,22.163 15.582,13.986 19.924,13.986 24.266,13.986 
+		22.095,22.163 	"/>
+</g>
+</svg>

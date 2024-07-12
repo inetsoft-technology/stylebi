@@ -1,0 +1,72 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.color-picker-palette {
+  padding: 0.5rem !important;
+  margin: 2px;
+  box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.display-color-pane {
+   width: 300px;
+   height: 50px;
+   background: linear-gradient(90deg, rgb(53, 233, 162) 14%, rgb(46, 166, 199) 73%);
+}
+
+.gradient-container {
+   padding: 10px;
+   background: white;
+   border: 5px solid #e5e5e5;
+   border-radius: 2px;
+   margin-top: 10px;
+   margin-bottom: 10px;
+}
+
+.gradient-direction {
+   display: inline-block;
+   width: auto;
+}
+
+.gradient-slider {
+   position: relative;
+   width: 300px;
+   height: 12px;
+   margin-top: 8px;
+   background: #d6e4e4;
+}
+
+.slider-item {
+   position: absolute;
+   width: 10px;
+   height: 10px;
+   border: 1px solid black;
+   margin: 0px;
+   padding: 0px;
+}
+
+.slider-item:after {
+   content: "";
+   position: absolute;
+   bottom: 10px;
+   left: 4px;
+   border-style: solid;
+   border-width: 70px 1px 0px 0px;
+   border-color: transparent #000;
+   display: block;
+   width: 0px;
+   z-index: 1;
+}

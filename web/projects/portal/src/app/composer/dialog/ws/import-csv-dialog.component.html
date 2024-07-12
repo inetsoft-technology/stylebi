@@ -1,0 +1,161 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div [style.cursor]="pending ? 'wait' : null">
+  <modal-header [title]="'_#(Import Data File)'"
+                (onCancel)="cancel()"
+                [cshid]="'EmbeddedDataImport'">
+  </modal-header>
+  <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
+    <form [formGroup]="form" class="container-fluid">
+      <div class="form-row-float-label row">
+        <div class="col">
+          <input type="file" class="form-control-file" id="file"
+                 accept=".csv,.txt,.xls,.xlsx"
+                 (change)="updateFile($event)">
+          <ngb-progressbar *ngIf="fileUploadProgress" type="success" [animated]="true"
+                           [value]="fileUploadProgress" [striped]="true"></ngb-progressbar>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+        <div class="form-floating">
+          <select name="Sheet:" class="form-control" id="sheet" formControlName="sheetSelected"
+                  placeholder="_#(Sheet)">
+            <option *ngFor="let _sheet of model.sheetsList" [value]="_sheet">{{_sheet}}</option>
+          </select>
+          <label><span>_#(Sheet)</span></label>
+        </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+        <div class="form-floating">
+          <select name="Encoding" class="form-control" id="encoding"
+                  formControlName="encodingSelected" placeholder="_#(Encoding)">
+            <option *ngFor="let _encoding of encodingList" [value]="_encoding">
+              {{_encoding}}</option>
+          </select>
+          <label><span>_#(Encoding)</span></label>
+        </div>
+        </div>
+        <div class="col-auto">
+        <div class="form-floating">
+          <input type="text" maxlength="1" class="form-control" id="delimiter"
+                 formControlName="delimiter" placeholder="_#(Delimiter)">
+          <label><span>_#(Delimiter)</span></label>
+        </div>
+          </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="tab"
+                   formControlName="delimiterTab">
+            <label class="form-check-label" for="tab">
+              _#(Tab)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="detectType"
+                   formControlName="detectType">
+            <label class="form-check-label" for="detectType">
+              _#(Detect Data Type)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div *ngIf="form.controls['delimiter'].errors && form.controls['delimiter'].errors['required']"
+           class="alert alert-danger">
+        _#(viewer.worksheet.import.delimiter)
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="first-row-tab"
+                   formControlName="firstRowCB">
+            <label class="form-check-label" for="first-row-tab">
+              _#(viewer.worksheet.import.firstRow)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="remove-quotes"
+                   formControlName="removeQuotesCB">
+            <label class="form-check-label" for="remove-quotes">
+              _#(Remove Quotation Marks)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="crosstab"
+                   formControlName="unpivotCB">
+            <label class="form-check-label" for="crosstab">
+              _#(viewer.worksheet.import.unpivotData)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-floating">
+          <input type="number" class="form-control" id="header" formControlName="headerCols"
+                 min="0" placeholder="_#(Header Columns)">
+          <label><span>_#(Header Columns)</span></label>
+        </div>
+          </div>
+      </div>
+      <div *ngIf="form.controls['headerCols'].errors && form.controls['headerCols'].errors['min']"
+           class="alert alert-danger">
+        _#(viewer.worksheet.import.header.negative)
+      </div>
+      <div *ngIf="duplicateHeaders"
+           class="alert alert-danger">
+        _#(viewer.worksheet.import.duplicateHeaders)
+      </div>
+      <div *ngIf="invalidCharacters"
+           class="alert alert-danger">
+        _#(formula.editor.charValid)
+      </div>
+    </form>
+
+    <div class="preview-container" *ngIf="previewTable && this.form.valid">
+      <preview-table [tableData]="previewTable" [runtimeId]="worksheet.runtimeId"
+                     [formattingEnabled]="false" [draggable]="false" [hideEnabled]="false"
+                     (onRename)="onHeaderRename($event)">
+      </preview-table>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <div *ngIf="mashUpData" class="d-flex justify-content-start flex-grow-1">
+      <button type="button" class="btn btn-default" (click)="ok(true)"
+              [disabled]="!form || !model || !form.valid || !model.fileName || !fileUploaded || errorOnServer
+              || previewPending || duplicateHeaders || invalidCharacters">_#(Mashup Data)</button>
+    </div>
+    <button type="button" class="btn btn-primary"
+            [disabled]="!form || !model || !form.valid || !model.fileName || !fileUploaded || errorOnServer
+            || previewPending || duplicateHeaders || invalidCharacters"
+            (click)="ok()" #okButton>_#(OK)
+    </button>
+    <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)
+    </button>
+  </div>
+</div>

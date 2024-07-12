@@ -1,0 +1,64 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="margin-bottom mat-elevation-z0">
+  <mat-card-subtitle><h4>{{title}}</h4></mat-card-subtitle>
+  <mat-card-content class="toolbar-options-container">
+    <div class="table-container">
+      <table mat-table [dataSource]="dataSource">
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>_#(Dashboard)</th>
+          <td mat-cell *matCellDef="let row">
+            <div class="name-layout">
+              <span class="dashboard-name" [title]="getDashboardLabel(row.name)">{{getDashboardLabel(row.name)}}</span>
+            </div>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="enable">
+          <th mat-header-cell *matHeaderCellDef>_#(Enable)</th>
+          <td mat-cell *matCellDef="let row; let i = index">
+            <mat-checkbox (click)="$event.stopPropagation()"
+                          (change)="$event ? changeVisible(row.enable, i) : null"
+                          [(ngModel)]="row.enable">
+            </mat-checkbox>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="arrange">
+          <th mat-header-cell *matHeaderCellDef>_#(Arrange)</th>
+          <td mat-cell *matCellDef="let row; let i = index;">
+            <div class="button-row">
+              <button mat-icon-button aria-label="_#(Move Down)"
+                      [disabled]="!downButtonEnabled(row.enable, i)"
+                      (click)="moveDown(i)">
+                <mat-icon fontSet="ineticons" fontIcon="shape-arrow-down-bold-icon"></mat-icon>
+              </button>
+              <button mat-icon-button aria-label="_#(Move Up)"
+                      [disabled]="!upButtonEnabled(row.enable, i)"
+                      (click)="moveUp(i)">
+                <mat-icon fontSet="ineticons" fontIcon="shape-arrow-up-bold-icon"></mat-icon>
+              </button>
+            </div>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="columnNames"></tr>
+        <tr mat-row *matRowDef="let row; columns: columnNames;"></tr>
+      </table>
+    </div>
+  </mat-card-content>
+</mat-card>

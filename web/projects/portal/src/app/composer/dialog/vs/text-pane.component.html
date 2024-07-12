@@ -1,0 +1,56 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <fieldset>
+    <legend>_#(Text)</legend>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <dynamic-combo-box *ngIf="!layoutObject"
+                             [editable]="true" [variables]="variableValues" [(value)]="model.text"
+                             [vsId]="vsId" (typeChange)="selectTextType($event)">
+          </dynamic-combo-box>
+          <input class="form-control" type="text" *ngIf="layoutObject" [(ngModel)]="model.text" (keydown)="$event.stopPropagation()"/>
+          <label>_#(Text)</label>
+        </div>
+      </div>
+      <div class="checkbox col-auto">
+        <div class="form-check">
+          <input id="autoSizeBox" type="checkbox" class="form-check-input"
+                 [(ngModel)]="model.autoSize" [disabled]="layoutObject"/>
+          <label class="form-check-label" for="autoSizeBox">
+            _#(Auto Size)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="checkbox col-auto">
+        <div class="form-check">
+          <input id="urlBox" type="checkbox" class="form-check-input"
+                 [(ngModel)]="model.url" [disabled]="layoutObject"/>
+          <label class="form-check-label" for="urlBox">
+            _#(Embed as URL)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>

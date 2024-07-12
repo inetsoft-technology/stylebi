@@ -1,0 +1,62 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(em.settings.share.link)'"
+              (onCancel)="cancel()"
+              [cshid]="'SocialSharing'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="enter()">
+  <div class="row description-row">
+    <p class="col-auto">_#(Link):</p>
+  </div>
+  <div class="row">
+    <div class="input-group col-auto">
+      <input type="text" class="form-control" placeholder="_#(Link)" aria-label="_#(Link)"
+             readonly [ngModel]="link"/>
+      <button class="btn btn-primary" type="button" title="_#(Copy)" ngxClipboard
+              (click)="showNotification()"
+              [cbContent]="link" (cbOnSuccess)="copied = true">
+        <i class="share-link-copy-icon align-middle text-white"></i>
+        <span class="visually-hidden">_#(Copy)</span>
+      </button>
+    </div>
+  </div>
+  <div class="row description-row">
+    <p class="col-auto">_#(em.settings.share.linkIframe)</p>
+  </div>
+  <div class="row">
+    <div class="input-group col-auto">
+      <input type="text" class="form-control" placeholder="_#(Link)"
+             aria-label="_#(Link)" readonly [ngModel]="iframe"/>
+      <button class="btn btn-primary" type="button" title="_#(Copy)"
+              (click)="showNotification()"
+              ngxClipboard [cbContent]="iframe" (cbOnSuccess)="copied = true">
+        <i class="share-link-copy-icon  align-middle text-white"></i>
+        <span class="visually-hidden">_#(Copy)</span>
+      </button>
+    </div>
+  </div>
+  <div class="row description-row">
+    <p class="col-auto" *ngIf="copied">_#(em.settings.share.copied)</p>
+  </div>
+</div>
+<div class="modal-footer">
+  <button #okButton type="button" class="btn btn-primary" (click)="ok()">_#(OK)</button>
+</div>
+<notifications #notifications class="notifications-share-link-dialog" [timeout]="2000"></notifications>

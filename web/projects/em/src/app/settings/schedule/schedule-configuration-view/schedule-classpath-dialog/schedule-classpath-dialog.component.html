@@ -1,0 +1,89 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMSettingsScheduleSettings'" [title]="title">
+</em-modal-header>
+<mat-dialog-content>
+  <mat-grid-list cols="5" rows="1" rowHeight="100%">
+    <mat-grid-tile [colspan]="4">
+      <mat-card class="schedule-path-pane mat-elevation-z0">
+        <mat-card-content class="full-pane">
+          <div class="left-pane-container">
+            <div class="path-search-container">
+              <mat-form-field>
+                <mat-label>_#(Filter)</mat-label>
+                <input matInput [(ngModel)]="searchText">
+                <button mat-icon-button matIconSuffix title="_#(Clear)" aria-label="_#(Clear)"
+                        (click)="searchText = ''" [disabled]="!searchText">
+                  <mat-icon fontSet="ineticons" fontIcon="close-circle-icon"></mat-icon>
+                </button>
+              </mat-form-field>
+            </div>
+            <div class="path-list-container">
+              <div #scrollViewport class="path-scroll-pane">
+                <mat-list role="list">
+                  <ng-container *ngFor="let path of classpath; let i = index">
+                    <mat-list-item  *ngIf="matchSearch(path)" (click)="selectPath(i)"
+                                    (dblclick)="editPath()"
+                                    [class.selected]="isSelectedPath(i)">
+                      <div *ngIf="!isEditingPath(i)" class="path-item" [title]="path">{{path}}</div>
+                      <mat-form-field subscriptSizing="dynamic" *ngIf="isEditingPath(i)" class="full-width editing" appearance="outline"
+                                      color="accent">
+                        <input matInput #pathEditInput [value]="path" (blur)="clearEdit(i)"
+                               (input)="pathChange(i, $event)">
+                      </mat-form-field>
+                    </mat-list-item>
+                    <mat-divider *ngIf="matchSearch(path)"></mat-divider>
+                  </ng-container>
+
+                </mat-list>
+              </div>
+            </div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </mat-grid-tile>
+    <mat-grid-tile [colspan]="1">
+      <mat-card class="schedule-path-pane mat-elevation-z0">
+        <div class="right-button-pane">
+          <div class="right-button-group">
+            <button mat-button mat-stroked-button (click)="newPath()">_#(New)</button>
+            <button mat-button mat-stroked-button (click)="editPath()"
+                    [disabled]="this.selectedIndex < 0">_#(Edit)</button>
+            <button mat-button mat-stroked-button (click)="deletePath()"
+                    [disabled]="this.selectedIndex < 0">_#(Delete)</button>
+          </div>
+          <div class="right-button-group">
+            <button mat-button mat-stroked-button (click)="moveDownPath()"
+                    [disabled]="!!searchText || selectedIndex < 0 ||selectedIndex >= classpath.length - 1">_#(Move Down)</button>
+            <button mat-button mat-stroked-button (click)="moveUpPath()"
+                    [disabled]="!!searchText || selectedIndex <= 0">_#(Move Up)</button>
+          </div>
+          <div class="right-button-group">
+            <button mat-button mat-stroked-button (click)="editText()">_#(Edit Text)</button>
+          </div>
+        </div>
+      </mat-card>
+    </mat-grid-tile>
+  </mat-grid-list>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-raised-button (click)="ok()" color="primary">_#(OK)</button>
+  <button mat-button mat-dialog-close>_#(Cancel)</button>
+</mat-dialog-actions>

@@ -1,0 +1,131 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Table Properties)'"
+   (onCancel)="cancel()"
+   [cshid]="'SettingTableQueryandDisplayProperties'">
+</modal-header>
+
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
+  <form *ngIf="form" [formGroup]="form" class="container-fluid">
+    <fieldset>
+      <div class="form-row-float-label row">
+        <div class="col form-floating">
+          <input type="text" class="form-control" formControlName="newName" defaultFocus trim
+                 placeholder="_#(Name)">
+          <label><span>_#(Name)</span></label>
+        </div>
+      </div>
+      <div *ngIf="form.controls['newName'].errors && form.controls['newName'].errors['required']"
+           class="alert alert-danger">
+        _#(designer.chartProp.specifyTargetName)
+      </div>
+      <div *ngIf="form.controls['newName'].errors &&
+         form.controls['newName'].errors['nameSpecialCharacters']" class="alert alert-danger">
+        _#(viewer.worksheet.Grouping.SpecialChar)
+      </div>
+      <div *ngIf="form.controls['newName'].errors && form.controls['newName'].errors['exists']"
+           class="alert alert-danger">
+        _#(viewer.worksheet.Grouping.nameAlready)
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col form-floating">
+          <textarea class="form-control" formControlName="description"
+                    placeholder="_#(Description)"></textarea>
+          <label><span>_#(Description)</span></label>
+        </div>
+      </div>
+      <div *ngIf="form.controls['rowCount']" class="form-row-float-label row">
+        <div class="col form-floating">
+          <input type="number" class="form-control" min="0" formControlName="rowCount"
+                 placeholder="_#(Row Count)">
+          <label><span>_#(Row Count)</span></label>
+        </div>
+        <div *ngIf="form.controls['rowCount'].errors" class="alert alert-danger w-100">
+          _#(viewer.worksheet.Grouping.RowPositiveNumber)
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col form-floating">
+          <input type="number" class="form-control" min="0" formControlName="maxRows"
+                 placeholder="_#(Max Rows)">
+          <label><span>_#(Max Rows)</span></label>
+        </div>
+      </div>
+      <div *ngIf="form.controls['maxRows'].errors" class="alert alert-danger">
+        _#(viewer.worksheet.Grouping.positiveNumber)
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col-auto">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" id="visibleInVS"
+                     formControlName="visibleInViewsheet">
+              <label class="form-check-label" for="visibleInVS">
+                _#(Visible in Viewsheet)
+              </label>
+            </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="distinctVal"
+                   formControlName="returnDistinctValues">
+            <label class="form-check-label" for="distinctVal">
+              _#(Return Distinct Values)
+            </label>
+          </div>
+        </div>
+      </div>
+      <ng-container *ngIf="sqlMergePossible">
+        <div *ngIf="model.sourceMergeable">
+          <div>_#(viewer.dialog.sqlMergeable)</div>
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="mergeSQL"
+                   formControlName="mergeSql">
+            <label class="form-check-label" for="mergeSQL">
+              _#(Merge SQL)
+            </label>
+          </div>
+        </div>
+        <div *ngIf="!model.sourceMergeable">
+          <div>_#(viewer.worksheet.Grouping.notSqlMergeable)</div>
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="mergeIf"
+                   formControlName="mergeSql">
+            <label class="form-check-label" for="mergeIf">
+              _#(viewer.worksheet.Grouping.tableBecomes)
+            </label>
+          </div>
+        </div>
+      </ng-container>
+      <ng-container *ngIf="!sqlMergePossible">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" name="mergeSql" disabled>
+          <label class="form-check-label">
+            _#(Merge SQL)
+          </label>
+        </div>
+      </ng-container>
+    </fieldset>
+  </form>
+</div>
+
+<div class="modal-footer">
+  <button type="submit" class="btn btn-primary" [disabled]="okDisabled()" (click)="ok()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>

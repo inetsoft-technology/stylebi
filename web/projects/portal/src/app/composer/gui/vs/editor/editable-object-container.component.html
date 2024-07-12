@@ -1,0 +1,457 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div #objectEditor class="object-editor"
+     actionsContextmenuAnchor [actions]="actions?.menuActions"
+     (onContextmenuOpened)="contextMenuOpen($event)"
+     (onContextmenuClosed)="contextMenuClose()"
+     [class.group-container]="vsObject.objectType =='VSGroupContainer'"
+     [class.container-child]="selectionChildModel"
+     [class.container-drop-target]="isDragBorder()"
+     [class.interact-group-element]="!isShape()"
+     [class.interact-drop-zone]="isInteractDropZone()"
+     [class.active]="selected"
+     [class.txt-primary]="selected"
+     [class.covered]="vsObject.covered"
+     [class.popped]="popupShowing"
+     [class.prevent-drag]="isPreventDrag() && isPreventResize()"
+     [style.left.px]="selectionChildModel ? 0 : vsObject.objectFormat.left - selectionBorderOffset"
+     [style.top.px]="selectionChildModel ? 0 : vsObject.objectFormat.top - selectionBorderOffset"
+     [style.z-index]="zIndex"
+     [style.display]="visible ? null : 'none'"
+     [class.fade-assembly]="!vsObject.active || !vsObject.visible"
+     [class.search-no-match]="searchMode && !isSearchResults"
+     data-is-object-editor="true"
+     [attr.data-type]="vsObject.objectType" [attr.data-name]="vsObject.absoluteName"
+     [attr.drag-left]="dragLeft" [attr.drag-top]="dragTop"
+     [attr.data-selection-child-model]="selectionChildModelJson"
+     wInteractable
+     [interactableVisible]="vsObject.active"
+     [resizableTopEdge]="resizeTopEdge ? '.top' : false" resizableLeftEdge=".left"
+     [resizableBottomEdge]="resizeBottomEdge ? '.bottom' : false" resizableRightEdge=".right"
+     interactableIgnoreFrom=".prevent-drag"
+     [interactableAllowFrom]="!moveHandle ? null : moveHandle + ',.handle' + ',.container-gutter'"
+     [interactableDraggable]="dragInteractionEnabled && !vsObject?.interactionDisabled"
+     interactableDraggableGroup="moveAssembly"
+     (onDraggableStart)="onDragStart($event)" (onDraggableMove)="onDragMove($event)"
+     (onDraggableEnd)="onDragEnd()"
+     [interactableResizable]="resizeEnabled && !vsObject?.interactionDisabled"
+     [resizableRestriction]="'.vs-pane'" [resizableMargin]="5"
+     [resizablePreserveAspectRatio]="false"
+     [compositeResizeable]="compositeResizeable"
+     (onResizableStart)="onResizeStart($event)"
+     (onResizableMove)="onResizeMove($event)" (onResizableEnd)="onResizeEnd()"
+     [interactableDropzone]="dropInteractionEnabled" [dropzoneAccept]="dropzoneAccept"
+     (onDropzoneEnter)="onDropzoneEnter($event)" (onDropzoneLeave)="onDropzoneLeave($event)"
+     (onDropzoneDrop)="onDropzoneDrop($event)" *ngIf="vsObject.objectType != 'VSLine'"
+     (dragenter)="onEnter($event)"
+     (dragleave)="onLeave($event)"
+     (click)="select($event, false)"
+     (mouseenter)="onMouseEnter($event)"
+     outOfZone (onDocKeydown)="onKeyDown($event)">
+
+  <div class="editor-overlay" *ngIf="showEdit">
+    <button class="form-control"
+            (click)="clickEditButton()">
+      _#(Edit)
+    </button>
+  </div>
+
+  <i class="lock-icon disable-actions" *ngIf="selected && isLocked()"></i>
+  <i class="javascript-icon script-icon-position"
+     [class.embedded-vs-script]="vsObject.objectType == 'VSViewsheet'"
+     [style.left]="selected && isLocked() ? '18px' : null"
+     *ngIf="hasScript()"
+     (click)="actions.scriptAction.action($event)"></i>
+  <i class="condition-icon condition-icon-position"
+     [class.condition-icon-position-offset]="hasScript() && vsObject.hasCondition"
+     *ngIf="vsObject.hasCondition"
+     (click)="conditionAction() && conditionAction().action($event)"></i>
+  <i class="setting-icon script-icon-position"
+     [style.left]="selected && isLocked() ? '18px' : null"
+     *ngIf="!hasScript() && hasSlideout()"
+     (click)="showSlideout()"></i>
+
+  <ng-container *ngIf="!isPreventDrag() && dragInteractionEnabled">
+    <div class="handle move bd-gray" [class.move-only]="true"
+         [style.top.px]="vsObject.objectFormat.top < 16 ? vsObject.objectFormat.height : -16"
+         [style.left.px]="vsObject.objectFormat.left < 16 ? vsObject.objectFormat.width : -16"
+         *ngIf="!selectionChildModel">
+      <i class="move-icon icon-size1" (click)="select($event, true)"></i>
+    </div>
+  </ng-container>
+  <ng-container *ngIf="!isPreventResize() && dragInteractionEnabled">
+    <div class="handle top right"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection"
+         *ngIf="!selectionChildModel && resizeTopEdge"></div>
+    <div class="handle top left"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection"
+         *ngIf="!selectionChildModel && resizeTopEdge"></div>
+    <div class="handle top middle"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection"
+         *ngIf="!selectionChildModel && resizeTopEdge"></div>
+    <div class="handle left middle"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection" *ngIf="!selectionChildModel"></div>
+    <div class="handle right middle"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection" *ngIf="!selectionChildModel"></div>
+    <div class="handle bottom middle" *ngIf="resizeBottomEdge"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection"></div>
+    <div class="handle bottom left"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection" *ngIf="!selectionChildModel && resizeBottomEdge"></div>
+    <div class="handle bottom right"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection" *ngIf="!selectionChildModel && resizeBottomEdge"></div>
+
+    <ng-container *ngIf="!multiSelection && !viewsheet.formatPainterMode">
+      <div class="container-gutter top" *ngIf="resizeTopEdge && vsObject.objectType != 'VSTab'"></div>
+      <div class="container-gutter bottom" *ngIf="resizeBottomEdge && vsObject.objectType != 'VSTab'"></div>
+      <div class="container-gutter left" *ngIf="!selectionChildModel"></div>
+      <div class="container-gutter right" *ngIf="!selectionChildModel"></div>
+    </ng-container>
+  </ng-container>
+  <ng-container *ngIf="(isPreventResize() || !dragInteractionEnabled) && !vsObject?.interactionDisabled">
+    <div class="handle top right not-selected"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection"
+         *ngIf="!selectionChildModel && vsObject.objectType != 'VSTab'"></div>
+    <div class="handle top left not-selected"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection"
+         *ngIf="!selectionChildModel && vsObject.objectType != 'VSTab'"></div>
+    <div class="handle top right not-selected"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection"
+         *ngIf="!selectionChildModel && vsObject.objectType != 'VSTab'"></div>
+    <div class="handle left middle not-selected"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection" *ngIf="!selectionChildModel"></div>
+    <div class="handle top middle not-selected"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection"
+         *ngIf="!selectionChildModel && vsObject.objectType != 'VSTab'"></div>
+    <div class="handle right middle not-selected"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection" *ngIf="!selectionChildModel"></div>
+    <div class="handle bottom middle not-selected"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection" *ngIf="vsObject.objectType != 'VSTab'"></div>
+    <div class="handle bottom left not-selected"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection"
+         *ngIf="!selectionChildModel && vsObject.objectType != 'VSTab'"></div>
+    <div class="handle bottom right not-selected"
+         [class.bg-primary]="!isDropTarget"
+         [class.bg-highlight-color]="isDropTarget"
+         [class.move-only]="multiSelection"
+         *ngIf="!selectionChildModel && vsObject.objectType != 'VSTab'"></div>
+  </ng-container>
+
+  <div class="object"
+       [ngSwitch]="vsObject.objectType"
+       [class.txt-highlight]="isDropTarget"
+       [class.bd-highlight-med]="vsObject.dropZone || isDragBorderAll()"
+       [class.bd-highlight-med-filler]="!vsObject.dropZone && (!selectionChildModel || selected)"
+       [class.search-result]="isSearchFocus"
+       [class.txt-primary]="isSearchFocus"
+       [style.width.px]="selectionChildModel && selected ? vsObject.objectFormat.width - 2 : null"
+       [style.height.px]="selectionChildModel && selected ? vsObject.objectFormat.height + 1 : null"
+       [class.drop-target]="isDropTarget && !isDragBorder()"
+       [class.bt-highlight-med]="isDragBorderTop()"
+       [class.bb-highlight-med]="isDragBorderBottom()"
+       [style.border-top]="!vsObject.dropZone && selectionChildModel && !selected ? 0 : ''"
+       [style.border-bottom]="!vsObject.dropZone && selectionChildModel && !selected ? 0 : ''"
+       [style.opacity]="selected && vsObject.covered ? 0.5 : 1"
+       [style.min-width.px]="vsObject.objectType === 'VSViewsheet' ? viewsheetModel.bounds.width : (selectionChildModel ? null : vsObject.objectFormat.width)"
+       [style.min-height.px]="vsObject.objectType === 'VSViewsheet' ? viewsheetModel.bounds.height : vsObject.objectFormat.height">
+    <vs-calendar *ngSwitchCase="'VSCalendar'" #objectComponent
+                 cCalendarActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                 [model]="vsObject" [selected]="selected"
+                 (onTitleResizeMove)="onTitleResizeMove($event)"
+                 (onTitleResizeEnd)="onTitleResizeEnd()"
+                 (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-calendar>
+    <vs-calctable *ngSwitchCase="'VSCalcTable'" #objectComponent
+                  cCalcTableActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                  [scrollX]="objectComponent.scrollX"
+                  [model]="vsObject" [selected]="selected"
+                  (onOpenEditPane)="openEditPane()"
+                  (onTitleResizeMove)="onTitleResizeMove($event)"
+                  (onRefreshFormat)="onRefreshFormat.emit($event)"
+                  (onTitleResizeEnd)="onTitleResizeEnd()" (detectViewChange)="onDetectViewChange()"
+                  (onOpenFormatPane)="onOpenFormatPane.emit($event)">
+    </vs-calctable>
+    <vs-chart *ngSwitchCase="'VSChart'" #objectComponent cChartActionHandler
+              [vsInfo]="viewsheet" [actions]="actions"
+              [variableValues]="variableValuesFunction" [model]="vsObject"
+              [selected]="selected"
+              [goToWizardVisible]="goToWizardVisible"
+              [container]="vsPaneRef"
+              (onOpenEditPane)="openEditPane()"
+              (onOpenWizardPane)="onOpenWizardPane.emit($event)"
+              (onTitleResizeMove)="onTitleResizeMove($event)"
+              (onTitleResizeEnd)="onTitleResizeEnd()"
+              (maxModeChange)="onMaxModeChange($event)"
+              (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-chart>
+    <vs-check-box *ngSwitchCase="'VSCheckBox'" #objectComponent
+                  cCheckBoxActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                  [model]="vsObject" [selected]="selected"
+                  (onTitleResizeMove)="onTitleResizeMove($event)"
+                  (onTitleResizeEnd)="onTitleResizeEnd()"
+                  (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-check-box>
+    <vs-combo-box *ngIf="vsObject.objectType == 'VSComboBox'" #objectComponent
+                  cComboBoxActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                  [model]="vsObject" [selected]="selected"
+                  (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-combo-box>
+    <vs-crosstab *ngSwitchCase="'VSCrosstab'" #objectComponent
+                 cCrosstabActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                 [goToWizardVisible]="goToWizardVisible"
+                 [model]="vsObject" [selected]="selected"
+                 (onOpenWizardPane)="onOpenWizardPane.emit($event)"
+                 (onOpenEditPane)="openEditPane()"
+                 (onTitleResizeMove)="onTitleResizeMove($event)"
+                 (onRefreshFormat)="onRefreshFormat.emit($event)"
+                 (onTitleResizeEnd)="onTitleResizeEnd()"
+                 (detectViewChange)="onDetectViewChange()"
+                 (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-crosstab>
+    <vs-gauge *ngSwitchCase="'VSGauge'" #objectComponent cGaugeActionHandler
+              [vsInfo]="viewsheet" [model]="vsObject" [actions]="actions"
+              [selected]="selected"
+              (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-gauge>
+    <vs-group-container *ngSwitchCase="'VSGroupContainer'" #objectComponent
+                        cGroupContainerActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                        [model]="vsObject" [selected]="selected"
+                        (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-group-container>
+    <vs-image *ngSwitchCase="'VSImage'" #objectComponent cImageActionHandler
+              [vsInfo]="viewsheet" [actions]="actions" [model]="vsObject"
+              [selected]="selected"
+              (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-image>
+    <vs-oval *ngSwitchCase="'VSOval'" #objectComponent cOvalActionHandler
+             [vsInfo]="viewsheet" [actions]="actions" [model]="vsObject"
+             [selected]="selected"
+             (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-oval>
+    <vs-radio-button *ngSwitchCase="'VSRadioButton'" #objectComponent
+                     cRadioButtonActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                     [model]="vsObject" [selected]="selected"
+                     (onTitleResizeMove)="onTitleResizeMove($event)"
+                     (onTitleResizeEnd)="onTitleResizeEnd()"
+                     (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-radio-button>
+    <vs-rectangle *ngSwitchCase="'VSRectangle'" #objectComponent
+                  cRectangleActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                  [model]="vsObject" [selected]="selected"
+                  (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-rectangle>
+    <vs-range-slider *ngSwitchCase="'VSRangeSlider'" #objectComponent
+                     cRangeSliderActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                     [model]="vsObject" [selected]="selected"
+                     [container]="vsPaneRef"
+                     [viewsheetScale]="viewsheet.scale"
+                     (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-range-slider>
+    <vs-selection *ngSwitchCase="'VSSelectionList'" #objectComponent
+                  cSelectionListActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                  [model]="vsObject" [selected]="selected"
+                  [container]="vsPaneRef"
+                  (onTitleResizeMove)="onTitleResizeMove($event)"
+                  (onTitleResizeEnd)="onTitleResizeEnd()"
+                  (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-selection>
+    <vs-selection *ngSwitchCase="'VSSelectionTree'" #objectComponent
+                  cSelectionTreeActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                  [model]="vsObject" [selected]="selected"
+                  [container]="vsPaneRef"
+                  (onTitleResizeMove)="onTitleResizeMove($event)"
+                  (onTitleResizeEnd)="onTitleResizeEnd()"
+                  (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-selection>
+    <vs-selection-container *ngSwitchCase="'VSSelectionContainer'"
+                            #objectComponent cSelectionContainerActionHandler
+                            [vsInfo]="viewsheet" [actions]="actions" [model]="vsObject"
+                            [selected]="selected" (onUpdateFocus)="updateFocus($event)"
+                            (onTitleResizeMove)="onTitleResizeMove($event)"
+                            (onTitleResizeEnd)="onTitleResizeEnd()"
+                            (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-selection-container>
+    <vs-slider *ngSwitchCase="'VSSlider'" #objectComponent cSliderActionHandler
+               [vsInfo]="viewsheet" [actions]="actions" [model]="vsObject"
+               [selected]="selected" [viewsheetScale]="viewsheet.scale"
+               (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-slider>
+    <vs-spinner *ngSwitchCase="'VSSpinner'" #objectComponent cSpinnerActionHandler
+                [vsInfo]="viewsheet" [actions]="actions" [model]="vsObject"
+                [selected]="selected" [updateOnChange]="!contextMenuVisible"
+                (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-spinner>
+    <vs-submit *ngIf="vsObject.objectType == 'VSSubmit'" #objectComponent cSubmitActionHandler
+               [vsInfo]="viewsheet" [actions]="actions" [model]="vsObject"
+               [selected]="selected"
+               (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-submit>
+    <vs-tab *ngIf="vsObject.objectType == 'VSTab'" #objectComponent cTabActionHandler
+            [vsInfo]="viewsheet" [actions]="actions" [model]="vsObject" [selected]="selected"
+            (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-tab>
+    <vs-table *ngSwitchCase="'VSTable'" #objectComponent cTableActionHandler
+              [vsInfo]="viewsheet" [actions]="actions" [model]="vsObject"
+              [goToWizardVisible]="goToWizardVisible"
+              [selected]="selected" [viewsheet]="viewsheet"
+              (onOpenWizardPane)="onOpenWizardPane.emit($event)"
+              (onOpenEditPane)="openEditPane()"
+              (onTitleResizeMove)="onTitleResizeMove($event)"
+              (onTitleResizeEnd)="onTitleResizeEnd()"
+              (onRefreshFormat)="onRefreshFormat.emit($event)"
+              (onPopupNotifications)="onPopupNotifications.emit($event)"
+              (detectViewChange)="onDetectViewChange()"
+              (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-table>
+    <vs-text *ngIf="vsObject.objectType == 'VSText'" #objectComponent cTextActionHandler
+             [vsInfo]="viewsheet" [actions]="actions" [model]="vsObject"
+             [selected]="selected"
+             (updateWidth)="resizeObject($event)"
+             [updateOnChange]="!contextMenuVisible"
+             (textHeightChanged)="changeMinHeightFromAutoText($event)"
+             (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-text>
+    <vs-text-input *ngSwitchCase="'VSTextInput'" #objectComponent
+                   cTextInputActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                   [selected]="selected"
+                   [model]="vsObject"
+                   (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-text-input>
+    <vs-upload *ngSwitchCase="'VSUpload'" #objectComponent cUploadActionHandler
+               [vsInfo]="viewsheet" [actions]="actions" [model]="vsObject"
+               (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-upload>
+    <vs-viewsheet *ngIf="vsObject.objectType == 'VSViewsheet'" #objectComponent
+                  cViewsheetActionHandler [vsInfo]="viewsheet" [actions]="actions"
+                  [containerRef]="vsPaneRef"
+                  [variableValues]="variableValuesFunction"
+                  [model]="vsObject" [deployed]="deployed"
+                  (onOpenViewsheet)="openEmbeddedViewsheet($event)"
+                  (onOpenFormatPane)="onOpenFormatPane.emit($event)">
+    </vs-viewsheet>
+    <!--Deprecated Assemblies-->
+    <vs-cylinder *ngSwitchCase="'VSCylinder'" #objectComponent [model]="vsObject"
+                 [vsInfo]="viewsheet"></vs-cylinder>
+    <vs-sliding-scale *ngSwitchCase="'VSSlidingScale'" #objectComponent
+                      [vsInfo]="viewsheet" [model]="vsObject">
+    </vs-sliding-scale>
+    <vs-thermometer *ngSwitchCase="'VSThermometer'" #objectComponent
+                    [vsInfo]="viewsheet" [model]="vsObject"></vs-thermometer>
+  </div>
+</div>
+
+<ng-container *ngIf="isMiniToolbarVisible()">
+  <mini-toolbar *ngIf="hasMiniToolbar()"
+                [actions]="actions"
+                [forceAbove]="searchDisplayed"
+                [top]="vsObject.objectFormat.top"
+                [left]="vsObject.objectFormat.left"
+                [width]="miniToolbarWidth" [assembly]="vsObject?.absoluteName" [forceHide]="toolbarForceHidden()">
+  </mini-toolbar>
+</ng-container>
+
+<ng-template [ngIf]="vsObject.objectType == 'VSLine'">
+  <i class="setting-icon script-icon-position"
+     [style.left.px]="vsObject.objectFormat.left"
+     [style.top.px]="vsObject.objectFormat.top"
+     *ngIf="!hasScript() && hasSlideout()"
+     (click)="showSlideout()"></i>
+
+  <vs-line cLineActionHandler #objectComponent [vsInfo]="viewsheet" [actions]="actions"
+           [model]="vsObject" [selected]="selected"
+           [style.display]="visible ? null : 'none'"
+           [class.search-no-match]="searchMode && !isSearchResults"
+           (onOpenFormatPane)="onOpenFormatPane.emit($event)"></vs-line>
+
+  <div #objectEditor class="object-editor line-resize-container"
+       [style.display]="vsObject.active? null : 'none'"
+       [class.active]="selected"
+       [class.txt-primary]="selected"
+       data-is-object-editor="true"
+       [attr.data-type]="vsObject.objectType" [attr.data-name]="vsObject.absoluteName"
+       actionsContextmenuAnchor [actions]="actions?.menuActions"
+       (onContextmenuOpened)="contextMenuOpen($event)"
+       (onContextmenuClosed)="contextMenuVisible = false"
+       [style.left.px]="vsObject.objectFormat.left + lineModel.startLeft"
+       [style.top.px]="vsObject.objectFormat.top + lineModel.startTop"
+       [style.width.px]="getLineLength()"
+       [style.transform]="'rotate(' + getLineRotationAngle() + 'rad)'"
+       [style.z-index]="zIndex"
+       [class.move-handle]="selected && !lineModel.locked"
+       wInteractable
+       [resizeAdjustment]="0"
+       [interactableAllowFrom]="!moveHandle ? null : moveHandle + ',.handle'"
+       [interactableDraggable]="dragInteractionEnabled"
+       [interactableDraggableGroup]="'moveAssembly'"
+       (onDraggableStart)="onDragStart($event)"
+       (onDraggableMove)="onDragMove($event)" (onDraggableEnd)="onDragEnd()"
+       [interactableDropzone]="dropInteractionEnabled"
+       [dropzoneAccept]="dropzoneAccept"
+       (onDropzoneEnter)="onDropzoneEnter($event)"
+       (onDropzoneLeave)="onDropzoneLeave($event)"
+       (onDropzoneDrop)="onDropzoneDrop($event)"
+       (click)="select($event, true)"></div>
+
+  <div class="line handle bg-primary left middle"
+       [style.display]="vsObject.active || (isSearchResults && visible) ? null : 'none'"
+       [class.active]="selected || isSearchFocus && visible"
+       [class.txt-primary]="selected || isSearchFocus && visible"
+       wInteractable
+       [resizeAdjustment]="4"
+       [interactableDraggable]="resizeEnabled" [interactableDraggableGroup]="'resizeLineBottomRight'"
+       (onDraggableStart)="onLineDragBegin($event)" (onDraggableMove)="onLineStartDragMove($event)" (onDraggableEnd)="onLineStartDragEnd()"
+       [style.left.px]="vsObject.objectFormat.left + lineModel.startLeft"
+       [style.top.px]="vsObject.objectFormat.top + lineModel.startTop"></div>
+  <div class="line handle bg-primary right middle"
+       [style.display]="vsObject.active || isSearchResults && visible ? null : 'none'"
+       [class.active]="selected || isSearchFocus && visible"
+       [class.txt-primary]="selected || isSearchFocus && visible"
+       wInteractable
+       [resizeAdjustment]="4"
+       [interactableDraggable]="resizeEnabled" [interactableDraggableGroup]="'resizeLineTopLeft'"
+       (onDraggableStart)="onLineDragBegin($event)" (onDraggableMove)="onLineEndDragMove($event)" (onDraggableEnd)="onLineEndDragEnd()"
+       [style.left.px]="vsObject.objectFormat.left + lineModel.endLeft"
+       [style.top.px]="vsObject.objectFormat.top + lineModel.endTop"></div>
+
+  <div class="line-icons-position"
+       [style.display]="vsObject.active? null : 'none'"
+       [style.left.px]="vsObject.objectFormat.left + lineModel.startLeft + 5"
+       [style.top.px]="vsObject.objectFormat.top + lineModel.startTop + 5"
+       [style.z-index]="zIndex + 1">
+    <i [class]="actions.scriptAction?.icon"
+       *ngIf="actions && actions.scriptAction && actions.scriptAction.visible()"
+       (click)="actions.scriptAction.action($event)"></i>
+    <i class="locked-icon lock-icon disable-actions"
+       *ngIf="selected && isLocked()"></i>
+  </div>
+</ng-template>
+
+<ng-template #layoutOptionDialog let-close="close" let-dismiss="dismiss">
+  <layout-option-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                        [model]="layoutOptionDialogModel"></layout-option-dialog>
+</ng-template>

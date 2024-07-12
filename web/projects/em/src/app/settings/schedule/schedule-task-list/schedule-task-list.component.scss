@@ -1,0 +1,213 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  > .mat-mdc-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    margin: 10px;
+
+    $securityTreeWidth: 20%;
+    $securityEditorWidth: 100% - $securityTreeWidth;
+
+    .users-container {
+      width: 100%;
+    }
+
+    .users-mat-drawer {
+      overflow: hidden;
+    }
+
+    .mat-drawer-inner-container {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .mat-drawer, .mat-drawer-content {
+      width: 100%;
+      min-height: 400px;
+
+      &.repository-tree {
+        width: $securityTreeWidth;
+      }
+
+      &.repository-editor {
+        width: $securityEditorWidth;
+      }
+    }
+
+    .mat-mdc-card-header {
+      align-items: center;
+
+      .task-view-toggle-btn {
+        display: inline-flex;
+        align-items: center;
+
+        .mat-mdc-icon-button {
+          padding-top: 9px;
+        }
+      }
+    }
+
+    .mat-mdc-card-header, .mat-mdc-card-actions, .mat-mdc-card-footer {
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+
+    .mat-mdc-card-content {
+      flex-grow: 1;
+      flex-shrink: 1;
+
+      &.list-card-content {
+        min-height: 40vh;
+      }
+
+      &.chart-card-content {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        height: 400px;
+      }
+    }
+
+    .mat-mdc-card-footer {
+      > span {
+        display: inline-block;
+        padding: 0 8px 8px;
+      }
+    }
+  }
+
+  .mat-mdc-card-actions {
+    .mat-mdc-button {
+      margin: 0 8px;
+    }
+  }
+
+  .mdc-card__actions {
+    display: block;
+  }
+}
+
+th.mat-mdc-header-cell:not(.select), td.mat-mdc-cell:not(.select) {
+  padding: 0 6px;
+}
+
+.task-list-table {
+  width: 100%;
+  table-layout: fixed;
+
+  tr.table-detail-row {
+    height: 0;
+  }
+
+  .table-element-detail {
+    overflow: hidden;
+  }
+
+  tr.table-row.disabled-row .task-name-cell {
+    text-decoration: line-through;
+
+    &:hover {
+      text-decoration: line-through underline;
+    }
+  }
+
+  tr.table-row.disabled-row .task-name-text {
+    text-decoration: line-through;
+  }
+
+  tr {
+    width: 100%;
+    overflow: hidden;
+
+    .select {
+      width: 50px;
+      text-overflow: clip;
+    }
+
+    td {
+      white-space: nowrap;
+      overflow: hidden;
+      -ms-text-overflow: ellipsis;
+      text-overflow: ellipsis;
+    }
+
+    .element-name {
+      padding-right: 24px;
+    }
+  }
+}
+
+.distribution-title {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-items: flex-start;
+  font-weight: 500;
+
+  div {
+    flex-grow: 0;
+    flex-shrink: 0;
+    display: inline-block;
+
+    &:last-of-type {
+      flex-grow: 1;
+      margin-left: 0.5em;
+    }
+  }
+
+  .mat-mdc-icon-button {
+    flex-grow: 0;
+    flex-shrink: 0;
+  }
+}
+
+.distribution-chart {
+  flex-grow: 1;
+  flex-shrink: 1;
+  margin-top: 10px !important;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: row;
+  justify-items: center;
+}
+
+.redistribute-params {
+  .mat-mdc-form-field {
+    display: block;
+  }
+}
+
+.task-Folder {
+  cursor: pointer;
+}
+
+.show-tasks-as-list {
+  margin-left: 20px;
+}
+
+.show-current-server-time {
+  margin: 10px 0 10px 20px;
+}
+
+:host(em-schedule-task-list) {
+  position: relative;
+}

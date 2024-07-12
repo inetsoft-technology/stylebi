@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="124.998 515.5059" i:rulerOrigin="0 0" i:pageBounds="0 841.8896 595.2754 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="173.355" height="200" viewBox="0 0 173.355 200" overflow="visible" enable-background="new 0 0 173.355 200"
+	 xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_3" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+				</g>
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<rect i:knockout="Off" opacity="0" fill="#A5A5A5" width="173.355" height="200"/> 
+					<path fill="#E16F00" stroke="#999999" stroke-width="0.7699" d="M167.181,29.741C155.873,10.483,108.853,3.404,88.507,3.037
+						c-0.336-0.043-0.638-0.05-0.898-0.013c-0.317-0.002-0.628-0.003-0.931-0.003c-19.198-0.048-68.841,6.86-80.502,26.72
+						C-1.57,44.161,4.451,62.829,28.716,69.931l39.402,81.89h0.066c-4.864,4.784-7.884,11.44-7.884,18.802
+						C60.3,185.19,72.11,197,86.678,197c14.568,0,26.378-11.81,26.378-26.378c0-7.361-3.02-14.018-7.883-18.802h0.93l39.402-81.89
+						c0.556-0.208,1.034-0.46,1.468-0.739C169.284,61.604,174.672,43.686,167.181,29.741z"/>
+					<linearGradient id="XMLID_12_" gradientUnits="userSpaceOnUse" x1="94.1064" y1="113.4141" x2="82.2874" y2="113.5235">
+						<stop  offset="0.0056" style="stop-color:#FDA43F"/>
+						<stop  offset="1" style="stop-color:#FF213F"/>
+						<a:midPointStop  offset="0.0056" style="stop-color:#FDA43F"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#FDA43F"/>
+						<a:midPointStop  offset="1" style="stop-color:#FF213F"/>
+					</linearGradient>
+					<polygon i:knockout="Off" fill="url(#XMLID_12_)" stroke="#FFFFFF" stroke-width="0.7699" points="88.695,66.785 
+						93.245,66.782 89.847,61.419 86.448,56.055 83.055,61.423 79.664,66.789 84.214,66.788 84.223,92.964 84.214,92.964 
+						84.239,170.896 88.72,170.893 88.712,144.716 88.72,144.716 "/>
+					<circle fill="#999999" stroke="#FFFFFF" stroke-width="0.7699" cx="86.678" cy="170.622" r="20.042"/> 
+					<g>
+						<g>
+							<path i:knockout="Off" fill="#FCEEB3" d="M146.303,61.216c-1.489,2.921-5.625,3.721-9.326,2.066
+								c-32.057-14.389-68.541-14.389-100.597,0c-3.702,1.655-7.837,0.855-9.327-2.066l0,0c-1.488-2.913,0.559-7.016,4.67-8.858
+								c35.024-15.72,74.885-15.72,109.91,0C145.743,54.2,147.791,58.303,146.303,61.216L146.303,61.216z"/>
+							<path i:knockout="Off" fill="#FCEEB3" d="M146.303,61.216c-1.489,2.921-5.625,3.721-9.326,2.066
+								c-32.057-14.389-68.541-14.389-100.597,0c-3.702,1.655-7.837,0.855-9.327-2.066l0,0c-1.488-2.913,0.559-7.016,4.67-8.858
+								c35.024-15.72,74.885-15.72,109.91,0C145.743,54.2,147.791,58.303,146.303,61.216L146.303,61.216z"/>
+						</g>
+					</g>
+				</g>
+			</g>
+		</switch>
+	</svg>

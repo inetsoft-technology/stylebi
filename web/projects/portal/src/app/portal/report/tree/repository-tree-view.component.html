@@ -1,0 +1,71 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="repository-tree-toolbar bg-white2">
+  <div class="my-1 mx-1 search-container">
+    <input class="form-control form-control-sm" type="text" [(ngModel)]="searchString"
+           (ngModelChange)="searchStringChanged()" placeholder="_#(Search)" aria-label="_#(Search Repository Tree)"
+           (keyup.enter)="search()" [disabled]="!model.searchEnabled">
+    <i *ngIf="searchString" class="close-icon icon-size-medium icon-color-default"
+       aria-hidden="true" (click)="resetSearchMode()"></i>
+  </div>
+  <ul class="nav nav-inline ms-auto">
+    <li class="nav-item">
+      <a class="nav-link nav-icon icon-size-medium p-2" (click)="search()" role="button"
+         title="_#(Search)" tabindex="0" aria-label="_#(Execute Search)" enterClick>
+        <i class="search-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
+        <span class="visually-hidden">_#(Search)</span>
+      </a>
+    </li>
+  </ul>
+  <ul class="nav nav-inline ms-auto">
+    <li class="nav-item">
+      <a class="nav-link nav-icon icon-size-medium p-2" (click)="clickFavoritesBtn()" role="button"
+        title="_#(Favorites)" tabindex="0" aria-label="_#(Favorites Tree)" enterClick>
+        <i class="icon-size-medium" aria-hidden="true"
+           [class.favorites-focus-icon]="favoritesMode"
+           [class.star-outline-icon]="!favoritesMode"
+           [class.star-icon]="favoritesMode">
+        </i>
+        <span class="visually-hidden">_#(Favorites)</span>
+      </a>
+    </li>
+  </ul>
+</div>
+<span class="visually-hidden" role="heading" aria-label="_#(viewer.welcomePage.mainDes)"></span>
+<div class="repository-tree">
+  <repository-tree  [root]="currentRootNode" [showRoot]="true" [class.mobile-tree]="isMobile"
+    [showContextMenu]="true" [isMobile]="isMobile"
+    [expandAll]="searchMode ? false : model.expandAllNodes"
+    [showTooltip]="true" [showFavoriteIcon]="true"
+    [initExpanded]="searchMode"
+    [multiSelect]="!searchMode && !favoritesMode"
+    [draggable]="model.dragAndDrop"
+    [selectedNode]="selectedNode"
+    [autoRefreshEnabled]="!searchMode && !favoritesMode"
+    [isFavoritesTree]="favoritesMode"
+    [searchMode]="searchMode"
+    (nodeClicked)="nodeSelected($event)" (entryDeleted)="entryDeleted.emit($event)"
+    (autoRefreshTriggered)="refreshTree()" (editViewsheet)="editViewsheet.emit($event)"
+    (updateRootNode)="updateRootNode($event)">
+  </repository-tree>
+</div>
+<div *ngIf="loading" class="tree-loading-icon">
+  <i class="loading-icon--spin icon-size-xlarge loading-icon"></i>
+</div>

@@ -1,0 +1,1561 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+body {
+  font-family: var(--inet-font-family);
+  font-size: var(--inet-font-size-base);
+  color: var(--inet-text-color);
+  background-color: var(--inet-main-panel-bg-color);
+  height: 100vh;
+  width: 100vw;
+}
+
+/********************************** Border *********************************************/
+.bt-gray {
+  border-top: 1px solid var(--inet-default-border-color);
+}
+
+.bb-gray {
+  border-bottom: 1px solid var(--inet-default-border-color);
+}
+
+.br-gray {
+  border-right: 1px solid var(--inet-default-border-color);
+}
+
+.bl-gray {
+  border-left: 1px solid var(--inet-default-border-color);
+}
+
+.bd-gray {
+  border: 1px solid var(--inet-default-border-color);
+}
+
+.bt-highlight {
+  border-top: 4px solid var(--inet-drag-drop-highlight-color) !important;
+}
+
+.bb-highlight {
+  border-bottom: 4px solid var(--inet-drag-drop-highlight-color) !important;
+}
+
+.br-highlight {
+  border-right: 4px solid var(--inet-drag-drop-highlight-color) !important;
+}
+
+.bl-highlight {
+  border-left: 4px solid var(--inet-drag-drop-highlight-color) !important;
+}
+
+.bd-highlight {
+  border: 4px solid var(--inet-drag-drop-highlight-color) !important;
+}
+
+.bt-highlight-thin {
+  border-top: 1px solid var(--inet-drag-drop-highlight-color) !important;
+}
+
+.bb-highlight-thin {
+  border-bottom: 1px solid var(--inet-drag-drop-highlight-color) !important;
+}
+
+.bt-highlight-med {
+  border-top: 2px solid var(--inet-drag-drop-highlight-color) !important;
+}
+
+.bb-highlight-med {
+  border-bottom: 2px solid var(--inet-drag-drop-highlight-color) !important;
+}
+
+.bd-highlight-med {
+  border: 2px solid var(--inet-drag-drop-highlight-color) !important;
+}
+
+.bd-primary {
+  border: 1px solid var(--inet-primary-color);
+}
+
+.bt-highlight-primary {
+  border-top: 4px solid var(--inet-primary-color);
+}
+
+.bb-highlight-primary {
+  border-bottom: 4px solid var(--inet-primary-color);
+}
+
+.br-highlight-primary {
+  border-right: 4px solid var(--inet-primary-color);
+}
+
+.bl-highlight-primary {
+  border-left: 4px solid var(--inet-primary-color);
+}
+
+.bd-highlight-primary {
+  border: 4px solid var(--inet-primary-color);
+}
+
+.bd-selected-cell {
+  border: 2px solid var(--inet-primary-color) !important;
+}
+
+.bd-selected-assembly {
+  border: 1px dotted var(--inet-primary-color) !important;
+}
+
+.bd-highlight-med-filler {
+  border: 2px solid transparent;
+}
+
+.bt-highlight-filler {
+  border-top: 4px solid transparent;
+}
+
+.bb-highlight-filler {
+  border-bottom: 4px solid transparent;
+}
+
+.br-highlight-filler {
+  border-right: 4px solid transparent;
+}
+
+.bl-highlight-filler {
+  border-left: 4px solid transparent;
+}
+
+.bt-selected {
+  border-top: 2px solid var(--inet-selected-item-bg-color);
+}
+
+.bb-selected {
+  border-bottom: 2px solid var(--inet-selected-item-bg-color);
+}
+
+.br-selected {
+  border-right: 2px solid var(--inet-selected-item-bg-color);
+}
+
+.bl-selected {
+  border-left: 2px solid var(--inet-selected-item-bg-color);
+}
+
+.bd-selected {
+  border: 2px solid var(--inet-selected-item-bg-color);
+}
+
+.bd-gray-none {
+  border: 0 solid var(--inet-default-border-color);
+}
+
+.bd-outer-indicator {
+  border: 3px solid $inet-gray4;
+}
+
+.bd-inner-indicator {
+  border: 3px solid $inet-offwhite1;
+}
+
+.br-ruler {
+  border-right: 1px solid var(--inet-ruler-border-color);
+}
+
+.bb-ruler {
+  border-bottom: 1px solid var(--inet-ruler-border-color);
+}
+
+.bd-navbar {
+  border: transparent;
+}
+
+/********************************** Background *********************************************/
+.bg-darken1 {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.bg-darken2 {
+  background-color: rgba(0, 0, 0, 0.15);
+}
+
+.bg-lighten1 {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.bg-lighten2 {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.bg-white1 {
+  background-color: $inet-offwhite1;
+}
+
+.bg-white2 {
+  background-color: $inet-offwhite2;
+}
+
+.bg-white3 {
+  background-color: $inet-offwhite3;
+}
+
+.bg-white4 {
+  background-color: $inet-offwhite4;
+}
+
+.bg-gray1 {
+  background-color: $inet-gray1;
+}
+
+.bg-gray4 {
+  background-color: $inet-gray4;
+}
+
+.bg-white-inet {
+  background-color: white;
+}
+
+.bg-danger-inet {
+  background-color: var(--inet-danger-color);
+}
+
+.bg-third-color {
+  background-color: var(--inet-third-color);
+}
+
+.bg-third-color-light {
+  background-color: var(--inet-third-color-light);
+}
+
+.bg-selected {
+  background-color: var(--inet-selected-item-bg-color);
+}
+
+%bg-hover-primary {
+  background-color: var(--inet-hover-primary-bg-color);
+}
+
+.bg-highlight-color {
+  background-color: var(--inet-drag-drop-highlight-color);
+}
+
+.bg-bold-selected {
+  @extend .bg-selected;
+  font-weight: bold;
+}
+
+.bg-error-light {
+  background: var(--inet-danger-color);
+}
+
+.bg-ws-concat-error {
+  background: var(--inet-danger-color) !important;
+
+  & .concat-col-type, & .concat-missing-column {
+    color: var(--inet-graph-assembly-error-text-color);
+  }
+}
+
+%bg-disabled {
+  background-color: var(--inet-input-disabled-bg-color);
+}
+
+/****************************** Hover and Selected Effect **********************************/
+// todo remove?
+.hover-bg-white-border {
+  background: white;
+  border: 1px solid black;
+}
+
+.hover-bg-primary-selectable {
+  &:not(.selected):hover {
+    @extend %bg-hover-primary;
+    cursor: pointer;
+  }
+}
+
+.hover-bg-primary {
+  &:not([disabled]):not(.bg-selected):hover {
+    @extend %bg-hover-primary;
+    cursor: pointer;
+  }
+}
+
+.hover-bg-secondary {
+  &:not([disabled]):hover {
+    background: var(--inet-hover-secondary-bg-color);
+    cursor: pointer;
+  }
+}
+
+.hover-bg-darken1 {
+  &:not([disabled]):not(.bg-selected):hover {
+    @extend .bg-darken1;
+    cursor: pointer;
+  }
+}
+
+.hover-bg-darken2 {
+  &:not([disabled]):not(.bg-selected):hover {
+    @extend .bg-darken2;
+    cursor: pointer;
+  }
+}
+
+.hover-bg-lighten1 {
+  &:not([disabled]):not(.bg-selected):hover {
+    @extend .bg-lighten1;
+    cursor: pointer;
+  }
+}
+
+.hover-bg-lighten2 {
+  &:not([disabled]):not(.bg-selected):hover {
+    @extend .bg-lighten2;
+    cursor: pointer;
+  }
+}
+
+.hover-bd-selectable {
+  &.bd-selected {
+    border: 2px solid var(--inet-selected-item-bg-color);
+  }
+
+  &:not(.bd-selected) {
+    border: 2px solid transparent;
+  }
+
+  &:not(.bd-selected):hover {
+    border: 2px solid var(--inet-selected-item-bg-color);
+    cursor: pointer;
+  }
+}
+
+.hover-bd-primary {
+  border: 2px solid transparent;
+
+  &:hover {
+    border: 2px solid var(--inet-primary-color);
+  }
+}
+
+.ws-header-column--searchResult {
+  background-color: var(--inet-primary-color-light);
+}
+
+.ws-header-column--searchSelected {
+  background-color: var(--inet-drag-drop-highlight-color);
+}
+
+%selected-item-colors {
+  background-color: var(--inet-selected-item-bg-color);
+  color: var(--inet-selected-item-text-color);
+}
+
+.selected {
+  @extend %selected-item-colors
+}
+
+.dropdown-pane {
+  .dropdown-item.selected,
+  .dropdown-item.selected .dropdown-item {
+    &:focus, &:hover {
+      @extend %selected-item-colors
+    }
+  }
+}
+
+//override bootstrap
+.dropdown-item:active {
+    @extend %bg-hover-primary;
+}
+
+.viewsheet-tab-container {
+  .nav.nav-tabs {
+    @extend .bb-gray;
+  }
+
+  .nav-item {
+    border: 1px solid transparent;
+    border-bottom: 3px solid transparent;
+  }
+
+  .nav-item:hover {
+    @extend .bd-gray;
+    border-bottom: 3px solid var(--inet-default-border-color);
+  }
+
+  .nav-item.active {
+    border-bottom: 3px solid var(--inet-primary-color) !important;
+  }
+}
+
+/**
+ *Table/Selection Element/Title Cell Selection Effect
+ */
+.selected-cell:before {
+  content: "";
+  position: absolute;
+  top: 0px;
+  left: 0px;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  @extend .bd-selected-cell;
+}
+
+.selected-table-cell .table-cell-relative-container {
+  @extend .selected-cell;
+}
+
+/********************************** Disabled Effect *******************************************/
+.disabled-grayout, .grayout {
+  opacity: 0.5;
+}
+
+.grayed-out-field, .form-control.grayed-out-field {
+  opacity: var(--inet-input-disabled-opacity);
+  @extend %bg-disabled;
+}
+
+/* for html element that can't have "disabled" attribute, .disabled class is set.
+ * This class sets same porperties as bootstrap form-control:disabled
+ */
+.form-control.disabled, .bordered-box.disabled {
+  @extend %bg-disabled;
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.condition-field-combo-toggle.disabled {
+  @extend .form-control, .disabled;
+}
+
+.disable-actions-fade {
+  pointer-events: none;
+  opacity: 0.5 !important;
+}
+
+div.disable-link, a.disable-link {
+  color: #aaa !important;
+  pointer-events: none;
+}
+
+.disable-actions {
+  pointer-events: none;
+
+  input {
+    @extend %bg-disabled;
+  }
+}
+
+/*************************** Color for Text, Stroke, and Fill *******************************/
+.txt-light {
+  color: var(--inet-light-color);
+}
+
+.txt-dark {
+  color: var(--inet-dark-color);
+}
+
+.txt-primary {
+  color: var(--inet-primary-color);
+}
+
+.txt-secondary {
+  color: var(--inet-secondary-color);
+}
+
+.txt-highlight {
+  color: var(--inet-drag-drop-highlight-color);
+}
+
+.txt-danger {
+  color: var(--inet-danger-color);
+}
+
+.ruler-bg-stroke {
+  color: var(--inet-ruler-text-color);
+  background-color: var(--inet-ruler-bg-color);
+}
+
+/***************************** Worksheet / Physical Model ************************************/
+.stroke-primary, .concatenation-focus-pane-container line {
+  stroke: var(--inet-graph-connection-color);
+}
+
+.stroke-error {
+  stroke: var(--inet-danger-color) !important;
+}
+
+.concat-icon-stroke-fill {
+  stroke: var(--inet-composer-main-panel-bg-color);
+  fill: var(--inet-secondary-color);
+}
+
+.concat-icon-stroke-empty {
+  stroke: var(--inet-graph-connection-color);
+  fill: var(--inet-composer-main-panel-bg-color);
+}
+
+.ws-concat-table-title-bg {
+  background-color: var(--inet-ws-header-secondary-bg-color);
+  color: var(--inet-graph-assembly-header-text-color);
+  border: 1px solid var(--inet-default-border-color);
+}
+
+.ws-graph-thumbnail__title, .schema-table-title, .physical-graph-table-title {
+  color: var(--inet-graph-assembly-header-text-color);
+  background-color: var(--inet-graph-assembly-bg-color)
+}
+
+.ws-assembly-thumbnail-info, .schema-table-body,
+.physical-graph-table-body
+{
+  color: var(--inet-graph-assembly-text-color);
+  background-color: var(--inet-graph-assembly-bg-color);
+}
+
+.ws-concat-table-data-bg {
+  color: var(--inet-graph-assembly-text-color);
+  background-color: var(--inet-graph-assembly-bg-color);
+  border: 1px solid var(--inet-default-border-color);
+}
+
+.ws-selected-concat-table {
+  .concat-table-title {
+    background-color: var(--inet-graph-assembly-header-selected-bg-color);
+    color: var(--inet-graph-assembly-header-selected-text-color);
+
+    .ws-assembly-thumbnail-image {
+      color: var(--inet-graph-assembly-header-selected-text-color);
+    }
+
+    &.concat-table-title--composition-error {
+      color: var(--inet-graph-assembly-error-text-color);
+    }
+  }
+}
+
+:not(.selected-concat-table) .concat-table-title--composition-error {
+  background-color: var(--inet-ws-header-secondary-bg-color);
+  color: var(--inet-graph-assembly-error-text-color);
+}
+
+.ws-assembly-graph-element--selected .ws-graph-thumbnail__title,
+.schema-table-title.schema-table-title--selected
+{
+  background-color: var(--inet-graph-assembly-header-selected-bg-color);
+  color: var(--inet-graph-assembly-header-selected-text-color);
+}
+
+.ws-assembly-graph-element--selected:not(.ws-assembly-graph-element--primary) .ws-graph-thumbnail__title,
+.schema-table-title.schema-table-title--selected
+{
+  .ws-assembly-thumbnail-image {
+    color: var(--inet-graph-assembly-header-selected-text-color);
+  }
+}
+
+.ws-assembly-graph-element--selection-adjacent .ws-graph-thumbnail__title,
+.schema-table-title
+{
+  background-color: var(--inet-ws-header-secondary-bg-color);
+}
+
+.ws-assembly-graph-element--primary .ws-assembly-thumbnail-image {
+  @extend .txt-light;
+  background-color: var(--inet-primary-color);
+}
+
+.ws-graph-thumbnail--drag-copy {
+  background: $white;
+}
+
+.table-endpoint-join {
+  fill: var(--inet-secondary-color);
+}
+
+.table-endpoint-concat--valid {
+  fill: var(--inet-secondary-color);
+}
+
+.table-endpoint-concat--invalid {
+  fill: var(--inet-danger-color);
+}
+
+.table-endpoint-concat--indeterminate {
+  fill: var(--inet-danger-color);
+}
+
+.ws-assembly-connector-endpoint {
+  fill: var(--inet-graph-connection-color);
+}
+
+.ws-assembly-connector-arrow {
+  fill: var(--inet-graph-connection-color);
+  stroke: var(--inet-graph-connection-color);
+}
+
+.ws-assembly-connection {
+  stroke: var(--inet-graph-connection-color);
+}
+
+.physical-graph-connection {
+  stroke: var(--inet-graph-connection-color);
+  fill: var(--inet-graph-connection-color);
+  cursor: pointer;
+}
+
+.physical-graph-connector-arrow {
+  cursor: pointer;
+}
+
+.ws-assembly-connector-arrow--composition-warning {
+  fill: var(--inet-graph-connection-warning-color);
+  stroke: var(--inet-graph-connection-warning-color);
+}
+
+.ws-assembly-connection--concatenation-warning {
+  stroke: var(--inet-graph-connection-warning-color);
+}
+
+.ws-assembly-graph-element--column-source {
+  stroke-dasharray: 6;
+  animation: column-source-effect 1s linear infinite;
+}
+
+@keyframes column-source-effect {
+  to {
+    stroke-dashoffset: 24;
+  }
+}
+
+.ws-assembly-connector-endpoint--hover {
+  fill: var(--inet-primary-color);
+}
+
+.table-endpoint--hover {
+  fill: var(--inet-primary-color);
+}
+
+.dependency-type-overlay-container {
+  background-color: var(--inet-composer-main-panel-bg-color);
+}
+
+.overlay-operator {
+  @extend .icon-size1;
+  @extend .hover-bg-secondary;
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    background-color: var(--inet-composer-main-panel-bg-color);
+    opacity: 0.6;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+  }
+}
+
+//below classes are dynamically added via jsplumb
+.schema-connector-cross-join {
+  stroke: var(--inet-schema-connection-color);
+}
+
+.schema-connector-inner-join {
+  fill: var(--inet-schema-connection-color);
+  stroke: var(--inet-schema-connection-color);
+  pointer-events: none;
+}
+
+.schema-connector-inner-join--interaction-target {
+  fill: transparent;
+  stroke: transparent;
+  cursor: pointer;
+}
+
+/**
+  ws-schema
+  */
+schema-column, edit-join-table-column {
+  &.jtk-connected {
+    background-color: var(--inet-schema-column-connected-bg-color);
+  }
+
+  &.schema-column-compatible {
+    background-color: var(--inet-schema-column-compatible-bg-color);
+  }
+
+  &.schema-column-incompatible {
+    background-color: var(--inet-schema-column-incompatible-bg-color);
+    color: $inet-gray3;
+  }
+
+  &.schema-column-highlight {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.25);
+  }
+}
+
+.schema-table__resize-handle {
+  background-color: transparent;
+
+  &.schema-table__resize-handle--dragging {
+    background-color: var(--inet-default-border-color);
+  }
+}
+
+.hover-table-header-resizer {
+  border: 1px solid transparent;
+  border-right: 4px double transparent;
+
+  &:hover {
+    border: 1px solid var(--inet-primary-color-light);
+    border-right: 4px double var(--inet-primary-color-light);
+  }
+}
+
+.ws-header--selected {
+  border: 1px solid var(--inet-primary-color-light);
+  border-right: 4px double var(--inet-primary-color-light);
+}
+
+.ws-header-primary-bg-color {
+  background-color: var(--inet-ws-header-primary-bg-color);
+}
+
+.ws-header-secondary-bg-color {
+  background-color: var(--inet-ws-header-secondary-bg-color);
+}
+
+.merge-join-subtable-selected {
+  background-color: var(--inet-graph-assembly-header-selected-bg-color);
+  color: var(--inet-graph-assembly-header-selected-text-color);
+
+  .ws-assembly-thumbnail-image {
+    color: var(--inet-graph-assembly-header-selected-text-color);
+  }
+}
+
+.ws-header--focused {
+  @extend .ws-header-secondary-bg-color;
+}
+
+.ws-header--selecting-source.ws-header--source-selectable {
+  cursor: pointer;
+}
+
+.ws-header--selecting-source.ws-header--source-not-selectable {
+  cursor: not-allowed;
+}
+
+.table-data__row {
+  background-color: var(--inet-ws-table-odd-row-bg-color);
+  border: none;
+}
+
+.table-data__row:nth-child(even) {
+  background-color: var(--inet-ws-table-even-row-bg-color)
+}
+
+.table-data__row:hover {
+  background-color: var(--inet-hover-primary-bg-color);
+}
+
+/********************************** Buttons and Icons *********************************************/
+.btn-default {
+  @include button-outline-variant($secondary, $secondary-light);
+}
+
+.btn-icon {
+  @extend .hover-bg-secondary;
+}
+
+.icon-hover-bg {
+  &:not([disabled]):hover {
+    @extend %bg-hover-primary;
+  }
+}
+
+.img-button {
+  :hover {
+    @extend .bd-gray;
+  }
+}
+
+/********************************** Directives *********************************************/
+.gutter.gutter-horizontal {
+  &:hover {
+    box-shadow: 3px 0 3px 0 var(--inet-default-border-color);
+  }
+}
+
+.gutter.gutter-vertical {
+  &:hover {
+    box-shadow: 0 -3px 3px 0 var(--inet-default-border-color);
+  }
+}
+
+.composer-body.viewsheet-in-view {
+  .gutter-horizontal {
+    &::after {
+      @extend .bt-gray;
+    }
+  }
+}
+
+.composer-body.viewsheet-in-view.viewsheet-preview {
+  .gutter-horizontal {
+    &::after {
+      border: none;
+    }
+  }
+}
+/********************************** Focus **********************************************/
+.accessible {
+  button:focus,
+  :focus {
+    outline: none;
+    box-shadow: 0px 0px 5px var(--inet-primary-color);
+  }
+
+  .repository-tree .force-focus-highlight:focus,
+  .icon-hover-bg:focus,
+  .inset-focus:focus {
+    outline: none;
+    box-shadow: inset 0px 0px 5px var(--inet-primary-color) !important;
+  }
+
+  .force-focus-highlight:focus {
+      outline: none !important;
+      box-shadow: 0px 0px 5px var(--inet-primary-color) !important;
+  }
+}
+
+/********************************** Others *********************************************/
+.th-cell-border {
+  border-top: 1px solid var(--inet-default-border-color);
+  border-bottom: 2px solid var(--inet-default-border-color);
+}
+
+.td-cell-border {
+  border-bottom: 1px solid var(--inet-default-border-color);
+}
+
+.action-style {
+  color: var(--inet-icon-color);
+
+  &:not([disabled]) {
+    cursor: pointer;
+
+    &:hover {
+      color: var(--inet-hover-text-color);
+    }
+  }
+}
+
+.action-color {
+  color: var(--inet-icon-color);
+}
+
+.composer-btn {
+  @extend .bd-navbar;
+
+  > i {
+
+    &.toolbar-icon--activated {
+      color: var(--inet-primary-color);
+    }
+  }
+}
+
+.composer-btn-toolbar {
+  @extend .composer-btn;
+}
+
+.composer-header {
+  .btn-toolbar .btn span {
+    font-family: var(--inet-font-family);
+  }
+}
+
+.composer-bottom-tabs {
+  @extend .bt-gray;
+  min-height:33px;
+  border-bottom: none;
+}
+
+condition-item-pane {
+  .form-control:focus {
+    @extend .bd-primary;
+  }
+}
+
+.left {
+  .slide-out-content-container, .slide-out-toggle-container {
+    @extend .br-gray;
+  }
+}
+
+.right {
+  .slide-out-content-container, .slide-out-toggle-container {
+    @extend .bl-gray;
+  }
+}
+
+//When a component use another component,  it's not possible to override that components' html template with utility classes
+//It's done with class override here for themable attributes
+binding-editor {
+  split-pane .gutter.gutter-vertical {
+    background-color: var(--inet-toolbar-bg-color);
+  }
+}
+
+.composer-body {
+  .gutter {
+    @extend .bg-white-inet;
+  }
+
+  // for ws detail table
+  .ws-graph-pane-container + .gutter-vertical {
+    @extend .bg-white1;
+  }
+
+  .search-box {
+    @extend .bg-white3;
+
+    input:focus {
+      border-color: var(--inet-primary-color);
+    }
+  }
+}
+
+.base-font-size {
+  font-size: var(--inet-font-size-base);
+}
+
+.font-weight-bold {
+  font-weight: bold;
+}
+
+.month-calendar,
+.year-calendar {
+  .vs-calendar.dropdown-calendar & {
+    @extend .bd-gray;
+  }
+}
+
+/*
+  Selection Box created when dragging for multi-selection
+*/
+
+.selection-box {
+  position: absolute;
+  background-color: rgba($inet-offwhite2, 0.4);
+  z-index: 90000;
+  cursor: default !important;
+  box-shadow: inset 0 0 0 1px var(--inet-default-border-color);
+}
+
+.selectable-list, sm-selectable-list {
+  @extend .bd-gray;
+}
+
+.dropdown-pane {
+  box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 0, 0, .15);
+}
+
+.pagenote {
+  text-align: left;
+  padding-top:4pt;
+  padding-bottom:20px;
+  border-top: 1px solid silver;
+  position:relative;
+  top:5pt;
+}
+
+.loading-splash {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  display: none;
+
+  &.is-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+}
+
+.app-loaded .loading-splash.is-loading {
+  display: none;
+}
+
+.loading-splash > span {
+  font-size: 1rem;
+  margin-top: 12px;
+  padding: 0;
+  line-height: 1;
+}
+
+.icon-size-logo {
+  font-size: 50px;
+}
+
+.portal-navbar {
+  padding: 0;
+  height: 52px;
+
+  .nav-icon-size {
+    font-size: 24px;
+  }
+
+  .nav-account-icon-size {
+    font-size: 30px;
+  }
+
+  .nav-item {
+    min-width: 42px;
+  }
+
+  .title-bar-logo {
+    display: flex;
+    height: 100%;
+
+    img {
+      height: 100%;
+      width: auto;
+    }
+
+    i {
+      padding-right: 5px;
+      padding-left: 5px;
+    }
+  }
+}
+
+.bg-submit-default {
+  background-color: #eee;
+  border-color: #eee;
+}
+
+.tree-node-hover {
+  &:not([disabled]):hover {
+    background-color: var(--inet-hover-secondary-bg-color);
+    cursor: pointer;
+
+    &:not(.bg-node-selected) {
+      border-style: none none none solid;
+      border-color: transparent;
+    }
+  }
+}
+
+.bg-node-selected {
+  background-color: var(--inet-selected-item-bg-color);
+}
+
+.bg-portal-node-selected {
+  background-color: transparent;
+  border-style: none none none solid;
+  border-color: var(--inet-primary-color);
+}
+
+.color-picker-palette {
+  background-color: var(--inet-dropdown-bg-color);
+}
+
+.explorer-tree {
+  .hidden-details {
+    background-color: #c5c5c5;
+  }
+}
+
+.favorites-focus-icon {
+  color: var(--inet-primary-color);
+}
+
+.vs-header-cell-button-sort {
+  background-color: var(--inet-toolbar-bg-color);
+}
+
+.cancelled-sheet-overlay {
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.new-query-popover {
+  background: var(--inet-hover-primary-bg-color);
+  font-size: 100%;
+
+  .arrow::after {
+    border-right-color: var(--inet-hover-primary-bg-color);
+  }
+
+  .popover-header {
+    background-color: $inet-blue;
+  }
+
+  .popover-body {
+    padding: .25rem .5rem;
+  }
+}
+
+.chart-object-canvas {
+  color: rgba(220, 88, 30, 0.3);
+  border-color: #dc581e;
+}
+
+.collapse-pane-button {
+  background-color: rgba(0, 0, 0, 0.02);
+
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+}
+
+// navbar/nav tabs
+
+// for navbars other than portal and composer
+.txt-navbar-top {
+  color: var(--inet-navbar-text-color);
+}
+
+.bg-navbar-top {
+  background-color: var(--inet-navbar-bg-color);
+}
+
+// composer navbar
+.composer-btn-toolbar {
+  color: var(--inet-composer-navbar-text-color);
+  background-color: var(--inet-composer-navbar-bg-color);
+
+  .composer-btn {
+    transition: none;
+
+    &, span, i {
+      color: var(--inet-composer-navbar-text-color);
+    }
+
+    &:hover:not(:disabled):not(.disabled) {
+      &, span, i {
+        color: var(--inet-composer-navbar-hover-text-color);
+      }
+
+      color: var(--inet-composer-navbar-hover-text-color);
+      background-color: var(--inet-composer-navbar-hover-bg-color);
+    }
+  }
+
+  .show > .composer-btn.dropdown-toggle {
+    background-color: var(--inet-composer-navbar-hover-bg-color);
+
+    &, span, i {
+      color: var(--inet-composer-navbar-hover-text-color);
+    }
+
+    ::after {
+      content: "";
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+      padding: 0;
+      margin: 0;
+      background-color: rgba(0, 0, 0, 0.02);
+    }
+  }
+}
+
+// portal navbar
+.portal-navbar {
+  background-color: var(--inet-portal-navbar-bg-color);
+
+  .nav-item.bb-highlight-primary {
+    border-bottom-color: var(--inet-navbar-selected-border-color);
+  }
+
+  .portal-nav-item {
+    &, a, i {
+      color: var(--inet-portal-navbar-text-color);
+    }
+
+    &:hover {
+      &, a, i {
+        color: var(--inet-portal-navbar-hover-text-color);
+      }
+
+      color: var(--inet-portal-navbar-hover-text-color);
+      background-color: var(--inet-portal-navbar-hover-bg-color);
+    }
+  }
+}
+
+.portal-sub-navbar, .composer-bottom-tabs, .schedule-navbar, .vpm-navbar, .viewer-bottom-tabs {
+  color: var(--inet-nav-tabs-text-color);
+  background-color: var(--inet-nav-tabs-bg-color);
+
+  .nav-item.bb-highlight-primary {
+    border-bottom-color: var(--inet-nav-tabs-selected-border-color);
+  }
+
+  .nav-item.bt-highlight-primary {
+    border-top-color: var(--inet-nav-tabs-selected-border-color);
+  }
+
+  .nav-link {
+    color: var(--inet-nav-tabs-text-color);
+  }
+}
+
+.composer-body.viewsheet-in-view {
+  .gutter-horizontal {
+    &::after {
+      background-color: var(--inet-nav-tabs-bg-color);
+    }
+  }
+}
+
+.composer-body.library-in-view {
+  .gutter-horizontal {
+    &::after {
+      background-color: var(--inet-nav-tabs-bg-color);
+    }
+  }
+}
+
+.inetsoft-logo {
+  color: var(--inet-navbar-logo-color);
+}
+
+.composer-btn-toolbar {
+  .composer-icon {
+    color: var(--inet-navbar-logo-color);
+  }
+
+  .assets-icon, .viewsheet-icon, .editor-breadcrumb-1 {
+    color: var(--inet-navbar-home-icon-color);
+  }
+
+  .composer-breadcrumb-1, .editor-breadcrumb-1 {
+    background-color: var(--inet-navbar-home-bg-color);
+  }
+}
+
+.portal-navbar {
+  .home-icon {
+    color: var(--inet-navbar-home-icon-color);
+  }
+
+  .home-nav-item {
+    background-color: var(--inet-navbar-home-bg-color);
+  }
+}
+
+// toolbars
+.viewer-toolbar {
+  background-color: var(--inet-vs-toolbar-bg-color);
+
+  .viewer-toolbar-btn {
+    background-color: var(--inet-vs-toolbar-bg-color);
+  }
+}
+
+.repository-tree-toolbar {
+  background-color: var(--inet-repository-tree-toolbar-bg-color);
+
+  &::after {
+    background-color: var(--inet-repository-tree-toolbar-bg-color);
+  }
+}
+
+// composer repository toolbar bg
+.composer-body {
+  .search-box {
+    background-color: var(--inet-repository-tree-toolbar-bg-color);
+  }
+}
+
+.asset-pane-gutter:not(.worksheet-in-view) {
+  .gutter-horizontal {
+    &::before {
+      background-color: var(--inet-repository-tree-toolbar-bg-color);
+    }
+  }
+}
+
+// other toolbars
+.tab-body {
+  .data-pane {
+    .btn-toolbar {
+      background-color: var(--inet-toolbar-bg-color);
+    }
+  }
+}
+
+.data-model-toolbar, .data-model-header-pane, .physical-graph-toolbar, .explorer-toolbar,
+.logical-hierarchy-edit-toolbar, .ws-table-bar, .ws-details-table-button,
+.ws-composite-table-breadcrumb-container, .slide-out-toggle-container,
+.slide-out-wrapper .v-resizer, .wizard-aggregate-toolbar
+{
+  background-color: var(--inet-toolbar-bg-color);
+}
+
+.mini-toolbar-button-group {
+  .btn {
+    background-color: var(--inet-toolbar-bg-color);
+  }
+}
+
+.browser-sort-toolbar {
+  background-color: var(--inet-toolbar-bg-color);
+
+  .browser-sort-toolbar-btn {
+    background-color: var(--inet-toolbar-bg-color);
+  }
+}
+
+.wizard-toolbar, .wizard-toolbar-wrapper {
+  background-color: var(--inet-toolbar-bg-color);
+
+  .wizard-toolbar-btn {
+    background-color: var(--inet-toolbar-bg-color);
+  }
+}
+
+.status-bar, .chart-style-container {
+  background-color: var(--inet-toolbar-bg-color);
+}
+
+// PANELS
+// -> main panel
+.full-view-container, .viewer-container, .viewer-pane {
+  background-color: var(--inet-portal-main-panel-bg-color);
+  --inet-float-label-bg-color: var(--inet-portal-main-panel-bg-color);
+}
+
+.dashboard-container, .schedule-tab-content,  {
+  background-color: var(--inet-portal-main-panel-bg-color);
+  --inet-float-label-bg-color: var(--inet-portal-main-panel-bg-color);
+}
+
+.tab-body {
+  background-color:  var(--inet-portal-main-panel-bg-color);
+  --inet-float-label-bg-color: var(--inet-portal-main-panel-bg-color);
+
+  .data-pane {
+    background-color:  var(--inet-portal-main-panel-bg-color);
+    --inet-float-label-bg-color: var(--inet-portal-main-panel-bg-color);
+  }
+}
+
+.welcome-page-container {
+  background-color: var(--inet-portal-main-panel-bg-color);
+}
+
+.hint-container {
+  div.card {
+    background-color: var(--inet-portal-side-panel-bg-color);
+  }
+}
+
+.editor-pane-container, .binding-editor {
+  background-color: var(--inet-composer-main-panel-bg-color);
+  --inet-float-label-bg-color: var(--inet-composer-main-panel-bg-color);
+}
+
+// -> secondary panel
+.gutter.gutter-horizontal {
+  background-color: var(--inet-portal-side-panel-bg-color);
+}
+
+.repository-tree-pane {
+  background-color: var(--inet-portal-side-panel-bg-color);
+  --inet-float-label-bg-color: var(--inet-portal-side-panel-bg-color);
+}
+
+.tab-body {
+  .data-tree-pane, .conditionspane {
+    background-color: var(--inet-portal-side-panel-bg-color);
+    --inet-float-label-bg-color: var(--inet-portal-side-panel-bg-color);
+  }
+}
+
+wizard-main {
+  .left-container {
+    background-color: var(--inet-portal-side-panel-bg-color);
+    --inet-float-label-bg-color: var(--inet-portal-side-panel-bg-color);
+  }
+}
+
+.explorer-tree {
+  background-color: var(--inet-portal-side-panel-bg-color);
+  --inet-float-label-bg-color: var(--inet-portal-side-panel-bg-color);
+}
+
+.explorerVisible {
+  .split-pane-container {
+    .left-container {
+      background-color: var(--inet-portal-side-panel-bg-color);
+      --inet-float-label-bg-color: var(--inet-portal-side-panel-bg-color);
+    }
+  }
+}
+
+.data-model-left-top-pane {
+  background-color: var(--inet-portal-side-panel-bg-color);
+  --inet-float-label-bg-color: var(--inet-portal-side-panel-bg-color);
+}
+
+.viewer-format-pane {
+  background-color: var(--inet-portal-side-panel-bg-color);
+  --inet-float-label-bg-color: var(--inet-portal-side-panel-bg-color);
+}
+
+.binding-editor, .object-wizard-pane {
+  .left-container, .tree-container {
+    background-color: var(--inet-composer-side-panel-bg-color);
+    --inet-float-label-bg-color: var(--inet-composer-side-panel-bg-color);
+  }
+
+  .gutter.gutter-horizontal {
+    background-color: var(--inet-composer-side-panel-bg-color);
+  }
+}
+
+.composer-body {
+  .gutter {
+    background-color: var(--inet-composer-side-panel-bg-color);
+  }
+
+  // for ws detail table
+  .ws-graph-pane-container + .gutter-vertical {
+    background-color: var(--inet-composer-side-panel-bg-color);
+  }
+}
+
+.composer-body.viewsheet-in-view.viewsheet-preview {
+  .gutter-horizontal {
+    &::after {
+      background-color: var(--inet-composer-side-panel-bg-color);
+    }
+  }
+}
+
+.component-pane-container, .composer-tab-content-body, .ws-details-pane-container {
+  background-color: var(--inet-composer-side-panel-bg-color);
+  --inet-float-label-bg-color: var(--inet-composer-side-panel-bg-color);
+}
+
+.parameter-split-pane {
+  .gutter {
+    background-color: transparent;
+  }
+}
+
+// -> panel borders
+.gutter-horizontal {
+  border-right: var(--inet-panel-border, 1px solid var(--inet-default-border-color));
+}
+
+.composer-body, .object-wizard-pane {
+  border: var(--inet-panel-border, none);
+}
+
+.binding-editor {
+  .vs-split-content {
+    border: var(--inet-panel-border, none);
+
+    .left-container {
+      border-right: var(--inet-panel-border-zero, 1px solid var(--inet-default-border-color));
+    }
+  }
+}
+
+.page-container {
+  > .tab-body {
+    p-repository-desktop-view, p-repository-list-view, p-data-tab {
+      border: var(--inet-panel-border, none);
+    }
+  }
+}
+
+.dashboard-container {
+  border: var(--inet-panel-border, none);
+}
+
+.schedule-tab-content {
+  border: var(--inet-panel-border, 0.5rem solid transparent);
+}
+
+wizard-main {
+  .split-pane-container {
+    border: var(--inet-panel-border, none);
+  }
+
+  .left-container {
+    border: var(--inet-panel-border-zero, 1px solid var(--inet-default-border-color));
+  }
+
+  .gutter-horizontal {
+    width: var(--inet-panel-border-zero, 6px) !important;;
+    border-right: var(--inet-panel-border, none);
+  }
+
+  .right-container {
+    border: var(--inet-panel-border-zero, 1px solid var(--inet-default-border-color));
+  }
+}
+
+.object-wizard-pane {
+  .left-container {
+    border-right: var(--inet-panel-border-zero, 1px solid var(--inet-default-border-color));
+  }
+}
+
+//DIALOGS/SLIDE OUTS
+.slide-out-content-container {
+  .content-div {
+    background-color: var(--inet-dialog-bg-color);
+    --inet-float-label-bg-color: var(--inet-dialog-bg-color);
+  }
+}
+
+.preview-header-cell-button {
+  i {
+    background-color: var(--inet-dialog-bg-color);
+  }
+}
+
+.modal-title {
+  text-transform: var(--inet-dialog-title-text-transform);
+  font-size: var(--inet-dialog-title-font-size);
+}
+
+.modal-content-width {
+  max-width: $modal-lg - 30px;
+}

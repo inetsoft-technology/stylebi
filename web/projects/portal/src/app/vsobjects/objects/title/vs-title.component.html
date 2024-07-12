@@ -1,0 +1,89 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="!editingTitle"
+     class="vs-title" tooltipIf
+     [attr.title]="titleContent"
+     [class.inactive]="!viewer && !titleVisible"
+     [class.bd-selected-cell]="titleSelected"
+     [style.width.px]="titleWidth"
+     [style.height.px]="titleFormat.height"
+     [safeFont]="titleFormat.font"
+     [style.text-decoration]="titleFormat.decoration"
+     [style.color]="titleFormat.foreground"
+     [style.text-align]="titleFormat?.hAlign"
+     [style.justify-content]="titleFormat.justifyContent"
+     [style.align-items]="titleFormat.alignItems"
+     [style.border-top]="titleFormat.border.top"
+     [style.border-left]="titleFormat.border.left"
+     [style.border-bottom]="titleFormat.border.bottom"
+     [style.border-right]="titleFormat.border.right"
+     [style.border-radius.px]="titleFormat.roundCorner"
+     [style.background]="titleFormat.background"
+     [style.display]="(preview || viewer) && !titleVisible ? 'none':'flex'"
+     [style.z-index]="zIndex"
+     (mousedown)="selectTitle.emit($event)"
+     wInteractable
+     [interactableResizable]="!viewer && !preview && selected"
+     [resizableTopEdge]="false"
+     [resizableLeftEdge]="false"
+     [resizableRightEdge]="false"
+     [resizableBottomEdge]="'.bottom'"
+     [resizableMargin]="5"
+     (onResizableMove)="titleResizeMoving($event)"
+     (onResizableEnd)="titleResizeEnded()">
+  <div tooltipIf class="title-content non-editable-text"
+       [attr.title]="titleContent"
+       [style.white-space]="titleFormat.wrapping.whiteSpace"
+       [style.wordWrap]="titleFormat.wrapping.wordWrap"
+       [style.background]="floating ? titleFormat.background || textBackground : null"
+       [style.justify-content]="titleFormat.justifyContent"
+       [style.align-items]="titleFormat.alignItems"
+       [style.padding-top.px]="titleFormat?.padding?.top"
+       [style.padding-bottom.px]="titleFormat?.padding?.bottom"
+       [style.padding-left.px]="titleFormat?.padding?.left"
+       [style.padding-right.px]="titleFormat?.padding?.right"
+       [class.wrapped]="titleFormat.wrapping.whiteSpace != 'nowrap'"
+       [class.floating]="floating" [innerHTML]="getHTMLText()"
+       (dblclick)="editingTitle = (!viewer || binding) && !preview">
+  </div>
+  <div *ngIf="!editingTitle && !viewer && !preview && (selected || formatPainterMode)"
+       class="title-move-zone" [class.vs-wizard]="vsWizardPreview"
+       (click)="vsWizardPreview ? (editingTitle = true) : selectTitle.emit($event)"
+       (dblclick)="editingTitle = true"></div>
+  <ng-container *ngIf="selected && !formatPainterMode && !vsWizard">
+    <div class="title-resize-handle bg-primary bottom middle"></div>
+    <div class="container-gutter bottom"></div>
+  </ng-container>
+  <div *ngIf="rowResizeLabel" class="row-resize-label">{{rowResizeLabel}}</div>
+</div>
+<input *ngIf="(!viewer || binding) && editingTitle" #titleInput
+       class="title-content" tooltipIf
+       [style.width.px]="titleWidth"
+       [style.height.px]="titleFormat.height"
+       [style.color]="titleFormat.foreground"
+       [style.background]="titleFormat.background"
+       [safeFont]="titleFormat.font"
+       [style.text-decoration]="titleFormat.decoration"
+       [style.z-index]="zIndex"
+       [(ngModel)]="titleContent"
+       (focusout)="changeTitle.emit(titleContent)"
+       (focusin)="$event.target.select()"
+       defaultFocus [autoSelect]="true"
+       (keyup.enter)="$event.target.blur(); editingTitle = false">

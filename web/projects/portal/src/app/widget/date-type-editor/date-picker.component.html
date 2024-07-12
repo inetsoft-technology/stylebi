@@ -1,0 +1,60 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="date-pane">
+  <!--month selector-->
+  <div class="row month-year-row" blockMouse>
+    <div class="col-6 form-floating" *ngIf="months">
+        <select class="form-control" [ngModel]="dateTime.months" (ngModelChange)="selectMonth($event)">
+          <option *ngFor="let month of months" [value]="month.value">
+            {{month.label}}
+          </option>
+        </select>
+        <label>_#(Select a Month)</label>
+    </div>
+    <!--year selector-->
+    <div class="col-6 form-floating" *ngIf="years">
+        <select class="form-control" [ngModel]="dateTime.years" (ngModelChange)="selectYear($event)">
+          <option *ngFor="let year of years" [value]="year.value">
+            {{year.label}}
+          </option>
+        </select>
+        <label>_#(Select a Year)</label>
+    </div>
+  </div>
+
+  <!--display week of the month-->
+  <div class="container">
+    <table class="table-sm data-table">
+      <thead>
+        <tr class="date-time-table-header bg-darken1">
+          <td *ngFor="let day of dateHeaders">{{day}}</td>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let cell of loadCalender(dateTime.months, dateTime.years)">
+          <td *ngFor="let day of cell">
+            <div *ngIf="day > 0" (mousedown)="selectDay(day)" class="day-div hover-bg-secondary"
+                 [class.select-date]="dateTime.date == day">{{day}}</div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

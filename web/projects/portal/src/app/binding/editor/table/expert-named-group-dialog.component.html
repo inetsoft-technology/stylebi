@@ -1,0 +1,105 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div>
+  <modal-header [title]="'_#(Named Group Definition)'"
+    (onCancel)="cancel($event)"
+    [cshid]="'FreehandTableVS'">
+  </modal-header>
+  <div class="modal-body">
+    <div *ngIf="!editing">
+      <w-large-form-field>
+        <div largeFieldElement class="bordered-box bd-gray">
+          <div *ngFor="let group of groups; let i=index"
+               [class.selected]="isSelected(group.name)" class="group-item"
+               (click)="selectGroup(group)">
+            {{group.name}}
+          </div>
+        </div>
+        <ng-container largeFieldButtons>
+          <button class="btn btn-default" (click)="addGroup()">_#(Add)</button>
+          <button class="btn btn-default" (click)="editGroup()"
+                  [disabled]="!selectedGroup">_#(Edit)</button>
+          <button class="btn btn-default" (click)="deleteGroup()"
+                  [disabled]="groups == null || groups.length == 0">_#(Delete)</button>
+          <button class="btn btn-default" (click)="renameGroup()"
+                  [disabled]="groups == null || groups.length == 0 || selectedGroup == null">
+            _#(Rename)</button>
+          <button class="btn btn-default" [disabled]="groups == null || groups.length == 0"
+                  (click)="clearAll()">_#(Clear All)</button>
+          <button class="btn btn-default" [disabled]="!canUp()" (click)="moveUp()">
+            _#(Move Up)</button>
+          <button class="btn btn-default" [disabled]="!canDown()" (click)="moveDown()">
+            _#(Move Down)</button>
+        </ng-container>
+      </w-large-form-field>
+      <div class="bordered-box bordered-box bd-gray mt-1">
+        <div *ngFor="let item of selectCondition; let even = even; let i = index;">
+          <div *ngIf="even">
+            {{item | conditionToString}}
+          </div>
+          <div *ngIf="!even">
+            {{item | junctionOperatorToString}}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="alert alert-danger danger_emptygroup_id"
+      *ngIf="!editing && hasEmptyGroup()">
+      _#(binding.namedGroup.edit)</div>
+    <div *ngIf="editing">
+      <fieldset [disabled]="groups.length == 0">
+        <condition-pane [provider]="provider" [conditionList]="selectCondition"
+                        [fields]="[field]" [table]="table"
+                        [showExpression]="false"
+                        (conditionChange)=conditionChange($event)
+                        (conditionListChange)=conditionListChange($event)>
+        </condition-pane>
+      </fieldset>
+    </div>
+    <div *ngIf="!editing">
+      <fieldset>
+        <div class="mt-1">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" name="radio" [value]="true"
+                 [(ngModel)]="others" id="groupOthers">
+            <label class="form-check-label" for="groupOthers">
+              _#(Group all others together)
+            </label>
+          </div>
+          <div class="form-check">
+            <input type="radio" class="form-check-input" name="radio" [value]="false"
+                 [(ngModel)]="others" id="leaveOthers">
+            <label class="form-check-label" for="leaveOthers">
+              _#(designer.binding.namedGroup.leaveOthers)
+            </label>
+          </div>
+        </div>
+      </fieldset>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button type="button" *ngIf="editing" class="btn btn-primary"
+            (click)="finishEditing()">_#(Finish Editing)</button>
+    <button type="button" *ngIf="!editing" class="btn btn-primary ok_id" (click)="ok($event)"
+            [disabled]="hasEmptyGroup()">_#(OK)</button>
+    <button type="button" *ngIf="!editing" class="btn btn-default" data-dismiss="modal"
+      (click)="cancel($event)">_#(Cancel)</button>
+  </div>
+</div>

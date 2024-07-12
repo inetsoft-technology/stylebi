@@ -1,0 +1,1009 @@
+{
+  "endpoints": [
+    {
+      "name": "Account Details",
+      "pageType": 0,
+      "suffix": "/integrations/v1/me"
+    },
+    {
+      "name": "Category Analytics Data",
+      "pageType": 1,
+      "suffix": "/analytics/v2/reports/{Breakdown By:totals|sessions|sources|geolocation|utm-[campaigns|contents|mediums|sources]}/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start  Date:YYYYMMDD}&end={End Date:YYYYMMDD}&d1={First Drilldown?}&d2={Second Drilldown?}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}"
+    },
+    {
+      "name": "Object Type Analytics Data",
+      "pageType": 1,
+      "suffix": "/analytics/v2/reports/{Object Type:event-completions|forms|pages|social-assists}/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}"
+    },
+    {
+      "name": "Hosted Content Analytics Data",
+      "pageType": 1,
+      "suffix": "/analytics/v2/reports/{Content Type:landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}"
+    },
+    {
+      "name": "Page Analytics Details",
+      "pageType": 1,
+      "suffix": "/analytics/v2/reports/{Content Type:landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/{Page ID}/sources/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}"
+    },
+    {
+      "name": "Blog Analytics details",
+      "pageType": 1,
+      "suffix": "/analytics/v2/reports/{Content Type:landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/content-group/{Blog ID}/sources/{Time Period:total|daily|weekly|monthly|summarize/daily|summarize/weekly|summarize/monthly }?start={Start Date:YYYYMMDD}&end={End Date:YYYYMMDD}&f={Filter?}&e={Exclude?}&filterId={Analytics View ID?}"
+    },
+    {
+      "name": "Object Type Analytics Data Exists",
+      "pageType": 0,
+      "suffix": "/analytics/v2/reports/{Object Type:event-completions|forms|pages|social-assists|landing-pages|standard-pages|blog-posts|listing-pages|knowledge-articles}/exists"
+    },
+    {
+      "name": "Events Data",
+      "pageType": 0,
+      "suffix": "/reports/v2/events?includeDeletes={Include Deleted?:true|false}"
+    },
+    {
+      "name": "Calendar Events",
+      "pageType": 0,
+      "suffix": "/calendar/v1/events/content?start={Start Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&end={End Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&contentCategory={Content Category?:blog-post,email,recurring-email,landing-page}&campaignGuid={Campaign Guid?}&includeNoCampaigns={Include No Campaigns?:true|false}"
+    },
+    {
+      "name": "Calendar Social  Events",
+      "pageType": 0,
+      "suffix": "/calendar/v1/events/social?start={Start Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&end={End Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&contentCategory={Content Category?:blog-post,email,recurring-email,landing-page}&campaignGuid={Campaign GUID?}&includeNoCampaigns={Include No Campaigns?:true|false}"
+    },
+    {
+      "name": "Calendar Task Events",
+      "pageType": 0,
+      "suffix": "/calendar/v1/events?start={Start Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&end={End Date:yyyy-MM-dd'T'HH:mm:ss.SSS'Z'|milliseconds}&type={Type?:CONTENT,SOCIAL,PUBLISHING_TASK,PUBLISHING_TASK}&contentCategory={Content Category?:blog-post,email,recurring-email,landing-page}&campaignGuid={Campaign Guid?}&includeNoCampaigns={Include No Campaigns?:true|false}"
+    },
+    {
+      "name": "Companies",
+      "pageType": 6,
+      "suffix": "/companies/v2/companies/paged?properties={Properties?}&propertiesWithHistory={Properties With History?:true|false}&includeMergeAudits={Include Merge Audits?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Company Contacts",
+          "jsonPath": "$.[*]",
+          "key": "companyId",
+          "parameterName": "Company ID"
+        },
+        {
+          "endpoint": "Contacts IDs",
+          "jsonPath": "$.[*]",
+          "key": "companyId",
+          "parameterName": "Company ID"
+        }
+      ]
+    },
+    {
+      "name": "Recently Modified Companies",
+      "pageType": 2,
+      "suffix": "/companies/v2/companies/recent/modified?since={Since Date:milliseconds}",
+      "lookups": [
+        {
+          "endpoint": "Company Contacts",
+          "jsonPath": "$.[*]",
+          "key": "companyId",
+          "parameterName": "Company ID"
+        },
+        {
+          "endpoint": "Contacts IDs",
+          "jsonPath": "$.[*]",
+          "key": "companyId",
+          "parameterName": "Company ID"
+        }
+      ]
+    },
+    {
+      "name": "Recently Created Companies",
+      "pageType": 2,
+      "suffix": "/companies/v2/companies/recent/created",
+      "lookups": [
+        {
+          "endpoint": "Company Contacts",
+          "jsonPath": "$.[*]",
+          "key": "companyID",
+          "parameterName": "Company ID"
+        },
+        {
+          "endpoint": "Contacts IDs",
+          "jsonPath": "$.[*]",
+          "key": "companyID",
+          "parameterName": "Company ID"
+        }
+      ]
+    },
+    {
+      "name": "Company",
+      "pageType": 0,
+      "suffix": "/companies/v2/companies/{Company ID}?includeMergeAudits={Include Merge Audits?:true|false}"
+    },
+    {
+      "name": "Company Contacts",
+      "pageType": 3,
+      "suffix": "/companies/v2/companies/{Company ID}/contacts"
+    },
+    {
+      "name": "Contacts IDs",
+      "pageType": 3,
+      "suffix": "/companies/v2/companies/{Company ID}/vids"
+    },
+    {
+      "name": "Company Properties",
+      "pageType": 0,
+      "suffix": "/properties/v1/companies/properties"
+    },
+    {
+      "name": "Company Property",
+      "pageType": 0,
+      "suffix": "/properties/v1/companies/properties/named/{Property Name}"
+    },
+    {
+      "name": "Company Groups",
+      "pageType": 0,
+      "suffix": "/properties/v1/companies/groups?includeProperties={Include Properties?:true|false}"
+    },
+    {
+      "name": "All Contacts",
+      "pageType": 3,
+      "suffix": "/contacts/v1/lists/all/contacts/all?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Contact Profile By ID",
+          "jsonPath": "$.contacts[*]",
+          "key": "vid",
+          "parameterName": "Contact ID"
+        }
+      ]
+    },
+    {
+      "name": "Recently Modified Contacts",
+      "pageType": 3,
+      "suffix": "/contacts/v1/lists/recently_updated/contacts/recent?timeOffset={Time Offset?}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+    },
+    {
+      "name": "Recently Created Contacts",
+      "pageType": 3,
+      "suffix": "/contacts/v1/lists/all/contacts/recent?timeOffset={Time Offset?}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+    },
+    {
+      "name": "Contact Profile By ID",
+      "pageType": 0,
+      "suffix": "/contacts/v1/contact/vid/{Contact ID}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+    },
+    {
+      "name": "Contacts\u00a0Informations",
+      "pageType": 0,
+      "suffix": "/contacts/v1/contact/vids/batch?&&vid={Contact ID}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}&includeDeletes={Include Deletes?:true|false}"
+    },
+    {
+      "name": "Contact (By Email)",
+      "pageType": 0,
+      "suffix": "/contacts/v1/contact/email/{Contact Email Address}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+    },
+    {
+      "name": "Contact Profile",
+      "pageType": 0,
+      "suffix": "/contacts/v1/contact/utk/{Contact User Token}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+    },
+    {
+      "name": "Contacts",
+      "pageType": 0,
+      "suffix": "/contacts/v1/contact/utk/{Contact User Token}/profile?email={Contact Email Address(es)}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+    },
+    {
+      "name": "Contact By User Token",
+      "pageType": 0,
+      "suffix": "/contacts/v1/contact/utk/{Contact User Token}/profile?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+    },
+    {
+      "name": "Contacts By User Token",
+      "pageType": 0,
+      "suffix": "/contacts/v1/contact/utks/batch?utk={Contact user token}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+    },
+    {
+      "name": "Search Contacts",
+      "pageType": 2,
+      "suffix": "/contacts/v1/search/query?q={Search Query}&property={Property?}"
+    },
+    {
+      "name": "Contacts Lifecycle Stage Metrics",
+      "pageType": 0,
+      "suffix": "/contacts/v1/search/external/lifecyclestages?fromTimestamp={From Timestamp}&toTimestamp={To Timestamp}&aggregationProperty={Aggregation Property?}"
+    },
+    {
+      "name": "Contact Statistics",
+      "pageType": 0,
+      "suffix": "/contacts/v1/contacts/statistics?includeTotalContacts={Include Total Contacts?:true|false}&includeLastNewContactAt={Include Last Contact At?:true|false}"
+    },
+    {
+      "name": "Contact lists",
+      "pageType": 2,
+      "suffix": "/contacts/v1/lists",
+      "lookups": [
+        {
+          "endpoint": "Contacts In A List",
+          "jsonPath": "$.[*]",
+          "key": "listId",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Recently Added Contacts From A List",
+          "jsonPath": "$.[*]",
+          "key": "listId",
+          "parameterName": "List ID"
+        }
+      ]
+    },
+    {
+      "name": "Contact Lists By Its Unique ID",
+      "pageType": 0,
+      "suffix": "/contacts/v1/lists/{List ID}"
+    },
+    {
+      "name": "A Group Of Contact Lists",
+      "pageType": 0,
+      "suffix": "/contacts/v1/lists/batch?listId={List IDs}",
+      "lookups": [
+        {
+          "endpoint": "Contacts In A List",
+          "jsonPath": "$.[*]",
+          "key": "listId",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Recently Added Contacts From A List",
+          "jsonPath": "$.[*]",
+          "key": "listId",
+          "parameterName": "List ID"
+        }
+      ]
+    },
+    {
+      "name": "Static Contact Lists",
+      "pageType": 2,
+      "suffix": "/contacts/v1/lists/static"
+    },
+    {
+      "name": "Dynamic Contact Lists (Active Lists)",
+      "pageType": 2,
+      "suffix": "/contacts/v1/lists/dynamic"
+    },
+    {
+      "name": "Contacts In A List",
+      "pageType": 3,
+      "suffix": "/contacts/v1/lists/{List ID}/contacts/all?property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+    },
+    {
+      "name": "Recently Added Contacts From A List",
+      "pageType": 3,
+      "suffix": "/contacts/v1/lists/{List ID}/contacts/recent?timeOffset={Time Offset?}&property={Property?}&propertyMode={Property Mode?:value_only|value_and_history}&formSubmissionMode={Form Submission Mode?:all|none|newest|oldest}&showListMemberships={List Memberships?:true|false}"
+    },
+    {
+      "name": "Contact Properties",
+      "pageType": 0,
+      "suffix": "/properties/v1/contacts/properties"
+    },
+    {
+      "name": "Contact Property",
+      "pageType": 0,
+      "suffix": "/properties/v1/contacts/properties/named/{Property Name}"
+    },
+    {
+      "name": "Contact Property Groups",
+      "pageType": 0,
+      "suffix": "/properties/v1/contacts/groups?includeProperties={Include Properties?:true|false}"
+    },
+    {
+      "name": "Contact Property Group Details",
+      "pageType": 0,
+      "suffix": "/properties/v1/contacts/groups/named/{Group Name}?includeProperties={Include Properties?:true|false}"
+    },
+    {
+      "name": "List Blogs",
+      "pageType": 1,
+      "suffix": "/content/api/v2/blogs?topic_id={Topic ID?}&created={Created?:milliseconds }&deleted_at={Deleted At?:milliseconds}&name={Name?}",
+      "lookups": [
+        {
+          "endpoint": "Blog Previous Versions",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Blog ID"
+        }
+      ]
+    },
+    {
+      "name": "Blog By ID",
+      "pageType": 0,
+      "suffix": "/content/api/v2/blogs/{Blog ID}"
+    },
+    {
+      "name": "Blog Previous Versions",
+      "pageType": 0,
+      "suffix": "/content/api/v2/blogs/{Blog ID}/versions"
+    },
+    {
+      "name": "Blog Previous Version",
+      "pageType": 0,
+      "suffix": "/content/api/v2/blogs/{Blog ID}/versions/{Blog Version ID}"
+    },
+    {
+      "name": "Blog Authors (v3)",
+      "pageType": 1,
+      "suffix": "/blogs/v3/blog-authors?id={ID?}&fullName={Full Name?}&slug={Slug?}&created={Created?:milliseconds }&updated={Updated?:milliseconds}&email={Email?}&casing={Casing?}"
+    },
+    {
+      "name": "Search Blog Authors (v3)",
+      "pageType": 1,
+      "suffix": "/blogs/v3/blog-authors/search?casing={Casing?:snake_case|camelCase}&q={Query String?}&active={Active?:true|false}&blog={Blog ID?}"
+    },
+    {
+      "name": "Blog Author By ID (v3)",
+      "pageType": 0,
+      "suffix": "/blogs/v3/blog-authors/{Blog Author ID}?casing={Casing?:snake_case|camelCase}"
+    },
+    {
+      "name": "List Comments",
+      "pageType": 1,
+      "suffix": "/comments/v3/comments?portalId={Portal Number?}&state={Comment State?:APPROVED|SPAM|REJECTED|PENDING_MODERATION}&contentId={Post ID?}&reverse={Reverse?:true|false}&query={Query String?}"
+    },
+    {
+      "name": "Blog Comment By ID",
+      "pageType": 0,
+      "suffix": "/comments/v3/comments/{Comment ID}?"
+    },
+    {
+      "name": "Blog Posts",
+      "pageType": 1,
+      "suffix": "/content/api/v2/blog-posts?archived={Archived?:true|false}&blog_author_id={Blog Author ID?}&campaign={Campaign GUID?}&content_group_id={Content Group ID?}&&created={Created?:milliseconds }&deleted_at={Deleted At?:milliseconds}&name={Name?}&slug={Slug?}&updated={Updated?:milliseconds}&state={Comment State?:DRAFT|PUBLISHED|SCHEDULED}",
+      "lookups": [
+        {
+          "endpoint": "Blog Posts Buffer Contents",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Blog Post ID"
+        }
+      ]
+    },
+    {
+      "name": "Blog Post By ID",
+      "pageType": 0,
+      "suffix": "/content/api/v2/blog-posts/{Blog Post ID}"
+    },
+    {
+      "name": "Blog Posts Buffer Contents",
+      "pageType": 0,
+      "suffix": "/content/api/v2/blog-posts/{Blog Post ID}/buffer"
+    },
+    {
+      "name": "Blog Post Previous Version",
+      "pageType": 0,
+      "suffix": "/content/api/v2/blog-posts/{Blog Post ID}/versions/{Version ID}"
+    },
+    {
+      "name": "Blog Topics",
+      "pageType": 1,
+      "suffix": "/blogs/v3/topics?id={ID?}&slug={Slug?}&created={Created?:milliseconds}&casing={Casing?}"
+    },
+    {
+      "name": "Search Blog Topics",
+      "pageType": 1,
+      "suffix": "/blogs/v3/topics/search?id={ID?}&slug={Slug?}&created={Created?:milliseconds}&casing={Casing?}&q={Query String?}&active={Active?:true|false}&blog={Blog Version ID?}"
+    },
+    {
+      "name": "Blog Topic By ID",
+      "pageType": 0,
+      "suffix": "/blogs/v3/topics/{Topic ID}?casing={Casing?}"
+    },
+    {
+      "name": "Domains",
+      "pageType": 1,
+      "suffix": "/cos-domains/v1/domains?created={Created?}&domain={Domain?}&id={ID?}&is_resolving={Is Resolving?:true|false}&primary_site_page={Primary Site Page?}"
+    },
+    {
+      "name": "Domain By ID",
+      "pageType": 0,
+      "suffix": "/cos-domains/v1/domains/{Domain ID}"
+    },
+    {
+      "name": "Files Metadata",
+      "pageType": 1,
+      "suffix": "/filemanager/api/v2/files?alt_key={Alt Key?}&created={Created?}&deleted_at={Deleted At?:milliseconds}&extension={Extension?}&folder_id={Folder ID?}&id={ID?}&name={Name?}&type={Type?}"
+    },
+    {
+      "name": "File Metadata",
+      "pageType": 0,
+      "suffix": "/filemanager/api/v2/files/{File ID}?"
+    },
+    {
+      "name": "Folder by ID",
+      "pageType": 0,
+      "suffix": "/filemanager/api/v2/folders/{Folder ID}?"
+    },
+    {
+      "name": "Tables",
+      "pageType": 0,
+      "suffix": "/hubdb/api/v2/tables",
+      "lookups": [
+        {
+          "endpoint": "Table Draft Details",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Table ID"
+        },
+        {
+          "endpoint": "Table Rows",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Table ID"
+        }
+      ]
+    },
+    {
+      "name": "Table Details",
+      "pageType": 0,
+      "suffix": "/hubdb/api/v2/tables/{Table ID}"
+    },
+    {
+      "name": "Table Draft Details",
+      "pageType": 0,
+      "suffix": "/hubdb/api/v2/tables/{Table ID}/draft"
+    },
+    {
+      "name": "Table Rows",
+      "pageType": 1,
+      "suffix": "/hubdb/api/v2/tables/{Table ID}/rows"
+    },
+    {
+      "name": "Layouts",
+      "pageType": 1,
+      "suffix": "/content/api/v2/layouts?category_id={Category ID?}&created={Created?:milliseconds}&deleted_at={Deleted At?:milliseconds}&id={ID?}&label={Label?}&path={Path?}&custom_head={Custom Head Html?}&include_default_custom_css={Include Default Custom Css?}&enable_domain_stylesheet={Enable Domain Stylesheet?}&attached_stylesheets={Attached Stylesheets?}",
+      "lookups": [
+        {
+          "endpoint": "Layout Buffer Contents",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Layout ID"
+        },
+        {
+          "endpoint": "Layout Previous Versions",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Layout ID"
+        },
+        {
+          "endpoint": "If Live Layout Has Buffered changes",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Layout ID"
+        }
+      ]
+    },
+    {
+      "name": "Layout Buffer Contents",
+      "pageType": 0,
+      "suffix": "/content/api/v2/layouts/{Layout ID}/buffer?"
+    },
+    {
+      "name": "Layout Previous Versions",
+      "pageType": 0,
+      "suffix": "/content/api/v2/layouts/{Layout ID}/versions"
+    },
+    {
+      "name": "Layout Previous Version",
+      "pageType": 0,
+      "suffix": "/content/api/v2/layouts/{Layout ID}/versions/{Version ID}"
+    },
+    {
+      "name": "If Live Layout Has Buffered changes",
+      "pageType": 0,
+      "suffix": "/content/api/v2/layouts/{Layout ID}/has-buffered-changes"
+    },
+    {
+      "name": "Pages",
+      "pageType": 1,
+      "suffix": "/content/api/v2/pages?ab_test_id={Test ID?}&active={Active?:true|false}&campaign={Campaign Guid?}&created={Created?:milliseconds}&deleted_at={Deleted At?:milliseconds}&id={ID?}&is_draft={Is Draft?:true|false}&name={Name?}&publish_date={Publish Date?:milliseconds}&slug={Slug?}&subcategory={Sub Category?}&updated={Updated?:milliseconds}",
+      "lookups": [
+        {
+          "endpoint": "Page Buffer Contents",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Page ID"
+        },
+        {
+          "endpoint": "Page Previous Versions",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Page ID"
+        }
+      ]
+    },
+    {
+      "name": "Page",
+      "pageType": 0,
+      "suffix": "/content/api/v2/pages/{Page ID}"
+    },
+    {
+      "name": "Page Buffer Contents",
+      "pageType": 0,
+      "suffix": "/content/api/v2/pages/{Page ID}/buffer"
+    },
+    {
+      "name": "Page Previous Versions",
+      "pageType": 0,
+      "suffix": "/content/api/v2/pages/{Page ID}/versions"
+    },
+    {
+      "name": "Site Maps",
+      "pageType": 1,
+      "suffix": "/content/api/v2/site-maps?deleted_at={Deleted At?:milliseconds}&id={ID?}&name={Name?}"
+    },
+    {
+      "name": "Site Map",
+      "pageType": 0,
+      "suffix": "/content/api/v2/site-maps/{Site Map ID}"
+    },
+    {
+      "name": "Search Your Site",
+      "pageType": 1,
+      "suffix": "/contentsearch/v2/search?portalId={Portal ID}&term={Search Term}&type={Type?:SITE_PAGE,LANDING_PAGE,BLOG_POST,LISTING_PAGE,KNOWLEDGE_ARTICLE}&domain={Domain?}&language={Language?}&property={Property?:title|description|html|author_full_name|author_handle}&groupId={Group ID?}&tableId={Table ID?}&hubdbQuery={HubDB Query?}&pathPrefix={Path Prefix?}&matchPrefix={Match Prefix?:true|false}"
+    },
+    {
+      "name": "Indexed Properties",
+      "pageType": 0,
+      "suffix": "/contentsearch/v2/search/{Document ID}?portalId={Portal ID}&type={Type:SITE_PAGE|BLOG_POST|KNOWLEDGE_ARTICLE}"
+    },
+    {
+      "name": "Templates",
+      "pageType": 1,
+      "suffix": "/content/api/v2/templates?deleted_at={Deleted At?:milliseconds}&id={ID?}&is_available_for_new_content={Is Available For New Content?:true|false}&path={Path?}&label={Label?}",
+      "lookups": [
+        {
+          "endpoint": "Template Buffer Contents",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Template ID"
+        },
+        {
+          "endpoint": "Template Previous Versions",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Template ID"
+        }
+      ]
+    },
+    {
+      "name": "Template",
+      "pageType": 0,
+      "suffix": "/content/api/v2/templates/{Template ID}"
+    },
+    {
+      "name": "Template Buffer Contents",
+      "pageType": 0,
+      "suffix": "/content/api/v2/templates/{Template ID}/buffer"
+    },
+    {
+      "name": "Template Previous Versions",
+      "pageType": 0,
+      "suffix": "/content/api/v2/templates/{Template ID}/versions"
+    },
+    {
+      "name": "Template Previous Version",
+      "pageType": 0,
+      "suffix": "/content/api/v2/templates/{Template ID}/versions/{Version ID}"
+    },
+    {
+      "name": "URL Mappings",
+      "pageType": 1,
+      "suffix": "/url-mappings/v3/url-mappings?id={ID?}&routePrefix={Route Prefix?}&destination={Destination?}&contentGroupId={Content Group ID?}&name={name?}&isOnlyAfterNotFound={Is Only After Not Found?:true|false}&isRegex={Is Regex?:true|false}&isMatchFullUrl={Is Match Full Url?:true|false}&isPattern={Is Pattern?:true|false}&created={Created?:milliseconds }&deleted_at={Deleted at?:milliseconds}&updated={Updated?:milliseconds}&causing={Causing?}"
+    },
+    {
+      "name": "URL Mapping",
+      "pageType": 0,
+      "suffix": "/url-mappings/v3/url-mappings/{Url Mapping ID}?casing={Casing?}"
+    },
+    {
+      "name": "CRM Object Associations",
+      "pageType": 1,
+      "suffix": "/crm-associations/v1/associations/{Object ID}/HUBSPOT_DEFINED/{Association Type}"
+    },
+    {
+      "name": "View Object Type",
+      "pageType": 0,
+      "suffix": "/extensions/sales-objects/v1/object-types/{Object Type ID}"
+    },
+    {
+      "name": "Object Properties",
+      "pageType": 0,
+      "suffix": "/properties/v2/{Object Type:tickets|products|line_items}/properties"
+    },
+    {
+      "name": "Object Property Groups",
+      "pageType": 0,
+      "suffix": "/properties/v2/{Object Type:tickets|products|line_items}/groups"
+    },
+    {
+      "name": "Object Type Pipelines",
+      "pageType": 0,
+      "suffix": "/crm-pipelines/v1/pipelines/{Object Type:tickets|deals}?includeInactive={Include Inactive?:EXCLUDE_DELETED|INCLUDE_DELETED}"
+    },
+    {
+      "name": "Deals",
+      "pageType": 7,
+      "suffix": "/deals/v1/deal/paged?properties={Properties?}&propertiesWithHistory={Properties With History?}&includeAssociations={Associations?:true|false}"
+    },
+    {
+      "name": "Recently Modified Deals",
+      "pageType": 2,
+      "suffix": "/deals/v1/deal/recent/modified?since={Since?:milliseconds}&includePropertyVersions={Include Property Versions?:true|false}"
+    },
+    {
+      "name": "Recently Created Deals",
+      "pageType": 2,
+      "suffix": "/deals/v1/deal/recent/created?since={Since?:milliseconds}&includePropertyVersions={Include Property Versions?:true|false}"
+    },
+    {
+      "name": "Deal",
+      "pageType": 0,
+      "suffix": "/deals/v1/deal/{Deal ID}?includePropertyVersions={Include Property Versions?:true|false}"
+    },
+    {
+      "name": "Associated Deals",
+      "pageType": 6,
+      "suffix": "/deals/v1/deal/associated/{Object Type:CONTACT|COMPANY}/{Object ID}/paged?properties={Properties?}&propertiesWithHistory={Properties With History?}&includeAssociations={Associations?:true|false}"
+    },
+    {
+      "name": "Deal Pipeline",
+      "pageType": 0,
+      "suffix": "/deals/v1/pipelines/{Pipeline ID}"
+    },
+    {
+      "name": "Deal Pipelines",
+      "pageType": 0,
+      "suffix": "/deals/v1/pipelines"
+    },
+    {
+      "name": "Deal Properties",
+      "pageType": 0,
+      "suffix": "/properties/v1/deals/properties/"
+    },
+    {
+      "name": "Deal Property",
+      "pageType": 0,
+      "suffix": "/properties/v1/deals/properties/named/{Property Name}"
+    },
+    {
+      "name": "Deal Property Groups",
+      "pageType": 0,
+      "suffix": "/properties/v1/deals/groups?includeProperties={Include Properties?:true|false}"
+    },
+    {
+      "name": "Deal Property Group",
+      "pageType": 0,
+      "suffix": "/properties/v1/deals/groups/named/{Property Group}?includeProperties={Include Properties?:true|false}"
+    },
+    {
+      "name": "Ecommerce Settings",
+      "pageType": 0,
+      "suffix": "/extensions/ecomm/v2/settings?showProvidedMappings={Show Provided Mappings?:true|false}"
+    },
+    {
+      "name": "Stores",
+      "pageType": 0,
+      "suffix": "/extensions/ecomm/v2/stores"
+    },
+    {
+      "name": "Store Details",
+      "pageType": 0,
+      "suffix": "/extensions/ecomm/v2/stores/{Store ID}"
+    },
+    {
+      "name": "App Sync Errors",
+      "pageType": 4,
+      "suffix": "/extensions/ecomm/v2/sync/errors/app/{App ID}?includeResolved={Include Resolved Errors?:true|false}&errorType={Error Type?:INACTIVE_PORTAL|NO_SYNC_SETTINGS|SETTINGS_NOT_ENABLED|NO_MAPPINGS_DEFINED|...}&objectType={Object Type?:CONTACT|DEAL|PRODUCT|LINE_ITEM}&page={Page?}"
+    },
+    {
+      "name": "Account Sync Errors",
+      "pageType": 4,
+      "suffix": "/extensions/ecomm/v2/sync/errors/portal?includeResolved={Include Resolved Errors?:true|false}&errorType={Error Type?:INACTIVE_PORTAL|NO_SYNC_SETTINGS|SETTINGS_NOT_ENABLED|NO_MAPPINGS_DEFINED|...}&objectType={Object Type?:CONTACT|DEAL|PRODUCT|LINE_ITEM}&page={Page?}"
+    },
+    {
+      "name": "App Account Sync Errors",
+      "pageType": 4,
+      "suffix": "/extensions/ecomm/v2/sync/errors?includeResolved={Include Resolved Errors?:true|false}&errorType={Error Type?:INACTIVE_PORTAL|NO_SYNC_SETTINGS|SETTINGS_NOT_ENABLED|NO_MAPPINGS_DEFINED|...}&objectType={Object Type?:CONTACT|DEAL|PRODUCT|LINE_ITEM}&page={Page?}"
+    },
+    {
+      "name": "Object Sync Status",
+      "pageType": 0,
+      "suffix": "/extensions/ecomm/v2/sync/status/{Store ID}/{Object Type:CONTACT|DEAL|PRODUCT|LINE_ITEM}/{External Object ID}"
+    },
+    {
+      "name": "Email Subscription Types",
+      "pageType": 0,
+      "suffix": "/email/public/v1/subscriptions?portalId={Portal ID}"
+    },
+    {
+      "name": "View Portal Subscriptions Timeline",
+      "pageType": 1,
+      "suffix": "/email/public/v1/subscriptions/timeline?changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&startTimestamp={Start Timestamp?:milliseconds}&endTimestamp={End Timestamp?:milliseconds}&includeSnapshots={Include Snapshots?}"
+    },
+    {
+      "name": "Email Subscription Status",
+      "pageType": 0,
+      "suffix": "/email/public/v1/subscriptions/{Email Address}?portalId={Portal ID}"
+    },
+    {
+      "name": "Portal Campaign IDs",
+      "pageType": 1,
+      "suffix": "/email/public/v1/campaigns/by-id",
+      "lookups": [
+        {
+          "endpoint": "Campaign Data",
+          "jsonPath": "$.campaigns[*]",
+          "key": "id",
+          "parameterName": "Campaign ID"
+        }
+      ]
+    },
+    {
+      "name": "Portal Campaign IDs With Recent Activity",
+      "pageType": 1,
+      "suffix": "/email/public/v1/campaigns",
+      "lookups": [
+        {
+          "endpoint": "Campaign Data",
+          "jsonPath": "$.campaigns[*]",
+          "key": "id",
+          "parameterName": "Campaign ID"
+        }
+      ]
+    },
+    {
+      "name": "Campaign Data",
+      "pageType": 0,
+      "suffix": "/email/public/v1/campaigns/{Campaign ID}"
+    },
+    {
+      "name": "Email Events",
+      "pageType": 1,
+      "suffix": "/email/public/v1/events?appId={HubSpot App ID?}&campaignId={HubSpot Campaign ID?}&recipient={Recipient Email Address?}&eventType={Event type?}&startTimestamp={Start Timestamp?:milliseconds}&endTimestamp={End Timestamp?:milliseconds}&excludeFilteredEvents={Exclude Filtered Events?:true|false}"
+    },
+    {
+      "name": "Email Event",
+      "pageType": 0,
+      "suffix": "/email/public/v1/events/{Event Creation Timestamp}/{Event ID}"
+    },
+    {
+      "name": "Engagement",
+      "pageType": 0,
+      "suffix": "/engagements/v1/engagements/{Engagement ID}"
+    },
+    {
+      "name": "Engagements",
+      "pageType": 6,
+      "suffix": "/engagements/v1/engagements/paged"
+    },
+    {
+      "name": "Recent Engagements",
+      "pageType": 2,
+      "suffix": "/engagements/v1/engagements/recent/modified"
+    },
+    {
+      "name": "Associated Engagements",
+      "pageType": 0,
+      "suffix": "/email/public/v1/events/{Event Creation Timestamp}/{Event ID}"
+    },
+    {
+      "name": "Call Engagement Dispositions",
+      "pageType": 0,
+      "suffix": "/calling/v1/dispositions"
+    },
+    {
+      "name": "Events",
+      "pageType": 0,
+      "suffix": "/reports/v2/events?includeDeletes={Include Deleted?:true|false}"
+    },
+    {
+      "name": "Event",
+      "pageType": 0,
+      "suffix": "/reports/v2/events/{Event ID}?includeDeletes={Include Deleted?:true|false}"
+    },
+    {
+      "name": "A Group Of Events",
+      "pageType": 0,
+      "suffix": "/reports/v2/events/batch?id={ID}&includeDeleted={Include Deleted?:true|false}"
+    },
+    {
+      "name": "Forms",
+      "pageType": 1,
+      "suffix": "/forms/v2/forms?formTypes={Form Types?}"
+    },
+    {
+      "name": "Form",
+      "pageType": 0,
+      "suffix": "/forms/v2/forms/{Form GUID}?"
+    },
+    {
+      "name": "Form Submissions",
+      "pageType": 5,
+      "suffix": "/form-integrations/v1/submissions/forms/{Form ID}"
+    },
+    {
+      "name": "File Uploaded Via Form",
+      "pageType": 0,
+      "suffix": "/form-integrations/v1/uploaded-files/signed-url-redirect/{File ID}"
+    },
+    {
+      "name": "Form Fields",
+      "pageType": 0,
+      "suffix": "/forms/v2/fields/{Form GUID}"
+    },
+    {
+      "name": "Form Single Field",
+      "pageType": 0,
+      "suffix": "/forms/v2/fields/{Form GUID}/{Field Name}"
+    },
+    {
+      "name": "Line Items",
+      "pageType": 6,
+      "suffix": "/crm-objects/v1/objects/line_items/paged?properties={Properties?}&propertiesWithHistory={Properties With History?}"
+    },
+    {
+      "name": "Line Item",
+      "pageType": 0,
+      "suffix": "/crm-objects/v1/objects/line_items/{Line Item ID}?properties={Properties?}&propertiesWithHistory={Properties With History?}&includeDeletes={Include Deletes?:true|false}"
+    },
+    {
+      "name": "Line items Change Log",
+      "pageType": 0,
+      "suffix": "/crm-objects/v1/change-log/line_items}?timestamp={Timestamp?}&changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&objectId={Object ID}"
+    },
+    {
+      "name": "Marketing Emails",
+      "pageType": 1,
+      "suffix": "/marketing-emails/v1/emails",
+      "lookups": [
+        {
+          "endpoint": "Marketing Email Revisions",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Email ID"
+        },
+        {
+          "endpoint": "Marketing Email Statistics",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Email ID"
+        },
+        {
+          "endpoint": "If Email Has Buffered Changes",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Email ID"
+        }
+      ]
+    },
+    {
+      "name": "Marketing Email Revisions",
+      "pageType": 0,
+      "suffix": "/marketing-emails/v1/emails/{Email ID}/versions"
+    },
+    {
+      "name": "Marketing Email Statistics",
+      "pageType": 0,
+      "suffix": "/marketing-emails/v1/emails/with-statistics/{Email ID}"
+    },
+    {
+      "name": "If Email Has Buffered Changes",
+      "pageType": 0,
+      "suffix": "/marketing-emails/v1/emails/{Email ID}/has-buffered-changes"
+    },
+    {
+      "name": "Marketing Emails Statistics",
+      "pageType": 1,
+      "suffix": "/marketing-emails/v1/emails/with-statistics"
+    },
+    {
+      "name": "Owners",
+      "pageType": 0,
+      "suffix": "/owners/v2/owners?includeInactive={Include Inactive?:true|false}&email={Email address}"
+    },
+    {
+      "name": "Owner",
+      "pageType": 0,
+      "suffix": "/owners/v2/owners/{Owner ID}"
+    },
+    {
+      "name": "Products",
+      "pageType": 6,
+      "suffix": "/crm-objects/v1/objects/products/paged?properties={Properties?}&propertiesWithHistory={Properties With History?:true|false}"
+    },
+    {
+      "name": "Product",
+      "pageType": 0,
+      "suffix": "/crm-objects/v1/objects/products/{Product ID}?properties={Properties?}&propertiesWithHistory={Properties With History?:true|false}&includeDeletes={Include Deleted?:true|false}"
+    },
+    {
+      "name": "ProductsChange Log",
+      "pageType": 0,
+      "suffix": "/crm-objects/v1/change-log/products?timestamp={Timestamp?}&changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&objectId={Object ID}"
+    },
+    {
+      "name": "Publishing Channels",
+      "pageType": 0,
+      "suffix": "/broadcast/v1/channels/setting/publish/current"
+    },
+    {
+      "name": "Broadcast Messages",
+      "pageType": 2,
+      "suffix": "/broadcast/v1/broadcasts?status={Filter By Status?:success|waiting|canceled|error_fatal}&since={Filter By Created At?:milliseconds }&channelGuid={Filter By Channel?}"
+    },
+    {
+      "name": "Broadcast Message",
+      "pageType": 0,
+      "suffix": "/broadcast/v1/broadcasts/{Broadcast GUID}"
+    },
+    {
+      "name": "Tickets",
+      "pageType": 6,
+      "suffix": "/crm-objects/v1/objects/tickets/paged?properties={Properties?}&propertiesWithHistory={Properties With History?:true|false}"
+    },
+    {
+      "name": "Ticket",
+      "pageType": 0,
+      "suffix": "/crm-objects/v1/objects/tickets/{Ticket ID}?properties={Properties?}&propertiesWithHistory={Ticket Properties With History?:true|false}&includeDeletes={Include Deleted?:true|false}"
+    },
+    {
+      "name": "Tickets Change Log",
+      "pageType": 0,
+      "suffix": "/crm-objects/v1/change-log/tickets?timestamp={Timestamp?}&changeType={Change Type?:SUBSCRIPTION_STATUS|PORTAL_STATUS|SUBSCRIPTION_SPAM_REPORT|PORTAL_SPAM_REPORT|PORTAL_BOUNCE}&objectId={Object ID}"
+    },
+    {
+      "name": "Timeline Event",
+      "pageType": 0,
+      "suffix": "/integrations/v1/{Application ID}/timeline/event/{Event type ID}/{Event ID}?access_token={Access Token}"
+    },
+    {
+      "name": "Timeline Event Types",
+      "pageType": 0,
+      "suffix": "/integrations/v1/{Application ID}/timeline/event-types"
+    },
+    {
+      "name": "Timeline Event By ID",
+      "pageType": 0,
+      "suffix": "/integrations/v1/{Application ID}/timeline/event-types/{Event type ID}"
+    },
+    {
+      "name": "Timeline Event Type Properties",
+      "pageType": 0,
+      "suffix": "/integrations/v1/{Application ID}/timeline/event-types/{Event type ID}/properties"
+    },
+    {
+      "name": "SMTP API Tokens",
+      "pageType": 0,
+      "suffix": "/email/public/v1/smtpapi/tokens"
+    },
+    {
+      "name": "Workflows",
+      "pageType": 0,
+      "suffix": "/automation/v3/workflows",
+      "lookups": [
+        {
+          "endpoint": "Workflow Performance Statistics",
+          "jsonPath": "$.workflows[*]",
+          "key": "id",
+          "parameterName": "Workflow ID"
+        }
+      ]
+    },
+    {
+      "name": "Workflow",
+      "pageType": 0,
+      "suffix": "/automation/v3/workflows/{Workflow ID}?errors={Error?:true|false}&stats={Stats?:true|false}"
+    },
+    {
+      "name": "Workflow Performance Statistics",
+      "pageType": 0,
+      "suffix": "/automation/v3/performance/workflow/{Workflow ID}?start={Start Date?:milliseconds}&end={End Date?:milliseconds}&bucket={Time Period?:DAY|WEEK|MONTH}"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Component Defaults */
+div {
+  position: absolute;
+}
+
+.checkbox {
+  overflow: hidden;
+}
+
+input.checkbox-title {
+  float: left;
+}
+
+div.vs-check-box {
+  overflow: hidden;
+}
+
+div.checkbox-title {
+  text-decoration: inherit;
+  display: flex;
+  overflow: hidden;
+}
+
+.checkbox-body > div,
+.checkbox-body > div > label {
+  margin: 0;
+  text-align: left;
+}
+
+.checkbox-body > div > label {
+  font: inherit;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: ellipsis;
+  align-items: center;
+}
+
+.checkbox-body > div > label > input {
+  margin-top: 0;
+  margin-right: 3px;
+}
+
+div.checkbox {
+  display: flex;
+}

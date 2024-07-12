@@ -1,0 +1,119 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMSettingsContentDriversPlugins'" [title]="'_#(em.data.databases.createDriver)'">
+</em-modal-header>
+<mat-dialog-content class="create-driver-dialog">
+  <mat-stepper #stepper orientation="horizontal" [linear]="true" (selectionChange)="selectionChange($event)">
+    <mat-step [stepControl]="uploadForm" label="_#(em.data.databases.driver.uploadFiles)" [editable]="false" [state]="uploadFilesStepState">
+      <div class="step-content" [formGroup]="uploadForm">
+        <mat-radio-group formControlName="uploadType">
+          <mat-radio-button value="upload">_#(Upload)</mat-radio-button>
+          <div>
+            <mat-list>
+              <mat-list-item *ngFor="let file of uploadForm.controls['uploadFiles']?.value">
+                <div class="fileListItem">
+                  <div class="flex-row">
+                    <span>{{ file.name }}</span>
+                  </div>
+                  <button mat-icon-button (click)="removeDriverFile(file)">
+                    <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+                  </button>
+                </div>
+              </mat-list-item>
+            </mat-list>
+            <input #uploadFileInput type="file" accept="application/java-archive" hidden multiple (change)="addDriverFiles($event)"/>
+            <mat-error *ngIf="uploadForm.errors?.uploadFilesRequired">_#(em.data.databases.driver.uploadFilesRequired)</mat-error>
+            <button mat-raised-button style="margin-top: 4px;" (click)="uploadFileInput.value = null; uploadFileInput.click()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">_#(Select)</button>
+          </div>
+          <mat-radio-button class="align-button" value="maven">_#(Maven)</mat-radio-button>
+          <div>
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(em.data.databases.driver.mavenCoord)</mat-label>
+              <input matInput placeholder="_#(em.data.databases.driver.mavenCoord)" formControlName="mavenCoord" [matAutocomplete]="mavenComplete">
+              <mat-error *ngIf="uploadForm.controls['mavenCoord']?.errors?.required">_#(em.data.databases.driver.mavenCoordRequired)</mat-error>
+              <mat-error *ngIf="uploadForm.controls['mavenCoord']?.errors?.pattern">_#(em.data.databases.driver.mavenCoordInvalid)</mat-error>
+              <mat-hint *ngIf="!uploadForm.controls['mavenCoord']?.errors?.required || uploadForm.controls['mavenCoord']?.pristine">_#(em.data.databases.driver.mavenCoordHint)</mat-hint>
+            </mat-form-field>
+            <mat-autocomplete #mavenComplete="matAutocomplete">
+              <mat-option *ngIf="searching" class="is-searching">
+                <mat-spinner diameter="24"></mat-spinner>
+              </mat-option>
+              <ng-container *ngIf="!searching">
+                <mat-option *ngFor="let coord of filteredCoords" [value]="coord">{{ coord }}</mat-option>
+              </ng-container>
+            </mat-autocomplete>
+          </div>
+        </mat-radio-group>
+      </div>
+      <div class="step-buttons">
+        <button mat-raised-button color="primary" (click)="uploadDrivers()" [disabled]="loading || uploadForm.invalid || uploadForm.pristine">_#(Next)</button>
+        <button mat-raised-button (click)="dialogRef.close()">_#(Cancel)</button>
+      </div>
+    </mat-step>
+    <mat-step [stepControl]="driverForm" label="_#(em.data.databases.driver.selectDrivers)" [editable]="false" [state]="selectDriversStepState">
+      <div class="step-content" [formGroup]="driverForm">
+        <mat-selection-list formControlName="drivers">
+          <mat-list-option *ngFor="let driver of drivers" [value]="driver">{{driver}}</mat-list-option>
+        </mat-selection-list>
+        <mat-error *ngIf="driverForm.controls['drivers']?.errors?.required">_#(em.data.databases.driver.driversRequired)</mat-error>
+      </div>
+      <div class="step-buttons">
+        <button mat-raised-button color="primary" type="button" matStepperNext [disabled]="driverForm.invalid || driverForm.pristine">_#(Next)</button>
+        <button mat-raised-button (click)="dialogRef.close()">_#(Cancel)</button>
+      </div>
+    </mat-step>
+    <mat-step [stepControl]="pluginForm" label="_#(em.data.databases.driver.configurePlugin)" [editable]="false" [state]="configPluginStepState">
+      <div class="step-content" [formGroup]="pluginForm">
+        <div class="help-note">_#(em.data.databases.driver.pluginSettingsHelp)</div>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(em.data.databases.driver.pluginId)</mat-label>
+          <input matInput placeholder="_#(em.data.databases.driver.pluginId)" formControlName="pluginId">
+          <mat-hint>_#(em.data.databases.driver.pluginIdHint)</mat-hint>
+          <mat-error *ngIf="pluginForm.controls['pluginId']?.errors?.required">_#(em.data.databases.driver.pluginIdRequired)</mat-error>
+          <mat-error *ngIf="pluginForm.controls['pluginId']?.errors?.pluginExists">_#(em.data.databases.driver.pluginIdExists)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(em.data.databases.driver.pluginName)</mat-label>
+          <input matInput placeholder="_#(em.data.databases.driver.pluginName)" formControlName="pluginName">
+          <mat-hint>_#(em.data.databases.driver.pluginNameHint)</mat-hint>
+          <mat-error *ngIf="pluginForm.controls['pluginName']?.errors?.required">_#(em.data.databases.driver.pluginNameRequired)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(em.data.databases.driver.pluginVersion)</mat-label>
+          <input matInput placeholder="_#(em.data.databases.driver.pluginVersion)" formControlName="pluginVersion">
+          <mat-hint [innerHTML]="'_#(em.data.databases.driver.pluginVersionHint)'"></mat-hint>
+          <mat-error *ngIf="pluginForm.controls['pluginVersion']?.errors?.required">_#(em.data.databases.driver.pluginVersionRequired)</mat-error>
+          <mat-error *ngIf="pluginForm.controls['pluginVersion']?.errors?.pattern">_#(em.data.databases.driver.pluginVersionInvalid)</mat-error>
+        </mat-form-field>
+      </div>
+      <div class="step-buttons">
+        <button mat-raised-button color="primary" (click)="createDriver()" [disabled]="pluginForm.invalid || pluginForm.pristine">_#(Finish)</button>
+        <button mat-raised-button (click)="dialogRef.close(false)">_#(Cancel)</button>
+      </div>
+    </mat-step>
+    <ng-template matStepperIcon="done">
+      <mat-icon fontSet="ineticons" fontIcon="select-single-icon"></mat-icon>
+    </ng-template>
+    <ng-template matStepperIcon="edit">
+      <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+    </ng-template>
+  </mat-stepper>
+</mat-dialog-content>
+<em-loading-spinner [loading]="loading"></em-loading-spinner>

@@ -1,0 +1,161 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden" *ngIf="!unauthorizedAccess">
+  <div class="d-flex align-items-center th-cell-border flex-grow-0 flex-shrink-0 list-contents">
+    <div class="col-1 table-cell-padding-sm" *ngIf="selectionOn">
+      <input type="checkbox" class="align-middle"
+             [checked]="selectAllChecked"
+             (change)="selectAllChanged.emit($event.target.checked)"/>
+    </div>
+    <div class="table-cell-padding-sm" [ngClass]="{'col-6 col-md-8': !searchView && !selectionOn,
+                                 'col-5 col-md-7': !searchView && selectionOn,
+                                 'col-5': searchView && !selectionOn,
+                                 'col-4': searchView && selectionOn}">
+      <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('name')">
+        <span class="pe-1">_#(Name)</span>
+        <i class="action-color blank-icon" *ngIf="sortOptions.keys.includes('name')"></i>
+        <i class="action-color icon-size-small" *ngIf="sortOptions.keys.includes('name')"
+           [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
+           [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+      </div>
+    </div>
+    <div class="col-3 table-cell-padding-sm" *ngIf="searchView">
+      <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('parentPath')">
+        <span class="pe-1">_#(Location)</span>
+        <i class="action-color blank-icon" *ngIf="sortOptions.keys.includes('parentPath')"></i>
+        <i class="action-color icon-size-small" *ngIf="sortOptions.keys.includes('parentPath')"
+           [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
+           [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+      </div>
+    </div>
+    <div class="table-cell-padding-sm" [ngClass]="{'col-3 col-md-2': !searchView, 'col-2': searchView}">
+      <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('createdBy')">
+        <span class="pe-1">_#(data.datasources.createdBy)</span>
+        <i class="blank-icon" *ngIf="sortOptions.keys.includes('createdBy')"></i>
+        <i class="icon-size-small" *ngIf="sortOptions.keys.includes('createdBy')"
+           [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
+           [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+      </div>
+    </div>
+    <div class="table-cell-padding-sm" [ngClass]="{'col-3 col-md-2': !searchView, 'col-2': searchView}">
+      <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('modifiedDate')">
+        <span class="pe-1">_#(Last Modified)</span>
+        <i class="action-color blank-icon" *ngIf="sortOptions.keys.includes('modifiedDate')"></i>
+        <i class="action-color icon-size-small" *ngIf="sortOptions.keys.includes('modifiedDate')"
+           [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
+           [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+      </div>
+    </div>
+  </div>
+  <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-auto list-contents"
+       (dragover)="$event.preventDefault();"
+       (dragenter)="$event.preventDefault()" (drop)="dropAssets(null, $event)">
+    <div class="table-cell-padding-sm" *ngIf="assets.length === 0 && searchView">
+      _#(data.datasets.noSearchResults)
+    </div>
+    <div *ngFor="let asset of assets; last as isLast"
+         class="hover-bg-primary folder-list-item d-flex align-items-center"
+         [class.td-cell-border]="!isLast"
+         [class.bg-selected]="selectedFile === asset || isSelectedItem(asset)"
+         (dragstart)="dragAsset($event, asset)" [draggable]="true"
+         (dragover)="$event.preventDefault();"
+         (dragenter)="$event.preventDefault()" (drop)="dropAssets(asset, $event)"
+         (click)="updateAssetSelection(asset, $event)">
+      <div class="col-1 table-cell-padding-sm" *ngIf="selectionOn">
+        <input type="checkbox" class="align-middle"
+               [checked]="selectedItems.includes(asset)"
+               (change)="updateSelection(asset)"
+               (click)="$event.stopPropagation()"/>
+      </div>
+      <div class="table-cell-padding-sm"
+           [ngClass]="{'col-6 col-md-8': !searchView && !selectionOn,
+                       'col-5 col-md-7': !searchView && selectionOn,
+                       'col-5': searchView && !selectionOn,
+                       'col-4': searchView && selectionOn}">
+        <div class="d-flex align-items-center truncate-parent">
+          <i class="action-color truncate-addon"
+             [ngClass]="getIcon(asset)">
+          </i>
+          <span class="px-1 truncate-text content-ellipse list-label"
+            (click)="selectAsset(asset, $event)">{{asset.name}}</span>
+          <div class="d-flex align-items-center action-style truncate-addon" ngbDropdown>
+            <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
+               ngbDropdownToggle (click)="clickMenu()"></i>
+            <div class="dropdown-menu unhighlightable" ngbDropdownMenu (click)="clickMenu()">
+              <div *ngIf="asset.type == 'WORKSHEET' && asset.editable">
+                <button class="dropdown-item" (click)="editWorksheet.emit(asset)">
+                  _#(Edit)
+                </button>
+              </div>
+              <div>
+                <button class="dropdown-item"
+                        [disabled]="!asset.deletable || !asset.editable"
+                        (click)="renameAsset.emit(asset)">
+                  _#(Rename)
+                </button>
+              </div>
+              <div>
+                <button class="dropdown-item"
+                        [disabled]="!canMoveAsset(asset)"
+                        (click)="moveAsset.emit(asset); $event.stopPropagation()">
+                  _#(Move)
+                </button>
+              </div>
+              <div>
+                <button class="dropdown-item"
+                        [disabled]="!asset.deletable"
+                        (click)="deleteAsset.emit(asset)">
+                  _#(Delete)
+                </button>
+              </div>
+              <div>
+                <button class="dropdown-item" (click)="showDetails.emit(asset)">_#(Details)</button>
+              </div>
+              <div *ngIf="asset.canMaterialize">
+                <button class="dropdown-item" (click)="materializeAsset.emit(asset)">
+                  _#(Materialize)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-3 table-cell-padding-sm" *ngIf="searchView">
+        <a class="action-style text-decoration-none" [routerLink]="'../folder'"
+           [queryParams]="getParentRouterLinkParams(asset?.parentPath, asset?.scope)"
+           [title]="asset?.parentPath">
+          <div class="d-flex align-items center">
+            <i class="folder-icon"></i>
+            <span class="px-1 content-ellipse"> {{asset?.parentPath}} </span>
+          </div>
+        </a>
+      </div>
+      <div class="table-cell-padding-sm truncate-parent" [ngClass]="{'col-3 col-md-2': !searchView, 'col-2': searchView}">
+        <span class="truncate-text">{{asset.createdBy}}</span>
+      </div>
+      <div class="table-cell-padding-sm" [ngClass]="{'col-3 col-md-2': !searchView, 'col-2': searchView}">
+        {{asset.modifiedDate == 0 ? null : asset.modifiedDateLabel}}
+      </div>
+    </div>
+  </div>
+</div>
+<div class="alert alert-warning" *ngIf="unauthorizedAccess">
+  _#(data.datasets.unauthorized)
+</div>

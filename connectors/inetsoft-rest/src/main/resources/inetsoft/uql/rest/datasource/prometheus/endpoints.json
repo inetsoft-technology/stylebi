@@ -1,0 +1,74 @@
+{
+  "endpoints": [
+    {
+      "paged": "false", 
+      "name": "Instant Query", 
+      "suffix": "/v1/query?query={Query}&time={Time?:YYYY-MM-DDTHH:MM:SSZ}&timeout={Timeout?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Range Query", 
+      "suffix": "/v1/query_range?query={Query String}&start={Start Time:YYYY-MM-DDTHH:MM:SSZ}&end={End Time:YYYY-MM-DDTHH:MM:SSZ}&step={Step}&timeout={Timeout?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Metadata", 
+      "suffix": "/v1/series?match[]={Series Selector,}&start={Start Time:YYYY-MM-DDTHH:MM:SSZ}&end={End Time:YYYY-MM-DDTHH:MM:SSZ}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Label Names", 
+      "suffix": "/v1/labels"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Label Values", 
+      "suffix": "/v1/label/{Label Name}/values"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Targets", 
+      "suffix": "/v1/targets?state={State?:active|dropped|any}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Rules", 
+      "suffix": "/v1/rules?type={Type:alert|record}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Alerts", 
+      "suffix": "/v1/alerts"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Target Metadata", 
+      "suffix": "/v1/targets/metadata?match_target={Match Target}&metric={Metric}&limit={Limit}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Alert managers", 
+      "suffix": "/v1/alertmanagers"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Status", 
+      "suffix": "/v1/status/config"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Runtime Information", 
+      "suffix": "/v1/status/runtimeinfo"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Build Information", 
+      "suffix": "/v1/status/buildinfo"
+    }, 
+    {
+      "paged": "false", 
+      "name": "TSDB Statistics", 
+      "suffix": "/v1/status/tsdb"
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "endpoints": [
+    {
+      "name": "Customers",
+      "suffix": "/customers",
+      "lookups": [
+        {
+          "endpoint": "Customer Orders",
+          "jsonPath": "/Customers/Customer",
+          "key": "id",
+          "parameterName": "Customer ID"
+        }
+      ]
+    },
+    {
+      "name": "Customer Orders",
+      "suffix": "/customers/{Customer ID}/orders",
+      "lookups": [
+        {
+          "endpoint": "Order Supplier",
+          "jsonPath": "/Orders/Order",
+          "key": "id",
+          "parameterName": "Order ID"
+        }
+      ]
+    },
+    {
+      "name": "Order Supplier",
+      "suffix": "/orders/{Order ID}/supplier"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="theme-editor-view">
+  <div class="flex theme-editor-container" *ngIf="theme">
+    <em-editor-panel
+      contentClass="tabbed-editor-panel-content"
+      [applyDisabled]="!themeValid"
+      (applyClicked)="themeSaved.emit(theme)"
+      (resetClicked)="reset()"
+      >
+      <mat-tab-group color="accent" [selectedIndex]="selectedTab" (selectedTabChange)="onSelectedTabChanged($event)">
+        <mat-tab label="_#(Theme)">
+          <em-theme-properties-view
+            [theme]="theme"
+            [themeNames]="themeNames"
+            [isSiteAdmin]="isSiteAdmin"
+            (themePropertiesChanged)="onThemePropertiesChanged($event)"
+            ></em-theme-properties-view>
+        </mat-tab>
+        <mat-tab label="_#(CSS)">
+          <em-theme-css-view #cssView
+            [theme]="theme"
+            [isSiteAdmin]="isSiteAdmin"
+            (themeCssChanged)="onThemeCssChanged($event)"
+            ></em-theme-css-view>
+        </mat-tab>
+      </mat-tab-group>
+      <ng-container em-editor-panel-actions>
+        <button [disabled]="!isSiteAdmin && theme?.global" mat-button *ngIf="selectedTab === 1" (click)="clearCss()">_#(Clear)</button>
+      </ng-container>
+    </em-editor-panel>
+  </div>
+</div>

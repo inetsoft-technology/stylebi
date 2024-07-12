@@ -1,0 +1,78 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.field-container {
+  display: flex;
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+.fieldmc {
+   vertical-align: middle;
+   flex-grow: 10;
+   display: flex;
+   align-items: center;
+   cursor: pointer;
+}
+
+.drag-handle {
+  width: 10px;
+  background: repeating-linear-gradient(
+    45deg,
+    #bbbbbb,
+    #bbbbbb 1px,
+    #eeeeee 1px,
+    #eeeeee 2px
+  );
+  border-radius: 3px 0 0 3px;
+}
+
+.fieldmc-combo {
+   min-width: 80px;
+   max-width: 200px;
+}
+
+.fieldmc-label {
+   position: relative;
+   min-width: 80px;
+   max-width: 200px;
+}
+
+.fieldCombo {
+  flex-grow: 1;
+  min-width: 50px;
+  width: 1000px;
+  margin-left: -1px; /* overlap border with outer border */
+}
+
+.fieldEditIcon {
+  line-height: 1;
+  margin-left: 0.25em;
+  margin-right: 0.25em;
+}
+
+.fieldOption {
+   width: 15px;
+   height: 0;
+   margin-top: 10px;
+   position: absolute;
+   z-index: 100;
+}
+
+//::ng-deep .fieldmc .form-control {
+//  padding: 0.25rem 0.75rem;
+//}

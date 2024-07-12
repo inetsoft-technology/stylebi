@@ -1,0 +1,116 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@import "../../../../scss/internal/mixins";
+
+$stacking-order: (
+  right-top-table,
+  left-bottom-table,
+  left-top-table,
+  border-div,
+  table-title,
+  title-move-zone,
+  annotation-hidden-container
+);
+
+@include set-z-index($stacking-order);
+
+.title-input {
+  width: 100%;
+}
+
+.table-wrapper {
+  position: absolute;
+  overflow: hidden;
+}
+
+.lower-table {
+  position: absolute;
+  overflow: hidden;
+}
+
+.left-bottom-table {
+  position: absolute;
+  top: 0;
+  overflow: hidden;
+}
+
+.left-top-table {
+  position: absolute;
+}
+
+.right-top-table {
+  position: absolute;
+  right: 0;
+  overflow: hidden;
+}
+
+.table-cell:first-child {
+  border-left: 0;
+}
+
+table {
+  table-layout: fixed;
+}
+
+#cell-dropdown-menu {
+  position: fixed;
+}
+
+.lower-table table {
+  table-layout: fixed;
+}
+
+.crosstab-overflow-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.sort-button {
+  visibility: hidden;
+}
+
+.drill-tip {
+  position: absolute;
+  right: 3px;
+  top: 2px;
+  z-index: 5000;
+  opacity: 0.8;
+  font-size: 16px;
+  color: black;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.date-comparison-tip {
+  position: absolute;
+  top: 2px;
+  z-index: 5000;
+  opacity: 0.8;
+  font-size: 20px;
+  cursor: pointer;
+  color: black;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.vs-object:hover .move-down {
+  top: 30px;
+  background: white;
+}

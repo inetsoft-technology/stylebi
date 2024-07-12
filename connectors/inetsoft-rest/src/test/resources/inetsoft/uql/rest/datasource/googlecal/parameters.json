@@ -1,0 +1,63 @@
+{
+  "tests": [
+    {
+      "endpoint": "Calendar Lists",
+      "jsonPath": "$.items",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Calendar List",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Calendar ID": "en.usa#holiday@group.v.calendar.google.com"
+      }
+    },
+    {
+      "endpoint": "Calendar",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Calendar ID": "en.usa#holiday@group.v.calendar.google.com"
+      }
+    },
+    {
+      "endpoint": "Colors",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Events",
+      "jsonPath": "$.items",
+      "expandArrays": false,
+      "parameters": {
+        "Calendar ID": "en.usa#holiday@group.v.calendar.google.com"
+      }
+    },
+    {
+      "endpoint": "Event",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Calendar ID": "en.usa#holiday@group.v.calendar.google.com",
+        "Event ID": "20190101_60o30dr46oo30c1g60o30dr56c"
+      }
+    },
+    {
+      "endpoint": "Settings",
+      "jsonPath": "$.items",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Settings",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Setting ID": "autoAddHangouts"
+      }
+    }
+  ]
+}

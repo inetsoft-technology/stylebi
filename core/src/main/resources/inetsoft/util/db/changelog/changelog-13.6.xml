@@ -1,0 +1,78 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
+
+  <!-- Schema migration for changes made in v13.6. -->
+
+  <changeSet id="changelog-13.6.0" author="inetsoft">
+    <comment>Add logoff reason column to sr_session table.</comment>
+
+    <sql dbms="mssql" splitStatements="true" endDelimiter=";">
+      alter table sr_session add logoff_reason varchar(255);
+    </sql>
+
+    <sql dbms="oracle" splitStatements="true" endDelimiter="/">
+      alter table sr_session add logoff_reason varchar(255)
+    </sql>
+
+    <sql dbms="derby" splitStatements="true" endDelimiter=";">
+      alter table sr_session add column logoff_reason varchar(255);
+    </sql>
+
+    <sql dbms="db2">
+      alter table sr_session add logoff_reason varchar(255)
+    </sql>
+
+    <sql dbms="postgresql" splitStatements="true" endDelimiter="/">
+      alter table sr_session add logoff_reason varchar(255)
+    </sql>
+
+    <sql dbms="mysql">
+      alter table sr_session add logoff_reason varchar(255)
+    </sql>
+
+    <sql dbms="h2">
+      alter table sr_session add logoff_reason varchar(255)
+    </sql>
+
+    <rollback>
+      <sql dbms="oracle, derby" splitStatements="true" endDelimiter=";">
+        alter table sr_session drop column logoff_reason;
+      </sql>
+
+      <sql dbms="db2, mysql, h2">
+        alter table sr_session drop column logoff_reason
+      </sql>
+
+      <sql dbms="postgresql" splitStatements="true" endDelimiter=";">
+        alter table sr_session drop column logoff_reason;
+      </sql>
+
+      <sql dbms="mssql" splitStatements="true" endDelimiter=";">
+        alter table sr_session drop column logoff_reason;
+      </sql>
+    </rollback>
+  </changeSet>
+
+</databaseChangeLog>

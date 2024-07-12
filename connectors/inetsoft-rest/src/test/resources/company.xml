@@ -1,0 +1,42 @@
+<!--
+
+    inetsoft-rest - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<SpringAhead xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Company>
+    <Id>1</Id>
+    <Active>true</Active>
+    <CreatedDate>2011-03-23T23:00:25</CreatedDate>
+    <CreatedUserId>2</CreatedUserId>
+    <ModifiedDate>2011-04-21T18:07:14</ModifiedDate>
+    <ModifiedUserId>1</ModifiedUserId>
+    <Name>Mindjet dfkkj</Name>
+    <BillAddress>
+      <Name>fd</Name>
+    </BillAddress>
+    <Phone1>+1 (03) 97266657</Phone1>
+    <RoleCustomer>true</RoleCustomer>
+    <RoleVendor>true</RoleVendor>
+    <BillCycle>All</BillCycle>
+    <InvoiceMessage xsi:nil="true"/>
+    <AccountsPayableContact xsi:nil="true"/>
+    <InvoiceTerm xsi:nil="true"/>
+    <FirstDayOfWeek>0</FirstDayOfWeek>
+    <FirstDayOfMonth>0</FirstDayOfMonth>
+  </Company>
+</SpringAhead>

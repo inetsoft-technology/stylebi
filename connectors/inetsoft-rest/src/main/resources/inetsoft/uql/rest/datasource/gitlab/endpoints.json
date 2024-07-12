@@ -1,0 +1,2574 @@
+{
+  "endpoints": [
+    {
+      "paged": "true",
+      "name": "Group Access Requests",
+      "suffix": "/v4/groups/{Group ID}/access_requests"
+    },
+    {
+      "paged": "true",
+      "name": "Project Access Requests",
+      "suffix": "/v4/projects/{Project ID}/access_requests"
+    },
+    {
+      "paged": "false",
+      "name": "Appearance Configuration",
+      "suffix": "/v4/application/appearance"
+    },
+    {
+      "paged": "true",
+      "name": "Applications",
+      "suffix": "/v4/applications"
+    },
+    {
+      "paged": "false",
+      "name": "Avatar",
+      "suffix": "/v4/avatar?email={Email:admin@example.com}&size={Size?}"
+    },
+    {
+      "paged": "true",
+      "name": "Issue Award Emojis",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/award_emoji"
+    },
+    {
+      "paged": "true",
+      "name": "Merge Request Award Emojis",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/award_emoji"
+    },
+    {
+      "paged": "true",
+      "name": "Snippet Award Emojis",
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/award_emoji"
+    },
+    {
+      "paged": "false",
+      "name": "Issue Award Emoji",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/award_emoji/{Award ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Merge Request Award Emoji",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/award_emoji/{Award ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Snippet Award Emoji",
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/award_emoji/{Award ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Comment Award Emojis",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/notes/{Note ID}/award_emoji"
+    },
+    {
+      "paged": "false",
+      "name": "Comment Award Emoji",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/notes/{Note ID}/award_emoji/{Award ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Badges",
+      "suffix": "/v4/projects/{Project ID}/badges?name={Badge Name?}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Badge",
+      "suffix": "/v4/projects/{Project ID}/badges/{Badge ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Badge Preview",
+      "suffix": "/v4/projects/{Project ID}/badges/render?link_url={Link URL:URL of the badge link}&image_url={Image URL:URL of the badge image}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Badges",
+      "suffix": "/v4/groups/{Group ID}/badges?name={Badge Name?}"
+    },
+    {
+      "paged": "false",
+      "name": "Group Badge",
+      "suffix": "/v4/groups/{Group ID}/badges/{Badge ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Group Badge Preview",
+      "suffix": "/v4/groups/{Group ID}/badges/render?link_url={Link URL:URL of the badge link}&image_url={Image URL:URL of the badge image}"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Branches",
+      "suffix": "/v4/projects/{Project ID}/repository/branches?search={Search Query?}"
+    },
+    {
+      "paged": "false",
+      "name": "Repository Branch",
+      "suffix": "/v4/projects/{Project ID}/repository/branches/{Branch Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Broadcast Messages",
+      "suffix": "/v4/broadcast_messages"
+    },
+    {
+      "paged": "false",
+      "name": "Broadcast Message",
+      "suffix": "/v4/broadcast_messages/{Message ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Clusters",
+      "suffix": "/v4/projects/{Project ID}/clusters"
+    },
+    {
+      "paged": "false",
+      "name": "Project Cluster",
+      "suffix": "/v4/projects/{Project ID}/clusters/{Cluster ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Clusters",
+      "suffix": "/v4/groups/{Group ID}/clusters"
+    },
+    {
+      "paged": "false",
+      "name": "Group Cluster",
+      "suffix": "/v4/groups/{Group ID}/clusters/{Cluster ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Commits",
+      "suffix": "/v4/projects/{Project ID}/repository/commits?ref_name={Ref Name?:Name of repository branch, tag or revision range}&since={Since?:YYYY-MM-DDTHH:MM:SSZ}&until={Until?:YYYY-MM-DDTHH:MM:SSZ}&path={Path?}&all={All?:true|false}&with_stats={With Stats?:true|false}&first_parent={First Parent?:true|false}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Single Commit",
+            "References a Commit is Pushed To",
+            "Commit Diff",
+            "Commit Comments",
+            "Commit Statuses",
+            "Commit Merge Requests",
+            "Commit GPG Signature"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Commit Hash"
+        },
+        {
+          "endpoint": "Project Commit Discussion Items",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Commit ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Single Commit",
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}?stats={Include Commit Stats?:true|false}"
+    },
+    {
+      "paged": "true",
+      "name": "References a Commit is Pushed To",
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/refs?type={Type?:branch|tag|all}"
+    },
+    {
+      "paged": "true",
+      "name": "Commit Diff",
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/diff"
+    },
+    {
+      "paged": "true",
+      "name": "Commit Comments",
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/comments"
+    },
+    {
+      "paged": "true",
+      "name": "Commit Statuses",
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/statuses?ref={Ref?:Repository branch or tag}&stage={Build Stage?:test}&name={Job Name?:bundler:audit}&all={All?:true|false}"
+    },
+    {
+      "paged": "true",
+      "name": "Commit Merge Requests",
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/merge_requests"
+    },
+    {
+      "paged": "false",
+      "name": "Commit GPG Signature",
+      "suffix": "/v4/projects/{Project ID}/repository/commits/{Commit Hash}/signature"
+    },
+    {
+      "paged": "true",
+      "name": "Project Registry Repositories",
+      "suffix": "/v4/projects/{Project ID}/registry/repositories?tags={Tags?}",
+      "lookups": [
+        {
+          "endpoint": "Project Registry Repository Tags",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Repository ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Group Registry Repositories",
+      "suffix": "/v4/groups/{Group ID}/registry/repositories?tags={Tags?}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Registry Repository Tags",
+      "suffix": "/v4/projects/{Project ID}/registry/repositories/{Repository ID}/tags"
+    },
+    {
+      "paged": "false",
+      "name": "Project Registry Repository Tag",
+      "suffix": "/v4/projects/{Project ID}/registry/repositories/{Repository ID}/tags/{Tag Name}"
+    },
+    {
+      "paged": "true",
+      "name": "User Custom Attributes",
+      "suffix": "/v4/users/{User ID}/custom_attributes"
+    },
+    {
+      "paged": "true",
+      "name": "Group Custom Attributes",
+      "suffix": "/v4/groups/{Group ID}/custom_attributes"
+    },
+    {
+      "paged": "true",
+      "name": "Project Custom Attributes",
+      "suffix": "/v4/projects/{Project ID}/custom_attributes"
+    },
+    {
+      "paged": "false",
+      "name": "User Custom Attribute",
+      "suffix": "/v4/users/{User ID}/custom_attributes/{Attribute Key}"
+    },
+    {
+      "paged": "false",
+      "name": "Group Custom Attribute",
+      "suffix": "/v4/groups/{Group ID}/custom_attributes/{Attribute Key}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Custom Attribute",
+      "suffix": "/v4/projects/{Project ID}/custom_attributes/{Attribute Key}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Dependencies",
+      "suffix": "/v4/projects/{Project ID}/dependencies?package_manager={Package Manager?:bundler,composer,maven,...}"
+    },
+    {
+      "paged": "true",
+      "name": "Deploy Keys",
+      "suffix": "/v4/deploy_keys"
+    },
+    {
+      "paged": "true",
+      "name": "Project Deploy Keys",
+      "suffix": "/v4/projects/{Project ID}/deploy_keys"
+    },
+    {
+      "paged": "false",
+      "name": "Project Deploy Key",
+      "suffix": "/v4/projects/{Project ID}/deploy_keys/{Key ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Deployments",
+      "suffix": "/v4/projects/{Project ID}/deployments?updated_after={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&updated_before={Updated Before?:YYYY-MM-DDTHH:MM:SSZ}&environment={Environment?}&status={Status?:created|running|success|...}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Deployment",
+      "suffix": "/v4/projects/{Project ID}/deployments/{Deployment ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Issue Discussion Items",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/discussions"
+    },
+    {
+      "paged": "false",
+      "name": "Project Issue Discussion Item",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/discussions/{Discussion ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Snippet Discussion Items",
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/discussions"
+    },
+    {
+      "paged": "false",
+      "name": "Project Snippet Discussion Item",
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/discussions/{Discussion ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Epic Discussion Items",
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/discussions"
+    },
+    {
+      "paged": "false",
+      "name": "Group Epic Discussion Item",
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/discussions/{Discussion ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Merge Request Discussion Items",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/discussions"
+    },
+    {
+      "paged": "false",
+      "name": "Project Merge Request Discussion Item",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/discussions/{Discussion ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Commit Discussion Items",
+      "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions"
+    },
+    {
+      "paged": "false",
+      "name": "Project Commit Discussion Item",
+      "suffix": "/v4/projects/{Project ID}/commits/{Commit ID}/discussions/{Discussion ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Dockerfile Templates",
+      "suffix": "/v4/templates/dockerfiles",
+      "lookups": [
+        {
+          "endpoint": "Dockerfile Template",
+          "jsonPath": "$.[*]",
+          "key": "key",
+          "parameterName": "Template Key"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Dockerfile Template",
+      "suffix": "/v4/templates/dockerfiles/{Template Key}"
+    },
+    {
+      "paged": "true",
+      "name": "Environments",
+      "suffix": "/v4/projects/{Project ID}/environments?name={Name?}&search={Search Query?}",
+      "lookups": [
+        {
+          "endpoint": "Environment",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Environment ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Environment",
+      "suffix": "/v4/projects/{Project ID}/environments/{Environment ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Epics",
+      "suffix": "/v4/groups/{Group ID}/epics?author_id={Author ID?}&labels={Labels?}&with_labels_details={With Labels Details?:true|false}&search={Search Query?}&state={State?:opened|closed|all}&created_after={Created After?:YYYY-MM-DDTHH:MM:SSZ}&created_before={Created Before?:YYYY-MM-DDTHH:MM:SSZ}&updated_after={Update After?:YYYY-MM-DDTHH:MM:SSZ}&updated_before={Updated Before?:YYYY-MM-DDTHH:MM:SSZ}&include_ancestor_groups={Include Ancestor Groups?:true|false}&include_descendant_groups={Include Descendant Groups?:true|false}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Group Epic Discussion Items",
+            "Epic Notes",
+            "Group Epic Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Epic ID"
+        },
+        {
+          "endpoints": [
+            "Epic Issues",
+            "Epics Related to Epic"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "iid",
+          "parameterName": "Epic IID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Group Epic",
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic IID}"
+    },
+    {
+      "paged": "true",
+      "name": "User Events",
+      "suffix": "/v4/events?action={Action Type?:created|updated|...}&target_type={Target Type?:issue|milestone|...}&before={Before?:YYYY-MM-DD}&after={After?:YYYY-MM-DD}&scope={Scope?}"
+    },
+    {
+      "paged": "true",
+      "name": "User Contribution Events",
+      "suffix": "/v4/users/{User ID}/events?action={Action Type?:created|updated|...}&target_type={Target Type?:issue|milestone|...}&before={Before?:YYYY-MM-DD}&after={After?:YYYY-MM-DD}"
+    },
+    {
+      "paged": "true",
+      "name": "Project's Visible Events",
+      "suffix": "/v4/projects/{Project ID}/events?action={Action Type?:created|updated|...}&target_type={Target Type?:issue|milestone|...}&before={Before?:YYYY-MM-DD}&after={After?:YYYY-MM-DD}"
+    },
+    {
+      "paged": "true",
+      "name": "Features",
+      "suffix": "/v4/features"
+    },
+    {
+      "paged": "true",
+      "name": "Geo Nodes",
+      "suffix": "/v4/geo_nodes"
+    },
+    {
+      "paged": "false",
+      "name": "Geo Node",
+      "suffix": "/v4/geo_nodes/{Geo Node ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Geo Node Statuses",
+      "suffix": "/v4/geo_nodes/status"
+    },
+    {
+      "paged": "false",
+      "name": "Geo Node Status",
+      "suffix": "/v4/geo_nodes/{Geo Node ID}/status"
+    },
+    {
+      "paged": "true",
+      "name": "Geo Node Failures",
+      "suffix": "/v4/geo_nodes/current/failures?type={Type?:repository|wiki}&failure_type={Failure Type?:sync|checksum_mismatch|verification}"
+    },
+    {
+      "paged": "true",
+      "name": "Groups",
+      "suffix": "/v4/groups?skip_groups={Skip Groups?:id1,id2,...}&all_available={All Available?:true|false}&search={Search Query?}&statistics={Include Statistics?:true|false}&with_custom_attributes={With Custom Attributes?:true|false}&owned={Owned?:true|false}&min_access_level={Min Access Level?:10|20|30|40|50}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Group Access Requests",
+            "Group Badges",
+            "Group Badge Preview",
+            "Group Clusters",
+            "Group Registry Repositories",
+            "Group Custom Attributes",
+            "Group Subgroups",
+            "Group Projects",
+            "Group Hooks",
+            "Group Issue Boards",
+            "Group Issues",
+            "Group Issues Statistics",
+            "Group Labels",
+            "Group Members",
+            "Group Members Including Inherited",
+            "Group Merge Requests",
+            "Group Milestones",
+            "Group Notification Settings",
+            "Group Packages",
+            "Group Search",
+            "Group Variables"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Group ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Group Subgroups",
+      "suffix": "/v4/groups/{Group ID}/subgroups?skip_groups={Skip Groups?:id1,id2,...}&all_available={All Available?:true|false}&search={Search Query?}&statistics={Include Statistics?:true|false}&with_custom_attributes={With Custom Attributes?:true|false}&owned={Owned?:true|false}&min_access_level={Min Access Level?:10|20|30|40|50}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Group Access Requests",
+            "Group Badges",
+            "Group Badge Preview",
+            "Group Clusters",
+            "Group Registry Repositories",
+            "Group Custom Attributes",
+            "Group Subgroups",
+            "Group Projects",
+            "Group Hooks",
+            "Group Issue Boards",
+            "Group Issues",
+            "Group Issues Statistics",
+            "Group Labels",
+            "Group Members",
+            "Group Members Including Inherited",
+            "Group Merge Requests",
+            "Group Milestones",
+            "Group Notification Settings",
+            "Group Packages",
+            "Group Search",
+            "Group Variables"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Group ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Group Projects",
+      "suffix": "/v4/groups/{Group ID}/projects?archived={Archived?:true|false}&visibility={Visibility?:public|internal|private}&search={Search Query?}&simple={Simple Response?:true|false}&owned={Owned?:true|false}&starred={Starred?:true|false}&include_subgroups={Include Subgroups?:true|false}&min_access_level={Min Access Level?:10|20|30|40|50}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Access Requests",
+            "Project Badges",
+            "Project Badge Preview",
+            "Repository Branches",
+            "Project Clusters",
+            "Repository Commits",
+            "Project Registry Repositories",
+            "Project Custom Attributes",
+            "Project Dependencies",
+            "Project Deploy Keys",
+            "Project Deployments",
+            "Environments",
+            "Project's Visible Events",
+            "Project Issue Boards",
+            "Project Issues",
+            "Project Issues Statistics",
+            "Project Jobs",
+            "Project Labels",
+            "Managed Licenses",
+            "Project Members",
+            "Project Members Including Inherited",
+            "Project Merge Request Approvals",
+            "Project Merge Request Approval Rules",
+            "Project Merge Requests",
+            "Project Milestones",
+            "Project Notification Settings",
+            "Project Packages",
+            "Project Pages Domains",
+            "Project Pipeline Schedules",
+            "Project Triggers",
+            "Project Pipelines",
+            "Export Status",
+            "Import Status",
+            "Project Statistics",
+            "Project Templates",
+            "Project",
+            "Project Users",
+            "Project Forks",
+            "Project Starrers",
+            "Project Languages",
+            "Project Hooks",
+            "Project Push Rule",
+            "Protected Branches",
+            "Protected Tags",
+            "Releases",
+            "Repository Tree",
+            "Compare Branches",
+            "Contributors",
+            "Merge Base",
+            "Project Runners",
+            "Project Search",
+            "Project Services",
+            "Project Service",
+            "Project Snippets",
+            "Project Repository Tags",
+            "Project Variables",
+            "Project Vulnerability Findings",
+            "Wikis"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Project ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Group",
+      "suffix": "/v4/groups/{Group ID}?with_custom_attributes={With Custom Attributes?:true|false}&with_projects={With Projects?:true|false}"
+    },
+    {
+      "paged": "true",
+      "name": "Search for Group",
+      "suffix": "/v4/groups?search={Search Query}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Hooks",
+      "suffix": "/v4/groups/{Group ID}/hooks"
+    },
+    {
+      "paged": "false",
+      "name": "Group Hook",
+      "suffix": "/v4/groups/{Group ID}/hooks/{Hook ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Issue Boards",
+      "suffix": "/v4/projects/{Project ID}/boards"
+    },
+    {
+      "paged": "false",
+      "name": "Project Issue Board",
+      "suffix": "/v4/projects/{Project ID}/boards/{Board ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Issue Board Lists",
+      "suffix": "/v4/projects/{Project ID}/boards/{Board ID}/lists"
+    },
+    {
+      "paged": "false",
+      "name": "Project Issue Board List",
+      "suffix": "/v4/projects/{Project ID}/boards/{Board ID}/lists/{List ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Issue Boards",
+      "suffix": "/v4/groups/{Group ID}/boards"
+    },
+    {
+      "paged": "false",
+      "name": "Group Issue Board",
+      "suffix": "/v4/groups/{Group ID}/boards/{Board ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Issue Board Lists",
+      "suffix": "/v4/groups/{Group ID}/boards/{Board ID}/lists"
+    },
+    {
+      "paged": "false",
+      "name": "Group Issue Board List",
+      "suffix": "/v4/groups/{Group ID}/boards/{Board ID}/lists/{List ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Issues",
+      "suffix": "/v4/issues?state={State?:opened|closed}&labels={Labels?:label1,label2,...}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Issues",
+      "suffix": "/v4/groups/{Group ID}/issues?state={State?:opened|closed}&labels={Labels?:label1,label2,...}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Issue Award Emojis",
+            "Project Issue Discussion Items",
+            "Project Issue",
+            "Time Tracking Stats",
+            "Merge Requests Related to Issue",
+            "Merge Requests That Close Issue",
+            "Participants on Issue",
+            "User Agent Details",
+            "Issue Relations",
+            "Project Issue Notes",
+            "Project Issue Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "iid",
+          "parameterName": "Issue IID",
+          "parameters": {
+            "Project ID": "$.project_id"
+          }
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Project Issues",
+      "suffix": "/v4/projects/{Project ID}/issues?state={State?:opened|closed}&labels={Labels?:label1,label2,...}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Issue Award Emojis",
+            "Project Issue Discussion Items",
+            "Project Issue",
+            "Time Tracking Stats",
+            "Merge Requests Related to Issue",
+            "Merge Requests That Close Issue",
+            "Participants on Issue",
+            "User Agent Details",
+            "Issue Relations",
+            "Project Issue Notes",
+            "Project Issue Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "iid",
+          "parameterName": "Issue IID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Project Issue",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}"
+    },
+    {
+      "paged": "false",
+      "name": "Time Tracking Stats",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/time_stats"
+    },
+    {
+      "paged": "true",
+      "name": "Merge Requests Related to Issue",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/related_merge_requests",
+      "lookups": [
+        {
+          "endpoints": [
+            "Merge Request Award Emojis",
+            "Project Merge Request Discussion Items",
+            "Merge Request Approval Status",
+            "Merge Request Approval State",
+            "Merge Request Approval Rules",
+            "Merge Request Participants",
+            "Merge Request Commits",
+            "Merge Request Changes",
+            "Merge Request Pipelines",
+            "Issues Closed on Merge",
+            "Merge Request Diff Versions",
+            "Merge Request Time Tracking Stats",
+            "Merge Request Notes",
+            "Project Merge Request Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Merge Request IID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Merge Requests That Close Issue",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/closed_by",
+      "lookups": [
+        {
+          "endpoints": [
+            "Merge Request Award Emojis",
+            "Project Merge Request Discussion Items",
+            "Merge Request Approval Status",
+            "Merge Request Approval State",
+            "Merge Request Approval Rules",
+            "Merge Request Participants",
+            "Merge Request Commits",
+            "Merge Request Changes",
+            "Merge Request Pipelines",
+            "Issues Closed on Merge",
+            "Merge Request Diff Versions",
+            "Merge Request Time Tracking Stats",
+            "Merge Request Notes",
+            "Project Merge Request Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Merge Request IID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Participants on Issue",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/participants",
+      "lookups": [
+        {
+          "endpoints": [
+            "User Status",
+            "SSH Keys for User"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "ID or Username"
+        },
+        {
+          "endpoints": [
+            "User Custom Attributes",
+            "User Contribution Events",
+            "Project Member",
+            "Project Member Including Inherited",
+            "User Projects",
+            "Starred Projects",
+            "User",
+            "GPG Keys for User",
+            "Emails for User",
+            "User Impersonation Tokens",
+            "User Memberships"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "User Agent Details",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/user_agent_detail"
+    },
+    {
+      "paged": "true",
+      "name": "Epic Issues",
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic IID}/issues",
+      "lookups": [
+        {
+          "endpoints": [
+            "Issue Award Emojis",
+            "Project Issue Discussion Items",
+            "Project Issue",
+            "Time Tracking Stats",
+            "Merge Requests Related to Issue",
+            "Merge Requests That Close Issue",
+            "Participants on Issue",
+            "User Agent Details",
+            "Issue Relations",
+            "Project Issue Notes",
+            "Project Issue Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "iid",
+          "parameterName": "Issue IID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Issues Statistics",
+      "suffix": "/v4/issues_statistics?labels={Labels?:label1,label2,...}&milestone={Milestone?:None|Any}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Issues Statistics",
+      "suffix": "/v4/groups/{Group ID}/issues_statistics?labels={Labels?:label1,label2,...}&milestone={Milestone?:None|Any}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Issues Statistics",
+      "suffix": "/v4/projects/{Project ID}/issues_statistics?labels={Labels?:label1,label2,...}&milestone={Milestone?:None|Any}&scope={Scope?:created_by_me|assigned_to_me|all}&author_id={Author ID?}&search={Search Query?}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Jobs",
+      "suffix": "/v4/projects/{Project ID}/jobs?scope={Scope?:created|pending|...}"
+    },
+    {
+      "paged": "true",
+      "name": "Pipeline Jobs",
+      "suffix": "/v4/projects/{Project ID}/pipelines/{Pipeline ID}/jobs?scope={Scope?:created|pending|...}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Job",
+      "suffix": "/v4/projects/{Project ID}/jobs/{Job ID}"
+    },
+    {
+      "paged": "false",
+      "name": "SSH Key by ID",
+      "suffix": "/v4/keys/{Key ID}"
+    },
+    {
+      "paged": "false",
+      "name": "SSH Key by Fingerprint",
+      "suffix": "/v4/keys?fingerprint={Fingerprint:Fingerprint of an SSH key}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Labels",
+      "suffix": "/v4/projects/{Project ID}/labels?with_counts={With Counts?:true|false}&include_ancestor_groups={Include Ancestor Groups?:true|false}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Label",
+      "suffix": "/v4/projects/{Project ID}/labels/{Label ID}?include_ancestor_groups={Include Ancestor Groups?:true|false}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Labels",
+      "suffix": "/v4/groups/{Group ID}/labels?with_counts={With Counts?:true|false}&include_ancestor_groups={Include Ancestor Groups?:true|false}"
+    },
+    {
+      "paged": "false",
+      "name": "Group Label",
+      "suffix": "/v4/groups/{Group ID}/labels/{Label ID}?include_ancestor_groups={Include Ancestor Groups?:true|false}"
+    },
+    {
+      "paged": "false",
+      "name": "License",
+      "suffix": "/v4/license"
+    },
+    {
+      "paged": "true",
+      "name": "Licenses",
+      "suffix": "/v4/licenses"
+    },
+    {
+      "paged": "true",
+      "name": "License Templates",
+      "suffix": "/v4/templates/licenses?popular={Popular?:true|false}"
+    },
+    {
+      "paged": "false",
+      "name": "License Template",
+      "suffix": "/v4/templates/licenses/{Key}?project={Copyrighted Project Name?}&fullname={Full-name of copyright holder?}"
+    },
+    {
+      "paged": "true",
+      "name": "Issue Relations",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/links",
+      "lookups": [
+        {
+          "endpoints": [
+            "Issue Award Emojis",
+            "Project Issue Discussion Items",
+            "Project Issue",
+            "Time Tracking Stats",
+            "Merge Requests Related to Issue",
+            "Merge Requests That Close Issue",
+            "Participants on Issue",
+            "User Agent Details",
+            "Issue Relations",
+            "Project Issue Notes",
+            "Project Issue Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "iid",
+          "parameterName": "Issue IID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Epics Related to Epic",
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic IID}/epics",
+      "lookups": [
+        {
+          "endpoints": [
+            "Group Epic Discussion Items",
+            "Epic Notes",
+            "Group Epic Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Epic ID"
+        },
+        {
+          "endpoints": [
+            "Epic Issues",
+            "Epics Related to Epic"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "iid",
+          "parameterName": "Epic IID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Managed Licenses",
+      "suffix": "/v4/projects/{Project ID}/managed_licenses"
+    },
+    {
+      "paged": "false",
+      "name": "Managed License",
+      "suffix": "/v4/projects/{Project ID}/managed_licenses/{Managed License ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Members",
+      "suffix": "/v4/groups/{Group ID}/members?query={Search Query?}&user_ids={User IDs?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "User Status",
+            "SSH Keys for User"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "ID or Username"
+        },
+        {
+          "endpoints": [
+            "User Custom Attributes",
+            "User Contribution Events",
+            "Group Member",
+            "Group Member Including Inherited",
+            "User Projects",
+            "Starred Projects",
+            "User",
+            "GPG Keys for User",
+            "Emails for User",
+            "User Impersonation Tokens",
+            "User Memberships"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Project Members",
+      "suffix": "/v4/projects/{Project ID}/members?query={Search Query?}&user_ids={User IDs?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "User Status",
+            "SSH Keys for User"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "ID or Username"
+        },
+        {
+          "endpoints": [
+            "User Custom Attributes",
+            "User Contribution Events",
+            "Project Member",
+            "Project Member Including Inherited",
+            "User Projects",
+            "Starred Projects",
+            "User",
+            "GPG Keys for User",
+            "Emails for User",
+            "User Impersonation Tokens",
+            "User Memberships"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Group Members Including Inherited",
+      "suffix": "/v4/groups/{Group ID}/members/all?query={Search Query?}&user_ids={User IDs?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "User Status",
+            "SSH Keys for User"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "ID or Username"
+        },
+        {
+          "endpoints": [
+            "User Custom Attributes",
+            "User Contribution Events",
+            "Group Member",
+            "Group Member Including Inherited",
+            "User Projects",
+            "Starred Projects",
+            "User",
+            "GPG Keys for User",
+            "Emails for User",
+            "User Impersonation Tokens",
+            "User Memberships"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Project Members Including Inherited",
+      "suffix": "/v4/projects/{Project ID}/members/all?query={Search Query?}&user_ids={User IDs?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "User Status",
+            "SSH Keys for User"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "ID or Username"
+        },
+        {
+          "endpoints": [
+            "User Custom Attributes",
+            "User Contribution Events",
+            "Project Member",
+            "Project Member Including Inherited",
+            "User Projects",
+            "Starred Projects",
+            "User",
+            "GPG Keys for User",
+            "Emails for User",
+            "User Impersonation Tokens",
+            "User Memberships"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Group Member",
+      "suffix": "/v4/groups/{Group ID}/members/{User ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Member",
+      "suffix": "/v4/projects/{Project ID}/members/{User ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Group Member Including Inherited",
+      "suffix": "/v4/groups/{Group ID}/members/all/{User ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Member Including Inherited",
+      "suffix": "/v4/projects/{Project ID}/members/all/{User ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Merge Request Approvals",
+      "suffix": "/v4/projects/{Project ID}/approvals"
+    },
+    {
+      "paged": "true",
+      "name": "Project Merge Request Approval Rules",
+      "suffix": "/v4/projects/{Project ID}/approval_rules"
+    },
+    {
+      "paged": "false",
+      "name": "Merge Request Approval Status",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/approvals"
+    },
+    {
+      "paged": "false",
+      "name": "Merge Request Approval State",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/approval_state"
+    },
+    {
+      "paged": "true",
+      "name": "Merge Request Approval Rules",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/approval_rules"
+    },
+    {
+      "paged": "true",
+      "name": "Merge Requests",
+      "suffix": "/v4/merge_requests?state={State?:opened|closed|...}&milestone={Milestone?:None|Any}&labels={Labels?:label1,label2,...}&author_id={Author ID?}&search={Search Query?}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Merge Requests",
+      "suffix": "/v4/projects/{Project ID}/merge_requests?state={State?:opened|closed|...}&milestone={Milestone?:None|Any}&labels={Labels?:label1,label2,...}&author_id={Author ID?}&search={Search Query?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Merge Request Award Emojis",
+            "Project Merge Request Discussion Items",
+            "Merge Request Approval Status",
+            "Merge Request Approval State",
+            "Merge Request Approval Rules",
+            "Merge Request Participants",
+            "Merge Request Commits",
+            "Merge Request Changes",
+            "Merge Request Pipelines",
+            "Issues Closed on Merge",
+            "Merge Request Diff Versions",
+            "Merge Request Time Tracking Stats",
+            "Merge Request Notes",
+            "Project Merge Request Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Merge Request IID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Group Merge Requests",
+      "suffix": "/v4/groups/{Group ID}/merge_requests?state={State?:opened|closed|...}&milestone={Milestone?:None|Any}&labels={Labels?:label1,label2,...}&author_id={Author ID?}&search={Search Query?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Merge Request Award Emojis",
+            "Project Merge Request Discussion Items",
+            "Merge Request Approval Status",
+            "Merge Request Approval State",
+            "Merge Request Approval Rules",
+            "Merge Request Participants",
+            "Merge Request Commits",
+            "Merge Request Changes",
+            "Merge Request Pipelines",
+            "Issues Closed on Merge",
+            "Merge Request Diff Versions",
+            "Merge Request Time Tracking Stats",
+            "Merge Request Notes",
+            "Project Merge Request Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Merge Request IID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Merge Request",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}?render_html={Render HTML?:true|false}&include_diverged_commits_count={Include Diverged Commits Count?:true|false}&include_rebase_in_progress={Include Rebase In Progess?:true|false}"
+    },
+    {
+      "paged": "true",
+      "name": "Merge Request Participants",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/participants",
+      "lookups": [
+        {
+          "endpoints": [
+            "User Status",
+            "SSH Keys for User"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "ID or Username"
+        },
+        {
+          "endpoints": [
+            "User Custom Attributes",
+            "User Contribution Events",
+            "Project Member",
+            "Project Member Including Inherited",
+            "User Projects",
+            "Starred Projects",
+            "User",
+            "GPG Keys for User",
+            "Emails for User",
+            "User Impersonation Tokens",
+            "User Memberships"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Merge Request Commits",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/commits",
+      "lookups": [
+        {
+          "endpoints": [
+            "Single Commit",
+            "References a Commit is Pushed To",
+            "Commit Diff",
+            "Commit Comments",
+            "Commit Statuses",
+            "Commit Merge Requests",
+            "Commit GPG Signature"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Commit Hash"
+        },
+        {
+          "endpoint": "Project Commit Discussion Items",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Commit ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Merge Request Changes",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/changes"
+    },
+    {
+      "paged": "true",
+      "name": "Merge Request Pipelines",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/pipelines",
+      "lookups": [
+        {
+          "endpoints": [
+            "Pipeline Jobs",
+            "Project Pipeline",
+            "Pipeline Variables"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Pipeline ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Issues Closed on Merge",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/closes_issues",
+      "lookups": [
+        {
+          "endpoints": [
+            "Issue Award Emojis",
+            "Project Issue Discussion Items",
+            "Project Issue",
+            "Time Tracking Stats",
+            "Merge Requests Related to Issue",
+            "Merge Requests That Close Issue",
+            "Participants on Issue",
+            "User Agent Details",
+            "Issue Relations",
+            "Project Issue Notes",
+            "Project Issue Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "iid",
+          "parameterName": "Issue IID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Merge Request Diff Versions",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/versions",
+      "lookups": [
+        {
+          "endpoint": "Merge Request Diff Version",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Version ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Merge Request Diff Version",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/versions/{Version ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Merge Request Time Tracking Stats",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/time_stats"
+    },
+    {
+      "paged": "true",
+      "name": "Project Milestones",
+      "suffix": "/v4/projects/{Project ID}/milestones?iids[]={Milestone IIDs?}&state={State?:active|closed}&title={Title?}&search={Search Query?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Milestone Issues",
+            "Project Milestone Merge Requests",
+            "Project Milestone Burndown Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Milestone ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Project Milestone",
+      "suffix": "/v4/projects/{Project ID}/milestones/{Milestone ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Milestone Issues",
+      "suffix": "/v4/projects/{Project ID}/milestones/{Milestone ID}/issues",
+      "lookups": [
+        {
+          "endpoints": [
+            "Issue Award Emojis",
+            "Project Issue Discussion Items",
+            "Project Issue",
+            "Time Tracking Stats",
+            "Merge Requests Related to Issue",
+            "Merge Requests That Close Issue",
+            "Participants on Issue",
+            "User Agent Details",
+            "Issue Relations",
+            "Project Issue Notes",
+            "Project Issue Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "iid",
+          "parameterName": "Issue IID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Project Milestone Merge Requests",
+      "suffix": "/v4/projects/{Project ID}/milestones/{Milestone ID}/merge_requests"
+    },
+    {
+      "paged": "true",
+      "name": "Project Milestone Burndown Events",
+      "suffix": "/v4/projects/{Project ID}/milestones/{Milestone ID}/burndown_events"
+    },
+    {
+      "paged": "true",
+      "name": "Group Milestones",
+      "suffix": "/v4/groups/{Group ID}/milestones?iids[]={Milestone IIDs?}&state={State?:active|closed}&title={Title?}&search={Search Query?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Group Milestone Issues",
+            "Group Milestone Merge Requests",
+            "Group Milestone Burndown Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Milestone ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Group Milestone",
+      "suffix": "/v4/groups/{Group ID}/milestones/{Milestone ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Milestone Issues",
+      "suffix": "/v4/groups/{Group ID}/milestones/{Milestone ID}/issues",
+      "lookups": [
+        {
+          "endpoints": [
+            "Issue Award Emojis",
+            "Project Issue Discussion Items",
+            "Project Issue",
+            "Time Tracking Stats",
+            "Merge Requests Related to Issue",
+            "Merge Requests That Close Issue",
+            "Participants on Issue",
+            "User Agent Details",
+            "Issue Relations",
+            "Project Issue Notes",
+            "Project Issue Label Events"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "iid",
+          "parameterName": "Issue IID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Group Milestone Merge Requests",
+      "suffix": "/v4/groups/{Group ID}/milestones/{Milestone ID}/merge_requests"
+    },
+    {
+      "paged": "true",
+      "name": "Group Milestone Burndown Events",
+      "suffix": "/v4/groups/{Group ID}/milestones/{Milestone ID}/burndown_events"
+    },
+    {
+      "paged": "true",
+      "name": "Namespaces",
+      "suffix": "/v4/namespaces?search={Search Query?}"
+    },
+    {
+      "paged": "false",
+      "name": "Namespace",
+      "suffix": "/v4/namespaces/{Namespace ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Issue Notes",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/notes",
+      "lookups": [
+        {
+          "endpoint": "Comment Award Emojis",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Note ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Project Issue Note",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/notes/{Note ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Snippet Notes",
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/notes",
+      "lookups": [
+        {
+          "endpoint": "Comment Award Emojis",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Note ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Snippet Note",
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/notes/{Note ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Merge Request Notes",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/notes",
+      "lookups": [
+        {
+          "endpoint": "Comment Award Emojis",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Note ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Merge Request Note",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/notes/{Note ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Epic Notes",
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/notes",
+      "lookups": [
+        {
+          "endpoint": "Comment Award Emojis",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Note ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Epic Note",
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/notes/{Note ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Notification Settings",
+      "suffix": "/v4/notification_settings"
+    },
+    {
+      "paged": "false",
+      "name": "Group Notification Settings",
+      "suffix": "/v4/groups/{Group ID}/notification_settings"
+    },
+    {
+      "paged": "false",
+      "name": "Project Notification Settings",
+      "suffix": "/v4/projects/{Project ID}/notification_settings"
+    },
+    {
+      "paged": "true",
+      "name": "Project Packages",
+      "suffix": "/v4/projects/{Project ID}/packages",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Package",
+            "Project Package Files"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Package ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Group Packages",
+      "suffix": "/v4/groups/{Group ID}/packages?exclude_subgroups={Exclude Subgroups?:true|false}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Package",
+      "suffix": "/v4/projects/{Project ID}/packages/{Package ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Package Files",
+      "suffix": "/v4/projects/{Project ID}/packages/{Package ID}/package_files"
+    },
+    {
+      "paged": "true",
+      "name": "Pages Domains",
+      "suffix": "/v4/pages/domains"
+    },
+    {
+      "paged": "true",
+      "name": "Project Pages Domains",
+      "suffix": "/v4/projects/{Project ID}/pages/domains"
+    },
+    {
+      "paged": "false",
+      "name": "Project Pages Domain",
+      "suffix": "/v4/projects/{Project ID}/pages/domains/{Domain}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Pipeline Schedules",
+      "suffix": "/v4/projects/{Project ID}/pipeline_schedules?scope={Scope?:active|inactive}",
+      "lookups": [
+        {
+          "endpoint": "Project Pipeline Schedule",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Pipeline Schedule ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Project Pipeline Schedule",
+      "suffix": "/v4/projects/{Project ID}/pipeline_schedules/{Pipeline Schedule ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Triggers",
+      "suffix": "/v4/projects/{Project ID}/triggers"
+    },
+    {
+      "paged": "false",
+      "name": "Project Trigger",
+      "suffix": "/v4/projects/{Project ID}/triggers/{Trigger ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Pipelines",
+      "suffix": "/v4/projects/{Project ID}/pipelines?scope={Scope?:running|pending|...}&status={Status?:running|pending|...}&ref={Ref?:ref of pipelines}&sha={Sha?:sha of pipelines}&yaml_errors={YAML Errors?:true|false}&name={Name of User?}&username={Username of User?}&updated_after={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&updated_before={Updated Before?:YYYY-MM-DDTHH:MM:SSZ}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Pipeline Jobs",
+            "Project Pipeline",
+            "Pipeline Variables"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Pipeline ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Project Pipeline",
+      "suffix": "/v4/projects/{Project ID}/pipelines/{Pipeline ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Pipeline Variables",
+      "suffix": "/v4/projects/{Project ID}/pipelines/{Pipeline ID}/variables"
+    },
+    {
+      "paged": "true",
+      "name": "Project Aliases",
+      "suffix": "/v4/project_aliases"
+    },
+    {
+      "paged": "false",
+      "name": "Project Alias",
+      "suffix": "/v4/project_aliases/{Alias Name}"
+    },
+    {
+      "paged": "false",
+      "name": "Export Status",
+      "suffix": "/v4/projects/{Project ID}/export"
+    },
+    {
+      "paged": "false",
+      "name": "Import Status",
+      "suffix": "/v4/projects/{Project ID}/import"
+    },
+    {
+      "paged": "false",
+      "name": "Project Statistics",
+      "suffix": "/v4/projects/{Project ID}/statistics"
+    },
+    {
+      "paged": "true",
+      "name": "Project Templates",
+      "suffix": "/v4/projects/{Project ID}/templates/{Template Type:dockerfiles|gitignore|...}",
+      "lookups": [
+        {
+          "endpoint": "Project Template",
+          "jsonPath": "$.[*]",
+          "key": "key",
+          "parameterName": "Template Key"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Project Template",
+      "suffix": "/v4/projects/{Project ID}/templates/{Template Type:dockerfiles|gitignore|...}/{Template Key}?project={Project Name?}&fullname={Copyright Holder's Full Name?}"
+    },
+    {
+      "paged": "true",
+      "name": "Projects",
+      "suffix": "/v4/projects?archived={Archived?:true|false}&visibility={Visibility?:public|internal|private}&search={Search Query?}&simple={Simple?:true|false}&owned={Owned?:true|false}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Access Requests",
+            "Project Badges",
+            "Project Badge Preview",
+            "Repository Branches",
+            "Project Clusters",
+            "Repository Commits",
+            "Project Registry Repositories",
+            "Project Custom Attributes",
+            "Project Dependencies",
+            "Project Deploy Keys",
+            "Project Deployments",
+            "Environments",
+            "Project's Visible Events",
+            "Project Issue Boards",
+            "Project Issues",
+            "Project Issues Statistics",
+            "Project Jobs",
+            "Project Labels",
+            "Managed Licenses",
+            "Project Members",
+            "Project Members Including Inherited",
+            "Project Merge Request Approvals",
+            "Project Merge Request Approval Rules",
+            "Project Merge Requests",
+            "Project Milestones",
+            "Project Notification Settings",
+            "Project Packages",
+            "Project Pages Domains",
+            "Project Pipeline Schedules",
+            "Project Triggers",
+            "Project Pipelines",
+            "Export Status",
+            "Import Status",
+            "Project Statistics",
+            "Project Templates",
+            "Project",
+            "Project Users",
+            "Project Forks",
+            "Project Starrers",
+            "Project Languages",
+            "Project Hooks",
+            "Project Push Rule",
+            "Protected Branches",
+            "Protected Tags",
+            "Releases",
+            "Repository Tree",
+            "Compare Branches",
+            "Contributors",
+            "Merge Base",
+            "Project Runners",
+            "Project Search",
+            "Project Services",
+            "Project Service",
+            "Project Snippets",
+            "Project Repository Tags",
+            "Project Variables",
+            "Project Vulnerability Findings",
+            "Wikis"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Project ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "User Projects",
+      "suffix": "/v4/users/{User ID}/projects?archived={Archived?:true|false}&visibility={Visibility?:public|internal|private}&search={Search Query?}&simple={Simple?:true|false}&owned={Owned?:true|false}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Access Requests",
+            "Project Badges",
+            "Project Badge Preview",
+            "Repository Branches",
+            "Project Clusters",
+            "Repository Commits",
+            "Project Registry Repositories",
+            "Project Custom Attributes",
+            "Project Dependencies",
+            "Project Deploy Keys",
+            "Project Deployments",
+            "Environments",
+            "Project's Visible Events",
+            "Project Issue Boards",
+            "Project Issues",
+            "Project Issues Statistics",
+            "Project Jobs",
+            "Project Labels",
+            "Managed Licenses",
+            "Project Members",
+            "Project Members Including Inherited",
+            "Project Merge Request Approvals",
+            "Project Merge Request Approval Rules",
+            "Project Merge Requests",
+            "Project Milestones",
+            "Project Notification Settings",
+            "Project Packages",
+            "Project Pages Domains",
+            "Project Pipeline Schedules",
+            "Project Triggers",
+            "Project Pipelines",
+            "Export Status",
+            "Import Status",
+            "Project Statistics",
+            "Project Templates",
+            "Project",
+            "Project Users",
+            "Project Forks",
+            "Project Starrers",
+            "Project Languages",
+            "Project Hooks",
+            "Project Push Rule",
+            "Protected Branches",
+            "Protected Tags",
+            "Releases",
+            "Repository Tree",
+            "Compare Branches",
+            "Contributors",
+            "Merge Base",
+            "Project Runners",
+            "Project Search",
+            "Project Services",
+            "Project Service",
+            "Project Snippets",
+            "Project Repository Tags",
+            "Project Variables",
+            "Project Vulnerability Findings",
+            "Wikis"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Project ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Starred Projects",
+      "suffix": "/v4/users/{User ID}/starred_projects?archived={Archived?:true|false}&visibility={Visibility?:public|internal|private}&search={Search Query?}&simple={Simple?:true|false}&owned={Owned?:true|false}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Access Requests",
+            "Project Badges",
+            "Project Badge Preview",
+            "Repository Branches",
+            "Project Clusters",
+            "Repository Commits",
+            "Project Registry Repositories",
+            "Project Custom Attributes",
+            "Project Dependencies",
+            "Project Deploy Keys",
+            "Project Deployments",
+            "Environments",
+            "Project's Visible Events",
+            "Project Issue Boards",
+            "Project Issues",
+            "Project Issues Statistics",
+            "Project Jobs",
+            "Project Labels",
+            "Managed Licenses",
+            "Project Members",
+            "Project Members Including Inherited",
+            "Project Merge Request Approvals",
+            "Project Merge Request Approval Rules",
+            "Project Merge Requests",
+            "Project Milestones",
+            "Project Notification Settings",
+            "Project Packages",
+            "Project Pages Domains",
+            "Project Pipeline Schedules",
+            "Project Triggers",
+            "Project Pipelines",
+            "Export Status",
+            "Import Status",
+            "Project Statistics",
+            "Project Templates",
+            "Project",
+            "Project Users",
+            "Project Forks",
+            "Project Starrers",
+            "Project Languages",
+            "Project Hooks",
+            "Project Push Rule",
+            "Protected Branches",
+            "Protected Tags",
+            "Releases",
+            "Repository Tree",
+            "Compare Branches",
+            "Contributors",
+            "Merge Base",
+            "Project Runners",
+            "Project Search",
+            "Project Services",
+            "Project Service",
+            "Project Snippets",
+            "Project Repository Tags",
+            "Project Variables",
+            "Project Vulnerability Findings",
+            "Wikis"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Project ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Project",
+      "suffix": "/v4/projects/{Project ID}?statistics={Statistics?:true|false}&license={License?:true|false}&with_custom_attributes={With Custom Attributes?:true|false}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Users",
+      "suffix": "/v4/projects/{Project ID}/users?search={Search Query?}&skip_users={Skip Users?:id1,id2,...}",
+      "lookups": [
+        {
+          "endpoints": [
+            "User Status",
+            "SSH Keys for User"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "ID or Username"
+        },
+        {
+          "endpoints": [
+            "User Custom Attributes",
+            "User Contribution Events",
+            "Project Member",
+            "Project Member Including Inherited",
+            "User Projects",
+            "Starred Projects",
+            "User",
+            "GPG Keys for User",
+            "Emails for User",
+            "User Impersonation Tokens",
+            "User Memberships"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Project Forks",
+      "suffix": "/v4/projects/{Project ID}/forks?archived={Archived?:true|false}&visibility={Visibility?:public|internal|private}&search={Search Query?}&simple={Simple?:true|false}&owned={Owned?:true|false}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Access Requests",
+            "Project Badges",
+            "Project Badge Preview",
+            "Repository Branches",
+            "Project Clusters",
+            "Repository Commits",
+            "Project Registry Repositories",
+            "Project Custom Attributes",
+            "Project Dependencies",
+            "Project Deploy Keys",
+            "Project Deployments",
+            "Environments",
+            "Project's Visible Events",
+            "Project Issue Boards",
+            "Project Issues",
+            "Project Issues Statistics",
+            "Project Jobs",
+            "Project Labels",
+            "Managed Licenses",
+            "Project Members",
+            "Project Members Including Inherited",
+            "Project Merge Request Approvals",
+            "Project Merge Request Approval Rules",
+            "Project Merge Requests",
+            "Project Milestones",
+            "Project Notification Settings",
+            "Project Packages",
+            "Project Pages Domains",
+            "Project Pipeline Schedules",
+            "Project Triggers",
+            "Project Pipelines",
+            "Export Status",
+            "Import Status",
+            "Project Statistics",
+            "Project Templates",
+            "Project",
+            "Project Users",
+            "Project Forks",
+            "Project Starrers",
+            "Project Languages",
+            "Project Hooks",
+            "Project Push Rule",
+            "Protected Branches",
+            "Protected Tags",
+            "Releases",
+            "Repository Tree",
+            "Compare Branches",
+            "Contributors",
+            "Merge Base",
+            "Project Runners",
+            "Project Search",
+            "Project Services",
+            "Project Service",
+            "Project Snippets",
+            "Project Repository Tags",
+            "Project Variables",
+            "Project Vulnerability Findings",
+            "Wikis"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Project ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Project Starrers",
+      "suffix": "/v4/projects/{Project ID}/starrers?search={Search Query?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "User Status",
+            "SSH Keys for User"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "ID or Username"
+        },
+        {
+          "endpoints": [
+            "User Custom Attributes",
+            "User Contribution Events",
+            "Project Member",
+            "Project Member Including Inherited",
+            "User Projects",
+            "Starred Projects",
+            "User",
+            "GPG Keys for User",
+            "Emails for User",
+            "User Impersonation Tokens",
+            "User Memberships"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Project Languages",
+      "suffix": "/v4/projects/{Project ID}/languages"
+    },
+    {
+      "paged": "true",
+      "name": "Project Hooks",
+      "suffix": "/v4/projects/{Project ID}/hooks"
+    },
+    {
+      "paged": "false",
+      "name": "Project Hook",
+      "suffix": "/v4/projects/{Project ID}/hooks/{Hook ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Push Rule",
+      "suffix": "/v4/projects/{Project ID}/push_rule"
+    },
+    {
+      "paged": "true",
+      "name": "Protected Branches",
+      "suffix": "/v4/projects/{Project ID}/protected_branches"
+    },
+    {
+      "paged": "false",
+      "name": "Protected Branch",
+      "suffix": "/v4/projects/{Project ID}/protected_branches/{Branch Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Protected Tags",
+      "suffix": "/v4/projects/{Project ID}/protected_tags"
+    },
+    {
+      "paged": "false",
+      "name": "Protected Tag",
+      "suffix": "/v4/projects/{Project ID}/protected_tags/{Tag Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Releases",
+      "suffix": "/v4/projects/{Project ID}/releases"
+    },
+    {
+      "paged": "false",
+      "name": "Release",
+      "suffix": "/v4/projects/{Project ID}/releases/{Tag Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Release Links",
+      "suffix": "/v4/projects/{Project ID}/releases/{Tag Name}/assets/links"
+    },
+    {
+      "paged": "false",
+      "name": "Release Link",
+      "suffix": "/v4/projects/{Project ID}/releases/{Tag Name}/assets/links/{Link ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Tree",
+      "suffix": "/v4/projects/{Project ID}/repository/tree?path={Path?}&ref={Branch or Tag Name?}"
+    },
+    {
+      "paged": "false",
+      "name": "Compare Branches",
+      "suffix": "/v4/projects/{Project ID}/repository/compare?from={From:commit SHA/branch name}&to={To:commit SHA/branch name}&straight={Straight?:true|false}"
+    },
+    {
+      "paged": "true",
+      "name": "Contributors",
+      "suffix": "/v4/projects/{Project ID}/repository/contributors"
+    },
+    {
+      "paged": "false",
+      "name": "Merge Base",
+      "suffix": "/v4/projects/{Project ID}/repository/merge_base?refs[]={Refs,:ref1,ref2,...}"
+    },
+    {
+      "paged": "false",
+      "name": "Repository File",
+      "suffix": "/v4/projects/{Project ID}/repository/files/{File Path}?ref={Ref:name of branch, tag or commit}"
+    },
+    {
+      "paged": "true",
+      "name": "File Blame",
+      "suffix": "/v4/projects/{Project ID}/repository/files/{File Path}/blame?ref={Ref:name of branch, tag or commit}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Issue Label Events",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/resource_label_events"
+    },
+    {
+      "paged": "false",
+      "name": "Project Issue Label Event",
+      "suffix": "/v4/projects/{Project ID}/issues/{Issue IID}/resource_label_events/{Resource Label Event ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Epic Label Events",
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/resource_label_events"
+    },
+    {
+      "paged": "false",
+      "name": "Group Epic Label Event",
+      "suffix": "/v4/groups/{Group ID}/epics/{Epic ID}/resource_label_events/{Resource Label Event ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Merge Request Label Events",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/resource_label_events"
+    },
+    {
+      "paged": "false",
+      "name": "Project Merge Request Label Event",
+      "suffix": "/v4/projects/{Project ID}/merge_requests/{Merge Request IID}/resource_label_events/{Resource Label Event ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Runners",
+      "suffix": "/v4/runners?type={Type?:instance_type|group_type|project_type}&status={Status?:active|paused|online|offline}&tag_list={Tag List?:tag1,tag2,...}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Runner",
+            "Runner Jobs"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Runner ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "All Runners",
+      "suffix": "/v4/runners/all?type={Type?:instance_type|group_type|project_type}&status={Status?:active|paused|online|offline}&tag_list={Tag List?:tag1,tag2,...}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Runner",
+            "Runner Jobs"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Runner ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Runner",
+      "suffix": "/v4/runners/{Runner ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Runner Jobs",
+      "suffix": "/v4/runners/{Runner ID}/jobs?status={Status?:running|success|failed|canceled}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Runners",
+      "suffix": "/v4/projects/{Project ID}/runners?type={Type?:instance_type|group_type|project_type}&status={Status?:active|paused|online|offline}&tag_list={Tag List?:tag1,tag2,...}"
+    },
+    {
+      "paged": "true",
+      "name": "Search",
+      "suffix": "/v4/search?scope={Scope:projects|issues|...}&search={Search Query}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Search",
+      "suffix": "/v4/groups/{Group ID}/search?scope={Scope:projects|issues|...}&search={Search Query}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Search",
+      "suffix": "/v4/projects/{Project ID}/search?scope={Scope:issues|milestones|...}&search={Search Query}&ref={Ref?:branch or tag name}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Services",
+      "suffix": "/v4/projects/{Project ID}/services"
+    },
+    {
+      "paged": "false",
+      "name": "Project Service",
+      "suffix": "/v4/projects/{Project ID}/services/{Service Name:asana|bugzilla|...}"
+    },
+    {
+      "paged": "false",
+      "name": "Application Settings",
+      "suffix": "/v4/application/settings"
+    },
+    {
+      "paged": "false",
+      "name": "Queue Metrics",
+      "suffix": "/v4/sidekiq/queue_metrics"
+    },
+    {
+      "paged": "false",
+      "name": "Process Metrics",
+      "suffix": "/v4/sidekiq/process_metrics"
+    },
+    {
+      "paged": "false",
+      "name": "Job Statistics",
+      "suffix": "/v4/sidekiq/job_stats"
+    },
+    {
+      "paged": "false",
+      "name": "Compound Metrics",
+      "suffix": "/v4/sidekiq/compound_metrics"
+    },
+    {
+      "paged": "true",
+      "name": "Snippets",
+      "suffix": "/v4/snippets",
+      "lookups": [
+        {
+          "endpoints": [
+            "Snippet User Agent Details"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Snippet ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Snippet",
+      "suffix": "/v4/snippets/{Snippet ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Public Snippets",
+      "suffix": "/v4/snippets/public",
+      "lookups": [
+        {
+          "endpoints": [
+            "Snippet User Agent Details"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Snippet ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Snippet User Agent Details",
+      "suffix": "/v4/snippets/{Snippet ID}/user_agent_detail"
+    },
+    {
+      "paged": "true",
+      "name": "Project Snippets",
+      "suffix": "/v4/projects/{Project ID}/snippets",
+      "lookups": [
+        {
+          "endpoints": [
+            "Snippet Award Emojis",
+            "Project Snippet Discussion Items",
+            "Snippet Notes",
+            "Project Snippet User Agent Details"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Snippet ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Project Snippet",
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Snippet User Agent Details",
+      "suffix": "/v4/projects/{Project ID}/snippets/{Snippet ID}/user_agent_detail"
+    },
+    {
+      "paged": "false",
+      "name": "Application Statistics",
+      "suffix": "/v4/application/statistics"
+    },
+    {
+      "paged": "true",
+      "name": "System Hooks",
+      "suffix": "/v4/hooks"
+    },
+    {
+      "paged": "false",
+      "name": "System Hook",
+      "suffix": "/v4/hooks/{Hook ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Repository Tags",
+      "suffix": "/v4/projects/{Project ID}/repository/tags?search={Search Query?}"
+    },
+    {
+      "paged": "false",
+      "name": "Project Repository Tag",
+      "suffix": "/v4/projects/{Project ID}/repository/tags/{Tag Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Todos",
+      "suffix": "/v4/todos?action={Action?:assigned|mentioned|...}&author_id={Author ID?}&project_id={Project ID?}&group_id={Group ID?}&state={State?:pending|done}&type={Type?:Issue|MergeRequest}"
+    },
+    {
+      "paged": "true",
+      "name": "Users",
+      "suffix": "/v4/users?search={Search Query?}&username={Username?}&active={Active?:true}&blocked={Blocked?:true}&two_factor={Two Factor?:enabled|disabled}",
+      "lookups": [
+        {
+          "endpoints": [
+            "User Status",
+            "SSH Keys for User"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "ID or Username"
+        },
+        {
+          "endpoints": [
+            "User Custom Attributes",
+            "User Contribution Events",
+            "User Projects",
+            "Starred Projects",
+            "User",
+            "GPG Keys for User",
+            "Emails for User",
+            "User Impersonation Tokens",
+            "User Memberships"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "User",
+      "suffix": "/v4/users/{User ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Current User",
+      "suffix": "/v4/user"
+    },
+    {
+      "paged": "false",
+      "name": "Current User Status",
+      "suffix": "/v4/user/status"
+    },
+    {
+      "paged": "false",
+      "name": "User Status",
+      "suffix": "/v4/users/{ID or Username}/status"
+    },
+    {
+      "paged": "false",
+      "name": "User Counts",
+      "suffix": "/v4/user_counts"
+    },
+    {
+      "paged": "true",
+      "name": "SSH Keys",
+      "suffix": "/v4/user/keys"
+    },
+    {
+      "paged": "false",
+      "name": "SSH Keys for User",
+      "suffix": "/v4/users/{ID or Username}/keys"
+    },
+    {
+      "paged": "false",
+      "name": "SSH Key",
+      "suffix": "/v4/user/keys/{Key ID}"
+    },
+    {
+      "paged": "true",
+      "name": "GPG Keys",
+      "suffix": "/v4/user/gpg_keys"
+    },
+    {
+      "paged": "false",
+      "name": "GPG Key",
+      "suffix": "/v4/user/gpg_keys/{Key ID}"
+    },
+    {
+      "paged": "true",
+      "name": "GPG Keys for User",
+      "suffix": "/v4/users/{User ID}/gpg_keys"
+    },
+    {
+      "paged": "false",
+      "name": "GPG Key for User",
+      "suffix": "/v4/users/{User ID}/gpg_keys/{Key ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Emails",
+      "suffix": "/v4/user/emails"
+    },
+    {
+      "paged": "true",
+      "name": "Emails for User",
+      "suffix": "/v4/users/{User ID}/emails"
+    },
+    {
+      "paged": "false",
+      "name": "Email",
+      "suffix": "/v4/user/emails/{Email ID}"
+    },
+    {
+      "paged": "true",
+      "name": "User Impersonation Tokens",
+      "suffix": "/v4/users/{User ID}/impersonation_tokens?state={State?:all|active|inactive}"
+    },
+    {
+      "paged": "false",
+      "name": "User Impersonation Token",
+      "suffix": "/v4/users/{User ID}/impersonation_tokens/{Impersonation Token ID}"
+    },
+    {
+      "paged": "true",
+      "name": "User Activities",
+      "suffix": "/v4/user/activities?from={From?:YYYY-MM-DD}"
+    },
+    {
+      "paged": "true",
+      "name": "User Memberships",
+      "suffix": "/v4/users/{User ID}/memberships?type={Type?:Project|Namespace}"
+    },
+    {
+      "paged": "true",
+      "name": "Project Variables",
+      "suffix": "/v4/projects/{Project ID}/variables",
+      "lookups": [
+        {
+          "endpoint": "Project Variable",
+          "jsonPath": "$.[*]",
+          "key": "key",
+          "parameterName": "Variable Key"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Project Variable",
+      "suffix": "/v4/projects/{Project ID}/variables/{Variable Key}"
+    },
+    {
+      "paged": "true",
+      "name": "Group Variables",
+      "suffix": "/v4/groups/{Group ID}/variables",
+      "lookups": [
+        {
+          "endpoint": "Group Variable",
+          "jsonPath": "$.[*]",
+          "key": "key",
+          "parameterName": "Variable Key"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Group Variable",
+      "suffix": "/v4/groups/{Group ID}/variables/{Variable Key}"
+    },
+    {
+      "paged": "false",
+      "name": "Version",
+      "suffix": "/v4/version"
+    },
+    {
+      "paged": "true",
+      "name": "Project Vulnerability Findings",
+      "suffix": "/v4/projects/{Project ID}/vulnerability_findings?report_type={Report Type?:sast,dast,...}&scope={Scope?:all|dismissed}&severity={Severity?:undefined,info,...}&confidence={Confidence?:undefined,ignore,...}&pipeline_id={Pipeline ID?}"
+    },
+    {
+      "paged": "true",
+      "name": "Wikis",
+      "suffix": "/v4/projects/{Project ID}/wikis?with_content={With Content?:true|false}"
+    },
+    {
+      "paged": "false",
+      "name": "Wiki",
+      "suffix": "/v4/projects/{Project ID}/wikis/{Slug}"
+    }
+  ]
+}

@@ -1,0 +1,1216 @@
+{
+  "endpoints": [
+    {
+      "paged": "true", 
+      "name": "Activity Sets", 
+      "suffix": "/v3.0/ActivitySets?brief={Brief?:true|false}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Activity Set", 
+      "suffix": "/v3.0/ActivitySets/{Activity Set ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Comment File Attachments", 
+      "suffix": "/v3.0/Comment/{Comment ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contacts", 
+      "suffix": "/v3.0/Contacts?brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Contact Emails",
+            "Contact Events",
+            "Contact File Attachments",
+            "Contact Follow State",
+            "Contact Links",
+            "Contact Notes"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "CONTACT_ID",
+          "parameterName": "Contact ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Contact", 
+      "suffix": "/v3.0/Contacts/{Contact ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contact Emails",
+      "suffix": "/v3.0/Contacts/{Contact ID}/Emails?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Email Comments",
+            "Email File Attachments",
+            "Email Follow State",
+            "Email Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "EMAIL_ID",
+          "parameterName": "Email ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contact Events", 
+      "suffix": "/v3.0/Contacts/{Contact ID}/Events?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoint": "Event Links",
+          "jsonPath": "$.[*]",
+          "key": "EVENT_ID",
+          "parameterName": "Event ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contact File Attachments", 
+      "suffix": "/v3.0//Contacts/{Contact ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Contact Follow State", 
+      "suffix": "/v3.0/Contacts/{Contact ID}/Follow"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Contact Links", 
+      "suffix": "/v3.0/Contacts/{Contact ID}/Links"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contact Notes", 
+      "suffix": "/v3.0/Contacts/{Contact ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Note Comments",
+            "Note File Attachments",
+            "Note Follow State",
+            "Note Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "NOTE_ID",
+          "parameterName": "Note ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contact Tasks", 
+      "suffix": "/v3.0/Contacts/{Contact ID}/Tasks?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Task",
+            "Task Comments",
+            "Task Follow State",
+            "Task Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "TASK_ID",
+          "parameterName": "Task ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Contacts", 
+      "suffix": "/v3.0/Contacts/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Contact Emails",
+            "Contact Events",
+            "Contact File Attachments",
+            "Contact Follow State",
+            "Contact Links",
+            "Contact Notes"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "CONTACT_ID",
+          "parameterName": "Contact ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Contacts by Tag", 
+      "suffix": "/v3.0/Contacts/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Contact Emails",
+            "Contact Events",
+            "Contact File Attachments",
+            "Contact Follow State",
+            "Contact Links",
+            "Contact Notes"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "CONTACT_ID",
+          "parameterName": "Contact ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Countries", 
+      "suffix": "/v3.0/Countries"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Currencies", 
+      "suffix": "/v3.0/Currencies"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Custom Fields", 
+      "suffix": "/v3.0/CustomFields/{Object Name}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Custom Field", 
+      "suffix": "/v3.0/CustomFields/{Object Name}/Search?fieldName={Field Name}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Custom Objects", 
+      "suffix": "/v3.0/CustomObjects",
+      "lookups": [
+        {
+          "endpoints": [
+            "Custom Field",
+            "Custom Object Records"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "OBJECT_NAME",
+          "parameterName": "Object Name"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Custom Object", 
+      "suffix": "/v3.0/CustomObjects/{Custom Object Name}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Custom Object Records", 
+      "suffix": "/v3.0/{Object Name}?brief={Brief?:true|false}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Custom Object Record", 
+      "suffix": "/v3.0/{Object Name}/{Record ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Custom Object Records", 
+      "suffix": "/v3.0/{Object Name}/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Emails", 
+      "suffix": "/v3.0/Emails?brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Email Comments",
+            "Email File Attachments",
+            "Email Follow State",
+            "Email Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "EMAIL_ID",
+          "parameterName": "Email ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Email", 
+      "suffix": "/v3.0/Emails/{Email ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Email Comments", 
+      "suffix": "/v3.0/Emails/{Email ID}/Comments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Email File Attachments", 
+      "suffix": "/v3.0/Emails/{Email ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Email Follow State", 
+      "suffix": "/v3.0/Emails/{Email ID}/Follow"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Email Links", 
+      "suffix": "/v3.0/Emails/{Email ID}/Links"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Emails", 
+      "suffix": "/v3.0/Emails/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Email Comments",
+            "Email File Attachments",
+            "Email Follow State",
+            "Email Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "EMAIL_ID",
+          "parameterName": "Email ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Emails by Tag", 
+      "suffix": "/v3.0/Emails/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Email Comments",
+            "Email File Attachments",
+            "Email Follow State",
+            "Email Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "EMAIL_ID",
+          "parameterName": "Email ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Events", 
+      "suffix": "/v3.0/Events?brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoint": "Event Links",
+          "jsonPath": "$.[*]",
+          "key": "EVENT_ID",
+          "parameterName": "Event ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Event",
+      "suffix": "/v3.0/Events/{Event ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Event Links", 
+      "suffix": "/v3.0/Events/{Event ID}/Links"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Events", 
+      "suffix": "/v3.0/Events/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoint": "Event Links",
+          "jsonPath": "$.[*]",
+          "key": "EVENT_ID",
+          "parameterName": "Event ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "File Categories", 
+      "suffix": "/v3.0/FileCategories?count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "File Category", 
+      "suffix": "/v3.0/FileCategories/{File Category ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Followed Records", 
+      "suffix": "/v3.0/Follows?record_type={Record Type?}&count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Leads", 
+      "suffix": "/v3.0/Leads?brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Lead Emails",
+            "Lead Events",
+            "Lead File Attachments",
+            "Lead Follow State",
+            "Lead Email Address",
+            "Lead Links",
+            "Lead Notes",
+            "Lead Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "LEAD_ID",
+          "parameterName": "Lead ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Lead", 
+      "suffix": "/v3.0/Leads/{Lead ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Lead Emails", 
+      "suffix": "/v3.0/Leads/{Lead ID}/Emails?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Email Comments",
+            "Email File Attachments",
+            "Email Follow State",
+            "Email Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "EMAIL_ID",
+          "parameterName": "Email ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Lead Events", 
+      "suffix": "/v3.0/Leads/{Lead ID}/Events?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoint": "Event Links",
+          "jsonPath": "$.[*]",
+          "key": "EVENT_ID",
+          "parameterName": "Event ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Lead File Attachments", 
+      "suffix": "/v3.0/Leads/{Lead ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Lead Follow State", 
+      "suffix": "/v3.0/Leads/{Lead ID}/Follow"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Lead Email Address", 
+      "suffix": "/v3.0/Leads/{Lead ID}/LinkEmailAddress"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Lead Links", 
+      "suffix": "/v3.0/Leads/{Lead ID}/Links"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Lead Notes", 
+      "suffix": "/v3.0/Leads/{Lead ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Note Comments",
+            "Note File Attachments",
+            "Note Follow State",
+            "Note Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "NOTE_ID",
+          "parameterName": "Note ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Lead Tasks", 
+      "suffix": "/v3.0/Leads/{Lead ID}/Tasks?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Task",
+            "Task Comments",
+            "Task Follow State",
+            "Task Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "TASK_ID",
+          "parameterName": "Task ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Leads", 
+      "suffix": "/v3.0/Leads/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Lead Emails",
+            "Lead Events",
+            "Lead File Attachments",
+            "Lead Follow State",
+            "Lead Email Address",
+            "Lead Links",
+            "Lead Notes",
+            "Lead Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "LEAD_ID",
+          "parameterName": "Lead ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Leads by Tag", 
+      "suffix": "/v3.0/Leads/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Lead Emails",
+            "Lead Events",
+            "Lead File Attachments",
+            "Lead Follow State",
+            "Lead Email Address",
+            "Lead Links",
+            "Lead Notes",
+            "Lead Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "LEAD_ID",
+          "parameterName": "Lead ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Lead Sources", 
+      "suffix": "/v3.0/LeadSources?count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Lead Statuses", 
+      "suffix": "/v3.0/LeadStatuses?include_converted={Include Converted?:true|false}&count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Milestones", 
+      "suffix": "/v3.0/Milestone?brief={Brief?:true|false}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Milestone", 
+      "suffix": "/v3.0/Milestone/{Milestone ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Milestones", 
+      "suffix": "/v3.0/Milestone/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Notes", 
+      "suffix": "/v3.0/Notes?brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Note Comments",
+            "Note File Attachments",
+            "Note Follow State",
+            "Note Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "NOTE_ID",
+          "parameterName": "Note ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Note", 
+      "suffix": "/v3.0/Notes/{Note ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Note Comments", 
+      "suffix": "/v3.0/Notes/{Note ID}/Comments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Note File Attachments", 
+      "suffix": "/v3.0/Notes/{Note ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Note Follow State", 
+      "suffix": "/v3.0/Notes/{Note ID}/Follow"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Note Links", 
+      "suffix": "/v3.0/Notes/{Note ID}/Links"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Notes", 
+      "suffix": "/v3.0/Notes/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Note Comments",
+            "Note File Attachments",
+            "Note Follow State",
+            "Note Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "NOTE_ID",
+          "parameterName": "Note ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Opportunities", 
+      "suffix": "/v3.0/Opportunities?brief={Brief?:true|false}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Opportunity", 
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Opportunity Emails",
+            "Opportunity Events",
+            "Opportunity File Attachments",
+            "Opportunity Follow State",
+            "Opportunity Email Address",
+            "Opportunity Links",
+            "Opportunity Notes",
+            "Opportunity State History",
+            "Opportunity Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "OPPORTUNITY_ID",
+          "parameterName": "Opportunity ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Opportunity Emails", 
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/Emails?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Email Comments",
+            "Email File Attachments",
+            "Email Follow State",
+            "Email Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "EMAIL_ID",
+          "parameterName": "Email ID"
+        }
+      ]
+    },
+    {
+      "paged": "true", 
+      "name": "Opportunity Events", 
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/Events?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoint": "Event Links",
+          "jsonPath": "$.[*]",
+          "key": "EVENT_ID",
+          "parameterName": "Event ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Opportunity File Attachments", 
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Opportunity Follow State", 
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/Follow"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Opportunity Email Address", 
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/LinkEmailAddress"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Opportunity Links", 
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/Links"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Opportunity Notes", 
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Note Comments",
+            "Note File Attachments",
+            "Note Follow State",
+            "Note Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "NOTE_ID",
+          "parameterName": "Note ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Opportunity State History", 
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/StateHistory"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Opportunity Tasks", 
+      "suffix": "/v3.0/Opportunities/{Opportunity ID}/Tasks?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Task",
+            "Task Comments",
+            "Task Follow State",
+            "Task Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "TASK_ID",
+          "parameterName": "Task ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Opportunities", 
+      "suffix": "/v3.0/Opportunities/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Opportunity Emails",
+            "Opportunity Events",
+            "Opportunity File Attachments",
+            "Opportunity Follow State",
+            "Opportunity Email Address",
+            "Opportunity Links",
+            "Opportunity Notes",
+            "Opportunity State History",
+            "Opportunity Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "OPPORTUNITY_ID",
+          "parameterName": "Opportunity ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Opportunities by Tag", 
+      "suffix": "/v3.0/Opportunities/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Opportunity Emails",
+            "Opportunity Events",
+            "Opportunity File Attachments",
+            "Opportunity Follow State",
+            "Opportunity Email Address",
+            "Opportunity Links",
+            "Opportunity Notes",
+            "Opportunity State History",
+            "Opportunity Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "OPPORTUNITY_ID",
+          "parameterName": "Opportunity ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Opportunity Categories", 
+      "suffix": "/v3.0/OpportunityCategories?count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Opportunity Category", 
+      "suffix": "/v3.0/OpportunityCategories/{Opportunity Category ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Opportunity State Reasons", 
+      "suffix": "/v3.0/OpportunityStateReasons?count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Organizations", 
+      "suffix": "/v3.0/Organisations?brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Organization Emails",
+            "Organization Events",
+            "Organization File Attachments",
+            "Organization Follow State",
+            "Organization Links",
+            "Organization Notes",
+            "Organization Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "ORGANISATION_ID",
+          "parameterName": "Organization ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Organization", 
+      "suffix": "/v3.0/Organisations/{Organization ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Organization Emails", 
+      "suffix": "/v3.0/Organisations/{Organization ID}/Emails?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Email Comments",
+            "Email File Attachments",
+            "Email Follow State",
+            "Email Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "EMAIL_ID",
+          "parameterName": "Email ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Organization Events", 
+      "suffix": "/v3.0/Organisations/{Organization ID}/Events?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoint": "Event Links",
+          "jsonPath": "$.[*]",
+          "key": "EVENT_ID",
+          "parameterName": "Event ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Organization File Attachments", 
+      "suffix": "/v3.0/Organisations/{Organization ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Organization Follow State", 
+      "suffix": "/v3.0/Organisations/{Organization ID}/Follow"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Organization Links", 
+      "suffix": "/v3.0/Organisations/{Organization ID}/Links"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Organization Notes", 
+      "suffix": "/v3.0/Organisations/{Organization ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Organization Tasks", 
+      "suffix": "/v3.0/Organisations/{Organization ID}/Tasks?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Task",
+            "Task Comments",
+            "Task Follow State",
+            "Task Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "TASK_ID",
+          "parameterName": "Task ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Organizations", 
+      "suffix": "/v3.0/Organisations/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Organization Emails",
+            "Organization Events",
+            "Organization File Attachments",
+            "Organization Follow State",
+            "Organization Links",
+            "Organization Notes",
+            "Organization Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "ORGANISATION_ID",
+          "parameterName": "Organization ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Organizations by Tag", 
+      "suffix": "/v3.0/Organisations/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Organization Emails",
+            "Organization Events",
+            "Organization File Attachments",
+            "Organization Follow State",
+            "Organization Links",
+            "Organization Notes",
+            "Organization Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "ORGANISATION_ID",
+          "parameterName": "Organization ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "User Permissions", 
+      "suffix": "/v3.0/Permissions"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Pipelines", 
+      "suffix": "/v3.0/Pipelines?count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Pipeline", 
+      "suffix": "/v3.0/Pipelines/{Pipeline ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Pipeline Stages", 
+      "suffix": "/v3.0/PipelineStages?count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Pipeline Stage", 
+      "suffix": "/v3.0/PipelineStages/{Pipeline Stage ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Project Categories", 
+      "suffix": "/v3.0/ProjectCategories?count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Project Category", 
+      "suffix": "/v3.0/ProjectCategories/{Project Category ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Projects", 
+      "suffix": "/v3.0/Projects?brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Emails",
+            "Project Events",
+            "Project File Attachments",
+            "Project Follow State",
+            "Project Email Address",
+            "Project Links",
+            "Project Milestones",
+            "Project Notes",
+            "Project Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "PROJECT_ID",
+          "parameterName": "Project ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Project", 
+      "suffix": "/v3.0/Projects/{Project ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Project Emails", 
+      "suffix": "/v3.0/Projects/{Project ID}/Emails?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Email Comments",
+            "Email File Attachments",
+            "Email Follow State",
+            "Email Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "EMAIL_ID",
+          "parameterName": "Email ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Project Events", 
+      "suffix": "/v3.0/Projects/{Project ID}/Events?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoint": "Event Links",
+          "jsonPath": "$.[*]",
+          "key": "EVENT_ID",
+          "parameterName": "Event ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Project File Attachments", 
+      "suffix": "/v3.0/Projects/{Project ID}/FileAttachments?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Project Follow State", 
+      "suffix": "/v3.0/Projects/{Project ID}/Follow"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Project Email Address", 
+      "suffix": "/v3.0/Projects/{Project ID}/LinkEmailAddress"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Project Links", 
+      "suffix": "/v3.0/Projects/{Project ID}/Links"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Project Milestones", 
+      "suffix": "/v3.0/Projects/{Project ID}/Milestones"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Project Notes", 
+      "suffix": "/v3.0/Projects/{Project ID}/Notes?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Project Tasks", 
+      "suffix": "/v3.0/Projects/{Project ID}/Tasks?updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Task",
+            "Task Comments",
+            "Task Follow State",
+            "Task Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "TASK_ID",
+          "parameterName": "Task ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Projects", 
+      "suffix": "/v3.0/Projects/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Emails",
+            "Project Events",
+            "Project File Attachments",
+            "Project Follow State",
+            "Project Email Address",
+            "Project Links",
+            "Project Milestones",
+            "Project Notes",
+            "Project Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "PROJECT_ID",
+          "parameterName": "Project ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Projects by Tag", 
+      "suffix": "/v3.0/Projects/SearchByTag?tagName={TagName}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Project Emails",
+            "Project Events",
+            "Project File Attachments",
+            "Project Follow State",
+            "Project Email Address",
+            "Project Links",
+            "Project Milestones",
+            "Project Notes",
+            "Project Tasks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "PROJECT_ID",
+          "parameterName": "Project ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Relationships", 
+      "suffix": "/v3.0/Relationships?count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Record Type Tags", 
+      "suffix": "/v3.0/Tags?record_type={Record Type?}&count_total=true"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Task Categories", 
+      "suffix": "/v3.0/TaskCategories?count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task Category", 
+      "suffix": "/v3.0/TaskCategories/{Task Category ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Tasks", 
+      "suffix": "/v3.0/Tasks?brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Task Comments",
+            "Task Follow State",
+            "Task Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "TASK_ID",
+          "parameterName": "Task ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task", 
+      "suffix": "/v3.0/Tasks/{Task ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Task Comments", 
+      "suffix": "/v3.0/Tasks/{Task ID}/Comments?count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task Follow State", 
+      "suffix": "/v3.0/Tasks/{Task ID}/Follow"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task Links", 
+      "suffix": "/v3.0/Tasks/{Task ID}/Links"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Tasks", 
+      "suffix": "/v3.0/Tasks/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&brief={Brief?:true|false}&count_total=true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Task Comments",
+            "Task Follow State",
+            "Task Links"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "TASK_ID",
+          "parameterName": "Task ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "true", 
+      "name": "Team Members", 
+      "suffix": "/v3.0/TeamMembers?count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Team Member", 
+      "suffix": "/v3.0/TeamMembers/{Team Member ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Teams", 
+      "suffix": "/v3.0/Teams?brief={Brief?:true|false}&count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Team", 
+      "suffix": "/v3.0/Teams/{Team ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Users", 
+      "suffix": "/v3.0/Users?count_total=true"
+    }, 
+    {
+      "paged": "false", 
+      "name": "User", 
+      "suffix": "/v3.0/Users/{User ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Current User", 
+      "suffix": "/v3.0/Users/Me"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Filtered Users", 
+      "suffix": "/v3.0/Users/Search?field_name={Field Name?}&field_value={Field Value?}&updated_after_utc={Updated After?:YYYY-MM-DDTHH:MM:SSZ}&count_total=true"
+    }
+  ]
+}

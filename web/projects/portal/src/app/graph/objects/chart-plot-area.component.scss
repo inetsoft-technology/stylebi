@@ -1,0 +1,77 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.chart-plot-area {
+  position: absolute;
+  overflow: hidden;
+
+  /* the chart level loading should be shown. showing tile level loading makes it look busy.
+     can remove in the future if we find no need to have tile level loading indicator. (13.2)
+  .loading-hint {
+    width: 100%;
+    height: 100%;
+    background: url("../../../assets/tile-loading.svg");
+    background-repeat: repeat;
+  }
+ */
+}
+
+.chart-plot-area__tile {
+  position: absolute;
+  background-size: contain;
+  background-repeat: no-repeat;
+  overflow: hidden;
+
+  &.panning {
+    opacity: 0;
+  }
+
+  img {
+    position: absolute;
+  }
+}
+
+.chart-plot-area__canvas,
+.chart-plot-area__reference-canvas {
+  position: absolute;
+}
+
+.chart-plot-area-scroll-container, .mobile.chart-selected .chart-plot-area-scroll-container {
+  position: absolute;
+  overflow: auto;
+}
+
+// mobile only touch scroll if selected, to avoid conflict with page scroll
+.mobile .chart-plot-area-scroll-container {
+  overflow: hidden;
+}
+
+.chart-plot-area__annotation-container {
+  position: absolute;
+}
+
+.pan-mode {
+  cursor: move;
+}
+
+.chart-background {
+  position: absolute;
+}
+
+canvas.panning {
+  display: none;
+}

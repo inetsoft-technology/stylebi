@@ -1,0 +1,247 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div id="object-editor"
+     class="layout-object object-editor
+            interact-layout-object-drag
+            interact-layout-object-{{removeSpaces(model.name)}}"
+     [class.horizontal-line]="isHLine()"
+     [class.vertical-line]="isVLine()"
+     [ngClass]="{'txt-primary active': selected}"
+     [style.left.px]="model.left - 2"
+     [style.top.px]="model.top - 2"
+     [style.z-index]="model.objectModel ? model.objectModel.objectFormat.zIndex : null"
+     [class.search-no-match]="searchMode && !isSearchResults"
+     (click)="select($event)"
+     data-is-object-editor="true"
+     [attr.data-name]="model.name"
+     (dblclick)="dbclick = true"
+     wInteractable
+     [interactableDraggable]="selected && !dbclick"
+     [interactableResizable]="resizeable"
+     resizableLeftEdge=".left"
+     resizableRightEdge=".right"
+     resizableTopEdge=".top"
+     resizableBottomEdge=".bottom"
+     (onDraggableMove)="onDragMove($event)"
+     (onDraggableEnd)="onDragEnd()"
+     (onResizableStart)="onResizeStart()"
+     (onResizableMove)="onResizeMove($event)"
+     (onResizableEnd)="onResizeEnd()"
+     actionsContextmenuAnchor [actions]="menuActions">
+  <ng-container *ngIf="selected && !dbclick">
+    <div class="handle move bd-gray move-only"
+         [style.top.px]="model.top < 16 ? model.height : -16"
+         [style.left.px]="model.left < 16 ? model.width : -16">
+      <i class="move-icon icon-size1" (click)="select($event)"></i>
+    </div>
+    <div class="handle resize-handle bg-primary top left"></div>
+    <div class="handle resize-handle bg-primary top right"></div>
+    <div class="handle resize-handle bg-primary left middle"></div>
+    <div class="handle resize-handle bg-primary top middle"></div>
+    <div class="handle resize-handle bg-primary right middle"></div>
+    <div class="handle resize-handle bg-primary bottom middle"></div>
+    <div class="handle resize-handle bg-primary bottom left"></div>
+    <div class="handle resize-handle bg-primary bottom right"></div>
+  </ng-container>
+
+  <div class="container-gutter top"></div>
+  <div class="container-gutter bottom"></div>
+  <div class="container-gutter left"></div>
+  <div class="container-gutter right"></div>
+  <div *ngIf="!model.editable" class="layout-overlay"></div>
+
+  <div *ngIf="model.objectModel"
+       class="object-container"
+       [class.txt-primary]="isTabLineOrCalendar() && isSearchFocus"
+       [class.search-result]="isTabLineOrCalendar() && isSearchFocus"
+       [class.object]="isTabLineOrCalendar()"
+       [style.width.px]="model.objectModel.objectType == 'VSPageBreak' ? guideSize.width : model.width + 4"
+       [style.height.px]="model.height + 4"
+       [style.pointer-events]="model.editable ? 'auto': 'none'">
+    <div *ngIf="model.objectModel"
+         [class.object]="!isTabLineOrCalendar()"
+         [class.txt-primary]="!isTabLineOrCalendar() && isSearchFocus"
+         [class.search-result]="!isTabLineOrCalendar() && isSearchFocus"
+         class="object" [style.pointer-events]="model.editable ? 'auto': 'none'">
+      <vs-calendar *ngIf="model.objectModel.objectType =='VSCalendar'"
+                   [model]="model.objectModel"></vs-calendar>
+      <vs-calctable *ngIf="model.objectModel.objectType =='VSCalcTable'" [printLayout]="true"
+                    [model]="model.objectModel" [vsInfo]="vsInfo"></vs-calctable>
+      <vs-chart *ngIf="model.objectModel.objectType =='VSChart'" [model]="model.objectModel"
+                [vsInfo]="vsInfo"></vs-chart>
+      <vs-check-box *ngIf="model.objectModel.objectType =='VSCheckBox'"
+                    [model]="model.objectModel" [vsInfo]="vsInfo"></vs-check-box>
+      <vs-combo-box *ngIf="model.objectModel.objectType == 'VSComboBox'"
+                    [model]="model.objectModel" [vsInfo]="vsInfo"></vs-combo-box>
+      <vs-crosstab *ngIf="model.objectModel.objectType =='VSCrosstab'"
+                   [model]="model.objectModel" [vsInfo]="vsInfo"></vs-crosstab>
+      <vs-gauge *ngIf="model.objectModel.objectType =='VSGauge'"
+                [model]="model.objectModel" [vsInfo]="vsInfo"></vs-gauge>
+      <vs-cylinder *ngIf="model.objectModel.objectType == 'VSCylinder'"
+                   [model]="model.objectModel" [vsInfo]="vsInfo"></vs-cylinder>
+      <vs-sliding-scale *ngIf="model.objectModel.objectType == 'VSSlidingScale'"
+                        [model]="model.objectModel" [vsInfo]="vsInfo"></vs-sliding-scale>
+      <vs-thermometer *ngIf="model.objectModel.objectType == 'VSThermometer'"
+                      [model]="model.objectModel" [vsInfo]="vsInfo"></vs-thermometer>
+      <vs-group-container *ngIf="model.objectModel.objectType =='VSGroupContainer'"
+                          [model]="model.objectModel" [vsInfo]="vsInfo"></vs-group-container>
+      <vs-image *ngIf="model.objectModel.objectType =='VSImage'"
+                [model]="model.objectModel" [vsInfo]="vsInfo" [layoutRegion]="layoutSection"
+                [layoutName]="layout.name"></vs-image>
+      <vs-line *ngIf="model.objectModel.objectType == 'VSLine'"
+               [model]="transformLineModel(lineModel)" [vsInfo]="vsInfo"></vs-line>
+      <vs-oval *ngIf="model.objectModel.objectType =='VSOval'" [model]="lineModel"
+               [vsInfo]="vsInfo"></vs-oval>
+      <vs-radio-button *ngIf="model.objectModel.objectType =='VSRadioButton'"
+                       [model]="model.objectModel" [vsInfo]="vsInfo"></vs-radio-button>
+      <vs-rectangle *ngIf="model.objectModel.objectType =='VSRectangle'"
+                    [model]="model.objectModel" [vsInfo]="vsInfo"></vs-rectangle>
+      <vs-range-slider *ngIf="model.objectModel.objectType =='VSRangeSlider'"
+                       [viewsheetScale]="viewsheetScale"
+                       [model]="model.objectModel" [vsInfo]="vsInfo"></vs-range-slider>
+      <vs-selection *ngIf="model.objectModel.objectType =='VSSelectionList' || model.objectModel.objectType =='VSSelectionTree'"
+                    [model]="model.objectModel" [vsInfo]="vsInfo"></vs-selection>
+      <vs-selection-container *ngIf="model.objectModel.objectType =='VSSelectionContainer'"
+                              [model]="model.objectModel"
+                              [vsInfo]="vsInfo"></vs-selection-container>
+      <vs-slider *ngIf="model.objectModel.objectType =='VSSlider'"
+                 [viewsheetScale]="viewsheetScale"
+                 [model]="model.objectModel" [vsInfo]="vsInfo"></vs-slider>
+      <vs-spinner *ngIf="model.objectModel.objectType =='VSSpinner'"
+                  [model]="model.objectModel" [vsInfo]="vsInfo"></vs-spinner>
+      <vs-submit *ngIf="model.objectModel.objectType == 'VSSubmit'"
+                 [model]="model.objectModel" [vsInfo]="vsInfo"></vs-submit>
+      <vs-tab *ngIf="model.objectModel.objectType == 'VSTab'"
+              [model]="model.objectModel" [vsInfo]="vsInfo" [changeEnabled]="false"></vs-tab>
+      <vs-table *ngIf="model.objectModel.objectType =='VSTable'"
+                [model]="model.objectModel" [vsInfo]="vsInfo"></vs-table>
+      <vs-text *ngIf="model.objectModel.objectType == 'VSText'"
+               [model]="model.objectModel" [vsInfo]="vsInfo"
+               [editableLayout]="model.editable" [selected]="selected"
+               [layoutRegion]="layout.currentPrintSection">
+      </vs-text>
+      <vs-text-input *ngIf="model.objectModel.objectType =='VSTextInput'"
+                     [model]="model.objectModel" [vsInfo]="vsInfo"
+                     [selected]="selected"></vs-text-input>
+      <vs-upload *ngIf="model.objectModel.objectType =='VSUpload'"
+                 [model]="model.objectModel" [vsInfo]="vsInfo"></vs-upload>
+      <vs-page-break *ngIf="model.objectModel.objectType == 'VSPageBreak'"
+                     [model]="model.objectModel" [vsInfo]="vsInfo"></vs-page-break>
+      <vs-viewsheet *ngIf="model.objectModel.objectType == 'VSViewsheet'"
+                    [model]="model.objectModel" [vsInfo]="vsInfo"
+                    [containerRef]="containerRef">
+      </vs-viewsheet>
+    </div>
+  </div>
+</div>
+<div *ngFor="let childModel of model.childModels" [class.search-no-match]="searchMode && !isSearchResults">
+  <div class="object child-object"
+       [style.left.px]="childModel.objectFormat.left"
+       [style.top.px]=" childModel.objectFormat.top"
+       [style.min-width.px]="childModel.objectFormat.width"
+       [style.min-height.px]="childModel.objectFormat.height"
+       [style.display]="childModel.active ? null : 'none'"
+       [style.z-index]="childModel.objectFormat.zIndex"
+       [style.pointer-events]="model.editable ? 'auto': 'none'">
+    <vs-calendar *ngIf="childModel.objectType =='VSCalendar'"
+                 [model]="childModel" [vsInfo]="vsInfo"></vs-calendar>
+    <vs-calctable *ngIf="childModel.objectType =='VSCalcTable'"
+                  [model]="childModel" [vsInfo]="vsInfo" [printLayout]="true"></vs-calctable>
+    <vs-chart *ngIf="childModel.objectType =='VSChart'" [model]="childModel"
+              [vsInfo]="vsInfo"></vs-chart>
+    <vs-check-box *ngIf="childModel.objectType =='VSCheckBox'"
+                  [model]="childModel" [vsInfo]="vsInfo"></vs-check-box>
+    <vs-combo-box *ngIf="childModel.objectType == 'VSComboBox'"
+                  [model]="childModel" [vsInfo]="vsInfo"></vs-combo-box>
+    <vs-crosstab *ngIf="childModel.objectType =='VSCrosstab'"
+                 [model]="childModel" [vsInfo]="vsInfo"></vs-crosstab>
+    <vs-gauge *ngIf="childModel.objectType =='VSGauge'"
+              [model]="childModel" [vsInfo]="vsInfo"></vs-gauge>
+    <vs-group-container *ngIf="childModel.objectType =='VSGroupContainer'"
+                        [model]="childModel" [vsInfo]="vsInfo"></vs-group-container>
+    <vs-image *ngIf="childModel.objectType =='VSImage'"
+              [model]="childModel" [vsInfo]="vsInfo" [layoutRegion]="layoutSection"
+              [layoutName]="layout.name"></vs-image>
+    <vs-line *ngIf="childModel.objectType =='VSLine'" [model]="transformChildLineModel(childModel)"
+             [vsInfo]="vsInfo"></vs-line>
+    <vs-oval *ngIf="childModel.objectType =='VSOval'" [model]="childModel"
+             [vsInfo]="vsInfo"></vs-oval>
+    <vs-radio-button *ngIf="childModel.objectType =='VSRadioButton'"
+                     [model]="childModel" [vsInfo]="vsInfo"></vs-radio-button>
+    <vs-rectangle *ngIf="childModel.objectType =='VSRectangle'" [model]="childModel"
+                  [vsInfo]="vsInfo"></vs-rectangle>
+    <vs-range-slider *ngIf="childModel.objectType =='VSRangeSlider'"
+                     [model]="childModel" [vsInfo]="vsInfo"></vs-range-slider>
+    <vs-selection *ngIf="childModel.objectType =='VSSelectionList' || childModel.objectType =='VSSelectionTree'"
+                  [model]="childModel" [vsInfo]="vsInfo"></vs-selection>
+    <vs-selection-container *ngIf="childModel.objectType =='VSSelectionContainer'"
+                            [model]="childModel"
+                            [vsInfo]="vsInfo"></vs-selection-container>
+    <vs-slider *ngIf="childModel.objectType =='VSSlider'"
+               [model]="childModel" [vsInfo]="vsInfo"></vs-slider>
+    <vs-spinner *ngIf="childModel.objectType =='VSSpinner'"
+                [model]="childModel" [vsInfo]="vsInfo"></vs-spinner>
+    <vs-submit *ngIf="childModel.objectType == 'VSSubmit'"
+               [model]="childModel" [vsInfo]="vsInfo"></vs-submit>
+    <vs-tab *ngIf="childModel.objectType == 'VSTab'"
+            [model]="childModel" [vsInfo]="vsInfo" [changeEnabled]="false"></vs-tab>
+    <vs-table *ngIf="childModel.objectType =='VSTable'" [model]="childModel"
+              [vsInfo]="vsInfo"></vs-table>
+    <vs-text *ngIf="childModel.objectType == 'VSText'" [model]="childModel"
+             [vsInfo]="vsInfo"></vs-text>
+    <vs-text-input *ngIf="childModel.objectType =='VSTextInput'"
+                   [model]="childModel" [vsInfo]="vsInfo"></vs-text-input>
+    <vs-upload *ngIf="childModel.objectType =='VSUpload'"
+               [model]="childModel" [vsInfo]="vsInfo"></vs-upload>
+    <vs-page-break *ngIf="model.objectModel.objectType == 'VSPageBreak'"
+                   [model]="model.objectModel" [vsInfo]="vsInfo"></vs-page-break>
+    <vs-viewsheet *ngIf="childModel.objectType == 'VSViewsheet'"
+                  [model]="childModel" [vsInfo]="vsInfo"
+                  [containerRef]="containerRef">
+    </vs-viewsheet>
+  </div>
+  <vs-selection-container-children *ngIf="childModel && childModel.objectType == 'VSSelectionContainer' && (childModel.outerSelections || childModel.childObjects)"
+                                   class="selection-children"
+                                   [style.z-index]="childModel.objectFormat.zIndex"
+                                   [vsObject]="childModel"
+                                   [style.display]="(childModel.active && searchVisible) ? null : 'none'">
+  </vs-selection-container-children>
+</div>
+<vs-selection-container-children *ngIf="showSelectionChildren"
+                                 class="selection-children"
+                                 [style.z-index]="model.objectModel.objectFormat.zIndex"
+                                 [vsObject]="model.objectModel"
+                                 [style.display]="(model.objectModel.active && searchVisible) ? null : 'none'">
+</vs-selection-container-children>
+
+<ng-template #imagePropertyDialog let-close="close" let-dismiss="dismiss">
+  <image-property-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                         [model]="imagePropertyModel" [layoutObject]="true"
+                         [runtimeId]="runtimeId"></image-property-dialog>
+</ng-template>
+<ng-template #textPropertyDialog let-close="close" let-dismiss="dismiss">
+  <text-property-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                        [model]="textPropertyModel" [layoutObject]="true"
+                        [runtimeId]="runtimeId"></text-property-dialog>
+</ng-template>
+<ng-template #tableLayoutPropertyDialog let-close="close" let-dismiss="dismiss">
+  <table-layout-property-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                        [model]="tableLayoutDialogPropertyModel"></table-layout-property-dialog>
+</ng-template>

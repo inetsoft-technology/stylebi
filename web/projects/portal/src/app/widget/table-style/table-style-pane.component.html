@@ -1,0 +1,59 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <fieldset>
+    <legend>_#(Table Styles)</legend>
+  <div class="row">
+    <div class="col-6">
+      <div class="bordered-box bd-gray">
+        <tree [root]="model.styleTree" [showRoot]="false"
+         [initSelectedNodesExpanded]="true"
+         [selectedNodes]="selectedNodes"
+         (nodesSelected)="selectStyle($event[0], true)"></tree>
+      </div>
+    </div>
+    <div class="col-6">
+      <div class="preview-style-box bordered-box bd-gray">
+        <div class="preview-folders-box" *ngIf="previewFolders.length > 0">
+          <div class="table-style-folder-preview bd-gray" *ngFor="let node of previewFolders">
+            <div class="text-center" *ngIf="node.type == 'folder'"
+              (dblclick)="openStyleFolder(node)">
+              <i class="folder-collapsed-icon icon-5x w-100"></i>
+              <div class="text-nowrap">{{node.label}}</div>
+            </div>
+            <div class="text-center w-100 h-100" *ngIf="node.type == 'style'"
+                 [class.selected]="model.tableStyle == node.data">
+              <img [src]="getImgSrc(node.data, false)" (click)="selectStyle(node, false)">
+              <div class="text-nowrap">{{node.label}}</div>
+            </div>
+          </div>
+        </div>
+        <div class="table_style_preview_id" *ngIf="previewStyle">
+          <img [src]="getImgSrc(previewStyle, true)">
+        </div>
+      </div>
+    </div>
+    <div class="col-12 pt-1">
+      <button type="button" class="col-auto btn btn-default pull-right" (click)="clearStyle()">
+        _#(Clear)</button>
+    </div>
+  </div>
+  </fieldset>
+</form>

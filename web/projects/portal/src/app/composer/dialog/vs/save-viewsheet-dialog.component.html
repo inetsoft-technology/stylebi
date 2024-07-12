@@ -1,0 +1,85 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Save Viewsheet)'" (onCancel)="cancelChanges()" [cshid]="'SavingaViewsheet'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="enter()" *ngIf="model && form">
+  <ul ngbNav #nav="ngbNav" class="nav-tabs">
+    <ng-container ngbNavItem="repository">
+      <a ngbNavLink>_#(Repository)</a>
+      <ng-template ngbNavContent>
+        <form [formGroup]="form" class="form-horizontal">
+          <fieldset>
+          <div class="form-row-float-label">
+            <div class="col">
+              <div class="form-floating">
+                <input class="form-control" type="text" id="name" trim formControlName="name"
+                     [class.is-invalid]="!form.controls['name'].valid"
+                     [(ngModel)]="model.name" defaultFocus [autoSelect]="false">
+                <label><span>_#(Name)</span></label>
+
+              <span *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']"
+                    class="invalid-feedback">
+                _#(viewer.nameValid)
+              </span>
+              <span *ngIf="form.controls['name'].errors && ! form.controls['name'].errors['assetNameStartWithCharDigit'] &&
+                           form.controls['name'].errors['assetEntryBannedCharacters']"
+                    class="invalid-feedback">
+                _#(composer.sheet.checkSpeChar)
+              </span>
+              <span *ngIf="form.controls['name'].errors && form.controls['name'].errors['assetNameStartWithCharDigit']"
+                    class="invalid-feedback">
+                _#(asset.tree.checkStart)
+              </span>
+              </div>
+            </div>
+          </div>
+          </fieldset>
+        </form>
+        <fieldset>
+           <legend>_#(Scope)</legend>
+        </fieldset>
+        <asset-tree #assetTree [datasources]="false" [worksheets]="false" [viewsheets]="true"
+                    [defaultFolder]="defaultFolder"
+                    [selectNodeOnLoadFn]="selectNodeOnLoadFn"
+                    (nodeSelected)="selectFolder($event)" class="rep-tree">
+        </asset-tree>
+      </ng-template>
+    </ng-container>
+    <ng-container ngbNavItem="options">
+      <a ngbNavLink>_#(Options)</a>
+      <ng-template ngbNavContent>
+        <viewsheet-options-pane [model]="model.viewsheetOptionsPaneModel"
+                                [form]="form.controls['viewsheetOptionsPaneForm']"
+                                [runtimeId]="runtimeId">
+        </viewsheet-options-pane>
+      </ng-template>
+    </ng-container>
+  </ul>
+  <div [ngbNavOutlet]="nav"></div>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!model || !form?.valid" #okButton>
+    _#(OK)
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">
+    _#(Cancel)
+  </button>
+</div>

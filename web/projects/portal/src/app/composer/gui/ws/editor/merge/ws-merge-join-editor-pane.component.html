@@ -1,0 +1,35 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="merge-join-container" (mousedown)="focusMergeTable($event)">
+  <div class="merge-join-subtable-container">
+    <merge-join-subtable *ngFor="let _subtable of subtables; let _i = index; let _last = last"
+                         [ngClass]="{'bg-highlight-color insert-left': dropInfo?.currentInsertionIndex === _i,
+                                     'insert-right br-highlight': dropInfo?.currentInsertionIndex === _i + 1 && _last}"
+                         [subtable]="_subtable"
+                         [selected]="worksheet.selectedSubtables.indexOf(_subtable) !== -1"
+                         (contextmenu)="showSubtableContextmenu($event, _subtable)"
+                         (onSelectTable)="selectSubtable(_subtable)"
+                         (onFocusCompositeTable)="focusCompositeTable(_subtable)"
+                         (dragstart)="dragSubtable($event, _subtable)"></merge-join-subtable>
+  </div>
+  <div *ngIf="draggingTable | async" class="merge-join-drag-target"
+       (dragover)="allowDropSubtable($event)" (dragleave)="stopDrag()" (dragend)="stopDrag()" (drop)="dropSubtable($event)">
+  </div>
+</div>

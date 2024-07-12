@@ -1,0 +1,822 @@
+{
+  "endpoints": [
+    {
+      "name": "Clients",
+      "suffix": "/v3.2/clients.json",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "Client's details",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Sent campaigns",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Scheduled campaigns",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Draft campaigns",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Subscriber lists",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Segments",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Suppression list",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Templates",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "People",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Person details",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Client's primary contact",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Journeys",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Smart email listing",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Classic email group listing",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        },
+        {
+          "endpoint": "Statistics",
+          "jsonPath": "$.[*]",
+          "key": "ClientID",
+          "parameterName": "Client ID"
+        }
+      ]
+    },
+    {
+      "name": "Billing details",
+      "suffix": "/v3.2/billingdetails.json",
+      "paged": "false"
+    },
+    {
+      "name": "Countries",
+      "suffix": "/v3.2/countries.json",
+      "paged": "false"
+    },
+    {
+      "name": "Timezones",
+      "suffix": "/v3.2/timezones.json",
+      "paged": "false"
+    },
+    {
+      "name": "Current date",
+      "suffix": "/v3.2/systemdate.json",
+      "paged": "false"
+    },
+    {
+      "name": "Administrators",
+      "suffix": "/v3.2/admins.json",
+      "paged": "false"
+    },
+    {
+      "name": "Administrator details",
+      "suffix": "/v3.2/admins.json?email={Email?}",
+      "paged": "false"
+    },
+    {
+      "name": "Primary contact",
+      "suffix": "/v3.2/primarycontact.json",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign summary",
+      "suffix": "/v3.2/campaigns/{Campaign ID}/summary.json",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign email client usage",
+      "suffix": "/v3.2/campaigns/{Campaign ID}/emailclientusage.json",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign lists and segments",
+      "suffix": "/v3.2/campaigns/{Campaign ID}/listsandsegments.json",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "List details",
+          "jsonPath": "$.Lists[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List stats",
+          "jsonPath": "$.Lists[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List custom fields",
+          "jsonPath": "$.Lists[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List segments",
+          "jsonPath": "$.Lists[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Active subscribers",
+          "jsonPath": "$.Lists[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Unconfirmed subscribers",
+          "jsonPath": "$.Lists[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Unsubscribed subscribers",
+          "jsonPath": "$.Lists[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Bounced subscribers",
+          "jsonPath": "$.Lists[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Deleted subscribers",
+          "jsonPath": "$.Lists[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List webhooks",
+          "jsonPath": "$.Lists[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Segment's details",
+          "jsonPath": "$.Segments[*]",
+          "key": "SegmentID",
+          "parameterName": "Segment ID"
+        },
+        {
+          "endpoint": "Segment's active subsribers",
+          "jsonPath": "$.Segments[*]",
+          "key": "SegmentID",
+          "parameterName": "Segment ID"
+        }
+      ]
+    },
+    {
+      "name": "Campaign recipients",
+      "suffix": "/v3.2/campaigns/{Campaign ID}/recipients.json",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign bounces",
+      "suffix": "/v3.2/campaigns/{Campaign ID}/bounces.json?date={Date?:YYYY-MM-DD HH:MM}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign opens",
+      "suffix": "/v3.2/campaigns/{Campaign ID}/opens.json?date={Date?:YYYY-MM-DD HH:MM}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign clicks",
+      "suffix": "/v3.2/campaigns/{Campaign ID}/clicks.json?date={Date?:YYYY-MM-DD HH:MM}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign unsubscribes",
+      "suffix": "/v3.2/campaigns/{Campaign ID}/unsubscribes.json?date={Date?:YYYY-MM-DD HH:MM}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign spam complaints",
+      "suffix": "/v3.2/campaigns/{Campaign ID}/spam.json?date={Date?:YYYY-MM-DD HH:MM}",
+      "paged": "true"
+    },
+    {
+      "name": "Client's details",
+      "suffix": "/v3.2/clients/{Client ID}.json",
+      "paged": "false"
+    },
+    {
+      "name": "Sent campaigns",
+      "suffix": "/v3.2/clients/{Client ID}/campaigns.json",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "Campaign summary",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign email client usage",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign lists and segments",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign recipients",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign bounces",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign opens",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign clicks",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign unsubscribes",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign spam complaints",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        }
+      ]
+    },
+    {
+      "name": "Scheduled campaigns",
+      "suffix": "/v3.2/clients/{Client ID}/scheduled.json",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "Campaign summary",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign email client usage",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign lists and segments",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign recipients",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign bounces",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign opens",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign clicks",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign unsubscribes",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign spam complaints",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        }
+      ]
+    },
+    {
+      "name": "Draft campaigns",
+      "suffix": "/v3.2/clients/{Client ID}/drafts.json",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "Campaign summary",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign email client usage",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign lists and segments",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign recipients",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign bounces",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign opens",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign clicks",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign unsubscribes",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Campaign spam complaints",
+          "jsonPath": "$.[*]",
+          "key": "CampaignID",
+          "parameterName": "Campaign ID"
+        }
+      ]
+    },
+    {
+      "name": "Subscriber lists",
+      "suffix": "/v3.2/clients/{Client ID}/campaigns.json",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "List details",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List stats",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List custom fields",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List segments",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Active subscribers",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Unconfirmed subscribers",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Unsubscribed subscribers",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Bounced subscribers",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Deleted subscribers",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List webhooks",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        }
+      ]
+    },
+    {
+      "name": "Lists for an email address",
+      "suffix": "/v3.2/clients/{Client ID}/listsforemail.json?email={Email}",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "List details",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List stats",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List custom fields",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List segments",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Active subscribers",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Unconfirmed subscribers",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Unsubscribed subscribers",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Bounced subscribers",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Deleted subscribers",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "List webhooks",
+          "jsonPath": "$.[*]",
+          "key": "ListID",
+          "parameterName": "List ID"
+        }
+      ]
+    },
+    {
+      "name": "Segments",
+      "suffix": "/v3.2/clients/{Client ID}/segments.json",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "Segment's details",
+          "jsonPath": "$.[*]",
+          "key": "SegmentID",
+          "parameterName": "Segment ID"
+        },
+        {
+          "endpoint": "Segment's active subsribers",
+          "jsonPath": "$.[*]",
+          "key": "SegmentID",
+          "parameterName": "Segment ID"
+        }
+      ]
+    },
+    {
+      "name": "Suppression list",
+      "suffix": "/v3.2/clients/{Client ID}/suppressionlist.json",
+      "paged": "true"
+    },
+    {
+      "name": "Templates",
+      "suffix": "/v3.2/clients/{Client ID}/templates.json",
+      "paged": "false"
+    },
+    {
+      "name": "People",
+      "suffix": "/v3.2/clients/{Client ID}/people.json",
+      "paged": "false"
+    },
+    {
+      "name": "Person details",
+      "suffix": "/v3.2/clients/{Client ID}/people.json?email={Email?}",
+      "paged": "false"
+    },
+    {
+      "name": "Client's primary contact",
+      "suffix": "/v3.2/clients/{Client ID}/primarycontact.json",
+      "paged": "false"
+    },
+    {
+      "name": "Journeys",
+      "suffix": "/v3.2/clients/{Client ID}/journeys.json",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "Journey summary",
+          "jsonPath": "$.[*]",
+          "key": "JourneyID",
+          "parameterName": "Journey ID"
+        }
+      ]
+    },
+    {
+      "name": "Journey summary",
+      "suffix": "/v3.2/journeys/{Journey ID}.json",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "Journey email recipients",
+          "jsonPath": "$.Emails[*]",
+          "key": "EmailID",
+          "parameterName": "Email ID"
+        },
+        {
+          "endpoint": "Journey email opens",
+          "jsonPath": "$.Emails[*]",
+          "key": "EmailID",
+          "parameterName": "Email ID"
+        },
+        {
+          "endpoint": "Journey email clicks",
+          "jsonPath": "$.Emails[*]",
+          "key": "EmailID",
+          "parameterName": "Email ID"
+        },
+        {
+          "endpoint": "Journey email bounces",
+          "jsonPath": "$.Emails[*]",
+          "key": "EmailID",
+          "parameterName": "Email ID"
+        },
+        {
+          "endpoint": "Journey email unsubscribes",
+          "jsonPath": "$.Emails[*]",
+          "key": "EmailID",
+          "parameterName": "Email ID"
+        }
+      ]
+    },
+    {
+      "name": "Journey email recipients",
+      "suffix": "/v3.2/journeys/email/{Email ID}/recipients.json?date={Date?:YYYY-MM-DD HH:MM}",
+      "paged": "true"
+    },
+    {
+      "name": "Journey email opens",
+      "suffix": "/v3.2/journeys/email/{Email ID}/opens.json?date={Date?:YYYY-MM-DD HH:MM}",
+      "paged": "true"
+    },
+    {
+      "name": "Journey email clicks",
+      "suffix": "/v3.2/journeys/email/{Email ID}/clicks.json?date={Date?:YYYY-MM-DD HH:MM}",
+      "paged": "true"
+    },
+    {
+      "name": "Journey email bounces",
+      "suffix": "/v3.2/journeys/email/{Email ID}/bounces.json?date={Date?:YYYY-MM-DD HH:MM}",
+      "paged": "true"
+    },
+    {
+      "name": "Journey email unsubscribes",
+      "suffix": "/v3.2/journeys/email/{Email ID}/unsubscribes.json?date={Date?:YYYY-MM-DD HH:MM}",
+      "paged": "true"
+    },
+    {
+      "name": "List details",
+      "suffix": "/v3.2/lists/{List ID}.json",
+      "paged": "false"
+    },
+    {
+      "name": "List stats",
+      "suffix": "/v3.2/lists/{List ID}/stats.json",
+      "paged": "false"
+    },
+    {
+      "name": "List custom fields",
+      "suffix": "/v3.2/lists/{List ID}/customfields.json",
+      "paged": "false"
+    },
+    {
+      "name": "List segments",
+      "suffix": "/v3.2/lists/{List ID}/segments.json",
+      "paged": "false"
+    },
+    {
+      "name": "Active subscribers",
+      "suffix": "/v3.2/lists/{List ID}/active.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
+      "paged": "true"
+    },
+    {
+      "name": "Unconfirmed subscribers",
+      "suffix": "/v3.2/lists/{List ID}/unconfirmed.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
+      "paged": "true"
+    },
+    {
+      "name": "Unsubscribed subscribers",
+      "suffix": "/v3.2/lists/{List ID}/unsubscribed.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
+      "paged": "true"
+    },
+    {
+      "name": "Bounced subscribers",
+      "suffix": "/v3.2/lists/{List ID}/bounced.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
+      "paged": "true"
+    },
+    {
+      "name": "Deleted subscribers",
+      "suffix": "/v3.2/lists/{List ID}/deleted.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
+      "paged": "true"
+    },
+    {
+      "name": "List webhooks",
+      "suffix": "/v3.2/lists/{List ID}/webhooks.json",
+      "paged": "false"
+    },
+    {
+      "name": "Testing a webhook",
+      "suffix": "/v3.2/lists/{List ID}/webhooks/{Webhook ID}/test.json",
+      "paged": "false"
+    },
+    {
+      "name": "Segment's details",
+      "suffix": "/v3.2/segments/{Segment ID}.json",
+      "paged": "false"
+    },
+    {
+      "name": "Segment's active subsribers",
+      "suffix": "/v3.2/segments/{Segment ID}/active.json?date={Date?:YYYY-MM-DD}&includetrackingpreference={Include Tracking Preference?:true|false}",
+      "paged": "true"
+    },
+    {
+      "name": "Subscriber's details",
+      "suffix": "/v3.2/subscribers/{List ID}.json?email={Email}&includetrackingpreference={Include Tracking Preference?:true|false}",
+      "paged": "false"
+    },
+    {
+      "name": "Subscriber's history",
+      "suffix": "/v3.2/subscribers/{List ID}/history.json?email={Email}",
+      "paged": "false"
+    },
+    {
+      "name": "Template",
+      "suffix": "/v3.2/templates/{Template ID}.json",
+      "paged": "false"
+    },
+    {
+      "name": "Smart email listing",
+      "suffix": "/v3.2/transactional/smartEmail?status={Status?:all|draft|active}&clientID={Client ID?}",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "Smart email details",
+          "jsonPath": "$.[*]",
+          "key": "ID",
+          "parameterName": "Smart Email ID"
+        }
+      ]
+    },
+    {
+      "name": "Smart email details",
+      "suffix": "/v3.2/transactional/smartEmail/{Smart Email ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Classic email group listing",
+      "suffix": "/v3.2/transactional/classicEmail/groups?clientID={Client ID?}",
+      "paged": "false"
+    },
+    {
+      "name": "Statistics",
+      "suffix": "/v3.2/transactional/statistics?clientID={Client ID?}&smartEmailID={Smart Email ID?}&group={Group?}&from={From?:YYYY-MM-DD}&to={To?:YYYY-MM-DD}&timezone={Timezone?:utc|client}",
+      "paged": "false"
+    },
+    {
+      "name": "Message timeline",
+      "suffix": "/v3.2/transactional/messages?status={Status?}&count={Count?}&sentBeforeID={Sent Before ID?}&sentAfterID={Sent After ID?}&smartEmailID={Smart Email ID?}&group={Group?}&clientID={Client ID?}",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "Message details",
+          "jsonPath": "$.[*]",
+          "key": "MessageID",
+          "parameterName": "Message ID"
+        }
+      ]
+    },
+    {
+      "name": "Message details",
+      "suffix": "/v3.2/transactional/messages/{Message ID}?statistics={Statistics?:false|true}",
+      "paged": "false"
+    }
+  ]
+}

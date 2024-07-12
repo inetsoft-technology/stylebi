@@ -1,0 +1,89 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model"
+     #objectContainer
+     VSDataTip [dataTipName]="model.absoluteName"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex"
+     class="vs-object"
+     [wTooltip]="tooltip"
+     [style.display]="getVisible() ? null : 'none'"
+     [class.fade-assembly]="!viewer && !model.visible"
+     [class.disable-actions-fade]="!model.enabled"
+     [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
+     [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
+     [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+     [style.width.px]="model.objectFormat.width"
+     [style.height.px]="model.objectFormat.height"
+     [style.background-color]="model.objectFormat.background"
+     [style.border-bottom]="model.objectFormat.border.bottom"
+     [style.border-top]="model.objectFormat.border.top"
+     [style.border-left]="model.objectFormat.border.left"
+     [style.border-right]="model.objectFormat.border.right"
+     [style.border-radius.px]="model.objectFormat.roundCorner">
+  <div class="image-container"
+       [class.cursor-pointer]="viewer && (model.hyperlinks && model.hyperlinks.length || model.hasOnClick || model.popComponent)"
+       [style.z-index]="getZIndex()">
+    <ng-container *ngIf="!model.noImageFlag && vsInfo?.linkUri">
+      <img *ngIf="!model.scaleInfo.tiled" class="image-content"
+           (click)="clicked($event)"
+           (load)="onImageLoad($event)" (error)="finishLoad()"
+           [class.image-content-shadow]="model.shadow && model.animateGif"
+           [style.width.px]="imageSize.width"
+           [style.height.px]="imageSize.height"
+           [style.opacity]="opacity"
+           [attr.src]="src">
+      <div *ngIf="model.scaleInfo.tiled"
+           [ngStyle]="{'background': 'url(' + src + ') repeat'}"
+           (click)="clicked($event)"
+           class="image-content-tiled"
+           [style.opacity]="opacity">
+      </div>
+    </ng-container>
+    <div *ngIf="model.noImageFlag"
+         [innerText]="'_#(Image)'"
+         (click)="clicked($event)"
+         class="image-no-content"
+         [style.width.px]="imageSize.width"
+         [style.height.px]="imageSize.height"
+         [style.background]="model.objectFormat.background"
+         [style.border-radius.px]="model.objectFormat.roundCorner"
+         [style.line-height]="model.objectFormat.height +'px'">
+    </div>
+    <div class="annotation-hidden-container" *ngIf="viewer">
+      <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
+    </div>
+  </div>
+  <ng-container *ngIf="viewer">
+    <vs-annotation *ngFor="let annotationModel of model.assemblyAnnotationModels"
+                   [model]="annotationModel"
+                   [actions]="actions"
+                   [restrictTo]="objectContainer"
+                   [vsInfo]="vsInfo"
+                   [selected]="isAnnotationSelected(annotationModel)"
+                   (remove)="removeAnnotation(annotationModel)"
+                   (mouseSelect)="selectAnnotation($event)">
+    </vs-annotation>
+  </ng-container>
+  <vs-loading-display *ngIf="model && model?.sourceType != -1 && loading"
+                      [allowInteraction]="true"
+                      [assemblyLoading]="true"></vs-loading-display>
+</div>

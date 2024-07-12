@@ -1,0 +1,448 @@
+{
+  "endpoints": [
+    {
+      "name": "Accounts",
+      "suffix": "/3/accounts?search={Search?}",
+      "paged": "true"
+    },
+    {
+      "name": "Account",
+      "suffix": "/3/accounts/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Account Associations",
+      "suffix": "/3/accountContacts?filters[contact]={Contract?}&filters[account]={Account?}",
+      "paged": "true"
+    },
+    {
+      "name": "Account Association",
+      "suffix": "/3/accountContacts/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Custom account fields",
+      "suffix": "/3/accountCustomFieldMeta",
+      "paged": "true"
+    },
+    {
+      "name": "Custom account field",
+      "suffix": "/3/accountCustomFieldMeta/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Custom account field values",
+      "suffix": "/3/accountCustomFieldData?filters[customerAccountId]={Customer Account ID?}",
+      "paged": "true"
+    },
+    {
+      "name": "Custom account field value",
+      "suffix": "/3/accountCustomFieldData/{Field ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Addresses",
+      "suffix": "/3/addresses",
+      "paged": "true"
+    },
+    {
+      "name": "Address",
+      "suffix": "/3/addresses/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Automations",
+      "suffix": "/3/automations",
+      "paged": "true"
+    },
+    {
+      "name": "Brandings",
+      "suffix": "/3/brandings",
+      "paged": "true"
+    },
+    {
+      "name": "Branding",
+      "suffix": "/3/brandings/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Calendar feeds",
+      "suffix": "/3/calendars",
+      "paged": "true"
+    },
+    {
+      "name": "Calendar",
+      "suffix": "/3/calendars/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaigns",
+      "suffix": "/3/campaigns",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign links",
+      "suffix": "/3/campaigns/{ID}/links",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign",
+      "suffix": "/3/campaigns/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Messages",
+      "suffix": "/3/messages",
+      "paged": "true"
+    },
+    {
+      "name": "Message",
+      "suffix": "/3/messages/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Contacts",
+      "suffix": "3/contacts?ids={IDs?}&datetime={Date Time?}&email={Email?}&email_like={Email Like?}&exclude={Exclude?}&formid={Form ID?}&id_greater={Greater Than ID?}&id_less={Less Than ID?}&listid={List ID?}&organization={Organization?}&search={Search?}&segmentid={Segment ID?}&seriesid={Series ID?}&status={Status?:-1|0|1|2|3}&tagid={Tag ID?}&filters[created_before]={Created Before?}&filters[created_after]={Created After?}&filters[updated_before]={Updated Before?}&filters[updated_after]={Updated After?}&waitid={Wait ID?}&in_group_lists={In Group Lists?:true|false}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "Contact's automations",
+          "jsonPath": "$.contacts.[*]",
+          "key": "id",
+          "parameterName": "ID"
+        },
+        {
+          "endpoint": "Contact's score values",
+          "jsonPath": "$.contacts.[*]",
+          "key": "id",
+          "parameterName": "ID"
+        }
+      ]
+    },
+    {
+      "name": "Contact",
+      "suffix": "/3/contacts/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Contact's automations",
+      "suffix": "/3/contacts/{ID}/contactAutomations",
+      "paged": "true"
+    },
+    {
+      "name": "Contact's score values",
+      "suffix": "/3/contacts/{ID}/scoreValues",
+      "paged": "true"
+    },
+    {
+      "name": "Contact automations",
+      "suffix": "/3/contactAutomations",
+      "paged": "true"
+    },
+    {
+      "name": "Contact automation",
+      "suffix": "/3/contactAutomations/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Custom contact fields",
+      "suffix": "/3/fields",
+      "paged": "true"
+    },
+    {
+      "name": "Custom contact field",
+      "suffix": "/3/fields/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Custom contact field values",
+      "suffix": "/3/fieldValues?filters[fieldid]={Field ID?}&filters[val]={Value?}",
+      "paged": "true"
+    },
+    {
+      "name": "Custom contact field value",
+      "suffix": "/3/fieldValues/{Field ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Deals",
+      "suffix": "/3/deals?filters[search]={Search?}&filters[search_field]={Search Field?}&filters[title]={Title?}&filters[stage]={Stage?}&filters[group]={Group?}&filters[status]={Status?}&filters[owner]={Owner?}&filters[nextdate_range]={Nextdate Range?}&filters[tag]={Tag?}&filters[tasktype]={Tasktype?}&filters[created_before]={Created Before?}&filters[created_after]={Created After?}&filters[updated_before]={Updated Before?}&filters[updated_after]={Updated After?}&filters[organization]={Organization?}&filters[minimum_value]={Minimum Value?}&filters[maximum_value]={Maximum Value?}&filters[score_greater_than]={Score Greater Than?}&filters[score_less_than]={Score Less Than?}&filters[score]={Score?}",
+      "paged": "true"
+    },
+    {
+      "name": "Deal",
+      "suffix": "/3/deals/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Pipelines",
+      "suffix": "/3/dealGroups?filters[title]={Title?}&filters[have_stages]={Have Stages?:0|1}",
+      "paged": "true"
+    },
+    {
+      "name": "Pipeline",
+      "suffix": "/3/dealGroups/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Stages",
+      "suffix": "/3/dealStages?filters[title]={Title?}&filters[d_groupid]={Deal Group ID?}",
+      "paged": "true"
+    },
+    {
+      "name": "Stage",
+      "suffix": "/3/dealStages/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Custom deal fields",
+      "suffix": "/3/dealCustomFieldMeta",
+      "paged": "true"
+    },
+    {
+      "name": "Custom deal field",
+      "suffix": "/3/dealCustomFieldMeta/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Custom deal field values",
+      "suffix": "/3/dealCustomFieldData?filters[dealId]={Deal ID?}",
+      "paged": "true"
+    },
+    {
+      "name": "Custom deal field value",
+      "suffix": "/3/dealCustomFieldData/{Field ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Secondary contacts",
+      "suffix": "/3/contactDeals",
+      "paged": "true"
+    },
+    {
+      "name": "Secondary contact",
+      "suffix": "/3/contactDeals/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Connections",
+      "suffix": "/3/connections?filters[service]={Service?}&filters[externalid]={External ID?}",
+      "paged": "true"
+    },
+    {
+      "name": "Connection",
+      "suffix": "/3/connections/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "E-Commerce customers",
+      "suffix": "/3/ecomCustomers?filters[email]={Email?}&filters[externalid]={External ID?}&filters[connectionid]={Connection ID?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-Commerce customer",
+      "suffix": "/3/ecomCustomers/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "E-Commerce orders",
+      "suffix": "/3/ecomOrders?filters[connectionid]={Connection ID?}&filters[externalid]={External ID?}&filters[externalcheckoutid]={External Checkout ID?}&filters[email]={Email?}&filters[state]={State?:0|1|2|3|4}&filters[customerid]={Customer ID?}&filters[external_created_date]={External Created Date?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-Commerce order",
+      "suffix": "/3/ecomOrders/{E-Commerce Order ID}",
+      "paged": "false"
+    },
+    {
+      "name": "E-Commerce order products",
+      "suffix": "/3/ecomOrderProducts",
+      "paged": "true"
+    },
+    {
+      "name": "E-Commerce order products for a specific E-Commerce Order",
+      "suffix": "/3/ecomOrders/{E-Commerce Order ID}/orderProducts",
+      "paged": "true"
+    },
+    {
+      "name": "E-Commerce order product",
+      "suffix": "/3/ecomOrderProducts/{E-Commerce Order Product ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Forms",
+      "suffix": "/3/forms",
+      "paged": "true"
+    },
+    {
+      "name": "Form",
+      "suffix": "/3/forms/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Lists",
+      "suffix": "/3/lists?filters[name]={Name?}",
+      "paged": "true"
+    },
+    {
+      "name": "List",
+      "suffix": "/3/lists/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Contact Notes",
+      "suffix": "/3/contacts/{Contact ID}/notes",
+      "paged": "false"
+    },
+    {
+      "name": "Note",
+      "suffix": "/3/notes/{Note ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Organizations",
+      "suffix": "/3/organizations?filters[name]={Name?}",
+      "paged": "true"
+    },
+    {
+      "name": "Organization",
+      "suffix": "/3/organizations/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Saved responses",
+      "suffix": "/3/savedResponses",
+      "paged": "true"
+    },
+    {
+      "name": "Saved response",
+      "suffix": "/3/savedResponses/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Scores",
+      "suffix": "/3/scores",
+      "paged": "true"
+    },
+    {
+      "name": "Score",
+      "suffix": "/3/scores/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Segments",
+      "suffix": "/3/segments",
+      "paged": "true"
+    },
+    {
+      "name": "Segment",
+      "suffix": "/3/segments/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Event tracking status",
+      "suffix": "/3/eventTracking",
+      "paged": "false"
+    },
+    {
+      "name": "Names of tracked events",
+      "suffix": "/3/eventTrackingEvents",
+      "paged": "true"
+    },
+    {
+      "name": "Site tracking status",
+      "suffix": "/3/siteTracking",
+      "paged": "false"
+    },
+    {
+      "name": "Whitelisted site tracking domains",
+      "suffix": "/3/siteTrackingDomains",
+      "paged": "true"
+    },
+    {
+      "name": "Tags",
+      "suffix": "/3/tags?search={Search?}",
+      "paged": "true"
+    },
+    {
+      "name": "Tag",
+      "suffix": "/3/tags/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Tasks",
+      "suffix": "/3/dealTasks?filters[title]={Title?}&filters[reltype]={Relating Object?}&filters[relid]={Relational Object ID?}&filters[status]={Status?}&filters[note]={Note?}&filters[duedate]={Due Date?}&filters[d_tasktypeid]={Task Type?}&filters[userid]={User ID?}&filters[due_after]={Due After?}&filters[due_before]={Due Before?}&filters[duedate_range]={Due Date Range?}",
+      "paged": "true"
+    },
+    {
+      "name": "Task",
+      "suffix": "/3/dealTasks/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Task types",
+      "suffix": "/3/dealTasktypes",
+      "paged": "true"
+    },
+    {
+      "name": "Task type",
+      "suffix": "/3/dealTasktypes/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Template",
+      "suffix": "/3/templates/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Users",
+      "suffix": "/3/users",
+      "paged": "true"
+    },
+    {
+      "name": "User by id",
+      "suffix": "/3/users/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "User by email",
+      "suffix": "/3/users/email/{Email}",
+      "paged": "false"
+    },
+    {
+      "name": "User by username",
+      "suffix": "/3/users/username/{Username}",
+      "paged": "false"
+    },
+    {
+      "name": "Logged-in user",
+      "suffix": "/3/users/me",
+      "paged": "false"
+    },
+    {
+      "name": "Groups",
+      "suffix": "/3/groups",
+      "paged": "true"
+    },
+    {
+      "name": "Group",
+      "suffix": "/3/groups/{ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Webhooks",
+      "suffix": "/3/webhooks?filters[name]={Name?}&filters[url]={URL Filter?}&filters[listid]={List ID?}",
+      "paged": "true"
+    },
+    {
+      "name": "Webhook events",
+      "suffix": "/3/webhook/events",
+      "paged": "true"
+    },
+    {
+      "name": "Webhook",
+      "suffix": "/3/webhooks/{ID}",
+      "paged": "false"
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+   margin: 1px;
+}
+
+.node-graph-container {
+   border: 1px solid;
+   border-radius: 4px;
+   width: 100%;
+
+   &:hover {
+      border: 2px solid var(--inet-primary-color) !important;
+   }
+}
+
+.graph-label-content {
+   width: 100%;
+   height: 100%;
+   display: flex;
+   justify-content: space-between;
+   border-radius: 4px;
+
+   .down-arrow-button {
+     opacity: 0.3;
+   }
+
+   &:hover .down-arrow-button {
+     opacity: 1;
+   }
+}
+
+.physical-graph-node-selected {
+   border-radius: 4px;
+}
+
+.graph-label-text {
+   margin-left: 15px;
+   margin-right: 10px;
+   display: inline-table; // force width to be integer to avoid right border missing
+}
+
+.graph-show-detail-icon {
+   justify-content: flex-end;
+   margin-right: 5px;
+}
+
+.clear-margin {
+   margin: 0px !important;
+}
+
+.physical-graph-column-label {
+   padding: 0px 10px;
+}
+
+.graph-cols-content {
+   border-top: 1px solid;
+}
+
+.graph-odd-column {
+   background-color: var(--inet-ws-table-odd-row-bg-color);
+}
+
+.graph-even-column {
+   background-color: var(--inet-ws-table-even-row-bg-color);
+}

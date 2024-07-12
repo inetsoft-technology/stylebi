@@ -1,0 +1,73 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-form-field appearance="outline" color="accent" *ngIf="isSysAdmin">
+  <mat-label>_#(Provider Name)</mat-label>
+  <mat-select [(value)]="selectedProvider"
+              (selectionChange)="securityTree.clearTreeData(); providerChanged.emit(selectedProvider)">
+    <mat-option *ngFor="let provider of authenticationProviders" [value]="provider">
+      {{provider}}
+    </mat-option>
+  </mat-select>
+</mat-form-field>
+<mat-drawer-container class="users-container" autosize>
+  <mat-drawer [class.security-tree]="!isScreenSmall() "
+              mode="side" disableClose [opened]="!isScreenSmall() || !editing">
+    <div class="tree-view" emTopScroll>
+      <em-security-tree-view [treeData]="treeData"
+                             [selectedNodes]="selectedNodes"
+                             (nodeSelected)="selectedIdentityChanged($event)"
+                             (selectionChanged)="selectionChanged.emit($event)"
+                             (treeUpdated)="treeUpdated.emit($event)">
+      </em-security-tree-view>
+    </div>
+    <div class="buttons-view">
+      <button mat-button (click)="createUser()" [disabled]="newUserDisabled || isLoadingTemplate">_#(New User)</button>
+      <button mat-button (click)="createGroup()" [disabled]="newGroupDisabled || isLoadingTemplate">_#(New Group)</button>
+      <button *ngIf="newOrgEnabled()" mat-button (click)="createOrganization()" [disabled]="newOrganizationDisabled || isLoadingTemplate">_#(New Organization)</button>
+      <button mat-button (click)="newRole.emit()" [disabled]="newRoleDisabled || isLoadingTemplate">_#(New Role)</button>
+      <button mat-button (click)="delete()" [disabled]="deleteDisabled || isLoadingTemplate">_#(Delete)</button>
+      <button *ngIf="isScreenSmall()" mat-button (click)="editing = true"
+              [disabled]="!selectedNodes || selectedNodes.length === 0">_#(Edit)
+      </button>
+    </div>
+  </mat-drawer>
+  <mat-drawer-content [class.security-tree-editor]="!isScreenSmall()">
+    <ng-container *ngIf="selectedIdentity && !selectedIdentity.readOnly; else description">
+      <em-edit-identity-pane [treeData]="treeData" [selectedIdentity]="selectedIdentity"
+                             [provider]="selectedProvider"
+                             [smallDevice]="isScreenSmall()"
+                             [identityEditable]="identityEditable"
+                             (cancel)="editing = false"
+                             [isSysAdmin]="isSysAdmin"
+                             [isLoadingTemplate]="isLoadingTemplate"
+                             (userSettingsChanged)="userSettingsChanged.emit($event); editing = false"
+                             (groupSettingsChanged)="groupSettingsChanged.emit($event); editing = false"
+                             (roleSettingsChanged)="roleSettingsChanged.emit($event); editing = false"
+                             (organizationSettingsChanged)="organizationSettingsChanged.emit($event); editing = false"
+                             (setTemplateOrganizationClicked)="setTemplateOrganizationClicked.emit($event); editing = false"
+                             (loadIdentityError)="onLoadIdentityError()"
+                             (pageEdited)="onPageChanged($event)">
+      </em-edit-identity-pane>
+    </ng-container>
+    <ng-template #description>
+      <div *ngIf="!selectedIdentity" class="description-view">_#(em.users.defaultPassword)</div>
+    </ng-template>
+  </mat-drawer-content>
+</mat-drawer-container>

@@ -1,0 +1,71 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+
+  .hint-container {
+    width: 70%;
+    height: 100%;
+    display: flex;
+    margin-top: 5em;
+    margin-left: auto;
+    margin-right: auto;
+    align-items: flex-start;
+    align-self: center;
+  }
+
+  .card-deck-extra {
+    width: 100%;
+  }
+
+  .card-image-placement {
+    margin-top: -3.5em;
+  }
+
+  .card-image-border {
+    padding: .25em .25em .25em;
+    border-radius: 1em;
+    cursor: pointer;
+  }
+
+  .card-header {
+    padding: .5em .75em 3.2em .75em;
+  }
+
+  .card-title {
+    font-size: 12pt;
+    font-weight: bold;
+  }
+
+  .card-deck {
+    display: flex;
+    flex-flow: row wrap;
+    margin-right: -15px;
+    margin-left: -15px;
+
+    .card {
+      flex: 1 0 0%;
+      margin-right: 15px;
+      margin-bottom: 0;
+      margin-left: 15px;
+    }
+  }
+}

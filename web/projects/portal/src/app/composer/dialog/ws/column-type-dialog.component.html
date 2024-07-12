@@ -1,0 +1,74 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!-- Modal Header -->
+<modal-header [title]="'_#(Column Type)'"
+              (onCancel)="cancelChanges()"
+              [cshid]="'EmbeddedTable'">
+</modal-header>
+
+<!-- Modal Body -->
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()" *ngIf="form">
+  <form [formGroup]="form">
+    <fieldset class="container-fluid">
+      <legend class="mb-3">{{colInfo.header}}</legend>
+      <div class="form-row-float-label row">
+        <div class="col form-floating">
+          <select class="form-control" type="text" id="dataType" formControlName="dataType"
+                  placeholder="_#(Type)">
+            <option *ngFor="let _dataType of dataTypeList" [value]="_dataType.data">
+              {{_dataType.label}}</option>
+          </select>
+          <label><span>_#(Type)</span></label>
+        </div>
+      </div>
+      <div *ngIf="form.contains('formatSpec') && currentFmtList != null"
+           class="form-row-float-label row">
+        <div class="col">
+          <div class="form-floating">
+            <combo-box id="formatSpec" [dataModel]="form.get('formatSpec').value"
+                       [dataValues]="formatLabels()"
+                       (onDataChange)="onFormatChange($event)"></combo-box>
+            <label>_#(Format)</label>
+          </div>
+        </div>
+      </div>
+      <div *ngIf="form.contains('formatSpec') && currentFmtList != null"
+           class="form-row-float-label row">
+        <div class="col">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="removeNonconvertible"
+                   [(ngModel)]="removeNonconvertible" [ngModelOptions]="{standalone: true}"/>
+            <label class="form-check-label">_#(composer.ws.removeNonconvertible)</label>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+  </form>
+</div>
+
+<!-- Modal Footer -->
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="saveChanges()" [disabled]="!form?.valid" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+</div>
+
+<div class="loading-container" *ngIf="loading">
+  <i class="loading-icon--spin icon-size-xlarge loading-icon"></i>
+</div>

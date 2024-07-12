@@ -1,0 +1,81 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Screen Size)'"
+   (onCancel)="cancelChanges()" [cshid]="'DefiningDeviceClass'">
+</modal-header>
+
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()" *ngIf="form && model">
+  <form [formGroup]="form" class="container-fluid">
+    <div class="form-row-float-label row">
+      <label class="col-2 col-sm-2">_#(Label):</label>
+      <div class="col-sm-10 col-10">
+        <input type="text" class="form-control" formControlName="label" [(ngModel)]="model.label">
+        <div *ngIf="form.controls['label'].errors && form.controls['label'].errors['required']" class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(viewer.viewsheet.layout.screenEmptyLabel)
+        </div>
+        <div *ngIf="duplicateLabel()" class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(viewer.viewsheet.layout.screenDuplicateLabel)
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <label class="col-2 col-sm-2">_#(Description):</label>
+      <div class="col-sm-10 col-10">
+        <textarea class="form-control" [(ngModel)]="model.description" [ngModelOptions]="{standalone: true}"></textarea>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <label class="col-sm-2 col-2">_#(Width):</label>
+      <div class="col-sm-3 col-3">
+        <input type="number" min="0" max="2147483647" formControlName="widthRangeStart" class="form-control" [(ngModel)]="model.minWidth">
+      </div>
+      <label class="col-sm-1 col-1" style="padding-top: 7px;">_#(to)</label>
+      <div class="col-sm-3 col-3">
+        <input type="number" min="0" max="2147483647" formControlName="widthRangeEnd" class="form-control" [(ngModel)]="model.maxWidth">
+      </div>
+      <label class="col-sm-3 col-3" style="padding-top: 7px;">_#(px)</label>
+      <div class="col-10 offset-2">
+        <div *ngIf="form.controls['widthRangeStart'].errors && form.controls['widthRangeStart'].errors['required']" class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(layout.device.screenFromWidthCheck)
+        </div>
+        <div *ngIf="form.controls['widthRangeEnd'].errors && form.controls['widthRangeEnd'].errors['required']" class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(layout.device.screenToWidthCheck)
+        </div>
+        <div *ngIf="form.controls['widthRangeStart'].errors && form.controls['widthRangeStart'].errors['positiveIntegerInRange']" class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(viewer.viewsheet.layout.screenMinValid)
+        </div>
+        <div *ngIf="form.controls['widthRangeEnd'].errors && form.controls['widthRangeEnd'].errors['positiveIntegerInRange']" class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(viewer.viewsheet.layout.screenMaxValid)
+        </div>
+        <div *ngIf="mismatch()" class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(layout.device.screenWidthCheck)
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="saveChanges()"
+          [disabled]="!model || !form?.valid || mismatch() || duplicateLabel()" #okButton>
+    _#(OK)
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+</div>

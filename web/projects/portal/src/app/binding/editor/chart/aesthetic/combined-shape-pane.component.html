@@ -1,0 +1,48 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="popup-editor__container">
+  <div class="popup-editor__button-group">
+    <button class="popup-editor__button btn" title="_#(Apply)"
+            (click)="apply.emit(false)">
+      <i class="submit-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="container">
+    <ng-container *ngFor="let i of aggrsNum">
+      <static-line-editor *ngIf="isLineType && frameInfos[i].frame"
+                          class="row form-row-float-label"
+                          [aggrName]="frameInfos[i].name" [(line)]="frameInfos[i].frame.line"
+                          (lineChanged)="changeLine($event, i)">
+      </static-line-editor>
+
+      <static-texture-editor *ngIf="isTextureType && frameInfos[i].frame"
+                             class="row form-row-float-label"
+                             [aggrName]="frameInfos[i].name" [(texture)]="frameInfos[i].frame.texture"
+                             (textureChanged)="changeTexture($event, i)">
+      </static-texture-editor>
+
+      <static-shape-editor *ngIf="!isLineType && !isTextureType && frameInfos[i].frame"
+                           class="row form-row-float-label"
+                           [aggrName]="frameInfos[i].name" [(shapeStr)]="frameInfos[i].frame.shape"
+                           (shapeChanged)="changeShape($event, i)">
+      </static-shape-editor>
+    </ng-container>
+  </div>
+</div>

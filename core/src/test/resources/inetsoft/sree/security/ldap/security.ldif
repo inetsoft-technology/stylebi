@@ -1,0 +1,234 @@
+dn: ou=people,dc=example,dc=com
+objectClass: top
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=example,dc=com
+objectClass: top
+objectClass: organizationalUnit
+ou: groups
+
+dn: ou=Sales,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: organizationalUnit
+ou: Sales
+
+dn: ou=Marketing,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: organizationalUnit
+ou: Marketing
+
+dn: ou=IT,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: organizationalUnit
+ou: IT
+
+dn: ou=Support,ou=IT,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: organizationalUnit
+ou: Support
+
+dn: o=selfOrg1,dc=example,dc=com
+objectClass: top
+objectClass: organization
+o: selfOrg1
+
+dn: uid=vernagordon,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Verna Gordon
+sn: Verna
+mail: verna.gordon@example.com
+uid: vernagordon
+userPassword: secret
+
+dn: uid=arturostevenson,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Arturo Stevenson
+sn: Arturo
+mail: arturo.stevenson@example.com
+uid: arturostevenson
+userPassword: secret
+
+dn: uid=lloydwilson,ou=Sales,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Lloyd Wilson
+sn: Lloyd
+mail: lloydwilson@example.com
+uid: lloydwilson
+userPassword: secret
+
+dn: uid=stevecurry,ou=Sales,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Steve Curry
+sn: Steve
+mail: stevecurry@example.com
+uid: stevecurry
+userPassword: secret
+
+dn: uid=ismaelhogan,ou=Sales,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Ismael Hogan
+sn: Ismael
+mail: ismaelhogan@example.com
+uid: ismaelhogan
+userPassword: secret
+
+dn: uid=kurtgill,ou=Sales,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Kurt Gill
+sn: Kurt
+mail: kurt.gill@example.com
+uid: kurtgill
+userPassword: secret
+
+dn: uid=bryanbell,ou=Marketing,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Bryan Bell
+sn: Bryan
+mail: bryan.bell@example.com
+uid: bryanbell
+userPassword: secret
+
+dn: uid=krystalbrock,ou=Marketing,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Krystal Brock
+sn: Krystal
+mail: krystal.brock@example.com
+uid: krystalbrock
+userPassword: secret
+
+dn: uid=kirklamb,ou=Marketing,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Kirk Lamb
+sn: Kirk
+mail: kirk.lamb@example.com
+uid: kirklamb
+userPassword: secret
+
+dn: uid=charlieberry,ou=Marketing,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Charlie Berry
+sn: Charlie
+mail: charlie.berry@example.com
+uid: charlieberry
+userPassword: secret
+
+dn: uid=candacegriffin,ou=IT,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Candace Griffin
+sn: Candace
+mail: candace.griffin@example.com
+o: selfOrg1
+uid: candacegriffin
+userPassword: secret
+
+dn: uid=gladysweaver,ou=IT,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Gladys Weaver
+sn: Gladys
+mail: gladys.weaver@example.com
+uid: gladysweaver
+userPassword: secret
+
+dn: uid=mariejones,ou=Support,ou=IT,ou=people,dc=example,dc=com
+objectClass: top
+objectClass: person
+objectClass: organizationalPerson
+objectClass: inetOrgPerson
+cn: Marie Jones
+sn: Marie
+mail: marie.jones@example.com
+uid: mariejones
+userPassword: secret
+
+dn: cn=Salesperson,ou=groups,dc=example,dc=com
+objectClass: top
+objectClass: groupOfUniqueNames
+cn: Salesperson
+ou: Salesperson
+uniqueMember: uid=lloydwilson,ou=Sales,ou=people,dc=example,dc=com
+uniqueMember: uid=stevecurry,ou=Sales,ou=people,dc=example,dc=com
+uniqueMember: uid=ismaelhogan,ou=Sales,ou=people,dc=example,dc=com
+uniqueMember: uid=kurtgill,ou=Sales,ou=people,dc=example,dc=com
+
+dn: cn=Strategist,ou=groups,dc=example,dc=com
+objectClass: top
+objectClass: groupOfUniqueNames
+cn: Strategist
+ou: Strategist
+o: selfOrg1
+uniqueMember: uid=bryanbell,ou=Marketing,ou=people,dc=example,dc=com
+uniqueMember: uid=krystalbrock,ou=Marketing,ou=people,dc=example,dc=com
+uniqueMember: uid=kirklamb,ou=Marketing,ou=people,dc=example,dc=com
+uniqueMember: uid=charlieberry,ou=Marketing,ou=people,dc=example,dc=com
+
+dn: cn=Developer,ou=groups,dc=example,dc=com
+objectClass: top
+objectClass: groupOfUniqueNames
+cn: Developer
+ou: Developer
+uniqueMember: uid=candacegriffin,ou=IT,ou=people,dc=example,dc=com
+uniqueMember: o=selfOrg1,dc=example,dc=com
+uniqueMember: uid=gladysweaver,ou=IT,ou=people,dc=example,dc=com
+uniqueMember: cn=Support Engineer,ou=groups,dc=example,dc=com
+
+dn: cn=Manager,ou=groups,dc=example,dc=com
+objectClass: top
+objectClass: groupOfUniqueNames
+cn: Manager
+ou: Manager
+uniqueMember: uid=lloydwilson,ou=Sales,ou=people,dc=example,dc=com
+uniqueMember: uid=bryanbell,ou=Marketing,ou=people,dc=example,dc=com
+uniqueMember: o=selfOrg1,dc=example,dc=com
+uniqueMember: uid=candacegriffin,ou=IT,ou=people,dc=example,dc=com
+
+dn: cn=System Administrator,ou=groups,dc=example,dc=com
+objectClass: top
+objectClass: groupOfUniqueNames
+cn: System Administrator
+ou: System Administrator
+uniqueMember: uid=candacegriffin,ou=IT,ou=people,dc=example,dc=com
+
+dn: cn=Support Engineer,ou=groups,dc=example,dc=com
+objectClass: top
+objectClass: groupOfUniqueNames
+cn: Support Engineer
+ou: Support Engineer
+o: selfOrg1
+uniqueMember: ou=Support,ou=IT,ou=people,dc=example,dc=com

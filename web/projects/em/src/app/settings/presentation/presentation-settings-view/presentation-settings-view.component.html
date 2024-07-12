@@ -1,0 +1,147 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="presentation-settings-container">
+  <em-navigation-scrollable
+    class="presentation-settings-content"
+    (navigationScrolled)="onNavigationScrolled($event)"
+  >
+    <div class="em-presentation-container em-content-container">
+      <div id="general-format" emNavigationScrollableItem="general-format">
+        <em-presentation-formats-settings-view
+          [model]="model?.formatsSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-presentation-formats-settings-view>
+      </div>
+      <div id="export-menu" emNavigationScrollableItem="export-menu"
+           *ngIf="model?.exportMenuSettingsModel">
+        <em-presentation-report-export-menu-settings-view
+          [model]="model?.exportMenuSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-presentation-report-export-menu-settings-view>
+      </div>
+      <div id="look-and-feel" emNavigationScrollableItem="look-and-feel">
+        <em-look-and-feel-settings-view
+          [isSysAdmin]="isSysAdmin"
+          [model]="model?.lookAndFeelSettingsModel"
+          [securityEnabled]="model?.securityEnabled"
+          (modelChanged)="onModelChanged($event)">
+        </em-look-and-feel-settings-view>
+      </div>
+      <div *ngIf="isSysAdmin" id="welcome-page" emNavigationScrollableItem="welcome-page">
+        <em-welcome-page-settings-view
+          [model]="model?.welcomePageSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-welcome-page-settings-view>
+      </div>
+      <div *ngIf="isSysAdmin" id="login-banner" emNavigationScrollableItem="login-banner">
+        <em-presentation-login-banner-settings-view
+          [model]="model?.loginBannerSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-presentation-login-banner-settings-view>
+      </div>
+      <div id="composer-message" emNavigationScrollableItem="composer-message">
+        <em-presentation-composer-message-settings-view
+                [model]="model?.composerSettingMessageModel"
+                (modelChanged)="onModelChanged($event)">
+        </em-presentation-composer-message-settings-view>
+      </div>
+      <div id="portal-integration" emNavigationScrollableItem="portal-integration">
+        <em-portal-integration-view
+          [isSysAdmin]="isSysAdmin"
+          [model]="model?.portalIntegrationSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-portal-integration-view>
+      </div>
+      <div id="time-settings" emNavigationScrollableItem="time-settings">
+        <em-presentation-time-settings-view
+          [isSysAdmin]="isSysAdmin"
+          [model]="model?.timeSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-presentation-time-settings-view>
+      </div>
+      <div id="viewsheet-toolbar" *ngIf="model?.viewsheetToolbarOptionsModel"
+           emNavigationScrollableItem="viewsheet-toolbar">
+        <em-presentation-viewsheet-toolbar-options-view
+          [model]="model?.viewsheetToolbarOptionsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-presentation-viewsheet-toolbar-options-view>
+      </div>
+      <div id="dashboard-settings" emNavigationScrollableItem="dashboard-settings">
+        <em-presentation-dashboard-settings-view
+          *ngIf="model?.dashboardSettingsModel"
+          [model]="model?.dashboardSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-presentation-dashboard-settings-view>
+      </div>
+      <div id="pdf" emNavigationScrollableItem="pdf">
+        <em-presentation-pdf-generation-settings-view
+          [model]="model?.pdfGenerationSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-presentation-pdf-generation-settings-view>
+      </div>
+      <div *ngIf="isSysAdmin" id="font-mapping" emNavigationScrollableItem="font-mapping">
+        <em-presentation-font-mapping-settings-view
+          [model]="model?.fontMappingSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-presentation-font-mapping-settings-view>
+      </div>
+      <div id="data-source-visibility" emNavigationScrollableItem="data-source-visibility"
+           *ngIf="model?.dataSourceVisibilitySettingsModel">
+        <em-presentation-data-source-visibility-settings-view
+          [model]="model?.dataSourceVisibilitySettingsModel"
+          (modelChanged)="onModelChanged($event)"
+        ></em-presentation-data-source-visibility-settings-view>
+      </div>
+      <div id="webmap" *ngIf="model?.webMapSettingsModel != null" emNavigationScrollableItem="webmap">
+        <em-webmap-settings-view
+          [model]="model.webMapSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-webmap-settings-view>
+      </div>
+      <div id="sharing" emNavigationScrollableItem="sharing"
+           *ngIf="model?.shareSettingsModel">
+        <em-presentation-share-settings-view
+          [model]="model?.shareSettingsModel"
+          (modelChanged)="onModelChanged($event)"
+        ></em-presentation-share-settings-view>
+      </div>
+    </div>
+  </em-navigation-scrollable>
+  <div class="presentation-settings-nav">
+    <mat-nav-list dense>
+      <a *ngFor="let link of navLinks"
+         mat-list-item
+         [attr.id]="link.id + '-navlink'"
+         routerLink="."
+         [fragment]="link.id"
+         [class.mat-active]="link.id === currentView"
+         (click)="scrollToItem(link.id)"
+         >
+        {{ link.label }}
+      </a>
+    </mat-nav-list>
+  </div>
+</div>
+<mat-card appearance="outlined" class="presentation-settings-actions">
+  <mat-card-content>
+    <button mat-raised-button color="primary" [disabled]="!(valid && changed)" (click)="apply()">_#(Apply)</button>
+    <button mat-raised-button (click)="reset()">_#(Reset to Default)</button>
+  </mat-card-content>
+</mat-card>

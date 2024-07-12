@@ -1,0 +1,156 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="(user || group || role || organization) && model" [formGroup]="form">
+  <div class="identity-header">
+    <h3 *ngIf="user"><p>{{'_#(User): ' + model.name}}</p></h3>
+    <h3 *ngIf="group"><p>{{'_#(Group): ' + model.name}}</p></h3>
+    <h3 *ngIf="role"><p>{{'_#(Role): ' + model.name}}</p></h3>
+    <h3 *ngIf="organization"><p>{{'_#(Organization): ' + model.name}}</p></h3>
+    <div *ngIf="!model.root && !organization" class="checkbox-block">
+      <mat-checkbox *ngIf="user && model.editable" formControlName="active" class="margin-left flex">_#(Active)</mat-checkbox>
+      <mat-checkbox *ngIf="role && showDefaultRoleOption()" formControlName="defaultRole" class="margin-left flex">_#(Default)</mat-checkbox>
+      <mat-checkbox *ngIf="role && isSysAdmin && isMultiTenant && !isOrgAdminRole" formControlName="sysAdmin" class="margin-left flex">_#(em.security.systemAdmin)</mat-checkbox>
+    </div>
+    <ng-container>
+      <button mat-raised-button *ngIf="organization && !isTemplateOrganization && isSysAdmin" (click)="updateTemplate()" [disabled]="!model.editable || !form.valid || isModelChanged() || isLoadingTemplate">
+        {{'_#(Save as Template)'}}</button>
+      <button mat-raised-button *ngIf="organization && isTemplateOrganization && isSysAdmin" (click)="resetTemplate()" [disabled]="!model.editable || !form.valid || isModelChanged() || isLoadingTemplate">
+        {{'_#(Reset Template)'}}</button>
+    </ng-container>
+  </div>
+  <em-editor-panel
+    [applyDisabled]="isLoadingTemplate || (model.editable && !form.valid || !isModelChanged())"
+    (applyClicked)="apply()"
+    (resetClicked)="reset()"
+  >
+    <div class="identity-container">
+      <div class="flex-col">
+        <ng-container *ngIf="!model.root">
+          <div class="flex-col">
+            <div class="flex-row">
+              <mat-form-field class="flex" appearance="outline" color="accent">
+                <mat-label>_#(Name)</mat-label>
+                <input matInput placeholder="_#(Name)" formControlName="name" [readonly]="readonly">
+                <mat-error *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']">
+                  _#(viewer.nameValid)
+                </mat-error>
+                <mat-error *ngIf="form.controls['name'].errors && form.controls['name'].errors['containsSpecialCharsForName']">
+                  _#(em.security.identity.nameSpecialChars)
+                </mat-error>
+              </mat-form-field>
+            </div>
+            <div *ngIf="user" class="flex-row">
+              <mat-form-field class="flex" appearance="outline" color="accent">
+                <mat-label>_#(Alias)</mat-label>
+                <input matInput placeholder="_#(Alias)" formControlName="alias" [readonly]="readonly">
+                <mat-error *ngIf="form.controls['alias'].errors && form.controls['alias'].errors['containsSpecialCharsForName']">
+                  _#(em.security.identity.aliasSpecialChars)
+                </mat-error>
+              </mat-form-field>
+            </div>
+            <div *ngIf="organization" class="flex-row">
+              <mat-form-field class="flex" appearance="outline" color="accent">
+                <mat-label>_#(ID)</mat-label>
+                <input matInput placeholder="_#(ID)" formControlName="id" [readonly]="readonly">
+                <mat-error *ngIf="form.controls['id'].errors && form.controls['id'].errors['containsSpecialCharsForName']">
+                  _#(em.security.identity.orgIDSpecialChars)
+                </mat-error>
+                <mat-error *ngIf="form.controls['id'].errors && form.controls['id'].errors['required']">
+                  _#(em.security.userOrganizationRequired)
+                </mat-error>
+              </mat-form-field>
+            </div>
+            <em-email-picker *ngIf="user" formControlName="email" class="flex" [editable]="model.editable" [autocompleteEmails]="false"></em-email-picker>
+            <mat-form-field *ngIf="role" appearance="outline" color="accent">
+              <mat-label>_#(Description)</mat-label>
+              <textarea matInput placeholder="_#(Description)" formControlName="description" [readonly]="readonly"></textarea>
+            </mat-form-field>
+            <mat-form-field *ngIf="user" appearance="outline" color="accent">
+              <mat-label>_#(Locale)</mat-label>
+              <mat-select formControlName="locale">
+                <mat-option value="">
+                  _#(Default)
+                </mat-option>
+                <mat-option *ngFor="let localeLabel of userModel.localesList" [value]="localeLabel">
+                  {{localeLabel}}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field *ngIf="organization" appearance="outline" color="accent">
+              <mat-label>_#(Locale)</mat-label>
+              <mat-select formControlName="locale">
+                <mat-option value="">
+                  _#(Default)
+                </mat-option>
+                <mat-option *ngFor="let localeLabel of organizationModel.localesList" [value]="localeLabel">
+                  {{localeLabel}}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field *ngIf="!isMultiTenant || organization" appearance="outline" color="accent">
+              <mat-label>_#(Theme)</mat-label>
+              <mat-select formControlName="theme">
+                <mat-option value="">_#(Default)</mat-option>
+                <mat-option *ngFor="let theme of themes" [value]="theme.id">
+                  {{theme.name}}
+                </mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+          <ng-container *ngIf="user">
+            <mat-checkbox class="mat-checkbox-field checkbox-block" formControlName="changePasswordEnabled"
+                          (change)="updateModel()">
+              _#(Change Password)
+            </mat-checkbox>
+            <div [formGroup]="pwForm" *ngIf="form.controls.changePasswordEnabled?.value" class="flex-col change-password-box">
+              <mat-form-field appearance="outline" color="accent" class="password-field">
+                <mat-label>_#(Password)</mat-label>
+                <input matInput placeholder="_#(Password)" type="password" formControlName="password">
+                <mat-error *ngIf="pwForm.controls.password?.errors?.required">_#(Password is required)</mat-error>
+                <mat-error *ngIf="pwForm.controls.password?.errors?.passwordComplexity">_#(viewer.password.pwdRule)</mat-error>
+              </mat-form-field>
+              <mat-form-field appearance="outline" color="accent" class="password-field">
+                <mat-label>_#(Confirm Password)</mat-label>
+                <input matInput placeholder="_#(Confirm Password)" type="password" formControlName="confirmPassword" [errorStateMatcher]="passwordErrorMatcher">
+                <mat-error *ngIf="pwForm.errors?.passwordsMatch">_#(viewer.password.confirmPwd)</mat-error>
+              </mat-form-field>
+            </div>
+          </ng-container>
+        </ng-container>
+        <em-identity-tables-pane [name]="model.name"
+                                 [globalRole]="role && isSysAdmin && isMultiTenant && model.enterprise && (model.organization == null || model.organization == '')"
+                                 [type]="type"
+                                 [members]="members"
+                                 [currentUserName]="currentUserName"
+                                 [roles]="roles"
+                                 [root]="model.root"
+                                 [permittedIdentities]="permittedIdentities"
+                                 [properties]="properties"
+                                 [editable]="model.editable"
+                                 [provider]="provider"
+                                 (membersChanged)="onMembersChanged($event)"
+                                 (rolesChanged)="onRolesChanged($event)"
+                                 (permittedIdentitiesChanged)="onPermittedIdentitiesChanged($event)"
+                                 (propertiesChanged)="onPropertyChanged($event)">
+        </em-identity-tables-pane>
+      </div>
+    </div>
+  </em-editor-panel>
+</ng-container>

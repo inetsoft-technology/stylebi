@@ -1,0 +1,252 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+// styles for drag/resize handles
+$handle-size: 8px;
+$handle-offset: 3px;
+$handle-offset2: -3px;
+$handle-mid: calc(50% - 4px);
+
+.vs-object-parent-container:not(.popup-showing):hover + mini-toolbar > .mini-toolbar,
+.object-editor:not(.moving-resizing):hover + mini-toolbar > .mini-toolbar,
+.vs-object-container:hover .mini-toolbar,
+.force-show-toolbar.vs-object-parent-container + mini-toolbar > .mini-toolbar {
+  visibility: visible;
+}
+
+.vs-object-parent-container.max-mode + mini-toolbar > .mini-toolbar {
+  z-index: 999999;
+}
+
+.object-editor.container-child.active,
+.object-editor:not(.group-container).covered.active {
+  z-index: 9900 !important;
+}
+.object-editor.popped.active {
+  z-index: 9910 !important; // below fixed-dropdown
+}
+
+.vs-object.moving-resizing, .object-editor.moving-resizing {
+  opacity: 0.5;
+}
+
+.moving-resizing .vs-combo-box {
+  select {
+    display: none;
+  }
+
+  .select-moving-label {
+    display: block;
+  }
+
+  .meridian-input {
+    display: block;
+  }
+}
+
+.title-move-zone {
+  top: 0;
+  cursor: move;
+
+  &.vs-wizard {
+    cursor: default;
+  }
+}
+
+.move-handle {
+  cursor: move;
+}
+
+.handle, .title-resize-handle, .selection-list-cell-handle {
+  display: none;
+  width: $handle-size;
+  height: $handle-size;
+  position: absolute;
+
+  &.move {
+    width: 18px;
+    height: 18px;
+    background-color: var(--inet-toolbar-bg-color);
+    padding-left: 1px;
+  }
+
+  &.top.left {
+    top: $handle-offset2;
+    left: $handle-offset2;
+    cursor: nw-resize;
+  }
+
+  &.top.right {
+    top: $handle-offset2;
+    right: $handle-offset2;
+    cursor: ne-resize;
+  }
+
+  &.bottom.left {
+    bottom: $handle-offset2;
+    left: $handle-offset2;
+    cursor: sw-resize;
+  }
+
+  &.bottom.right {
+    bottom: $handle-offset2;
+    right: $handle-offset2;
+    cursor: se-resize;
+  }
+
+  &.top.middle {
+    top: $handle-offset2;
+    left: $handle-mid;
+    cursor: ns-resize;
+  }
+
+  &.bottom.middle {
+    bottom: $handle-offset2;
+    left: $handle-mid;
+    cursor: ns-resize;
+  }
+
+  &.left.middle {
+    top: $handle-mid;
+    left: $handle-offset2;
+    cursor: ew-resize;
+  }
+
+  &.right.middle {
+    top: $handle-mid;
+    right: $handle-offset2;
+    cursor: ew-resize;
+  }
+
+  .active & {
+    display: block;
+  }
+
+  &.line {
+    margin-left: -$handle-size * 0.5;
+    margin-top: -$handle-size * 0.5;
+  }
+}
+
+.container-gutter {
+  display: none;
+}
+
+.active .container-gutter {
+  display: block;
+  position: absolute;
+}
+
+.container-gutter.top {
+  height: $handle-size;
+  top: $handle-offset2;
+  left: $handle-offset;
+  right: $handle-offset;
+  cursor: ns-resize;
+}
+
+.container-gutter.bottom {
+  height: $handle-size;
+  bottom: $handle-offset2;
+  left: $handle-offset;
+  right: $handle-offset;
+  cursor: ns-resize;
+}
+
+.container-gutter.right {
+  width: $handle-size;
+  right: $handle-offset2;
+  top: $handle-offset;
+  bottom: $handle-offset;
+  cursor: ew-resize;
+}
+
+.container-gutter.left {
+  width: $handle-size;
+  left: $handle-offset2;
+  top: $handle-offset;
+  bottom: $handle-offset;
+  cursor: ew-resize;
+}
+
+.container-gutter.top.left {
+  height: $handle-size;
+  width: $handle-size;
+  top: $handle-offset2;
+  left: $handle-offset2;
+  bottom: unset;
+  right: unset;
+  cursor: se-resize;
+}
+
+.container-gutter.top.right {
+  height: $handle-size;
+  width: $handle-size;
+  top: $handle-offset2;
+  right: $handle-offset2;
+  bottom: unset;
+  left: unset;
+  cursor: sw-resize;
+}
+
+.container-gutter.bottom.left {
+  height: $handle-size;
+  width: $handle-size;
+  bottom: $handle-offset2;
+  left: $handle-offset2;
+  top: unset;
+  right: unset;
+  cursor: sw-resize;
+}
+
+.container-gutter.bottom.right {
+  height: $handle-size;
+  width: $handle-size;
+  bottom: $handle-offset2;
+  right: $handle-offset2;
+  top: unset;
+  left: unset;
+  cursor: se-resize;
+}
+
+.show-drag-field {
+  position: absolute;
+  left: -1000px;
+  top: -1000px;
+  z-index: 20000;
+  border: 2px solid rgba(0,0,0,0.1);
+  background: rgba(200,200,200,0.6);
+  width: fit-content;
+  min-width: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: normal; // non-normal font weight breaks the drag image text
+  padding: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.drag-field-left {
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+}
+
+img {
+  -webkit-user-drag: none;
+}

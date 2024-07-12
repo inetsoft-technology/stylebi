@@ -1,0 +1,6 @@
+Aggregate Functions
+	Summarization	SUM()
+	Count	COUNT()
+	Average	AVG()
+	Minimum	MIN()
+	Maximum	MAX()

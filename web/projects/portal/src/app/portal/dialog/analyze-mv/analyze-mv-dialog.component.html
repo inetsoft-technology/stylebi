@@ -1,0 +1,70 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<w-standard-dialog [title]="'_#(Materialization)'"
+                   [cshid]="'PortalMaterialization'"
+                   (onSubmit)="okClicked()"
+                   (onClose)="closeDialog()">
+  <ng-template wDialogContent>
+    <div *ngIf="!analyzed" class="h-100">
+      <analyze-mv-pane [selectedNodes]="selectedNodes"
+                       [analyzeMVModel]="analyzeMVModel"
+                       [securityEnabled]="securityEnabled"
+                       [models]="existingModels">
+      </analyze-mv-pane>
+    </div>
+    <div *ngIf="analyzed" class="h-100 container">
+      <create-mv-pane [models]="models"
+                      [cycles]="cycles"
+                      [mvCycle]="mvCycle"
+                      [runInBackground]="runInBackground"
+                      (hideData)="hideData = $event; refresh('DATA')"
+                      (hideExist)="hideExist = $event; refresh('EXIST')"
+                      (showPlan)="showPlan($event)"
+                      (setCycle)="setCycle($event)"
+                      (selectedMVsChanged)="selectedMVsChanged($event)"
+                      (create)="create($event)">
+      </create-mv-pane>
+    </div>
+    <div *ngIf="loading" class="loading-container portal-loading-container">
+      <div class="portal-loading-icon">
+        <i class="loading-icon--spin icon-size-xlarge loading-icon icon-4x" aria-hidden="true"></i>
+        <span class="visually-hidden">_#(Loading)</span>
+      </div>
+    </div>
+  </ng-template>
+  <ng-template wDialogButtons>
+    <ng-container *ngIf="!analyzed">
+      <button type="button" class="btn btn-primary" [disabled]="loading"
+              (click)="analyzeMV()">_#(Analyze)</button>
+      <button *ngIf="existingModels && existingModels.length > 0" type="button"
+              class="btn btn-primary"
+              [disabled]="loading || !analyzeMVPane?.selectedMVs || !analyzeMVPane?.selectedMVs.length" (click)="deleteMV()">_#(Delete)</button>
+      <button type="button" class="btn btn-default" (click)="closeDialog()">_#(Close)</button>
+    </ng-container>
+    <ng-container *ngIf="analyzed">
+      <button type="button" class="btn btn-default" (click)="analyzed = false">_#(Back)</button>
+      <button type="button" class="btn btn-primary" [disabled]="models.length === 0 || !canCreateOrUpdate"
+              (click)="createOrUpdate()">_#(Create/Update)
+      </button>
+      <button type="button" class="btn btn-default" (click)="showPlanClicked()">_#(Show Plan)</button>
+      <button type="button" class="btn btn-default" (click)="okClicked()">_#(Close)</button>
+    </ng-container>
+  </ng-template>
+</w-standard-dialog>

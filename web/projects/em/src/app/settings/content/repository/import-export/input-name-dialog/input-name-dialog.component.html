@@ -1,0 +1,43 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [title]="title">
+</em-modal-header>
+<div mat-dialog-content [formGroup]="form">
+    <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Name)</mat-label>
+        <input matInput placeholder="_#(Name)" formControlName="name" autofocus/>
+        <mat-error *ngIf="form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['required']">
+            _#(viewer.nameValid)
+        </mat-error>
+        <mat-error *ngIf="form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['assetEntryBannedCharacters']">
+            _#(composer.sheet.checkSpeChar)
+        </mat-error>
+        <mat-error *ngIf="form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['assetNameStartWithCharDigit']">
+            _#(asset.tree.checkStart)
+        </mat-error>
+        <mat-error *ngIf="form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['assetNameMyReports']">
+            _#(viewer.viewsheet.nameReserved) _#(and) _#(em.common.folders.nameAlert)
+        </mat-error>
+    </mat-form-field>
+</div>
+<div mat-dialog-actions>
+    <button mat-raised-button color="primary" (click)="submit()" [disabled]="form.invalid">_#(OK)</button>
+    <button mat-button (click)="cancel()">_#(Cancel)</button>
+</div>

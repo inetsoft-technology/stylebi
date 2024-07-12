@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="200px" height="60.742px" viewBox="0 0 200 60.742" enable-background="new 0 0 200 60.742" xml:space="preserve">
+<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="-114.3999" y1="22.7822" x2="-114.3999" y2="-37.959" gradientTransform="matrix(1 0 0 -1 214.3999 22.7822)">
+	<stop  offset="0" style="stop-color:#5178C3"/>
+	<stop  offset="0.989" style="stop-color:#04205A"/>
+	<stop  offset="1" style="stop-color:#041F59"/>
+</linearGradient>
+<path fill="url(#SVGID_1_)" d="M200,55.585c0,2.847-2.309,5.156-5.156,5.156H5.157C2.309,60.742,0,58.432,0,55.585V5.157
+	C0,2.31,2.309,0,5.157,0h189.687C197.691,0,200,2.31,200,5.157V55.585z"/>
+<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="-114.3999" y1="20.9253" x2="-114.3999" y2="-36.1025" gradientTransform="matrix(1 0 0 -1 214.3999 22.7822)">
+	<stop  offset="0" style="stop-color:#043CA0"/>
+	<stop  offset="0.989" style="stop-color:#04183F"/>
+</linearGradient>
+<path fill="url(#SVGID_2_)" d="M198.453,54.044c0,2.673-2.271,4.841-5.077,4.841H6.624c-2.804,0-5.077-2.168-5.077-4.841V6.698
+	c0-2.673,2.273-4.841,5.077-4.841h186.752c2.806,0,5.077,2.168,5.077,4.841V54.044z"/>
+<linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="-114.3994" y1="-32.082" x2="-114.3994" y2="16.9033" gradientTransform="matrix(1 0 0 -1 214.3999 22.7822)">
+	<stop  offset="0" style="stop-color:#B8C8F2"/>
+	<stop  offset="1" style="stop-color:#020221"/>
+</linearGradient>
+<path fill="url(#SVGID_3_)" d="M195.05,50.706c0,2.296-2.194,4.158-4.901,4.158H9.852c-2.707,0-4.901-1.862-4.901-4.158V10.038
+	c0-2.297,2.194-4.159,4.901-4.159h180.296c2.709,0,4.901,1.862,4.901,4.159V50.706z"/>
+<linearGradient id="SVGID_4_" gradientUnits="userSpaceOnUse" x1="-171.1797" y1="49.1914" x2="-57.6194" y2="-64.3689" gradientTransform="matrix(1 0 0 -1 214.3999 22.7822)">
+	<stop  offset="0" style="stop-color:#CFD4E2"/>
+	<stop  offset="1" style="stop-color:#636D87"/>
+</linearGradient>
+<path fill="url(#SVGID_4_)" d="M193.096,49.45c0,2.155-2.15,3.901-4.801,3.901H11.705c-2.651,0-4.801-1.746-4.801-3.901V11.292
+	c0-2.154,2.15-3.902,4.801-3.902h176.59c2.65,0,4.801,1.748,4.801,3.902V49.45z"/>
+<g opacity="0.5">
+	<g>
+		<path fill="#4C6A9E" d="M181.762,20.143c-0.234,0-0.462,0.04-0.685,0.098H19.086c-0.148-0.024-0.293-0.063-0.445-0.063
+			c-2.08,0-3.766,2.385-3.766,5.327c0,2.942,1.686,5.327,3.766,5.327c0.228,0,0.448-0.04,0.665-0.095h162.025
+			c0.144,0.023,0.282,0.062,0.431,0.062c2.08,0,3.766-2.386,3.766-5.328C185.527,22.529,183.842,20.143,181.762,20.143z"/>
+	</g>
+</g>
+</svg>

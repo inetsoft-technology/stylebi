@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1"
+	 id="Layer_1" xmlns:cc="http://creativecommons.org/ns#" xmlns:svg="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" sodipodi:docname="prometheus_logo_orange.svg" inkscape:version="0.92.1 r15371"
+	 xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="30px" height="30px"
+	 viewBox="42.667 42 30 30" enable-background="new 42.667 42 30 30" xml:space="preserve">
+<sodipodi:namedview  id="namedview4491" guidetolerance="10" objecttolerance="10" bordercolor="#666666" pagecolor="#ffffff" inkscape:cx="60.603667" showgrid="false" inkscape:zoom="5.2784901" gridtolerance="10" inkscape:cy="60.329656" borderopacity="1" inkscape:current-layer="Layer_1" inkscape:window-y="7" inkscape:window-x="54" inkscape:window-maximized="0" inkscape:window-width="1484" inkscape:window-height="886" inkscape:pageopacity="0" inkscape:pageshadow="2">
+	</sodipodi:namedview>
+<g id="Layer_2">
+</g>
+<path id="path4486" inkscape:connector-curvature="0" fill="#E6522C" d="M57.667,44.534C50.782,44.534,45.2,50.115,45.2,57
+	c0,6.885,5.582,12.466,12.467,12.466c6.884,0,12.465-5.581,12.465-12.466C70.132,50.115,64.551,44.534,57.667,44.534z
+	 M57.667,67.865c-1.959,0-3.547-1.308-3.547-2.922h7.093C61.213,66.558,59.625,67.865,57.667,67.865z M63.525,63.976H51.808v-2.124
+	h11.717V63.976L63.525,63.976z M63.483,60.758H51.841c-0.039-0.045-0.078-0.09-0.115-0.135c-1.199-1.456-1.482-2.216-1.756-2.991
+	c-0.005-0.025,1.455,0.299,2.489,0.531c0,0,0.532,0.123,1.311,0.265c-0.748-0.876-1.191-1.99-1.191-3.128
+	c0-2.499,1.916-4.683,1.225-6.448c0.673,0.055,1.393,1.42,1.441,3.556c0.716-0.989,1.015-2.794,1.015-3.901
+	c0-1.146,0.755-2.478,1.511-2.523c-0.673,1.109,0.175,2.062,0.928,4.421c0.283,0.887,0.247,2.379,0.465,3.325
+	c0.073-1.965,0.41-4.833,1.658-5.822c-0.551,1.247,0.08,2.807,0.512,3.557c0.697,1.209,1.119,2.126,1.119,3.86
+	c0,1.163-0.428,2.257-1.152,3.113c0.823-0.155,1.392-0.295,1.392-0.295l2.674-0.521C65.365,57.622,64.976,59.22,63.483,60.758z"/>
+</svg>

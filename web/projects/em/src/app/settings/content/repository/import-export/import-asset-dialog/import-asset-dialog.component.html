@@ -1,0 +1,85 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMImportAssets'" [title]="'_#(Import Assets)'">
+</em-modal-header>
+<div mat-dialog-content [class.loading]="loading">
+  <ng-container *ngIf="!uploaded" [formGroup]="uploadForm">
+    <div class="property-card">
+      <div>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Select file)</mat-label>
+          <em-file-chooser formControlName="file" placeholder="_#(Select file)" accept=".jar,.zip,.vso"></em-file-chooser>
+          <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+          <mat-error *ngIf="uploadForm.errors?.file?.required">_#(em.import.fileRequired)</mat-error>
+        </mat-form-field>
+      </div>
+    </div>
+    <div class="flex-spacer"></div>
+  </ng-container>
+  <ng-container *ngIf="uploaded" [formGroup]="importForm">
+    <div class="property-card">
+      <div>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(JAR File Name)</mat-label>
+          <input matInput readonly placeholder="_#(File)" [value]="model?.name"/>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Deployment Date)</mat-label>
+          <input matInput readonly placeholder="_#(Deployment Date)" [value]="model?.deploymentDate"/>
+        </mat-form-field>
+        <ng-container *ngIf="targetFolderVisible">
+          <mat-form-field appearance="outline" color="accent" (click)="openSelectLocation()">
+            <mat-label>_#(Target Location)</mat-label>
+            <input matInput [value]="targetFolderLabel" [readonly]="true" placeholder="_#(Target Location)"/>
+            <button matSuffix mat-icon-button aria-label="_#(Select Target Location)">
+              <mat-icon fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+            </button>
+          </mat-form-field>
+          <div>
+            <mat-checkbox formControlName="dependenciesApplyTarget">_#(Apply Target to Dependencies)</mat-checkbox>
+          </div>
+        </ng-container>
+        <mat-checkbox formControlName="overwrite" class="mat-checkbox-field">_#(import.overwrite.files)</mat-checkbox>
+      </div>
+    </div>
+    <div class="asset-card-container">
+      <div class="asset-card">
+        <h3 class="mat-h3 title">_#(Selected Entities)</h3>
+        <em-selected-asset-list [selectedTargetFolder]="selectedTargetFolder" [assets]="model?.selectedEntities">
+        </em-selected-asset-list>
+      </div>
+      <div class="asset-card">
+        <h3 class="mat-h3 title">_#(Included Dependent Assets)</h3>
+        <em-required-asset-list [selectedTargetFolder]="dependenciesApplyTarget && selectedTargetFolder"
+                                [assets]="model?.dependentAssets" [(selectedAssets)]="selected">
+        </em-required-asset-list>
+      </div>
+    </div>
+  </ng-container>
+  <div class="progress-bar-container">
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  </div>
+</div>
+<div mat-dialog-actions>
+  <button mat-button *ngIf="uploaded" (click)="back()">_#(Back)</button>
+  <button mat-raised-button *ngIf="!uploaded" color="primary" [disabled]="uploadForm.invalid || loading" (click)="upload()">_#(Next)</button>
+  <button mat-raised-button *ngIf="uploaded" color="primary" (click)="finish()" [disabled]="loading">_#(Finish)</button>
+  <button mat-button (click)="cancel()">_#(Cancel)</button>
+</div>

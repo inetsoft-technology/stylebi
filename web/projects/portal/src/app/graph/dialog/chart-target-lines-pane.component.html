@@ -1,0 +1,46 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div id="TargetLines" *ngIf="!model.mapInfo">
+  <fieldset [disabled]="!model.supportsTarget">
+    <legend>_#(Target Lines)</legend>
+    <div class="row">
+      <div class="col-9 p-0 target-container">
+        <div class="list-group">
+          <a class="list-group-item" *ngFor="let _chartTarget of model.chartTargets; let _idx = index;"
+             (click)="select(_idx, $event)" [class.selected]="selectedIndexes.indexOf(_idx) >= 0">
+            {{_chartTarget.targetString}}
+          </a>
+        </div>
+      </div>
+      <div class="col-3">
+        <button type="button" class="btn btn-sm btn-secondary btn-block mb-1 w-100" [disabled]="!model.supportsTarget" (click)="addTarget()">_#(Add)</button>
+        <button type="button" class="btn btn-sm btn-default btn-block mb-1 w-100" [disabled]="!selectedIndexes || selectedIndexes.length == 0" (click)="deleteTarget()">_#(Delete)</button>
+        <button type="button" class="btn btn-sm btn-default btn-block w-100" [disabled]="!selectedIndexes || selectedIndexes.length == 0" (click)="editTarget()">_#(Edit)</button>
+      </div>
+    </div>
+  </fieldset>
+</div>
+<ng-template #chartTargetDialog let-close="close" let-dismiss="dismiss">
+  <chart-target-dialog (confirm)="close($event)" (cancel)="dismiss($event)"
+                       [variables]="variables" [chartTarget]="chartTargetModel"
+                       [hideDcombox]="hideDcombox" [availableFields]="model.availableFields"
+                       [title]="dialogTitle" [vsId]="vsId" [chartType]="chartType">
+  </chart-target-dialog>
+</ng-template>

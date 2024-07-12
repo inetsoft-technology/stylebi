@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="58.248 668.5103" i:rulerOrigin="0 0" i:pageBounds="0 841.8896 595.2754 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/" width="200" height="200"
+	 viewBox="0 0 200 200" overflow="visible" enable-background="new 0 0 200 200" xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<rect i:knockout="Off" opacity="0" fill="#FFFFFF" width="200" height="200"/> 
+					<g opacity="0.6">
+						<linearGradient id="XMLID_3_" gradientUnits="userSpaceOnUse" x1="70" y1="149.377" x2="130" y2="149.377">
+							<stop  offset="0.0056" style="stop-color:#181818"/>
+							<stop  offset="0.0173" style="stop-color:#2C2C2C"/>
+							<stop  offset="0.0422" style="stop-color:#505050"/>
+							<stop  offset="0.0701" style="stop-color:#707070"/>
+							<stop  offset="0.1011" style="stop-color:#8C8C8C"/>
+							<stop  offset="0.136" style="stop-color:#A2A2A2"/>
+							<stop  offset="0.1768" style="stop-color:#B2B2B2"/>
+							<stop  offset="0.2272" style="stop-color:#BEBEBE"/>
+							<stop  offset="0.298" style="stop-color:#C5C5C5"/>
+							<stop  offset="0.4944" style="stop-color:#C7C7C7"/>
+							<stop  offset="0.6924" style="stop-color:#C5C5C5"/>
+							<stop  offset="0.7638" style="stop-color:#BEBEBE"/>
+							<stop  offset="0.8147" style="stop-color:#B2B2B2"/>
+							<stop  offset="0.8558" style="stop-color:#A1A1A1"/>
+							<stop  offset="0.8911" style="stop-color:#8B8B8B"/>
+							<stop  offset="0.9222" style="stop-color:#707070"/>
+							<stop  offset="0.9505" style="stop-color:#505050"/>
+							<stop  offset="0.9755" style="stop-color:#2C2C2C"/>
+							<stop  offset="0.9987" style="stop-color:#030303"/>
+							<stop  offset="1" style="stop-color:#000000"/>
+							<a:midPointStop  offset="0.0056" style="stop-color:#181818"/>
+							<a:midPointStop  offset="0.13" style="stop-color:#181818"/>
+							<a:midPointStop  offset="0.4944" style="stop-color:#C7C7C7"/>
+							<a:midPointStop  offset="0.87" style="stop-color:#C7C7C7"/>
+							<a:midPointStop  offset="1" style="stop-color:#000000"/>
+						</linearGradient>
+						
+							<rect x="70" y="139.377" i:knockout="Off" fill="url(#XMLID_3_)" stroke="#020202" stroke-width="0.6965" width="60" height="20"/> 
+						<linearGradient id="XMLID_4_" gradientUnits="userSpaceOnUse" x1="100" y1="159.377" x2="100" y2="139.377">
+							<stop  offset="0.0056" style="stop-color:#181818"/>
+							<stop  offset="0.0173" style="stop-color:#2C2C2C"/>
+							<stop  offset="0.0422" style="stop-color:#505050"/>
+							<stop  offset="0.0701" style="stop-color:#707070"/>
+							<stop  offset="0.1011" style="stop-color:#8C8C8C"/>
+							<stop  offset="0.136" style="stop-color:#A2A2A2"/>
+							<stop  offset="0.1768" style="stop-color:#B2B2B2"/>
+							<stop  offset="0.2272" style="stop-color:#BEBEBE"/>
+							<stop  offset="0.298" style="stop-color:#C5C5C5"/>
+							<stop  offset="0.4944" style="stop-color:#C7C7C7"/>
+							<stop  offset="0.6924" style="stop-color:#C5C5C5"/>
+							<stop  offset="0.7638" style="stop-color:#BEBEBE"/>
+							<stop  offset="0.8147" style="stop-color:#B2B2B2"/>
+							<stop  offset="0.8558" style="stop-color:#A1A1A1"/>
+							<stop  offset="0.8911" style="stop-color:#8B8B8B"/>
+							<stop  offset="0.9222" style="stop-color:#707070"/>
+							<stop  offset="0.9505" style="stop-color:#505050"/>
+							<stop  offset="0.9755" style="stop-color:#2C2C2C"/>
+							<stop  offset="0.9987" style="stop-color:#030303"/>
+							<stop  offset="1" style="stop-color:#000000"/>
+							<a:midPointStop  offset="0.0056" style="stop-color:#181818"/>
+							<a:midPointStop  offset="0.13" style="stop-color:#181818"/>
+							<a:midPointStop  offset="0.4944" style="stop-color:#C7C7C7"/>
+							<a:midPointStop  offset="0.87" style="stop-color:#C7C7C7"/>
+							<a:midPointStop  offset="1" style="stop-color:#000000"/>
+						</linearGradient>
+						
+							<rect x="70" y="139.377" i:knockout="Off" fill="url(#XMLID_4_)" stroke="#020202" stroke-width="0.6965"  a:adobe-blending-mode="darken" width="60" height="20"/> 
+					</g>
+				</g>
+			</g>
+		</switch>
+	</svg>

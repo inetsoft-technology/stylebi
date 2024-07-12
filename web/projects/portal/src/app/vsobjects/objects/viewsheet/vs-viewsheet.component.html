@@ -1,0 +1,67 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model"
+     [style.display]="visible ? null : 'none'"
+     class="embedded-viewsheet-container" [style.background]="model.objectFormat.background">
+  <div class="icon-container" *ngIf="showIconContainer"
+       [style.position]="viewer ? 'absolute' : null"
+       [style.top.px]="viewer || embeddedVS ? model.objectFormat.top - iconHeight : null"
+       [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+       [style.height.px]="iconHeight + 5">
+    <a class="embedded-icon"
+       [title]="model.embeddedIconTooltip"
+       [attr.href]="href"
+       [attr.target]="viewer && !preview ? '_blank' : undefined"
+       (click)="openViewsheet()">
+      <i class="viewsheet-link viewsheet-icon" [style.height.px]="iconHeight"></i>
+    </a>
+  </div>
+  <div *ngIf="composer" class="composer-overlay"></div>
+  <div class="embedded-viewsheet"
+       *ngIf="vsInfo0"
+       [class.prevent-scroll]="maxMode"
+       [style.position]="viewer || preview || !showIconContainer && !deployed ? 'absolute' : 'relative'"
+       [style.z-index]="getZIndex()"
+       [style.top.px]="maxMode ? '0' : viewer || preview || !showIconContainer && !deployed ? model.objectFormat.top : null"
+       [style.left.px]="maxMode ? '0' : viewer || preview || !showIconContainer && !deployed ? model.objectFormat.left : null"
+       [style.width.px]="model.bounds.width"
+       [style.height.px]="model.bounds.height">
+    <vs-object-container
+      [selectedAssemblies]="mySelectedAssemblies"
+      (onSelectedAssemblyChanged)="selectViewsheet($event)"
+      [vsInfo]="vsInfo0" [vsObjectActions]="vsObjectActions"
+      [embeddedVS]="true" [embeddedVSBounds]="getEmbeddedVSBounds()"
+      [variableValues]="variableValuesFunction"
+      [appSize]="appSize"
+      [containerRef]="containerRef"
+      (removeAnnotations)="removeSelectedAnnotations()"
+      (onOpenChartFormatPane)="onOpenChartFormatPane.emit($event)"
+      (maxModeChange)="onMaxModeChanged($event)"
+      (openContextMenu)="showContextMenu($event)"
+      (onEditTable)="onEditTable.emit($event)"
+      (onEditChart)="onEditChart.emit($event)"
+      [submitted]="submitted"
+      (onSubmit)="submitClicked.emit()"
+      [touchDevice]="touchDevice"
+      (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
+      (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)">
+    </vs-object-container>
+  </div>
+</div>

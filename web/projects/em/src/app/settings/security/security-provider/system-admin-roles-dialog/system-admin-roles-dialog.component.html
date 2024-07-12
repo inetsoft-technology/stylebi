@@ -1,0 +1,66 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMLDAPSchema'" [title]="getAdminTitle()">
+</em-modal-header>
+<mat-dialog-content>
+  <div class="select-roles-control">
+    <mat-form-field>
+      <mat-label>_#(Role Name)</mat-label>
+      <input matInput [formControl]="adminRoleControl"
+             [matAutocomplete]="auto" [matAutocompleteDisabled]="!autocompleteRoles"
+             (click)="openAutocomplete()">
+      <button matSuffix mat-icon-button
+              title="_#(Add System Administrator Role)" aria-label="_#(Add System Administrator Role)"
+              (click)="addRole()" [disabled]="addRoleDisabled">
+        <mat-icon fontSet="ineticons" fontIcon="add-icon"></mat-icon>
+      </button>
+      <mat-error *ngIf="adminRoleControl.errors && !(adminRoleControl.value == '')">
+        _#(em.security.identity.nameSpecialChars)
+      </mat-error>
+      <mat-autocomplete #auto="matAutocomplete">
+        <mat-option *ngFor="let role of autocompleteRoles | async" [value]="role">
+          {{role}}
+        </mat-option>
+      </mat-autocomplete>
+    </mat-form-field>
+  </div>
+  <h4 matLine>_#(Roles)</h4>
+  <mat-list dense role="list">
+    <ng-container *ngFor="let adminRole of adminRoles">
+      <mat-list-item role="listitem">
+        <div class="roleListItem">
+          <div class="flex-row">
+            <span [title]="adminRole" matLine>{{adminRole}}</span>
+          </div>
+          <button mat-icon-button
+                  title="_#(Remove System Administrator Role)" aria-label="_#(Remove System Administrator Role)"
+                  (click)="removeRole(adminRole)">
+            <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+          </button>
+        </div>
+      </mat-list-item>
+      <mat-divider></mat-divider>
+    </ng-container>
+  </mat-list>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-button (click)="submit(adminRoles)">_#(OK)</button>
+  <button mat-button (click)="submit(null)">_#(Cancel)</button>
+</mat-dialog-actions>

@@ -1,0 +1,34 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="h-100 position-relative flex-column">
+      <div class="bb-gray" style="flex: 5">
+         <table-style-preview-pane *ngIf="tableStyle.cssStyleFormat" [cssTableStyle]="tableStyle.cssStyleFormat"
+            [selectedRegion]="selectedRegion" (onSelectRegion)="selectRegion($event)">
+         </table-style-preview-pane>
+      </div>
+      <div class="bg-white1" style="flex: 5">
+         <table-style-format-pane [regionFormatInfo]="getRegionFormat()"
+                                  [borderFormatInfo]="getBorderFormat()"
+            [selectedRegionLabel]="selectedRegionLabel" (onChangeFormat)="updateFormat()"
+            [selectedRegion]="selectedRegion" [isGroupTotal]="TableStyleUtil.isGroupTotal(selectedRegion, specList)">
+         </table-style-format-pane>
+      </div>
+</div>
+<notifications #notifications class="notifications-tableStyle-pane" [timeout]="5000"></notifications>

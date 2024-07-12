@@ -1,0 +1,52 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ul class="nav nav-inline me-auto tabs" #tabSet>
+  <ng-container *ngFor="let tab of tabs; let i = index">
+    <li *ngIf="firstTabDropdownIndex === -1 || i < firstTabDropdownIndex" class="nav-item tab"
+        (click)="selectTab(i)"
+        [class.hover-bg-secondary]="!mobile"
+        [class.active]="i === selectedIndex"
+        [class.bb-highlight-filler]="i !== selectedIndex"
+        [class.bb-highlight-primary]="i === selectedIndex">
+
+      <a class="nav-link">
+        {{getTabLabel(tab)}}
+      </a>
+    </li>
+  </ng-container>
+  <li *ngIf="firstTabDropdownIndex >= 0" class="nav-item tab hover-bg-secondary" [fixedDropdown]="dropdown"
+      dropdownPlacement="bottom" [class.active]="selectedIndex >= firstTabDropdownIndex">
+    <a class="nav-link menu-horizontal-icon icon-size-small"></a>
+  </li>
+</ul>
+<ng-template #dropdown>
+  <ul role="menu" class="dropdown-pane responsive-tabs-dropdown">
+    <ng-container *ngFor="let tab of tabs; let i = index">
+      <li *ngIf="i >= firstTabDropdownIndex" class="nav-item dropdown-item"
+          (click)="selectTab(i)" [class.selected]="i === selectedIndex"
+          [class.bb-highlight-filler]="i !== selectedIndex"
+          [class.bb-highlight-primary]="i === selectedIndex">
+        <a class="nav-link">
+          {{getTabLabel(tab)}}
+        </a>
+      </li>
+    </ng-container>
+  </ul>
+</ng-template>

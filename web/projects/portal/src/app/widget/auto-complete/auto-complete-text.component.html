@@ -1,0 +1,56 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container>
+  <ng-template #autoComplete>
+    <div class="auto-complete-pane"
+         [style.background]="'white'"
+         [style.overflow]="'auto'" [style.cursor]="'pointer'"
+         (mousedown)="$event.stopPropagation();downInAutoList=true"
+         (mouseup)="$event.stopPropagation()"
+         (click)="mouseClick($event)">
+      <ul class="autoList">
+        <li *ngFor="let param of filterParameters; let i = index" [class.selected]="selIndex == i"
+            title="{{param}}" (click)="paramMouseClick($event)" (mousedown)="downInAutoList=true">
+          {{param + ""}}
+        </li>
+      </ul>
+    </div>
+  </ng-template>
+  <div class="component-input" #textArea
+       [class.shadowText]="model.shadow" contenteditable="true"
+       [style.overflow-y]="'scroll'" [style.overflow-x]="'hide'"
+       [style.height]="model.autoSize ? model.textHeight + 'px' : '100%'"
+       [style.color]="model.color"
+       [style.background-color]="model.background == '' ? 'white' :  model.background"
+       [style.word-wrap]="model.wordWrap"
+       [style.text-decoration]="model.textDecoration"
+       [style.word-break]="!model.wordWrap ? 'break-all' : null"
+       [style.cursor]="'text'"
+       [innerText]="model.text" [style.font]="model.font"
+       [style.border]="focusIn == true ? '2px solid #f6bb92' : '1px solid #e0e0e0'"
+       (keyup)="editorKeyUp($event)" (keydown)="editorKeyDown($event)"
+       (input)="input()"
+       (mousedown)="mouseDownUp($event)"
+       (mouseup)="mouseDownUp($event)"
+       (click)="textClick($event)"
+       (focusin)="focusIn = true"
+       (focusout)="changeText($event)" defaultFocus>
+  </div>
+</ng-container>

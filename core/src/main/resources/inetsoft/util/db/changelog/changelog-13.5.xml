@@ -1,0 +1,164 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
+
+    <!-- Schema migration for changes made in v13.5. -->
+
+    <property name="assets_table.name" value="ASSETS_TABLE" dbms="db2"/>
+    <property name="assets_table.name" value="assets_table" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+
+    <property name="assets_dependency_table.name" value="ASSETS_DEPENDENCY_TABLE" dbms="db2"/>
+    <property name="assets_dependency_table.name" value="assets_dependency_table" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+
+    <property name="server_host_name.name" value="SERVER_HOST_NAME" dbms="db2"/>
+    <property name="server_host_name.name" value="server_host_name" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+    <property name="monitor_key.name" value="MONITOR_KEY" dbms="db2"/>
+    <property name="monitor_key.name" value="monitor_key" dbms="derby,h2,mssql,mysql,oracle,postgresql"/>
+
+    <changeSet id="changelog-13.5.0" author="inetsoft" dbms="derby,h2,mssql,mysql,oracle,postgresql">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <not>
+                    <columnExists tableName="${assets_table.name}" columnName="${monitor_key.name}"/>
+                </not>
+            </and>
+            <and>
+                <not>
+                    <columnExists tableName="${assets_dependency_table.name}" columnName="${monitor_key.name}"/>
+                </not>
+            </and>
+        </preConditions>
+
+        <comment>Add monitor key column to asset_table and assets_dependency_table tables.</comment>
+
+        <renameColumn tableName="${assets_table.name}" oldColumnName="${server_host_name.name}" newColumnName="${monitor_key.name}" columnDataType="varchar(255)"/>
+        <renameColumn tableName="${assets_dependency_table.name}" oldColumnName="${server_host_name.name}" newColumnName="${monitor_key.name}" columnDataType="varchar(255)"/>
+
+        <addColumn tableName="assets_table">
+            <column name="${server_host_name.name}" type="varchar(255)" defaultValue="Rerun the Check Asset Dependencies schedule task to populate this column.">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="assets_dependency_table">
+            <column name="${server_host_name.name}" type="varchar(255)" defaultValue="Rerun the Check Asset Dependencies schedule task to populate this column.">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="changelog-13.5.1" author="inetsoft" dbms="derby,h2,mssql,oracle,postgresql">
+        <comment>Modify the assets_dependency_table primary key.</comment>
+
+        <dropPrimaryKey tableName="${assets_dependency_table.name}"/>
+        <addPrimaryKey tableName="${assets_dependency_table.name}" columnNames="from_id,to_id,description,${monitor_key.name},${server_host_name.name}"/>
+    </changeSet>
+
+    <changeSet id="changelog-13.5.2" author="inetsoft" dbms="mysql">
+        <comment>Modify the assets_dependency_table primary key.</comment>
+
+        <sql>
+            alter table ${assets_dependency_table.name}
+                drop primary key,
+                add primary key (from_id, to_id, description(255), monitor_key, server_host_name)
+        </sql>
+
+        <rollback>
+            alter table ${assets_dependency_table.name}
+            drop primary key,
+            add primary key (from_id, to_id, description(255), server_host_name)
+        </rollback>
+    </changeSet>
+
+    <changeSet id="changelog-13.5.3" author="inetsoft" dbms="derby,h2,mssql,oracle,postgresql">
+        <comment>Modify the assets_table primary key.</comment>
+
+        <dropPrimaryKey tableName="${assets_table.name}"/>
+        <addPrimaryKey tableName="${assets_table.name}" columnNames="id,${monitor_key.name},${server_host_name.name}"/>
+    </changeSet>
+
+    <changeSet id="changelog-13.5.4" author="inetsoft" dbms="mysql">
+        <comment>Modify the assets_dependency_table primary key.</comment>
+
+        <sql>
+            alter table ${assets_table.name}
+                drop primary key,
+                add primary key (id, monitor_key, server_host_name)
+        </sql>
+
+        <rollback>
+            alter table ${assets_table.name}
+            drop primary key,
+            add primary key (id, server_host_name)
+        </rollback>
+    </changeSet>
+
+    <!-- db2 throws errors due to index and primary key dependencies on the existing columns, so it demands its own changeSet. -->
+    <changeSet id="changelog-13.5.5" author="inetsoft" dbms="db2">
+        <preConditions onFail="MARK_RAN">
+            <and>
+                <not>
+                    <columnExists tableName="${assets_table.name}" columnName="${monitor_key.name}"/>
+                </not>
+            </and>
+            <and>
+                <not>
+                    <columnExists tableName="${assets_dependency_table.name}" columnName="${monitor_key.name}"/>
+                </not>
+            </and>
+        </preConditions>
+
+        <comment>Add monitor key column to asset_table and assets_dependency_table tables. Update primary keys and asset_table index.</comment>
+
+        <dropIndex tableName="${assets_table.name}" indexName="idx_assets_table"/>
+
+        <dropPrimaryKey tableName="${assets_table.name}"/>
+        <dropPrimaryKey tableName="${assets_dependency_table.name}"/>
+
+        <renameColumn tableName="${assets_table.name}" oldColumnName="${server_host_name.name}" newColumnName="${monitor_key.name}" columnDataType="varchar(255)"/>
+        <renameColumn tableName="${assets_dependency_table.name}" oldColumnName="${server_host_name.name}" newColumnName="${monitor_key.name}" columnDataType="varchar(255)"/>
+
+        <addColumn tableName="assets_table">
+            <column name="${server_host_name.name}" type="varchar(255)" defaultValue="Rerun the Check Asset Dependencies schedule task to populate this column.">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="assets_dependency_table">
+            <column name="${server_host_name.name}" type="varchar(255)" defaultValue="Rerun the Check Asset Dependencies schedule task to populate this column.">
+                <constraints nullable="false"/>
+            </column>
+        </addColumn>
+
+        <addPrimaryKey tableName="${assets_table.name}" columnNames="id,${monitor_key.name},${server_host_name.name}"/>
+        <addPrimaryKey tableName="${assets_dependency_table.name}" columnNames="from_id,to_id,description,${monitor_key.name},${server_host_name.name}"/>
+
+        <createIndex tableName="${assets_table.name}" indexName="idx_assets_table">
+            <column name="PATH"/>
+            <column name="owner"/>
+            <column name="TYPE"/>
+            <column name="monitor_key"/>
+            <column name="server_host_name"/>
+        </createIndex>
+    </changeSet>
+
+</databaseChangeLog>

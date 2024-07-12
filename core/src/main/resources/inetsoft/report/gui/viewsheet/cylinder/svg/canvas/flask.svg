@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg  xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="35.959" height="165.579" viewBox="0 0 35.959 165.579" overflow="visible" enable-background="new 0 0 35.959 165.579"
+	 xml:space="preserve">
+		<g id="Layer_2">
+		</g>
+		<g id="Layer_1">
+		</g>
+		<g id="Layer_3">
+			<path fill="#FFFFFF" stroke="#FFFFFF" stroke-width="0.0736" enable-background="new    " d="M35.818,2.939l-0.402,0.423
+				l-2,0.724l-2.276,0.069l-1.968,0.469h-19.5L2.021,3.765L0.059,3.297C0.84,3.986,0.75,4.624,0.75,4.624v142.542h0.004
+				c0,0.05-0.003,0.098-0.003,0.146c0,10.068,7.682,18.229,17.158,18.229s17.158-8.161,17.158-18.229
+				c0-0.05-0.003-0.098-0.004-0.146h0.004V4.76c0.084-0.707,0.597-1.591,0.597-1.591L35.818,2.939z"/>
+			<ellipse fill="#FFFFFF" stroke="#FFFFFF" stroke-width="1.0854" cx="17.979" cy="3.08" rx="17.437" ry="2.537"/> 
+		</g>
+	</svg>

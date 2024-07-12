@@ -1,0 +1,213 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div #summaryPageContainer (window:resize)="getGridCols()">
+  <em-cluster-selector [clusterNodes]="clusterNodes"
+                       [refreshEnable]="true"
+                       (selectedNodeChange)="selectedNodeChange()">
+  </em-cluster-selector>
+    <ng-container *ngIf="serverModel">
+      <section class="flex-row margin-top">
+        <section class="flex">
+          <div class="server-stats-table">
+            <table>
+              <tr>
+                <th>_#(Server Uptime):</th><td>{{serverUpTime}}</td>
+                <th>_#(Scheduler Uptime):</th><td>{{schedulerUpTime}}</td>
+              </tr>
+              <tr>
+                <th>_#(Version Number):</th><td>{{versionNumber}}</td>
+                <th>_#(Build Number):</th><td>{{buildNumber}}</td>
+              </tr>
+              <tr *ngIf="!!currentNode">
+                <th>_#(Current Node):</th><td>{{currentNode}}</td>
+              </tr>
+              <tr>
+                <th>_#(Server Time):</th><td>{{serverTime}}</td>
+              </tr>
+            </table>
+          </div>
+        </section>
+        <section class="flex-row">
+          <section class="flex">
+            <div class="server-status-container">
+              <button mat-raised-button (click)="getThreadDump()">_#(Get Thread Dump)</button>
+              <button mat-raised-button (click)="getHeapDump()">_#(Get Heap Dump)</button>
+              <button mat-raised-button (click)="getUsageHistory()">_#(Get Usage History)</button>
+            </div>
+          </section>
+        </section>
+      </section>
+    </ng-container>
+    <mat-grid-list [cols]="cols" rowHeight="2:1" gutterSize="5" class="margin-top">
+      <mat-grid-tile *ngIf="heapMemoryVisible">
+        <em-summary-monitoring-chart-view *ngIf="serverModel" id="heapMemory"
+                                          class="fill-container"
+                                          [info]="heapMemoryInfo"
+                                          [legends]="memLegends"
+                                          [timestamp]="serverModel.timestamp"
+                                          [clusterEnabled]="clusterEnabled"
+                                          [selectedClusterNode]="selectedClusterNode">
+        </em-summary-monitoring-chart-view>
+      </mat-grid-tile>
+      <mat-grid-tile *ngIf="cpuUsageVisible">
+        <em-summary-monitoring-chart-view *ngIf="serverModel" id="cpuUsage"
+                                          #cpuUsageChartContainer
+                                          class="fill-container"
+                                          [info]="cpuUsageInfo"
+                                          [legends]="cpuLegends"
+                                          [timestamp]="serverModel.timestamp"
+                                          [clusterEnabled]="clusterEnabled"
+                                          [selectedClusterNode]="selectedClusterNode">
+        </em-summary-monitoring-chart-view>
+      </mat-grid-tile>
+      <mat-grid-tile *ngIf="gcCountVisible">
+        <em-summary-monitoring-chart-view *ngIf="serverModel" id="gcCount"
+                                          #gcCountChartContainer
+                                          class="fill-container"
+                                          [info]="gcCountInfo"
+                                          [legends]="gcCountLegends"
+                                          [timestamp]="serverModel.timestamp"
+                                          [clusterEnabled]="clusterEnabled"
+                                          [selectedClusterNode]="selectedClusterNode">
+        </em-summary-monitoring-chart-view>
+      </mat-grid-tile>
+      <mat-grid-tile *ngIf="gcTimeVisible">
+        <em-summary-monitoring-chart-view *ngIf="serverModel" id="gcTime"
+                                          #gcTimeChartContainer
+                                          class="fill-container"
+                                          [info]="gcTimeInfo"
+                                          [legends]="gcTimeLegends"
+                                          [timestamp]="serverModel.timestamp"
+                                          [clusterEnabled]="clusterEnabled"
+                                          [selectedClusterNode]="selectedClusterNode">
+        </em-summary-monitoring-chart-view>
+      </mat-grid-tile>
+    </mat-grid-list>
+    <mat-grid-list [cols]="cols" rowHeight="2:1" gutterSize="5" class="margin-top">
+      <mat-grid-tile *ngIf="memoryCacheVisible">
+        <em-summary-monitoring-chart-view *ngIf="serverModel" id="memoryCache"
+                                          #memoryCacheChartContainer
+                                          class="fill-container"
+                                          [info]="memoryCacheInfo"
+                                          [legends]="memoryCacheLegends"
+                                          [timestamp]="serverModel.timestamp"
+                                          [clusterEnabled]="clusterEnabled"
+                                          [selectedClusterNode]="selectedClusterNode"
+                                          [chartLink]="getChartLink('memCache')"
+                                          (onLinkClick)="handleLinks($event)">
+        </em-summary-monitoring-chart-view>
+      </mat-grid-tile>
+      <mat-grid-tile *ngIf="executionVisible">
+        <em-summary-monitoring-chart-view *ngIf="serverModel" id="execution"
+                                          #executionChartContainer
+                                          class="fill-container"
+                                          [info]="executionInfo"
+                                          [legends]="executionLegends"
+                                          [timestamp]="serverModel.timestamp"
+                                          [clusterEnabled]="clusterEnabled"
+                                          [selectedClusterNode]="selectedClusterNode"
+                                          (onLinkClick)="handleLinks($event)">
+        </em-summary-monitoring-chart-view>
+      </mat-grid-tile>
+      <mat-grid-tile *ngIf="diskCacheVisible">
+        <em-summary-monitoring-chart-view *ngIf="serverModel" id="diskCache"
+                                          #diskCacheChartContainer
+                                          class="fill-container"
+                                          [info]="diskCacheInfo"
+                                          [legends]="diskCacheLegends"
+                                          [timestamp]="serverModel.timestamp"
+                                          [clusterEnabled]="clusterEnabled"
+                                          [selectedClusterNode]="selectedClusterNode"
+                                          [chartLink]="getChartLink('diskCache')"
+                                          (onLinkClick)="handleLinks($event)">
+        </em-summary-monitoring-chart-view>
+      </mat-grid-tile>
+      <mat-grid-tile *ngIf="swappingVisible">
+        <em-summary-monitoring-chart-view *ngIf="serverModel" id="swapping"
+                                          #swappingChartContainer
+                                          class="fill-container"
+                                          [info]="swappingInfo"
+                                          [legends]="swappingLegends"
+                                          [timestamp]="serverModel.timestamp"
+                                          [clusterEnabled]="clusterEnabled"
+                                          [selectedClusterNode]="selectedClusterNode"
+                                          [chartLink]="getChartLink('swapping')"
+                                          (onLinkClick)="handleLinks($event)">
+        </em-summary-monitoring-chart-view>
+      </mat-grid-tile>
+    </mat-grid-list>
+    <section class="flex-row flex-start">
+      <div *ngIf="top5UsersVisible && securitySettingsEnabled" class="flex margin-top top5">
+        <em-summary-monitoring-table-view id="top5Users"
+                                          class="fill-container"
+                                          [tableInfo]="top5UsersTableInfo"
+                                          [dataSource]="top5Users"
+                                          (clickCell)="handleLinks({link: 'users', text: ''})">
+        </em-summary-monitoring-table-view>
+      </div>
+    </section>
+    <mat-card appearance="outlined" *ngIf="!!reverseProxyModel && reverseProxyModel.active" class="margin-top em-card fill-width">
+      <h3 class="light-gray-bg table-cell-padding-sm m-0 mat-h3"><span>_#(Reverse Proxy)</span></h3>
+      <section class="flex-row margin-top">
+        <section class="flex">
+          <div class="jvm-stats-table">
+            <table>
+              <tr>
+                <th>_#(Active):</th>
+                <td>{{reverseProxyModel.active}}</td>
+              </tr>
+              <tr *ngFor="let header of reverseProxyModel.requestHeaders | keyvalue">
+                <th>{{header.key}}:</th>
+                <td>{{header.value}}</td>
+              </tr>
+            </table>
+          </div>
+        </section>
+      </section>
+    </mat-card>
+    <mat-card appearance="outlined" *ngIf="!!jvmModel" class="margin-top em-card fill-width">
+      <h3 class="light-gray-bg table-cell-padding-sm m-0 mat-h3"><span>_#(Java Runtime)</span></h3>
+      <section class="flex-row margin-top">
+        <section class="flex">
+          <div class="jvm-stats-table">
+            <table>
+              <tr>
+                <th>_#(CPU):</th>
+                <td>{{jvmModel.cores}}</td>
+              </tr>
+              <tr>
+                <th>_#(JVM Version):</th>
+                  <td>{{jvmModel.version}}</td>
+              </tr>
+              <tr>
+                <th>_#(Java Home Directory):</th>
+                  <td>{{jvmModel.javaHome}}</td>
+              </tr>
+              <tr>
+                <th>_#(Classpath):</th>
+                  <td><span [innerHTML]="jvmModel.classPath"></span></td>
+              </tr>
+            </table>
+            <div class="jvm" [innerHTML]="'_#(em.java)'"></div>
+          </div>
+        </section>
+      </section>
+    </mat-card>
+</div>

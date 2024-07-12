@@ -1,0 +1,99 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  width: 100%;
+  height: max-content;
+  min-height: 33px;
+  display: block;
+
+  .viewer-bottom-tabs {
+    display: flex;
+    flex-wrap: nowrap;
+
+    .tab-scroller-button {
+      position: absolute;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 20px;
+      height: 100%;
+      background-color: var(--inet-nav-tabs-bg-color);
+
+      &:hover:not(.disabled-grayout) {
+        background-color: var(--inet-hover-secondary-bg-color);
+      }
+
+      &.left-arrow {
+        left: 0;
+        z-index: 2;
+      }
+
+      &.right-arrow {
+        right: 0;
+        z-index: 3;
+      }
+    }
+
+    .viewer-bottom-tabs-scroller {
+      position: relative;
+      overflow-y: hidden;
+      overflow-x: scroll;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+
+      &::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+      }
+
+      &.scroll-buttons-visible {
+        margin-left: 20px;
+        margin-right: 20px;
+      }
+
+      ul.nav-tabs {
+        display: flex;
+        flex-wrap: nowrap;
+        border-bottom: none;
+
+        li.nav-item {
+          display: flex;
+          flex-wrap: nowrap;
+          white-space: nowrap;
+        }
+      }
+
+      .nav-link:hover {
+        border: 1px solid transparent;
+      }
+    }
+  }
+
+  .page-tab-label-container {
+    overflow: hidden;
+    max-width: 20em;
+    text-overflow: ellipsis;
+    display: inline-block;
+    vertical-align: top;
+    white-space: nowrap;
+    margin-bottom: 0px;
+    margin-top: 0px;
+    padding-bottom: 0px;
+    padding-top: 0px;
+  }
+}

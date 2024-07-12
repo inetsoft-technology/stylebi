@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg  xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="140.193" height="171" viewBox="0 0 140.193 171" overflow="visible" enable-background="new 0 0 140.193 171"
+	 xml:space="preserve">
+		<g id="图层_1_副本">
+		</g>
+		<g id="图层_1_副本_3">
+			<linearGradient id="XMLID_2_" gradientUnits="userSpaceOnUse" x1="6.4717" y1="108.7104" x2="135.9502" y2="108.7104">
+				<stop  offset="0.0056" style="stop-color:#C2C2C2"/>
+				<stop  offset="0.007" style="stop-color:#C2C2C2"/>
+				<stop  offset="0.1601" style="stop-color:#A6A6A6"/>
+				<stop  offset="0.3237" style="stop-color:#909090"/>
+				<stop  offset="0.5034" style="stop-color:#808080"/>
+				<stop  offset="0.7092" style="stop-color:#777777"/>
+				<stop  offset="1" style="stop-color:#747474"/>
+				<a:midPointStop  offset="0.0056" style="stop-color:#C2C2C2"/>
+				<a:midPointStop  offset="0.2273" style="stop-color:#C2C2C2"/>
+				<a:midPointStop  offset="1" style="stop-color:#747474"/>
+			</linearGradient>
+			<path opacity="0.1" fill="url(#XMLID_2_)" d="M36.397,89.656c0,0-21.078,20.072-29.926,59.465c0,0,2.485,16.727,80.485,14.727
+				c0,0,41.457-2.119,48.396-14.727l0.598-95.4C135.95,53.72,77.698,47.589,36.397,89.656z"/>
+			<rect opacity="0" fill="#FFFFFF" width="140.193" height="171"/> 
+		</g>
+		<g id="Layer_1">
+		</g>
+	</svg>

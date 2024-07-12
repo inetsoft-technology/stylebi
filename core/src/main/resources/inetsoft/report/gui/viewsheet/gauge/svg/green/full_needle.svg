@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="312.0117 -333.8701" i:rulerOrigin="309 716" i:pageBounds="-309 76 303 -716"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/" width="200" height="200"
+	 viewBox="0 0 200 200" overflow="visible" enable-background="new 0 0 200 200" xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_3" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+				</g>
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<rect i:knockout="Off" opacity="0" fill="#BEEAA4" width="200" height="200"/> 
+					
+						<linearGradient id="XMLID_2_" gradientUnits="userSpaceOnUse" x1="-41.7949" y1="-333.7168" x2="-41.7949" y2="-327.377" gradientTransform="matrix(1 -0.004 -0.004 -1 165.0238 -230.816)">
+						<stop  offset="0" style="stop-color:#FF881F"/>
+						<stop  offset="1" style="stop-color:#DF1800"/>
+						<a:midPointStop  offset="0" style="stop-color:#FF881F"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#FF881F"/>
+						<a:midPointStop  offset="1" style="stop-color:#DF1800"/>
+					</linearGradient>
+					<path fill="url(#XMLID_2_)" stroke="#4C4C4C" stroke-width="0.6586" d="M149.09,99.797c0.004,0.959-0.771,1.742-1.732,1.745
+						l-45.594,1.617c-0.961,0.003-1.748-2.203-1.752-3.163l0,0c-0.004-0.96,0.766-3.172,1.727-3.177l45.604,1.245
+						C148.305,98.062,149.086,98.836,149.09,99.797L149.09,99.797z"/>
+				</g>
+			</g>
+		</switch>
+	</svg>

@@ -1,0 +1,543 @@
+{
+  "endpoints": [
+    {
+      "paged": "true",
+      "name": "Customers",
+      "suffix": "/v1/customers/?query={Query?:parameterName:value}",
+      "lookups": [
+        {
+          "endpoint": "Customer Email Preferences",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer Billing Settings",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer Address Preferences",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer Subscriptions",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer Billing Period Definitions",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Purchases by Customer",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer Payment Activities",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Child Payment Activities",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Payment Methods",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Credit Card Payment Methods",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "ACH Payment Methods",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer AR Activities",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer Draft Invoices",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer Invoices",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Charge Summary",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Customer Overview",
+      "suffix": "/v1/customers/{Customer ID}/overview"
+    },
+    {
+      "paged": "false",
+      "name": "Customer",
+      "suffix": "/v1/customers/{Customer ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Customer Email Preferences",
+      "suffix": "/v1/customers/{Customer ID}/CustomerEmailPreferences"
+    },
+    {
+      "paged": "false",
+      "name": "Customer Billing Settings",
+      "suffix": "/v1/customerbillingsetting/{Customer ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Customer Address Preferences",
+      "suffix": "/v1/customerAddressPreferences/{Customer ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Customer Ship/Bill Address",
+      "suffix": "/v1/Addresses/{Address ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Countries",
+      "suffix": "/v1/Countries"
+    },
+    {
+      "paged": "true",
+      "name": "Subscriptions",
+      "suffix": "/v1/subscriptions/getAll?query={Query?:field:queryString}",
+      "lookups": [
+        {
+          "endpoint": "Plan Families by Subscription",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Subscription ID"
+        },
+        {
+          "endpoint": "Subscription Billing Period Definition",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Subscription ID"
+        },
+        {
+          "endpoint": "Subscription Scheduled Migrations",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Subscription ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Subscription Summaries",
+      "suffix": "/v1/subscriptionSummary?query={Query?:field:queryString}"
+    },
+    {
+      "paged": "true",
+      "name": "Customer Subscriptions",
+      "suffix": "/v1/customers/{Customer ID}/subscriptions?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "false",
+      "name": "Subscription",
+      "suffix": "/v1/subscriptions/{Subscription ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Subscription Count by Status",
+      "suffix": "/v1/customers/customerId/subscriptions/GetCountByStatus?status={Status:Active|Draft|Cancelled|Provisioning|Expired|Suspended}"
+    },
+    {
+      "paged": "false",
+      "name": "Subscription Product",
+      "suffix": "/v1/SubscriptionProducts/{Subscription Product ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Customer Billing Period Definitions",
+      "suffix": "/v1/customers/{Customer ID}/billingperioddefinitions"
+    },
+    {
+      "paged": "false",
+      "name": "Subscription Billing Period Definition",
+      "suffix": "/v1/BillingPeriodDefinitions/GetBySubscription/{Subscription ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Billing Period Definition Details",
+      "suffix": "/v1/BillingPeriodDefinitions/{Billing Period Definition ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Coupons",
+      "suffix": "/v1/Coupons?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "false",
+      "name": "Coupon",
+      "suffix": "/v1/Coupons/{Coupon ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Subscription Scheduled Migrations",
+      "suffix": "/v1/subscriptions/{Subscription ID}/migrate"
+    },
+    {
+      "paged": "true",
+      "name": "Purchases by Product",
+      "suffix": "/v1/Purchases/GetByProductId?id={Product ID}&query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "true",
+      "name": "Purchases by Customer",
+      "suffix": "/v1/Customers/{Customer ID}/Purchases?query={Query?:field:queryString}"
+    },
+    {
+      "paged": "false",
+      "name": "Purchase",
+      "suffix": "/v1/Purchases/{Purchase ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Purchase Discount",
+      "suffix": "/v1/PurchaseDiscounts/{Purchase Discount ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Tracked Items",
+      "suffix": "/v1/ProductItems?query={Query?:parameterName:Value}"
+    },
+    {
+      "paged": "true",
+      "name": "Subscription Product Items",
+      "suffix": "/v1/subscriptionProducts/{Subscription Product ID}/items?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "false",
+      "name": "Subscription Product Item",
+      "suffix": "/v1/subscriptionproductitems/{Subscription Product Item ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Purchase Product Item",
+      "suffix": "/v1/purchaseProductItems/{Purchase Product Item ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Related Statuses",
+      "suffix": "/v1/SubscriptionProductItemStatuses?reference={Reference}&parentId={Product ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Sales Tracking Code by Type",
+      "suffix": "/v1/salesTrackingCodes/{Type:Sales Tracking Code 1|Sales Tracking Code 2|...}"
+    },
+    {
+      "paged": "false",
+      "name": "Sales Tracking Code by Type and Code",
+      "suffix": "/v1/SalesTrackingCodes?type={Type:Sales Tracking Code 1|Sales Tracking Code 2|...}&code={Code?}"
+    },
+    {
+      "paged": "false",
+      "name": "Payment Details",
+      "suffix": "/v1/payments/{Payment ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Customer Payment Activities",
+      "suffix": "/v1/customers/{Customer ID}/paymentactivities?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "true",
+      "name": "Payment Activities",
+      "suffix": "/v1/PaymentActivities/GetByAccountID?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "true",
+      "name": "Child Payment Activities",
+      "suffix": "/v1/customers/{Customer ID}/childPaymentActivities?query={Query?:field:querystring}"
+    },
+    {
+      "paged": "false",
+      "name": "Payment Activity",
+      "suffix": "/v1/PaymentActivities/{Payment Activity ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Refund",
+      "suffix": "/v1/Refunds/{Transaction ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Payment Methods",
+      "suffix": "/v1/customers/{Customer ID}/paymentMethods/all?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "true",
+      "name": "Credit Card Payment Methods",
+      "suffix": "/v1/customers/{Customer ID}/paymentMethods/creditCard?query={Query?:field:queryString}"
+    },
+    {
+      "paged": "false",
+      "name": "Credit Card Payment Method",
+      "suffix": "/v1/paymentMethods/{Payment Method ID}/creditCard"
+    },
+    {
+      "paged": "true",
+      "name": "ACH Payment Methods",
+      "suffix": "/v1/customers/{Customer ID}/paymentMethods/achCard?query={Query?:parameterName:Value}"
+    },
+    {
+      "paged": "false",
+      "name": "ACH Payment Method",
+      "suffix": "/v1/paymentMethods/{Payment Method ID}/achCard"
+    },
+    {
+      "paged": "true",
+      "name": "AR Activities",
+      "suffix": "/v1/aractivities?query={Query?:startDate:yyyy-MM-dd;endDate:yyyy-MM-dd}"
+    },
+    {
+      "paged": "true",
+      "name": "Customer AR Activities",
+      "suffix": "/v1/customers/{Customer ID}/customerArActivities?query={Query?:startDate:yyyy-MM-dd;endDate:yyyy-MM-dd}"
+    },
+    {
+      "paged": "false",
+      "name": "Credit",
+      "suffix": "/v1/Credits/{Transaction ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Debit",
+      "suffix": "/v1/Debits/{Transaction ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Credit Note Summaries",
+      "suffix": "/v1/CreditNotes?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "false",
+      "name": "Credit Note",
+      "suffix": "/v1/CreditNotes/{Credit Note ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Draft Invoice Summaries",
+      "suffix": "/v1/DraftInvoices?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "true",
+      "name": "Customer Draft Invoices",
+      "suffix": "/v1/Customers/{Customer ID}/DraftInvoices?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "false",
+      "name": "Draft Invoice",
+      "suffix": "/v1/DraftInvoices/{Draft Invoice ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Invoice Summaries",
+      "suffix": "/v1/invoiceSummaries?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "true",
+      "name": "Invoices",
+      "suffix": "/v1/Invoices?query={Query?:parameterName:value}",
+      "lookups": [
+        {
+          "endpoint": "Credit Allocations",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Invoice ID"
+        },
+        {
+          "endpoint": "Payment Allocations",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Invoice ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Customer Invoices",
+      "suffix": "/v1/Customers/{Customer ID}/Invoices/?showZeroDollarCharges={Show Zero Dollar Changes?:true|false}&query={Query?:filter:queryString}"
+    },
+    {
+      "paged": "false",
+      "name": "Invoice",
+      "suffix": "/v1/Invoices/{Invoice ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Credit Allocations",
+      "suffix": "/v1/invoices/{Invoice ID}/creditAllocations",
+      "lookups": [
+        {
+          "endpoint": "Credit",
+          "jsonPath": "$.[*]",
+          "key": "creditId",
+          "parameterName": "Transaction ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Payment Allocations",
+      "suffix": "/v1/invoices/{Invoice ID}/paymentAllocations",
+      "lookups": [
+        {
+          "endpoint": "Payment Details",
+          "jsonPath": "$.[*]",
+          "key": "paymentId",
+          "parameterName": "Payment ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Charge Summary",
+      "suffix": "/v1/customers/{Customer ID}/chargeSummary?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "true",
+      "name": "Plans",
+      "suffix": "/v1/Plans/?query={Query?:parameterName:value}",
+      "lookups": [
+        {
+          "endpoint": "Plan Families by Plan",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Plan ID"
+        },
+        {
+          "endpoint": "Plan Products by Plan",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Plan ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Plan",
+      "suffix": "/v1/Plans/{Plan ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Product Summaries",
+      "suffix": "/v1/ProductSummary/?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "true",
+      "name": "Products",
+      "suffix": "/v1/Products?includePricing={Include Pricing?:true|false}&includeGlCode={Include GI Code?:true|false}&query={Query?:parameterName:value}",
+      "lookups": [
+        {
+          "endpoint": "Purchases by Product",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Product ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Product",
+      "suffix": "/v1/Products/{Product ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Plan Products by Plan",
+      "suffix": "/v1/plans/{Plan ID}/planProducts?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "true",
+      "name": "Plan Products by Catalog Product",
+      "suffix": "/v1/products/{Product ID}/planProducts?query={Query?:parameterName:value}"
+    },
+    {
+      "paged": "false",
+      "name": "Plan Product",
+      "suffix": "/v1/PlanProducts/{Plan Product ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Discounts",
+      "suffix": "/v1/Discounts?query={Query?:field:querystring}"
+    },
+    {
+      "paged": "false",
+      "name": "Discount",
+      "suffix": "/v1/Discounts/{Discount ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Plan Families",
+      "suffix": "/v1/PlanFamilies"
+    },
+    {
+      "paged": "false",
+      "name": "Plan Family",
+      "suffix": "/v1/PlanFamilies/{Plan Family ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Plan Families by Plan",
+      "suffix": "/v1/PlanFamilies/ByPlan/{Plan ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Plan Families by Subscription",
+      "suffix": "/v1/planFamilies/bySubscription/{Subscription ID}"
+    },
+    {
+      "paged": "false",
+      "name": "QuickBooks Online Exchange Rates",
+      "suffix": "/v1/QuickBooksOnlineExchangeRates"
+    },
+    {
+      "paged": "false",
+      "name": "Net Collections Summary",
+      "suffix": "/v1/NetCollections?currency={Currency:USD|EUR|GBP|...}"
+    },
+    {
+      "paged": "false",
+      "name": "Net Earned Revenue Summary",
+      "suffix": "/v1/NetEarned?currency={Currency:USD|EUR|GBP|...}"
+    }
+  ]
+}

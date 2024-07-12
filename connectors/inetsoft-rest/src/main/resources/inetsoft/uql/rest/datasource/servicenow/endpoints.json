@@ -1,0 +1,324 @@
+{
+  "endpoints": [
+    {
+      "paged": "false", 
+      "name": "Agent Presence Status", 
+      "suffix": "/now/awa/agents/{Agent ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Aggregate Statistics", 
+      "suffix": "/now/stats/{Table Name}?sysparm_query={Query}&sysparm_group_by={Group By Fields?:priority,state,...}&sysparm_avg={Average Fields?}&sysparm_sum={Sum Fields?}sysparm_min_fields={Min Fields?}&sysparm_max_fields={Max Fields?}&sysparm_count={Count Records?:true|false}&sysparm_display_value={Display Value?:true|false}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Application Service CIs", 
+      "suffix": "/now/cmdb/app_service/{Application Service ID}/getContent?Mode={Mode?:Shallow|Full}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Attachments", 
+      "suffix": "api/now/attachment?sysparm_query={Query}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Attachment", 
+      "suffix": "api/now/attachment/{Attachment ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Standard Changes", 
+      "suffix": "/sn_chg_rest/change/standard?sysparm_query={Query?}&textSearch={Text Search?}",
+      "lookups": [
+        {
+          "endpoints": ["Change Tasks", "Change Conflict Status", "Change Cls"],
+          "jsonPath": "$.result[*].value",
+          "key": "value",
+          "parameterName": "Change ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Standard Change", 
+      "suffix": "/sn_chg_rest/change/standard/{Change ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Change Templates", 
+      "suffix": "/sn_chg_rest/change/standard/template?sysparm_query={Query?}&textSearch={Text Search?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Change Template", 
+      "suffix": "/sn_chg_rest/change/standard/template/{Change Template ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Normal Changes", 
+      "suffix": "/sn_chg_rest/change/normal?sysparm_query={Query?}&textSearch={Text Search?}",
+      "lookups": [
+        {
+          "endpoints": ["Change Tasks", "Change Conflict Status", "Change Cls"],
+          "jsonPath": "$.result[*].value",
+          "key": "value",
+          "parameterName": "Change ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Normal Change", 
+      "suffix": "/sn_chg_rest/change/normal/{Change ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Emergency Changes", 
+      "suffix": "/sn_chg_rest/change/emergency?sysparm_query={Query?}&textSearch={Text Search?}",
+      "lookups": [
+        {
+          "endpoints": ["Change Tasks", "Change Conflict Status", "Change Cls"],
+          "jsonPath": "$.result[*].value",
+          "key": "value",
+          "parameterName": "Change ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Emergency Change", 
+      "suffix": "/sn_chg_rest/change/emergency/{Change ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Change Tasks", 
+      "suffix": "/sn_chg_rest/change/{Change ID}/task?sysparm_query={Query?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Change Task", 
+      "suffix": "/sn_chg_rest/change/{Change ID}/task/{Task ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Change Conflict Status", 
+      "suffix": "/sn_chg_rest/change/{Change ID}/conflict"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Change Cls", 
+      "suffix": "/sn_chg_rest/change/{Change ID}/ci?association_type={Association Type?:affected|impacted|offering}&sysparm_query={Query}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Change Worker Status",
+      "suffix": "/sn_chg_rest/change/worker/{Worker ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Account", 
+      "suffix": "/now/account/{Account ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Accounts", 
+      "suffix": "/now/account?sysparm_query={Query?}",
+      "lookups": [
+        {
+          "endpoint": "CSM Contact",
+          "jsonPath": "$.result[*]",
+          "key": "primary_contact",
+          "parameterName": "Contact ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "CSM Case", 
+      "suffix": "api/sn_customerservice/case/{Case ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "CSM Cases", 
+      "suffix": "/sn_customerservice/case?sysparm_query={Query?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "CSM Consumer Record", 
+      "suffix": "/now/consumer/{Consumer Record ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "CSM Consumer Records", 
+      "suffix": "/now/consumer?sysparm_query={Query?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "CSM Contact", 
+      "suffix": "/now/contact/{Contact ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "CSM Contacts", 
+      "suffix": "/now/contact?sysparm_query={Query?}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "DevOps Tools", 
+      "suffix": "/sn_devops/devops/admin?id={Tool ID?}&name={Name?}&type={Type?:Planning|Coding|TaskExecution}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Code Resource Schema", 
+      "suffix": "/sn_devops/devops/code/schema?resource={Resource?:commit|repository|branch}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Orchestration Change Control", 
+      "suffix": "/sn_devops/devops/orchestration/changeControl?orchestrationTaskURL={Orchestration Task Url}&toolId={Tool ID}&changeControlId={Change Control ID?}&orchestrationTaskName={Task Name?}&testConnection={Test Connnection?:true|false}&type={Type?:jenkins|...}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Orchestration Resource Schema", 
+      "suffix": "/sn_devops/devops/orchestration/schema?resource={Resource?:build_details|callback|orchestration_task|task_execution}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Orchestration Step Mapping", 
+      "suffix": "/sn_devops/devops/orchestration/stepMapping?orchestrationTaskName={Task Name}&orchestrationTaskURL={Orchestration Task Url}&toolId={Tool Id}&branchName={Branch Name?}&parentStageName={Parent Stage Name?}&parentStageURL={Parent Stage URL?}&testConnection={Test Connection?:true|false}&type={Type?:jenkins|...}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Plan Schema", 
+      "suffix": "/sn_devops/devops/plan/schema?resource={Resource?:build_details|callback|orchestration_task|task_execution}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Email", 
+      "suffix": "/now/v1/email/{Email ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Import Set", 
+      "suffix": "/now/v1/import/{Table Name}/{Import Set ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Major Incident Communication Cards", 
+      "suffix": "/sn_major_inc_mgmt/mim/status/{Incident ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Metric Time Series", 
+      "suffix": "api/now/clotho/table/{Table Name}/{Time Series ID}/{Metric Field Name}?sysparm_start={Start Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_end={End Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_display_value={Display Value?:true|false}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Metric Transform", 
+      "suffix": "/now/clotho/transform/{Table Name}/{Metric Field Name}?sysparm_start={Start Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_end={End Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_transforms={Transforms?:avg,sum,add,mul,resample,top,label}&sysparm_subject_limit={Subject Limit?}&sysparm_display_value={Display Value?:true|false}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Published NLU Models", 
+      "suffix": "/now/v1/open-nlu/models"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Published NLU Intents", 
+      "suffix": "/now/open-nlu/models/{Model ID}/intents"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Analytics Indicators", 
+      "suffix": "/now/pa/scorecards?sysparm_uuid={Indicator/Breakdown/Aggregate/Domain IDs?}&sysparm_breakdown={Breakdown ID?}&sysparm_display_value={Display Value?:true|false|all}&sysparm_include_scores={Include Scores?:true|false}&sysparm_include_aggregates={Include Aggregates?:true|false}&sysparm_include_available_breakdowns={Include Available Breakdowns?:true|false }&sysparm_include_available_aggregates={Include Available Aggregates?:true|false}&sysparm_exclude_reference_link={Exclude Reference Link?:true|false}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Prediction", 
+      "suffix": "/now/agent_intelligence/solution/{Solution Name}/prediction"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Service Catalogs", 
+      "suffix": "/sn_sc/servicecatalog/catalogs?sysparm_view={View?:desktop|mobile|both}&sysparm_text={Title Keyword?}",
+      "lookups": [
+        {
+          "endpoint": "Service Catalog Categories",
+          "jsonPath": "$.result[*]",
+          "key": "sys_id",
+          "parameterName": "Catalog ID"
+        }
+      ]
+    }, 
+    {
+      "paged": "false", 
+      "name": "Service Catalog", 
+      "suffix": "/sn_sc/servicecatalog/catalogs/{Catalog ID}?sysparm_view={View?:desktop|mobile|both}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Service Catalog Categories", 
+      "suffix": "/sn_sc/servicecatalog/catalogs/{Catalog ID}/categories?sysparm_top_level_only={Top Level Only?:true|false}&sysparm_view={View?:desktop|mobile|both}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Service Catalog Category", 
+      "suffix": "/sn_sc/servicecatalog/categories/{Category ID}?sysparm_view={View?:desktop|mobile|both}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Service Catalog Items", 
+      "suffix": "/sn_sc/servicecatalog/items?sysparm_catalog={Catalog ID?}&sysparm_category={Category ID}sysparm_text={Search Text?}&sysparm_type={Type?:Record Producer|Order Guide}&sysparm_view={View?:desktop|mobile|both}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Service Catalog Item", 
+      "suffix": "/sn_sc/servicecatalog/items/{Catalog Item ID}?sysparm_view={View?:desktop|mobile|both}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Service Catalog Cart", 
+      "suffix": "/sn_sc/servicecatalog/cart"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Shipping Address", 
+      "suffix": "/sn_sc/servicecatalog/cart/delivery_address/{User ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Table Records", 
+      "suffix": "/now/table/{Table Name}?sysparm_display_value={Display Value?:true|false|all}&sysparm_fields={Fields?:field1,field2,...}&sysparm_query={Query?}&sysparm_view={View?:desktop|mobile|both}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Table Record", 
+      "suffix": "/now/table/{Table Name}/{Table Record ID}?sysparm_display_value={Display Value?:true|false|all}&sysparm_fields={Fields?:field1,field2,...}&sysparm_view={View?:desktop|mobile|both}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task Channels", 
+      "suffix": "/sn_comm_management/task_communication_management/channels?sysparm_table={Task Table Name}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task Channels Metadata", 
+      "suffix": "/sn_comm_management/task_communication_management/changes_per_task/{Task ID}/{Table Name}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Communication Plan Details", 
+      "suffix": "/sn_comm_management/task_communication_management/communication_detail/{Task ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Communication Plan Groups", 
+      "suffix": "/sn_comm_management/task_communication_management/groups/{Task ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "User Roles", 
+      "suffix": "/global/user_role_inheritance?user_sysid={User ID}"
+    }
+  ]
+}

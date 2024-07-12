@@ -1,0 +1,57 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="field-list-pane bd-gray" (drop)="onDrop($event)" outOfZone (onDragover)="dragOver($event)">
+   <div class="fieldmc-container">
+     <div class="fieldmc-outer" *ngFor="let ref of refs; let i = index">
+       <div class="field-divider" [class.bg-success]="activeIdx == i && !replaceField"
+            (dragenter)="dragOverField($event, i, false)" (dragleave)="dragLeave($event)"
+            outOfZone (onDragover)="$event.preventDefault()">
+       </div>
+       <div class="fieldmc-border" [class.bg-success]="activeIdx == i && replaceField">
+         <chart-fieldmc #fieldComponents
+           (dragenter)="dragOverField($event, i, true)"
+           outOfZone (onDragover)="$event.preventDefault()"
+           (dragleave)="dragLeave($event)"
+           [fieldType]="fieldType" [field]="ref" [index]="i"
+           (onConvert)="convert($event)"
+           [grayedOutValues] = "grayedOutValues">
+         </chart-fieldmc>
+       </div>
+     </div>
+     <div class="field-divider" [class.bg-success]="activeIdx == refs?.length && !replaceField"
+          (dragenter)="dragOverField($event, refs.length, false)" (dragleave)="dragLeave($event)"
+          outOfZone (onDragover)="$event.preventDefault()">
+     </div>
+     <div class="field-mc-hint" *ngIf="!!displayLabel"
+          [class.primary-label]="isPrimaryField()"
+          [class.txt-primary]="isPrimaryField()"
+          (dragenter)="dragOverField($event, 0, false)" (dragleave)="dragLeave($event)"
+          outOfZone (onDragover)="$event.preventDefault()">
+       <span class="unhighlightable">{{displayLabel}}</span>
+     </div>
+     <lon-lat-fieldmc [fieldType]="fieldType" [bindingModel]="bindingModel"
+          (dragenter)="dragOverField($event, 0, false)" (dragleave)="dragLeave($event)">
+     </lon-lat-fieldmc>
+     <div class="field-remainder" (dragenter)="dragOverField($event, refs.length, false)"
+           (dragleave)="dragLeave($event)"
+         outOfZone (onDragover)="$event.preventDefault()">
+     </div>
+   </div>
+</div>

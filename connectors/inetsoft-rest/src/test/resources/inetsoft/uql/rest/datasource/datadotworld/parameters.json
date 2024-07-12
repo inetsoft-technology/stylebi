@@ -1,0 +1,55 @@
+{
+  "tests": [
+    {
+      "endpoint": "User Profile",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Project Information",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Project Owner": "inetsoft",
+        "Project ID": "demo1"
+      }
+    },
+    {
+      "endpoint": "Project Information of a Version",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Project Owner": "inetsoft",
+        "Project ID": "demo1",
+        "Version ID": "605ea5d1-a4a6-472d-8d50-564825d1883b"
+      }
+    },
+    {
+      "endpoint": "Project Insights",
+      "jsonPath": "$.records",
+      "expandArrays": true,
+      "parameters": {
+        "Project Owner": "inetsoft",
+        "Project ID": "demo1"
+      }
+    },
+    {
+      "endpoint": "Query Information",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Query ID": "13e41b56-faaa-43e8-a57e-d01b28763219"
+      }
+    },
+    {
+      "endpoint": "Dataset Queries",
+      "jsonPath": "$.records",
+      "expandArrays": true,
+      "parameters": {
+        "Dataset Owner": "inetsoft",
+        "Dataset ID": "company"
+      }
+    }
+  ]
+}

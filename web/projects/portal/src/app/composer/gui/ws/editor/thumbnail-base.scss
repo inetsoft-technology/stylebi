@@ -1,0 +1,82 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.ws-assembly-thumbnail-buttons {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: inherit;
+ // visibility: hidden;
+  color: inherit;
+  height: 20px;
+  width: 20px;
+}
+
+.ws-assembly-thumbnail-button {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  padding: 0 2px;
+  background: no-repeat center;
+  position: relative;
+  border: 1px solid transparent;
+  cursor: pointer;
+  color: inherit;
+/*
+  &:hover {
+    border: 1px solid $gray-700;
+    border-radius: 1px;
+  }
+*/
+}
+
+.ws-graph-thumbnail {
+  text-align: left;
+}
+
+.ws-graph-thumbnail__title {
+  font-weight: normal;
+}
+
+.ws-graph-thumbnail__title, .ws-assembly-thumbnail-info {
+  width: 100%;
+  overflow: hidden;
+}
+
+.ws-assembly-graph-element--primary .ws-graph-thumbnail__title {
+  font-weight: bold;
+}
+
+.ws-assembly-graph-element--uneditable .ws-graph-thumbnail__title {
+  font-style: italic;
+}
+
+.ws-assembly-thumbnail-info {
+  padding: 0.5px;
+}
+
+:host-context(.ws-assembly-graph-element:hover:not(.ws-assembly-graph-element--dimmed)) .ws-assembly-thumbnail-buttons {
+  visibility: visible;
+}
+
+.thumbnail__context-menu-anchor {
+  width: 100%;
+}

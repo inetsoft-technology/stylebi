@@ -1,0 +1,97 @@
+Name|Abbreviation|FIPS Code|ISO Code|Country Name|Country FIPS Code|Country ISO 2 Character Code|Country ISO 3 Character Code|Country GMI Code
+Alberta|AB|CA01|CA-AB|Canada|CA|CA|CAN|CAN|AB
+British Columbia|BC|CA02|CA-BC|Canada|CA|CA|CAN|CAN|BC
+Manitoba|MB|CA03|CA-MB|Canada|CA|CA|CAN|CAN|MB
+New Brunswick|NB|CA04|CA-NB|Canada|CA|CA|CAN|CAN|NB
+Newfoundland and Labrador|NL|CA05|CA-NL|Canada|CA|CA|CAN|CAN|NL
+Northwest Territories|NT|CA13|CA-NT|Canada|CA|CA|CAN|CAN|NT
+Nova Scotia|NS|CA07|CA-NS|Canada|CA|CA|CAN|CAN|NS
+Nunavut|NU|CA14|CA-NU|Canada|CA|CA|CAN|CAN|NU
+Ontario|ON|CA08|CA-ON|Canada|CA|CA|CAN|CAN|ON
+Prince Edward Island|PE|CA09|CA-PE|Canada|CA|CA|CAN|CAN|PE
+Quebec|QC|CA10|CA-QC|Canada|CA|CA|CAN|CAN|QC
+Saskatchewan|SK|CA11|CA-KS|Canada|CA|CA|CAN|CAN|SK
+Yukon Territory|YT|CA12|CA-YT|Canada|CA|CA|CAN|CAN|YT
+Aguascalientes|Ags.|MX01|MX-AGU|Mexico|MX|MX|MEX|MEX|AGU
+Baja California|B.C.|MX02|MX-BCN|Mexico|MX|MX|MEX|MEX|BCN
+Baja California Sur|B.C.S.|MX03|MX-BCS|Mexico|MX|MX|MEX|MEX|BCS
+Campeche|Camp.|MX04|MX-CAM|Mexico|MX|MX|MEX|MEX|CAM
+Chihuahua|Chih.|MX06|MX-CCH|Mexico|MX|MX|MEX|MEX|CHH
+Chiapas|Chis.|MX05|MX-CHP|Mexico|MX|MX|MEX|MEX|CHP
+Coahuila|Coah.|MX07|MX-COA|Mexico|MX|MX|MEX|MEX|COA
+Colima|Col.|MX08|MX-COL|Mexico|MX|MX|MEX|MEX|COL
+Federal District|D.F.|MX09|MX-DIF|Mexico|MX|MX|MEX|MEX|DIF
+Durango|Dgo.|MX10|MX-DUR|Mexico|MX|MX|MEX|MEX|DUR
+Guerrero|Gro.|MX12|MX-GRO|Mexico|MX|MX|MEX|MEX|GRO
+Guanajuato|Gto.|MX11|MX-GUA|Mexico|MX|MX|MEX|MEX|GUA
+Hidalgo|Hgo.|MX13|MX-HID|Mexico|MX|MX|MEX|MEX|HID
+Jalisco|Jal.|MX14|MX-JAL|Mexico|MX|MX|MEX|MEX|JAL
+Mexico State|Edomex.|MX15|MX-MEX|Mexico|MX|MX|MEX|MEX|MEX
+Michoacan|Mich.|MX16|MX-MIC|Mexico|MX|MX|MEX|MEX|MIC
+Morelos|Mor.|MX17|MX-MOR|Mexico|MX|MX|MEX|MEX|MOR
+Nayarit|Nay.|MX18|MX-NAY|Mexico|MX|MX|MEX|MEX|NAY
+Nuevo Leon|N.L.|MX19|MX-NLE|Mexico|MX|MX|MEX|MEX|NLE
+Oaxaca|Oax.|MX20|MX-OAX|Mexico|MX|MX|MEX|MEX|OAX
+Puebla|Pue.|MX21|MX-PUE|Mexico|MX|MX|MEX|MEX|PUE
+Queretaro|Qro.|MX22|MX-QUE|Mexico|MX|MX|MEX|MEX|QUE
+Quintana Roo|Q. Roo.|MX23|MX-ROO|Mexico|MX|MX|MEX|MEX|ROO
+Sinaloa|Sin.|MX25|MX-SIN|Mexico|MX|MX|MEX|MEX|SIN
+San Luis Potosi|S.L.P.|MX24|MX-SLP|Mexico|MX|MX|MEX|MEX|SLP
+Sonora|Son.|MX26|MX-SON|Mexico|MX|MX|MEX|MEX|SON
+Tabasco|Tab.|MX27|MX-TAB|Mexico|MX|MX|MEX|MEX|TAB
+Tamaulipas|Tamps.|MX28|MX-TAM|Mexico|MX|MX|MEX|MEX|TAM
+Tlaxcala|Tlax.|MX29|MX-TLA|Mexico|MX|MX|MEX|MEX|TLA
+Veracruz|Ver.|MX30|MX-VER|Mexico|MX|MX|MEX|MEX|VER
+Yucatan|Yuc.|MX31|MX-YUC|Mexico|MX|MX|MEX|MEX|YUC
+Zacatecas|Zac.|MX32|MX-ZAC|Mexico|MX|MX|MEX|MEX|ZAC
+Alabama|AL|US01|US-AL|United States|US|US|USA|USA|AL
+Alaska|AK|US02|US-AK|United States|US|US|USA|USA|AK
+Arizona|AZ|US04|US-AZ|United States|US|US|USA|USA|AZ
+Arkansas|AR|US05|US-AR|United States|US|US|USA|USA|AR
+California|CA|US06|US-CA|United States|US|US|USA|USA|CA
+Colorado|CO|US08|US-CO|United States|US|US|USA|USA|CO
+Connecticut|CT|US09|US-CT|United States|US|US|USA|USA|CT
+Delaware|DE|US10|US-DE|United States|US|US|USA|USA|DE
+District of Columbia|DC|US11|US-DC|United States|US|US|USA|USA|DC
+Florida|FL|US12|US-FL|United States|US|US|USA|USA|FL
+Georgia|GA|US13|US-GA|United States|US|US|USA|USA|GA
+Hawaii|HI|US15|US-HI|United States|US|US|USA|USA|HI
+Idaho|ID|US16|US-ID|United States|US|US|USA|USA|ID
+Illinois|IL|US17|US-IL|United States|US|US|USA|USA|IL
+Indiana|IN|US18|US-IN|United States|US|US|USA|USA|IN
+Iowa|IA|US19|US-IA|United States|US|US|USA|USA|IA
+Kansas|KS|US20|US-KS|United States|US|US|USA|USA|KS
+Kentucky|KY|US21|US-KY|United States|US|US|USA|USA|KY
+Louisiana|LA|US22|US-LA|United States|US|US|USA|USA|LA
+Maine|ME|US23|US-ME|United States|US|US|USA|USA|ME
+Maryland|MD|US24|US-MD|United States|US|US|USA|USA|MD
+Massachusetts|MA|US25|US-MA|United States|US|US|USA|USA|MA
+Michigan|MI|US26|US-MI|United States|US|US|USA|USA|MI
+Minnesota|MN|US27|US-MN|United States|US|US|USA|USA|MN
+Mississippi|MS|US28|US-MS|United States|US|US|USA|USA|MS
+Missouri|MO|US29|US-MO|United States|US|US|USA|USA|MO
+Montana|MT|US30|US-MT|United States|US|US|USA|USA|MT
+Nebraska|NE|US31|US-NE|United States|US|US|USA|USA|NE
+Nevada|NV|US32|US-NV|United States|US|US|USA|USA|NV
+New Hampshire|NH|US33|US-NH|United States|US|US|USA|USA|NH
+New Jersey|NJ|US34|US-NJ|United States|US|US|USA|USA|NJ
+New Mexico|NM|US35|US-NM|United States|US|US|USA|USA|NM
+New York|NY|US36|US-NY|United States|US|US|USA|USA|NY
+North Carolina|NC|US37|US-NC|United States|US|US|USA|USA|NC
+North Dakota|ND|US38|US-ND|United States|US|US|USA|USA|ND
+Ohio|OH|US39|US-OH|United States|US|US|USA|USA|OH
+Oklahoma|OK|US40|US-OK|United States|US|US|USA|USA|OK
+Oregon|OR|US41|US-OR|United States|US|US|USA|USA|OR
+Pennsylvania|PA|US42|US-PA|United States|US|US|USA|USA|PA
+Rhode Island|RI|US44|US-RI|United States|US|US|USA|USA|RI
+South Carolina|SC|US45|US-SC|United States|US|US|USA|USA|SC
+South Dakota|SD|US46|US-SD|United States|US|US|USA|USA|SD
+Tennessee|TN|US47|US-TN|United States|US|US|USA|USA|TN
+Texas|TX|US48|US-TX|United States|US|US|USA|USA|TX
+Utah|UT|US49|US-UT|United States|US|US|USA|USA|UT
+Vermont|VT|US50|US-VT|United States|US|US|USA|USA|VT
+Virginia|VA|US51|US-VA|United States|US|US|USA|USA|VA
+Washington|WA|US53|US-WA|United States|US|US|USA|USA|WA
+West Virginia|WV|US54|US-WV|United States|US|US|USA|USA|WV
+Wisconsin|WI|US55|US-WI|United States|US|US|USA|USA|WI
+Wyoming|WY|US56|US-WY|United States|US|US|USA|USA|WY

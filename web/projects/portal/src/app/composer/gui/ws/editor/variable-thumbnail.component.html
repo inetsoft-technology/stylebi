@@ -1,0 +1,48 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="thumbnail__context-menu-anchor"
+     actionsContextmenuAnchor [actions]="actions.menuActions">
+  <div class="jsplumb-draggable-handle ws-graph-thumbnail__title bg-white2 bb-gray"
+       [attr.title]="titleTooltip">
+    <ws-assembly-thumbnail-title [assembly]="variable"
+                                 [worksheet]="worksheet"
+                                 [editable]="true"
+                                 [menuActions]="actions.menuActions"
+                                 (onEditName)="editName($event)"
+                                 (onStartEditName)="startEditName()"
+                                 (onNotify)="notify($event)"></ws-assembly-thumbnail-title>
+    <div *ngIf="variable.info.mirrorInfo?.outerMirror" class="hover-bg-primary ws-assembly-thumbnail-buttons">
+      <button *ngIf="variable.info.mirrorInfo.autoUpdate"
+              class="ws-assembly-thumbnail-button btn auto-reload-icon"
+              title="_#(Disable Auto Update)"
+              (click)="toggleAutoUpdate()"></button>
+      <button *ngIf="!variable.info.mirrorInfo.autoUpdate"
+              class="ws-assembly-thumbnail-button btn reload-no-icon"
+              title="_#(Enable Auto Update)"
+              (click)="toggleAutoUpdate()"></button>
+    </div>
+  </div>
+  <div class="ws-assembly-thumbnail-info bg-white1">
+    <div *ngIf="variable.variableInfo.description">{{variable.variableInfo.description}}</div>
+    <div *ngIf="variable.variableInfo.value" class="text-overflow">_#(Current Value):
+      <span [attr.title]="getCurrentValue()">{{getCurrentValue()}}</span>
+    </div>
+  </div>
+</div>

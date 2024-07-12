@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<PortalThemes>
+<Version>9.5</Version>
+<reportListType><![CDATA[0]]></reportListType>
+<buttonVisible><![CDATA[31]]></buttonVisible>
+<colorScheme><![CDATA[granite]]></colorScheme>
+<fontFamily><![CDATA[Roboto]]></fontFamily>
+<copyright><![CDATA[Copyright (c) 1996-2010, InetSoft Technology Corp. All Rights Reserved.]]></copyright>
+<logo><![CDATA[portal/images/modern/logo.gif]]></logo>
+<portalTabs>
+<portalTab visible="true" editable="false">
+<name><![CDATA[Dashboard]]></name>
+<uri><![CDATA[tab/dashboard]]></uri>
+</portalTab>
+<portalTab visible="true" editable="false">
+<name><![CDATA[Report]]></name>
+<uri><![CDATA[tab/report]]></uri>
+</portalTab>
+<portalTab visible="true" editable="false">
+<name><![CDATA[Schedule]]></name>
+<uri><![CDATA[tab/schedule]]></uri>
+</portalTab>
+<portalTab visible="true" editable="false">
+<name><![CDATA[Data]]></name>
+<uri><![CDATA[tab/data]]></uri>
+</portalTab>
+</portalTabs>
+<portalWelcomePage type="0">
+</portalWelcomePage>
+</PortalThemes>

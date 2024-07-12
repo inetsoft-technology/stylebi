@@ -1,0 +1,44 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="action-color" *ngIf="showRoot"
+     [style.padding-left.px]="indentLevel * INDENT_SIZE">
+  <div class="truncate-parent justify-content-between w-100">
+    <div class="truncate-text d-flex align-items-center w-100 cursor-pointer hover-bg-primary"
+         [class.bg-selected]="isSelected()"
+         [class.light-gray-bg]="isDisabled()"
+         (click)="selectNode($event)"
+         (dblclick)="hasChildren() ? toggleNode() : null">
+      <span *ngIf="hasChildren()"
+            class="{{getToggleIcon()}} tree-node-toggle cursor-pointer truncate-addon me-1"
+            (click)="toggleNode()" (dblclick)="$event.stopPropagation()">
+      </span>
+      <input class="mt-0 me-1" type="checkbox" [checked]="isSelected()" [disabled]="isDisabled()"/>
+      <span class="truncate-text form-check-label" [attr.title]="node.label">
+        {{node ? node.label : ""}}
+      </span>
+    </div>
+  </div>
+</div>
+<div [class.tree-children]="showRoot" *ngIf="node && node.expanded && node.children">
+  <physical-table-tree-node *ngFor="let _node of node.children" [node]="_node"
+                            [tree]="tree"
+                            [indentLevel]="!showRoot ? indentLevel : indentLevel + 1">
+  </physical-table-tree-node>
+</div>

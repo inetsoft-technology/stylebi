@@ -1,0 +1,156 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.preview-table-container {
+  color: var(--inet-table-text-color);
+  cursor: default;
+  border-bottom: 1px solid var(--inet-default-border-color);
+
+  th {
+    color: var(--inet-table-heading-text-color);
+    background-color: var(--inet-table-heading-bg-color, transparent);
+
+    .format-icon, .sort-icon {
+      visibility: hidden;
+    }
+
+    &:hover .format-icon {
+      visibility: visible;
+    }
+
+    &:hover .sort-icon {
+      visibility: visible;
+    }
+  }
+
+  td, th {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow-y: hidden;
+    overflow-x: hidden;
+    position: relative;
+    user-select: text;
+  }
+
+  table, td, th {
+    text-align: left;
+  }
+}
+
+.preview-container {
+  width: 80%;
+  position: relative;
+  left: 10%;
+}
+
+.preview-table {
+  position: relative;
+
+  &:not(.table-style-applied) {
+    & table, td, th {
+      border: 1px solid var(--inet-table-border-color);
+    }
+  }
+}
+
+.preview-table-container {
+  position: relative;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  height: 220px;
+}
+
+.preview-table-body-container {
+  position: relative;
+  overflow-y: hidden;
+  overflow-x: hidden;
+  height: calc(100% - 22px);
+
+  table {
+    position: absolute;
+  }
+}
+
+.column-resize-container {
+  position: absolute;
+  z-index: 1;
+  left: 0;
+  top: 0;
+  background-color: transparent;
+}
+
+.resize-handle {
+  height: 100%;
+  box-sizing: border-box;
+  position: absolute;
+  border-right: 6px solid transparent;
+  cursor: ew-resize;
+}
+
+.form-input {
+  width: 100%;
+  border: 0;
+  padding: 0;
+}
+
+input:focus {
+  outline: none;
+}
+
+.preview-table:hover > .vertical-scroll-wrapper {
+  overflow-y: auto;
+}
+
+.preview-table-container:hover {
+  overflow-x: auto;
+}
+
+.mobile.preview-table > .vertical-scroll-wrapper {
+  overflow-y: auto;
+}
+
+.mobile .preview-table-container {
+  overflow-x: auto;
+}
+
+.preview-header-cell-button {
+  right: 2px;
+  position: absolute;
+  vertical-align: middle;
+  padding-left: 3px
+}
+
+.vertical-scroll-wrapper {
+  position: absolute;
+  right: -16px;
+  overflow: hidden;
+
+  div {
+    width: inherit;
+  }
+}
+
+.drop-line {
+  position: absolute;
+  pointer-events: none;
+  border: 3px solid;
+}
+
+.cell-editor {
+  z-index: 20;
+}

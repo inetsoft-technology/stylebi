@@ -1,0 +1,127 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card-content *ngIf="model">
+  <form [formGroup]="form" class="log-settings-container">
+    <mat-card-title>_#(Settings)</mat-card-title>
+    <mat-form-field appearance="outline" color="accent" *ngIf="enterprise">
+      <mat-label>_#(em.common.log.provider)</mat-label>
+      <mat-select formControlName="provider">
+        <mat-option value="file">_#(em.common.log.fileProvider)</mat-option>
+        <mat-option value="fluentd">_#(em.common.log.fluentdProvider)</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <ng-container *ngIf="model.provider !== 'custom'">
+      <mat-checkbox class="mat-checkbox-field" formControlName="outputToStd">
+        _#(Output to Stderr)
+      </mat-checkbox>
+      <ng-container formGroupName="fluentdSettings" *ngIf="model.provider === 'fluentd'">
+        <mat-checkbox class="mat-checkbox-field" formControlName="orgAdminAccess">
+          _#(em.common.log.orgAdminAccess)
+        </mat-checkbox>
+      </ng-container>
+      <ng-container formGroupName="fileSettings" *ngIf="model.provider === 'file'">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Log File)</mat-label>
+          <input matInput placeholder="_#(log.base.name)" formControlName="file" readonly>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Max Log File Size)(KB)</mat-label>
+          <input matInput type="number" placeholder="_#(max.log.size)"
+                 formControlName="maxLogSize">
+          <mat-error *ngIf="form.get('fileSettings').get('maxLogSize').errors?.required">_#(common.invalidNumber)</mat-error>
+          <mat-error *ngIf="form.get('fileSettings').get('maxLogSize').errors?.min">_#(common.forbiddenNegativeNumber)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(BackUp Log File Count)</mat-label>
+          <input matInput type="number" placeholder="_#(num.log.files)"
+                 formControlName="count">
+          <mat-error *ngIf="form.get('fileSettings').get('count').errors?.required">_#(common.invalidNumber)</mat-error>
+          <mat-error *ngIf="form.get('fileSettings').get('count').errors?.min">_#(common.forbiddenNegativeNumber)</mat-error>
+        </mat-form-field>
+      </ng-container>
+      <ng-container formGroupName="fluentdSettings" *ngIf="model.provider === 'fluentd'">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Host)</mat-label>
+          <input matInput placeholder="_#(Host)" formControlName="host">
+          <mat-error *ngIf="form.get('fluentdSettings').get('host').errors?.required">_#(em.common.log.fluentd.hostRequired)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Port)</mat-label>
+          <input matInput type="number" placeholder="_#(Port)" formControlName="port">
+          <mat-error *ngIf="form.get('fluentdSettings').get('port').errors?.required">_#(em.common.log.fluentd.portRequired)</mat-error>
+          <mat-error *ngIf="form.get('fluentdSettings').get('port').errors?.min">_#(em.common.log.fluentd.portInvalid)</mat-error>
+          <mat-error *ngIf="form.get('fluentdSettings').get('port').errors?.max">_#(em.common.log.fluentd.portInvalid)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(em.common.log.fluentd.connectTimeout)</mat-label>
+          <input matInput type="number" placeholder="_#(em.common.log.fluentd.connectTimeout)" formControlName="connectTimeout">
+          <mat-error *ngIf="form.get('fluentdSettings').get('connectTimeout').errors?.required">_#(em.common.log.fluentd.connectTimeoutRequired)</mat-error>
+          <mat-error *ngIf="form.get('fluentdSettings').get('connectTimeout').errors?.min">_#(em.common.log.fluentd.connectTimeoutInvalid)</mat-error>
+        </mat-form-field>
+        <mat-checkbox class="mat-checkbox-field" formControlName="securityEnabled">
+          _#(em.common.log.fluentd.securityEnabled)
+        </mat-checkbox>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(em.common.log.fluentd.sharedKey)</mat-label>
+          <input matInput type="password" placeholder="_#(em.common.log.fluentd.sharedKey)" formControlName="sharedKey">
+          <mat-error *ngIf="form.get('fluentdSettings').get('sharedKey').errors?.required">_#(em.common.log.fluentd.sharedKeyRequired)</mat-error>
+        </mat-form-field>
+        <mat-checkbox class="mat-checkbox-field" formControlName="userAuthenticationEnabled">
+          _#(em.common.log.fluentd.userAuthenticationEnabled)
+        </mat-checkbox>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Username)</mat-label>
+          <input matInput placeholder="_#(Username)" formControlName="username">
+          <mat-error *ngIf="form.get('fluentdSettings').get('username').errors?.required">_#(em.common.log.fluentd.usernameRequired)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Password)</mat-label>
+          <input matInput type="password" placeholder="_#(Password)" formControlName="password">
+          <mat-error *ngIf="form.get('fluentdSettings').get('password').errors?.required">_#(em.common.log.fluentd.passwordRequired)</mat-error>
+        </mat-form-field>
+        <mat-checkbox class="mat-checkbox-field" formControlName="tlsEnabled">
+          _#(em.common.log.fluentd.tlsEnabled)
+        </mat-checkbox>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(em.common.log.fluentd.caCertificateFile)</mat-label>
+          <input matInput placeholder="_#(em.common.log.fluentd.caCertificateFile)" formControlName="caCertificateFile">
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(em.common.log.fluentd.logViewUrl)</mat-label>
+          <input matInput placeholder="_#(em.common.log.fluentd.logViewUrl)" formControlName="logViewUrl">
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(em.common.log.fluentd.auditViewUrl)</mat-label>
+          <input matInput placeholder="_#(em.common.log.fluentd.auditViewUrl)" formControlName="auditViewUrl">
+        </mat-form-field>
+      </ng-container>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Log Detail Level)</mat-label>
+        <mat-select [(value)]="model.detailLevel" (selectionChange)="emitChanges()">
+          <mat-option value="debug">_#(Debug)</mat-option>
+          <mat-option value="info">_#(Info)</mat-option>
+          <mat-option value="warn">_#(Warning)</mat-option>
+          <mat-option value="error">_#(Error)</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <em-logging-level-table [loggingLevels]="model.logLevels" (loggingLevelsChange)="changeLoggingLevels($event)"></em-logging-level-table>
+    </ng-container>
+  </form>
+</mat-card-content>

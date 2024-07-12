@@ -1,0 +1,123 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="property-container container-fluid flex-fixed-container mat-body-2">
+  <div class="search-bar">
+    <mat-form-field class="search-field">
+      <mat-label>_#(Filter)</mat-label>
+      <input matInput class="searchInput" #search (keyup)="applyFilter($event.target.value)">
+      <button mat-icon-button matSuffix *ngIf="search.value"
+              title="_#(Clear)" aria-label="_#(Clear)"
+              (click)="search.value=''; applyFilter(search.value)">
+        <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
+      </button>
+      <mat-icon matSuffix fontSet="ineticons" fontIcon="search-icon" *ngIf="!search.value"></mat-icon>
+
+    </mat-form-field>
+    <button mat-mini-fab color="accent" title="_#(Add Property)" aria-label="_#(Add Property)" (click)="addRow()">
+      <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
+    </button>
+  </div>
+  <div class="table-container" emTopScroll>
+    <table mat-table matSort [dataSource]="dataSource">
+      <ng-container matColumnDef="propertyName">
+        <th mat-header-cell mat-sort-header *matHeaderCellDef>_#(Name)</th>
+        <td mat-cell class="property-name" *matCellDef="let row">
+        <form *ngIf="row.newRow; else property_name">
+          <mat-form-field class="form-control" floatLabel="never">
+            <input matInput #nameInput="matInput" class="wide-input" placeholder="_#(Property Name)"
+                   [formControl]="nameInputControl" [matAutocomplete]="auto">
+            <button mat-icon-button matSuffix aria-label="Clear" *ngIf="!!nameInputControl.value" (click)="nameInputControl.setValue('')">
+              <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
+            </button>
+            <mat-autocomplete #auto="matAutocomplete">
+              <mat-option *ngFor="let prop of editPropertyAutocomplete | async"
+                          [value]="prop.propertyName" (click)="setPropertyName(prop)">
+                {{prop.propertyName}}
+              </mat-option>
+            </mat-autocomplete>
+          </mat-form-field>
+        </form>
+          <ng-template #property_name>
+            <span [title]="row.propertyName">{{row.propertyName}}</span>
+          </ng-template>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="propertyValue">
+        <th mat-header-cell mat-sort-header *matHeaderCellDef>
+          _#(Value)
+        </th>
+        <td mat-cell class="property-value" *matCellDef="let row">
+          <div class="value-layout">
+            <div class="value-display">
+            <span *ngIf="!row.editing; else row_editor" class="value-span" [title]="row.propertyValue">
+              {{row.propertyValue}}
+            </span>
+              <ng-template #row_editor>
+                <mat-form-field class="form-control" floatLabel="never">
+                  <input matInput class="wide-input" name="valueInput" placeholder="_#(Property Value)"
+                         (keyup.enter)="acceptChanges()"
+                         #propertyValue="ngModel" [(ngModel)]="editingRow.propertyValue" [matAutocomplete]="valueAuto">
+                  <button mat-icon-button matSuffix title=_#(Clear) aria-label="_#(Clear)" *ngIf="editingRow.propertyValue" (click)="editingRow.propertyValue=''">
+                    <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
+                  </button>
+                  <mat-autocomplete #valueAuto="matAutocomplete">
+                    <mat-option *ngFor="let option of valueOptions"
+                                [value]="option.value" (click)="editingRow.propertyValue = option.value">
+                      {{option.label}}
+                    </mat-option>
+                  </mat-autocomplete>
+                </mat-form-field>
+              </ng-template>
+            </div>
+            <div class="button-row">
+              <button mat-icon-button *ngIf="!row.editing"
+                      title="_#(Edit)" aria-label="_#(Edit)"
+                      (click)="editRow(row)">
+                <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+              </button>
+              <button mat-icon-button *ngIf="!row.editing"
+                      title="_#(Delete)" aria-label="_#(Delete)"
+                      (click)="deleteRow(row)">
+                <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+              </button>
+              <button mat-icon-button *ngIf="row.editing"
+                      title="_#(Accept)" aria-label="_#(Accept)"
+                      (click)="acceptChanges()">
+                <mat-icon fontSet="ineticons" fontIcon="submit-icon"></mat-icon>
+              </button>
+              <button mat-icon-button *ngIf="row.editing"
+                      title="_#(Close)" aria-label="_#(Close)"
+                      (click)="cancelEditingRow(row)">
+                <mat-icon fontSet="ineticons" fontIcon="close-icon"></mat-icon>
+              </button>
+            </div>
+          </div>
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columnNames; sticky: true"></tr>
+      <tr mat-row *matRowDef="let row; columns: columnNames"></tr>
+    </table>
+  </div>
+
+  <mat-paginator [pageSize]="20"
+                 [pageSizeOptions]="[10, 20, 50, 100]"
+                 [length]="getDataLength()"
+                 [showFirstLastButtons]="true"></mat-paginator>
+</div>

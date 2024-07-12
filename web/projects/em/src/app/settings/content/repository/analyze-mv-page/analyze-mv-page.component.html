@@ -1,0 +1,91 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="!analyzed">
+  <em-table-view [dataSource]="models"
+                 [showEmptyError]="true"
+                 [emptyError]="noMvsMessage"
+                 [tableInfo]="existingMVTableInfo"
+                 [trackByProp]="'table'"
+                 [expandableRow]="true"
+                 (selectionChanged)="selectionChanged($event.selected)">
+  </em-table-view>
+  <mat-card class="em-card" appearance="outlined" *ngIf="fullDataVisible || securityEnabled">
+    <mat-card-title>_#(MV Analysis Options)</mat-card-title>
+    <mat-card-content>
+      <div class="flex-col">
+        <mat-form-field *ngIf="fullDataVisible" appearance="outline" color="accent">
+          <mat-select [(ngModel)]="fullData">
+            <mat-option [value]="true">
+              _#(em.mv.fullData)
+            </mat-option>
+            <mat-option [value]="false">
+              _#(em.mv.minData)
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field *ngIf="securityEnabled && enterprise" appearance="outline" color="accent">
+          <mat-select [(ngModel)]="bypass">
+            <mat-option [value]="false">
+              _#(em.mv.applyVPM)
+            </mat-option>
+            <mat-option [value]="true">
+              _#(em.mv.bypassVPM)
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-checkbox *ngIf="securityEnabled && groupExpandedVisible && enterprise" class="mat-checkbox-field" [disabled]="bypass"
+                      [(ngModel)]="groupExpanded" title="_#(em.mv.groupExpanded)">_#(em.mv.groupExpanded)
+        </mat-checkbox>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</ng-container>
+<ng-container *ngIf="analyzed">
+  <em-table-view [dataSource]="models"
+                 [trackByProp]="'table'"
+                 [tableInfo]="mvTableInfo"
+                 [selectAllOnInit]="true"
+                 [showEmptyError]="true"
+                 [emptyError]="noAssetsMessage"
+                 [expandableRow]="true"
+                 (selectionChanged)="selectionChanged($event.selected)">
+  </em-table-view>
+  <mat-card class="em-card" appearance="outlined">
+    <mat-card-title>_#(Options)</mat-card-title>
+    <mat-card-content>
+      <div class="flex-col">
+        <mat-checkbox [(ngModel)]="hideExist">_#(Hide existing MV)</mat-checkbox>
+        <mat-checkbox [(ngModel)]="hideData">_#(Hide existing MV with data)</mat-checkbox>
+        <mat-checkbox [(ngModel)]="generateData">_#(em.mv.genertate)</mat-checkbox>
+        <mat-checkbox class="mat-checkbox-field" [(ngModel)]="runInBackground">_#(em.mv.background)</mat-checkbox>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Set Cycle)</mat-label>
+          <mat-select placeholder="_#(Set Cycle)" [(ngModel)]="mvCycle">
+            <mat-option value="">_#(None)</mat-option>
+            <mat-option *ngFor="let cycle of cycles" [value]="cycle.name">
+              {{cycle.label}}
+            </mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</ng-container>
+<em-loading-spinner [loading]="loading"></em-loading-spinner>

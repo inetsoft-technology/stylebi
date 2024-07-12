@@ -1,0 +1,544 @@
+/**
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+ChartPalette[name='Default'][index='1'] {
+   color: #518db9;
+}
+
+ChartPalette[name='Default'][index='2'] {
+   color: #b9dbf4;
+}
+
+ChartPalette[name='Default'][index='3'] {
+   color: #62a640;
+}
+
+ChartPalette[name='Default'][index='4'] {
+   color: #ade095;
+}
+
+ChartPalette[name='Default'][index='5'] {
+   color: #fc8f2a;
+}
+
+ChartPalette[name='Default'][index='6'] {
+   color: #fde3a7;
+}
+
+ChartPalette[name='Default'][index='7'] {
+   color: #d64541;
+}
+
+ChartPalette[name='Default'][index='8'] {
+   color: #fda7a5;
+}
+
+ChartPalette[name='Default'][index='9'] {
+   color: #9368be;
+}
+
+ChartPalette[name='Default'][index='10'] {
+   color: #be90d4;
+}
+
+ChartPalette[name='Default'][index='11'] {
+   color: #95a5a6;
+}
+
+ChartPalette[name='Default'][index='12'] {
+   color: #dadfe1;
+}
+
+ChartPalette[name='Default'][index='13'] {
+   color: #19b5fe;
+}
+
+ChartPalette[name='Default'][index='14'] {
+   color: #c5eff7;
+}
+
+ChartPalette[name='Default'][index='15'] {
+   color: #869530;
+}
+
+ChartPalette[name='Default'][index='16'] {
+   color: #c8d96f;
+}
+
+ChartPalette[name='Default'][index='17'] {
+   color: #a88637;
+}
+
+ChartPalette[name='Default'][index='18'] {
+   color: #d2b267;
+}
+
+ChartPalette[name='Default'][index='19'] {
+   color: #019875;
+}
+
+ChartPalette[name='Default'][index='20'] {
+   color: #68c3a3;
+}
+
+ChartPalette[name='Default'][index='21'] {
+   color: #99CCFF;
+}
+
+ChartPalette[name='Default'][index='22'] {
+   color: #999933;
+}
+
+ChartPalette[name='Default'][index='23'] {
+   color: #CC9933;
+}
+
+ChartPalette[name='Default'][index='24'] {
+   color: #006666;
+}
+
+ChartPalette[name='Default'][index='25'] {
+   color: #993300;
+}
+
+ChartPalette[name='Default'][index='26'] {
+   color: #666666;
+}
+
+ChartPalette[name='Default'][index='27'] {
+   color: #663366;
+}
+
+ChartPalette[name='Default'][index='28'] {
+   color: #CCCCCC;
+}
+
+ChartPalette[name='Default'][index='29'] {
+   color: #669999;
+}
+
+ChartPalette[name='Default'][index='30'] {
+   color: #CCCC66;
+}
+
+ChartPalette[name='Default'][index='31'] {
+   color: #CC6600;
+}
+
+ChartPalette[name='Default'][index='32'] {
+   color: #9999FF;
+}
+
+ChartPalette[name='Default'][index='33'] {
+   color: #0066CC;
+}
+
+ChartPalette[name='Default'][index='34'] {
+   color: #FFCC00;
+}
+
+ChartPalette[name='Default'][index='35'] {
+   color: #009999;
+}
+
+ChartPalette[name='Default'][index='36'] {
+   color: #99CC33;
+}
+
+ChartPalette[name='Default'][index='37'] {
+   color: #FF9900;
+}
+
+ChartPalette[name='Default'][index='38'] {
+   color: #66CCCC;
+}
+
+ChartPalette[name='Default'][index='39'] {
+   color: #339966;
+}
+
+ChartPalette[name='Default'][index='40'] {
+   color: #CCCC33;
+}
+
+ChartPalette[name='Soft'][index='1'] {
+  color: #5a9bd4;
+}
+
+ChartPalette[name='Soft'][index='2'] {
+  color: #7ac36a;
+}
+
+ChartPalette[name='Soft'][index='3'] {
+  color: #f15a60;
+}
+
+ChartPalette[name='Soft'][index='4'] {
+  color: #737373;
+}
+
+ChartPalette[name='Soft'][index='5'] {
+  color: #faa75b;
+}
+
+ChartPalette[name='Soft'][index='6'] {
+  color: #9e67ab;
+}
+
+ChartPalette[name='Soft'][index='7'] {
+  color: #ce7058;
+}
+
+ChartPalette[name='Soft'][index='8'] {
+  color: #d77fb4;
+}
+
+ChartPalette[name='Pastel'][index='1'] {
+  color: #aaafff;
+}
+
+ChartPalette[name='Pastel'][index='2'] {
+  color: #a4e786;
+}
+
+ChartPalette[name='Pastel'][index='3'] {
+  color: #ffa77f;
+}
+
+ChartPalette[name='Pastel'][index='4'] {
+  color: #f5d96b;
+}
+
+ChartPalette[name='Pastel'][index='5'] {
+  color: #ceadcb;
+}
+
+ChartPalette[name='Pastel'][index='6'] {
+  color: #e9aa7e;
+}
+
+ChartPalette[name='Pastel'][index='7'] {
+  color: #91dcfc;
+}
+
+ChartPalette[name='Pastel'][index='8'] {
+  color: #fecfd7;
+}
+
+ChartPalette[name='Pastel'][index='9'] {
+  color: #c3e2f4;
+}
+
+ChartPalette[name='Pastel'][index='10'] {
+  color: #99c796;
+}
+
+ChartPalette[name='Pastel'][index='11'] {
+  color: #de6842;
+}
+
+ChartPalette[name='Pastel'][index='12'] {
+  color: #e8cd36;
+}
+
+ChartPalette[name='Pastel'][index='13'] {
+  color: #fcee95;
+}
+
+ChartPalette[name='Pastel'][index='14'] {
+  color: #af6193;
+}
+
+ChartPalette[name='Pastel'][index='15'] {
+  color: #ede1ad;
+}
+
+ChartPalette[name='Pastel'][index='16'] {
+  color: #e6acba;
+}
+
+ChartPalette[name='Red'][index='1'] {
+  color: #990300;
+}
+
+ChartPalette[name='Red'][index='2'] {
+  color: #bb3e3b;
+}
+
+ChartPalette[name='Red'][index='3'] {
+  color: #dd7977;
+}
+
+ChartPalette[name='Red'][index='4'] {
+  color: #ffb4b3;
+}
+
+ChartPalette[name='Green'][index='1'] {
+  color: #457300;
+}
+
+ChartPalette[name='Green'][index='2'] {
+  color: #719935;
+}
+
+ChartPalette[name='Green'][index='3'] {
+  color: #9dbf6b;
+}
+
+ChartPalette[name='Green'][index='4'] {
+  color: #cae6a1;
+}
+
+ChartPalette[name='Blue'][index='1'] {
+  color: #002b80;
+}
+
+ChartPalette[name='Blue'][index='2'] {
+  color: #3b60aa;
+}
+
+ChartPalette[name='Blue'][index='3'] {
+  color: #7796d4;
+}
+
+ChartPalette[name='Blue'][index='4'] {
+  color: #b3ccff;
+}
+
+ChartPalette[name='Orange'][index='1'] {
+  color: #b03601;
+}
+
+ChartPalette[name='Orange'][index='2'] {
+  color: #ec5f0e;
+}
+
+ChartPalette[name='Orange'][index='3'] {
+  color: #fd974b;
+}
+
+ChartPalette[name='Orange'][index='4'] {
+  color: #f0c294;
+}
+
+ChartPalette[name='Gray'][index='1'] {
+  color: #333333;
+}
+
+ChartPalette[name='Gray'][index='2'] {
+  color: #6a6a6a;
+}
+
+ChartPalette[name='Gray'][index='3'] {
+  color: #a1a1a1;
+}
+
+ChartPalette[name='Gray'][index='4'] {
+  color: #d9d9d9;
+}
+
+ChartPalette[name='Heat 8'][index='1'] {
+  color: #663300;
+}
+
+ChartPalette[name='Heat 8'][index='2'] {
+  color: #914800;
+}
+
+ChartPalette[name='Heat 8'][index='3'] {
+  color: #bd5e00;
+}
+
+ChartPalette[name='Heat 8'][index='4'] {
+  color: #e97400;
+}
+
+ChartPalette[name='Heat 8'][index='5'] {
+  color: #ff8a15;
+}
+
+ChartPalette[name='Heat 8'][index='6'] {
+  color: #ffa041;
+}
+
+ChartPalette[name='Heat 8'][index='7'] {
+  color: #ffb66d;
+}
+
+ChartPalette[name='Heat 8'][index='8'] {
+  color: #ffcc99;
+}
+
+ChartPalette[name='Heat 16'][index='1'] {
+  color: #663300;
+}
+
+ChartPalette[name='Heat 16'][index='2'] {
+  color: #7a3d00;
+}
+
+ChartPalette[name='Heat 16'][index='3'] {
+  color: #8e4700;
+}
+
+ChartPalette[name='Heat 16'][index='4'] {
+  color: #a35100;
+}
+
+ChartPalette[name='Heat 16'][index='5'] {
+  color: #b75b00;
+}
+
+ChartPalette[name='Heat 16'][index='6'] {
+  color: #cc6600;
+}
+
+ChartPalette[name='Heat 16'][index='7'] {
+  color: #e07000;
+}
+
+ChartPalette[name='Heat 16'][index='8'] {
+  color: #f47a00;
+}
+
+ChartPalette[name='Heat 16'][index='9'] {
+  color: #ff840a;
+}
+
+ChartPalette[name='Heat 16'][index='10'] {
+  color: #ff8e1e;
+}
+
+ChartPalette[name='Heat 16'][index='11'] {
+  color: #ff9933;
+}
+
+ChartPalette[name='Heat 16'][index='12'] {
+  color: #ffa347;
+}
+
+ChartPalette[name='Heat 16'][index='13'] {
+  color: #ffad5b;
+}
+
+ChartPalette[name='Heat 16'][index='14'] {
+  color: #ffb770;
+}
+
+ChartPalette[name='Heat 16'][index='15'] {
+  color: #ffc184;
+}
+
+ChartPalette[name='Heat 16'][index='16'] {
+  color: #ffcc99;
+}
+
+ChartPalette[name='Heat 24'][index='1'] {
+  color: #663300;
+}
+
+ChartPalette[name='Heat 24'][index='2'] {
+  color: #733900;
+}
+
+ChartPalette[name='Heat 24'][index='3'] {
+  color: #804000;
+}
+
+ChartPalette[name='Heat 24'][index='4'] {
+  color: #8d4600;
+}
+
+ChartPalette[name='Heat 24'][index='5'] {
+  color: #9b4d00;
+}
+
+ChartPalette[name='Heat 24'][index='6'] {
+  color: #a85400;
+}
+
+ChartPalette[name='Heat 24'][index='7'] {
+  color: #b55a00;
+}
+
+ChartPalette[name='Heat 24'][index='8'] {
+  color: #c36100;
+}
+
+ChartPalette[name='Heat 24'][index='9'] {
+  color: #d06800;
+}
+
+ChartPalette[name='Heat 24'][index='10'] {
+  color: #dd6e00;
+}
+
+ChartPalette[name='Heat 24'][index='11'] {
+  color: #eb7500;
+}
+
+ChartPalette[name='Heat 24'][index='12'] {
+  color: #f87c00;
+}
+
+ChartPalette[name='Heat 24'][index='13'] {
+  color: #ff8206;
+}
+
+ChartPalette[name='Heat 24'][index='14'] {
+  color: #ff8913;
+}
+
+ChartPalette[name='Heat 24'][index='15'] {
+  color: #ff9021;
+}
+
+ChartPalette[name='Heat 24'][index='16'] {
+  color: #ff962e;
+}
+
+ChartPalette[name='Heat 24'][index='17'] {
+  color: #ff9d3b;
+}
+
+ChartPalette[name='Heat 24'][index='18'] {
+  color: #ffa449;
+}
+
+ChartPalette[name='Heat 24'][index='19'] {
+  color: #ffaa56;
+}
+
+ChartPalette[name='Heat 24'][index='20'] {
+  color: #ffb163;
+}
+
+ChartPalette[name='Heat 24'][index='21'] {
+  color: #ffb871;
+}
+
+ChartPalette[name='Heat 24'][index='22'] {
+  color: #ffbe7e;
+}
+
+ChartPalette[name='Heat 24'][index='23'] {
+  color: #ffc58b;
+}
+
+ChartPalette[name='Heat 24'][index='24'] {
+  color: #ffcc99;
+}

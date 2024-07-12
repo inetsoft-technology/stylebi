@@ -1,0 +1,105 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.modal-body {
+  margin-bottom: 1rem;
+}
+
+.step-item {
+  display: flex;
+  border-radius: 0.25rem;
+  padding: 10px;
+  margin-top: 10px;
+  margin-left: 5px;
+  margin-right: 5px;
+  margin-bottom: 5px;
+  border-style: solid;
+  border-width: 1px;
+  border-color: var(--inet-default-border-color);
+  align-items: center;
+  background-color: var(--inet-portal-side-panel-bg-color);
+
+  .step-text {
+    display: flex;
+    align-items: flex-end;
+    flex-grow: 100;
+  }
+
+  .step-icon {
+    border-radius: 50%;
+    height: 24px;
+    width: 24px;
+    position: relative;
+    flex-shrink: 0;
+    display: inline;
+    background-color: var(--inet-portal-main-panel-bg-color);
+    margin-right: 8px;
+    border: 1px solid var(--inet-default-border-color);
+
+    .step-icon-content {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform:translate(-50%, -50%);
+      display: flex;
+      background-color: var(--inet-portal-main-panel-bg-color);
+    }
+  }
+}
+
+.step-item.disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.current-step {
+  background: var(--inet-primary-color);
+}
+
+.step-item.active {
+  .step-text {
+    color: var(--inet-text-color);
+  }
+
+  .link-text {
+    color: white;
+  }
+}
+
+.sub-step-pane {
+  margin-left: 20px;
+}
+
+.sub-step-item {
+  background-color: var(--inet-main-panel-bg-color);
+}
+
+.link-text {
+  color: var(--inet-link-color);
+  cursor: pointer;
+}
+
+.no-show {
+  display: flex;
+  margin-left: 10px;
+  margin-top: 20px;
+
+  label {
+    margin-left: 5px;
+    font-weight: 400;
+  }
+}

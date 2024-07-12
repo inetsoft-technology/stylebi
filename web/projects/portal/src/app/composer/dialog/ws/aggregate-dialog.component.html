@@ -1,0 +1,48 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Group and Aggregate)'"
+   (onCancel)="cancel()"
+   [cshid]="'Grouping'">
+</modal-header>
+
+<div class="modal-body container-fluid" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
+  <aggregate-pane *ngIf="!model.info.crosstab"
+                  [model]="model" [trapFields]="trapFields"
+                  (validChange)="validChange($event)"></aggregate-pane>
+  <crosstab-pane *ngIf="model.info.crosstab"
+                 [model]="model" [trapFields]="trapFields"
+                 (validChange)="validChange($event)"></crosstab-pane>
+</div>
+
+<div class="modal-footer">
+  <div class="row w-100">
+    <div class="col">
+      <button type="button" *ngIf="model" class="btn btn-default" (click)="toggle()">{{toggleContent}}</button>
+    </div>
+    <div class="col col-auto">
+      <button type="button" class="btn btn-default"
+              (click)="clear()" [disabled]="clearDisabled()">_#(Clear)</button>
+      <button type="button" *ngIf="model" class="btn btn-primary ms-2"
+              (click)="ok()" [disabled]="!valid" #okButton>_#(OK)</button>
+      <button type="button" class="btn btn-default ms-2" data-dismiss="modal"
+              (click)="cancel()">_#(Cancel)</button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,87 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="card p-1">
+  <nav aria-label="breadcrumb" role="navigation"
+     [ngbTooltip]="breadcrumbTooltip"
+     triggers="mouseenter:mouseleave" placement="right">
+    <ol class="breadcrumb mb-0">
+      <ng-container *ngIf="showBreadcrumb">
+        <li *ngFor="let folder of browserView?.path; last as isLast"
+            class="breadcrumb-item"
+            [class.active]="isLast">
+          <span [class.action-style]="!isLast"
+                (click)="isLast || openFolder(folder.path, folder.type, folder.scope)">{{folder.name ? folder.name : folder.description}}
+          </span>
+        </li>
+      </ng-container>
+      <ng-container *ngIf="!showBreadcrumb">
+        <li class="breadcrumb-item active">{{browserView?.path[0].name}}</li>
+      </ng-container>
+    </ol>
+  </nav>
+  <div class="list-group list-group-flush files-browser my-1" *ngIf="!!browserView">
+    <div *ngIf="!browserView.root"
+        class="list-group-item list-group-item-action px-1"
+        (click)="openParentFolder()">
+      <span class="cursor-pointer text-nowrap">
+        <i class="upward-icon"></i>
+        {{currentFolderName()}}
+      </span>
+    </div>
+    <div class="list-group-item list-group-item-action px-1" *ngFor="let folder of browserView.folders"
+            [class.active]="!multiSelect && isItemSelected(folder, true)"
+            (click)="folderSelectable ? selectFolder(folder) : openFolder(folder.path, folder.type, folder.scope)">
+      <div class="truncate-parent justify-content-between">
+        <div class="truncate-text d-flex align-items-center">
+          <input type="checkbox" class="truncate-addon"
+                 *ngIf="multiSelect && folderSelectable"
+                 [checked]="isItemSelected(folder, true)"
+                 (click)="selectFolder(folder); $event.stopPropagation()">
+          <span class="truncate-text ps-1">
+            <div class="d-flex align-items-center">
+              <i class="{{getFolderIcon(folder)}}"></i>
+              <span class="px-1"> {{folder.name ? folder.name : folder.description}} </span>
+            </div>
+          </span>
+        </div>
+        <i *ngIf="folder.hasSubFolder"
+           class="forward-icon cursor-pointer truncate-addon"
+           (click)="openFolder(folder.path, folder.type, folder.scope); $event.stopPropagation()">
+        </i>
+      </div>
+    </div>
+    <div class="list-group-item list-group-item-action px-1" *ngFor="let file of browserView.files"
+            [class.active]="!multiSelect && isItemSelected(file, false)"
+            (click)="selectFile(file)">
+      <div class="truncate-parent align-items-center">
+        <input type="checkbox" class="truncate-addon"
+               *ngIf="multiSelect"
+               [checked]="isItemSelected(file, false)"
+               (click)="selectFile(file); $event.stopPropagation()">
+        <span class="truncate-text ps-1">
+          <div class="d-flex align-items-center">
+            <i class="{{getFileIcon(file)}}"></i>
+            <span class="px-1"> {{file.name}} </span>
+          </div>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>

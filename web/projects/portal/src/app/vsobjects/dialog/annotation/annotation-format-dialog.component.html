@@ -1,0 +1,105 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Format)'"
+              [cshid]="'AnnotatingDashboard'"
+              (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body" enterSubmit (onEnter)="ok()" *ngIf="model">
+  <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+    <fieldset>
+      <legend>_#(Box)</legend>
+      <div class="form-row-float-label row">
+        <div class="col pe-0">
+          <div class="form-floating">
+            <style-dropdown [(style)]="model.boxBorderStyle" [color]="model.boxBorderColor"
+                            [noneAvailable]="false"></style-dropdown>
+            <label>_#(Style)</label>
+          </div>
+        </div>
+        <div class="col-auto ps-1">
+          <color-editor [(color)]="model.boxBorderColor"></color-editor>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-floating">
+            <radius-dropdown [(radius)]="model.boxBorderRadius"
+                             [form]="form.controls['roundCornerForm']"></radius-dropdown>
+            <label>_#(Round Corner)</label>
+          </div>
+        </div>
+        <div class="col">
+          <color-editor [(color)]="model.boxFillColor" label="_#(Fill Color)"></color-editor>
+        </div>
+        <div class="col">
+          <div class="form-floating">
+            <alpha-dropdown [(alpha)]="model.boxAlpha"
+                            (alphaInvalid)="changeAlphaWarning($event)"></alpha-dropdown>
+            <label>_#(Alpha)</label>
+          </div>
+        </div>
+      </div>
+      <div *ngIf="alphaInvalid" class="col-12 alert alert-danger">
+        _#(viewer.flash.format.invalidTransparencyError)
+      </div>
+    </fieldset>
+    <fieldset *ngIf="showLine() && model.lineStyle">
+      <legend>_#(Line)</legend>
+      <div class="form-row-checkbox row">
+        <div class="col checkbox">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="visible"
+                   [(ngModel)]="model.lineVisible">
+            <label class="form-check-label" for="visible">
+              _#(Visible)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-floating">
+            <style-dropdown [(style)]="model.lineStyle" [color]="model.lineColor"
+                            [noneAvailable]="false">
+            </style-dropdown>
+            <label>_#(Line)</label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-floating">
+            <line-arrow-type-dropdown [(style)]="model.lineEnd" [color]="model.lineColor"></line-arrow-type-dropdown>
+            <label>_#(End)</label>
+          </div>
+        </div>
+        <div class="col-auto ps-0">
+          <color-editor [(color)]="model.lineColor"></color-editor>
+        </div>
+      </div>
+    </fieldset>
+  </form>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-default reset-button" (click)="reset()">_#(Reset)</button>
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!form.valid ||
+      alphaInvalid"
+          #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>

@@ -1,0 +1,89 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="em-card em-presentation-share-settings-view">
+  <mat-card-title>_#(Social Sharing)</mat-card-title>
+  <mat-card-content *ngIf="form" [formGroup]="form">
+    <mat-checkbox formControlName="emailEnabled">_#(em.settings.share.emailEnabled)</mat-checkbox>
+    <mat-checkbox formControlName="facebookEnabled">_#(em.settings.share.facebookEnabled)</mat-checkbox>
+    <mat-checkbox formControlName="linkedinEnabled">_#(em.settings.share.linkedinEnabled)</mat-checkbox>
+    <mat-checkbox formControlName="twitterEnabled">_#(em.settings.share.twitterEnabled)</mat-checkbox>
+    <mat-checkbox formControlName="linkEnabled">_#(em.settings.share.linkEnabled)</mat-checkbox>
+    <ng-container formGroupName="googleChat">
+      <mat-checkbox formControlName="googleChatEnabled">_#(em.settings.share.googleChatEnabled)</mat-checkbox>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(em.settings.share.googleChatUrl)</mat-label>
+        <input matInput formControlName="googleChatUrl" placeholder="_#(em.settings.share.googleChatUrl)"
+               type="url" [errorStateMatcher]="googleChatErrorStateMatcher"/>
+        <a mat-icon-button matSuffix
+           href="https://developers.google.com/hangouts/chat/how-tos/webhooks"
+           target="_blank" title="_#(em.settings.share.googleChatUrlRequired)"
+        >
+          <mat-icon fontSet="ineticons" fontIcon="help-question-mark-icon"></mat-icon>
+        </a>
+        <mat-error *ngIf="form.controls.googleChat?.errors?.urlRequired">
+          _#(em.settings.share.googleChatUrlRequired)
+        </mat-error>
+        <mat-error *ngIf="form.controls.googleChat?.errors?.invalidPrefix">
+          _#(em.settings.share.googleChatUrlInvalid)
+        </mat-error>
+      </mat-form-field>
+    </ng-container>
+    <ng-container formGroupName="slack">
+      <mat-checkbox formControlName="slackEnabled">_#(em.settings.share.slackEnabled)</mat-checkbox>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(em.settings.share.slackUrl)</mat-label>
+        <input matInput formControlName="slackUrl" placeholder="_#(em.settings.share.slackUrl)"
+               type="url" [errorStateMatcher]="slackErrorStateMatcher"/>
+        <a mat-icon-button matSuffix
+           href="https://api.slack.com/incoming-webhooks"
+           target="_blank" title="_#(em.settings.share.slackUrlRequired)"
+        >
+          <mat-icon fontSet="ineticons" fontIcon="help-question-mark-icon"></mat-icon>
+        </a>
+        <mat-error *ngIf="form.controls.slack?.errors?.urlRequired">
+          _#(em.settings.share.slackUrlRequired)
+        </mat-error>
+        <mat-error *ngIf="form.controls.slack?.errors?.invalidPrefix">
+          _#(em.settings.share.slackUrlInvalid)
+        </mat-error>
+      </mat-form-field>
+    </ng-container>
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(em.settings.share.openGraphSiteName)</mat-label>
+      <input matInput formControlName="openGraphSiteName" placeholder="_#(em.settings.share.openGraphSiteName)" type="text"/>
+      <mat-error *ngIf="form.controls.openGraphSiteName?.errors?.required">_#(em.settings.share.openGraphSiteNameRequired)</mat-error>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(em.settings.share.openGraphTitle)</mat-label>
+      <input matInput formControlName="openGraphTitle" placeholder="_#(em.settings.share.openGraphTitle)" type="text"/>
+      <mat-error *ngIf="form.controls.openGraphTitle?.errors?.required">_#(em.settings.share.openGraphTitleRequired)</mat-error>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(em.settings.share.openGraphImageUrl)</mat-label>
+      <input matInput formControlName="openGraphImageUrl" placeholder="_#(em.settings.share.openGraphImageUrl)" type="url"/>
+      <mat-error *ngIf="form.controls.openGraphImageUrl?.errors?.required">_#(em.settings.share.openGraphImageUrlRequired)</mat-error>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(em.settings.share.openGraphDescription)</mat-label>
+      <textarea matInput formControlName="openGraphDescription" placeholder="_#(em.settings.share.openGraphDescription)"></textarea>
+      <mat-error *ngIf="form.controls.openGraphDescription?.errors?.required">_#(em.settings.share.openGraphDescriptionRequired)</mat-error>
+    </mat-form-field>
+  </mat-card-content>
+</mat-card>

@@ -1,0 +1,91 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form *ngIf="form" [formGroup]="form" class="flex-col">
+    <mat-form-field appearance="outline" color="accent" *ngIf="type == ComboMode.VALUE && mode == ValueMode.TEXT || array">
+        <mat-label>_#(Value)</mat-label>
+        <input matInput type="text" [placeholder]="getPromptString()" formControlName="value"
+               [matAutocomplete]="auto">
+        <button *ngIf="!array" matSuffix mat-icon-button aria-label="_#(Value Type)"
+                title="_#(Value Type)" [matMenuTriggerFor]="typeMenu" (click)="closeAutoComplete($event)">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="function-and-variable-icon"></mat-icon>
+        </button>
+        <button *ngIf="!array && isDate" matSuffix mat-icon-button aria-label="_#(Select a Date)"
+                title="_#(Select a Date)"
+                #menuTrigger="matMenuTrigger"
+                [matMenuTriggerFor]="dateMenu"
+                (menuOpened)="onDateMenuOpened()"
+        >
+            <mat-icon fontSet="ineticons" fontIcon="calendar-icon"></mat-icon>
+        </button>
+        <mat-error *ngIf="hasError">
+            {{getErrorMessage()}}
+        </mat-error>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent" *ngIf="type == ComboMode.VALUE && mode == ValueMode.NUMBER && !array">
+        <mat-label>_#(Value)</mat-label>
+        <input matInput type="number" placeholder="_#(Value)" formControlName="value"
+               [matAutocomplete]="auto">
+        <button *ngIf="!array" matSuffix mat-icon-button aria-label="_#(Value Type)"
+                title="_#(Value Type)" [matMenuTriggerFor]="typeMenu" (click)="closeAutoComplete($event)">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="function-and-variable-icon"></mat-icon>
+        </button>
+        <mat-error *ngIf="hasError">
+            {{getErrorMessage()}}
+        </mat-error>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent" *ngIf="type == ComboMode.EXPRESSION">
+        <mat-label>_#(Value)</mat-label>
+        <input matInput type="text" placeholder="_#(Value)" formControlName="value">
+        <button matSuffix mat-icon-button *ngIf="type == ComboMode.EXPRESSION && !array"
+                (click)="showFormulaEditor()">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="formula-edit-icon"></mat-icon>
+        </button>
+        <button *ngIf="!array" matSuffix mat-icon-button aria-label="_#(Value Type)"
+                title="_#(Value Type)" [matMenuTriggerFor]="typeMenu" (click)="closeAutoComplete($event)">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="function-and-variable-icon"></mat-icon>
+        </button>
+    </mat-form-field>
+    <mat-autocomplete #auto="matAutocomplete">
+        <mat-option *ngFor="let value of values" [value]="value.value"
+                    [class.selected]="selectedOption(value.value)">{{value.label}}</mat-option>
+    </mat-autocomplete>
+    <mat-menu #typeMenu="matMenu" [overlapTrigger]="false">
+        <button mat-menu-item
+                [class.selected]="type == ComboMode.VALUE"
+                (click)="selectType($event, ComboMode.VALUE)">
+            _#(Value)
+        </button>
+        <button mat-menu-item
+                (click)="selectType($event, ComboMode.EXPRESSION)"
+                [disabled]="!expressionEnable"
+                [class.selected]="type == ComboMode.EXPRESSION">
+            _#(Expression)
+        </button>
+    </mat-menu>
+    <mat-menu #dateMenu="matMenu" class="dropdown-pane">
+        <ng-template matMenuContent>
+            <em-date-time-picker [type]="dataType"
+                                 [value]="value"
+                                 [format]="format"
+                                 (valueChange)="onValueChange($event)">
+            </em-date-time-picker>
+        </ng-template>
+    </mat-menu>
+</form>

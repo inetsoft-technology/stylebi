@@ -1,0 +1,83 @@
+{
+  "tests": [
+    {
+      "endpoint": "Account Email Addresses",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Account Details",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Account Physical Address",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "User Privileges",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Activity Statuses",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Contacts",
+      "jsonPath": "$.contacts",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Contact",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Contact ID": "84e85926-62dd-11ea-a4fa-d4ae52843d28"
+      }
+    },
+    {
+      "endpoint": "Contact Lists",
+      "jsonPath": "$.lists",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Contact List",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "List ID": "84e0a438-62dd-11ea-a4fa-d4ae52843d28"
+      }
+    },
+    {
+      "endpoint": "Contact Activity Details",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Contact ID": "84e85926-62dd-11ea-a4fa-d4ae52843d28",
+        "Tracking Activities List": "em_sends"
+      }
+    },
+    {
+      "endpoint": "Custom Fields",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Email Campaigns",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    }
+  ]
+}

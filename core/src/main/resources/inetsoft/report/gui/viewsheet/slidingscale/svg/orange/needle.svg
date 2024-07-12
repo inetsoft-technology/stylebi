@@ -1,0 +1,441 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="136.9111 438.6123" i:rulerOrigin="0 0" i:pageBounds="0 841.8896 595.2754 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="200" height="70.777" viewBox="0 0 200 70.777" overflow="visible" enable-background="new 0 0 200 70.777"
+	 xml:space="preserve">
+	<metadata>
+		<variableSets  xmlns="http://ns.adobe.com/Variables/1.0/">
+			<variableSet  varSetName="binding1" locked="none">
+				<variables></variables>
+				<v:sampleDataSets  xmlns="http://ns.adobe.com/GenericCustomNamespace/1.0/" xmlns:v="http://ns.adobe.com/Variables/1.0/">
+					</v:sampleDataSets>
+			</variableSet>
+		</variableSets>
+		<sfw  xmlns="&ns_sfw;">
+			<slices></slices>
+			<sliceSourceBounds  y="367.835" x="136.911" width="200" height="70.777" bottomLeftOrigin="true"></sliceSourceBounds>
+		</sfw>
+		<x:xmpmeta  x:xmptk="XMP toolkit 3.0-29, framework 1.6" xmlns:x="adobe:ns:meta/">
+			<rdf:RDF  xmlns:iX="http://ns.adobe.com/iX/1.0/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+					<pdf:Producer>Adobe PDF library 6.66</pdf:Producer>
+				</rdf:Description>
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:tiff="http://ns.adobe.com/tiff/1.0/">
+					</rdf:Description>
+				
+					<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:xapGImg="http://ns.adobe.com/xap/1.0/g/img/" xmlns:xap="http://ns.adobe.com/xap/1.0/">
+					<xap:CreateDate>2006-06-04T17:53:43-07:00</xap:CreateDate>
+					<xap:ModifyDate>2006-07-04T03:28:39Z</xap:ModifyDate>
+					<xap:CreatorTool>Illustrator</xap:CreatorTool>
+					<xap:MetadataDate>2006-06-04T17:53:43-07:00</xap:MetadataDate>
+					<xap:Thumbnails>
+						<rdf:Alt>
+							<rdf:li  rdf:parseType="Resource">
+								<xapGImg:format>JPEG</xapGImg:format>
+								<xapGImg:width>256</xapGImg:width>
+								<xapGImg:height>112</xapGImg:height>
+								<xapGImg:image>/9j/4AAQSkZJRgABAgEASABIAAD/7QAsUGhvdG9zaG9wIDMuMAA4QklNA+0AAAAAABAASAAAAAEA
+AQBIAAAAAQAB/+4ADkFkb2JlAGTAAAAAAf/bAIQABgQEBAUEBgUFBgkGBQYJCwgGBggLDAoKCwoK
+DBAMDAwMDAwQDA4PEA8ODBMTFBQTExwbGxscHx8fHx8fHx8fHwEHBwcNDA0YEBAYGhURFRofHx8f
+Hx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f/8AAEQgAcAEAAwER
+AAIRAQMRAf/EAaIAAAAHAQEBAQEAAAAAAAAAAAQFAwIGAQAHCAkKCwEAAgIDAQEBAQEAAAAAAAAA
+AQACAwQFBgcICQoLEAACAQMDAgQCBgcDBAIGAnMBAgMRBAAFIRIxQVEGE2EicYEUMpGhBxWxQiPB
+UtHhMxZi8CRygvElQzRTkqKyY3PCNUQnk6OzNhdUZHTD0uIIJoMJChgZhJRFRqS0VtNVKBry4/PE
+1OT0ZXWFlaW1xdXl9WZ2hpamtsbW5vY3R1dnd4eXp7fH1+f3OEhYaHiImKi4yNjo+Ck5SVlpeYmZ
+qbnJ2en5KjpKWmp6ipqqusra6voRAAICAQIDBQUEBQYECAMDbQEAAhEDBCESMUEFURNhIgZxgZEy
+obHwFMHR4SNCFVJicvEzJDRDghaSUyWiY7LCB3PSNeJEgxdUkwgJChgZJjZFGidkdFU38qOzwygp
+0+PzhJSktMTU5PRldYWVpbXF1eX1RlZmdoaWprbG1ub2R1dnd4eXp7fH1+f3OEhYaHiImKi4yNjo
++DlJWWl5iZmpucnZ6fkqOkpaanqKmqq6ytrq+v/aAAwDAQACEQMRAD8A9U4q7FXYq7FXYq7FXYq7
+FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7F
+XYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FWKeavN
+WpW+pQaDoMC3Gr3C83d90hQ9z2rTffp71zTdodoZI5Bhwi8p+x2Gl0sTE5MhqA+1CDR/zUIBOvWq
+k9QIUIH/ACRyn8t2j/qsfkP+JbPG0n8yXz/a3+hvzT/6v9r/AMiU/wCqOP5XtH/VY/If8SvjaT+Y
+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
+									</xapGImg:image>
+							</rdf:li>
+						</rdf:Alt>
+					</xap:Thumbnails>
+				</rdf:Description>
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:xapMM="http://ns.adobe.com/xap/1.0/mm/">
+					<xapMM:DocumentID>uuid:682efff3-bf99-48f8-b9b1-18dbee401ea6</xapMM:DocumentID>
+				</rdf:Description>
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:dc="http://purl.org/dc/elements/1.1/">
+					<dc:format>image/svg+xml</dc:format>
+				</rdf:Description>
+			</rdf:RDF>
+		</x:xmpmeta>
+		<x:xmpmeta  x:xmptk="XMP toolkit 3.0-29, framework 1.6" xmlns:x="adobe:ns:meta/">
+			<rdf:RDF  xmlns:iX="http://ns.adobe.com/iX/1.0/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+					<pdf:Producer>Adobe PDF library 6.66</pdf:Producer>
+				</rdf:Description>
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:tiff="http://ns.adobe.com/tiff/1.0/">
+					</rdf:Description>
+				
+					<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:xapGImg="http://ns.adobe.com/xap/1.0/g/img/" xmlns:xap="http://ns.adobe.com/xap/1.0/">
+					<xap:CreateDate>2006-06-04T17:53:43-07:00</xap:CreateDate>
+					<xap:ModifyDate>2006-07-13T10:13:19Z</xap:ModifyDate>
+					<xap:CreatorTool>Illustrator</xap:CreatorTool>
+					<xap:MetadataDate>2006-06-04T17:53:43-07:00</xap:MetadataDate>
+					<xap:Thumbnails>
+						<rdf:Alt>
+							<rdf:li  rdf:parseType="Resource">
+								<xapGImg:format>JPEG</xapGImg:format>
+								<xapGImg:width>256</xapGImg:width>
+								<xapGImg:height>92</xapGImg:height>
+								<xapGImg:image>/9j/4AAQSkZJRgABAgEASABIAAD/7QAsUGhvdG9zaG9wIDMuMAA4QklNA+0AAAAAABAASAAAAAEA
+AQBIAAAAAQAB/+4ADkFkb2JlAGTAAAAAAf/bAIQABgQEBAUEBgUFBgkGBQYJCwgGBggLDAoKCwoK
+DBAMDAwMDAwQDA4PEA8ODBMTFBQTExwbGxscHx8fHx8fHx8fHwEHBwcNDA0YEBAYGhURFRofHx8f
+Hx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f/8AAEQgAXAEAAwER
+AAIRAQMRAf/EAaIAAAAHAQEBAQEAAAAAAAAAAAQFAwIGAQAHCAkKCwEAAgIDAQEBAQEAAAAAAAAA
+AQACAwQFBgcICQoLEAACAQMDAgQCBgcDBAIGAnMBAgMRBAAFIRIxQVEGE2EicYEUMpGhBxWxQiPB
+UtHhMxZi8CRygvElQzRTkqKyY3PCNUQnk6OzNhdUZHTD0uIIJoMJChgZhJRFRqS0VtNVKBry4/PE
+1OT0ZXWFlaW1xdXl9WZ2hpamtsbW5vY3R1dnd4eXp7fH1+f3OEhYaHiImKi4yNjo+Ck5SVlpeYmZ
+qbnJ2en5KjpKWmp6ipqqusra6voRAAICAQIDBQUEBQYECAMDbQEAAhEDBCESMUEFURNhIgZxgZEy
+obHwFMHR4SNCFVJicvEzJDRDghaSUyWiY7LCB3PSNeJEgxdUkwgJChgZJjZFGidkdFU38qOzwygp
+0+PzhJSktMTU5PRldYWVpbXF1eX1RlZmdoaWprbG1ub2R1dnd4eXp7fH1+f3OEhYaHiImKi4yNjo
++DlJWWl5iZmpucnZ6fkqOkpaanqKmqq6ytrq+v/aAAwDAQACEQMRAD8A9D+b/N8WgxQwwwm71O7P
+G1tVrvvTk1N6V2AHXNX2l2kNOAAOLJLkHN0ejOUkk1EcykqD83LpRNzs7MPuIGC1H4S/8SzBH8pz
+3uEfL8W5J/Jx29Uvx8F31T83P+W6y+5f+qeHw+0/50Px8F49H3S/Hxd9U/Nz/lusvuX/AKp4+H2n
+/Oh+PgvHo+6X4+Lvqn5uf8t1l9y/9U8fD7T/AJ0Px8F49H3S/Hxd9U/Nz/lusvuX/qnj4faf86H4
++C8ej7pfj4u+qfm5/wAt1l9y/wDVPHw+0/50Px8F49H3S/Hxd9U/Nz/lusvuX/qnj4faf86H4+C8
+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
+xV2KuxV2KuxV2Kv/2Q==
+									</xapGImg:image>
+							</rdf:li>
+						</rdf:Alt>
+					</xap:Thumbnails>
+				</rdf:Description>
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:xapMM="http://ns.adobe.com/xap/1.0/mm/">
+					<xapMM:DocumentID>uuid:682efff3-bf99-48f8-b9b1-18dbee401ea6</xapMM:DocumentID>
+				</rdf:Description>
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:dc="http://purl.org/dc/elements/1.1/">
+					<dc:format>image/svg+xml</dc:format>
+				</rdf:Description>
+			</rdf:RDF>
+		</x:xmpmeta>
+		<x:xmpmeta  x:xmptk="XMP toolkit 3.0-29, framework 1.6" xmlns:x="adobe:ns:meta/">
+			<rdf:RDF  xmlns:iX="http://ns.adobe.com/iX/1.0/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:pdf="http://ns.adobe.com/pdf/1.3/">
+					<pdf:Producer>Adobe PDF library 6.66</pdf:Producer>
+				</rdf:Description>
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:tiff="http://ns.adobe.com/tiff/1.0/">
+					</rdf:Description>
+				
+					<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:xapGImg="http://ns.adobe.com/xap/1.0/g/img/" xmlns:xap="http://ns.adobe.com/xap/1.0/">
+					<xap:CreateDate>2006-06-04T17:53:43-07:00</xap:CreateDate>
+					<xap:ModifyDate>2006-07-13T10:22:10Z</xap:ModifyDate>
+					<xap:CreatorTool>Illustrator</xap:CreatorTool>
+					<xap:MetadataDate>2006-06-04T17:53:43-07:00</xap:MetadataDate>
+					<xap:Thumbnails>
+						<rdf:Alt>
+							<rdf:li  rdf:parseType="Resource">
+								<xapGImg:format>JPEG</xapGImg:format>
+								<xapGImg:width>256</xapGImg:width>
+								<xapGImg:height>92</xapGImg:height>
+								<xapGImg:image>/9j/4AAQSkZJRgABAgEASABIAAD/7QAsUGhvdG9zaG9wIDMuMAA4QklNA+0AAAAAABAASAAAAAEA
+AQBIAAAAAQAB/+4ADkFkb2JlAGTAAAAAAf/bAIQABgQEBAUEBgUFBgkGBQYJCwgGBggLDAoKCwoK
+DBAMDAwMDAwQDA4PEA8ODBMTFBQTExwbGxscHx8fHx8fHx8fHwEHBwcNDA0YEBAYGhURFRofHx8f
+Hx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f/8AAEQgAXAEAAwER
+AAIRAQMRAf/EAaIAAAAHAQEBAQEAAAAAAAAAAAQFAwIGAQAHCAkKCwEAAgIDAQEBAQEAAAAAAAAA
+AQACAwQFBgcICQoLEAACAQMDAgQCBgcDBAIGAnMBAgMRBAAFIRIxQVEGE2EicYEUMpGhBxWxQiPB
+UtHhMxZi8CRygvElQzRTkqKyY3PCNUQnk6OzNhdUZHTD0uIIJoMJChgZhJRFRqS0VtNVKBry4/PE
+1OT0ZXWFlaW1xdXl9WZ2hpamtsbW5vY3R1dnd4eXp7fH1+f3OEhYaHiImKi4yNjo+Ck5SVlpeYmZ
+qbnJ2en5KjpKWmp6ipqqusra6voRAAICAQIDBQUEBQYECAMDbQEAAhEDBCESMUEFURNhIgZxgZEy
+obHwFMHR4SNCFVJicvEzJDRDghaSUyWiY7LCB3PSNeJEgxdUkwgJChgZJjZFGidkdFU38qOzwygp
+0+PzhJSktMTU5PRldYWVpbXF1eX1RlZmdoaWprbG1ub2R1dnd4eXp7fH1+f3OEhYaHiImKi4yNjo
++DlJWWl5iZmpucnZ6fkqOkpaanqKmqq6ytrq+v/aAAwDAQACEQMRAD8A9U4q7FXYq7FXYq7FXYq7
+FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FUPqN01pYXN
+0sfqm3jeX0605cFLUrQ+HhlWfL4eOUwL4QTXuZ44cUgO9jQ88XZAI0+Mg9D9Yb/qjnLf6Kx/qf8A
+sv2O0/kr+l9n7U10DXptVe5V7UW4t+HxLIZAxeppuiUIAH35uOy+0/zYkeHhEfO/0OHqtL4Nb3ac
+ZtnEdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVcQ
+CCCKg7EHFXmJtzayS2hrW1keHfqVQ0U/StDnlOsweFmlD+aS9ZinxxEu8My8m2vo6KsxBD3kjTmv
+8p+CMj5xopzvewdP4elj3y9Xz5fZToO0MnFlPlsnmblwnYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXY
+q7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYqwTzfaSR60wh2fUUj9I+M1RB+FY84j2g0ZOq
+iY/5Sh8eX6ne9n5h4Rv+H7uf62b21vFb28VvEOMUKLHGvgqigH3DO0xwEIiI5AU6OUiSSeqpk0Ox
+V2KuxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxVBX+k2
+95d2N1J9uxkaRB48kK0P+y4t9GY2fSxyThI84G/s/sPwbceYxjID+JG5ktTsVdirsVdirsVdirsV
+dirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVd
+irsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdi
+rsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdir
+sVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirs
+VdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsV
+dirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVd
+irsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdi
+rsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdirsVdir
+sVf/2Q==
+									</xapGImg:image>
+							</rdf:li>
+						</rdf:Alt>
+					</xap:Thumbnails>
+				</rdf:Description>
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:xapMM="http://ns.adobe.com/xap/1.0/mm/">
+					<xapMM:DocumentID>uuid:682efff3-bf99-48f8-b9b1-18dbee401ea6</xapMM:DocumentID>
+				</rdf:Description>
+				<rdf:Description  rdf:about="uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe" xmlns:dc="http://purl.org/dc/elements/1.1/">
+					<dc:format>image/svg+xml</dc:format>
+				</rdf:Description>
+			</rdf:RDF>
+		</x:xmpmeta>
+<?xpacket begin='?' id='W5M0MpCehiHzreSzNTczkc9d'?><x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='XMP toolkit 3.0-29, framework 1.6'>
+<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#' xmlns:iX='http://ns.adobe.com/iX/1.0/'>
+
+ <rdf:Description rdf:about='uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe'
+  xmlns:pdf='http://ns.adobe.com/pdf/1.3/'>
+  <pdf:Producer>Adobe PDF library 6.66</pdf:Producer>
+ </rdf:Description>
+
+ <rdf:Description rdf:about='uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe'
+  xmlns:tiff='http://ns.adobe.com/tiff/1.0/'>
+ </rdf:Description>
+
+ <rdf:Description rdf:about='uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe'
+  xmlns:xap='http://ns.adobe.com/xap/1.0/'
+  xmlns:xapGImg='http://ns.adobe.com/xap/1.0/g/img/'>
+  <xap:CreateDate>2006-06-04T17:53:43-07:00</xap:CreateDate>
+  <xap:ModifyDate>2006-07-17T12:40:09Z</xap:ModifyDate>
+  <xap:CreatorTool>Illustrator</xap:CreatorTool>
+  <xap:MetadataDate>2006-06-04T17:53:43-07:00</xap:MetadataDate>
+  <xap:Thumbnails>
+   <rdf:Alt>
+    <rdf:li rdf:parseType='Resource'>
+     <xapGImg:format>JPEG</xapGImg:format>
+     <xapGImg:width>256</xapGImg:width>
+     <xapGImg:height>92</xapGImg:height>
+     <xapGImg:image>/9j/4AAQSkZJRgABAgEASABIAAD/7QAsUGhvdG9zaG9wIDMuMAA4QklNA+0AAAAAABAASAAAAAEA&#xA;AQBIAAAAAQAB/+4ADkFkb2JlAGTAAAAAAf/bAIQABgQEBAUEBgUFBgkGBQYJCwgGBggLDAoKCwoK&#xA;DBAMDAwMDAwQDA4PEA8ODBMTFBQTExwbGxscHx8fHx8fHx8fHwEHBwcNDA0YEBAYGhURFRofHx8f&#xA;Hx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f/8AAEQgAXAEAAwER&#xA;AAIRAQMRAf/EAaIAAAAHAQEBAQEAAAAAAAAAAAQFAwIGAQAHCAkKCwEAAgIDAQEBAQEAAAAAAAAA&#xA;AQACAwQFBgcICQoLEAACAQMDAgQCBgcDBAIGAnMBAgMRBAAFIRIxQVEGE2EicYEUMpGhBxWxQiPB&#xA;UtHhMxZi8CRygvElQzRTkqKyY3PCNUQnk6OzNhdUZHTD0uIIJoMJChgZhJRFRqS0VtNVKBry4/PE&#xA;1OT0ZXWFlaW1xdXl9WZ2hpamtsbW5vY3R1dnd4eXp7fH1+f3OEhYaHiImKi4yNjo+Ck5SVlpeYmZ&#xA;qbnJ2en5KjpKWmp6ipqqusra6voRAAICAQIDBQUEBQYECAMDbQEAAhEDBCESMUEFURNhIgZxgZEy&#xA;obHwFMHR4SNCFVJicvEzJDRDghaSUyWiY7LCB3PSNeJEgxdUkwgJChgZJjZFGidkdFU38qOzwygp&#xA;0+PzhJSktMTU5PRldYWVpbXF1eX1RlZmdoaWprbG1ub2R1dnd4eXp7fH1+f3OEhYaHiImKi4yNjo&#xA;+DlJWWl5iZmpucnZ6fkqOkpaanqKmqq6ytrq+v/aAAwDAQACEQMRAD8A9U4q7FXYq7FXYq7FXYq7&#xA;FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FVG9mlgtJpo&#xA;YjPLEjOkINC5UV4g0O5yvLMxgSBxEDl3soAEgE0xdPPVy6K66fGVYAqfrDbg7/75zlf9FY/1P/Zf&#xA;sdt/JX9L7P2pv5f12fVvrBe1ECQMqB1k9QM5HIruiU4gr9+brsvtI6uJlw8IG3O7+xwtVphiIF2S&#xA;m+bRxHYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FX&#xA;Yq8712yOmanPAiFopT61og/a9VqGNfcSGgHgRnnXbOgOLU1EbT3Hx6fN6PR5+PHZ/h5s20TTRp2m&#xA;QWtQ0ijlO46NI3xO3/BHb2zutDpRgwxxjoN/f1dFqMviTMkdmW0uxV2KuxV2KuxV2KuxV2KuxV2K&#xA;uxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxV2KuxVC3emWd3c2tzOnKWzcvA3gWFDXxHQ&#xA;/MA5Rl00MkoykN4Gw2QyyiCBykisva3Yq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FX&#xA;Yq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXY&#xA;q7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq&#xA;7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7&#xA;FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7F&#xA;XYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FX&#xA;Yq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXY&#xA;q7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq&#xA;7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7&#xA;FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq7FXYq//2Q==</xapGImg:image>
+    </rdf:li>
+   </rdf:Alt>
+  </xap:Thumbnails>
+ </rdf:Description>
+
+ <rdf:Description rdf:about='uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe'
+  xmlns:xapMM='http://ns.adobe.com/xap/1.0/mm/'>
+  <xapMM:DocumentID>uuid:682efff3-bf99-48f8-b9b1-18dbee401ea6</xapMM:DocumentID>
+ </rdf:Description>
+
+ <rdf:Description rdf:about='uuid:b4e2f731-47d2-45ac-8bcf-24a25fa425fe'
+  xmlns:dc='http://purl.org/dc/elements/1.1/'>
+  <dc:format>image/svg+xml</dc:format>
+ </rdf:Description>
+
+</rdf:RDF>
+</x:xmpmeta>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <?xpacket end='w'?>
+			</metadata>
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<rect i:knockout="Off" opacity="0" fill="#FFFFFF" width="200" height="70.777"/> 
+					<polygon i:knockout="Off" fill="#FFC431" stroke="#CE8900" stroke-width="0.5896" points="27.934,9.774 22.974,20.434 
+						18.015,9.774 "/>
+				</g>
+			</g>
+		</switch>
+	</svg>

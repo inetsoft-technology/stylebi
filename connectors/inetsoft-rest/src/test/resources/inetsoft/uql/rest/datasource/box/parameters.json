@@ -1,0 +1,19 @@
+{
+  "tests": [
+    {
+      "endpoint": "Current User",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Collaboration",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Collaboration ID": 19749671983,
+        "Fields": "id%2Ctype%2Citem%2Cstatus"
+      }
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "endpoints": [
+    {
+      "name": "Account List Detail",
+      "suffix": "/reports/AccountList?account_type={Account Type?}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&start_moddate={Start ModDate?:YYYY-MM-DD}&sort_by={Sort By?}&sort_order={Sort Order?:ascend|descend}&moddate_macro={ModDate Macro?}&end_moddate={End ModDate?}&account_status={Account Status?:Deleted|Not_Deleted}&createdate_macro={Create Date Macro?}&columns={Columns?}"
+    },
+    {
+      "name": "AP Aging Detail",
+      "suffix": "/reports/AgedPayableDetail?shipvia={Ship Via?}&term={Term?}&start_duedate={End Due Date?:YYYY-MM-DD}&end_duedate={End Due Date?:YYYY-MM-DD}&accounting_method={Accounting Method?:Cash|Accrual}&custom1={Custom 1?}&custom2={Custom 2?}&custom3={Custom 3?}&report_date={Report Date?:YYYY-MM-DD}&num_periods={Number of Periods?}&vendor={Vendor?}&past_due={Past Due?}&aging_period={Aging Period?}&columns={Columns?}"
+    },
+    {
+      "name": "AP Aging Summary",
+      "suffix": "/reports/AgedPayables?customer={Customer?}&qzurl={Quick Zoom URL?:true|false}&vendor={Vendor?}&date_macro={Date Macro?}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&department={Department?}&report_date={Report Date?:YYYY-MM-DD}&sort_order={Sort Order?:ascend|descend}&aging_method={Aging Method?:Report_Date|Current}"
+    },
+    {
+      "name": "AR Aging Detail",
+      "suffix": "/reports/AgedReceivableDetail?customer={Customer?}&shipvia={Ship Via?}&term={Term?}&start_duedate={End Due Date?:YYYY-MM-DD}&end_duedate={End Due Date?:YYYY-MM-DD}&custom1={Custom 1?}&custom2={Custom 2?}&custom3={Custom 3?}&report_date={Report Date?:YYYY-MM-DD}&num_periods={Number of Periods?}&past_due={Past Due?}&aging_period={Aging Period?}&columns={Columns?}"
+    },
+    {
+      "name": "AR Aging Summary",
+      "suffix": "/reports/AgedReceivables?customer={Customer?}&qzurl={Quick Zoom URL?:true|false}&vendor={Vendor?}&date_macro={Date Macro?}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&department={Department?}&report_date={Report Date?:YYYY-MM-DD}&sort_order={Sort Order?:ascend|descend}&aging_method={Aging Method?:Report_Date|Current}"
+    },
+    {
+      "name": "Balance Sheet",
+      "suffix": "/reports/BalanceSheet?customer={Customer?}&qzurl={Quick Zoom URL?:true|false}&accounting_method={Accounting Method?:Cash|Accrual}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&adjusted_gain_loss={Adjusted Gain Loss?:true|false}&class={Class?}&item={Item?}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}&department={Department?}&vendor={Vendor?}"
+    },
+    {
+      "name": "Cash Flow",
+      "suffix": "/reports/CashFlow?customer={Customer?}&vendor={Vendor?}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&class={Class?}&item={Item?}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}&department={Department?}"
+    },
+    {
+      "name": "Customer Balance",
+      "suffix": "/reports/CustomerBalance?customer={Customer?}&accounting_method={Accounting Method?}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&arpaid={AR Paid?:All|Paid|Unpaid}&report_date={Report Date?:YYYY-MM-DD}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}&department={Department?}"
+    },
+    {
+      "name": "Customer Balance Detail",
+      "suffix": "/reports/CustomerBalanceDetail?customer={Customer?}&shipvia={Ship Via?}&term={Term?}&start_duedate={Start Due Date?:YYYY-MM-DD}&end_duedate={End Due Date?:YYYY-MM-DD}&custom1={Custom 1?}&sort_by={Sort By?}&arpaid={AR Paid?:All|Paid|Unpaid}&report_date={Report Date?:YYYY-MM-DD}&sort_order={Sort Order?:ascend|descend}&aging_method={Aging Method?:Report_Date|Current}&department={Department?}&columns={Columns?}"
+    },
+    {
+      "name": "Customer Income",
+      "suffix": "/reports/CustomerIncome?customer={Customer?}&term={Term?}&accounting_method={Accounting Method?:Cash|Accrual}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&class={Class?}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}&department={Department}&vendor={Vendor?}"
+    },
+    {
+      "name": "General Ledger",
+      "suffix": "/reports/GeneralLedger?customer={Customer?}&account={Account?}&accounting_method={Accounting Method?:Cash|Accrual}&source_account={Source Account?}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&account_type={Account Type?}&sort_by={Sort By?}&sort_order={Sort Order?:ascend|descend?}&summarize_column_by={Summarize Column By?}&department={Department}&vendor={Vendor?}&class={Class?}&columns={Columns?}"
+    },
+    {
+      "name": "Inventory Valuation Summary",
+      "suffix": "/reports/InventoryValuationSummary?qzurl={Quick Zoom URL?:true|false}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&item={Item?}&report_date={Report Date?:YYYY-MM-DD}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}"
+    },
+    {
+      "name": "Journal Report",
+      "suffix": "/reports/JournalReport?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&sort_by={Sort By?}&sort_order={Sort Order?:ascend|descend?}&columns={Columns?}"
+    },
+    {
+      "name": "Profit And Loss",
+      "suffix": "/reports/ProfitAndLoss?customer={Customer?}&qzurl={Quick Zoom URL?:true|false}&accounting_method={Accounting Method?:Cash|Accrual}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&adjusted_gain_loss={Adjusted Gain Loss?:true|false}&class={Class?}&item={Item?}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}&department={Department?}&vendor={Vendor?}&"
+    },
+    {
+      "name": "Profit And Loss Detail",
+      "suffix": "/reports/ProfitAndLossDetail?customer={Customer?}&account={Account?}&accounting_method={Accounting Method?:Cash|Accrual}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&adjusted_gain_loss={Adjusted Gain Loss?:true|false}&class={Class?}&item={Item?}&sort_by={Sort By?}&payment_method={Payment Method?}&sort_order={Sort Order?:ascend|descend}&employee={Employee?}&department={Department?}&vendor={Vendor?}&account_type={Account Type?}&columns={Columns?}"
+    },
+    {
+      "name": "Sales By Class Summary",
+      "suffix": "/reports/ClassSales?customer={Customer?}&accounting_method={Accounting Method?:Cash|Accrual}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&class={Class?}&item={Item?}&summarize_column_by={Summarize Column By?}&department={Department?}"
+    },
+    {
+      "name": "Sales By Customer",
+      "suffix": "/reports/CustomerSales?customer={Customer?}&qzurl={Quick Zoom URL?:true|false}&accounting_method={Accounting Method?:Cash|Accrual}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&class={Class?}&item={Item?}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}&department={Department?}"
+    },
+    {
+      "name": "Sales By Department",
+      "suffix": "/reports/DepartmentSales?customer={Customer?}&accounting_method={Accounting Method?:Cash|Accrual}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&class={Class?}&item={Item?}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}&department={Department?}"
+    },
+    {
+      "name": "Sales By Product",
+      "suffix": "/reports/ItemSales?customer={Customer?}&start_duedate={Start Due Date?:YYYY-MM-DD}&end_duedate={End Due Date?:YYYY-MM-DD}&accounting_method={Accounting Method?:Cash|Accrual}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&class={Class?}&item={Item?}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}&department={Department?}"
+    },
+    {
+      "name": "Tax Summary",
+      "suffix": "/reports/TaxSummary?agency_id={Agency ID:1|2}&accounting_method={Accounting Method?:Cash|Accrual}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&sort_order={Sort Order?:ascend|descend}"
+    },
+    {
+      "name": "Transaction List",
+      "suffix": "/reports/TransactionList?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&payment_method={Payment Method?}&duedate_macro={Due Date Macro?}&arpaid={AR Paid?:All|Paid|Unpaid}&bothamount={Both Amount?}&transaction_type={Transaction Type?}&docnum={DocNum?}&start_moddate={Start ModDate?:YYYY-MM-DD}&end_moddate={End ModDate?:YYYY-MM-DD}&source_account_type={Source Account Type?}&group_by={Group By?}&department={Department?}&start_duedate={Start Due Date?:YYYY-MM-DD}&end_duedate={End Due Date?:YYYY-MM-DD}&columns={Columns?}&vendor={Vendor?}&memo={Memo?}&appaid={AP Paid?:Paid|Unpaid|All}&moddate_macro={ModDate Macro?}&printed={Printed?}&start_createdate={Start Create Date?:YYYY-MM-DD}&end_createdate={End Create Date?:YYYY-MM-DD}&createdate_macro={Create Date Macro?}&cleared={Cleared?}&customer={Customer?}&qzurl={Quick Zoom URL?:true|false}&term={Term?}&name={Name?}&sort_order={Sort Order?:ascend|descend}"
+    },
+    {
+      "name": "Transaction List By Customer",
+      "suffix": "/reports/TransactionListByCustomer?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&payment_method={Payment Method?}&duedate_macro={Due Date Macro?}&start_duedate={Start Due Date?:YYYY-MM-DD}&end_duedate={End Due Date?:YYYY-MM-DD}&arpaid={AR Paid?:All|Paid|Unpaid}&bothamount={Both Amount?}&transaction_type={Transaction Type?}&docnum={DocNum?}&start_moddate={Start ModDate?:YYYY-MM-DD}&source_account_type={Source Account Type?}&group_by={Group By?}&department={Department?}&columns={Columns?}&memo={Memo?}&appaid={AP Paid?:Paid|Unpaid|All}&moddate_macro={ModDate Macro?}&printed={Printed?}&createdate_macro={Create Date Macro?}&cleared={Cleared?}&qzurl={Quick Zoom URL?:true|false}&term={Term?}&end_createdate={End Create Date?:YYYY-MM-DD}&name={Name?}&sort_by={Sort By?}&sort_order={Sort Order?:ascend|descend}&start_createdate={Start Create Date?:YYYY-MM-DD}&end_moddate={End ModDate?:YYYY-MM-DD}"
+    },
+    {
+      "name": "Transaction List By Vendor",
+      "suffix": "/reports/TransactionListByVendor?date_macro={Date Macro?}&payment_method={Payment Method?}&duedate_macro={Due Date Macro?}&arpaid={AR Paid?:All|Paid|Unpaid}&bothamount={Both Amount?}&transaction_type={Transaction Type?}&docnum={DocNum?}start_moddate={Start ModDate?}&source_account_type={Source Account Type?}&group_by={Group By?}&start_date={Start Date?}&department={Department?}&start_duedate={Start Due Date?:YYYY-MM-DD}&columns={Columns?}&end_duedate={End Due Date?:YYYY-MM-DD}&vendor={Vendor?}&end_date={End Date?:YYYY-MM-DD}&memo={Memo?}&appaid={AP Paid?:Paid|Unpaid|All}&moddate_macro={ModDate Macro?}&printed={Printed?}&createdate_macro={Create Date Macro?}&cleared={Cleared?}&qzurl={Quick Zoom URL?:true|false}&term={Term?}&end_createdate={End Create Date?:YYYY-MM-DD}&name={Name?}&sort_by={Sort By?}&sort_order={Sort Order?:ascend|descend}&start_createdate={Start Create Date?:YYYY-MM-DD}&end_moddate={End ModDate?:YYYY-MM-DD}"
+    },
+    {
+      "name": "Trial Balance",
+      "suffix": "/reports/TrialBalance?accounting_method={Accounting Method?:Cash|Accrual}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}&start_date={Start Date?:YYYY-MM-DD}"
+    },
+    {
+      "name": "Vendor Balance",
+      "suffix": "/reports/VendorBalance?qzurl={Quick Zoom URL?:true|false}&accounting_method={Accounting Method?:Cash|Accrual}&date_macro={Date Macro?}&appaid={AP Paid?:Paid|Unpaid|All}&report_date={Report Date?:YYYY-MM-DD}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}&department={Department?}&vendor={Vendor?}"
+    },
+    {
+      "name": "Vendor Balance Detail",
+      "suffix": "/reports/VendorBalanceDetail?term={Term?}&end_duedate={End Due Date?:YYYY-MM-DD}&accounting_method={Accounting Method?:Cash|Accrual}&date_macro={Date Macro?}&start_duedate={Start Due Date?:YYYY-MM-DD}&duedate_macro={Due Date Macro?}&sort_by={Sort By?}&report_date={Report Date?:YYYY-MM-DD}&sort_order={Sort Order?:ascend|descend}&appaid={AP Paid?:Paid|Unpaid|All}&department={Department?}&vendor={Vendor?}&columns={Columns?}"
+    },
+    {
+      "name": "Vendor Expenses",
+      "suffix": "/reports/VendorExpenses?customer={Customer?}&vendor={Vendor?}&end_date={End Date?:YYYY-MM-DD}&date_macro={Date Macro?}&class={Class?}&sort_order={Sort Order?:ascend|descend}&summarize_column_by={Summarize Column By?}&department={Department?}&accounting_method={Accounting Method?:Cash|Accrual}&start_date={Start Date?:YYYY-MM-DD}"
+    }
+  ]
+}

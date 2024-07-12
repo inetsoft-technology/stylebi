@@ -1,0 +1,108 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <fieldset>
+    <legend>_#(Options)</legend>
+    <div class="form-row-float-label row">
+      <div class="checkbox col shrinkToFit_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [disabled]="!model.shrinkEnabled"
+               [(ngModel)]="model.shrink" id="shrink">
+          <label class="form-check-label" for="shrink">
+            _#(Shrink To Fit)
+          </label>
+        </div>
+      </div>
+      <div class="checkbox col embeddedTable_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [(ngModel)]="model.embeddedTable"
+               [disabled]="!model.embeddedEnabled" id="embedded">
+          <label class="form-check-label" for="embedded">
+            _#(Embedded Table)
+          </label>
+        </div>
+      </div>
+      <div class="checkbox col enableAdhoc_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [disabled]="model.form"
+               [(ngModel)]="model.enableAdhoc" id="adhoc">
+          <label class="form-check-label" for="adhoc">
+            _#(Enable Ad Hoc Editing)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+  <fieldset *ngIf="model.formVisible">
+    <legend>_#(Form)</legend>
+    <div class="form-row-float-label row">
+      <div class="col checkbox enableTableEdit_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [(ngModel)]="model.form"
+               (change)="formChanged($event.target.checked)" id="tableEdit">
+          <label class="form-check-label" for="tableEdit">
+            _#(Enable Table Editing)
+          </label>
+        </div>
+      </div>
+      <div class="col checkbox enableTableEdit_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [disabled]="!model.form || !model.embeddedTable"
+                 [(ngModel)]="model.writeBack" id="writaBackOption">
+          <label class="form-check-label" for="writaBackOption">
+            _#(Write Back to Storage)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col ms-3 addRow_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [disabled]="!model.form"
+               [(ngModel)]="model.insert" id="addRows">
+          <label class="form-check-label" for="addRows">
+            _#(Add Rows)
+          </label>
+        </div>
+      </div>
+      <div class="col delRow_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [disabled]="!model.form"
+               [(ngModel)]="model.del" id="deleteRows">
+          <label class="form-check-label" for="deleteRows">
+            _#(Delete Rows)
+          </label>
+        </div>
+      </div>
+      <div class="col editRow_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [disabled]="!model.form"
+               [(ngModel)]="model.edit" id="editRows">
+          <label class="form-check-label" for="editRows">
+            _#(Edit Rows)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>
+<fieldset [disabled]="model.embeddedTable || model.form">
+  <tip-pane [model]="model.tipPaneModel"></tip-pane>
+</fieldset>

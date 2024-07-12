@@ -1,0 +1,47 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ul class="tree-view">
+  <li *ngFor="let node of children">
+    <div class="tree-node" [class.bg-selected]="isSelected(node)" (click)="selectNode($event, node)">
+      <span class="{{getToggleIcon(node)}}" *ngIf="hasChildren(node)" (click)="expand(node)"></span>
+      <span class="{{getCssClass(node)}}"></span>
+      <label class="m-0">{{node.nodeLabel ? node.nodeLabel :  node.model.absoluteName}}</label>
+      <div class="context-menu-tree">
+        <div ngbDropdown>
+          <button class="options-menu-trigger" ngbDropdownToggle>
+            <span class="visually-hidden">_#(Show Menu)</span>
+          </button>
+          <div ngbDropdownMenu class="options-menu">
+            <assembly-context-menu-items
+              [model]="node.model" [viewsheet]="sheet"
+              (onCopy)="copyAssembly($event)" (onCut)="cutAssembly($event)"
+              (onRemove)="removeAssembly($event)" (onBringToFront)="bringAssemblyToFront($event)"
+              (onSendToBack)="sendAssemblyToBack($event)">
+            </assembly-context-menu-items>
+          </div>
+        </div>
+      </div>
+    </div>
+    <component-tree class="child-tree" [children]="node.children" *ngIf="node.expanded" [sheet]="sheet"(onCut)="cutAssembly($event)"
+                    (onCopy)="copyAssembly($event)" (onRemove)="removeAssembly($event)"
+                    (onBringToFront)="bringAssemblyToFront($event)"
+                    (onSendToBack)="sendAssemblyToBack($event)"></component-tree>
+  </li>
+</ul>

@@ -1,0 +1,123 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="title"
+   (onCancel)="cancel()"
+   [cshid]="'CreatingExpression'">
+</modal-header>
+<div class="modal-body" blockMouse>
+  <form [formGroup]="form" class="container-fluid" [class.flex-col-container]="canResize">
+    <div *ngIf="isCalc && !isCube" class="calc-type-pane">
+      <h5>_#(Calculate Field From)</h5>
+      <div class="container">
+      <div class="row">
+        <div class="col">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" name="calcType" value="detail"
+                   id="detail" formControlName="calcType"
+                   [checked]="calcType == 'detail'">
+            <label class="form-check-label" for="detail">
+              _#(Detail)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" name="calcType" value="aggregate"
+                   id="aggregate" formControlName="calcType"
+                   [checked]="calcType == 'aggregate'">
+            <label class="form-check-label" for="aggregate">_#(Aggregate)</label>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="row form-row-float-label field-row">
+      <div class="col-6 pe-1 form-floating" *ngIf="nameVisible">
+          <input class="form-control" type="text" formControlName="formulaName" trim required
+                 [class.is-invalid]="!form.controls['formulaName'].valid"
+                 placeholder="_#(Name)"/>
+          <label>_#(Name)</label>
+          <span *ngIf="isDuplicateName()" class="invalid">
+            _#(formula.editor.duplicateName)
+          </span>
+          <span *ngIf="form.controls['formulaName'].errors && form.controls['formulaName'].errors['required']"
+               class="invalid-feedback">
+            _#(formula.editor.emptyValid)
+          </span>
+          <span *ngIf="form.controls['formulaName'].errors && form.controls['formulaName'].errors['calcSpecialCharacters']"
+               class="invalid-feedback">
+            _#(formula.editor.charValid)
+          </span>
+      </div>
+      <ng-container *ngIf="returnTypeVisible">
+        <div class="col-3 form-floating return-type">
+            <select class="form-control" formControlName="dataType" placeholder="_#(Return Data Type)">
+              <option [value]="type.data" *ngFor="let type of returnTypes">
+                {{type.label}}</option>
+            </select>
+            <label>_#(Return Data Type)</label>
+        </div>
+        <ng-container *ngIf="calcType != 'aggregate' && !reportWorksheetSource && sqlMergeable">
+          <div class="col-auto">
+            <div class="form-check">
+              <input type="radio" class="form-check-input" formControlName="formulaType"
+                   value="SQL" id="sql"/>
+              <label class="form-check-label" for="sql">
+                _#(SQL)
+              </label>
+            </div>
+          </div>
+          <div class="col-auto">
+            <div class="form-check">
+              <input type="radio" class="form-check-input" formControlName="formulaType"
+                   value="Script" id="script" />
+              <label class="form-check-label" for="script">
+                _#(Script)
+              </label>
+            </div>
+          </div>
+        </ng-container>
+      </ng-container>
+    </div>
+    <div class="row" [class.stretch-empty]="canResize">
+      <script-pane class="col" [expression]="expression" [sql]="isSqlType()"
+                   [columnTreeRoot]="columnTreeRoot" [showTooltip]="true"
+                   [columnShowRoot]="isVSContext && !columnTreeRoot"
+                   [functionTreeRoot]="validFunctionRoot" [operatorTreeRoot]="operatorTreeRoot"
+                   (expressionChange)="expressionChange($event)"
+                   (analysisResultsChange)="analysisResultsChange($event)"
+                   [columnTreeEnabled]="columnTreeEnabled"
+                   [functionTreeEnabled]="functionTreeEnabled" [cursor]="cursor"
+                   [grayedOutFields]="grayedOutFields" [scriptDefinitions]="scriptDefinitions"
+                   [functionOperatorShowRoot]="isCube"
+                   [preventEscape]="true" [fullContainer]="resized"
+                   [showOriginalName]="showOriginalName">
+      </script-pane>
+    </div>
+  </form>
+</div>
+<div class="modal-footer" blockMouse>
+  <button type="button" class="btn btn-primary" (click)="ok()"
+          [disabled]="!validExpression">_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>
+<ng-template #newAggrDialog let-close="close" let-dismiss="dismiss">
+  <new-aggr-dialog [model]="aggrModel" (onCommit)="close($event)" (onCancel)="dismiss($event)"></new-aggr-dialog>
+</ng-template>

@@ -1,0 +1,38 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<tree *ngIf="root" [root]="root" [showRoot]="showRoot" [iconFunction]="getCSSIcon"
+      [disabled]="disabled" [contextmenu]="showContextMenu" [multiSelect]="multiSelect"
+      [showTooltip]="showTooltip" [showFavoriteIcon]="showFavoriteIcon"
+      [draggable]="draggable" [selectOnClick]="true"
+      [initExpanded]="initExpanded" [fillHeight]="false" [hoverShowScroll]="true"
+      [isRepositoryTree]="true"
+      [selectedNodes]="[selectedNode]" [searchStr]="searchStr"
+      [hasMenuFunction]="hasMenuFunction()"
+      [isMobile]="isMobile"
+      (nodeExpanded)="nodeExpanded($event)"
+      (nodesSelected)="selectNode($event[0])"
+      (onContextmenu)="openTreeContextmenu($event)"
+      (nodeDrop)="nodeDrop($event)"
+      (nodeClicked)="nodeClicked.emit($event)"
+      (nodeDrag)="nodeDrag($event)">
+</tree>
+<div *ngIf="loading" class="tree-loading-icon">
+  <i class="loading-icon--spin icon-size-xlarge loading-icon"></i>
+</div>

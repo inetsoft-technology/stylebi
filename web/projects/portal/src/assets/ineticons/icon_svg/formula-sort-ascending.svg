@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="Layer_1"
+   x="0px"
+   y="0px"
+   width="24px"
+   height="24px"
+   viewBox="0.5 0.5 24 24"
+   enable-background="new 0.5 0.5 24 24"
+   xml:space="preserve"
+   sodipodi:docname="formula-sort-ascending.svg"
+   inkscape:version="0.92.3 (2405546, 2018-03-11)"><metadata
+   id="metadata7108"><rdf:RDF><cc:Work
+       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /><dc:title></dc:title></cc:Work></rdf:RDF></metadata><defs
+   id="defs7106" /><sodipodi:namedview
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="1920"
+   inkscape:window-height="1017"
+   id="namedview7104"
+   showgrid="false"
+   inkscape:zoom="1"
+   inkscape:cx="12"
+   inkscape:cy="12"
+   inkscape:window-x="3832"
+   inkscape:window-y="-8"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="Layer_1" />
+<polyline
+   points="13.5,11.5 13.5,13.5 20.5,13.5 20.5,11.5 13.5,11.5 "
+   id="polyline7095"
+   transform="matrix(0.79661017,0,0,0.79661017,5.9841702,7.1517429)" />
+<polyline
+   points="13.5,5.5 13.5,7.5 18.5,7.5 18.5,5.5 13.5,5.5 "
+   id="polyline7097"
+   transform="matrix(0.79661017,0,0,0.79661017,5.9841702,7.1517429)" />
+<polyline
+   points="13.5,17.5 13.5,19.5 22.5,19.5 22.5,17.5 13.5,17.5 "
+   id="polyline7099"
+   transform="matrix(0.79661017,0,0,0.79661017,5.9841702,7.1517429)" />
+<polygon
+   points="5.214,7.606 5.214,21 7.786,21 7.786,7.606 11,7.606 6.5,4 2,7.606 "
+   id="polygon7101"
+   transform="matrix(0.79661017,0,0,0.79661017,5.9841702,7.1517429)" />
+<path
+   id="path7698"
+   d="M 9.5487798,3.3401549 C 8.6052632,3.2543757 7.7732527,3.9491517 7.6874776,4.9012462 L 7.4730419,7.3801229 H 9.8918768 V 9.0956072 H 7.3186489 L 6.9412424,13.444364 C 6.7782714,15.331398 5.1142506,16.729518 3.2272161,16.557969 2.1035743,16.463623 1.1600577,15.837465 0.60252433,14.953991 L 1.8891386,13.667377 c 0.2058577,0.634729 0.7719676,1.123642 1.483894,1.183685 0.9435165,0.08577 1.775527,-0.608997 1.861302,-1.561092 L 5.6031633,9.0956072 H 3.0299363 V 7.3801229 H 5.7489798 L 5.98057,4.7468531 C 6.1435409,2.8598187 7.8075617,1.4616984 9.6945968,1.6332472 10.818238,1.7275934 11.761756,2.3537501 12.319287,3.2372254 L 11.032674,4.5238395 C 10.826816,3.8891103 10.260706,3.4001962 9.5487798,3.3401549 Z"
+   inkscape:connector-curvature="0"
+   style="stroke-width:0.85774261" /></svg>

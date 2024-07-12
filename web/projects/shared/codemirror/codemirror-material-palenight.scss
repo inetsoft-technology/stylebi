@@ -1,0 +1,201 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+// taken from the codemirror material palenight theme
+.cm-s-inetsoft {
+  font-family: Consolas, Menlo, Monaco, 'Lucida Console', 'Liberation Mono', 'DejaVu Sans Mono', 'Bitstream Vera Sans Mono', 'Courier New', monospace, serif;
+
+  &.CodeMirror {
+    background-color: #292D3E;
+    color: #A6ACCD;
+  }
+
+  .CodeMirror-gutters {
+    background: #292D3E;
+    color: #676E95;
+    border: none;
+  }
+
+  .CodeMirror-guttermarker {
+    color: #676E95;
+  }
+
+  .CodeMirror-guttermarker-subtle {
+    color: #676E95;
+  }
+
+  .CodeMirror-linenumber {
+    color: #676E95;
+  }
+
+  .CodeMirror-cursor {
+    border-left: 1px solid #FFCC00;
+  }
+
+  .cm-animate-fat-cursor {
+    background-color: rgba(96, 124, 139, 0.5) !important;
+  }
+
+  div.CodeMirror-selected {
+    background: rgba(113, 124, 180, 0.2);
+  }
+
+  .CodeMirror-line {
+    &::selection {
+      background: rgba(128, 203, 196, 0.2);
+    }
+
+    > span {
+      &::selection {
+        background: rgba(128, 203, 196, 0.2);
+      }
+
+      > span {
+        &::selection {
+          background: rgba(128, 203, 196, 0.2);
+        }
+
+        &::-moz-selection {
+          background: rgba(128, 203, 196, 0.2);
+        }
+      }
+
+      &::-moz-selection {
+        background: rgba(128, 203, 196, 0.2);
+      }
+    }
+
+    &::-moz-selection {
+      background: rgba(128, 203, 196, 0.2);
+    }
+  }
+
+  .CodeMirror-activeline-background {
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .cm-keyword {
+    color: #C792EA;
+  }
+
+  .cm-operator {
+    color: #89DDFF;
+  }
+
+  .cm-variable-2 {
+    color: #EEFFFF;
+  }
+
+  .cm-variable-3 {
+    color: #f07178;
+    color: #DECB6B;
+  }
+
+  .cm-type {
+    color: #f07178;
+    color: #DECB6B;
+  }
+
+  .cm-builtin {
+    color: #FFCB6B;
+  }
+
+  .cm-atom {
+    color: #F78C6C;
+  }
+
+  .cm-number {
+    color: #FF5370;
+  }
+
+  .cm-def {
+    color: #82AAFF;
+  }
+
+  .cm-string {
+    color: #C3E88D;
+  }
+
+  .cm-string-2 {
+    color: #f07178;
+  }
+
+  .cm-comment {
+    color: #676E95;
+  }
+
+  .cm-variable {
+    color: #f07178;
+  }
+
+  .cm-tag {
+    color: #FF5370;
+  }
+
+  .cm-meta {
+    color: #FFCB6B;
+  }
+
+  .cm-attribute {
+    color: #C792EA;
+  }
+
+  .cm-property {
+    color: #C792EA;
+  }
+
+  .cm-qualifier {
+    color: #DECB6B;
+  }
+
+  .cm-error {
+    color: rgba(255, 255, 255, 1.0);
+    background-color: #FF5370;
+  }
+
+  .CodeMirror-matchingbracket {
+    text-decoration: underline;
+    color: white !important;
+  }
+
+  &.cm-fat-cursor {
+    .CodeMirror-cursor {
+      background-color: rgba(96, 124, 139, 0.5) !important;
+    }
+  }
+
+  &.CodeMirror-focused {
+    div.CodeMirror-selected {
+      background: rgba(113, 124, 180, 0.2);
+    }
+  }
+}
+
+.CodeMirror-hints.inetsoft, .CodeMirror-Tern-tooltip {
+  &, .CodeMirror-hint {
+    font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
+    color: #A6ACCD !important;
+    background-color: #3B3E3F !important;
+  }
+
+  .CodeMirror-hint-active {
+    background-color: #494D4E !important;
+    color: #A6ACCD !important;
+  }
+}
+
+

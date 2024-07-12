@@ -1,0 +1,36 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<tree *ngIf="!!activeRoot" [root]="activeRoot" [searchEnabled]="true"
+      [showRoot]="false" [initSelectedNodesExpanded]="true" [selectOnClick]="true"
+      [initExpanded]="activeRoot && activeRoot.children.length <= 1"
+      [checkboxEnable]="true"
+      [selectedNodes]="selectedNodes"
+      [iconFunction]="getCSSIcon"
+      [hoverShowScroll]="true"
+      [fillHeight]="true"
+      [contextmenu]="true" [hasMenuFunction]="hasMenuFunction()"
+      [grayedOutFields]="treeInfo?.grayedOutFields" [useVirtualScroll]="needUseVirtualScroll"
+      [dataSource]="virtualScrollDatasource"
+      (searchStart)="searchStart()"
+      (nodeExpanded)="expandNode($event)" (nodesSelected)="selectNodes($event)"
+      (nodeCollapsed)="collapsedNode($event)"
+      (onContextmenu)="openWizardTreeContextmenu($event)"
+></tree>
+<notifications #notifications class="notifications-wizard-pane" [timeout]="5000"></notifications>

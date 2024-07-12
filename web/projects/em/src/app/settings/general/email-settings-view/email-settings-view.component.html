@@ -1,0 +1,83 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="em-card">
+  <mat-card-title>_#(Email)</mat-card-title>
+  <mat-card-content>
+    <form *ngIf="form" [formGroup]="form">
+      <div class="flex-col">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Mail Host [SMTP])</mat-label>
+          <input matInput placeholder="_#(Mail Host [SMTP])" formControlName="smtpHost">
+          <mat-error *ngIf="form.controls.smtpHost?.errors?.required">_#(em.mail.hostRequired)</mat-error>
+          <mat-error *ngIf="form.controls.smtpHost?.errors?.pattern">_#(em.mail.hostInvalid)</mat-error>
+        </mat-form-field>
+        <mat-checkbox class="mat-checkbox-field" formControlName="ssl">
+          _#(Secure SMTP)
+        </mat-checkbox>
+        <mat-checkbox class="mat-checkbox-field" formControlName="tls">
+          _#(Opportunistic TLS)
+        </mat-checkbox>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Mail Session JNDI URL)</mat-label>
+          <input matInput placeholder="_#(Mail Session JNDI URL)" formControlName="jndiUrl">
+        </mat-form-field>
+        <mat-checkbox class="mat-checkbox-field" formControlName="smtpAuthentication">
+          _#(SMTP Authentication)
+        </mat-checkbox>
+        <ng-container *ngIf="model?.smtpAuthentication">
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(User Name)</mat-label>
+            <input matInput placeholder="_#(User Name)" formControlName="smtpUser">
+            <mat-error>_#(Invalid user name)</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Password)</mat-label>
+            <input matInput [type]="hidePassword ? 'password' : 'text'" placeholder="_#(Password)" formControlName="smtpPassword">
+            <mat-icon matSuffix fontSet="ineticons" [fontIcon]="hidePassword ? 'eye-icon' : 'eye-off-icon'" (click)="hidePassword = !hidePassword"></mat-icon>
+            <mat-error>_#(em.login.pwdEmpty)</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Confirm Password)</mat-label>
+            <input matInput [type]="hidePassword ? 'password' : 'text'" placeholder="_#(Confirm Password)"
+                   formControlName="confirmSmtpPassword" [errorStateMatcher]="errorStateMatcher">
+            <mat-icon matSuffix fontSet="ineticons" [fontIcon]="hidePassword ? 'eye-icon' : 'eye-off-icon'" (click)="hidePassword = !hidePassword"></mat-icon>
+            <mat-error>_#(viewer.password.confirmPwd)</mat-error>
+          </mat-form-field>
+        </ng-container>
+        <mat-checkbox class="mat-checkbox-field" formControlName="historyEnabled">
+          _#(Autocomplete Email)
+        </mat-checkbox>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(From Email Address)</mat-label>
+          <input matInput placeholder="_#(From Email Address)" formControlName="fromAddress">
+          <mat-error>_#(em.common.email.addressInvalid)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(schedule.delivery.subject.format)</mat-label>
+          <input matInput placeholder="_#(schedule.delivery.subject.format)" formControlName="deliveryMailSubjectFormat">
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(schedule.notification.subject.format)</mat-label>
+          <input matInput placeholder="_#(schedule.notification.subject.format)" formControlName="notificationMailSubjectFormat">
+        </mat-form-field>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

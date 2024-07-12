@@ -1,0 +1,175 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title data-th-text="#{login.pageTitle}">Login</title>
+  <meta name="description" content="Style Intelligence">
+  <meta name="author" content="InetSoft Technology Corp">
+  <!-- Mobile Specific Metas					     ================================================== -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+  <!-- CSS					     ================================================== -->
+  <link rel="stylesheet" type="text/css" href="webjars/bootstrap/css/bootstrap.min.css"/>
+  <link rel="stylesheet" type="text/css" href="app/global.css"/>
+  <link th:if="${customTheme} == true" rel="stylesheet" type="text/css" href="app/theme-variables.css">
+  <link rel="stylesheet" type="text/css" href="css/login.css"/>
+
+  <!-- Favicons				     ================================================== -->
+  <link rel="shortcut icon" data-th-href="@{/portal/favicon}" href="portal/favicon">
+</head>
+<body>
+  <div class="d-flex align-items-center bg-navbar-top" data-th-switch="${customLogo}">
+    <img class="custom-logo" src="portal/logo" data-th-case="${true}">
+    <th-block data-th-case="*">
+      <i class="inetsoft-logo inetsoft-icon icon-size-logo txt-primary"></i>
+      <span class="inetsoft-logo txt-light"> InetSoft </span>
+    </th-block>
+  </div>
+  <div class="container-fluid login-root">
+    <div class="card">
+      <div class="card-header" data-th-text="#{login.title}">
+        Please sign in
+      </div>
+      <div class="card-body">
+        <form novalidate>
+          <div class="signup-text" data-th-if="${selfSignUpEnabled && isNotTenantServer}">
+            <a href="./signup.html" target="_self" data-th-text="#{login.create.account.label}">Create an account</a>
+          </div>
+          <div id="userNameGroup" class="form-group">
+            <label class="required-field" for="loginUserName"
+                   data-th-text="#{login.username.label}">User name</label>
+            <input type="text" class="form-control" id="loginUserName"
+                   name="loginUserName" autofocus/>
+            <div id="userNameError" class="invalid-feedback" style="display: none;"
+                 data-th-text="#{login.username.required}">
+              Please enter your user name.
+            </div>
+          </div>
+          <div id="passwordGroup" class="form-group">
+            <label class="required-field" for="loginPassword"
+                   data-th-text="#{login.password.label}">Password</label>
+            <input type="password" class="form-control" id="loginPassword"
+                   name="loginPassword"/>
+            <div id="passwordError" class="invalid-feedback" style="display: none;"
+                 data-th-text="#{login.password.required}">
+              Please enter your password.
+            </div>
+          </div>
+          <div id="loginAsGroup" class="form-group" data-th-if="${loginAs}"
+               style="display: none">
+            <label for="loginAsName" data-th-text="#{Login as}">Login as</label>
+            <select class="form-control" id="loginAsName" name="loginAsName">
+            </select>
+          </div>
+          <div class="form-group" data-th-if="${locales != null}">
+            <label for="loginLocale" data-th-text="#{login.locale.label}">Locale</label>
+            <select id="loginLocale" name="loginLocale" class="form-control">
+              <option value="My Locale" data-th-text="#{My Locale}"></option>
+              <option data-th-each="locale : ${locales}" data-th-value="${locale.value()}"
+                      data-th-text="${locale.label()}"></option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="card-footer">
+        <button id="loginButton" class="btn btn-primary btn-block"
+                data-th-text="#{login.signIn}">
+          Sign in
+        </button>
+      </div>
+    </div>
+    <div class="social-login-div" data-th-if="${gClientId != null}">
+      <div class="separator-div">
+        <hr class="separator-line">
+        <span class="separator-text"> OR </span>
+        <hr class="separator-line">
+      </div>
+      <div class="g_id_signin"
+           data-type="standard"
+           data-shape="rectangular"
+           data-theme="outline"
+           data-text="signin_with"
+           data-size="large"
+           data-logo_alignment="left">
+      </div>
+    </div>
+    <div class="card loginBanner" data-th-if="${loginBanner != null and loginBanner.type == 1}"
+         data-th-utext="${loginBanner.bannerText}"></div>
+    <pre class="card loginBanner" data-th-if="${loginBanner != null and loginBanner.type == 0}"
+         data-th-text="${loginBanner.bannerText}"></pre>
+    <div id="notifications" class="alert alert-danger" style="display: none"></div>
+    <div id="sessionExpiredMessage" class="alert alert-warning" style="display: none" data-th-text="#{login.session.expired}">
+      For your security, you were logged out of the system due to inactivity.
+    </div>
+  </div>
+  <div class="loading-indicator">
+    <div>
+      <i class="loading-icon loading-icon--spin icon-size-xlarge" aria-hidden="true"></i>
+    </div>
+  </div>
+<!-- Modal -->
+  <div class="modal fade" id="activeSession" tabindex="-1" aria-labelledby="activeSessionTitle" aria-hidden="true" style="display: none">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="activeSessoinTitle" data-th-text="#{Confirm}">Confirm</h5>
+        <button type="button" class="btn-close" data-dismiss="modal" aria-label="Close">
+        </button>
+      </div>
+      <div class="modal-body text-info" data-th-utext="#{login.warning.activeSession(${currentUser})}"></div>
+      <div class="modal-footer">
+        <button type="button" id="confirmLogin" class="btn btn-primary" data-th-text="#{Yes}">Yes</button>
+        <button type="button" class="btn btn-default" data-dismiss="modal" data-th-text="#{No}">No</button>
+      </div>
+    </div>
+  </div>
+  </div>
+  <div id="g_id_onload" data-th-if="${gClientId != null}"
+       data-th-attr="data-client_id=${gClientId}, data-login_uri=${gLoginUri}"
+       data-context="signin"
+       data-ux_mode="redirect"
+       data-auto_select="true"
+       data-itp_support="true">
+  </div>
+  <script type="text/javascript" src="webjars/jquery/jquery.min.js"></script>
+  <script type="text/javascript" src="webjars/bootstrap/js/bootstrap.min.js"></script>
+  <script type="text/javascript" src="js/login.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async></script>
+  <script data-th-inline="javascript">
+    /*<![CDATA[*/
+    $(document).ready(function() {
+       var requestedUrl = /*[[${requestedUrl}]]*/ "app/portal";
+
+       if(!requestedUrl) {
+         requestedUrl = "app/portal";
+       }
+
+       var sessionExpired = window.sessionStorage.getItem("inetsoftSessionExpired") == "true";
+       window.sessionStorage.setItem("inetsoftSessionExpired", "false");
+       var defaultErrorMessage = /*[[#{login.error.authenticationFailed}]]*/ "Authentication failed";
+       var currentUser = /*[[${currentUser}]]*/ "";
+       initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, currentUser);
+    });
+    /*]]>*/
+  </script>
+</body>
+</html>

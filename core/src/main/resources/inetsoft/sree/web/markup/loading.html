@@ -1,0 +1,125 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=$(html.character.encode)">
+<LINK rel="stylesheet" href="$(resourceURI)op=resource&name=theme%2Ecss&type=portal">
+<LINK rel="stylesheet" href="$(resourceURI)op=resource&name=theme%2Ecss&type=portal&style=true&theme=true">
+<script language="JavaScript" src="$(resourceURI)op=resource&name=%2Finetsoft%2Fsree%2Finternal%2Fmarkup%2Futil%2Ejs"></script>
+<style>
+.center{
+   position:absolute;
+   left:50%;
+   top:100;
+   margin:0 0 0 -250px;
+   text-align:center;
+}
+
+.loader {
+  border: 16px solid #f3f3f3;
+  border-radius: 50%;
+  border-top: 16px solid #105e5a;
+  width: 100px;
+  height: 100px;
+  -webkit-animation: spin 1s linear infinite; /* Safari */
+  animation: spin 1s linear infinite;
+}
+
+/* Safari */
+@-webkit-keyframes spin {
+  0% { -webkit-transform: rotate(0deg); }
+  100% { -webkit-transform: rotate(360deg); }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
+</head>
+<body bgcolor=white onUnload="stop()">
+   <div class="center">
+      <table border="0">
+      <tr>
+      <td align="center">
+        <div class="loader"></div>
+      </td>
+      <td align="left" width="200px">
+         <font size="4" color="#105e5a">$(message)...</font>
+      </td>
+      <td width="50px">&nbsp;</td>
+      </tr>
+      <td width="50px">
+        <form action="$(resourceURI)" method="get">
+      </td>
+      <tr>
+      <td align="left" colspan=2>
+#ifdef ADD_TO_QUEUE
+         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+         <input type="button" id="addtoQ" value="$(Add to Queue)#(inter)" onclick="addToQueue()" style="width:100px;">
+#endif
+
+         <input type="button" id="cancelBtn" value="$(Cancel)#(inter)" onclick="cancelIt()" style="width:80px;">
+         </form>
+      </td>
+      </tr>
+      </table>
+   </div>
+</body>
+<script>
+var reportId = "$(id)";
+var pn = "$(pn)";
+var isLoading = true;
+var op = "$(CANCEL_REPORT)" ? "cancel" : "Destroy";
+
+function addToQueue() {
+   stop();
+   Element.get("addtoQ").disabled = rpt_cancelled = true;
+   var url = "$(resourceURI)op=portal_report&action=addToQueue&repletID=" + encodeURIComponent("$(id)") + "&pn=" + encodeURIComponent("$(pn)");
+   location = url;
+}
+
+function cancel() {
+   stop();
+   var url = "$(resourceURI)op=" + op + "&repletID=$(id)";
+   location = url;
+}
+
+try {
+   if(Element.get("addtoQ") != null) {
+      Element.get("addtoQ").disabled = rpt_cancelled;
+   }
+}
+catch(ex) {
+}
+
+function cancelIt() {
+   stop();
+   Element.get("cancelBtn").disabled = rpt_cancelled = true;
+   var url = "$(resourceURI)op=" + op + "&ID=" + encodeURIComponent("$(id)");
+   location = url;
+   getRoot(self).reportChanged = false;
+
+   if(!!getRoot(self).parent) {
+      getRoot(self).parent.reportChanged = false;
+   }
+}
+</script>
+</html>

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg  xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="173.263" height="200.77" viewBox="0 0 173.263 200.77" overflow="visible" enable-background="new 0 0 173.263 200.77"
+	 xml:space="preserve">
+		<g id="Layer_1">
+			
+				<linearGradient id="XMLID_3_" gradientUnits="userSpaceOnUse" x1="-133.5366" y1="-43.4927" x2="-145.3556" y2="-43.3832" gradientTransform="matrix(1 0 0 1 227.5752 156.9268)">
+				<stop  offset="0.0056" style="stop-color:#FDA43F"/>
+				<stop  offset="1" style="stop-color:#FF213F"/>
+				<a:midPointStop  offset="0.0056" style="stop-color:#FDA43F"/>
+				<a:midPointStop  offset="0.5" style="stop-color:#FDA43F"/>
+				<a:midPointStop  offset="1" style="stop-color:#FF213F"/>
+			</linearGradient>
+			<polygon fill="url(#XMLID_3_)" stroke="#B77100" stroke-width="0.7699" points="88.637,67.806 93.187,67.803 89.788,62.441 
+				86.39,57.076 82.997,62.444 79.604,67.811 84.155,67.809 84.163,93.986 84.155,93.986 84.181,169.916 88.66,169.912 
+				88.65,145.736 88.66,145.736 "/>
+			<linearGradient id="XMLID_4_" gradientUnits="userSpaceOnUse" x1="86.6313" y1="200.3848" x2="86.6313" y2="0.3853">
+				<stop  offset="0.0056" style="stop-color:#FDA43F"/>
+				<stop  offset="1" style="stop-color:#FF213F"/>
+				<a:midPointStop  offset="0.0056" style="stop-color:#FDA43F"/>
+				<a:midPointStop  offset="0.5" style="stop-color:#FDA43F"/>
+				<a:midPointStop  offset="1" style="stop-color:#FF213F"/>
+			</linearGradient>
+			
+				<rect x="0.385" y="0.385" opacity="0" fill="url(#XMLID_4_)" stroke="#B77100" stroke-width="0.7699" width="172.493" height="200"/> 
+		</g>
+	</svg>

@@ -1,0 +1,91 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="page-container">
+  <div class="security-nav mat-elevation-z2">
+    <div class="button-row" *ngIf="!isOrgAdminOnly">
+      <mat-slide-toggle
+        [checked]="securityEnabled"
+        [disabled]="securityToggleDisabled"
+        (change)="toggleSecurityEnabled($event)"
+      >
+        _#(Enable Security)
+      </mat-slide-toggle>
+    </div>
+    <div class="button-row" *ngIf="enterprise && !isOrgAdminOnly">
+      <div>
+        <mat-slide-toggle *ngIf="isRefreshed"
+                          [checked]="multiTenancyEnabled"
+                          [disabled]="multiTenancyToggleDisabled || !securityEnabled || ldapProviderUsed"
+                          (change)="toggleEnterpriseToggle($event)">
+          _#(Enable Multi-Tenancy)
+          <mat-hint class="multitenancy-disabled-hint" *ngIf="(!multiTenancyToggleDisabled && securityEnabled) && ldapProviderUsed">
+            _#(em.security.multitenant.ldapNotCompatible)
+          </mat-hint>
+        </mat-slide-toggle>
+      </div>
+      <div>
+        <mat-slide-toggle [checked]="selfSignupEnabled"
+                          [disabled]="securityToggleDisabled || !securityEnabled "
+                          (change)="toggleSelfSignupEnabled($event)">
+          _#(Enable Self Signup)
+        </mat-slide-toggle>
+      </div>
+
+      <mat-form-field *ngIf="multiTenancyEnabled">
+        <mat-label>_#(Pass Organization by)</mat-label>
+        <mat-select [(value)]="passOrgIdAs" (valueChange)="updatePassOption($event)">
+          <mat-option *ngFor="let passOption of orgIDPassOptions;" [value]=passOption>{{passOptionLabel(passOption)}}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+    </div>
+    <div class="tab-container" *ngIf="securityEnabled && isRefreshed">
+      <nav mat-tab-nav-bar mat-stretch-tabs class="nav-tab" [tabPanel]="tabPanel">
+        <a mat-tab-link label="securityLabel" *ngIf="securityProvidersVisible"
+           [routerLink]="['/settings/security/provider']"
+           routerLinkActive #providerActive="routerLinkActive"
+           [active]="providerActive.isActive">
+          _#(Security Providers)
+        </a>
+        <a mat-tab-link label="usersLabel" *ngIf="usersVisible"
+           [routerLink]="['/settings/security/users']"
+           routerLinkActive #usersActive="routerLinkActive"
+           [active]="usersActive.isActive">
+          _#(Users)
+        </a>
+        <a mat-tab-link label="actionsLabel" *ngIf="actionsVisible"
+           [routerLink]="['/settings/security/actions']"
+           routerLinkActive #actionsActive="routerLinkActive"
+           [active]="actionsActive.isActive">
+          _#(Actions)
+        </a>
+        <a mat-tab-link *ngIf="ssoVisible"
+           [routerLink]="['/settings/security/sso']"
+           routerLinkActive #ssoActive="routerLinkActive"
+           [active]="ssoActive.isActive">
+          _#(em.security.sso)
+        </a>
+      </nav>
+    </div>
+  </div>
+  <mat-tab-nav-panel class="content-container" #tabPanel>
+    <router-outlet *ngIf="securityEnabled && isRefreshed"></router-outlet>
+  </mat-tab-nav-panel>
+</div>

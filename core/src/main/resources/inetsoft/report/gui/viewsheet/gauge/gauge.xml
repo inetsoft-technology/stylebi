@@ -1,0 +1,2431 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<VSGauge>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="10016" center.x="100" center.y="100" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/flat/square/square_panel.svg</panel>
+         <needleCircle>svg/flat/square/square_needleCircle.svg</needleCircle>
+         <needle>svg/flat/square/square_needle.svg</needle>
+      </image>
+      <range rangeRadius="52" rangeWidth="6" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="78" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="75" length="10" lineWidth="2" color="255,145,145,145"/>
+      <minorTick radius="70" length="5" lineWidth="2" color="255,180,180,180"/>
+      <label y="152" width="110" height="34">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/flat/square/square_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="10116" center.x="100" center.y="100" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/flat/full/01_panel.svg</panel>
+         <needleCircle>svg/flat/full/01_needleCircle.svg</needleCircle>
+         <needle>svg/flat/full/01_needle.svg</needle>
+      </image>
+      <range rangeRadius="75" rangeWidth="35" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="83" color="255,112,121,125">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="80" length="5" lineWidth="2" color="255,112,121,125"/>
+      <minorTick radius="78" length="3" lineWidth="1" color="255,112,121,125"/>
+      <label y="142" width="110" height="34">
+         <font><![CDATA[Default-BOLD-28]]></font>
+         <labelImage>svg/flat/full/01_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="10126" center.x="100" center.y="100" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/flat/full/02_panel.svg</panel>
+         <needleCircle>svg/flat/full/02_needleCircle.svg</needleCircle>
+         <needle>svg/flat/full/02_needle.svg</needle>
+      </image>
+      <range rangeRadius="54" rangeWidth="6" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="73" color="255,112,121,125">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="70" length="10" lineWidth="2" color="255,145,145,145"/>
+      <minorTick radius="65" length="5" lineWidth="2" color="255,180,180,180"/>
+      <label y="140" width="110" height="34">
+         <font><![CDATA[Default-BOLD-28]]></font>
+         <labelImage>svg/flat/full/02_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="10136" center.x="100" center.y="100" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/flat/full/03_panel.svg</panel>
+         <needleCircle>svg/flat/full/03_needleCircle.svg</needleCircle>
+         <needle>svg/flat/full/03_needle.svg</needle>
+      </image>
+      <range rangeRadius="55" rangeWidth="6" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="70" color="255,112,121,125">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="100" length="10" lineWidth="4" color="255,251,141,0" visible="false"/>
+      <minorTick radius="100" length="10" lineWidth="2" color="255,72,178,249" visible="false"/>
+      <label y="160" width="110" height="34" color="255,231,131,0">
+         <font><![CDATA[Default-BOLD-28]]></font>
+         <labelImage>svg/flat/full/03_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="10146" center.x="100" center.y="100" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/flat/full/04_panel.svg</panel>
+         <needleCircle>svg/flat/full/04_needleCircle.svg</needleCircle>
+         <needle>svg/flat/full/04_needle.svg</needle>
+      </image>
+      <range rangeRadius="50" rangeWidth="5" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="80" color="255,112,121,125">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="99" length="10" lineWidth="1" color="255,5,91,117"/>
+      <minorTick radius="99" length="5" lineWidth="1" color="255,5,91,117"/>
+      <label y="145" width="110" height="34">
+         <font><![CDATA[Default-BOLD-28]]></font>
+         <labelImage>svg/flat/full/04_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="10216" center.x="100" center.y="100" width="200" height="130" angle="180" >
+      <image>
+         <panel>svg/flat/half/half_01_panel.svg</panel>
+         <needleCircle>svg/flat/half/half_01_needleCircle.svg</needleCircle>
+         <needle>svg/flat/half/half_01_needle.svg</needle>
+      </image>
+      <range rangeRadius="75" rangeWidth="35" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="83" color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="80" length="5" lineWidth="2" color="255,112,121,125"/>
+      <minorTick radius="78" length="3" lineWidth="1" color="255,112,121,125"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="10226" center.x="100" center.y="102" width="200" height="120" angle="180" >
+      <image>
+         <panel>svg/flat/half/half_02_panel.svg</panel>
+         <needleCircle>svg/flat/half/half_02_needleCircle.svg</needleCircle>
+         <needle>svg/flat/half/half_02_needle.svg</needle>
+      </image>
+      <range rangeRadius="54" rangeWidth="6" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="79" color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="75" length="10" lineWidth="2" color="255,145,145,145"/>
+      <minorTick radius="70" length="5" lineWidth="2" color="255,180,180,180"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="10246" center.x="100" center.y="100" width="200" height="120" angle="180" >
+      <image>
+         <panel>svg/flat/half/half_03_panel.svg</panel>
+         <needleCircle>svg/flat/half/half_03_needleCircle.svg</needleCircle>
+         <needle>svg/flat/half/half_03_needle.svg</needle>
+      </image>
+      <range rangeRadius="55" rangeWidth="6" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="70" color="255,112,121,125">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="100" length="10" lineWidth="4" color="255,251,141,0" visible="false"/>
+      <minorTick radius="100" length="10" lineWidth="2" color="255,72,178,249" visible="false"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="10416" center.x="25" center.y="175" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/flat/quarter/quarter_01_panel.svg</panel>
+         <needleCircle>svg/flat/quarter/quarter_01_needleCircle.svg</needleCircle>
+         <needle>svg/flat/quarter/quarter_01_needle.svg</needle>
+      </image>
+      <range rangeRadius="90" rangeWidth="6" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="129" color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="125" length="10" lineWidth="2" color="255,145,145,145"/>
+      <minorTick radius="120" length="5" lineWidth="2" color="255,180,180,180"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="10816" center.x="88" center.y="180" width="175" height="200" angle="45">
+      <image>
+         <panel>svg/flat/eighth/eighth_01_panel.svg</panel>
+         <needleCircle>svg/flat/eighth/eighth_01_needleCircle.svg</needleCircle>
+         <needle>svg/flat/eighth/eighth_01_needle.svg</needle>
+      </image>
+      <range rangeRadius="111" rangeWidth="7" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="149" color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="10" lineWidth="2" color="255,145,145,145"/>
+      <minorTick radius="140" length="5" lineWidth="2" color="255,180,180,180"/>
+   </face>
+
+   <!-- full circle with needle -->
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedFullVSGauge"
+      id="10906" center.x="100" center.y="100" width="200" height="200" angle="359">
+      <image>
+         <panel>svg/flat/full/05_panel.svg</panel>
+         <needleCircle>svg/flat/full/05_needleCircle.svg</needleCircle>
+         <needle>svg/flat/full/05_needle.svg</needle>
+      </image>
+      <range rangeRadius="80" rangeWidth="25" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="82" color="255,112,121,125">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="80" length="0" lineWidth="0" color="255,5,91,117"/>
+      <minorTick radius="80" length="0" lineWidth="0" color="255,5,91,117"/>
+      <label y="70" width="100" height="60">
+         <font><![CDATA[Default-regular-30]]></font>
+         <labelImage>svg/flat/full/05_label.svg</labelImage>
+      </label>
+   </face>
+
+   <!-- full circle fill value in range (no needle) -->
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedFullVSGauge"
+      id="10916" center.x="100" center.y="100" width="200" height="200" angle="359">
+      <image>
+         <panel>svg/flat/full/06_panel.svg</panel>
+         <needleCircle>svg/flat/full/06_needleCircle.svg</needleCircle>
+         <needle>svg/flat/full/06_needle.svg</needle>
+      </image>
+      <range rangeRadius="55" rangeWidth="5" fillRanges="true" sRoundRanges="false"
+             valueFill="255,52,152,219"/>
+      <valueFill radius="80" width="25" fill="255,52,152,219"/>
+      <value valueRadius="82" color="255,112,121,125">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="80" length="0" lineWidth="0" color="255,5,91,117"/>
+      <minorTick radius="80" length="0" lineWidth="0" color="255,5,91,117"/>
+      <label y="70" width="100" height="60">
+         <font><![CDATA[Default-regular-30]]></font>
+         <labelImage>svg/flat/full/06_label.svg</labelImage>
+      </label>
+   </face>
+
+   <!-- full circle fill value in range (no needle) with no labels on ticks -->
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedFullVSGauge"
+      id="10926" center.x="100" center.y="100" width="200" height="200" angle="358">
+      <image>
+         <panel>svg/flat/full/07_panel.svg</panel>
+         <needleCircle>svg/flat/full/07_needleCircle.svg</needleCircle>
+         <needle>svg/flat/full/07_needle.svg</needle>
+      </image>
+      <range rangeRadius="63" rangeWidth="5" fillRanges="true" sRoundRanges="false"/>
+      <valueFill radius="93" width="30" fill="255,52,152,219"/>
+      <value valueRadius="82" color="255,112,121,125" visible="false">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="80" length="0" lineWidth="0" color="255,5,91,117"/>
+      <minorTick radius="80" length="0" lineWidth="0" color="255,5,91,117"/>
+      <label y="70" width="115" height="60">
+         <font><![CDATA[Default-regular-30]]></font>
+         <labelImage>svg/flat/full/07_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.SectorVSGauge"
+         id="13006" center.x="100.3" center.y="136" width="200" height="200" angle="135">
+      <image>
+         <panel>svg/flat/sector/sector_panel.svg</panel>
+         <needleCircle>svg/flat/sector/sector_needleCircle.svg</needleCircle>
+         <needle>svg/flat/sector/sector_needle.svg</needle>
+      </image>
+      <range rangeRadius="92" rangeWidth="52" fillRanges="true" sRoundRanges="false"/>
+      <value valueRadius="22" color="255,112,121,125">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="98" length="1" lineWidth="4" color="255,112,121,125"/>
+      <label y="150" width="90" height="30">
+         <font><![CDATA[Default-regular-15]]></font>
+         <labelImage>svg/flat/full/07_label.svg</labelImage>
+      </label>
+   </face>
+
+   <!-- backward compatibility, remove in later release (12.1, 2015) -->
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="41" center.x="100" center.y="100" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/alloy_light/square_panel.svg</panel>
+         <needleCircle>svg/alloy_light/square_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/square_needle.svg</needle>
+      </image>
+      <range rangeRadius="57" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="63" length="4" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="62" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="142" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/square_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="42" center.x="100" center.y="100" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/alloy_light/square_panel.svg</panel>
+         <needleCircle>svg/alloy_light/square_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/square_needle.svg</needle>
+      </image>
+      <range rangeRadius="57" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="63" length="4" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="62" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="142" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/square_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="43" center.x="100" center.y="100" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/alloy_light/square_panel.svg</panel>
+         <needleCircle>svg/alloy_light/square_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/square_needle.svg</needle>
+      </image>
+      <range rangeRadius="57" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="63" length="4" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="62" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="142" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/square_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="44" center.x="100" center.y="100" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/alloy_light/square_panel.svg</panel>
+         <needleCircle>svg/alloy_light/square_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/square_needle.svg</needle>
+      </image>
+      <range rangeRadius="57" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="63" length="4" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="62" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="142" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/square_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="45" center.x="100" center.y="100" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/alloy_light/square_panel.svg</panel>
+         <needleCircle>svg/alloy_light/square_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/square_needle.svg</needle>
+      </image>
+      <range rangeRadius="57" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="63" length="4" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="62" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="142" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/square_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="46" center.x="100" center.y="100" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/alloy_light/square_panel.svg</panel>
+         <needleCircle>svg/alloy_light/square_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/square_needle.svg</needle>
+      </image>
+      <range rangeRadius="57" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="63" length="4" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="62" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="142" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/square_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="101" center.x="100" center.y="100" width="200" height="200" angle="242">
+      <image>
+         <panel>svg/real/panel.svg</panel>
+         <needleCircle>svg/real/needleCircle.svg</needleCircle>
+         <needle>svg/real/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="11.00" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,0,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="75" length="8" lineWidth="2" color="255,0,0,0"/>
+      <minorTick radius="75" length="4" lineWidth="1" color="255,0,0,0"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/real/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="102" center.x="100" center.y="100" width="200" height="200" angle="242">
+      <image>
+         <panel>svg/real/panel.svg</panel>
+         <needleCircle>svg/real/needleCircle.svg</needleCircle>
+         <needle>svg/real/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="11.00" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,0,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="75" length="8" lineWidth="2" color="255,0,0,0"/>
+      <minorTick radius="75" length="4" lineWidth="1" color="255,0,0,0"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/real/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="103" center.x="100" center.y="100" width="200" height="200" angle="242">
+      <image>
+         <panel>svg/real/panel.svg</panel>
+         <needleCircle>svg/real/needleCircle.svg</needleCircle>
+         <needle>svg/real/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="11.00" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,0,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="75" length="8" lineWidth="2" color="255,0,0,0"/>
+      <minorTick radius="75" length="4" lineWidth="1" color="255,0,0,0"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/real/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="104" center.x="100" center.y="100" width="200" height="200" angle="242">
+      <image>
+         <panel>svg/real/panel.svg</panel>
+         <needleCircle>svg/real/needleCircle.svg</needleCircle>
+         <needle>svg/real/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="11.00" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,0,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="75" length="8" lineWidth="2" color="255,0,0,0"/>
+      <minorTick radius="75" length="4" lineWidth="1" color="255,0,0,0"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/real/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="105" center.x="100" center.y="100" width="200" height="200" angle="242">
+      <image>
+         <panel>svg/real/panel.svg</panel>
+         <needleCircle>svg/real/needleCircle.svg</needleCircle>
+         <needle>svg/real/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="11.00" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,0,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="75" length="8" lineWidth="2" color="255,0,0,0"/>
+      <minorTick radius="75" length="4" lineWidth="1" color="255,0,0,0"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/real/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="106" center.x="100" center.y="100" width="200" height="200" angle="242">
+      <image>
+         <panel>svg/real/panel.svg</panel>
+         <needleCircle>svg/real/needleCircle.svg</needleCircle>
+         <needle>svg/real/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="11.00" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,0,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="75" length="8" lineWidth="2" color="255,0,0,0"/>
+      <minorTick radius="75" length="4" lineWidth="1" color="255,0,0,0"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/real/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="111" center.x="100" center.y="100" width="200" height="200" angle="255">
+      <image>
+         <panel>svg/blue/full_panel.svg</panel>
+         <needleCircle>svg/blue/full_needleCircle.svg</needleCircle>
+         <needle>svg/blue/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="69" rangeWidth="15" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,75,175">
+         <font><![CDATA[Default-BOLD-12]]></font>
+      </value>
+      <majorTick radius="82" length="8" lineWidth="2" color="255,0,75,175"/>
+      <minorTick radius="82" length="4" lineWidth="1" color="255,0,75,175"/>
+      <label y="153" width="60" height="26">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/blue/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="112" center.x="100" center.y="100" width="200" height="200" angle="262">
+      <image>
+         <panel>svg/green/full_panel.svg</panel>
+         <needleCircle>svg/green/full_needleCircle.svg</needleCircle>
+         <needle>svg/green/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="69" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,125,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="82" length="8" lineWidth="2" color="255,0,125,0"/>
+      <minorTick radius="82" length="4" lineWidth="1" color="255,0,125,0"/>
+      <label y="153" width="60" height="26">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/green/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="113" center.x="100" center.y="100" width="200" height="200" angle="257">
+      <image>
+         <panel>svg/alloy/full_panel.svg</panel>
+         <needleCircle>svg/alloy/full_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="70" rangeWidth="15" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="82" length="8" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="82" length="4" lineWidth="1" color="255,25,25,25"/>
+      <label y="153" width="60" height="26">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/alloy/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="114" center.x="100" center.y="100" width="200" height="200" angle="262">
+      <image>
+         <panel>svg/orange/full_panel.svg</panel>
+         <needleCircle>svg/orange/full_needleCircle.svg</needleCircle>
+         <needle>svg/orange/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="69" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,175,100,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="82" length="8" lineWidth="2" color="255,175,100,25"/>
+      <minorTick radius="82" length="4" lineWidth="1" color="255,175,100,25"/>
+      <label y="153" width="60" height="26">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/orange/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="115" center.x="100" center.y="101" width="200" height="200" angle="258">
+      <image>
+         <panel>svg/vista/full_panel.svg</panel>
+         <needleCircle>svg/vista/full_needleCircle.svg</needleCircle>
+         <needle>svg/vista/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="61.5" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="72" length="8" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="72" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="144" width="60" height="26">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/vista/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="116" center.x="100" center.y="100" width="200" height="200" angle="257">
+      <image>
+         <panel>svg/alloy/full_panel.svg</panel>
+         <needleCircle>svg/alloy/full_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="70" rangeWidth="15" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="82" length="8" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="82" length="4" lineWidth="1" color="255,25,25,25"/>
+      <label y="153" width="60" height="26">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/alloy/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="121" center.x="100" center.y="100" width="200" height="200" angle="275">
+      <image>
+         <panel>svg/blue/full_aqua_panel.svg</panel>
+         <needleCircle>svg/blue/full_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/blue/full_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="72" rangeWidth="15" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,75,175">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="85" length="8" lineWidth="2" color="255,0,75,175"/>
+      <minorTick radius="85" length="4" lineWidth="1" color="255,0,75,175"/>
+      <label y="156" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/blue/full_aqua_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="122" center.x="100" center.y="100" width="200" height="200" angle="275">
+      <image>
+         <panel>svg/green/full_aqua_panel.svg</panel>
+         <needleCircle>svg/green/full_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/green/full_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="72" rangeWidth="15" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,125,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="85" length="8" lineWidth="2" color="255,0,125,0"/>
+      <minorTick radius="85" length="4" lineWidth="1" color="255,0,125,0"/>
+      <label y="156" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/green/full_aqua_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="123" center.x="99.5" center.y="101" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/alloy/full_alloy_panel.svg</panel>
+         <needleCircle>svg/alloy/full_alloy_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/full_alloy_needle.svg</needle>
+      </image>
+      <range rangeRadius="67" rangeWidth="12" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,0,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="80" length="8" lineWidth="2" color="255,0,0,0"/>
+      <minorTick radius="80" length="4" lineWidth="1" color="255,0,0,0"/>
+      <label y="156" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/alloy/full_alloy_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="124" center.x="99.5" center.y="100" width="200" height="200" angle="275">
+      <image>
+         <panel>svg/orange/full_aqua_panel.svg</panel>
+         <needleCircle>svg/orange/full_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/orange/full_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="72" rangeWidth="15" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="85" length="8" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="85" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="153" width="60" height="26">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/orange/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="125" center.x="99" center.y="101" width="200" height="200" angle="273">
+      <image>
+         <panel>svg/vista/full_aqua_panel.svg</panel>
+         <needleCircle>svg/vista/full_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/vista/full_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="72" rangeWidth="15" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="84" length="8" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="84" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="144" width="60" height="26">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/vista/full_aqua_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="126" center.x="99.5" center.y="101" width="200" height="200" angle="240">
+      <image>
+         <panel>svg/alloy/full_alloy_panel.svg</panel>
+         <needleCircle>svg/alloy/full_alloy_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/full_alloy_needle.svg</needle>
+      </image>
+      <range rangeRadius="67" rangeWidth="12" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,0,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="80" length="8" lineWidth="2" color="255,0,0,0"/>
+      <minorTick radius="80" length="4" lineWidth="1" color="255,0,0,0"/>
+      <label y="156" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/alloy/full_alloy_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="131" center.x="100" center.y="100" width="200" height="200" angle="243">
+      <image>
+         <panel>svg/light/panel.svg</panel>
+         <needleCircle>svg/light/needleCircle.svg</needleCircle>
+         <needle>svg/light/needle.svg</needle>
+      </image>
+      <range rangeRadius="79" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,67,108,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="87" length="6" lineWidth="2" color="255,225,244,255"/>
+      <minorTick radius="86" length="3" lineWidth="1" color="255,225,244,255"/>
+      <label y="153" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="132" center.x="100" center.y="100" width="200" height="200" angle="243">
+      <image>
+         <panel>svg/light/panel.svg</panel>
+         <needleCircle>svg/light/needleCircle.svg</needleCircle>
+         <needle>svg/light/needle.svg</needle>
+      </image>
+      <range rangeRadius="79" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,43,108,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+       <majorTick radius="87" length="6" lineWidth="2" color="255,225,244,255"/>
+      <minorTick radius="86" length="3" lineWidth="1" color="255,225,244,255"/>
+      <label y="153" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="133" center.x="100" center.y="100" width="200" height="200" angle="243">
+      <image>
+         <panel>svg/light/panel.svg</panel>
+         <needleCircle>svg/light/needleCircle.svg</needleCircle>
+         <needle>svg/light/needle.svg</needle>
+      </image>
+      <range rangeRadius="79" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,43,108,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="87" length="6" lineWidth="2" color="255,225,244,255"/>
+      <minorTick radius="86" length="3" lineWidth="1" color="255,225,244,255"/>
+      <label y="153" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="134" center.x="100" center.y="100" width="200" height="200" angle="243">
+      <image>
+         <panel>svg/light/panel.svg</panel>
+         <needleCircle>svg/light/needleCircle.svg</needleCircle>
+         <needle>svg/light/needle.svg</needle>
+      </image>
+      <range rangeRadius="79" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,43,108,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="87" length="6" lineWidth="2" color="255,225,244,255"/>
+      <minorTick radius="86" length="3" lineWidth="1" color="255,225,244,255"/>
+      <label y="153" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="135" center.x="100" center.y="100" width="200" height="200" angle="243">
+      <image>
+         <panel>svg/light/panel.svg</panel>
+         <needleCircle>svg/light/needleCircle.svg</needleCircle>
+         <needle>svg/light/needle.svg</needle>
+      </image>
+      <range rangeRadius="79" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,43,108,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="87" length="6" lineWidth="2" color="255,225,244,255"/>
+      <minorTick radius="86" length="3" lineWidth="1" color="255,225,244,255"/>
+      <label y="153" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="136" center.x="100" center.y="100" width="200" height="200" angle="243">
+      <image>
+         <panel>svg/light/panel.svg</panel>
+         <needleCircle>svg/light/needleCircle.svg</needleCircle>
+         <needle>svg/light/needle.svg</needle>
+      </image>
+      <range rangeRadius="79" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,43,108,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="87" length="6" lineWidth="2" color="255,225,244,255"/>
+      <minorTick radius="86" length="3" lineWidth="1" color="255,225,244,255"/>
+      <label y="153" width="60" height="20">
+         <font><![CDATA[Default-BOLD-11]]></font>
+         <labelImage>svg/light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="141" center.x="100" center.y="100" width="200" height="200" angle="246">
+      <image>
+         <panel>svg/alloy_light/full_panel.svg</panel>
+         <needleCircle>svg/alloy_light/full_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="53" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="58" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="140" width="55" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="142" center.x="100" center.y="100" width="200" height="200" angle="246">
+      <image>
+         <panel>svg/alloy_light/full_panel.svg</panel>
+         <needleCircle>svg/alloy_light/full_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="53" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="58" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="140" width="55" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="143" center.x="100" center.y="100" width="200" height="200" angle="246">
+      <image>
+         <panel>svg/alloy_light/full_panel.svg</panel>
+         <needleCircle>svg/alloy_light/full_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="53" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="58" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="140" width="55" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="144" center.x="100" center.y="100" width="200" height="200" angle="246">
+      <image>
+         <panel>svg/alloy_light/full_panel.svg</panel>
+         <needleCircle>svg/alloy_light/full_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="53" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="58" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="140" width="55" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="145" center.x="100" center.y="100" width="200" height="200" angle="246">
+      <image>
+         <panel>svg/alloy_light/full_panel.svg</panel>
+         <needleCircle>svg/alloy_light/full_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="53" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="58" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="140" width="55" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="146" center.x="100" center.y="100" width="200" height="200" angle="246">
+      <image>
+         <panel>svg/alloy_light/full_panel.svg</panel>
+         <needleCircle>svg/alloy_light/full_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="53" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="70" color="255,64,64,64">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="58" length="3" lineWidth="1" color="255,100,100,100"/>
+      <label y="140" width="55" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/alloy_light/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="151" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_dark/panel.svg</panel>
+         <needleCircle>svg/blue_dark/needleCircle.svg</needleCircle>
+         <needle>svg/blue_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="63" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,10,10,40">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="69" length="2" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="69" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="142" width="64" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="152" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_dark/panel.svg</panel>
+         <needleCircle>svg/blue_dark/needleCircle.svg</needleCircle>
+         <needle>svg/blue_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="63" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,10,10,40">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="69" length="2" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="69" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="142" width="64" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="153" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_dark/panel.svg</panel>
+         <needleCircle>svg/blue_dark/needleCircle.svg</needleCircle>
+         <needle>svg/blue_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="63" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,10,10,40">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="69" length="2" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="69" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="142" width="64" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="154" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_dark/panel.svg</panel>
+         <needleCircle>svg/blue_dark/needleCircle.svg</needleCircle>
+         <needle>svg/blue_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="63" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,10,10,40">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="69" length="2" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="69" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="142" width="64" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="155" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_dark/panel.svg</panel>
+         <needleCircle>svg/blue_dark/needleCircle.svg</needleCircle>
+         <needle>svg/blue_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="63" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,10,10,40">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="69" length="2" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="69" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="142" width="64" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="156" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_dark/panel.svg</panel>
+         <needleCircle>svg/blue_dark/needleCircle.svg</needleCircle>
+         <needle>svg/blue_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="63" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,10,10,40">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="69" length="2" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="69" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="142" width="64" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="161" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_light/panel.svg</panel>
+         <needleCircle>svg/blue_light/needleCircle.svg</needleCircle>
+         <needle>svg/blue_light/needle.svg</needle>
+      </image>
+      <range rangeRadius="58" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,71,71,71">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="68" length="5" lineWidth="4" color="255,30,41,68"/>
+      <minorTick radius="68" length="4" lineWidth="1" color="255,30,41,68"/>
+      <label y="143" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="162" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_light/panel.svg</panel>
+         <needleCircle>svg/blue_light/needleCircle.svg</needleCircle>
+         <needle>svg/blue_light/needle.svg</needle>
+      </image>
+      <range rangeRadius="58" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,71,71,71">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="68" length="5" lineWidth="4" color="255,30,41,68"/>
+      <minorTick radius="68" length="4" lineWidth="1" color="255,30,41,68"/>
+      <label y="143" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="163" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_light/panel.svg</panel>
+         <needleCircle>svg/blue_light/needleCircle.svg</needleCircle>
+         <needle>svg/blue_light/needle.svg</needle>
+      </image>
+      <range rangeRadius="58" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,71,71,71">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="68" length="5" lineWidth="4" color="255,30,41,68"/>
+      <minorTick radius="68" length="4" lineWidth="1" color="255,30,41,68"/>
+      <label y="143" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="164" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_light/panel.svg</panel>
+         <needleCircle>svg/blue_light/needleCircle.svg</needleCircle>
+         <needle>svg/blue_light/needle.svg</needle>
+      </image>
+      <range rangeRadius="58" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,71,71,71">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="68" length="5" lineWidth="4" color="255,30,41,68"/>
+      <minorTick radius="68" length="4" lineWidth="1" color="255,30,41,68"/>
+      <label y="143" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="165" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_light/panel.svg</panel>
+         <needleCircle>svg/blue_light/needleCircle.svg</needleCircle>
+         <needle>svg/blue_light/needle.svg</needle>
+      </image>
+      <range rangeRadius="58" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,71,71,71">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="68" length="5" lineWidth="4" color="255,30,41,68"/>
+      <minorTick radius="68" length="4" lineWidth="1" color="255,30,41,68"/>
+      <label y="143" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="166" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/blue_light/panel.svg</panel>
+         <needleCircle>svg/blue_light/needleCircle.svg</needleCircle>
+         <needle>svg/blue_light/needle.svg</needle>
+      </image>
+      <range rangeRadius="58" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="74" color="255,71,71,71">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="68" length="5" lineWidth="4" color="255,30,41,68"/>
+      <minorTick radius="68" length="4" lineWidth="1" color="255,30,41,68"/>
+      <label y="143" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/blue_light/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="171" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/green_dark/panel.svg</panel>
+         <needleCircle>svg/green_dark/needleCircle.svg</needleCircle>
+         <needle>svg/green_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="75" color="255,255,255,255">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="71" length="7" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="71" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="138" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/green_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="172" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/green_dark/panel.svg</panel>
+         <needleCircle>svg/green_dark/needleCircle.svg</needleCircle>
+         <needle>svg/green_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="75" color="255,255,255,255">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="71" length="7" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="71" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="138" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/green_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="173" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/green_dark/panel.svg</panel>
+         <needleCircle>svg/green_dark/needleCircle.svg</needleCircle>
+         <needle>svg/green_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="75" color="255,255,255,255">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="71" length="7" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="71" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="138" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/green_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="174" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/green_dark/panel.svg</panel>
+         <needleCircle>svg/green_dark/needleCircle.svg</needleCircle>
+         <needle>svg/green_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="75" color="255,255,255,255">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="71" length="7" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="71" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="138" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/green_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="175" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/green_dark/panel.svg</panel>
+         <needleCircle>svg/green_dark/needleCircle.svg</needleCircle>
+         <needle>svg/green_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="75" color="255,255,255,255">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="71" length="7" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="71" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="138" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/green_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="176" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/green_dark/panel.svg</panel>
+         <needleCircle>svg/green_dark/needleCircle.svg</needleCircle>
+         <needle>svg/green_dark/needle.svg</needle>
+      </image>
+      <range rangeRadius="62" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="75" color="255,255,255,255">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <majorTick radius="71" length="7" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="71" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="138" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/green_dark/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="181" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/outdoor/panel.svg</panel>
+         <needleCircle>svg/outdoor/needleCircle.svg</needleCircle>
+         <needle>svg/outdoor/needle.svg</needle>
+      </image>
+      <range rangeRadius="54" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="67" color="255,36,53,35">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="60" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/outdoor/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="182" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/outdoor/panel.svg</panel>
+         <needleCircle>svg/outdoor/needleCircle.svg</needleCircle>
+         <needle>svg/outdoor/needle.svg</needle>
+      </image>
+      <range rangeRadius="54" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="67" color="255,36,53,35">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="60" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/outdoor/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="183" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/outdoor/panel.svg</panel>
+         <needleCircle>svg/outdoor/needleCircle.svg</needleCircle>
+         <needle>svg/outdoor/needle.svg</needle>
+      </image>
+      <range rangeRadius="54" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="67" color="255,36,53,35">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="60" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/outdoor/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="184" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/outdoor/panel.svg</panel>
+         <needleCircle>svg/outdoor/needleCircle.svg</needleCircle>
+         <needle>svg/outdoor/needle.svg</needle>
+      </image>
+      <range rangeRadius="54" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="67" color="255,36,53,35">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="60" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/outdoor/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="185" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/outdoor/panel.svg</panel>
+         <needleCircle>svg/outdoor/needleCircle.svg</needleCircle>
+         <needle>svg/outdoor/needle.svg</needle>
+      </image>
+      <range rangeRadius="54" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="67" color="255,36,53,35">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="60" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/outdoor/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="186" center.x="100" center.y="100" width="200" height="200" angle="253">
+      <image>
+         <panel>svg/outdoor/panel.svg</panel>
+         <needleCircle>svg/outdoor/needleCircle.svg</needleCircle>
+         <needle>svg/outdoor/needle.svg</needle>
+      </image>
+      <range rangeRadius="54" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="67" color="255,36,53,35">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="60" length="3" lineWidth="4" color="255,255,255,255"/>
+      <minorTick radius="60" length="3" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="20">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/outdoor/label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="191" center.x="100" center.y="100" width="200" height="200" angle="250">
+      <image>
+         <panel>svg/glass_dark/full_panel.svg</panel>
+         <needleCircle>svg/glass_dark/full_needleCircle.svg</needleCircle>
+         <needle>svg/glass_dark/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="86" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="51" color="255,255,255,255">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="72" length="6" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="73" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/glass_dark/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="192" center.x="100" center.y="100" width="200" height="200" angle="250">
+      <image>
+         <panel>svg/glass_dark/full_panel.svg</panel>
+         <needleCircle>svg/glass_dark/full_needleCircle.svg</needleCircle>
+         <needle>svg/glass_dark/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="86" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="51" color="255,255,255,255">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="72" length="6" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="73" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/glass_dark/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="193" center.x="100" center.y="100" width="200" height="200" angle="250">
+      <image>
+         <panel>svg/glass_dark/full_panel.svg</panel>
+         <needleCircle>svg/glass_dark/full_needleCircle.svg</needleCircle>
+         <needle>svg/glass_dark/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="86" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="51" color="255,255,255,255">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="72" length="6" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="73" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/glass_dark/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="194" center.x="100" center.y="100" width="200" height="200" angle="250">
+      <image>
+         <panel>svg/glass_dark/full_panel.svg</panel>
+         <needleCircle>svg/glass_dark/full_needleCircle.svg</needleCircle>
+         <needle>svg/glass_dark/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="86" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="51" color="255,255,255,255">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="72" length="6" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="73" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/glass_dark/full_label.svg</labelImage>
+      </label>
+ </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="195" center.x="100" center.y="100" width="200" height="200" angle="250">
+      <image>
+         <panel>svg/glass_dark/full_panel.svg</panel>
+         <needleCircle>svg/glass_dark/full_needleCircle.svg</needleCircle>
+         <needle>svg/glass_dark/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="86" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="51" color="255,255,255,255">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="72" length="6" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="73" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/glass_dark/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultFullVSGauge"
+      id="196" center.x="100" center.y="100" width="200" height="200" angle="250">
+      <image>
+         <panel>svg/glass_dark/full_panel.svg</panel>
+         <needleCircle>svg/glass_dark/full_needleCircle.svg</needleCircle>
+         <needle>svg/glass_dark/full_needle.svg</needle>
+      </image>
+      <range rangeRadius="86" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="51" color="255,255,255,255">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="72" length="6" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="73" length="4" lineWidth="1" color="255,255,255,255"/>
+      <label y="140" width="60" height="25">
+         <font><![CDATA[Default-BOLD-16]]></font>
+         <labelImage>svg/glass_dark/full_label.svg</labelImage>
+      </label>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="211" center.x="100" center.y="101" width="200" height="130" angle="166">
+      <image>
+         <panel>svg/blue/half_panel.svg</panel>
+         <needleCircle>svg/blue/half_needleCircle.svg</needleCircle>
+         <needle>svg/blue/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="77" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,75,175">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="92" length="9" lineWidth="2" color="255,0,75,175"/>
+      <minorTick radius="90" length="5" lineWidth="1" color="255,0,75,175"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="212" center.x="100" center.y="102" width="200" height="130" angle="168" >
+      <image>
+         <panel>svg/green/half_panel.svg</panel>
+         <needleCircle>svg/green/half_needleCircle.svg</needleCircle>
+         <needle>svg/green/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="77" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,125,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="92" length="9" lineWidth="2" color="255,0,125,0"/>
+      <minorTick radius="90" length="5" lineWidth="1" color="255,0,125,0"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="213" center.x="100" center.y="101" width="200" height="130" angle="166" >
+      <image>
+         <panel>svg/alloy/half_panel.svg</panel>
+         <needleCircle>svg/alloy/half_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="77" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="94" length="9" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="90" length="5" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="214" center.x="100" center.y="101" width="200" height="130" angle="166" >
+      <image>
+         <panel>svg/orange/half_panel.svg</panel>
+         <needleCircle>svg/orange/half_needleCircle.svg</needleCircle>
+         <needle>svg/orange/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="77" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="94" length="9" lineWidth="2" color="255,175,100,25"/>
+      <minorTick radius="90" length="5" lineWidth="1" color="255,175,100,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="215" center.x="100.5" center.y="103" width="200" height="131" angle="138" >
+      <image>
+         <panel>svg/vista/half_panel.svg</panel>
+         <needleCircle>svg/vista/half_needleCircle.svg</needleCircle>
+         <needle>svg/vista/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="75" rangeWidth="16.5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="89" length="9" lineWidth="2" color="255,35,35,35"/>
+      <minorTick radius="86.5" length="4" lineWidth="1" color="255,35,35,35"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="216" center.x="100" center.y="101" width="200" height="130" angle="166" >
+      <image>
+         <panel>svg/alloy/half_panel.svg</panel>
+         <needleCircle>svg/alloy/half_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="77" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="94" length="9" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="90" length="5" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="221" center.x="100" center.y="100.8" width="200" height="131" angle="147">
+      <image>
+         <panel>svg/blue/half_aqua_panel.svg</panel>
+         <needleCircle>svg/blue/half_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/blue/half_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="73" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,75,175">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="88" length="9" lineWidth="2" color="255,0,75,175"/>
+      <minorTick radius="85" length="4" lineWidth="1" color="255,0,75,175"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="222" center.x="100" center.y="100.8" width="200" height="131" angle="145">
+      <image>
+         <panel>svg/green/half_aqua_panel.svg</panel>
+         <needleCircle>svg/green/half_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/green/half_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="74" rangeWidth="15" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,125,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="88" length="9" lineWidth="2" color="255,0,125,0"/>
+      <minorTick radius="85" length="4" lineWidth="1" color="255,0,125,0"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="223" center.x="100" center.y="103" width="200" height="130" angle="147">
+      <image>
+         <panel>svg/alloy/half_alloy_panel.svg</panel>
+         <needleCircle>svg/alloy/half_alloy_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/half_alloy_needle.svg</needle>
+      </image>
+      <range rangeRadius="78" rangeWidth="16" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="92" length="9" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="90" length="5" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="224" center.x="100" center.y="100.8" width="200" height="131" angle="145" >
+      <image>
+         <panel>svg/orange/half_aqua_panel.svg</panel>
+         <needleCircle>svg/orange/half_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/orange/half_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="73" rangeWidth="13" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="88" length="9" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="85" length="4" lineWidth="1" color="255,255,255,255"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="225" center.x="100" center.y="103.5" width="200" height="131" angle="135" >
+      <image>
+         <panel>svg/vista/half_aqua_panel.svg</panel>
+         <needleCircle>svg/vista/half_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/vista/half_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="75.5" rangeWidth="16" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="91" length="9" lineWidth="2" color="255,35,35,35"/>
+      <minorTick radius="88" length="4" lineWidth="1" color="255,35,35,35"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="226" center.x="100" center.y="103" width="200" height="130" angle="147">
+      <image>
+         <panel>svg/alloy/half_alloy_panel.svg</panel>
+         <needleCircle>svg/alloy/half_alloy_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/half_alloy_needle.svg</needle>
+      </image>
+      <range rangeRadius="78" rangeWidth="16" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="92" length="9" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="90" length="5" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="241" center.x="100" center.y="81" width="200" height="124" angle="180">
+      <image>
+         <panel>svg/alloy_light/half_panel.svg</panel>
+         <needleCircle>svg/alloy_light/half_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="48" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="60" color="255,64,64,64">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="53" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="53" length="3" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="242" center.x="100" center.y="81" width="200" height="124" angle="180">
+      <image>
+         <panel>svg/alloy_light/half_panel.svg</panel>
+         <needleCircle>svg/alloy_light/half_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="48" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="60" color="255,64,64,64">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="53" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="53" length="3" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="243" center.x="100" center.y="81" width="200" height="124" angle="180">
+      <image>
+         <panel>svg/alloy_light/half_panel.svg</panel>
+         <needleCircle>svg/alloy_light/half_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="48" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="60" color="255,64,64,64">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="53" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="53" length="3" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="244" center.x="100" center.y="81" width="200" height="124" angle="180">
+      <image>
+         <panel>svg/alloy_light/half_panel.svg</panel>
+         <needleCircle>svg/alloy_light/half_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="48" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="60" color="255,64,64,64">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="53" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="53" length="3" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="245" center.x="100" center.y="81" width="200" height="124" angle="180">
+      <image>
+         <panel>svg/alloy_light/half_panel.svg</panel>
+         <needleCircle>svg/alloy_light/half_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="48" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="60" color="255,64,64,64">
+         <font><![CDATA[Default-regular-10]]></font>
+      </value>
+      <majorTick radius="53" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="53" length="3" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultHalfVSGauge"
+      id="246" center.x="100" center.y="81" width="200" height="124" angle="180">
+      <image>
+         <panel>svg/alloy_light/half_panel.svg</panel>
+         <needleCircle>svg/alloy_light/half_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/half_needle.svg</needle>
+      </image>
+      <range rangeRadius="48" rangeWidth="5" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="60" color="255,64,64,64">
+         <font><![CDATA[Arial-regular-10]]></font>
+      </value>
+      <majorTick radius="53" length="3" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="53" length="3" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="411" center.x="41" center.y="158" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/blue/quarter_panel.svg</panel>
+         <needleCircle>svg/blue/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/blue/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="117.5" rangeWidth="22.5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,75,175">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="15" lineWidth="2" color="255,0,75,175"/>
+      <minorTick radius="137" length="6" lineWidth="1" color="255,0,75,175"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="412"  center.x="40" center.y="157" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/green/quarter_panel.svg</panel>
+         <needleCircle>svg/green/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/green/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="117.5" rangeWidth="22.5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,125,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="144" length="16" lineWidth="2" color="255,0,125,0"/>
+      <minorTick radius="139" length="7" lineWidth="1" color="255,0,125,0"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="413"  center.x="40" center.y="159" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy/quarter_panel.svg</panel>
+         <needleCircle>svg/alloy/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="119" rangeWidth="22.5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="144" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="139" length="7" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="414" center.x="40.5" center.y="157" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/orange/quarter_panel.svg</panel>
+         <needleCircle>svg/orange/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/orange/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="117.5" rangeWidth="22.5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="144" length="16" lineWidth="2" color="255,175,100,25"/>
+      <minorTick radius="139" length="7" lineWidth="1" color="255,175,100,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="415" center.x="36" center.y="162" width="200" height="200" angle="87">
+      <image>
+         <panel>svg/vista/quarter_panel.svg</panel>
+         <needleCircle>svg/vista/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/vista/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="121" rangeWidth="20" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="16" lineWidth="2" color="255,35,35,35"/>
+      <minorTick radius="140" length="6" lineWidth="1" color="255,35,35,35"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="416"  center.x="40" center.y="159" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy/quarter_panel.svg</panel>
+         <needleCircle>svg/alloy/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="119" rangeWidth="22.5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="144" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="139" length="7" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="421" center.x="36" center.y="162" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/blue/quarter_aqua_panel.svg</panel>
+         <needleCircle>svg/blue/quarter_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/blue/quarter_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="121" rangeWidth="20" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,75,175">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="16" lineWidth="2" color="255,0,75,175"/>
+      <minorTick radius="140" length="6" lineWidth="1" color="255,0,75,175"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="422"  center.x="36" center.y="162" width="200" height="200" angle="87">
+      <image>
+         <panel>svg/green/quarter_aqua_panel.svg</panel>
+         <needleCircle>svg/green/quarter_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/green/quarter_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="121" rangeWidth="19" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,125,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="16" lineWidth="2" color="255,0,125,0"/>
+      <minorTick radius="140" length="6" lineWidth="1" color="255,0,125,0"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="423" center.x="41" center.y="155" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy/quarter_alloy_panel.svg</panel>
+         <needleCircle>svg/alloy/quarter_alloy_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/quarter_alloy_needle.svg</needle>
+      </image>
+      <range rangeRadius="119" rangeWidth="18" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="140" length="6" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="424" center.x="36" center.y="162.5" width="200" height="200" angle="88">
+      <image>
+         <panel>svg/orange/quarter_aqua_panel.svg</panel>
+         <needleCircle>svg/orange/quarter_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/orange/quarter_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="121" rangeWidth="19" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="16" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="140" length="6" lineWidth="1" color="255,255,255,255"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="425" center.x="46" center.y="157" width="200" height="200" angle="85">
+      <image>
+         <panel>svg/vista/quarter_aqua_panel.svg</panel>
+         <needleCircle>svg/vista/quarter_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/vista/quarter_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="105" rangeWidth="16" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+        <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="134" length="16" lineWidth="2" color="255,35,35,35"/>
+      <minorTick radius="129" length="7" lineWidth="1" color="255,35,35,35"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="426" center.x="41" center.y="155" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy/quarter_alloy_panel.svg</panel>
+         <needleCircle>svg/alloy/quarter_alloy_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/quarter_alloy_needle.svg</needle>
+      </image>
+      <range rangeRadius="119" rangeWidth="18" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="140" length="6" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="441"  center.x="57" center.y="145" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy_light/quarter_panel.svg</panel>
+         <needleCircle>svg/alloy_light/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="85" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="110" color="255,64,64,64">
+         <font><![CDATA[Default-regular-14]]></font>
+      </value>
+      <majorTick radius="97" length="8" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="97" length="6" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="442"  center.x="57" center.y="145" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy_light/quarter_panel.svg</panel>
+         <needleCircle>svg/alloy_light/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="85" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="110" color="255,64,64,64">
+         <font><![CDATA[Default-regular-14]]></font>
+      </value>
+      <majorTick radius="97" length="8" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="97" length="6" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="443"  center.x="57" center.y="145" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy_light/quarter_panel.svg</panel>
+         <needleCircle>svg/alloy_light/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="85" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="110" color="255,64,64,64">
+         <font><![CDATA[Default-regular-14]]></font>
+      </value>
+      <majorTick radius="97" length="8" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="97" length="6" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="444"  center.x="57" center.y="145" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy_light/quarter_panel.svg</panel>
+         <needleCircle>svg/alloy_light/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="85" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="110" color="255,64,64,64">
+         <font><![CDATA[Default-regular-14]]></font>
+      </value>
+      <majorTick radius="97" length="8" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="97" length="6" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="445"  center.x="57" center.y="145" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy_light/quarter_panel.svg</panel>
+         <needleCircle>svg/alloy_light/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="85" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="110" color="255,64,64,64">
+         <font><![CDATA[Default-regular-14]]></font>
+      </value>
+      <majorTick radius="97" length="8" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="97" length="6" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultQuarterVSGauge"
+      id="446"  center.x="57" center.y="145" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy_light/quarter_panel.svg</panel>
+         <needleCircle>svg/alloy_light/quarter_needleCircle.svg</needleCircle>
+         <needle>svg/alloy_light/quarter_needle.svg</needle>
+      </image>
+      <range rangeRadius="85" rangeWidth="6" fillRanges="true" sRoundRanges="true"/>
+      <value valueRadius="110" color="255,64,64,64">
+         <font><![CDATA[Default-regular-14]]></font>
+      </value>
+      <majorTick radius="97" length="8" lineWidth="2" color="255,100,100,100"/>
+      <minorTick radius="97" length="6" lineWidth="1" color="255,100,100,100"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8411" center.x="157" center.y="42" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/blue/quarter_rotated_panel.svg</panel>
+         <needleCircle>svg/blue/quarter_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/blue/quarter_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="117.5" rangeWidth="23.5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,75,175">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="144" length="16" lineWidth="2" color="255,0,75,175"/>
+      <minorTick radius="139" length="7" lineWidth="1" color="255,0,75,175"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8412" center.x="159" center.y="43" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/green/quarter_rotated_panel.svg</panel>
+         <needleCircle>svg/green/quarter_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/green/quarter_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="117.5" rangeWidth="22.5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,125,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="144" length="16" lineWidth="2" color="255,0,125,0"/>
+      <minorTick radius="139" length="7" lineWidth="1" color="255,0,125,0"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8413" center.x="160.5" center.y="40.5" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy/quarter_rotated_panel.svg</panel>
+         <needleCircle>svg/alloy/quarter_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/quarter_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="119" rangeWidth="22.5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="144" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="139" length="7" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8414" center.x="159.5" center.y="42.5" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/orange/quarter_rotated_panel.svg</panel>
+         <needleCircle>svg/orange/quarter_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/orange/quarter_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="118" rangeWidth="22" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="144" length="16" lineWidth="2" color="255,175,100,25"/>
+      <minorTick radius="139" length="7" lineWidth="1" color="255,175,100,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8415" center.x="162" center.y="36" width="200" height="200" angle="88">
+      <image>
+         <panel>svg/vista/quarter_rotated_panel.svg</panel>
+         <needleCircle>svg/vista/quarter_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/vista/quarter_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="121" rangeWidth="20" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="16" lineWidth="2" color="255,35,35,35"/>
+      <minorTick radius="140" length="6" lineWidth="1" color="255,35,35,35"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8416" center.x="160.5" center.y="40.5" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy/quarter_rotated_panel.svg</panel>
+         <needleCircle>svg/alloy/quarter_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/quarter_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="119" rangeWidth="22.5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="144" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="139" length="7" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8421" center.x="163" center.y="36" width="200" height="200" angle="87">
+      <image>
+         <panel>svg/blue/quarter_aqua_rotated_panel.svg</panel>
+         <needleCircle>svg/blue/quarter_aqua_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/blue/quarter_aqua_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="121" rangeWidth="19" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,75,175">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="18" lineWidth="2" color="255,0,75,175"/>
+      <minorTick radius="140" length="8" lineWidth="1" color="255,0,75,175"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8422" center.x="162.5" center.y="36.5" width="200" height="200" angle="87">
+      <image>
+         <panel>svg/green/quarter_aqua_rotated_panel.svg</panel>
+         <needleCircle>svg/green/quarter_aqua_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/green/quarter_aqua_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="121" rangeWidth="19" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,125,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="18" lineWidth="2" color="255,0,125,0"/>
+      <minorTick radius="140" length="8" lineWidth="1" color="255,0,125,0"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8423"  center.x="159.5" center.y="43.5" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy/quarter_alloy_rotated_panel.svg</panel>
+         <needleCircle>svg/alloy/quarter_alloy_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/quarter_alloy_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="120" rangeWidth="18" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="147" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="138" length="7" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8424" center.x="163" center.y="37" width="200" height="200" angle="87">
+      <image>
+         <panel>svg/orange/quarter_aqua_rotated_panel.svg</panel>
+         <needleCircle>svg/orange/quarter_aqua_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/orange/quarter_aqua_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="121" rangeWidth="19" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="18" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="140" length="8" lineWidth="1" color="255,255,255,255"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8425" center.x="154" center.y="42" width="200" height="200" angle="86">
+      <image>
+         <panel>svg/vista/quarter_aqua_rotated_panel.svg</panel>
+         <needleCircle>svg/vista/quarter_aqua_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/vista/quarter_aqua_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="105" rangeWidth="15.5" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="133" length="18" lineWidth="2" color="255,35,35,35"/>
+      <minorTick radius="128" length="8" lineWidth="1" color="255,35,35,35"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.RotatedQuarterGauge"
+      id="8426"  center.x="159.5" center.y="43.5" width="200" height="200" angle="90">
+      <image>
+         <panel>svg/alloy/quarter_alloy_rotated_panel.svg</panel>
+         <needleCircle>svg/alloy/quarter_alloy_rotated_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/quarter_alloy_rotated_needle.svg</needle>
+      </image>
+      <range rangeRadius="120" rangeWidth="18" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="147" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="138" length="7" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0811" center.x="87" center.y="172" width="172" height="200" angle="45">
+      <image>
+         <panel>svg/blue/eighth_panel.svg</panel>
+         <needleCircle>svg/blue/eighth_needleCircle.svg</needleCircle>
+         <needle>svg/blue/eighth_needle.svg</needle>
+      </image>
+      <range rangeRadius="132" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,75,175">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="160" length="16" lineWidth="2" color="255,0,75,175"/>
+      <minorTick radius="156" length="8" lineWidth="1" color="255,0,75,175"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0812" center.x="86" center.y="173" width="172" height="200" angle="48">
+      <image>
+         <panel>svg/green/eighth_panel.svg</panel>
+         <needleCircle>svg/green/eighth_needleCircle.svg</needleCircle>
+         <needle>svg/green/eighth_needle.svg</needle>
+      </image>
+      <range rangeRadius="134" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,125,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="160" length="16" lineWidth="2" color="255,0,125,0"/>
+      <minorTick radius="156" length="8" lineWidth="1" color="255,0,125,0"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0813" center.x="89" center.y="170" width="172" height="200" angle="45">
+      <image>
+         <panel>svg/alloy/eighth_panel.svg</panel>
+         <needleCircle>svg/alloy/eighth_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/eighth_needle.svg</needle>
+      </image>
+      <range rangeRadius="132" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="160" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="156" length="8" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0814" center.x="86" center.y="172" width="172" height="200" angle="46">
+      <image>
+         <panel>svg/orange/eighth_panel.svg</panel>
+         <needleCircle>svg/orange/eighth_needleCircle.svg</needleCircle>
+         <needle>svg/orange/eighth_needle.svg</needle>
+      </image>
+      <range rangeRadius="132" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,175,100,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="160" length="16" lineWidth="2" color="255,175,100,25"/>
+      <minorTick radius="156" length="8" lineWidth="1" color="255,175,100,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0815" center.x="86" center.y="170" width="175" height="200" angle="46">
+      <image>
+         <panel>svg/vista/eighth_panel.svg</panel>
+         <needleCircle>svg/vista/eighth_needleCircle.svg</needleCircle>
+         <needle>svg/vista/eighth_needle.svg</needle>
+      </image>
+      <range rangeRadius="131.5" rangeWidth="17" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="153" length="11" lineWidth="2" color="255,35,35,35"/>
+      <minorTick radius="150" length="5" lineWidth="1" color="255,35,35,35"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0816" center.x="89" center.y="170" width="172" height="200" angle="45">
+      <image>
+         <panel>svg/alloy/eighth_panel.svg</panel>
+         <needleCircle>svg/alloy/eighth_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/eighth_needle.svg</needle>
+      </image>
+      <range rangeRadius="132" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="160" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="156" length="8" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0821" center.x="87.1" center.y="169" width="175" height="200" angle="50">
+      <image>
+         <panel>svg/blue/eighth_aqua_panel.svg</panel>
+         <needleCircle>svg/blue/eighth_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/blue/eighth_aqua_needle.svg</needle>
+      </image>
+       <range rangeRadius="128.5" rangeWidth="12" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,75,175">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="148" length="13" lineWidth="2" color="255,0,75,175"/>
+      <minorTick radius="145" length="7" lineWidth="1" color="255,0,75,175"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0822" center.x="87.1" center.y="169" width="175" height="200" angle="49">
+      <image>
+         <panel>svg/green/eighth_aqua_panel.svg</panel>
+         <needleCircle>svg/green/eighth_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/green/eighth_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="128.5" rangeWidth="12" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,0,125,0">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="148" length="13" lineWidth="2" color="255,0,125,0"/>
+      <minorTick radius="145" length="7" lineWidth="1" color="255,0,125,0"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0823" center.x="76" center.y="173" width="150" height="200" angle="43">
+      <image>
+         <panel>svg/alloy/eighth_alloy_panel.svg</panel>
+         <needleCircle>svg/alloy/eighth_alloy_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/eighth_alloy_needle.svg</needle>
+      </image>
+      <range rangeRadius="120.5" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="141" length="8" lineWidth="1" color="255,25,25,25"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0824" center.x="87" center.y="169.5" width="175" height="200" angle="50">
+      <image>
+         <panel>svg/orange/eighth_aqua_panel.svg</panel>
+         <needleCircle>svg/orange/eighth_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/orange/eighth_needle.svg</needle>
+      </image>
+      <range rangeRadius="129" rangeWidth="12" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="148" length="13" lineWidth="2" color="255,255,255,255"/>
+      <minorTick radius="145" length="7" lineWidth="1" color="255,255,255,255"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0825" center.x="86.5" center.y="172" width="175" height="200" angle="46">
+      <image>
+         <panel>svg/vista/eighth_aqua_panel.svg</panel>
+         <needleCircle>svg/vista/eighth_aqua_needleCircle.svg</needleCircle>
+         <needle>svg/vista/eighth_aqua_needle.svg</needle>
+      </image>
+      <range rangeRadius="131" rangeWidth="17" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,75,75,75">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="150" length="11" lineWidth="2" color="255,35,35,35"/>
+      <minorTick radius="147" length="5" lineWidth="1" color="255,35,35,35"/>
+   </face>
+
+   <face classname="inetsoft.report.gui.viewsheet.gauge.DefaultEighthVSGauge"
+      id="0826" center.x="76" center.y="173" width="150" height="200" angle="43">
+      <image>
+         <panel>svg/alloy/eighth_alloy_panel.svg</panel>
+         <needleCircle>svg/alloy/eighth_alloy_needleCircle.svg</needleCircle>
+         <needle>svg/alloy/eighth_alloy_needle.svg</needle>
+      </image>
+      <range rangeRadius="120.5" rangeWidth="14" fillRanges="true" sRoundRanges="true"/>
+      <value color="255,25,25,25">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <majorTick radius="145" length="16" lineWidth="2" color="255,25,25,25"/>
+      <minorTick radius="141" length="8" lineWidth="1" color="255,25,25,25"/>
+   </face>
+   <face classname="inetsoft.report.gui.viewsheet.gauge.BulletGraphGauge" id="90826">
+   </face>
+</VSGauge>

@@ -1,0 +1,151 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=$(html.character.encode)">
+<title>$(title)</title>
+<LINK rel="stylesheet" href="$(resourceURI)?op=resource&name=theme%2Ecss&type=portal">
+<LINK rel="stylesheet" href="$(resourceURI)?op=resource&name=theme%2Ecss&type=portal&style=true&theme=true">
+<script language="JavaScript" src="$(resourceURI)?op=resource&name=%2Finetsoft%2Fsree%2Finternal%2Fmarkup%2Futil%2Ejs"></script>
+<style>
+.center{
+   position:absolute;
+   left:50%;
+   top:100;
+   margin:0 0 0 -250px;
+   text-align:center;
+}
+
+a:visited, a:link, a:active{
+   font-size: 14pt;
+   color: #105e5a;
+}
+
+.loader {
+  border: 16px solid #f3f3f3;
+  border-radius: 50%;
+  border-top: 16px solid #105e5a;
+  width: 100px;
+  height: 100px;
+  -webkit-animation: spin 1s linear infinite; /* Safari */
+  animation: spin 1s linear infinite;
+}
+
+/* Safari */
+@-webkit-keyframes spin {
+  0% { -webkit-transform: rotate(0deg); }
+  100% { -webkit-transform: rotate(360deg); }
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+</style>
+</head>
+<script>
+var stressTestFlag = "___xx_this_is_the_reloading_page_xx__ DON't DELETE";
+var rpt_cancelled = false;
+var retryUrl = "$(retryUrl)";
+
+function checkReport() {
+   if(!rpt_cancelled) {
+      window.location.replace(retryUrl);
+   }
+}
+
+function stop() {
+   rpt_cancelled = true;
+}
+
+/**
+ * The download button is only required in ie. There is an automatic prompting
+ * when download files. To avoid it, it require the user to trigger a event to
+ * download it, but not by the setTimeout method.
+ */
+function download() {
+   checkReport();
+
+   if("$(completeDownload)" == "true") {
+      Element.get("completeDiv").style.display = "";
+      Element.get("downloadDiv").style.display = "none";
+   }
+   else {
+      $(closeWindow);
+      Element.get("downloadDiv").style.display = "none";
+   }
+}
+</script>
+<body bgcolor=white onUnload="stop()">
+   <div id="loadingDiv" class="$(loadStyle)">
+      <table border="0">
+      <tr>
+      <td align="center">
+         <div class="loader"></div>
+      </td>
+      <td align="left">
+         <font size="4" color="#105e5a">$(message)</font>
+      </td>
+      <td width="50px">&nbsp;</td>
+      </tr>
+      </table>
+   </div>
+   <div id="downloadDiv" class="$(loadStyle)" style="display:none;">
+      <table border="0">
+      <tr>
+      <td align="left">
+         <font size="4" color="#105e5a">
+            $(common.sree.export.complete)#(inter)
+            <a href="javascript:download();">$(common.sree.export.download)#(inter)</a>
+         </font>
+      </td>
+      </tr>
+      </table>
+   </div>
+   <div id="completeDiv" class="$(loadStyle)" style="display:none;">
+      <table border="0">
+      <tr>
+      <td align="left">
+         <font size="4" color="#105e5a">
+            $(common.sree.export.complete)#(inter)
+         </font>
+      </td>
+      </tr>
+      </table>
+   </div>
+</body>
+<script>
+if("$(showDownload)" == "true") {
+   Element.get("downloadDiv").style.display = "";
+   Element.get("loadingDiv").style.display = "none";
+}
+// in some browsers(e.g. Firefox in SUSE), if close this dialog, file transfer
+// will be broken too. Here we use flag "completeDownload" to keep dialog.
+else if("$(completeDownload)" == "true") {
+   Element.get("completeDiv").style.display = "";
+   Element.get("loadingDiv").style.display = "none";
+   window.setTimeout("checkReport()", 1000);
+}
+else  {
+   $(closeWindow)
+   window.setTimeout("checkReport()", 1000);
+}
+</script>
+</html>

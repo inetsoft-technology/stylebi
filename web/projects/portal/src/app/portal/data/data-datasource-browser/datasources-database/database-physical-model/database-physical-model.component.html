@@ -1,0 +1,157 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="data-model-edit-pane">
+  <div class="d-flex data-model-toolbar">
+    <div class="data-model-title">
+      <i class="partition-icon"></i>
+      <span class="data-model-name" [attr.title]="displayTitle">
+        {{displayTitle}}
+      </span>
+    </div>
+    <div class="btn-group btn-group-sm px-2 py-1" *ngIf="!joinEditing">
+      <button type="button" class="btn btn-light-no-bg" [attr.title]="'_#(Save)'"
+              [disabled]="!isModified" (click)="save()">
+        <i class="save-icon"></i>
+      </button>
+    </div>
+  </div>
+  <div class="g-0 row data-model-edit-container split-content">
+    <split-pane #horizontalSplitPane direction="horizontal"
+                [sizes]="[INIT_TREE_PANE_SIZE, 100 - INIT_TREE_PANE_SIZE]"
+                class="split-pane data-model-horizontal-split" (onDrag)="splitPaneDragEnd()"
+                [gutterSize]="hiddenCollapsed ? 5 : 22"
+                [minSize]="0" [snapOffset]="0" [fullWidth]="true">
+      <div class="data-model-left-top-pane split-content" #leftPane
+           [class.data-model-left-pane-min-width]="!fullScreen">
+        <split-pane #splitPane direction="vertical" [sizes]="DEFAULT_VERTICAL_SIZE"
+                    class="split-pane" [minSize]="0" [snapOffset]="0" [gutterSize]="4">
+          <div class="data-model-left-top-pane">
+            <div class="data-model-header-pane">
+              <span class="font-weight-bold">_#(Tables)</span>
+              <div class="join-tree-toolbar">
+                <auto-collapse-toolbar [actions]="actions" [minEmpty]="50"
+                  ></auto-collapse-toolbar>
+              </div>
+            </div>
+            <div class="table-search-input ps-1">
+              <input type="text" class="form-control search-input" name="_#(Data source name filter)"
+                     placeholder="_#(Search)" [(ngModel)]="filterTablesString"
+                     (keyup.enter)="search()" [disabled]="joinEditing">
+              <i *ngIf="filterTablesString" class="close-icon icon-size-medium icon-color-default"
+                 aria-hidden="true" (click)="resetSearchMode()" [class.disabled]=joinEditing></i>
+            </div>
+            <div class="data-model-left-pane physical-left-top-pane data-model-left-pane-scrollbar">
+              <physical-model-table-tree #tableTree
+                                         [root]="databaseRoot"
+                                         [disabled]="joinEditing"
+                                         [searchStr]="searchMode ? filterTablesString : null"
+                                         [showOnlySelectedTables]="showOnlySelectedTables"
+                                         (nodeCheckboxToggled)="checkboxToggledNode($event)"
+                                         (nodeSelected)="selectNode($event)"
+                                         (nodeExpanded)="expandNode($event)"
+                                         (onNodeContextMenu)="showTreeContextMenu($event)">
+              </physical-model-table-tree>
+            </div>
+            <loading-indicator-pane [show]="loadingTree && !modelInitializing">
+            </loading-indicator-pane>
+            <div class="row outgoing-header-pane btn-toolbar bt-gray" role="toolbar">
+              <div class="col-10 pane-title">
+                _#(data.physicalmodel.outgoingJoins)
+              </div>
+              <div class="col-2 outgoing-toggle-btn"
+                   (click)="toggleRepositoryTreePane()"
+                   title="_#(viewer.explorer.toggle)">
+                <i class="outgoing-toggle-icon"
+                   [class.chevron-circle-arrow-down-icon]="!treePaneCollapsed"
+                   [class.chevron-circle-arrow-up-icon]="treePaneCollapsed"
+                   aria-hidden="true"></i>
+                <span class="visually-hidden">_#(viewer.explorer.toggle)</span>
+              </div>
+            </div>
+          </div>
+          <div class="data-model-right-pane">
+            <physical-model-edit-table *ngIf="!!editingTable"
+                                       [table]="editingTable"
+                                       [disabled]="joinEditing"
+                                       [physicalModel]="physicalModel"
+                                       [supportFullOuterJoin]="supportFullOuterJoin"
+                                       [databaseName]="databaseName"
+                                       [isDuplicateTableName]="isDuplicateTableName"
+                                       (tableChange)="refreshModel()">
+            </physical-model-edit-table>
+          </div>
+        </split-pane>
+      </div>
+      <div class="data-model-right-pane">
+        <span class="collapse-pane-button icon-size-small" aria-hidden="true"
+              [hidden]="hiddenCollapsed"
+              [style.left.px]="leftPane.offsetWidth" (click)="toggleTreeCollapsed()">
+            <i aria-hidden="true" [class.chevron-circle-arrow-left-icon]="!treeCollapsed"
+               [class.chevron-circle-arrow-right-icon]="treeCollapsed"></i>
+          </span>
+        <div [class.data-model-right-content]="!warning?.message"
+             [class.bottom-status-bar]="warning?.message">
+          <physical-graph-pane *ngIf="physicalModel && physicalModel.id"
+                               [physicalView]="originalName"
+                               [datasource]="databaseName"
+                               [runtimeId]="physicalModel.id"
+                               [selectedGraphNode]="selectedGraphNode"
+                               (onCreateAutoAlias)="createAutoAliasByGraph($event)"
+                               (onEditInlineView)="toggleInlineViewEditor(true)"
+                               (onJoinEditing)="onJoinEditing($event)"
+                               (onPhysicalGraph)="onPhysicalGraph($event)"
+                               (onModified)="onModified($event)"
+                               (onNodeSelected)="graphNodesSelected($event)"
+                               (onRemoveTable)="tableRemoved($event)"
+                               (onZoom)="scale = $event"></physical-graph-pane>
+        </div>
+        <physical-status-bar *ngIf="!!warning" [message]="warning?.message"></physical-status-bar>
+      </div>
+    </split-pane>
+    <loading-indicator-pane [show]="modelInitializing"></loading-indicator-pane>
+  </div>
+</div>
+<ng-template #aliasTableDialog let-close="close" let-dismiss="dismiss">
+  <input-name-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                     [validators]="aliasValidators"
+                     [validatorMessages]="aliasValidatorMessages"
+                     [title]="'_#(Table Alias)'"
+                     [label]="'_#(data.physicalmodel.tableAliasName)'"
+                     [hasDuplicateCheck]="tableDuplicateCheck"
+                     [duplicateMessage]="'_#(data.physicalmodel.tableAliasNameDuplicate)'"
+                     [value]="aliasOldName"
+                     [helpLinkKey]="'TableAlias'">
+  </input-name-dialog>
+</ng-template>
+<ng-template #inlineViewDialog let-close="close" let-dismiss="dismiss">
+  <inline-view-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                      [model]="inlineViewDialogModel"
+                      [databaseName]="databaseName"
+                      [additional]="physicalModel?.connection"
+                      [hasDuplicateCheck]="tableDuplicateCheck">
+  </inline-view-dialog>
+</ng-template>
+<ng-template #autoJoinTablesDialog let-close="close" let-dismiss="dismiss">
+  <auto-join-tables-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                           [physicalModel]="physicalModel"
+                           [databaseName]="databaseName">
+  </auto-join-tables-dialog>
+</ng-template>
+<notifications #notifications class="notifications-data-model" [timeout]="5000"></notifications>

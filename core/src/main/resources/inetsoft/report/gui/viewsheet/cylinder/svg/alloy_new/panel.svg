@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="68.044px" height="200.001px" viewBox="9.994 -0.001 68.044 200.001" enable-background="new 9.994 -0.001 68.044 200.001"
+	 xml:space="preserve">
+<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="-139.604" y1="-22.3311" x2="-201.166" y2="-22.3311" gradientTransform="matrix(1 0 0 -1 214.3999 162.04)">
+	<stop  offset="0" style="stop-color:#356396"/>
+	<stop  offset="0.0196" style="stop-color:#386699"/>
+	<stop  offset="0.3291" style="stop-color:#5F90C5"/>
+	<stop  offset="0.6066" style="stop-color:#7CAEE5"/>
+	<stop  offset="0.8397" style="stop-color:#8EC0F8"/>
+	<stop  offset="1" style="stop-color:#94C7FF"/>
+</linearGradient>
+<path fill="url(#SVGID_1_)" d="M13.234,180.023c0,4.803,13.781,8.696,30.781,8.696s30.781-3.895,30.781-8.696"/>
+<g opacity="0.4">
+	<g>
+		
+			<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="-201.8901" y1="62.207" x2="-138.8789" y2="62.207" gradientTransform="matrix(1 0 0 -1 214.3999 162.04)">
+			<stop  offset="0.0225" style="stop-color:#454545"/>
+			<stop  offset="0.4045" style="stop-color:#919191"/>
+			<stop  offset="0.5935" style="stop-color:#8E8E8E"/>
+			<stop  offset="0.7358" style="stop-color:#858585"/>
+			<stop  offset="0.8628" style="stop-color:#757575"/>
+			<stop  offset="0.9801" style="stop-color:#5E5E5E"/>
+			<stop  offset="1" style="stop-color:#595959"/>
+		</linearGradient>
+		<path fill="url(#SVGID_2_)" d="M44.015,18.295c-16.724,0-30.398-3.683-31.436-8.334h-0.07v170.842
+			c0,4.917,14.106,8.902,31.505,8.902c17.4,0,31.506-3.985,31.506-8.902V9.961h-0.07C74.414,14.612,60.74,18.295,44.015,18.295z"/>
+	</g>
+</g>
+<g>
+	<g>
+		<path fill="#303030" d="M44.016,192.605c-18.791,0-34.022-4.304-34.022-9.613v7.395c0,5.309,15.232,9.613,34.022,9.613
+			c18.79,0,34.021-4.305,34.021-9.613v-7.395C78.038,188.303,62.806,192.605,44.016,192.605z"/>
+	</g>
+</g>
+<g>
+	<g>
+		
+			<linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="-204.4063" y1="-27.4736" x2="-136.3623" y2="-27.4736" gradientTransform="matrix(1 0 0 -1 214.3999 162.04)">
+			<stop  offset="0" style="stop-color:#52545B"/>
+			<stop  offset="0.1251" style="stop-color:#686A6F"/>
+			<stop  offset="0.3842" style="stop-color:#A0A1A4"/>
+			<stop  offset="0.5879" style="stop-color:#D1D1D1"/>
+			<stop  offset="0.6633" style="stop-color:#CDCDCD"/>
+			<stop  offset="0.744" style="stop-color:#C0C0C1"/>
+			<stop  offset="0.8271" style="stop-color:#AAABAD"/>
+			<stop  offset="0.9119" style="stop-color:#8C8E92"/>
+			<stop  offset="0.9973" style="stop-color:#66686E"/>
+			<stop  offset="1" style="stop-color:#65676D"/>
+		</linearGradient>
+		<path fill="url(#SVGID_3_)" d="M44.016,190.623c-18.791,0-34.022-4.305-34.022-9.613v7.396c0,5.31,15.232,9.612,34.022,9.612
+			c18.79,0,34.021-4.304,34.021-9.612v-7.396C78.038,186.318,62.806,190.623,44.016,190.623z"/>
+	</g>
+</g>
+<g opacity="0.3">
+	<g>
+		
+			<linearGradient id="SVGID_4_" gradientUnits="userSpaceOnUse" x1="-204.4058" y1="62.0591" x2="-136.3633" y2="62.0591" gradientTransform="matrix(1 0 0 -1 214.3999 162.04)">
+			<stop  offset="0.0225" style="stop-color:#454545"/>
+			<stop  offset="0.4045" style="stop-color:#F4F4F4"/>
+			<stop  offset="0.5314" style="stop-color:#F1F1F1"/>
+			<stop  offset="0.6269" style="stop-color:#E7E7E7"/>
+			<stop  offset="0.7121" style="stop-color:#D7D7D7"/>
+			<stop  offset="0.7914" style="stop-color:#C0C0C0"/>
+			<stop  offset="0.8666" style="stop-color:#A3A3A3"/>
+			<stop  offset="0.9376" style="stop-color:#7F7F7F"/>
+			<stop  offset="1" style="stop-color:#595959"/>
+		</linearGradient>
+		<path fill="url(#SVGID_4_)" d="M44.015,18.544c-18.39,0-33.365-4.124-33.992-9.277H9.994v181.428h68.042V9.267h-0.029
+			C77.379,14.42,62.406,18.544,44.015,18.544z"/>
+	</g>
+</g>
+<linearGradient id="SVGID_5_" gradientUnits="userSpaceOnUse" x1="-204.3774" y1="152.5645" x2="-136.3916" y2="152.5645" gradientTransform="matrix(1 0 0 -1 214.3999 162.04)">
+	<stop  offset="0" style="stop-color:#DBDBDB"/>
+	<stop  offset="0.3778" style="stop-color:#D8D8D8"/>
+	<stop  offset="0.662" style="stop-color:#CECECE"/>
+	<stop  offset="0.9149" style="stop-color:#BEBEBE"/>
+	<stop  offset="1" style="stop-color:#B7B7B7"/>
+</linearGradient>
+<ellipse opacity="0.7" fill="url(#SVGID_5_)" enable-background="new    " cx="44.015" cy="9.475" rx="33.993" ry="9.476"/>
+<linearGradient id="SVGID_6_" gradientUnits="userSpaceOnUse" x1="-186.7178" y1="168.8994" x2="-154.0499" y2="136.2315" gradientTransform="matrix(1 0 0 -1 214.3999 162.04)">
+	<stop  offset="0" style="stop-color:#F4F2F2"/>
+	<stop  offset="0.2304" style="stop-color:#F1EFEF"/>
+	<stop  offset="0.4038" style="stop-color:#E7E6E6"/>
+	<stop  offset="0.5586" style="stop-color:#D7D6D6"/>
+	<stop  offset="0.7025" style="stop-color:#C0BFBF"/>
+	<stop  offset="0.8388" style="stop-color:#A3A2A2"/>
+	<stop  offset="0.9678" style="stop-color:#7F7F7F"/>
+	<stop  offset="1" style="stop-color:#757575"/>
+</linearGradient>
+<ellipse opacity="0.5" fill="url(#SVGID_6_)" enable-background="new    " cx="44.015" cy="9.475" rx="31.45" ry="8.806"/>
+</svg>

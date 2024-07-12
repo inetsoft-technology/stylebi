@@ -1,0 +1,80 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!-- Modal Header -->
+<div class="modal-header">
+  <h3 class="modal-title">_#(Layout Option)</h3>
+  <button type="button" class="btn-close" aria-label="Close" (click)="cancelChanges()"></button>
+</div>
+
+<!-- Modal Body -->
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()" *ngIf="model && form">
+  <form [formGroup]="form" class="container-fluid">
+    <fieldset>
+      <legend>_#(viewer.viewsheet.selectLayoutOption)</legend>
+      <div class="row form-row-checkbox">
+        <div class="col">
+          <div class="form-check">
+            <input class="form-check-input"
+                   [checked]="model.selectedValue == Placement.HERE"
+                 type="radio" name="selectedValue" id="optionsHere" [value]="Placement.HERE"
+                 formControlName="selectedValue" [(ngModel)]="model.selectedValue">
+            <label class="form-check-label" for="optionsHere" (click)="optionClicked(Placement.HERE)">
+              _#(viewer.viewsheet.move)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="row form-row-checkbox" *ngIf="model.showSelectionContainerOption">
+        <div class="col">
+          <div class="form-check">
+            <input class="form-check-input"
+                   [checked]="model.selectedValue == Placement.SELECTION"
+                 type="radio" name="selectedValue" id="optionsDown" [value]="Placement.SELECTION"
+                 formControlName="selectedValue" [(ngModel)]="model.selectedValue">
+            <label class="form-check-label" for="optionsDown" (click)="optionClicked(Placement.SELECTION)">
+              _#(viewer.viewsheet.group)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="row form-row-checkbox">
+        <div class="col">
+          <div class="form-check">
+            <input class="form-check-input" id="tabbed"
+                   [checked]="model.selectedValue == Placement.TAB"
+                 type="radio" name="selectedValue" id="optionsTab" [value]="Placement.TAB"
+                 formControlName="selectedValue" [(ngModel)]="model.selectedValue">
+            <label class="form-check-label" for="tabbed" (click)="optionClicked(Placement.TAB)">
+              _#(viewer.viewsheet.overlap)
+            </label>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+    <div class="alert alert-danger" *ngIf="form.controls['selectedValue'].errors">
+      _#(viewer.viewsheet.valueRequired)</div>
+  </form>
+</div>
+
+<!-- Modal Footer -->
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="saveChanges()" [disabled]="!model || !form?.valid" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+</div>

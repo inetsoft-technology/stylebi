@@ -1,0 +1,32 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-form-field [formGroup]="form" appearance="outline" color="accent">
+  <mat-label *ngIf="isVisibleLabel">_#(Date)</mat-label>
+  <input class="date-picker-input" matInput [matDatepicker]="picker" placeholder="_#(Date)"
+         formControlName="date" name="date" required>
+  <mat-datepicker-toggle matSuffix [for]="picker">
+    <mat-icon matDatepickerToggleIcon fontSet="ineticons" fontIcon="calendar-icon"></mat-icon>
+  </mat-datepicker-toggle>
+  <mat-datepicker #picker></mat-datepicker>
+  <mat-error *ngIf="form && form.controls['date'].errors
+            && form.controls['date'].errors['required']">
+    _#(em.schedule.condition.dateRequired)
+  </mat-error>
+</mat-form-field>

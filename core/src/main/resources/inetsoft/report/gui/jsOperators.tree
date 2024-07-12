@@ -1,0 +1,39 @@
+Arithmetic
+	x++	::Postfix Increment	++
+	x--	::Postfix Decrement	--
+	++x	::Prefix Increment	++
+	--x	::Prefix Decrement	--
+	x*y	::Multiplication	*
+	x/y	::Division	/
+	x%y	::Remainder	%
+	x+y	::Addition	+
+	x-y	::Subtraction	-
+	-x	::Negation	-
+Relational
+	x<y	::Less Than	<
+	x>y	::Greater Than	>
+	x<=y	::Less Than or Equal To	<=
+	x>=y	::Greater Than or Equal To	>=
+	x==y	::Equal To	==
+	x!=y	::Not Equal To	!=
+	x===y	::Strict Equals	===
+	x!==y	::Strict Not Equals	!==
+	x in y	in
+Logical
+	!x	::Logical NOT	!
+	x&&y	::Logical AND	&&
+	x||y	::Logical OR	||
+Bitwise
+	~x	::Bitwise NOT	~
+	x&y	::Bitwise AND	&
+	x|y	::Bitwise OR	|
+	x^y	::Bitwise XOR	^
+	x<<y	::Left Shift	<<
+	x>>y	::Right Shift	>>
+	x>>>y	::Unsigned Right Shift	>>>
+Misc
+	x = y	::Assignment	=
+	typeof x	typeof
+	x instanceof y	instanceof
+	cond ? x : y	?:
+	[]	Array	[]

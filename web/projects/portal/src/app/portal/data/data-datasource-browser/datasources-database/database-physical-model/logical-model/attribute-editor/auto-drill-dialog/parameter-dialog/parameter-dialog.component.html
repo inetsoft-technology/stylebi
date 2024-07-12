@@ -1,0 +1,133 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Parameter)'"
+              [cshid]="'AutoDrillPortal'"
+              (onCancel)="close()">
+</modal-header>
+<div class="modal-body" *ngIf="model && form">
+  <form [formGroup]="form">
+    <div class="form-group form-floating">
+      <input #inputFocus class="form-control variable-input" type="text" formControlName="name"
+      [class.is-invalid]="!nameControl.valid"
+      [(ngModel)]="variable"
+      [ngClass]="{'input-transparent border-0': variables && variables.length > 0}"/>
+      <select *ngIf="variables && variables.length > 0" class="form-control"
+              formControlName="name" [(ngModel)]="variable">
+        <option *ngFor="let _variable of variables" [value]="_variable">{{_variable}}</option>
+      </select>
+      <label><span>_#(Parameter Name)</span></label>
+      <span class="invalid-feedback" *ngIf="!nameControl.valid">
+        {{getFirstErrorMessage(nameControl)}}
+      </span>
+    </div>
+    <div class="form-group">
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio"
+               [ngModel]="source"
+               (ngModelChange)="updateParamType($event)"
+               [value]="SourceType.FIELD"
+               [ngModelOptions]="{standalone: true}">
+        <label class="form-check-label">_#(Field)</label>
+      </div>
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="radio"
+               [ngModel]="source"
+               (ngModelChange)="updateParamType($event)"
+               [value]="SourceType.CONSTANT"
+               [ngModelOptions]="{standalone: true}">
+        <label class="form-check-label">_#(Constant)</label>
+      </div>
+    </div>
+    <div class="form-group form-floating" *ngIf="source == SourceType.FIELD">
+      <select class="form-control" [(ngModel)]="model.field" formControlName="value">
+        <option *ngFor="let field of fields" [value]="field">{{ field }}</option>
+      </select>
+      <label><span>_#(Field)</span></label>
+    </div>
+    <div class="form-group form-floating" *ngIf="source == SourceType.CONSTANT">
+      <select class="form-control" [(ngModel)]="model.type" (ngModelChange)="changeType($event)"
+              formControlName="type">
+        <option *ngFor="let type of types" [value]="type.data">{{ type.label }}</option>
+      </select>
+      <label><span>_#(Type)</span></label>
+    </div>
+    <div class="form-group" [class.g-0]="model.type == XSchema.BOOLEAN" *ngIf="source == SourceType.CONSTANT">
+      <ng-container *ngIf="model.type == XSchema.BOOLEAN">
+        <div class="form-check form-check-inline">
+          <label class="form-check-label value-for-parameter-label">
+            _#(Parameter Value):
+          </label>
+          <input type="checkbox" class="form-check-input"
+                 formControlName="value" [(ngModel)]="model.field"/>
+        </div>
+      </ng-container>
+      <div class="form-floating has-float-container" *ngIf="model.type != XSchema.BOOLEAN">
+        <date-value-editor *ngIf="model.type == XSchema.DATE"
+                            formControlName="value"
+                            class="w-100"
+                            [class.is-invalid]="!valueControl.valid"
+                            [model]="model.field"
+                            (ngModelChange)="changeValue($event)">
+        </date-value-editor>
+        <time-value-editor *ngIf="model.type == XSchema.TIME"
+                           formControlName="value"
+                           [class.is-invalid]="!valueControl.valid"
+                           [model]="model.field"
+                           class="w-100"
+                           (timeChange)="changeValue($event)">
+        </time-value-editor>
+        <time-instant-value-editor *ngIf="model.type == XSchema.TIME_INSTANT"
+                                   class="w-100"
+                                   [class.is-invalid]="!valueControl.valid"
+                                   formControlName="value"
+                                   (timeChange)="changeValue($event)"
+                                   [ngModel]="model.field" [fullContainer]="true">
+        </time-instant-value-editor>
+        <ng-container *ngIf="XSchema.isNumericType(model.type)">
+          <input type="number" class="form-control" formControlName="value"
+                 [class.is-invalid]="!valueControl.valid"
+                 [(ngModel)]="model.field">
+        </ng-container>
+        <ng-container *ngIf="XSchema.isStringType(model.type)">
+          <input type="text" class="form-control" formControlName="value"
+                 [class.is-invalid]="!valueControl.valid"
+                 [(ngModel)]="model.field">
+        </ng-container>
+        <label><span>_#(Parameter Value)</span></label>
+        <div class="alert alert-danger" *ngIf="valueControl.getError('required')">
+          _#(data.logicalmodel.drillParameterFieldRequired)</div>
+        <div class="alert alert-danger" *ngIf="valueControl.getError('maxLength')">
+          _#(data.logicalmodel.drillParameterFieldMaxLength)
+        </div>
+        <div class="alert alert-danger" *ngIf="isInValidTypeRange()">
+          _#(data.logicalmodel.drillParameterFieldMaxLength)
+        </div>
+      </div>
+      <div class="alert alert-danger" *ngIf="!valueControl.getError('required')
+           && !isInValidTypeRange() && !valueControl.getError('maxLength')
+           && !isValidDataTypeValue(model.field, model.type)">
+        _#(data.logicalmodel.drillParameterNumberInvalid)</div>
+    </div>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="okDisabled()">_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+</div>

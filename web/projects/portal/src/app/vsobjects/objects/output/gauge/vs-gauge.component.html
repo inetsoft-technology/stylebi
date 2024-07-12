@@ -1,0 +1,72 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div #objectContainer
+     VSDataTip [dataTipName]="model.absoluteName"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex" popBackground="transparent"
+     class="vs-object"
+     [class.fade-assembly]="!viewer && !model.visible"
+     [class.disable-actions-fade]="!model.enabled"
+     [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
+     [style.display]="getVisible() ? null : 'none'"
+     [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
+     [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+     [style.width.px]="viewer ? getWidth() : model.objectFormat.width"
+     [style.height.px]="viewer ? getHeight() : model.objectFormat.height"
+     [style.background]="model.objectFormat.background"
+     [style.border-bottom]="model.objectFormat.border.bottom"
+     [style.border-top]="model.objectFormat.border.top"
+     [style.border-left]="model.objectFormat.border.left"
+     [style.border-right]="model.objectFormat.border.right"
+     [style.border-radius.px]="model.objectFormat.roundCorner">
+  <div class="z-index-wrapper"
+       [style.justify-content]="model.objectFormat.justifyContent"
+       [style.align-items]="model.objectFormat.alignItems"
+       [style.padding-top.px]="model.paddingTop"
+       [style.padding-left.px]="model.paddingLeft"
+       [style.padding-bottom.px]="model.paddingBottom"
+       [style.padding-right.px]="model.paddingRight"
+       [style.z-index]="viewer ? model.objectFormat.zIndex : null">
+    <img *ngIf="vsInfo?.linkUri" [wTooltip]="getTooltip()" class="vs-gauge__image"
+         [attr.alt]="model.objectType + ' ' + model.absoluteName" role="img"
+         [class.cursor-pointer]="viewer && model.hyperlinks && model.hyperlinks.length"
+         [style.opacity]="getOpacity()"
+         (load)="loaded(true)" (error)="loaded(false)"
+         [src]="src" (click)="clickHyperlink($event)">
+    <div class="annotation-hidden-container" *ngIf="viewer">
+      <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
+    </div>
+  </div>
+  <vs-loading-display *ngIf="(sourceType != -1) && loading"
+                      [allowInteraction]="true"
+                      [assemblyLoading]="true"></vs-loading-display>
+  <ng-container *ngIf="viewer">
+    <vs-annotation *ngFor="let annotationModel of model.assemblyAnnotationModels"
+                   [model]="annotationModel"
+                   [actions]="actions"
+                   [restrictTo]="objectContainer"
+                   [vsInfo]="vsInfo"
+                   [selected]="isAnnotationSelected(annotationModel)"
+                   (remove)="removeAnnotation(annotationModel)"
+                   (mouseSelect)="selectAnnotation($event)">
+    </vs-annotation>
+  </ng-container>
+</div>

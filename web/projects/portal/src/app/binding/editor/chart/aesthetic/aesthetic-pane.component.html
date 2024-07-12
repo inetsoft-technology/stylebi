@@ -1,0 +1,103 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="aesthetic-pane m-1">
+   <!-- aesthetic toolbar -->
+   <div class="field-row m-1 aggregate-selector" *ngIf="multiStyles">
+      <div class="aggregate-arrow me-1" onselectstart="return false;">
+         <i class="chevron-circle-arrow-left-icon" aria-hidden="true" (click)="showPrevious()"></i>
+      </div>
+      <div *ngIf="currAggregate" ngbDropdown class="fill-width">
+        <div data-test="aggregateDropdown" class="aggregate-trigger bd-gray" ngbDropdownToggle>
+          <div>{{currAggregate.view}}</div>
+        </div>
+        <ul ngbDropdownMenu role="menu"
+            aria-labelledby="simple-dropdown">
+          <li *ngFor="let aggr of aggregates" role="menuitem"
+              (click)="selectCurrentAggregate(aggr)">
+            <a class="dropdown-item">{{aggr.view}}</a>
+          </li>
+        </ul>
+      </div>
+      <div class="aggregate-arrow ms-1 me-1" onselectstart="return false;">
+         <i class="chevron-circle-arrow-right-icon" aria-hidden="true"(click)="showNext()"></i>
+      </div>
+   </div>
+
+   <div class="field-row mt-1 color_field_id">
+      <div class="unhighlightable aesthetic-row-label">_#(Color)</div>
+      <color-field-mc class="fill-width" [bindingModel]="bindingModel" [aggr]="currAggregate"
+                      [vsId]="vsId" [assemblyName]="assemblyName"
+                      [objectType]="objectType" [grayedOutValues]="grayedOutValues">
+      </color-field-mc>
+   </div>
+
+   <div class="field-row mt-1 shape_field_id" *ngIf="isShapeSupported()">
+      <div class="unhighlightable aesthetic-row-label">_#(Shape)</div>
+      <shape-field-mc class="fill-width" [bindingModel]="bindingModel" [aggr]="currAggregate"
+                      [assemblyName]="assemblyName" [objectType]="objectType"
+                      [grayedOutValues]="grayedOutValues">
+      </shape-field-mc>
+   </div>
+
+   <div class="field-row mt-1 size_field_id">
+      <div class="unhighlightable aesthetic-row-label">_#(Size)</div>
+      <size-field-mc class="fill-width" [bindingModel]="bindingModel" [aggr]="currAggregate"
+                     [assemblyName]="assemblyName" [objectType]="objectType"
+                     [grayedOutValues]="grayedOutValues" (onChange)="onSizeChange.emit()">
+      </size-field-mc>
+   </div>
+
+   <div class="field-row mt-1 text_field_id" *ngIf="!isRelationChart()">
+      <div class="unhighlightable aesthetic-row-label">_#(Text)</div>
+      <text-field-mc class="fill-width" [bindingModel]="bindingModel" [aggr]="currAggregate"
+                     [assemblyName]="assemblyName" [objectType]="objectType"
+                     [grayedOutValues]="grayedOutValues"
+                     [chartModel]="chartModel" (onUpdateData)="updateData($event)">
+      </text-field-mc>
+   </div>
+
+   <fieldset class="float-title bd-gray mt-0" *ngIf="isRelationChart()">
+     <legend>_#(Node)</legend>
+     <div class="field-row mt-1 color_field_id" *ngIf="isRelationChart()">
+       <div class="unhighlightable aesthetic-row-label">_#(Color)</div>
+       <color-field-mc class="fill-width" [bindingModel]="bindingModel"
+                       targetField="nodeColorField" targetFrame="nodeColorFrame"
+                       [vsId]="vsId" [assemblyName]="assemblyName"
+                       [objectType]="objectType" [grayedOutValues]="grayedOutValues">
+       </color-field-mc>
+     </div>
+     <div class="field-row mt-1 color_field_id" *ngIf="isRelationChart()">
+       <div class="unhighlightable aesthetic-row-label">_#(Size)</div>
+       <size-field-mc class="fill-width" [bindingModel]="bindingModel"
+                      targetField="nodeSizeField" targetFrame="nodeSizeFrame"
+                      [vsId]="vsId" [assemblyName]="assemblyName"
+                      [objectType]="objectType" [grayedOutValues]="grayedOutValues">
+       </size-field-mc>
+     </div>
+     <div class="field-row mt-1 color_field_id" *ngIf="isRelationChart()">
+       <div class="unhighlightable aesthetic-row-label">_#(Text)</div>
+       <text-field-mc class="fill-width" [bindingModel]="bindingModel" [aggr]="currAggregate"
+                      [assemblyName]="assemblyName" [objectType]="objectType"
+                      [grayedOutValues]="grayedOutValues"
+                      [chartModel]="chartModel" (onUpdateData)="updateData($event)">
+       </text-field-mc>
+     </div>
+   </fieldset>
+</div>

@@ -1,0 +1,219 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Variable Properties)'"
+   (onCancel)="cancelChanges()"
+   [cshid]="'DefiningaVariable'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()" *ngIf="model && form">
+  <form [formGroup]="form" class="container-fluid">
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <input class="form-control" type="text" id="name" formControlName="newName" trim
+                 [class.is-invalid]="!form.controls['newName'].valid"
+                 placeholder="_#(Name)">
+          <label><span>_#(Name)</span></label>
+          <span *ngIf="form.controls['newName'].errors && form.controls['newName'].errors['required']" class="invalid-feedback">
+            _#(designer.property.emptyNullError)
+          </span>
+          <span *ngIf="form.controls['newName'].errors && form.controls['newName'].errors['variableSpecialCharacters']" class="invalid-feedback">
+            _#(viewer.worksheet.Grouping.nameSpecialChar)
+          </span>
+          <span *ngIf="form.controls['newName'].errors && form.controls['newName'].errors['exists']" class="invalid-feedback">
+            _#(viewer.worksheet.Grouping.nameAlready)
+          </span>
+          <span *ngIf="form.controls['newName'].errors && form.controls['newName'].errors['doesNotStartWithNumber'] && !form.controls['newName'].errors['variableSpecialCharacters']" class="invalid-feedback">
+            _#(Name)_#(designer.property.startCharErrorSuffix)
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <input class="form-control" type="text" id="label" formControlName="label"
+                 placeholder="_#(Label)">
+          <label><span>_#(Label)</span></label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <select class="form-control" id="type" formControlName="type" placeholder="_#(Type)">
+            <option *ngFor="let _dataType of dataTypeList" [value]="_dataType.data">
+              {{_dataType.label}}</option>
+          </select>
+          <label><span>_#(Type)</span></label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <fieldset [disabled]="form.get('defaultValue').disabled" *ngIf="form.get('type').value">
+          <div class="form-group default-value-container" [class.form-floating]="form.get('type').value !== 'boolean'">
+            <variable-value-editor *ngIf="defaultValueType != ConditionValueType.EXPRESSION" id="valueEditor"
+                                   [value]="form.get('defaultValue').value"
+                                   (valueChange)="form.get('defaultValue').patchValue($event)"
+                                   [type]="form.get('type').value"
+                                   [timeInstantFormat]="timeInstantFormat">
+            </variable-value-editor>
+            <expression-editor *ngIf="defaultValueType == ConditionValueType.EXPRESSION" id="valueEditor"
+                               class="d-flex align-items-start" [expressionTypes]="expressionTypes"
+                               [isVSContext]="false"
+                               [value]="model.defaultValue"
+                               [columnTreeFunction]="expressionColumnFunc"
+                               (valueChange)="defaultExpressionValueChange($event)">
+            </expression-editor>
+            <label for="valueEditor" [ngClass]="{'d-flex': form.get('type').value == 'boolean',
+             'align-items-baseline': defaultValueType != ConditionValueType.EXPRESSION,
+             'align-items-center': defaultValueType == ConditionValueType.EXPRESSION}">
+              <span>_#(Default Value)</span>
+            </label>
+          </div>
+        </fieldset>
+      </div>
+      <div *ngIf="!form.get('defaultValue').disabled"
+           class="col-auto value-type-list-icon btn btn-sm btn-light"
+           [fixedDropdown]="dropdownMenu" title="_#(Change Value Type)">
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" formControlName="none" id="none">
+          <label class="form-check-label" for="none">
+            _#(None)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div *ngIf="!form.get('defaultValue').disabled && form.get('type').value != 'boolean' && (form.get('defaultValue').value === null || form.get('defaultValue').value === '')" class="alert alert-danger">
+      <strong>_#(Error)</strong> _#(viewer.dialog.missingDefault)
+    </div>
+
+    <fieldset>
+      <legend>_#(Selection List)</legend>
+      <div class="form-row-float-label row">
+        <div class="col-3">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="noneSelectionList"
+                 formControlName="selectionList" value="none">
+            <label class="form-check-label" for="noneSelectionList">
+              _#(None)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col-3">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="embedded"
+                 formControlName="selectionList" value="embedded">
+            <label class="form-check-label" for="embedded">
+              _#(Embedded)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-default btn-block" type="button" (click)="showVariableListDialog()">
+            _#(Edit)</button>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col-3">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="query"
+                 formControlName="selectionList" value="query">
+            <label class="form-check-label" for="query">
+              _#(Query)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-default btn-block" type="button" (click)="showVariableTableListDialog()">_#(Select)</button>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset [disabled]="form.get('displayStyle').disabled">
+      <legend>_#(Display Style)</legend>
+      <div class="form-row-float-label row">
+        <div class="col-auto">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" formControlName="displayStyle"
+                 [value]="UserVariable.COMBOBOX" id="combobox">
+            <label class="form-check-label" for="combobox">
+              _#(Combo Box)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" formControlName="displayStyle"
+                 [value]="UserVariable.LIST" id="list">
+            <label class="form-check-label" for="list">
+              _#(List)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" formControlName="displayStyle"
+                 [value]="UserVariable.RADIO_BUTTONS" id="radio">
+            <label class="form-check-label" for="radio">
+              _#(Radio Buttons)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" formControlName="displayStyle"
+                 [value]="UserVariable.CHECKBOXES" id="checkbox">
+            <label class="form-check-label" for="checkbox">
+              _#(Checkboxes)
+            </label>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+  </form>
+</div>
+
+<div class="modal-footer">
+  <button class="btn btn-primary" type="button" (click)="saveChanges()" [disabled]="okDisabled()" #okButton>_#(OK)</button>
+  <button class="btn btn-default" type="button" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+</div>
+<ng-template #variableListDialog let-close="close" let-dismiss="dismiss">
+  <variable-list-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                        [model]="model.variableListDialogModel"></variable-list-dialog>
+</ng-template>
+<ng-template #variableTableListDialog let-close="close" let-dismiss="dismiss">
+  <variable-table-list-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                              [tables]="tables" [model]="model.variableTableListDialogModel">
+  </variable-table-list-dialog>
+</ng-template>
+<ng-template #dropdownMenu>
+  <ul role="menu" class="dropdown-pane">
+    <a *ngFor="let type of defaultValueTypes" class="dropdown-item"
+       [class.selected]="defaultValueType == type"
+       role="menuitem" (click)="selectDefaultValueType(type)">
+      {{type | conditionValueTypeToString}}
+    </a>
+  </ul>
+</ng-template>

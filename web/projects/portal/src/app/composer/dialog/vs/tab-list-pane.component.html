@@ -1,0 +1,56 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm class="container-fluid">
+  <fieldset>
+    <legend>_#(Tabs)</legend>
+    <w-large-form-field>
+      <div largeFieldElement>
+        <table class="table table-bordered tab-list-table table-sm" wScrollableTable>
+          <thead>
+            <tr>
+              <th>_#(Tab)</th>
+              <th>_#(Label)</th>
+            </tr>
+          </thead>
+          <tbody class="tab-list">
+            <tr *ngFor="let val of model.assemblies; let i = index" (click)="selectedIndex = i"
+                [class.selected]="i === selectedIndex">
+              <td>
+                <input type="text" [(ngModel)]="model.assemblies[i]" class="editable-cell"
+                       readonly/>
+              </td>
+              <td>
+                <input type="text" [(ngModel)]="model.labels[i]" class="editable-cell"/>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ng-container largeFieldButtons>
+        <button type="button" class="btn btn-default"
+                [disabled]="!variableSelected || selectedIndex == 0"
+                (click)="swap(selectedIndex - 1)">_#(Move Up)</button>
+        <button type="button" class="btn btn-default"
+                [disabled]="!variableSelected || selectedIndex == model.assemblies.length - 1"
+                (click)="swap(selectedIndex + 1)">_#(Move Down)</button>
+      </ng-container>
+    </w-large-form-field>
+  </fieldset>
+</form>

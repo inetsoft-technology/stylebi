@@ -1,0 +1,96 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-editor-panel
+  *ngIf="model"
+  [applyDisabled]="!(valid && changed)"
+  [contentStyle]="editorStyle"
+  (applyClicked)="apply()"
+  (resetClicked)="reset()">
+  <em-navigation-scrollable
+    class="general-settings-content"
+    (navigationScrolled)="onNavigationScrolled($event)">
+    <div class="em-content-container">
+      <div id="data-space" *ngIf="model.dataSpaceSettingsModel" emNavigationScrollableItem="data-space">
+        <em-data-space-settings-view
+          [model]="model.dataSpaceSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-data-space-settings-view>
+      </div>
+      <div id="server" *ngIf="isEnterprise && model.clusterSettingsModel" emNavigationScrollableItem="server">
+        <em-cluster-settings-view
+          [model]="model.clusterSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-cluster-settings-view>
+      </div>
+      <div id="license" *ngIf="isEnterprise && model.licenseKeySettingsModel" emNavigationScrollableItem="license">
+        <em-license-key-settings-view
+          [model]="model.licenseKeySettingsModel"
+          [clusterModel]="model.clusterSettingsModel"
+          (modelChanged)="onLicenseKeyModelChanged($event)">
+        </em-license-key-settings-view>
+      </div>
+      <div id="localization" *ngIf="model.localizationSettingsModel" emNavigationScrollableItem="localization">
+        <em-localization-settings-view
+          [model]="model.localizationSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-localization-settings-view>
+      </div>
+      <div id="mv" *ngIf="model.mvSettingsModel != null" emNavigationScrollableItem="mv">
+        <em-mv-settings-view
+          [model]="model.mvSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-mv-settings-view>
+      </div>
+      <div id="cache" *ngIf="model.cacheSettingsModel" emNavigationScrollableItem="cache">
+        <em-cache-settings-view
+          [model]="model.cacheSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-cache-settings-view>
+      </div>
+      <div id="email" *ngIf="model.emailSettingsModel" emNavigationScrollableItem="email">
+        <em-email-settings-view
+          [model]="model.emailSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-email-settings-view>
+      </div>
+      <div id="performance"  *ngIf="model.performanceSettingsModel" emNavigationScrollableItem="performance">
+        <em-performance-settings-view
+          [model]="model.performanceSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-performance-settings-view>
+      </div>
+    </div>
+  </em-navigation-scrollable>
+  <div class="general-settings-nav">
+    <mat-nav-list dense>
+      <a *ngFor="let link of navLinks"
+         mat-list-item
+         [attr.id]="link.id + '-navlink'"
+         routerLink="."
+         [fragment]="link.id"
+         [class.mat-active]="link.id === currentView"
+         [style.display]="filterNavLinks(link.id)"
+         (click)="scrollToItem(link.id)">
+        {{ link.label }}
+      </a>
+    </mat-nav-list>
+  </div>
+</em-editor-panel>
+<em-loading-spinner [loading]="loading"></em-loading-spinner>

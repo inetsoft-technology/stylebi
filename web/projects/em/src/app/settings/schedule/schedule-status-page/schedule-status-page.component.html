@@ -1,0 +1,83 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="em-card" *ngIf="model">
+  <mat-card-title>_#(Status)</mat-card-title>
+  <ng-container *ngIf="!model.cluster">
+    <mat-card-subtitle><h3>{{model.status}}</h3></mat-card-subtitle>
+  </ng-container>
+  <mat-card-content>
+    <span class="load-message">{{loadMessage}}</span>
+    <mat-progress-bar *ngIf="this.loadMessage !== ''" mode="indeterminate"></mat-progress-bar>
+
+    <ng-container *ngIf="model.cluster && model.clusterStatusTable">
+      <table mat-table [dataSource]="model.clusterStatusTable">
+        <ng-container matColumnDef="select">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let row">
+            <mat-radio-group [(ngModel)]="selectedClusterServer" (change)="changeSelection($event.value)" class="flex-col">
+              <mat-radio-button [value]="row.server"
+                                class="margin-bottom-sm flex">
+              </mat-radio-button>
+            </mat-radio-group>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="server">
+          <th mat-header-cell *matHeaderCellDef>_#(Schedule Server)</th>
+          <td mat-cell *matCellDef="let row">{{row.server}}</td>
+        </ng-container>
+        <ng-container matColumnDef="uptime">
+          <th mat-header-cell *matHeaderCellDef>_#(Uptime)</th>
+          <td mat-cell *matCellDef="let row">{{row.uptime}}</td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="columnNames"></tr>
+        <tr mat-row *matRowDef="let row; columns: columnNames;"></tr>
+      </table>
+    </ng-container>
+  </mat-card-content>
+  <mat-card-actions>
+    <ng-container *ngIf="!model.cluster || selectedClusterServer">
+      <button mat-stroked-button
+              (click)="getThreadDump()">
+        _#(Get Thread Dump)
+      </button>
+      <button mat-stroked-button
+              (click)="getHeapDump()">
+        _#(Get Heap Dump)
+      </button>
+    </ng-container>
+    <ng-container *ngIf="!model.cluster">
+      <button mat-stroked-button
+              [disabled]="isRunning || allDisabled"
+              (click)="changeStatus('start')">
+        _#(Start)
+      </button>
+      <button mat-stroked-button
+              [disabled]="!isRunning || allDisabled"
+              (click)="changeStatus('stop')">
+        _#(Stop)
+      </button>
+      <button mat-stroked-button
+              [disabled]="!isRunning || allDisabled"
+              (click)="changeStatus('restart')">
+        _#(Restart)
+      </button>
+    </ng-container>
+  </mat-card-actions>
+</mat-card>

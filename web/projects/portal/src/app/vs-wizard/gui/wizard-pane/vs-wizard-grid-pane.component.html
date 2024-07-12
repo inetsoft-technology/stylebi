@@ -1,0 +1,45 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="vs-grid-table">
+  <div class="vs-grid-col-container">
+    <div *ngFor="let _ of colRange; let colIndex = index; let evenCol = even"
+         class="vs-grid-table-col"
+         [style.width.px]="cellWidth"
+         [style.min-width.px]="cellWidth">
+    </div>
+  </div>
+
+  <div *ngFor="let _ of rowRange; let rowIndex = index; let evenRow = even"
+       class="vs-grid-table-row"
+       [class.even-row]="evenRow"
+       [class.odd-row]="!evenRow">
+    <div *ngFor="let _ of colRange; let colIndex = index; let evenCol = even"
+         class="vs-grid-table-cell txt-primary"
+         [class.even-col]="evenCol"
+         [class.odd-col]="!evenCol"
+         [style.height.px]="cellHeight"
+         [style.width.px]="cellWidth"
+         [style.min-width.px]="cellWidth"
+         (onMouseover)="onMouseChange(rowIndex, colIndex, true)"
+         (onMouseleave)="onMouseChange(rowIndex, colIndex, false)"
+         outOfZone>
+    </div>
+  </div>
+</div>

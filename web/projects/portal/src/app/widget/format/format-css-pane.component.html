@@ -1,0 +1,88 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="popup-editor__container" [enterSubmit]="true" (onEnter)="onApply.emit(true)">
+  <div class="popup-editor__button-group">
+    <button class="popup-editor__button btn" title="_#(Apply)"
+            (click)="onApply.emit(true)">
+      <i class="submit-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+  </div>
+  <fieldset>
+    <legend>{{cssType}}</legend>
+
+    <div class="mt-2">
+      <div ngbDropdown #cssIDDropdown="ngbDropdown">
+        <div class="form-floating">
+          <input class="form-control" type='text' [(ngModel)]="cssID"
+                 (focusout)="cssIDChange.emit(cssID)" ngbDropdownToggle>
+          <label>_#(ID)</label>
+        </div>
+        <span class="values-caret"
+              (click)="$event.stopPropagation(); cssIDDropdown.toggle()"
+              *ngIf="cssIDs">
+          <i class="caret-down-icon"></i>
+        </span>
+        <ul *ngIf="cssIDs" ngbDropdownMenu>
+          <li>
+            <a class="dropdown-item"
+               (mousedown)="selectCSSID('', -1); $event.stopPropagation(); cssIDDropdown.close()"
+               [class.selected]="selectedCSSIDIndex == -1"></a>
+          </li>
+          <li *ngFor="let choice of cssIDs; let _i = index">
+            <a class="dropdown-item"
+               (mousedown)="selectCSSID(choice, _i); $event.stopPropagation(); cssIDDropdown.close()"
+               [class.selected]="selectedCSSIDIndex == _i">{{choice}}</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="mt-2">
+      <div ngbDropdown #cssClassDropdown="ngbDropdown" autoClose="outside">
+        <div class="form-floating">
+          <input class="form-control" type="text" [(ngModel)]="cssClass"
+                 (focusout)="cssClassChange.emit(cssClass)" ngbDropdownToggle>
+          <label>_#(Class)</label>
+        </div>
+        <span class="values-caret"
+              (click)="$event.stopPropagation(); cssClassDropdown.toggle()"
+              *ngIf="cssClasses">
+          <i class="caret-down-icon"></i>
+        </span>
+        <ul *ngIf="cssClasses" ngbDropdownMenu>
+          <li>
+            <a class="dropdown-item"
+               (mousedown)="selectCSSClass('', -1); $event.stopPropagation(); cssClassDropdown.close();"
+               [class.selected]="!selectedCSSClassIndexes || selectedCSSClassIndexes.length == 0"></a>
+          </li>
+          <li *ngFor="let choice of cssClasses; let _i = index">
+            <div class="dropdown-item" [class.selected]="selectedCSSClassIndexes.indexOf(_i) >= 0">
+              <input type="checkbox" class="form-check-input align-middle"
+                     [checked]="selectedCSSClassIndexes.indexOf(_i) >= 0"
+                     (change)="selectCSSClass(choice, _i); $event.stopPropagation();">
+              <a class="align-middle"
+                 (mousedown)="selectCSSClass(choice, _i); $event.stopPropagation();">{{choice}}</a>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </fieldset>
+</div>

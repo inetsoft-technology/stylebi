@@ -1,0 +1,109 @@
+{
+  "endpoints": [
+    {
+      "name": "Changesets",
+      "paged": false,
+      "suffix": "/projects/{Project ID}/changesets.json"
+    },
+    {
+      "name": "Changeset",
+      "paged": false,
+      "suffix": "/projects/{Project ID}/changesets/{Revision Name}.json"
+    },
+    {
+      "name": "Projects",
+      "paged": false,
+      "suffix": "/projects.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Changesets",
+            "Tickets",
+            "Ticket Bins",
+            "Milestones",
+            "Messages",
+            "Project Memberships"
+          ],
+          "jsonPath": "$.projects[*].project",
+          "key": "id",
+          "parameterName": "Project ID"
+        }
+      ]
+    },
+    {
+      "name": "Project",
+      "paged": false,
+      "suffix": "/projects/{Project ID}.json"
+    },
+    {
+      "name": "Initial Project State",
+      "paged": false,
+      "suffix": "/projects/new.json"
+    },
+    {
+      "name": "Tickets",
+      "paged": true,
+      "suffix": "/projects/{Project ID}/tickets.json"
+    },
+    {
+      "name": "Ticket",
+      "paged": false,
+      "suffix": "/projects/{Project ID}/tickets/{Ticket Number}.json"
+    },
+    {
+      "name": "Ticket Bins",
+      "paged": false,
+      "suffix": "/projects/{Project ID}/bins.json"
+    },
+    {
+      "name": "Ticket Bin",
+      "paged": false,
+      "suffix": "/projects/{Project ID}/bins/{Bin ID}.json"
+    },
+    {
+      "name": "Milestones",
+      "paged": false,
+      "suffix": "/projects/{Project ID}/milestones.json"
+    },
+    {
+      "name": "Milestone",
+      "paged": false,
+      "suffix": "/projects/{Project ID}/milestones/{Milestone ID}.json"
+    },
+    {
+      "name": "Messages",
+      "paged": false,
+      "suffix": "/projects/{Project ID}/messages.json"
+    },
+    {
+      "name": "Message",
+      "paged": false,
+      "suffix": "/projects/{Project ID}/messages/{Message ID}.json"
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/users/{User ID}.json"
+    },
+    {
+      "name": "Current User",
+      "paged": false,
+      "suffix": "/profile.json"
+    },
+    {
+      "name": "Memberships",
+      "paged": false,
+      "suffix": "/users/{User ID}/memberships.json"
+    },
+    {
+      "name": "Project Memberships",
+      "paged": false,
+      "suffix": "/projects/{Project ID}/memberships.json"
+    },
+    {
+      "name": "Token",
+      "paged": false,
+      "suffix": "/tokens/{Token}.json"
+    }
+  ]
+}

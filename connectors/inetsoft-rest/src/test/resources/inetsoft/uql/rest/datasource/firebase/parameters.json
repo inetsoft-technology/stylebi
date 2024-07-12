@@ -1,0 +1,103 @@
+{
+  "tests": [
+    {
+      "endpoint": "Field",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Project ID": "inetsoft-firestone",
+        "Database ID": "(default)",
+        "Collection ID": "ML-basket",
+        "Field ID": "Accuracy"
+      }
+    },
+    {
+      "endpoint": "Fields",
+      "jsonPath": "$.fields",
+      "expandArrays": true,
+      "parameters": {
+        "Project ID": "inetsoft-firestone",
+        "Database ID": "(default)",
+        "Collection ID": "ML-basket",
+        "Filter": "indexConfig.usesAncestorConfig:false"
+      }
+    },
+    {
+      "endpoint": "Index",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Project ID": "inetsoft-firestone",
+        "Database ID": "(default)",
+        "Collection ID": "ML-basket",
+        "Index ID": "CICAgOjXh4EK"
+      }
+    },
+    {
+      "endpoint": "Indexes",
+      "jsonPath": "$.indexes",
+      "expandArrays": true,
+      "parameters": {
+        "Project ID": "inetsoft-firestone",
+        "Database ID": "(default)",
+        "Collection ID": "ML-basket"
+      }
+    },
+    {
+      "endpoint": "Document",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Project ID": "inetsoft-firestone",
+        "Database ID": "(default)",
+        "Document Path": "QzokzBSksTBMc6PniBDL"
+      }
+    },
+    {
+      "endpoint": "Documents",
+      "jsonPath": "$.documents",
+      "expandArrays": true,
+      "parameters": {
+        "Project ID": "inetsoft-firestone",
+        "Database ID": "(default)",
+        "Collection ID": "ML-basket"
+      }
+    },
+    {
+      "endpoint": "Operation",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Project ID": "inetsoft-firestone",
+        "Database ID": "(default)",
+        "Operation": "S0U0aFhqT2dBQ0lDDCoDIGE0MDJlMjM3ZWY4Zi05NDQ5LTI2OTQtYTkwZi1jNTZmZmIyOSQadGx1YWZlZAcSMXRzYWVzdS1yZXhlZG5pLW5pbWRhFQpWEg"
+      }
+    },
+    {
+      "endpoint": "Operations",
+      "jsonPath": "$.operations",
+      "expandArrays": true,
+      "parameters": {
+        "Project ID": "inetsoft-firestone",
+        "Database ID": "(Default)"
+      }
+    },
+    {
+      "endpoint": "Location",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Project ID": "inetsoft-firestone",
+        "Location": "us-east1"
+      }
+    },
+    {
+      "endpoint": "Locations",
+      "jsonPath": "$.locations",
+      "expandArrays": true,
+      "parameters": {
+        "Project ID": "inetsoft-firestone"
+      }
+    }
+  ]
+}

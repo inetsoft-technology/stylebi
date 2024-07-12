@@ -1,0 +1,39 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ul class="nav nav-pills chart-nav-bar btn-group justify-content-end" *ngIf="bindingModel">
+   <li class="nav-item chart-nav-bar-item">
+      <chart-type-button [chartType]="bindingModel.chartType"
+         [multiStyles]="bindingModel.multiStyles" [stackMeasures]="bindingModel.stackMeasures">
+      </chart-type-button>
+   </li>
+   <li class="nav-item chart-nav-bar-item">
+      <button class="d-flex btn btn-secondary btn-sm" [title]="getSeparatedTitle()"
+         (click)="changeSeparateStatus()">
+         <a [ngClass]="getSeparatedIcon()"
+            [style.opacity]="isSeparateDisabled() ? 0.5 : 1"></a>
+      </button>
+   </li>
+   <li class="nav-item chart-nav-bar-item" *ngIf="isSwapVisible()">
+      <button class="d-flex btn btn-secondary btn-sm" title="_#(Swap XY)"
+         (click)="swapXYBinding()">
+         <a class="rotate-icon" [style.opacity]="isSwapEnabled() ? 1 : 0.5"></a>
+      </button>
+   </li>
+</ul>

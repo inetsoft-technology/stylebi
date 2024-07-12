@@ -1,0 +1,44 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="modal-header">
+  <h3 class="modal-title">_#(Browse)</h3>
+  <button type="button" class="btn-close" (click)="cancel()" aria-label="Close" tabindex="-1">
+  </button>
+</div>
+<div class="modal-body">
+  <div class="bordered-box bd-gray bordered-box-lg">
+    <tree *ngIf="root" [root]="root" [showRoot]="false" [iconFunction]="iconFunction"
+          (dblclickNode)="ok()"
+          (nodeExpanded)="nodeExpanded($event)" (nodesSelected)="nodeSelected($event[0])"></tree>
+  </div>
+  <div class="form-check mt-1">
+    <input type="checkbox" class="form-check-input" id="showall"
+           [ngModel]="showAll" (ngModelChange)="showAll = $event; initRoot()">
+    <label class="form-check-label" for="showall">
+      _#(Show All)
+    </label>
+  </div>
+</div>
+<div class="modal-footer">
+  <div *ngIf="!!getPatternMessage()" class="alert alert-danger">{{getPatternMessage()}}</div>
+  <button type="button" class="btn btn-primary" (click)="ok()"
+          [disabled]="!selectedFile || !!getPatternMessage()">_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>

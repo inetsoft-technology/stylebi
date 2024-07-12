@@ -1,0 +1,119 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="data-model-edit-pane container-fluid h-100">
+  <div class="row h-100">
+    <div class="flex-fixed-container g-0 w-100 h-100">
+      <div class="btn-toolbar bg-white3 align-items-center truncate-parent flex-nowrap data-model-toolbar">
+        <div class="data-model-title">
+          <i class="vpm-icon"></i>
+          <span class="data-model-name truncate-text px-1" [attr.title]="vpm.name">
+          {{vpm.name + (isModified ? '*' : '')}}
+        </span>
+        </div>
+        <div class="btn-group btn-group-sm truncate-addon py-1 px-1">
+          <button type="button"
+                  class="btn btn-light-no-bg"
+                  [attr.title]="'_#(Save)'"
+                  [disabled]="!isModified"
+                  (click)="saveVPM()">
+            <i class="save-icon"></i>
+          </button>
+          <button type="button"
+                  class="btn btn-light-no-bg"
+                  [attr.title]="'_#(Reset)'"
+                  [disabled]="!isModified"
+                  (click)="resetVPM()">
+            <i class="reset-icon"></i>
+          </button>
+        </div>
+      </div>
+      <div class="flex-fixed-content d-flex">
+        <div class="w-100" [ngSwitch]="currentVPMTab">
+          <vpm-conditions #conditionPane *ngSwitchCase="VPMTabs.CONDITIONS"
+                          [databaseName]="databaseName"
+                          [operations]="operations"
+                          [sessionOperations]="sessionOperations"
+                          [conditions]="vpm.conditions"
+                          (refreshedColumns)="refreshedColumns($event)"
+                          (tableChange)="updateLookupList()">
+          </vpm-conditions>
+          <vpm-hidden-columns *ngSwitchCase="VPMTabs.HIDDEN_COLUMNS"
+                              [hidden]="vpm.hidden" [databaseName]="databaseName"
+                              [availableRoles]="testData.roles"
+                              (expressionChange)="changeHiddenExpression($event)"
+                              (hiddenColumnsChange)="updateLookupList()">
+          </vpm-hidden-columns>
+          <vpm-lookup *ngSwitchCase="VPMTabs.LOOKUP" [lookupList]="lookupList"
+                      [expression]="vpm.lookup"
+                      (expressionChange)="vpm.lookup = $event">
+          </vpm-lookup>
+          <vpm-test *ngSwitchCase="VPMTabs.TEST"
+                    [vpm]="vpm"
+                    [testData]="testData"
+                    [databaseName]="databaseName">
+          </vpm-test>
+        </div>
+      </div>
+      <div class="flex-fixed-bottom-buttons-container bt-gray">
+        <div class="vpm-navbar navbar-expand-sm">
+          <div class="collapse navbar-collapse" [ngbCollapse]="navCollapsed">
+            <ul class="navbar-nav">
+              <li class="nav-item hover-bg-secondary" (click)="selectVPMTab(VPMTabs.CONDITIONS)"
+                  [class.bb-highlight-filler]="currentVPMTab != VPMTabs.CONDITIONS"
+                  [class.bb-highlight-primary]="currentVPMTab == VPMTabs.CONDITIONS">
+                <span class="nav-link cursor-pointer font-weight-bold">
+                  _#(Conditions)
+                </span>
+              </li>
+              <li class="nav-item hover-bg-secondary" (click)="selectVPMTab(VPMTabs.HIDDEN_COLUMNS)"
+                  [class.bb-highlight-filler]="currentVPMTab != VPMTabs.HIDDEN_COLUMNS"
+                  [class.bb-highlight-primary]="currentVPMTab == VPMTabs.HIDDEN_COLUMNS">
+                <span class="nav-link cursor-pointer font-weight-bold">
+                  _#(Hidden Columns)
+                </span>
+              </li>
+              <li class="nav-item hover-bg-secondary" (click)="selectVPMTab(VPMTabs.LOOKUP)"
+                  [class.bb-highlight-filler]="currentVPMTab != VPMTabs.LOOKUP"
+                  [class.bb-highlight-primary]="currentVPMTab == VPMTabs.LOOKUP">
+                <span class="nav-link cursor-pointer font-weight-bold">
+                  _#(Lookup)
+                </span>
+              </li>
+              <li class="nav-item hover-bg-secondary" (click)="selectVPMTab(VPMTabs.TEST)"
+                  [class.bb-highlight-filler]="currentVPMTab != VPMTabs.TEST"
+                  [class.bb-highlight-primary]="currentVPMTab == VPMTabs.TEST">
+                <span class="nav-link cursor-pointer font-weight-bold">
+                  _#(Test)
+                </span>
+              </li>
+            </ul>
+          </div>
+          <button class="navbar-toggler btn btn-secondary" type="button"
+                  [attr.aria-expanded]="navCollapsed"
+                  aria-label="Toggle navigation"
+                  (click)="navCollapsed = !navCollapsed">
+            <span class="navbar-toggler-icon"></span>
+            <span class="visually-hidden">_#(navigation.toggleNavigation)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

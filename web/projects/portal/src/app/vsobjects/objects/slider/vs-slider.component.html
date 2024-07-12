@@ -1,0 +1,77 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div [style.display]="getVisible() ? null : 'none'"
+     [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
+     [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+     [style.width.px]="model.objectFormat.width"
+     [style.height.px]="model.objectFormat.height"
+     [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+     [style.border-bottom]="model.objectFormat.border.bottom"
+     [style.border-top]="model.objectFormat.border.top"
+     [style.border-left]="model.objectFormat.border.left"
+     [style.border-right]="model.objectFormat.border.right"
+     [style.border-radius.px]="model.objectFormat.roundCorner"
+     [style.color]="model.objectFormat.foreground"
+     [style.background-color]="model.objectFormat.background"
+     [safeFont]="model.objectFormat.font"
+     class="slider unselectable-canvas"
+     role="slider" tabindex="-1"
+     [attr.aria-label]="model.objectType + ' ' + model.absoluteName"
+     [attr.aria-valuemin]="model.min"
+     [attr.aria-valuemax]="model.max"
+     [attr.aria-valuenow]="getLabel()"
+     [class.disable-actions-fade]="!model.enabled"
+     [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer"
+     VSDataTip [dataTipName]="getAssemblyName()"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex"
+     outOfZone (onMousemove)="mouseMove($event)" #sliderContainer>
+   <div class="wrapper" [style.top.px]="verticalCenter">
+     <div class="slider-value" [style.left.px]="getLabelLeft()"
+          [style.text-decoration]="model.objectFormat.decoration"
+          *ngIf="model.currentVisible || isMouseDown">{{getLabel()}}</div>
+      <div class="slider-track prevent-drag" (click)="moveHandleHere($event)"></div>
+      <div class="slider-tracked"></div>
+     <div *ngIf="handleSelected" #sliderHandle
+          class="slider-handle selector bd-selected-cell"
+          tabindex="-1" [attr.aria-label]="getLabel()"
+          [style.left.px]="handlePosition">
+     </div>
+      <div class="slider-handle prevent-drag" [style.left.px]="handlePosition"
+           (touchstart)="mouseDown($event)"
+           (touchmove)="mouseMove($event)"
+           (mousedown)="mouseDown($event)">
+      </div>
+      <ng-template [ngIf]="model.ticksVisible">
+        <div class="slider-tick"
+             *ngFor="let tick of getTicks(); trackBy: trackByIdx"
+             [style.left.px]="tick.left">|</div>
+        <div class="slider-label"
+             *ngFor="let tick of getTicks(); let first = first; let last = last; trackBy: trackByIdx"
+             [style.white-space]="last ? 'nowrap' : ''"
+             [style.left.px]="tick.labelLeft"
+             [style.text-decoration]="model.objectFormat.decoration"
+             [hidden]="!model.labelVisible && (!first || !model.minVisible) && (!last || !model.maxVisible)">
+          {{tick.label}}
+        </div>
+      </ng-template>
+   </div>
+</div>

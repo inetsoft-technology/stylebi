@@ -1,0 +1,6 @@
+Manifest-Version: 1.0
+Plugin-Id: inetsoft.tabular.mongodb
+Plugin-Requires: inetsoft.uql.tabular:>=13.3.0 & <13.4.0
+Plugin-Provider: InetSoft Technology
+Plugin-Version: 14.0.${plugin.build.number}
+Plugin-Name: MongoDB Data Connector

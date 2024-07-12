@@ -1,0 +1,65 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="showWelcome" class="welcome-page-container">
+  <iframe *ngIf="welcomePageUri; else hintWelcomePage" class="iframe-full-no-border"
+          [src]="contentSource" seamless allowfullscreen></iframe>
+  <ng-template #hintWelcomePage>
+    <div class="header-line" [wExpandString]="[licensedComponentMsg]">{{welcomeMsg}}</div>
+    <div class="cards card-deck">
+      <div class="cards-title">_#(viewer.welcomePage.accessDes)</div>
+      <div class="card mb-2 mx-2 text-center bg-white1">
+        <div class="card-header">
+          _#(viewer.welcomePage.rightClick)
+        </div>
+        <div class="card-block">
+          <img class="wp-menu-right-click" src="assets/MenuRightClick.png" alt="_#(viewer.welcomePage.rightClickDes)"/>
+        </div>
+        <div class="card-footer">
+          _#(viewer.welcomePage.rightClickDes)
+        </div>
+      </div>
+
+      <div class="card mb-2 mx-2 text-center bg-white1">
+        <div class="card-header">
+          _#(viewer.welcomePage.axis)
+        </div>
+        <div class="card-block">
+          <img class="wp-menu-corner" src="assets/MenuCorner.png" alt="_#(viewer.welcomePage.axisDes)"/>
+        </div>
+        <div class="card-footer">
+         _#(viewer.welcomePage.axisDes)
+        </div>
+      </div>
+
+      <div class="card mb-2 mx-2 text-center bg-white1">
+        <div class="card-header">
+          _#(viewer.welcomePage.dataPoints)
+        </div>
+        <div class="card-block">
+          <img class="wp-menu-toolbar" src="assets/MenuToolbar.png" alt="_#(viewer.welcomePage.dataPointsDes)"/>
+        </div>
+        <div class="card-footer">
+          _#(viewer.welcomePage.dataPointsDes)
+        </div>
+      </div>
+
+    </div>
+  </ng-template>
+</div>

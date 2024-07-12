@@ -1,0 +1,99 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Viewsheet Device Layout)'"
+   (onCancel)="cancelChanges()" [cshid]="'DeviceLayout'">
+</modal-header>
+
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="saveChanges()" *ngIf="model && formDevice">
+  <form [formGroup]="formDevice">
+    <fieldset>
+      <legend>_#(Select Device Classes)</legend>
+      <div class="bordered-box bd-gray">
+        <div class="d-flex justify-content-between" *ngFor="let device of devices; let i = index">
+          <label [title]="deviceTooltip(device)" class="form-check-label">
+            <input type="checkbox" class="form-check-input" [(ngModel)]="selected[i]"
+                   [ngModelOptions]="{standalone: true}">
+            {{device.label}}
+          </label>
+          <div *ngIf="isEditAllowed">
+            <button class="edit-icon icon-size-medium btn btn-light btn-sm mx-1" title="_#(Edit)"
+                    (click)="showScreenSizeDialog(i)"></button>
+            <button class="close-icon icon-size-medium btn btn-light btn-sm" title="_#(Delete)" aria-hidden="true"
+                    (click)="removeDevice(i)"></button>
+          </div>
+        </div>
+      </div>
+      <div *ngIf="!deviceSelected()" class="alert alert-danger col-8">
+        <strong>_#(Error)</strong> _#(layout.vsLayout.deviceSelected)
+      </div>
+    </fieldset>
+
+    <div *ngIf="isEditAllowed" class="d-flex mt-2">
+      <button type="button" class="btn btn-default pull-right" (click)="showScreenSizeDialog()">
+        _#(New Device Class)</button>
+    </div>
+
+    <div class="form-floating">
+      <input class="form-control mt-2" formControlName="name" trim type="text" id="name"
+             [(ngModel)]="model.name" placeholder="_#(Name)">
+      <label><span>_#(Name)</span></label>
+      <div *ngIf="formDevice.controls.name.errors && formDevice.controls.name.errors.required" class="alert alert-danger">
+        <strong>_#(Error)</strong> _#(layout.vsLayout.nameRequired)
+      </div>
+      <div *ngIf="duplicateName()" class="alert alert-danger">
+        <strong>_#(Error)</strong> _#(common.duplicateName)
+      </div>
+      <div *ngIf="reservedName()" class="alert alert-danger">
+        <strong>_#(Error)</strong> _#(name.reserved)
+      </div>
+    </div>
+
+    <div>
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" [(ngModel)]="model.mobileOnly"
+             [ngModelOptions]="{standalone: true}" id="mobileOnly">
+        <label class="form-check-label" for="mobileOnly">
+          _#(Mobile Only)
+        </label>
+      </div>
+    </div>
+    <!--Viewsheet Device Layouts are set to font scale of 1-->
+    <!--<div class="form-row-float-label row">-->
+      <!--<label class="col-3" for="scaleFontDevice">_#(Scale Font):</label>-->
+      <!--<div class="col-4">-->
+        <!--<select class="form-control" type="text" id="scaleFontDevice" [(ngModel)]="model.scaleFont" [ngModelOptions]="{standalone: true}">-->
+          <!--<option *ngFor="let font of scaleOptions" [value]="font">{{font}}</option>-->
+        <!--</select>-->
+      <!--</div>-->
+    <!--</div>-->
+   </form>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="saveChanges()"
+          [disabled]="!model || !formDevice?.valid || !deviceSelected() || duplicateName() || reservedName()" #okButton>
+    _#(OK)
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+</div>
+
+<ng-template #screenSizeDialog let-close="close" let-dismiss="dismiss">
+  <screen-size-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)" [index]="editDevice" [devices]="devices"></screen-size-dialog>
+</ng-template>

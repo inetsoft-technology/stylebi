@@ -1,0 +1,95 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div dropHighlight (drop)="drop($event)" [disabled]="!_isEnabled"
+     outOfZone (onDragover)="dragOver($event)">
+   <div class="field-pane bd-gray" [class.disabled-grayout]="!_isEnabled">
+      <div class="field-container" data-test="color-field-container">
+         <!--color cells-->
+        <div [fixedDropdown]="dropdownMenu" [autoClose]="false" [zIndex]="10000"
+             [closeOnEsc]="!dialogOpened"
+             class="field-icon hover-bg-secondary" (openChange)="openChanged($event)">
+          <div *ngIf="_isEditEnabled && (field || frames.length > 1 || isContour())"
+            title="_#(Edit Color)" class="visual-cell-container">
+            <div class="visual-cell no-caret"
+                 [style.margin-left.px]="i > 0 ? 2 : 0"
+                 *ngFor="let f of frames; let i = index">
+              <color-cell [(frameModel)]="frames[i]" [isMixed]="_isMixed"></color-cell>
+            </div>
+          </div>
+          <div data-test="colorIcon"
+               class="visual-edit-icon no-caret"
+               *ngIf="!_isEditEnabled || !field && frames.length == 1 && !isContour()"
+               [class.icon-disabled]="!_isEditEnabled">
+            <i class="palette-icon icon-size-large" aria-hidden="true"
+               [style.color]="frameColor"
+               title="_#(Edit Color)">
+            </i>
+          </div>
+          <!--fake cell to keep align with textfield-->
+          <div class="visual-cell" *ngIf="frames.length == 0 && _isEditEnabled">
+            <div class="fake-visual-cell"></div>
+          </div>
+        </div>
+
+        <!--aesthetic field mc-->
+        <div class="visual-field">
+          <chart-aesthetic-mc class="w-100" [field]="field"
+                              [fieldType]="getFieldType()" [isMixed]="_isMixed"
+                              [isEnabled]="_isEnabled" [isEditEnabled]="_isEditEnabled"
+                              [isPrimaryField]="isPrimaryField()"
+                              [dragComplete]="dragFieldMCComplete" [currentAggr]="aggr"
+                              [grayedOutValues]="grayedOutValues"
+                              [targetField]="targetField"
+                              [hint]="getHint()"
+                              (onChangeAesthetic)="doSubmit(false)"
+                              (onConvert)="convert($event)">
+          </chart-aesthetic-mc>
+        </div>
+      </div>
+   </div>
+</div>
+<ng-template #dropdownMenu>
+  <div *ngIf="editPaneId" class="dropdown-pane">
+    <ng-container *ngIf="frames" [ngSwitch]="editPaneId">
+      <div *ngSwitchCase="'StaticColor'">
+        <static-color-pane [(frame)]="frames[0]" (colorChanged)="openChanged(false)">
+                           </static-color-pane>
+      </div>
+      <div *ngSwitchCase="'CombinedColor'">
+        <combined-color-pane [frameInfos]="framesMap" (apply)="openChanged($event)"
+                             (colorChanged)="submitIfChanged()">
+        </combined-color-pane>
+      </div>
+      <div *ngSwitchCase="'CategoricalColor'">
+        <categorical-color-pane [vsId]="vsId" [assemblyName]="assemblyName"
+                                (openDialog)="dialogOpened = $event"
+                                [(frameModel)]="frames[0]" [field]="field"
+                                (resetted)="reset()" (apply)="openChanged($event)">
+        </categorical-color-pane>
+      </div>
+      <div *ngSwitchCase="'LinearColor'">
+        <linear-color-pane [(frame)]="frames[0]"
+                           (onChangeColorFrame)="changeColorFrame($event)"
+                           (apply)="openChanged($event)">
+        </linear-color-pane>
+      </div>
+    </ng-container>
+  </div>
+</ng-template>

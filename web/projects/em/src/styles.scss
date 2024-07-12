@@ -1,0 +1,264 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@import './styles/general';
+@import '~codemirror/lib/codemirror.css';
+@import '~codemirror/addon/dialog/dialog.css';
+@import '~codemirror/addon/fold/foldgutter.css';
+@import '~codemirror/addon/hint/show-hint.css';
+@import '~codemirror/addon/tern/tern.css';
+
+$inet-default-icon-color: black; // overridden later
+$ineticons-font-path: '~/../../portal/src/assets/ineticons/fonts';
+@import '../../portal/src/assets/ineticons/style.scss';
+$brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
+@import '../../portal/src/scss/icons';
+
+.ineticons {
+  line-height: inherit;
+  color: inherit;
+  @extend .material-icons
+}
+
+.material-icons {
+  font-family: "Material Design Icons";
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px; /* Preferred icon size */
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+
+  /* Support for all WebKit browsers. */
+  -webkit-font-smoothing: antialiased;
+  /* Support for Safari and Chrome. */
+  text-rendering: optimizeLegibility;
+
+  /* Support for Firefox. */
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Support for IE. */
+  font-feature-settings: 'liga';
+}
+
+.flex-col {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: column;
+
+  > .flex-sm {
+    flex: 0.5;
+  }
+}
+
+.flex-row {
+  display: flex;
+  flex-direction: row;
+  //  responsive rows
+  flex-wrap: wrap;
+  align-items: center;
+
+  > .flex-sm {
+    flex: 0.5;
+  }
+}
+
+.flex {
+  flex: 1 1 auto;
+}
+
+.no-wrap {
+  flex-wrap: nowrap;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.margin-top-sm {
+  margin-top: 0.5em;
+}
+
+.margin-top {
+  margin-top: 1em;
+}
+
+.margin-bottom-none {
+  margin-bottom: 0;
+}
+
+.margin-bottom-sm {
+  margin-bottom: 0.5em;
+}
+
+.margin-bottom {
+  margin-bottom: 1em;
+}
+
+.margin-bottom-lg {
+  margin-bottom: 2em;
+}
+
+.margin-bottom-xl {
+  margin-bottom: 3em;
+}
+
+.margin-left-sm {
+  margin-left: 0.5em;
+}
+
+.margin-left {
+  margin-left: 1em;
+}
+
+.margin-right-sm {
+  margin-right: 0.5em;
+}
+
+.margin-right {
+  margin-right: 1em;
+}
+
+.margin-around {
+  margin: 0.5em;
+}
+
+.margin-unset {
+  margin: unset !important;
+}
+
+.padding-top {
+  padding-top: 1em;
+}
+
+.padding-left {
+  padding-left: 1em;
+}
+
+.padding-left-lg {
+  padding-left: 1.8em;
+}
+
+.padding-right {
+  padding-right: 1em;
+}
+
+.padding-bottom {
+  padding-bottom: 1em;
+}
+
+.padding-around {
+  padding: 0.5em;
+}
+
+.top {
+  top: 0.5em;
+}
+
+.bottom {
+  bottom: 0.5em;
+}
+
+.left {
+  left: 0.5em;
+}
+
+.right {
+  right: 0.5em;
+}
+
+.h-100 {
+  height: 100%;
+}
+
+.max-width {
+  width: 1200px;
+  max-width: 80vw !important;
+}
+
+.full-width {
+  width: 100%;
+}
+
+.display-block {
+  display: block;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.flex-grow-0 {
+  flex-grow: 0;
+  flex-basis: 0;
+}
+
+.flex-grow-1 {
+  flex-grow: 1;
+  flex-basis: 0;
+}
+
+.mat-mdc-select-panel {
+   flex: 1 0 auto;
+}
+
+// .mat-mdc-form-field-flex {
+//   align-items: center !important;
+// }
+
+.editor-panel-parent {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+.ck.ck-dropdown .ck-dropdown__panel.ck-dropdown__panel-visible {
+  min-width: 100px;
+  max-height: 40vh;
+}
+
+.ck.ck-dropdown .ck-font-size-dropdown, .ck.ck-dropdown .ck-font-family-dropdown,
+.ck.ck-dropdown.ck-font-size-dropdown, .ck.ck-dropdown.ck-font-family-dropdown{
+  .ck.ck-list {
+    max-height: 200px;
+    overflow-y: scroll;
+  }
+}
+
+.schedule-delivery-message .ck-editor__editable {
+  min-height: 200px;
+  max-height: 200px;
+}
+
+.cdk-program-focused .mat-sort-header-container {
+  border-bottom: 0px solid !important;
+}
+
+.badge {
+  display: inline-flex;
+  border-radius: 10px 10px;
+  padding: 2px 6px;
+  font-size: xx-small;
+  font-weight: bold;
+}

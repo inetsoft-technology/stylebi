@@ -1,0 +1,104 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Numeric Range Option)'"
+   (onCancel)="close()"
+   [cshid]="'NumericRangeOption'">
+</modal-header>
+<div *ngIf="model" class="modal-body">
+  <form *ngIf="nameControl" class="container-fluid">
+    <div class="row">
+      <div class="col-9 form-floating" [enterSubmit]="formValid" (onEnter)="ok()">
+        <input class="form-control" [formControl]="nameControl" trim placeholder="_#(Name)"
+               title="_#(Column): {{baseColumn}}">
+        <label><span>_#(Name)</span></label>
+        <div *ngIf="nameControl.valid" [style.height.px]="15"> </div>
+        <div *ngIf="nameControl.errors">
+          <div *ngIf="nameControl.errors['required']"
+               class="alert alert-danger">_#(viewer.nameValid)</div>
+          <div *ngIf="nameControl.errors['notWhiteSpace']"
+               class="alert alert-danger">_#(viewer.notWhiteSpace)</div>
+          <div *ngIf="nameControl.errors['calcSpecialCharacters']"
+               class="alert alert-danger">_#(formula.editor.charValid)</div>
+        </div>
+      </div>
+    </div>
+  </form>
+  <form ngNoForm class="container-fluid" (submit)="$event.preventDefault()">
+    <div class="form-row-float-label row">
+      <div class="col-9 form-floating">
+        <input #input type="number" class="form-control" [(ngModel)]="rangeValue"
+               title="_#(Column): {{baseColumn}}"
+               (keydown.enter)="enterRange($event)" placeholder="_#(Value Range)">
+        <label><span>_#(Value Range)</span></label>
+      </div>
+      <div class="col-3 ps-0">
+        <button type="button" class="btn btn-default w-100"
+                (click)="add(); input.focus()" [disabled]="rangeValue == null">_#(Add)</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-9">
+        <value-range-selectable-list [rangeList]="rangeList" [(selectedIndex)]="selectedIndex"
+                                     (labelChange)="updateLabel($event[0], $event[1])">
+        </value-range-selectable-list>
+      </div>
+      <div class="col-3 ps-0 btn-container-vertical">
+        <button type="button" class="btn btn-default"
+                (click)="remove()" [disabled]="!(selectedIndex >= 0)">_#(Delete)</button>
+        <button type="button" class="btn btn-default"
+                (click)="clear()" [disabled]="rangeList.length === 0">_#(Clear)</button>
+        <div class="align-self-start row-checkbox">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="lessMin"
+                 [(ngModel)]="ref.vinfo.showingBottomValue"
+                 (ngModelChange)="minChange($event)">
+            <label class="form-check-label" for="lessMin">
+              _#(Less Than Min)
+            </label>
+          </div>
+        </div>
+        <div class="align-self-start row-checkbox">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="lessMax"
+                 [(ngModel)]="ref.vinfo.showingTopValue"
+                 (ngModelChange)="maxChange($event)">
+            <label class="form-check-label" for="lessMax">
+              _#(Greater Than Max)
+            </label>
+          </div>
+        </div>
+        <div class="align-self-start row-checkbox">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="inclusive"
+                 [(ngModel)]="upperInclusive"
+                 (ngModelChange)="inclusiveChange($event)">
+            <label class="form-check-label" for="inclusive">
+              _#(Upper Inclusive)
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="okDisabled()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+</div>

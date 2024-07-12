@@ -1,0 +1,60 @@
+{
+  "endpoints": [
+    {
+      "name": "Empty",
+      "suffix": "/parents"
+    },
+    {
+      "name": "Path",
+      "suffix": "{Parent ID:0}"
+    },
+    {
+      "name": "Leading Path",
+      "suffix": "{Parent ID:0}/children"
+    },
+    {
+      "name": "Middle Path",
+      "suffix": "/parents/{Parent ID:0}/children"
+    },
+    {
+      "name": "Trailing Path",
+      "suffix": "/parents/{Parent ID:0}/children/{Child ID:0}"
+    },
+    {
+      "name": "Query",
+      "suffix": "/parents/{Parent ID:0}/children?active={Active:true/false}"
+    },
+    {
+      "name": "Optional",
+      "suffix": "/parents/{Parent ID:0}/children?created={Date Created?:yyyy-MM-dd}"
+    },
+    {
+      "name": "Leading Optional",
+      "suffix": "/parents/{Parent ID:0}/children?created={Date Created?:yyyy-MM-dd}&active={Active:true/false}"
+    },
+    {
+      "name": "Middle Optional",
+      "suffix": "/parents/{Parent ID:0}/children?active={Active:true/false}&created={Date Created?:yyyy-MM-dd}&flag={Other Flag:y/n}"
+    },
+    {
+      "name": "Trailing Optional",
+      "suffix": "/parents/{Parent ID:0}/children?active={Active:true/false}&created={Date Created?:yyyy-MM-dd}"
+    },
+    {
+      "name": "Split",
+      "suffix": "/parents/{Parent ID:0}/children?state={State,:open,closed,deferred}"
+    },
+    {
+      "name": "Leading Split",
+      "suffix": "/parents/{Parent ID:0}/children?state={State,:open,closed,deferred}&active={Active:true/false}"
+    },
+    {
+      "name": "Middle Split",
+      "suffix": "/parents/{Parent ID:0}/children?active={Active:true/false}&state={State,:open,closed,deferred}&created={Date Created?:yyyy-MM-dd}"
+    },
+    {
+      "name": "Trailing Split",
+      "suffix": "/parents/{Parent ID:0}/children?active={Active:true/false}&state={State,:open,closed,deferred}"
+    }
+  ]
+}

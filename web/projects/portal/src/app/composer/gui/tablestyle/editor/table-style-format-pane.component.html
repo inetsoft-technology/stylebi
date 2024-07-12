@@ -1,0 +1,122 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="style-region-bordered">
+   <legend>{{selectedRegionLabel}}</legend>
+   <div *ngIf="!TableStyleUtil.isBorderRegion(selectedRegion)" class="style-bordered-box bd-gray tree-container">
+      <div class="row form-row-float-label justify-content-end">
+         <div class="form-floating col-5 justify-content-end">
+            <div class="form-floating input-width">
+               <dropdown-view #fontDropdown [label]="getFontText(regionFormatInfo?.font)">
+                  <font-pane [fontModel]="regionFormatInfo?.font" [fonts]="fonts"
+                             (onFontChange)="onChangeFormat.emit()"
+                             (onApply)="fontDropdown.close()">
+                  </font-pane>
+               </dropdown-view>
+            </div>
+            <label><span>_#(Font)</span></label>
+         </div>
+         <div class="form-floating col-5">
+            <div class="form-floating input-width">
+               <dropdown-view #alignmentDropdown [label]="getAlignmentLabel(regionFormatInfo.alignment)"  data-test="alignment-dropdown">
+                  <binding-alignment-pane [alignmentInfo]="regionFormatInfo.alignment"
+                                          [enableHAlign]="true"
+                                          [enableVAlign]="true"
+                                          (onAlignmentChange)="onChangeFormat.emit()"
+                                          (onApply)="alignmentDropdown.close()">
+                  </binding-alignment-pane>
+               </dropdown-view>
+            </div>
+            <label><span>_#(Alignment)</span></label>
+         </div>
+      </div>
+      <div class="row form-row-float-label justify-content-end">
+         <div class="form-floating col-5">
+            <div class="input-width">
+               <color-dropdown [color]="regionFormatInfo?.foreground" [chart]="false" label="_#(Foreground)"
+                               [transEnabled]="true" [enabled]="true" [isTableStyle]="true"
+                               (colorChange)="changeRegionFormat($event, 'foreground')">
+               </color-dropdown>
+            </div>
+         </div>
+         <div class="form-floating col-5" *ngIf="!isGroupTotal">
+            <div class="input-group input-width">
+               <style-border-pane class="w-100" [borderStyle]="regionFormatInfo?.rowBorder"
+                                  (borderChange)="changeRegionFormat($event, 'rowBorder')">
+               </style-border-pane>
+               <color-dropdown [color]="regionFormatInfo?.rowBorderColor"
+                               [chart]="false" data-test="background-color-dropdown"
+                               [transEnabled]="true" [enabled]="true"
+                               (colorChange)="changeRegionFormat($event, 'rowBorderColor')">
+               </color-dropdown>
+            </div>
+            <label><span>_#(Row Border)</span></label>
+         </div>
+         <div class="form-floating col-5" *ngIf="isGroupTotal">
+            <div class="input-width">
+               <color-dropdown [color]="regionFormatInfo?.background" label="_#(Background)" [chart]="false"
+                               [isBg]="true" [transEnabled]="true" [enabled]="true" [isTableStyle]="true"
+                               (colorChange)="changeRegionFormat($event, 'background')">
+               </color-dropdown>
+            </div>
+         </div>
+      </div>
+      <div class="row form-row-float-label justify-content-end"
+           *ngIf="!isGroupTotal">
+         <div class="form-floating col-5">
+            <div class="input-width">
+               <color-dropdown [color]="regionFormatInfo?.background" label="_#(Background)" [chart]="false"
+                               [isBg]="true" [transEnabled]="true" [enabled]="true" [isTableStyle]="true"
+                               (colorChange)="changeRegionFormat($event, 'background')">
+               </color-dropdown>
+            </div>
+         </div>
+         <div class="form-floating col-5">
+            <div class="input-group input-width">
+               <style-border-pane class="w-100" [borderStyle]="regionFormatInfo?.colBorder"
+                                  (borderChange)="changeRegionFormat($event, 'colBorder')">
+               </style-border-pane>
+               <color-dropdown [color]="regionFormatInfo?.colBorderColor"
+                               [chart]="false" data-test="background-color-dropdown"
+                               [transEnabled]="true" [enabled]="true"
+                               (colorChange)="changeRegionFormat($event, 'colBorderColor')">
+               </color-dropdown>
+            </div>
+            <label><span>_#(Column Border)</span></label>
+         </div>
+      </div>
+   </div>
+   <div *ngIf="TableStyleUtil.isBorderRegion(selectedRegion)" class="style-bordered-box bd-gray tree-container">
+      <div class="row form-row-float-label justify-content-center">
+         <div class="form-floating col-5">
+            <div class="input-group input-width">
+               <style-border-pane class="w-100" [borderStyle]="borderFormatInfo.border"
+                                  (borderChange)="changeRegionFormat($event, 'border')">
+               </style-border-pane>
+               <color-dropdown [color]="borderFormatInfo?.borderColor" [chart]="false"
+                               data-test="background-color-dropdown"
+                               [transEnabled]="true" [enabled]="true"
+                               (colorChange)="changeRegionFormat($event, 'color')">
+               </color-dropdown>
+            </div>
+            <label><span>_#(Border Style)</span></label>
+         </div>
+      </div>
+   </div>
+</div>

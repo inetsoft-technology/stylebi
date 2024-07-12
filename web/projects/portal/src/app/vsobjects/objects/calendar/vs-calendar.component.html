@@ -1,0 +1,206 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div [class.mobile]="mobileDevice"
+     [style.display]="getVisible() ? null : 'none'"
+     [class.fade-assembly]="!viewer && !model.visible"
+     [style.top.px]="topPosition"
+     [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+     [style.width.px]="model.objectFormat.width"
+     [style.height.px]="height"
+     [style.z-index]="viewer ? model.objectFormat.zIndex + (model.dropdownCalendar ? 9999 : 0) : null"
+     [style.border-bottom]="vsWizard ? 'none' : model.objectFormat.border.bottom"
+     [style.border-top]="vsWizard ? 'none' : model.objectFormat.border.top"
+     [style.border-left]="vsWizard ? 'none' : model.objectFormat.border.left"
+     [style.border-right]="vsWizard ? 'none' : model.objectFormat.border.right"
+     [style.border-radius.px]="vsWizard ? 0 : model.objectFormat.roundCorner"
+     [style.color]="model.objectFormat.foreground"
+     [style.background-color]="model.objectFormat.background"
+     [safeFont]="model.objectFormat.font"
+     class="vs-calendar vs-object"
+     VSDataTip [dataTipName]="model.absoluteName"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex"
+     [class.dropdown-calendar]="model.dropdownCalendar"
+     [class.disable-actions-fade]="!model.enabled">
+  <div *ngIf="model.dropdownCalendar" class="selection-list__header-buttons"
+       [class.force-toolbar]="keyNavFocused || mobileDevice"
+       [style.height.px]="model.objectFormat.height - 1"
+       [style.color]="model.titleFormat.foreground">
+    <mini-menu #menu *ngIf="!mobileDevice"
+               role="menu"
+               aria-haspopup="true"
+               aria-label="_#(Mini Menu)"
+               tabindex="-1"
+               [keyNav]="isMiniBarSelected"
+               [actions]="toolbarActions"
+               [keyNavigation]="keyboardNavObservable"
+               (onClose)="miniMenuClosed()"
+               class="mini-menu d-inline-block"
+               [class.bd-selected-cell]="selectedCellRow == SelectionRegions.MENU"
+               [style.z-index]="viewer ? model.objectFormat.zIndex + 1 : null">
+    </mini-menu>
+    <collapse-toggle-button #dropdownToggleRef
+                            class="d-inline-block"
+                            role="button"
+                            aria-label="_#(Dropdown)"
+                            tabindex="-1"
+                            [attr.aria-expanded]="!!model.calendarsShown"
+                            [actionNames]="model.actionNames"
+                            [collapsed]="!model.calendarsShown"
+                            (hideClicked)="onHide()"
+                            (showClicked)="onShow()"
+                            [class.bd-selected-cell]="selectedCellRow == SelectionRegions.DROPDOWN">
+    </collapse-toggle-button>
+  </div>
+  <div class="calendar-title"
+        *ngIf="!editingTitle && (!viewer || model.dropdownCalendar || model.titleVisible)"
+        [style.position]="model.dropdownCalendar && !this.model.calendarsShown ? 'absolute' : 'relative'"
+        [class.inactive]="!viewer && !model.titleVisible"
+        [style.height.px]="model.titleFormat.height"
+        [style.justify-content]="model.titleFormat.justifyContent"
+        [style.align-items]="model.titleFormat.alignItems"
+        [style.text-align]="model.titleFormat.hAlign"
+        [style.max-width.px]="model.objectFormat.width"
+        [safeFont]="model.titleFormat.font"
+        [style.line-height]="model.titleFormat.lineHeight"
+        [style.background]="model.titleFormat.background"
+        [style.border-top-left-radius.px]="model.objectFormat.roundCorner"
+        [style.border-top-right-radius.px]="model.objectFormat.roundCorner"
+        [style.color]="model.titleFormat.foreground"
+        [style.text-decoration]="model.titleFormat.decoration"
+        [style.border-bottom]="model.titleFormat.border.bottom"
+        [style.border-top]="model.titleFormat.border.top"
+        [style.border-left]="model.titleFormat.border.left"
+        [style.border-right]="model.titleFormat.border.right"
+        [style.white-space]="model.titleFormat.wrapping.whiteSpace"
+        [style.word-wrap]="model.titleFormat.wrapping.wordWrap"
+        [style.overflow]="model.titleFormat.wrapping.overflow"
+        [style.border-radius.px]="vsWizard ? 0 : model.titleFormat.roundCorner"
+        (mousedown)="selectTitle(true)"
+        (click)="headerClick()"
+        [class.selected-cell]="isTitleSelected()"
+        wInteractable
+        [interactableResizable]="!viewer && selected"
+        [resizableTopEdge]="false"
+        [resizableLeftEdge]="false"
+        [resizableRightEdge]="false"
+        [resizableBottomEdge]="'.bottom'"
+        [resizableMargin]="5"
+        (onResizableMove)="titleResizeMove($event)"
+        (onResizableEnd)="titleResizeEnd()"
+        (dblclick)="editingTitle = !viewer"
+        (click)="vsWizardPreview ? (editingTitle = !viewer) : selectTitle(true)">
+     <div class= "non-editable-text title-text"
+          [style.text-align]="model.titleFormat.hAlign"
+          [style.vertical-align]="model.titleFormat.vAlign"
+          [style.padding-top.px]="model.titleFormat?.padding?.top"
+          [style.padding-bottom.px]="model.titleFormat?.padding?.bottom"
+          [style.padding-left.px]="model.titleFormat?.padding?.left"
+          [style.padding-right.px]="model.titleFormat?.padding?.right"
+          tooltipIf [innerHTML]="getHTMLText()">
+     </div>
+     <ng-container *ngIf="!editingTitle && !viewer && selected">
+       <div class="title-move-zone" [class.vs-wizard]="vsWizardPreview"></div>
+       <ng-container *ngIf="!editingTitle && !viewer && selected && !vsWizard">
+         <div class="title-resize-handle bg-primary bottom middle"></div>
+         <div class="container-gutter bottom"></div>
+       </ng-container>
+     </ng-container>
+     <div *ngIf="rowResizeLabel" class="row-resize-label">{{rowResizeLabel}}</div>
+   </div>
+   <input class="calendar-title component-input" *ngIf="!viewer && editingTitle"
+          [style.height.px]="model.titleFormat.height"
+          [(ngModel)]="model.title"
+          (focusout)="updateTitle()"
+          defaultFocus [autoSelect]="true"
+          (keyup.enter)="$event.target.blur(); editingTitle = false;">
+   <div class="calendar-body" [hidden]="model.dropdownCalendar && !model.calendarsShown"
+        (mousedown)="selectTitle(false)">
+      <ng-template [ngIf]="!model.yearView">
+         <month-calendar #calendar1 [model]="model" [formatPainterMode]="vsInfo?.formatPainterMode"
+                         (syncRanges)="syncRangeHighlight($event)" (syncPeriods)="syncPeriods($event)" (applyCalendar)="applyCalendar0()"
+                         (syncDateChange)="syncDateChange($event)" (selectRange)="selectRange($event, false)"
+                         (selectedDatesChange)="selectedDatesChange()" (titleChanged)="updateCalendarTitleView($event)"
+                         [selected]="selected"
+                         [selectedRow]="leftCalendar ? selectedCellRow : SelectionRegions.NONE"
+                         [selectedCol]="leftCalendar ? selectedCellCol: SelectionRegions.NONE"></month-calendar>
+        <div #toggleComparisonRef
+             class="calendar-mode-btn text-center align-middle" *ngIf="model.doubleCalendar"
+             [style.top.px]="model.dropdownCalendar ? model.objectFormat.height + 2 : null"
+             [style.left.px]="model.dropdownCalendar ? model.objectFormat.width - 8 : null"
+             [class.bd-selected-cell]="selectedCellRow == SelectionRegions.SWITCH"
+             [style.cursor]="(model.comparisonVisible || this.model.period) ? 'pointer' : 'default'"
+             title="{{model.period ? '_#(Date Comparison)' : '_#(Date Range)'}}"
+             (click)="toggleRangeComparison()" tabindex="-1" role="button">
+          <div class="d-inline-flex">
+            <i *ngIf="model.period" class="compare-icon" [style.color]="iconColor"></i>
+            <i *ngIf="!model.period" class="date-range-icon" [style.color]="iconColor"></i>
+          </div>
+        </div>
+         <month-calendar #calendar2 *ngIf="model.doubleCalendar" [model]="model" [secondCalendar]="true"
+                         [formatPainterMode]="vsInfo?.formatPainterMode"
+                         [selected]="selected"
+                         (syncPeriods)="syncPeriods($event)" (applyCalendar)="applyCalendar0()"
+                         (syncRanges)="syncRangeHighlight($event)"
+                         (syncDateChange)="syncDateChange($event)" (selectRange)="selectRange($event, true)"
+                         (selectedDatesChange)="selectedDatesChange()" (titleChanged)="updateCalendarTitleView($event)"
+                         [selectedRow]="leftCalendar ? SelectionRegions.NONE : selectedCellRow"
+                         [selectedCol]="leftCalendar ? SelectionRegions.NONE : selectedCellCol"></month-calendar>
+      </ng-template>
+      <ng-template [ngIf]="model.yearView">
+         <year-calendar #calendar1 [model]="model" [formatPainterMode]="vsInfo?.formatPainterMode"
+                        [selectedRow]="leftCalendar ? selectedCellRow : SelectionRegions.NONE"
+                        [selectedCol]="leftCalendar ? selectedCellCol: SelectionRegions.NONE"
+                        [selected]="selected"
+                        (applyCalendar)="applyCalendar0()"
+                        (selectedDatesChange)="selectedDatesChange()"
+                        (titleChanged)="updateCalendarTitleView($event)"
+                        (syncRanges)="syncRangeHighlight($event)" (syncPeriods)="syncPeriods($event)"
+                        (syncDateChange)="syncDateChange($event)"></year-calendar>
+        <div #toggleComparisonRef
+             class="calendar-mode-btn text-center align-middle" *ngIf="model.doubleCalendar"
+             [class.bd-selected-cell]="selectedCellRow == SelectionRegions.SWITCH"
+             [style.top.px]="model.dropdownCalendar ? model.objectFormat.height + 2 : null"
+             [style.left.px]="model.dropdownCalendar ? model.objectFormat.width - 8 : null"
+             [style.cursor]="(model.comparisonVisible || this.model.period) ? 'pointer' : 'default'"
+             title="{{model.period ? '_#(Date Comparison)' : '_#(Date Range)'}}"
+             (click)="toggleRangeComparison()" tabindex="-1" role="button">
+          <div class="d-inline-flex">
+            <i *ngIf="model.period" class="compare-icon" [style.color]="iconColor"></i>
+            <i *ngIf="!model.period" class="date-range-icon" [style.color]="iconColor"></i>
+          </div>
+        </div>
+         <year-calendar #calendar2 *ngIf="model.doubleCalendar" [model]="model" [secondCalendar]="true"
+                        [formatPainterMode]="vsInfo?.formatPainterMode"
+                        [selected]="selected"
+                        (syncPeriods)="syncPeriods($event)" (applyCalendar)="applyCalendar0()"
+                        (syncRanges)="syncRangeHighlight($event)" (syncDateChange)="syncDateChange($event)"
+                        (selectedDatesChange)="selectedDatesChange()"
+                        (titleChanged)="updateCalendarTitleView($event)"
+                        [selectedRow]="leftCalendar ? SelectionRegions.NONE : selectedCellRow"
+                        [selectedCol]="leftCalendar ? SelectionRegions.NONE : selectedCellCol"></year-calendar>
+      </ng-template>
+   </div>
+  <i *ngIf="pendingChange" class="pending-submit-icon pending-alert"
+     [class.left]="model.dropdownCalendar"
+     [style.right.px]="getPendingIconPosition(this.model)" [style.color]="iconColor"
+     title="_#(common.viewsheet.pending.submit)"></i>
+</div>

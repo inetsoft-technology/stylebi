@@ -1,0 +1,90 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="popup-editor__container">
+  <div class="popup-editor__button-group">
+    <button class="popup-editor__button btn" title="_#(Apply)"
+            (click)="onApply.emit(true)">
+      <i class="submit-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+  </div>
+  <button class="btn btn-default w-100 auto_id" (click)="setAuto()">_#(Auto)</button>
+   <div class="ms-2 me-2" *ngIf="enableHAlign">
+     <fieldset>
+       <legend>_#(Horizontal Alignment)</legend>
+       <div class="form-row">
+         <div class="col-4">
+           <button class="toggleButton"
+                   title="_#(Left)"
+                   [class.bg-selected]="alignmentInfo?.halign === 'Left'"
+                   (click)="changeHalign('Left')">
+             <i class="align-text-left-icon" aria-hidden="true"></i>
+           </button>
+         </div>
+         <div class="col-4">
+           <button class="toggleButton"
+                   title="_#(Center)"
+                   [class.bg-selected]="alignmentInfo?.halign === 'Center'"
+                   (click)="changeHalign('Center')">
+             <i class="align-text-center-icon" aria-hidden="true"></i>
+           </button>
+         </div>
+         <div class="col-4">
+           <button class="toggleButton"
+                   title="_#(Right)"
+                   [class.bg-selected]="alignmentInfo?.halign === 'Right'"
+                   (click)="changeHalign('Right')">
+             <i class="align-text-right-icon" aria-hidden="true"></i>
+           </button>
+         </div>
+       </div>
+     </fieldset>
+   </div>
+   <div class="ms-2 me-2" *ngIf="enableVAlign">
+     <fieldset>
+       <legend>_#(Vertical Alignment)</legend>
+       <div class="form-row">
+         <div class="col-4">
+           <button class="toggleButton"
+                   title="_#(Top)"
+                   [class.bg-selected]="alignmentInfo?.valign === 'Top'"
+                   (click)="changeValign('Top')">
+             <i class="toggle-icon align-text-top-icon" aria-hidden="true"></i>
+           </button>
+         </div>
+         <div class="col-4">
+           <button class="toggleButton"
+                   title="_#(Middle)"
+                   [class.bg-selected]="alignmentInfo?.valign === 'Middle'"
+                   (click)="changeValign('Middle')">
+             <i class="toggle-icon align-text-middle-icon" aria-hidden="true"></i>
+           </button>
+         </div>
+         <div class="col-4">
+           <button class="toggleButton"
+                   title="_#(Bottom)"
+                   [class.bg-selected]="alignmentInfo?.valign === 'Bottom'"
+                   (click)="changeValign('Bottom')">
+             <i class="toggle-icon align-text-bottom-icon" aria-hidden="true"></i>
+           </button>
+         </div>
+       </div>
+     </fieldset>
+   </div>
+</div>

@@ -1,0 +1,51 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <fieldset>
+    <div class="form-row-float-label row">
+      <div class="col-auto">
+        <div class="form-check">
+          <input id="logarithmic" type="checkbox" class="form-check-input"
+               [(ngModel)]="model.logarithmic">
+          <label class="form-check-label" for="logarithmic">
+            _#(Logarithmic Scale)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto" *ngIf="model.reverseVisible">
+        <div class="form-check">
+          <input id="reverse" type="checkbox" class="form-check-input" [(ngModel)]="model.reverse">
+          <label class="form-check-label" for="reverse">
+             _#(Reverse)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto" *ngIf="model.includeZeroVisible">
+        <div class="form-check">
+          <input id="zero" type="checkbox" class="form-check-input"
+               [(ngModel)]="model.includeZero">
+          <label class="form-check-label" for="zero">
+             _#(Include Zero)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>

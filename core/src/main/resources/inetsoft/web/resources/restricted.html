@@ -1,0 +1,63 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title data-th-text="#{em.restricted.title}">Login</title>
+  <meta name="description" content="Style Intelligence">
+  <meta name="author" content="InetSoft Technology Corp">
+  <!-- Mobile Specific Metas					     ================================================== -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+  <!-- CSS					     ================================================== -->
+  <link rel="stylesheet" type="text/css" href="webjars/bootstrap/css/bootstrap.min.css" data-th-href="${linkUri + 'css/bootstrap.min.css'}"/>
+  <link rel="stylesheet" type="text/css" href="app/global.css" data-th-href="${linkUri + 'app/global.css'}"/>
+  <link rel="stylesheet" type="text/css" href="css/login.css" data-th-href="${linkUri + 'css/login.css'}"/>
+  <link th:if="${customTheme} == true" rel="stylesheet" type="text/css" href="app/theme-variables.css" data-th-href="${linkUri + 'app/theme-variables.css'}">
+
+  <!-- Favicons				     ================================================== -->
+  <link rel="shortcut icon" data-th-href="@{/portal/favicon}" href="portal/favicon">
+</head>
+<body>
+<div class="d-flex align-items-center bg-navbar-top" data-th-switch="${customLogo}">
+  <img class="custom-logo" src="portal/logo" data-th-src="${linkUri + 'portal/logo'}" data-th-case="${true}">
+  <th-block data-th-case="*">
+    <i class="inetsoft-logo inetsoft-icon icon-size-logo txt-primary"></i>
+    <span class="inetsoft-logo txt-light" > InetSoft </span>
+  </th-block>
+</div>
+<div class="container-fluid login-root">
+  <div class="card">
+    <div class="card-body">
+      <p data-th-text="#{em.restricted.note}">You do not have permission to access the Enterprise Manager. Select an option from below.</p>
+      <p>
+        <a href="logout" data-th-href="${logoutUrl}" data-th-text="#{em.restricted.logout}">Log in as a different user.</a>
+      </p>
+      <p>
+        <a href="app/portal" data-th-href="${linkUri + 'app/portal'}" data-th-text="#{em.restricted.return}">Return to the user portal.</a>
+      </p>
+    </div>
+  </div>
+</div>
+<script type="text/javascript" src="webjars/jquery/jquery.min.js" data-th-src="${linkUri + 'webjars/jquery/jquery.min.js'}"></script>
+<script type="text/javascript" src="webjars/bootstrap/js/bootstrap.min.js" data-th-src="${linkUri + 'webjars/bootstrap/js/bootstrap.min.js'}"></script>
+</body>
+</html>

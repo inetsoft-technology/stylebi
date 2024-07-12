@@ -1,0 +1,52 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="vs-wizard-container">
+  <div *ngIf="!!model.runtimeId && currentPane == WizardPanes.WIZARD_PANE">
+    <vs-wizard-pane [runtimeId]="model.runtimeId" [linkUri]="model.linkUri"
+                    [componentWizardEnable]="model.componentWizardEnable"
+                    [currentVSObject]="model.objectModel"
+                    [editMode]="model.editMode"
+                    [hiddenNewBlock]="model.hiddenNewBlock"
+                    (onHiddenNewBlockChanged)="hiddenNewBlockChanged($event)"
+                    (toComponentWizard)="goToComponentWizard($event, true)"
+                    (onChangeCurrentObject)="changeCurrentObject($event)"
+                    (onFinish)="finish($event)"
+                    (onCancel)="cancel()">
+    </vs-wizard-pane>
+  </div>
+  <div *ngIf="!!model.runtimeId && currentPane == WizardPanes.OBJECT_WIZARD_PANE">
+    <object-wizard-pane [editMode]="model.editMode" [originalMode]="model.oinfo?.editMode"
+                        [linkuri]="model.linkUri" [runtimeId]="model.runtimeId"
+                        [isNewViewsheetWizard]="isNewViewsheetWizard"
+                        [temporarySheet]="model.temporarySheet"
+                        [originalObjectType]="model.objectModel?.objectType"
+                        [originalName]="model.objectModel?.absoluteName"
+                        [oldOriginalName]="model.oldAbsoluteName"
+                        [viewer]="model.viewer"
+                        (onClose)="closeObjectWizard($event)"
+                        (onFullEditor)="goToFullEditor($event)"
+                        (onSwitchMeta)="switchToMeta()">
+    </object-wizard-pane>
+  </div>
+
+  <vs-loading-display *ngIf="showLoading()"
+                      [preparingData]="preparingData">
+  </vs-loading-display>
+</div>

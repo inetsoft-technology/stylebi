@@ -1,0 +1,93 @@
+{
+  "tests": [
+    {
+      "endpoint": "Ad Accounts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Authenticated Ad Account User",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Campaign Groups",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Campaigns",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Creatives",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Ad Targeting Facets",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Organization",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Organization ID": "2414183"
+      }
+    },
+    {
+      "endpoint": "Organization by Email Domain",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Email Domain": "inetsoft.com"
+      }
+    },
+    {
+      "endpoint": "Organization Follower Count",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Organization URN": "urn:li:organization:91536"
+      }
+    },
+    {
+      "endpoint": "Organization Brands by Organization",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Parent Organization URN": "urn:li:organization:91536"
+      }
+    },
+    {
+      "endpoint": "Organization Brands by Vanity Name",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Vanity Name": "devtestco1"
+      }
+    },
+    {
+      "endpoint": "Current User Profile",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    }
+  ]
+}

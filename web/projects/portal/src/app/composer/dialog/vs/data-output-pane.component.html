@@ -1,0 +1,142 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid" #form>
+  <fieldset>
+    <legend>_#(Output)</legend>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <tree-dropdown data-test="tableTreeDropdown"
+                         [root]="model.targetTree" [selected]="currentLabel"
+                         [selectedType]="model.tableType"
+                         [currentNodeData]="model.table" [expandSelectedNodes]="true"
+                         [runtimeId]="runtimeId"
+                         (nodeSelected)="selectTarget($event)"></tree-dropdown>
+          <label>_#(Table)</label>
+        </div>
+      </div>
+    </div>
+    <fieldset [disabled]="columnDisabled()" class="column_aggregate_field_id">
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-floating">
+            <dynamic-combo-box id="column"
+                               [values]="columnValues" [variables]="variableValues"
+                               [value]="model.column" (valueChange)="selectColumn($event)"
+                               [disable]="columnDisabled()" [vsId]="runtimeId"
+                               [asTree]="model.logicalModel"
+                               (typeChange)="selectColType($event)"
+                               [initSelectedNodesExpanded]="true"
+                               [showTooltip]="true">
+            </dynamic-combo-box>
+            <label>_#(Column)</label>
+          </div>
+        </div>
+      </div>
+      <fieldset [disabled]="aggregateDisabled()">
+        <div class="form-row-float-label row">
+          <div class="col">
+            <div class="form-floating">
+              <dynamic-combo-box id="aggregate"
+                                 [values]="aggregates" [variables]="variableValues"
+                                 [value]="model.aggregate" (valueChange)="selectAgg($event)"
+                                 (typeChange)="selectAggType($event)" [vsId]="runtimeId"
+                                 [disable]="aggregateDisabled()"></dynamic-combo-box>
+              <label>_#(Aggregate)</label>
+            </div>
+          </div>
+        </div>
+        <fieldset [disabled]="withDisabled()">
+          <div class="form-row-float-label row">
+            <div class="col">
+              <div class="form-floating">
+                <dynamic-combo-box id="with" [asTree]="model.logicalModel"
+                    [values]="withColumnValues" [variables]="variableValues"
+                    [(value)]="model.with" [initSelectedNodesExpanded]="true"
+                    [disable]="withDisabled()" [vsId]="runtimeId">
+                </dynamic-combo-box>
+                <label>_#(With)</label>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset *ngIf="!nDisabled()">
+          <div class="form-row-float-label row">
+            <div class="col">
+              <div class="form-floating">
+                <dynamic-combo-box id="num"
+                    [variables]="variableValues" [editable]="true"
+                    [value]="model.num" (onValueTyping)="model.num = $event"
+                    (valueChange)="npValueChange($event)"
+                    [vsId]="runtimeId">
+                </dynamic-combo-box>
+                <label>{{getNPLabel()}}</label>
+              </div>
+            </div>
+          </div>
+          <div *ngIf="hasN && !isNValid()" class="alert alert-danger form-row-float-label row">
+            _#(table.formula.parameterError)
+          </div>
+        </fieldset>
+      </fieldset>
+      <div class="form-row-checkbox row">
+        <div class="col-auto">
+          <div class="form-check">
+            <input id="asIsRadio" type="radio" class="form-check-input" name="value-options"
+                 [value]="1" [(ngModel)]="model.magnitude">
+            <label class="form-check-label" for="asIsRadio">
+              _#(As Is)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input id="thousandsRadio" type="radio" class="form-check-input" name="value-options"
+                 [value]="1000" [(ngModel)]="model.magnitude">
+            <label class="form-check-label" for="thousandsRadio">
+              _#(Thousands)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input id="millionsRadio" type="radio" class="form-check-input" name="value-options"
+                 [value]="1000000" [(ngModel)]="model.magnitude">
+            <label class="form-check-label" for="millionsRadio">
+              _#(Millions)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input id="billionsRadio" type="radio" class="form-check-input" name="value-options"
+                 [value]="1000000000" [(ngModel)]="model.magnitude">
+            <label class="form-check-label" for="billionsRadio">
+              _#(Billions)
+            </label>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+  </fieldset>
+  <fieldset>
+    <p>_#(viewer.viewsheet.outputNote)</p>
+  </fieldset>
+</form>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="24px" height="24px" viewBox="0 0 24 24" enable-background="new 0 0 24 24" xml:space="preserve">
+<polyline points="5,9.5 8,14.5 2,14.5 5,9.5 "/>
+<polyline points="2.5,2.5 7.5,2.5 7.5,7.5 2.5,7.5 2.5,2.5 "/>
+<path d="M5,22.5c1.38,0,2.5-1.118,2.5-2.5c0-1.38-1.12-2.5-2.5-2.5S2.5,18.62,2.5,20C2.5,21.382,3.62,22.5,5,22.5"/>
+<path d="M16,5.5c-3.314,0-6,1.119-6,2.5s2.686,2.5,6,2.5c3.316,0,6-1.119,6-2.5S19.316,5.5,16,5.5"/>
+<path d="M10,10.5v2.143c0,1.58,2.686,2.857,6,2.857c3.316,0,6-1.277,6-2.857V10.5c0,1.578-2.684,2.856-6,2.856
+	C12.686,13.356,10,12.077,10,10.5"/>
+<path d="M10,14.5v2.144c0,1.577,2.686,2.856,6,2.856c3.316,0,6-1.279,6-2.856V14.5c0,1.578-2.684,2.856-6,2.856
+	C12.686,17.356,10,16.078,10,14.5z"/>
+</svg>

@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.1, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg version="1.0" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="234.666px" height="305.394px" viewBox="0 0 234.666 305.394" enable-background="new 0 0 234.666 305.394"
+	 xml:space="preserve">
+<g id="Layer_3">
+</g>
+<g id="Layer_1">
+	
+		<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="-3.6162" y1="264.0269" x2="-3.6162" y2="464.0269" gradientTransform="matrix(1 0 0 -1 121.0005 482.6162)">
+		<stop  offset="0.0056" style="stop-color:#E3F1F4"/>
+		<stop  offset="0.5337" style="stop-color:#76BDCE"/>
+		<stop  offset="1" style="stop-color:#2881FF"/>
+	</linearGradient>
+	<rect x="30.638" y="18.589" fill="url(#SVGID_1_)" fill-opacity="0" width="173.492" height="200"/>
+	<g>
+		
+			<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="-3.6162" y1="267.5259" x2="-3.6162" y2="460.5259" gradientTransform="matrix(1 0 0 -1 121.0005 482.6162)">
+			<stop  offset="0.0056" style="stop-color:#E3F1F4"/>
+			<stop  offset="0.5337" style="stop-color:#76BDCE"/>
+			<stop  offset="1" style="stop-color:#2881FF"/>
+		</linearGradient>
+		<path fill="url(#SVGID_2_)" stroke="#0579C1" stroke-width="0.5" d="M197.472,48.694c-11.25-19.159-58.027-26.202-78.268-26.567
+			c-0.334-0.043-0.635-0.05-0.894-0.012c-0.315-0.003-0.625-0.004-0.926-0.003c-19.1-0.049-68.486,6.824-80.087,26.582
+			c-7.706,14.344-1.716,32.917,22.424,39.982l39.199,81.467h0.066c-4.839,4.76-7.843,11.381-7.843,18.705
+			c0,14.493,11.749,26.242,26.242,26.242c14.493,0,26.242-11.749,26.242-26.242c0-7.324-3.004-13.945-7.842-18.705h0.925
+			l39.199-81.467c0.553-0.207,1.029-0.458,1.46-0.736C199.564,80.391,204.924,62.566,197.472,48.694z"/>
+		
+			<linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="-4.4385" y1="456.7173" x2="-4.4385" y2="428.272" gradientTransform="matrix(1 0 0 -1 121.0005 482.6162)">
+			<stop  offset="0.0056" style="stop-color:#DFF0FF"/>
+			<stop  offset="0.0916" style="stop-color:#B1D4FF"/>
+			<stop  offset="0.1781" style="stop-color:#8BBDFF"/>
+			<stop  offset="0.2641" style="stop-color:#6DABFF"/>
+			<stop  offset="0.3484" style="stop-color:#579EFF"/>
+			<stop  offset="0.4299" style="stop-color:#4A96FF"/>
+			<stop  offset="0.5056" style="stop-color:#4693FF"/>
+			<stop  offset="1" style="stop-color:#3689FF"/>
+		</linearGradient>
+		<path fill="url(#SVGID_3_)" d="M43.214,52.162c0,0,72.8-60.52,146.697,2.182C189.912,54.343,128.758,13.192,43.214,52.162z"/>
+		<g display="none" opacity="0.6">
+			
+				<linearGradient id="SVGID_4_" gradientUnits="userSpaceOnUse" x1="56.1475" y1="411.4653" x2="-63.4507" y2="411.4648" gradientTransform="matrix(1 0 0 -1 121.0005 482.6162)">
+				<stop  offset="0.0056" style="stop-color:#3041FF"/>
+				<stop  offset="0.5787" style="stop-color:#5F95FF"/>
+				<stop  offset="1" style="stop-color:#2832FF"/>
+			</linearGradient>
+			<path display="inline" fill="url(#SVGID_4_)" d="M176.702,80.005c-1.481,2.906-5.596,3.702-9.278,2.056
+				c-31.891-14.314-68.187-14.314-100.078,0c-3.682,1.646-7.797,0.852-9.278-2.056l0,0c-1.48-2.897,0.556-6.979,4.646-8.813
+				c34.843-15.639,74.5-15.639,109.343,0C176.146,73.026,178.182,77.108,176.702,80.005L176.702,80.005z"/>
+			<path display="inline" fill="none" stroke="#0460A5" stroke-width="0.2298" d="M176.702,80.005
+				c-1.481,2.906-5.596,3.702-9.278,2.056c-31.891-14.314-68.187-14.314-100.078,0c-3.682,1.646-7.797,0.852-9.278-2.056l0,0
+				c-1.48-2.897,0.556-6.979,4.646-8.813c34.843-15.639,74.5-15.639,109.343,0C176.146,73.026,178.182,77.108,176.702,80.005
+				L176.702,80.005z"/>
+		</g>
+		<g opacity="0.6">
+			
+				<linearGradient id="SVGID_5_" gradientUnits="userSpaceOnUse" x1="-102.4385" y1="325.0903" x2="-211.9814" y2="325.0907" gradientTransform="matrix(1 0 0 1 274.8633 -254.6309)">
+				<stop  offset="0.0056" style="stop-color:#3041FF"/>
+				<stop  offset="0.5787" style="stop-color:#5F95FF"/>
+				<stop  offset="1" style="stop-color:#2832FF"/>
+			</linearGradient>
+			<path fill="url(#SVGID_5_)" d="M171.74,77.688c-1,3-3.567,4.731-7.25,3.084c-32.582-12.666-61.75-13.25-94.333-0.25
+				c-3.682,1.647-6-0.666-6.667-2.666l0,0c-1.333-3.168-0.417-6.584,2.167-8c35.167-14.167,69.75-13.417,103.333,0
+				C173.08,71.69,172.824,75.106,171.74,77.688L171.74,77.688z"/>
+			<path fill="none" stroke="#0460A5" stroke-width="0.2298" d="M171.74,77.938c-1.481,2.907-3,4.166-6.668,3.084
+				c-32.5-13.334-63.167-13.5-95.75,0c-3.417,0.5-4.603-0.51-6.083-3.418l0,0c-0.833-2.666-0.167-6.25,2.083-7.5
+				c35.667-14.417,69.583-14.417,105.083,0.418C172.324,71.854,173.22,75.04,171.74,77.938L171.74,77.938z"/>
+		</g>
+		<g>
+			<g>
+				
+					<image overflow="visible" opacity="0.68" enable-background="new    " width="62" height="62" id="XMLID_9_" xlink:href="data:image/png;base64,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
+BRCxCqEw3wAAAABJRU5ErkJggg==" transform="matrix(0.7659 0 0 0.7659 93.6978 165.2114)">
+				</image>
+				<g>
+					
+						<linearGradient id="SVGID_6_" gradientUnits="userSpaceOnUse" x1="-252.6377" y1="283.7437" x2="-252.6377" y2="323.6216" gradientTransform="matrix(1 0 0 -1 370.0215 492.5303)">
+						<stop  offset="0.0056" style="stop-color:#E3F1F4"/>
+						<stop  offset="0.5337" style="stop-color:#76BDCE"/>
+						<stop  offset="1" style="stop-color:#2881FF"/>
+					</linearGradient>
+					<circle fill="url(#SVGID_6_)" cx="117.384" cy="188.848" r="19.939"/>
+					<circle fill="none" stroke="#06477C" stroke-width="0.0766" cx="117.384" cy="188.848" r="19.939"/>
+				</g>
+			</g>
+			
+				<linearGradient id="SVGID_7_" gradientUnits="userSpaceOnUse" x1="-252.6367" y1="320.8794" x2="-252.6367" y2="307.3403" gradientTransform="matrix(1 0 0 -1 370.0215 492.5303)">
+				<stop  offset="0.0056" style="stop-color:#E3F1F4"/>
+				<stop  offset="0.5" style="stop-color:#6CB5D4"/>
+				<stop  offset="1" style="stop-color:#5BA8DF"/>
+			</linearGradient>
+			<path fill="url(#SVGID_7_)" d="M98.616,184.951c3.631-4.591,12.192-6.073,18.755-6.073c6.558,0,15.366,1.727,18.996,6.313
+				l0.102-0.223c-2.464-7.703-10.079-13.316-19.098-13.316c-8.983,0-16.58,5.57-19.071,13.232L98.616,184.951z"/>
+		</g>
+		
+			<linearGradient id="SVGID_8_" gradientUnits="userSpaceOnUse" x1="-519.4644" y1="774.7729" x2="-531.2221" y2="774.6641" gradientTransform="matrix(1 0 0 -1 644.4883 906.0908)">
+			<stop  offset="0.0056" style="stop-color:#FDA43F"/>
+			<stop  offset="1" style="stop-color:#FF213F"/>
+		</linearGradient>
+		<polygon fill="url(#SVGID_8_)" stroke="#B77100" stroke-width="0.7659" points="119.64,84.928 124.167,84.925 120.786,79.589 
+			117.405,74.253 114.029,79.593 110.656,84.932 115.182,84.931 115.19,110.972 115.182,110.972 115.208,188.502 119.664,188.5 
+			119.657,162.458 119.664,162.458 		"/>
+	</g>
+	<g>
+		<circle fill="none" cx="117.333" cy="188.061" r="117.333"/>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 69.104 81.0054)" font-family="'ArialMT'" font-size="13">5</text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 75.7983 78.2778)" font-family="'ArialMT'" font-size="13"> </text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 79.1792 77.0552)" font-family="'ArialMT'" font-size="13"> </text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 82.6313 75.9292)" font-family="'ArialMT'" font-size="13"> </text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 86.0815 74.8784)" font-family="'ArialMT'" font-size="13">6</text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 93.1235 73.2134)" font-family="'ArialMT'" font-size="13"> </text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 96.6587 72.5298)" font-family="'ArialMT'" font-size="13"> </text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 100.2202 71.9116)" font-family="'ArialMT'" font-size="13">1</text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 107.4019 71.0884)" font-family="'ArialMT'" font-size="13">0</text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 114.6255 70.7622)" font-family="'ArialMT'" font-size="13"> </text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 118.2476 70.7202)" font-family="'ArialMT'" font-size="13"> </text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 121.8472 70.8022)" font-family="'ArialMT'" font-size="13"> </text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 125.4526 70.9507)" font-family="'ArialMT'" font-size="13">2</text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 132.6763 71.6675)" font-family="'ArialMT'" font-size="13">5</text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 139.7915 72.8638)" font-family="'ArialMT'" font-size="13"> </text>
+		<text transform="matrix(0.9238 -0.3828 0.3828 0.9238 143.3306 73.563)" font-family="'ArialMT'" font-size="13">6</text>
+	</g>
+	<text transform="matrix(1 0 0 1 79.313 11.1538)" font-family="'ArialMT'" font-size="13">13hao  zi</text>
+	<g id="Layer_3_2_" display="none">
+		<g display="inline">
+			<line fill="none" stroke="#000000" x1="119.529" y1="186.738" x2="188.726" y2="32.479"/>
+			<line fill="none" stroke="#000000" x1="119.529" y1="186.738" x2="45.836" y2="34.574"/>
+		</g>
+	</g>
+</g>
+</svg>

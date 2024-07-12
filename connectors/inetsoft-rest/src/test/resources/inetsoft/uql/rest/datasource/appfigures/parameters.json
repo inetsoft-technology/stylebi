@@ -1,0 +1,60 @@
+{
+  "tests": [
+    {
+      "endpoint": "Root",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Report Revenue",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Start Date": "2017-12-14"
+      }
+    },
+    {
+      "endpoint": "Report Regions",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Start Date": "2017-12-14"
+      }
+    },
+    {
+      "endpoint": "Report Sales",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Start Date": "2017-12-14"
+      }
+    },
+    {
+      "endpoint": "Archive",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Type": "Daily"
+      }
+    },
+    {
+      "endpoint": "Countries",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Events",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Accounts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    }
+  ]
+}

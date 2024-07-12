@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<!DOCTYPE tablefilter [
+    <!ELEMENT tablefilter (database+)>
+    <!ELEMENT database (catalog|schema)*>
+    <!ATTLIST database type CDATA #REQUIRED>
+    <!ELEMENT catalog (#PCDATA)>
+    <!ELEMENT schema (#PCDATA)>
+]>
+
+<tablefilter>
+    <!-- ODBC -->
+    <database type="0">
+    </database>
+    
+    <!-- Oracle -->
+    <database type="1">
+        <schema>AURORA$JIS$UTILITY$</schema>
+        <schema>AURORA$ORB$UNAUTHENTICATED</schema>
+        <schema>CTXSYS</schema>
+        <schema>DBSNMP</schema>
+        <schema>MDSYS</schema>
+        <schema>ORDPLUGINS</schema>
+        <schema>ORDSYS</schema>
+        <schema>OSE$HTTP$ADMIN</schema>
+        <schema>OUTLN</schema>
+        <schema>SYS</schema>
+        <schema>SYSTEM</schema>
+    </database>
+    
+    <!-- Sybase -->
+    <database type="2">
+    </database>
+    
+    <!-- Informix -->
+    <database type="3">
+    </database>
+    
+    <!-- DB2 -->
+    <database type="4">
+    </database>
+    
+    <!-- MySQL -->
+    <database type="5">
+        <catalog>mysql</catalog>
+    </database>
+    
+    <!-- MS Access -->
+    <database type="6">
+    </database>
+    
+    <!-- MS SQL Server -->
+    <database type="7">
+        <catalog>master</catalog>
+        <catalog>msdb</catalog>
+    </database>
+</tablefilter>
+

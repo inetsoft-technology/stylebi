@@ -1,0 +1,79 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header
+  [title]="'_#(Column Option)'"
+  (onCancel)="close()"
+  [cshid]="'ColumnEditingOption'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
+  <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+    <div class="form-row-checkbox row">
+      <div class="col">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="columnEdit"
+                 [(ngModel)]="model.enableColumnEditing"/>
+          <label class="form-check-label" for="columnEdit">
+            _#(Enable Column Editing)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col form-floating">
+          <select class="form-control" [disabled]="!model.enableColumnEditing"
+                  (change)="choose($event.target.value)" [(ngModel)]="model.inputControl"
+                  placeholder="_#(Input Control)">
+            <option [value]="input.value" *ngFor="let input of inputsTypes">{{input.label}}</option>
+          </select>
+          <label>_#(Input Control)</label>
+      </div>
+    </div>
+  </form>
+  <fieldset [disabled]="!model.enableColumnEditing">
+    <ng-container [ngSwitch]="model.inputControl">
+      <div *ngSwitchCase="ColumnOptionType.TEXT">
+        <text-editor [model]="model.editor"></text-editor>
+      </div>
+      <div *ngSwitchCase="ColumnOptionType.COMBOBOX">
+        <combo-box-editor [model]="model.editor" [runtimeId]="runtimeId"
+                          [showApplySelection]="false"
+                          [enableDataType]="false"></combo-box-editor>
+      </div>
+      <div *ngSwitchCase="ColumnOptionType.DATE">
+        <date-editor [model]="model.editor" [parentForm]="form"></date-editor>
+      </div>
+      <div *ngSwitchCase="ColumnOptionType.INTEGER">
+        <integer-editor [model]="model.editor" [parentForm]="form"></integer-editor>
+      </div>
+      <div *ngSwitchCase="ColumnOptionType.FLOAT">
+        <float-editor [model]="model.editor" [parentForm]="form"></float-editor>
+      </div>
+      <div *ngSwitchDefault></div>
+    </ng-container>
+  </fieldset>
+</div>
+<div class="modal-footer">
+  <apply-button (onApply)="apply($event)"></apply-button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">
+    _#(Cancel)
+  </button>
+  <button type="button" class="btn btn-primary" [disabled]="!form.valid"
+          (click)="ok()" #okButton>_#(OK)</button>
+</div>

@@ -1,0 +1,78 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="viewsheet-tab-container"
+     *ngIf="model && model.labels.length > 1"
+     [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
+     [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+     [style.width.px]="model.objectFormat.width"
+     [style.height.px]="model.objectFormat.height"
+     [style.display]="getVisible() ? null : 'none'"
+     [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+     [class.fade-assembly]="!model.enabled"
+     [class.disable-events]="disableEvents">
+  <div #tabContainer class="tab-container" [style.width.px]="model.objectFormat.width"
+       [style.max-height.px]="model.objectFormat.height">
+    <div class="tab-item" *ngFor="let label of model.labels; let tabID = index; trackBy: trackByIdx"
+         (mouseover)="tabHovered.add(tabID)" (mouseout)="tabHovered.delete(tabID)"
+         (click)="changeTab(model.childrenNames[tabID])" tabindex="-1"
+         [class.disable-events]="disableEvents"
+         [class.round-top-corners-only]="model.roundTopCornersOnly"
+         [style.background-color]="getFormat(tabID).background"
+         [style.align-items]="getFlexVAlign(tabID)"
+         [style.border-bottom]="getBorder(tabID).bottom"
+         [style.border-top]="getBorder(tabID).top"
+         [style.border-left]="getBorder(tabID).left"
+         [style.border-right]="getBorder(tabID).right"
+         [style.border-radius.px]="getFormat(tabID).roundCorner">
+      <div class="col-xs-6 tab-item-text" tooltipIf
+           [style.text-align]="getFormat(tabID).hAlign"
+           [style.vertical-align]="getFormat(tabID).vAlign"
+           [style.color]="getFormat(tabID).foreground"
+           [style.font]="getFormat(tabID).font"
+           [style.white-space]="getFormat(tabID).wrapping.whiteSpace"
+           [style.word-wrap]="getFormat(tabID).wrapping.wordWrap"
+           [style.text-decoration]="getFormat(tabID).decoration"
+           [style.word-break]="autoSize ? 'break-all' : null"
+           [style.margin-left.px]="getMargin(tabID, 'left')"
+           [style.margin-right.px]="getMargin(tabID, 'right')"
+           [style.margin-top.px]="getMargin(tabID, 'top')"
+           [style.margin-bottom.px]="getMargin(tabID, 'bottom')">
+        {{label}}</div>
+      <div *ngIf="!!getBottomBorder()" class="tab-item-bottom-border"
+           [ngStyle]="getTabItemBottomBorderStyle(tabID)">
+      </div>
+    </div>
+    <div class="tab-bottom-border" [style.border-bottom]="getBottomBorder()"
+         (click)="model.selectedRegions = []">
+    </div>
+  </div>
+
+  <div class="scroll-left-container" [class.scroll-container-visible]="leftScroll"
+       [style.z-index]="viewer ? model.objectFormat.zIndex + 1 : 1"
+       (mousedown)="scrollToLeft($event)">
+    <span class="chevron-circle-arrow-left-icon icon-size-small icon-color-default"></span>
+  </div>
+  <div class="scroll-right-container" [class.scroll-container-visible]="rightScroll"
+       [style.z-index]="viewer ? model.objectFormat.zIndex + 1 : 1"
+       (mousedown)="scrollToRight($event)">
+    <span class="chevron-circle-arrow-right-icon icon-size-small icon-color-default"></span>
+  </div>
+</div>

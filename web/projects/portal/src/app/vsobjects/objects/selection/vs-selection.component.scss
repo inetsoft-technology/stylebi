@@ -1,0 +1,264 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.selection-container-children .selection-list {
+  position: initial;
+}
+
+.selection-list {
+  position: absolute;
+  display: block;
+}
+
+.selection-title-cell {
+  display: flex;
+}
+
+.selection-list-search-container {
+  z-index: 200;
+  width: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  border: 1px solid rgb(80, 80, 80);
+  background-color: rgb(245, 245, 245);
+}
+
+.selection-list-search-input {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  position: absolute;
+  left: 0;
+  top: 0;
+  background-color: rgb(245, 245, 245);
+}
+
+.selection-list-search-close {
+  position: absolute;
+  right: 0px;
+  font-size: 18px;
+}
+
+.selection-list-body {
+  position: relative;
+  overflow-y: hidden;
+  overflow-x: hidden;
+  z-index: 99;
+  height: 100%;
+}
+
+.selection-list-cell-row {
+  position: relative;
+  left: 0;
+  top: 0;
+  margin: 0;
+  padding: 0;
+  border-collapse: collapse;
+  width: 100%;
+  display: flex;
+  overflow: visible;
+
+  &.others-container {
+    display: block;
+  }
+}
+
+.selection-list-cell-column {
+  display: flex;
+  flex: 1;
+}
+
+.selection-list-cell-host.list-type {
+  display: block;
+  float: left;
+  flex: auto;
+}
+
+.selection-list-selected-text {
+  position: relative;
+  white-space: nowrap;
+  border-width: 0px 0px 1px;
+  border-style: none none solid;
+  border-color: rgb(192, 192, 192);
+  overflow: hidden;
+  display: flex;
+
+  .selection-title-cell {
+    pointer-events: none;
+    display: table;
+    width: 100%;
+    padding-left: 2px;
+
+    div {
+      display: table-cell;
+      text-align: inherit;
+      vertical-align: inherit;
+    }
+  }
+}
+
+.fa-toolbuttons {
+  width: 12px;
+}
+
+.selection-list-body-contained {
+  border-bottom: 1px solid rgb(192, 192, 192);
+}
+
+.resize-template {
+  position: absolute;
+  height: 100%;
+  float: left;
+  background-color: rgba(180, 180, 180, 0.1);
+  box-sizing: border-box;
+  border: 1px solid #eee;
+  cursor: e-resize;
+  z-index: 99999;
+}
+
+.show-others {
+  padding-left: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.show-others-icon {
+  padding-right: 2px;
+}
+
+.selection-list-header {
+  position: relative;
+  border-bottom: 1px solid rgb(218, 218, 218);
+  overflow: hidden;
+}
+
+.mini-menu {
+  z-index: 5;
+}
+
+.selection-list__header__buttons {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  right: 0;
+  top: 0;
+}
+
+.cell-resize-border {
+  position: absolute;
+  display: block;
+  width: 100%;
+}
+
+.cell-resize-handle {
+  position: absolute;
+  display: none;
+  right: -6px;
+  cursor: ew-resize;
+  height: 8px;
+  width: 8px;
+}
+
+.selection-list-body:hover + .cell-resize-handle, .cell-resize-handle:hover {
+  display: block;
+}
+
+.selection-list:hover .selection-list__header-buttons,
+.selection-list .force-toolbar.selection-list__header-buttons {
+  visibility: visible;
+  cursor: default;
+}
+
+.selection-list__header-buttons {
+  position: absolute;
+  right: 1px;
+  z-index: 5;
+  visibility: hidden;
+  padding-left: 5px;
+}
+
+.resize-label {
+  position: absolute;
+  min-width: 40px;
+  min-height: 20px;
+  background: gray;
+  color: white;
+  vertical-align: middle;
+  text-align: center;
+  padding: 2px;
+}
+
+// increase spacing otherwise the two buttons are too close for finger
+.mobile-spacing {
+  margin-right: 0.5rem;
+}
+
+.pending-alert {
+  position: absolute;
+  top: 2px;
+  right: 5px;
+  width: 20px;
+
+  &.left {
+    left: 1px;
+    background-color: rgb(245, 245, 245);
+  }
+
+  &.top {
+    top: -1px;
+  }
+}
+
+.vertical-scrollbar-wrapper-container {
+  overflow-x: hidden;
+}
+
+.vertical-scrollbar-offset {
+  margin-left: -1px;
+}
+
+.vertical-scroll-wrapper {
+  position: absolute;
+  height: 100%;
+  left: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 100;
+
+  div {
+    width: inherit;
+  }
+}
+
+.selection-list:hover .vertical-scroll-wrapper {
+  overflow-y: auto;
+  pointer-events: all;
+}
+
+.mobile .vertical-scroll-wrapper {
+  overflow-y: auto;
+}
+
+.in-container .vertical-scroll-wrapper {
+  left: auto;
+  right: 0px;
+}
+
+.separator-visible {
+  border-right: 1px solid;
+}

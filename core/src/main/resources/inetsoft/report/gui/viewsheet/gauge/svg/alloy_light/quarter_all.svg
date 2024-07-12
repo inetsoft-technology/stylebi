@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="200px" height="200px" viewBox="0 0 200 200" enable-background="new 0 0 200 200" xml:space="preserve">
+<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="19.1914" y1="184.3301" x2="156.0262" y2="47.4953">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.0836" style="stop-color:#D2D2D4"/>
+	<stop  offset="0.1802" style="stop-color:#A4A5A9"/>
+	<stop  offset="0.273" style="stop-color:#808287"/>
+	<stop  offset="0.3596" style="stop-color:#67696F"/>
+	<stop  offset="0.4377" style="stop-color:#575960"/>
+	<stop  offset="0.5" style="stop-color:#52545B"/>
+	<stop  offset="0.5573" style="stop-color:#595B62"/>
+	<stop  offset="0.6405" style="stop-color:#6C6E74"/>
+	<stop  offset="0.7397" style="stop-color:#8C8E92"/>
+	<stop  offset="0.8511" style="stop-color:#B8B9BC"/>
+	<stop  offset="0.9713" style="stop-color:#F1F1F1"/>
+	<stop  offset="1" style="stop-color:#FFFFFF"/>
+</linearGradient>
+<path fill="url(#SVGID_1_)" d="M191.212,171.866c-12.732,19.646-142.5,44.973-174.84,9.601
+	C-11.601,150.873-4.853,3.595,55.786,2.079C148.396-0.237,226.583,117.292,191.212,171.866z"/>
+<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="12.5249" y1="43.3745" x2="159.7198" y2="190.5694">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.0836" style="stop-color:#D2D2D4"/>
+	<stop  offset="0.1802" style="stop-color:#A4A5A9"/>
+	<stop  offset="0.273" style="stop-color:#808287"/>
+	<stop  offset="0.3596" style="stop-color:#67696F"/>
+	<stop  offset="0.4377" style="stop-color:#575960"/>
+	<stop  offset="0.5" style="stop-color:#52545B"/>
+	<stop  offset="0.5573" style="stop-color:#595B62"/>
+	<stop  offset="0.6405" style="stop-color:#6C6E74"/>
+	<stop  offset="0.7397" style="stop-color:#8C8E92"/>
+	<stop  offset="0.8511" style="stop-color:#B8B9BC"/>
+	<stop  offset="0.9713" style="stop-color:#F1F1F1"/>
+	<stop  offset="1" style="stop-color:#FFFFFF"/>
+</linearGradient>
+<path fill="url(#SVGID_2_)" d="M181.562,168.394c-7.747,11.955-44.64,12.533-89.482,11.341c-22.846-0.606-52.69,22.269-71.147-2.521
+	c-16.688-22.411,4.488-46.35,2.875-66.903c-3.899-49.655-6.064-96.918,33.336-97.905
+	C142.228,10.278,214.059,118.255,181.562,168.394z"/>
+<linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="25.2173" y1="177.8623" x2="147.8604" y2="55.2192">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.1559" style="stop-color:#F2F2F2"/>
+	<stop  offset="0.442" style="stop-color:#D1D1D1"/>
+	<stop  offset="0.5" style="stop-color:#C9C9C9"/>
+	<stop  offset="0.6028" style="stop-color:#D7D7D7"/>
+	<stop  offset="0.8557" style="stop-color:#F4F4F4"/>
+	<stop  offset="1" style="stop-color:#FFFFFF"/>
+</linearGradient>
+<path fill="url(#SVGID_3_)" d="M179.469,166.61c-7.545,11.641-43.466,12.204-87.129,11.043
+	c-22.244-0.592-51.303,21.682-69.275-2.454c-16.249-21.823,4.37-45.132,2.799-65.146c-3.797-48.351-5.906-94.37,32.459-95.331
+	C141.169,12.653,211.112,117.79,179.469,166.61z"/>
+<g opacity="0.7">
+	<g>
+		
+			<linearGradient id="SVGID_4_" gradientUnits="userSpaceOnUse" x1="-33.7485" y1="260.5684" x2="155.1776" y2="71.6422" gradientTransform="matrix(1 0 0 1 -15 15)">
+			<stop  offset="0" style="stop-color:#FFFFFF"/>
+			<stop  offset="0.0285" style="stop-color:#E3E4E5"/>
+			<stop  offset="0.075" style="stop-color:#BDBEC0"/>
+			<stop  offset="0.1251" style="stop-color:#9C9DA1"/>
+			<stop  offset="0.1786" style="stop-color:#818287"/>
+			<stop  offset="0.2365" style="stop-color:#6C6E74"/>
+			<stop  offset="0.3013" style="stop-color:#5D5F66"/>
+			<stop  offset="0.3785" style="stop-color:#55575D"/>
+			<stop  offset="0.5" style="stop-color:#52545B"/>
+			<stop  offset="0.6137" style="stop-color:#55575E"/>
+			<stop  offset="0.6908" style="stop-color:#5E6066"/>
+			<stop  offset="0.757" style="stop-color:#6D6F75"/>
+			<stop  offset="0.8171" style="stop-color:#828489"/>
+			<stop  offset="0.8731" style="stop-color:#9E9FA3"/>
+			<stop  offset="0.926" style="stop-color:#C1C1C4"/>
+			<stop  offset="0.9756" style="stop-color:#E8E9EA"/>
+			<stop  offset="1" style="stop-color:#FFFFFF"/>
+		</linearGradient>
+		<path fill="url(#SVGID_4_)" d="M160.91,144.214c-0.009-0.122-0.021-0.242-0.03-0.364c0-0.001,0-0.001,0-0.002
+			c0-0.559-0.056-1.104-0.137-1.639c-4.848-53.849-49.815-96.29-105.177-97.964c-1.067-0.346-2.203-0.538-3.385-0.538
+			c-6.058,0-10.973,4.911-10.973,10.972c0,6.059,4.915,10.973,10.973,10.973c0.483,0,0.955-0.043,1.421-0.103l0.006,0.122
+			c44.938,0.718,81.616,34.978,85.497,78.542h0.072c0.194,5.829,4.966,10.497,10.842,10.497c5.875,0,10.648-4.668,10.843-10.497
+			H160.91z"/>
+	</g>
+</g>
+<circle fill="#FFFFFF" stroke="#5E5E5E" cx="52.666" cy="54.372" r="4.279"/>
+<path fill="none" d="M168.55,150.162c0,63.784-51.707,115.493-115.491,115.493c-63.787,0-115.494-51.709-115.494-115.493
+	c0-63.782,51.708-115.493,115.494-115.493C116.843,34.669,168.55,86.38,168.55,150.162z"/>
+<text transform="matrix(-0.7505 -0.6609 0.6609 -0.7505 -21.6064 238.3057)"><tspan x="0" y="0" fill="#404040" font-family="'ArialMT'" font-size="15.6929"> </tspan><tspan x="4.374" y="0.001" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="2.156"> </tspan><tspan x="8.746" y="0.167" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="4.313"> </tspan><tspan x="13.085" y="0.493" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="6.458"> </tspan><tspan x="17.411" y="0.982" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="8.606"> </tspan><tspan x="21.74" y="1.638" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="10.768"> </tspan><tspan x="26.002" y="2.448" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="12.911"> </tspan><tspan x="30.257" y="3.424" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="15.071"> </tspan><tspan x="34.479" y="4.561" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="17.238"> </tspan><tspan x="38.641" y="5.852" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="19.402"> </tspan><tspan x="42.76" y="7.303" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="21.574"> </tspan><tspan x="46.791" y="8.897" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="23.732"> </tspan><tspan x="50.789" y="10.655" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="25.911"> </tspan><tspan x="54.712" y="12.56" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="28.09"> </tspan><tspan x="58.553" y="14.609" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="30.266"> </tspan><tspan x="62.329" y="16.814" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="32.452"> </tspan><tspan x="65.998" y="19.147" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="34.625"> </tspan><tspan x="69.593" y="21.629" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="36.807"> </tspan><tspan x="73.077" y="24.235" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="38.974"> </tspan><tspan x="76.478" y="26.987" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="41.148"> </tspan><tspan x="79.76" y="29.857" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="43.306"> </tspan><tspan x="82.939" y="32.853" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="45.456"> </tspan><tspan x="85.994" y="35.957" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="47.587"> </tspan><tspan x="88.935" y="39.175" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="49.707"> </tspan><tspan x="91.751" y="42.497" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="51.838"> </tspan><tspan x="94.45" y="45.931" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="53.988"> </tspan><tspan x="97.013" y="49.457" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="56.145"> </tspan><tspan x="99.438" y="53.072" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="58.309"> </tspan><tspan x="101.734" y="56.791" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="60.486"> </tspan><tspan x="103.875" y="60.574" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="62.657"> </tspan><tspan x="105.883" y="64.456" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="64.841"> </tspan><tspan x="107.732" y="68.393" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="67.016"> </tspan><tspan x="109.44" y="72.422" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="69.204"> </tspan><tspan x="110.988" y="76.498" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="71.381"> </tspan><tspan x="112.378" y="80.617" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="73.549"> </tspan><tspan x="113.615" y="84.815" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="75.73"> </tspan><tspan x="114.692" y="89.048" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="77.901"> </tspan><tspan x="115.606" y="93.309" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="80.065"> </tspan><tspan x="116.357" y="97.593" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="82.22"> </tspan><tspan x="116.945" y="101.896" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="84.37"> </tspan><tspan x="117.375" y="106.258" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="86.535"> </tspan><tspan x="117.637" y="110.606" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="88.686"> </tspan><tspan x="117.738" y="114.959" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="90.833"> </tspan><tspan x="117.673" y="119.332" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="92.99"> </tspan><tspan x="117.447" y="123.678" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="95.135"> </tspan><tspan x="117.057" y="128.013" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="97.281"> </tspan><tspan x="116.502" y="132.354" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="99.44"> </tspan><tspan x="115.787" y="136.653" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="101.592"> </tspan><tspan x="114.911" y="140.926" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="103.748"> </tspan><tspan x="113.878" y="145.148" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="105.9"> </tspan><tspan x="112.686" y="149.335" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="108.06"> </tspan><tspan x="111.334" y="153.481" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="110.226"> </tspan><tspan x="109.823" y="157.583" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="112.401"> </tspan><tspan x="108.161" y="161.614" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="114.574"> </tspan><tspan x="106.342" y="165.591" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="116.758"> </tspan><tspan x="104.376" y="169.49" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="118.939"> </tspan><tspan x="102.277" y="173.287" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="121.109"> </tspan><tspan x="100.025" y="177.018" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="123.287"> </tspan><tspan x="97.621" y="180.679" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="125.475"> </tspan><tspan x="95.093" y="184.226" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="127.648"> </tspan><tspan x="92.431" y="187.678" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="129.819"> </tspan><tspan x="89.651" y="191.013" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="131.973"> </tspan><tspan x="86.727" y="194.263" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="134.132"> </tspan><tspan x="83.693" y="197.391" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="136.272"> </tspan><tspan x="80.573" y="200.468" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="139.558">0</tspan><tspan x="73.91" y="206.077" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="142.664"> </tspan><tspan x="70.447" y="208.719" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="144.813"> </tspan><tspan x="66.875" y="211.236" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="146.98"> </tspan><tspan x="63.215" y="213.615" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="149.151"> </tspan><tspan x="59.47" y="215.852" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="151.327"> </tspan><tspan x="55.645" y="217.944" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="153.505"> </tspan><tspan x="51.741" y="219.89" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="155.686"> </tspan><tspan x="47.783" y="221.678" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="157.858"> </tspan><tspan x="43.735" y="223.325" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="160.041"> </tspan><tspan x="39.651" y="224.874" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="163.31">1</tspan><tspan x="31.291" y="227.381" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="167.653">0</tspan><tspan x="22.741" y="229.188" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="170.907"> </tspan><tspan x="18.447" y="229.876" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="173.06"> </tspan><tspan x="14.116" y="230.403" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="175.218"> </tspan><tspan x="9.772" y="230.766" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="177.371"> </tspan><tspan x="5.4" y="230.966" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="179.531"> </tspan><tspan x="1.069" y="231.003" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-178.333"> </tspan><tspan x="-3.302" y="230.875" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-176.176"> </tspan><tspan x="-7.667" y="230.584" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-174.02"> </tspan><tspan x="-11.996" y="230.129" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-171.874"> </tspan><tspan x="-16.326" y="229.574" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-168.642">2</tspan><tspan x="-24.887" y="227.855" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-164.324">0</tspan><tspan x="-33.279" y="225.434" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-161.073"> </tspan><tspan x="-37.388" y="224.026" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-158.915"> </tspan><tspan x="-41.45" y="222.46" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-156.747"> </tspan><tspan x="-45.481" y="220.727" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-154.56"> </tspan><tspan x="-49.416" y="218.855" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-152.383"> </tspan><tspan x="-53.271" y="216.838" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-150.209"> </tspan><tspan x="-57.062" y="214.668" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-148.025"> </tspan><tspan x="-60.766" y="212.356" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-145.843"> </tspan><tspan x="-64.359" y="209.919" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-143.675"> </tspan><tspan x="-67.875" y="207.333" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-141.498"> </tspan><tspan x="-71.318" y="204.672" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-138.253">3</tspan><tspan x="-77.846" y="198.847" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-133.943">0</tspan><tspan x="-83.861" y="192.535" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-130.441"> </tspan><tspan x="-86.701" y="189.223" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-128.627"> </tspan><tspan x="-89.431" y="185.804" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-126.476"> </tspan><tspan x="-92.013" y="182.312" fill="#404040" font-family="'ArialMT'" font-size="15.6929" rotate="-124.329"> </tspan></text>
+<circle fill="#FFFFFF" stroke="#5E5E5E" cx="71.063" cy="55.761" r="2.542"/>
+<circle fill="#FFFFFF" stroke="#5E5E5E" cx="85.67" cy="59.703" r="2.542"/>
+<circle fill="none" cx="85.724" cy="59.619" r="2.543"/>
+<circle fill="#FFFFFF" stroke="#5E5E5E" cx="114.278" cy="75.825" r="2.542"/>
+<circle fill="#FFFFFF" stroke="#5E5E5E" cx="125.081" cy="87.787" r="2.542"/>
+<circle fill="#FFFFFF" stroke="#5E5E5E" cx="142.444" cy="112.481" r="2.542"/>
+<path fill="#FFFFFF" stroke="#5E5E5E" d="M149.618,125.601c0,1.403-1.14,2.543-2.544,2.543c-1.4,0-2.541-1.14-2.541-2.543
+	c0-1.405,1.141-2.544,2.541-2.544C148.479,123.057,149.618,124.195,149.618,125.601z"/>
+<path fill="#FFFFFF" stroke="#5E5E5E" d="M106.505,67.269c0,2.362-1.916,4.275-4.279,4.275c-2.362,0-4.278-1.913-4.278-4.275
+	c0-2.364,1.916-4.28,4.278-4.28C104.589,62.988,106.505,64.904,106.505,67.269z"/>
+<circle fill="#FFFFFF" stroke="#5E5E5E" cx="136.475" cy="99.501" r="4.278"/>
+<circle fill="#FFFFFF" stroke="#5E5E5E" cx="150.577" cy="141.809" r="4.278"/>
+<path fill="none" stroke="#06FF00" stroke-width="6" stroke-linecap="round" d="M50.041,67.228
+	c48.144,0,87.167,35.581,87.167,83.722"/>
+<linearGradient id="SVGID_5_" gradientUnits="userSpaceOnUse" x1="255.5381" y1="594.8066" x2="272.0928" y2="594.8066" gradientTransform="matrix(0 1 -1 0 706.3931 -122.372)">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.2908" style="stop-color:#FFA5A5"/>
+	<stop  offset="0.545" style="stop-color:#FF5F5F"/>
+	<stop  offset="0.7548" style="stop-color:#FF2B2B"/>
+	<stop  offset="0.9125" style="stop-color:#FF0C0C"/>
+	<stop  offset="1" style="stop-color:#FF0000"/>
+</linearGradient>
+<polygon fill="url(#SVGID_5_)" stroke="#8E8E8E" points="49.912,149.718 49.912,133.163 173.273,141.707 "/>
+<circle fill="#636363" cx="59.567" cy="145.902" r="23.766"/>
+<linearGradient id="SVGID_6_" gradientUnits="userSpaceOnUse" x1="57.7114" y1="167.8135" x2="57.7114" y2="120.2803">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.0836" style="stop-color:#D2D2D4"/>
+	<stop  offset="0.1802" style="stop-color:#A4A5A9"/>
+	<stop  offset="0.273" style="stop-color:#808287"/>
+	<stop  offset="0.3596" style="stop-color:#67696F"/>
+	<stop  offset="0.4377" style="stop-color:#575960"/>
+	<stop  offset="0.5" style="stop-color:#52545B"/>
+	<stop  offset="0.5573" style="stop-color:#595B62"/>
+	<stop  offset="0.6405" style="stop-color:#6C6E74"/>
+	<stop  offset="0.7397" style="stop-color:#8C8E92"/>
+	<stop  offset="0.8511" style="stop-color:#B8B9BC"/>
+	<stop  offset="0.9713" style="stop-color:#F1F1F1"/>
+	<stop  offset="1" style="stop-color:#FFFFFF"/>
+</linearGradient>
+<circle fill="url(#SVGID_6_)" cx="57.712" cy="144.048" r="23.766"/>
+<circle fill="none" cx="90.81" cy="62.162" r="2.542"/>
+</svg>

@@ -1,0 +1,767 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<VSCylinder>
+   <face id="11" width="140" height="185" classname="inetsoft.report.gui.viewsheet.cylinder.FlaskCylinder">
+       <image>
+          <panel x="20" y="3" height="163" width="35">svg/blue/flask_panel.svg</panel>
+          <mask maskHeight="10">svg/blue/flask_mask.svg</mask>
+          <bottomMask maskHeight="18">svg/blue/flask_bottomMask.svg</bottomMask>
+          <ellipse ellipseHeight="3">svg/blue/flask_ellipse.svg</ellipse>
+          <canvas>svg/canvas/flask.svg</canvas>
+       </image>
+       <majorTick startX="88" startY="7" endY="168" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="85" width="7" color="255,128,128,128"/>
+       <value startX="98" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="12" width="140" height="185" classname="inetsoft.report.gui.viewsheet.cylinder.FlaskCylinder">
+       <image>
+          <panel x="20" y="3" height="163" width="35">svg/green/flask_panel.svg</panel>
+          <mask maskHeight="10">svg/green/flask_mask.svg</mask>
+          <bottomMask maskHeight="18">svg/green/flask_bottomMask.svg</bottomMask>
+          <ellipse ellipseHeight="3">svg/green/flask_ellipse.svg</ellipse>
+          <canvas>svg/canvas/flask.svg</canvas>
+       </image>
+       <majorTick startX="88" startY="7" endY="168" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="85" width="7" color="255,128,128,128"/>
+       <value startX="98" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="13" width="140" height="185" classname="inetsoft.report.gui.viewsheet.cylinder.FlaskCylinder">
+       <image>
+          <panel x="20" y="3" height="163" width="35">svg/alloy/flask_panel.svg</panel>
+          <mask maskHeight="10">svg/alloy/flask_mask.svg</mask>
+          <bottomMask maskHeight="17">svg/alloy/flask_bottomMask.svg</bottomMask>
+          <ellipse ellipseHeight="3">svg/alloy/flask_ellipse.svg</ellipse>
+          <canvas>svg/canvas/flask.svg</canvas>
+       </image>
+       <majorTick startX="88" startY="7" endY="168" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="85" width="7" color="255,128,128,128"/>
+       <value startX="98" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="14" width="140" height="185" classname="inetsoft.report.gui.viewsheet.cylinder.FlaskCylinder">
+       <image>
+          <panel x="20" y="3" height="163" width="35">svg/orange/flask_panel.svg</panel>
+          <mask maskHeight="10">svg/orange/flask_mask.svg</mask>
+          <bottomMask maskHeight="18">svg/orange/flask_bottomMask.svg</bottomMask>
+          <ellipse ellipseHeight="3">svg/orange/flask_ellipse.svg</ellipse>
+          <canvas>svg/canvas/flask.svg</canvas>
+       </image>
+       <majorTick startX="88" startY="7" endY="168" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="85" width="7" color="255,128,128,128"/>
+       <value startX="98" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="15" width="140" height="185" classname="inetsoft.report.gui.viewsheet.cylinder.FlaskCylinder">
+       <image>
+          <panel x="20" y="3" height="163" width="35">svg/vista/flask_panel.svg</panel>
+          <mask maskHeight="10">svg/vista/flask_mask.svg</mask>
+          <bottomMask maskHeight="18">svg/vista/flask_bottomMask.svg</bottomMask>
+          <ellipse ellipseHeight="3">svg/vista/flask_ellipse.svg</ellipse>
+          <shadow>svg/vista/flask_shadow.svg</shadow>
+          <canvas>svg/canvas/flask.svg</canvas>
+       </image>
+       <majorTick startX="88" startY="11" endY="168" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="85" width="7" color="255,128,128,128"/>
+       <value startX="98" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="16" width="140" height="185" classname="inetsoft.report.gui.viewsheet.cylinder.FlaskCylinder">
+       <image>
+          <panel x="20" y="3" height="163" width="35">svg/alloy/flask_panel.svg</panel>
+          <mask maskHeight="10">svg/alloy/flask_mask.svg</mask>
+          <bottomMask maskHeight="17">svg/alloy/flask_bottomMask.svg</bottomMask>
+          <ellipse ellipseHeight="3">svg/alloy/flask_ellipse.svg</ellipse>
+          <canvas>svg/canvas/flask.svg</canvas>
+       </image>
+       <majorTick startX="88" startY="7" endY="168" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="85" width="7" color="255,128,128,128"/>
+       <value startX="98" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="21" width="170" height="175">
+       <image>
+          <panel x="10" y="3" height="138" width="80">svg/blue/capped_flask_panel.svg</panel>
+          <mask maskHeight="10">svg/blue/capped_flask_mask.svg</mask>
+          <ellipse ellipseHeight="10">svg/blue/capped_flask_ellipse.svg</ellipse>
+          <canvas>svg/canvas/capped_flask.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="8" endY="145" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="22" width="170" height="175">
+       <image>
+          <panel x="10" y="3" height="138" width="80">svg/green/capped_flask_panel.svg</panel>
+          <mask maskHeight="10">svg/green/capped_flask_mask.svg</mask>
+          <ellipse ellipseHeight="10">svg/green/capped_flask_ellipse.svg</ellipse>
+          <canvas>svg/canvas/capped_flask.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="8" endY="145" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="23" width="170" height="175">
+       <image>
+          <panel x="10" y="3" height="138" width="80">svg/alloy/capped_flask_panel.svg</panel>
+          <mask maskHeight="10">svg/alloy/capped_flask_mask.svg</mask>
+          <ellipse ellipseHeight="10">svg/alloy/capped_flask_ellipse.svg</ellipse>
+          <canvas>svg/canvas/capped_flask.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="8" endY="145" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="24" width="170" height="175">
+       <image>
+          <panel x="10" y="3" height="138" width="80">svg/orange/capped_flask_panel.svg</panel>
+          <mask maskHeight="10">svg/orange/capped_flask_mask.svg</mask>
+          <ellipse ellipseHeight="10">svg/orange/capped_flask_ellipse.svg</ellipse>
+          <canvas>svg/canvas/capped_flask.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="8" endY="145" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="25" width="170" height="175">
+       <image>
+          <panel x="0" y="0" height="139.33" width="80">svg/vista/capped_flask_panel.svg</panel>
+          <mask maskHeight="10">svg/vista/capped_flask_mask.svg</mask>
+          <ellipse ellipseHeight="11">svg/vista/capped_flask_ellipse.svg</ellipse>
+          <shadow>svg/vista/capped_flask_shadow.svg</shadow>
+          <canvas>svg/canvas/capped_flask.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="8" endY="145" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="26" width="170" height="175">
+       <image>
+          <panel x="10" y="3" height="138" width="80">svg/alloy/capped_flask_panel.svg</panel>
+          <mask maskHeight="10">svg/alloy/capped_flask_mask.svg</mask>
+          <ellipse ellipseHeight="10">svg/alloy/capped_flask_ellipse.svg</ellipse>
+          <canvas>svg/canvas/capped_flask.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="8" endY="145" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="31" width="200" height="175">
+       <image>
+          <panel x="3" y="3" height="137" width="130">svg/blue/measure_panel.svg</panel>
+          <mask maskHeight="10">svg/blue/measure_mask.svg</mask>
+          <ellipse ellipseHeight="20">svg/blue/measure_ellipse.svg</ellipse>
+          <canvas>svg/canvas/measure.svg</canvas>
+       </image>
+       <majorTick startX="152" startY="12" endY="153" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="149" width="7" color="255,128,128,128"/>
+       <value startX="162" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="32" width="200" height="175">
+       <image>
+          <panel x="3" y="3" height="137" width="130">svg/green/measure_panel.svg</panel>
+          <mask maskHeight="10">svg/green/measure_mask.svg</mask>
+          <ellipse ellipseHeight="20">svg/green/measure_ellipse.svg</ellipse>
+          <canvas>svg/canvas/measure.svg</canvas>
+       </image>
+       <majorTick startX="152" startY="12" endY="153" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="149" width="7" color="255,128,128,128"/>
+       <value startX="162" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="33" width="200" height="175">
+       <image>
+          <panel x="3" y="3" height="137" width="130">svg/alloy/measure_panel.svg</panel>
+          <mask maskHeight="10">svg/alloy/measure_mask.svg</mask>
+          <ellipse ellipseHeight="20">svg/alloy/measure_ellipse.svg</ellipse>
+          <canvas>svg/canvas/measure.svg</canvas>
+       </image>
+       <majorTick startX="152" startY="12" endY="153" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="149" width="7" color="255,128,128,128"/>
+       <value startX="162" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="34" width="200" height="175">
+       <image>
+          <panel x="3" y="3" height="137" width="130">svg/orange/measure_panel.svg</panel>
+          <mask maskHeight="10">svg/orange/measure_mask.svg</mask>
+          <ellipse ellipseHeight="20">svg/orange/measure_ellipse.svg</ellipse>
+          <canvas>svg/canvas/measure.svg</canvas>
+       </image>
+       <majorTick startX="152" startY="12" endY="153" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="149" width="7" color="255,128,128,128"/>
+       <value startX="162" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="35" width="200" height="175">
+       <image>
+          <panel x="0" y="0" height="137.5" width="130">svg/vista/measure_panel.svg</panel>
+          <mask maskHeight="10">svg/vista/measure_mask.svg</mask>
+          <ellipse ellipseHeight="24">svg/vista/measure_ellipse.svg</ellipse>
+          <shadow>svg/vista/measure_shadow.svg</shadow>
+          <canvas>svg/canvas/measure.svg</canvas>
+       </image>
+       <majorTick startX="152" startY="12" endY="150" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="149" width="7" color="255,128,128,128"/>
+       <value startX="162" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="36" width="200" height="175">
+       <image>
+          <panel x="3" y="3" height="137" width="130">svg/alloy/measure_panel.svg</panel>
+          <mask maskHeight="10">svg/alloy/measure_mask.svg</mask>
+          <ellipse ellipseHeight="20">svg/alloy/measure_ellipse.svg</ellipse>
+          <canvas>svg/canvas/measure.svg</canvas>
+       </image>
+       <majorTick startX="152" startY="12" endY="153" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="149" width="7" color="255,128,128,128"/>
+       <value startX="162" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="41" width="200" height="175">
+       <image>
+          <panel x="3" y="3" height="133" width="100">svg/blue/capped_measure_panel.svg</panel>
+          <mask maskHeight="10">svg/blue/capped_measure_mask.svg</mask>
+          <ellipse ellipseHeight="20">svg/blue/capped_measure_ellipse.svg</ellipse>
+          <canvas>svg/canvas/capped_measure.svg</canvas>
+       </image>
+       <majorTick startX="128" startY="12" endY="145" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="125" width="7" color="255,128,128,128"/>
+       <value startX="138" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="42" width="200" height="175">
+       <image>
+          <panel x="3" y="3" height="133" width="100">svg/green/capped_measure_panel.svg</panel>
+          <mask maskHeight="10">svg/green/capped_measure_mask.svg</mask>
+          <ellipse ellipseHeight="20">svg/green/capped_measure_ellipse.svg</ellipse>
+          <canvas>svg/canvas/capped_measure.svg</canvas>
+       </image>
+       <majorTick startX="128" startY="12" endY="145" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="125" width="7" color="255,128,128,128"/>
+       <value startX="138" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="43" width="200" height="175">
+       <image>
+          <panel x="3" y="3" height="133" width="100">svg/alloy/capped_measure_panel.svg</panel>
+          <mask maskHeight="10">svg/alloy/capped_measure_mask.svg</mask>
+          <ellipse ellipseHeight="20">svg/alloy/capped_measure_ellipse.svg</ellipse>
+          <canvas>svg/canvas/capped_measure.svg</canvas>
+       </image>
+       <majorTick startX="128" startY="12" endY="145" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="125" width="7" color="255,128,128,128"/>
+       <value startX="138" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="44" width="200" height="175">
+       <image>
+          <panel x="3" y="3" height="133" width="100">svg/orange/capped_measure_panel.svg</panel>
+          <mask maskHeight="10">svg/orange/capped_measure_mask.svg</mask>
+          <ellipse ellipseHeight="20">svg/orange/capped_measure_ellipse.svg</ellipse>
+          <canvas>svg/canvas/capped_measure.svg</canvas>
+       </image>
+       <majorTick startX="128" startY="12" endY="145" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="125" width="7" color="255,128,128,128"/>
+       <value startX="138" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="45" width="200" height="175">
+       <image>
+          <panel x="0" y="0" height="133" width="100">svg/vista/capped_measure_panel.svg</panel>
+          <mask maskHeight="10">svg/vista/capped_measure_mask.svg</mask>
+          <ellipse ellipseHeight="25">svg/vista/capped_measure_ellipse.svg</ellipse>
+          <shadow>svg/vista/capped_measure_shadow.svg</shadow>
+          <canvas>svg/canvas/capped_measure.svg</canvas>
+       </image>
+       <majorTick startX="128" startY="20" endY="141" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="125" width="7" color="255,128,128,128"/>
+       <value startX="138" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="46" width="200" height="175">
+       <image>
+          <panel x="3" y="3" height="133" width="100">svg/alloy/capped_measure_panel.svg</panel>
+          <mask maskHeight="10">svg/alloy/capped_measure_mask.svg</mask>
+          <ellipse ellipseHeight="20">svg/alloy/capped_measure_ellipse.svg</ellipse>
+          <canvas>svg/canvas/capped_measure.svg</canvas>
+       </image>
+       <majorTick startX="128" startY="12" endY="145" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="125" width="7" color="255,128,128,128"/>
+       <value startX="138" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="51" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/alloy_new/panel.svg</panel>
+          <mask maskHeight="10">svg/alloy_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/alloy_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_alloy.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="182" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="52" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/alloy_new/panel.svg</panel>
+          <mask maskHeight="10">svg/alloy_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/alloy_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_alloy.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="182" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="53" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/alloy_new/panel.svg</panel>
+          <mask maskHeight="10">svg/alloy_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/alloy_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_alloy.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="182" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="54" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/alloy_new/panel.svg</panel>
+          <mask maskHeight="10">svg/alloy_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/alloy_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_alloy.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="182" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="55" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/alloy_new/panel.svg</panel>
+          <mask maskHeight="10">svg/alloy_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/alloy_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_alloy.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="182" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="56" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/alloy_new/panel.svg</panel>
+          <mask maskHeight="10">svg/alloy_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/alloy_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_alloy.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="182" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="61" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/black/panel.svg</panel>
+          <mask maskHeight="10">svg/black/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/black/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_black.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="13" endY="183" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="62" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/black/panel.svg</panel>
+          <mask maskHeight="10">svg/black/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/black/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_black.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="13" endY="183" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="63" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/black/panel.svg</panel>
+          <mask maskHeight="10">svg/black/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/black/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_black.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="13" endY="183" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="64" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/black/panel.svg</panel>
+          <mask maskHeight="10">svg/black/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/black/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_black.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="13" endY="183" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="65" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/black/panel.svg</panel>
+          <mask maskHeight="10">svg/black/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/black/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_black.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="13" endY="183" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="66" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="173" width="80">svg/black/panel.svg</panel>
+          <mask maskHeight="10">svg/black/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/black/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_black.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="13" endY="183" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="71" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="168" width="80">svg/blue_new/panel.svg</panel>
+          <mask maskHeight="10">svg/blue_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/blue_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_blue.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="180" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="72" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="168" width="80">svg/blue_new/panel.svg</panel>
+          <mask maskHeight="10">svg/blue_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/blue_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_blue.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="180" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="73" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="168" width="80">svg/blue_new/panel.svg</panel>
+          <mask maskHeight="10">svg/blue_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/blue_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_blue.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="180" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="74" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="168" width="80">svg/blue_new/panel.svg</panel>
+          <mask maskHeight="10">svg/blue_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/blue_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_blue.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="180" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+   <face id="75" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="168" width="80">svg/blue_new/panel.svg</panel>
+          <mask maskHeight="10">svg/blue_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/blue_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_blue.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="180" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+   <face id="76" width="170" height="210">
+       <image>
+          <panel x="10" y="3" height="168" width="80">svg/blue_new/panel.svg</panel>
+          <mask maskHeight="10">svg/blue_new/mask.svg</mask>
+          <ellipse ellipseHeight="17">svg/blue_new/ellipse.svg</ellipse>
+          <canvas>svg/canvas/canvas_blue.svg</canvas>
+       </image>
+       <majorTick startX="118" startY="12" endY="180" length="5" lineWidth="1" color="255,128,128,128"/>
+       <minorTick length="2" lineWidth="1" color="255,128,128,128"/>
+       <range startX="115" width="7" color="255,128,128,128"/>
+       <value startX="128" color="255,30,30,80">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </value>
+       <valueLabel startY="190" color="255,0,0,0">
+          <font><![CDATA[Default-BOLD-12]]></font>
+       </valueLabel>
+   </face>
+
+ </VSCylinder>

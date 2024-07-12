@@ -1,0 +1,109 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="model">
+  <mat-card appearance="outlined" class="em-card">
+    <mat-card-title>_#(Portal Integration)</mat-card-title>
+
+    <mat-card-content>
+      <mat-card *ngIf="isSysAdmin" class="mat-elevation-z0">
+        <mat-card-content>
+          <section>
+            <h3 class="mat-h3">_#(Portal Tools)</h3>
+          </section>
+          <div class="portal-tools-content">
+            <mat-checkbox [(ngModel)]="model.help" (change)="emitModel()">_#(Help)</mat-checkbox>
+            <mat-checkbox [(ngModel)]="model.preference" (change)="emitModel()">_#(Preferences)</mat-checkbox>
+            <mat-checkbox [(ngModel)]="model.logout" (change)="emitModel()">_#(Logout)</mat-checkbox>
+            <mat-checkbox *ngIf="model.dashboardAvailable"
+                          [(ngModel)]="model.search" (change)="emitModel()">_#(Search)
+            </mat-checkbox>
+            <mat-checkbox [(ngModel)]="model.home" (change)="emitModel()">_#(Home)</mat-checkbox>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card *ngIf="isSysAdmin" class="mat-elevation-z0">
+
+        <mat-card-content>
+          <section class="visible-subtitle">
+            <h3 class="mat-h3">_#(Portal Tabs)</h3>
+            <span class="spacer"></span>
+            <button mat-mini-fab color="accent" matTooltip="_#(Add Tab)" (click)="add()">
+              <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
+            </button>
+          </section>
+
+          <section class="flex-row">
+            <mat-card class="tab-block portal-card" *ngFor="let tab of model.tabs, let i = index;">
+              <mat-card-subtitle class="visible-subtitle">
+                <h4 class="tab-name mat-subtitle-2">{{tab.label}}</h4>
+                <span class="spacer"></span>
+                <button mat-icon-button [title]="tab.visible ? '_#(Visible)' : '_#(Hidden)'"
+                        [disabled]="!tab.editable" (click)="tab.visible = !tab.visible; emitModel()">
+                  <mat-icon fontSet="ineticons" [fontIcon]="tab.visible ? 'eye-icon' : 'eye-off-icon'"></mat-icon>
+                </button>
+                <button [disabled]="moveUpDisabled(i)" mat-icon-button
+                        title="_#(Move Up)"
+                        (click)="moveUp(i)">
+                  <mat-icon matListIcon fontSet="ineticons" fontIcon="shape-arrow-up-bold-icon"></mat-icon>
+                </button>
+                <button [disabled]="moveDownDisabled(i)" mat-icon-button
+                        title="_#(Move Down)"
+                        (click)="moveDown(i)">
+                  <mat-icon matListIcon fontSet="ineticons" fontIcon="shape-arrow-down-bold-icon"></mat-icon>
+                </button>
+                <button mat-icon-button [disabled]="!tab.editable"
+                        title="_#(Edit)"
+                        (click)="edit(tab)">
+                  <mat-icon matListIcon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+                </button>
+                <button mat-icon-button [disabled]="!tab.editable"
+                        title="_#(Delete)"
+                        (click)="delete(i)">
+                  <mat-icon matListIcon fontSet="ineticons"fontIcon="trash-icon"></mat-icon>
+                </button>
+              </mat-card-subtitle>
+              <mat-divider></mat-divider>
+            </mat-card>
+          </section>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="mat-elevation-z0">
+        <mat-card-content>
+          <section class="flex-row">
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(Custom Loading Text)</mat-label>
+              <input matInput [(ngModel)]="model.customLoadingText" (input)="emitModel()">
+            </mat-form-field>
+          </section>
+          <section class="flex-row">
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(Home Link)</mat-label>
+              <input matInput [(ngModel)]="model.homeLink" (input)="emitModel()">
+            </mat-form-field>
+          </section>
+        </mat-card-content>
+      </mat-card>
+
+
+    </mat-card-content>
+  </mat-card>
+</ng-container>

@@ -1,0 +1,72 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form" class="container-fluid">
+  <fieldset>
+    <legend>_#(Number Range)</legend>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <dynamic-combo-box data-test="minimumRangeValue"
+                             [mode]="mode" [(value)]="model.minimum"
+                             (valueChange)="onMinimumChange($event)" [vsId]="vsId"
+                             [variables]="variableValues" [editable]="true"></dynamic-combo-box>
+          <label>_#(Minimum)</label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-floating">
+          <dynamic-combo-box data-test="maximumRangeValue"
+                             [mode]="mode"
+                             [(value)]="model.maximum" (valueChange)="onMaximumChange($event)"
+                             [vsId]="vsId" [variables]="variableValues" [editable]="true">
+          </dynamic-combo-box>
+          <label>_#(Maximum)</label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-floating">
+          <dynamic-combo-box data-test="incrementValue"
+                             [(type)]="incrementType"
+                             [mode]="mode" [(value)]="model.increment"
+                             (typeChange)="onTypeChange($event)"
+                             (valueChange)="onIncrementChange($event)"
+                             [vsId]="vsId" [variables]="variableValues" [editable]="true">
+          </dynamic-combo-box>
+          <label>_#(Increment)</label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+  <div *ngIf="isNullOrUndefined(model.minimum)" class="alert alert-danger">
+    _#(viewer.viewsheet.numberRange.minRequired)
+  </div>
+  <div *ngIf="isNullOrUndefined(model.maximum)" class="alert alert-danger">
+    _#(viewer.viewsheet.numberRange.maxRequired)
+  </div>
+  <div *ngIf="isInvalidMinimumValue()" class="alert alert-danger">
+    _#(viewer.viewsheet.numberRange.maxMinWarning)
+  </div>
+  <div *ngIf="isNullOrUndefined(model.increment)" class="alert alert-danger">
+    _#(viewer.viewsheet.numberRange.incrementRequired)
+  </div>
+  <div *ngIf="!!model.increment && !isIncrementValid()" class="alert alert-danger">
+    _#(viewer.viewsheet.numberRange.notzeroWarning)
+  </div>
+</form>

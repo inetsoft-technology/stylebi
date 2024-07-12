@@ -1,0 +1,131 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden">
+  <div class="d-flex align-items-center th-cell-border flex-grow-0 flex-shrink-0 list-contents">
+    <div class="col-1 table-cell-padding-sm" *ngIf="selectionOn">
+      <input type="checkbox" class="align-middle"
+             [checked]="selectAllChecked" (change)="selectAll()"/>
+    </div>
+    <div class="d-flex flex-row align-items-stretch flex-grow-1 flex-shrink-1 p-0"
+         [ngClass]="{'col-11': selectionOn, 'col-12': !selectionOn }">
+      <ng-container *ngFor="let item of columns">
+        <div *ngIf="item.visible" class="table-cell-padding-sm" [style.width]="item.widthPercentage + '%'">
+          <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions(item.sortKey)">
+            <span class="pe-1">{{ item.label }}</span>
+            <i class="action-color blank-icon" *ngIf="sortOptions.keys.includes(item.sortKey)"></i>
+            <i class="action-color icon-size-small" *ngIf="sortOptions.keys.includes(item.sortKey)"
+               [class.sort-descending-icon]="sortOptions.type === SortTypes.DESCENDING"
+               [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+  <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-auto list-contents"
+       *ngIf="assets">
+    <div class="table-cell-padding-sm" *ngIf="assets.length === 0 && searchView">
+      _#(data.datasets.noSearchResults)
+    </div>
+    <div *ngFor="let asset of assets; last as isLast"
+         class="hover-bg-primary folder-list-item d-flex align-items-center"
+         [class.td-cell-border]="!isLast" [draggable]="supportDrag(asset)"
+         [class.bg-selected]="isSelectedItem(asset)"
+         (click)="updateAssetSelection(asset, $event)"
+         (dragstart)="dragAsset($event, asset)"
+         (dragover)="$event.preventDefault();"
+         (dragenter)="$event.preventDefault()"
+         (drop)="dropAssets(asset)">
+      <div class="col-1 table-cell-padding-sm" *ngIf="selectionOn">
+        <input type="checkbox" class="align-middle"
+               [checked]="selectedItems.includes(asset)"
+               (change)="updateSelection(asset)"
+               (click)="$event.stopPropagation()"/>
+      </div>
+      <div class="d-flex flex-row align-items-stretch flex-grow-1 flex-shrink-1 p-0"
+           [ngClass]="{'col-11': selectionOn, 'col-12': !selectionOn }">
+        <ng-container *ngFor="let column of columns; first as isFirst">
+          <div *ngIf="!column.routerLink && column.visible" class="table-cell-padding-sm"
+               [style.width]="column.widthPercentage + '%'">
+            <div class="d-flex align-items-center truncate-parent">
+              <span *ngIf="fetchChildrenFunc && isFirst" role="button" class="tree-node-toggle"
+                    [ngClass]="getToggleIcon(asset)"
+                    [class.hideToggleIcon]="!hasChildren(asset)"
+                    (click)="toggleItem(asset)">
+              </span>
+              <span class="flex-block" [title]="column.value(asset)"
+                    (click)="clickItem(asset, isFirst)">
+                <i *ngIf="isFirst" [ngClass]="iconFunction(asset)"></i>
+                <span class="content-ellipse px-1">{{column.value(asset)}}</span>
+              </span>
+              <div *ngIf="isFirst" class="d-flex align-items-center action-style truncate-addon" ngbDropdown>
+                <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
+                   ngbDropdownToggle (click)="onContextmenu.emit([asset, $event])"></i>
+              </div>
+            </div>
+          </div>
+          <a *ngIf="!!column.routerLink && column.visible && !!column.routerLink(asset)"
+             class="action-style text-decoration-none"
+             [style.width]="column.widthPercentage + '%'"
+             [routerLink]="column.routerLink(asset).path"
+             [queryParams]="column.routerLink(asset).queryParams">
+            <div class="d-flex align-items-center truncate-parent">
+              <i class="folder-icon"></i>
+              <span class="flex-block" [title]="column.value(asset)"
+                    (click)="clickItem(asset, isFirst)">
+                  <span class="content-ellipse px-1">{{column.value(asset)}}</span>
+                </span>
+            </div>
+          </a>
+        </ng-container>
+      </div>
+      <ng-container *ngIf="isToggled(asset)">
+        <div *ngFor="let child of getChildren(asset); let i = index"
+             class="d-flex flex-row align-items-stretch flex-grow-1 flex-shrink-1 child-item">
+          <div class="col-1 table-cell-padding-sm" *ngIf="selectionOn">
+            <input type="checkbox" class="align-middle"
+                   [disabled]="selectedItems.includes(asset)"
+                   [checked]="selectedItems.includes(asset) || selectedItems.includes(child)"
+                   (change)="updateSelection(child)"
+                   (click)="$event.stopPropagation()"/>
+          </div>
+          <div class="d-flex flex-row align-items-stretch flex-grow-1 flex-shrink-1 p-0"
+               [ngClass]="{'col-11': selectionOn, 'col-12': !selectionOn }">
+            <ng-container *ngFor="let column of columns; first as isFirst">
+              <div *ngIf="column.visible" class="table-cell-padding-sm" [class.indentation-col]="isFirst"
+                   [style.width]="column.widthPercentage + '%'">
+                <div class="d-flex align-items-center truncate-parent">
+                  <span class="flex-block" [title]="column.value(child)"
+                        (click)="clickItem(child, isFirst)">
+                    <i *ngIf="isFirst" [ngClass]="iconFunction(child)"></i>
+                    <span class="content-ellipse px-1">{{column.value(child)}}</span>
+                  </span>
+                  <div *ngIf="isFirst" class="d-flex align-items-center action-style truncate-addon" ngbDropdown>
+                    <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
+                       ngbDropdownToggle (click)="onContextmenu.emit([child, $event])"></i>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>

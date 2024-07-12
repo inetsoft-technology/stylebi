@@ -1,0 +1,54 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="time-picker">
+   <mat-form-field appearance="outline" color="accent" class="time-picker-field">
+      <mat-label>HH</mat-label>
+      <input type="text" matInput maxlength="2"
+             [value]="formattedHour"
+             [disabled]="disabled"
+             (change)="updateHour($event.target.value)"
+             placeholder="HH"/>
+   </mat-form-field>
+   <div class="time-picker-spacer">:</div>
+   <mat-form-field appearance="outline" color="accent" class="time-picker-field">
+      <mat-label>MM</mat-label>
+      <input type="text" matInput maxlength="2"
+             [value]="formattedMinute"
+             (change)="updateMinute($event.target.value)"
+             [disabled]="disabled"
+             placeholder="MM">
+   </mat-form-field>
+   <div *ngIf="seconds" class="time-picker-spacer">:</div>
+   <mat-form-field *ngIf="seconds" appearance="outline" color="accent" class="time-picker-field">
+      <mat-label>SS</mat-label>
+      <input type="text" matInput maxlength="2"
+             [value]="formattedSecond"
+             [disabled]="disabled"
+             (change)="updateSecond($event.target.value)"
+             placeholder="SS">
+   </mat-form-field>
+   <div *ngIf="meridian" class="time-picker-spacer"></div>
+   <div *ngIf="meridian" class="time-picker-meridian">
+      <button mat-stroked-button
+              [disabled]="disabled"
+              (click)="changeMeridian()"
+      >{{getMeridianLabel()}}</button>
+   </div>
+</div>

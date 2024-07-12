@@ -1,0 +1,57 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="date-container">
+  <div class="datemc input-group" [class.calendar-button-visible]="isCalendarVisible()">
+    <dynamic-combo-box class="dateCombo" [mode]="mode" [disable]="disable"
+                       [editable]="editable" [value]="valueModel?.value"
+                       [type]="getType()"
+                       [variables]="variableValues" [isCondition]="true"
+                       [columnTreeRoot]="columnTreeRoot" [functionTreeRoot]="functionTreeRoot"
+                       [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions"
+                       [label]="label" [invalid]="invalid"
+                       [values]="type == XSchema.BOOLEAN ? booleanValues : []"
+                       [expressionSubmitCallback]="expressionSubmitCallback"
+                       [supportVariable]="supportVariable"
+                       [task]="task"
+                       [promptString]="getPromptString()"
+                       (onValueTyping)="updateValue($event)"
+                       (valueChange)="updateValue($event)"
+                       (typeChange)="updateType($event)">
+    </dynamic-combo-box>
+    <button *ngIf="isCalendarVisible()" class="calendar-button btn input-group-btn-addon"
+            title="_#(Select a Date)"
+            [class.disable-actions]="isCalendarDisable"
+            [class.disabled]="isCalendarDisable"
+            [fixedDropdown]="dateDropdown" [autoClose]="false"
+            dropdownPlacement="bottom">
+      <i class="icon-size-medium calendar-icon"></i>
+    </button>
+  </div>
+  <ng-template #dateDropdown>
+    <div class="dropdown-pane dynamic-value-editor-dropdown">
+      <date-time-picker [date]="valueModel.value"
+                        [promptDate]="type == XSchema.DATE || type == XSchema.TIME_INSTANT"
+                        [promptTime]="type == XSchema.TIME || type == XSchema.TIME_INSTANT"
+                        [format]="format" [emitAutoSet]="true"
+                        (onCommit)="dateChange($event)">
+      </date-time-picker>
+    </div>
+  </ng-template>
+</div>

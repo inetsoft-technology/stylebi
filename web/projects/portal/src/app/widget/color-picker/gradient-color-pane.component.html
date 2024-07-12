@@ -1,0 +1,51 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="color-picker-palette" (window:mouseup)="endDrag()">
+   <div class="option-pane row">
+      <select class="form-control gradient-direction col-3" [(ngModel)]="gradientColor.direction">
+         <option [value]="'linear'">_#(Linear)</option>
+         <option [value]="'radial'">_#(Radial)</option>
+      </select>
+      <span class="form-floating col-5" *ngIf="gradientColor.direction == 'linear'">
+         <select class="form-control" [(ngModel)]="gradientColor.angle">
+            <option *ngFor="let angle of supportedAngles" [value]="angle">{{angle}}</option>
+         </select>
+         <label>_#(Angle) (_#(degrees))</label>
+      </span>
+      <button class="btn icon-hover-bg btn ms-auto" title="_#(Add)" (click)="addColor()">
+         <i class="add-icon icon-size-small"></i>
+         <span class="visually-hidden">_#(Add)</span>
+      </button>
+   </div>
+
+   <div class="gradient-container" (mousemove)="move($event)">
+       <div class="display-color-pane" [style.background]="background">
+       </div>
+       <div class="gradient-slider">
+          <gradient-color-item *ngFor="let color of colors; let i = index" class="slider-item"
+               actionsContextmenuAnchor [actions]="actions"
+               [style.left.px]="300*color.offset/100 - 5"
+               [background]="color.color"
+               [disabled]="drage"
+               (gradientColorChanged)="selectColor($event, color)"
+               (mousedown)="startDrage($event, color, i)"></gradient-color-item>
+       </div>
+   </div>
+</div>

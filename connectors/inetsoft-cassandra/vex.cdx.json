@@ -1,0 +1,22 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:82bd4a67-077a-43f2-951a-5286a0dd569b",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2023-04-18T20:28:57Z",
+    "tools": [
+      {
+        "vendor": "OWASP",
+        "name": "Dependency-Track",
+        "version": "4.7.1"
+      }
+    ],
+    "component": {
+      "name": "inetsoft-cassandra",
+      "version": "13.7",
+      "type": "library",
+      "bom-ref": "27f6b26a-8e62-4e1b-950f-5e3398ad42eb"
+    }
+  }
+}

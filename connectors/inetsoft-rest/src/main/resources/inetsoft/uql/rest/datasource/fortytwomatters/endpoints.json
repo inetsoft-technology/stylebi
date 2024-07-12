@@ -1,0 +1,354 @@
+{
+  "endpoints": [
+    {
+      "name": "Android Lookup",
+      "suffix": "/v2.0/android/apps/lookup.json?p={Package Name:com.facebook.katana}&include_unpublished={Include Unpublished?:true|false}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&fields={Fields?:title,description,...}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android Reviews",
+      "suffix": "/v2.0/android/apps/reviews.json?p={Package Name:com.facebook.katana}&rating={Rating?:1-5}&start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}&days={Days?:1-30}&lang={Language-Specific Metadata?:en|de|es|...}",
+      "paged": true,
+      "pagePath": "$.total_pages",
+      "pageLimit": 100,
+      "freePageLimit": 100,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android Review Analysis",
+      "suffix": "/v3.0/android/apps/topics.json?p={Package Name:com.facebook.katana}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android Country Availability",
+      "suffix": "/v2.0/android/apps/availability.json?p={Package Name:com.facebook.katana}&country={Countries?:US,DE,ES,...}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android IAB Category for Apps",
+      "suffix": "/v4.0/android/apps/category.json?p={Package Name:com.facebook.katana}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android App-Ads txt for Apps",
+      "suffix": "/v3.0/android/apps/app_ads_txt.json?p={Package Name:com.facebook.katana}&include_unpublished={Include Unpublished?:true|false}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android Versions",
+      "suffix": "/v2.0/android/apps/versions.json?p={Package Name:com.facebook.katana}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android App Matching",
+      "suffix": "/v2.0/android/apps/matching.json?p={Package Name:com.facebook.katana}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android Search",
+      "suffix": "/v2.0/android/apps/search.json?q={Package Name:com.facebook.katana}&include_desc={Include Description?:true|false}&include_developer={Include Developer Name?:true|false}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&availabile_in={Supported Countries?:US,DE,ES,...}&fields={Fields?:title,description,...}",
+      "paged": true,
+      "pagePath": "$.num_pages",
+      "pageLimit": 50,
+      "freePageLimit": 5,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android Advanced Query",
+      "suffix": "/v2.0/android/apps/query.json?lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&fields={Fields?:title,description,...}",
+      "paged": true,
+      "pagePath": "$.num_pages",
+      "pageLimit": 50,
+      "freePageLimit": 50,
+      "post": true,
+      "bodyTemplate": "{\n  \"query\": {\n    \"query_params\": {\n      \"see\": \"https://42matters.com/docs/app-market-data/android/apps/advanced-query-api\"\n    }\n  }\n}\n"
+    },
+    {
+      "name": "Android Integrated SDKs",
+      "suffix": "/v2.0/android/apps/sdks.json?p={Package Name:com.facebook.katana}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android Search by SDKs",
+      "suffix": "/v2.0/android/apps/by_sdk.json?any_sdks={Any SDKs?:google-analytics,google-maps,...}&all_sdks={All SDKs?:google-analytics,google-maps,...}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&fields={Fields?:title,description,...}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android Search by Web Domain",
+      "suffix": "/v2.0/android/apps/by_domain.json?domain_search_term={Domain Search Term:google.com}&domain_search_in={Domain Search Field?:website|email}&domain_exact_match={Match Domain Exactly?:true|false}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&availabile_in={Supported Countries?:US,DE,ES,...}&fields={Fields?:title,description,...}",
+      "paged": true,
+      "pagePath": "$.num_pages",
+      "pageLimit": 50,
+      "freePageLimit": 5,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android Search by Permissions",
+      "suffix": "/v2.0/android/apps/by_permission.json?any_permissions={Any Permissions?:ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,...}&all_permissions={Any Permissions?:ACCESS_COARSE_LOCATION,ACCESS_FINE_LOCATION,...}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&availabile_in={Supported Countries?:US,DE,ES,...}&fields={Fields?:title,description,...}",
+      "paged": true,
+      "pagePath": "$.num_pages",
+      "pageLimit": 50,
+      "freePageLimit": 5,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android Google Play Top Charts",
+      "suffix": "/v2.0/android/apps/top_google_charts.json?list_name={List Name?:topselling_free|topselling_paid|movers_shakers|topgrossing|topselling_new_free|topselling_new_paid}&cat_key={App Category?:OVERALL|APPLICATION|GAME|...}&country={List Country?:US|DE|ES|...}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&date={List Date?:dd-mm-YYYY}&fields={Fields?:title,description,...}",
+      "paged": true,
+      "pagePath": "$.num_pages",
+      "pageLimit": 100,
+      "freePageLimit": 25,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android Google Play App Rank History",
+      "suffix": "/v2.0/android/apps/ranks.json?p={Package Name:com.facebook.katana}&start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}&days={Days from Yesterday?:1-30}&list_names={List Names?:topselling_free,topselling_paid,movers_shakers,topgrossing,topselling_new_free,topselling_new_paid}&cat_keys={App Categories?:OVERALL,APPLICATION,GAME,...}&countries={List Countries?:US,DE,ES,...}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Android App Audience Insights",
+      "suffix": "/v2.0/android/apps/audience.json?p={Package Name:com.facebook.katana}&country={Country?:US,DE,ES,...}&fields={Fields?:title,description,...}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS Lookup",
+      "suffix": "/v2.0/ios/apps/lookup.json?id={App ID}&bundleId={App Bundle ID?}&include_unpublished={Include Unpublished?:true|false}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&fields={Fields?:artistName,prices,...}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS Reviews",
+      "suffix": "/v2.0/ios/apps/reviews.json?id={App ID}&rating={Rating?:1-5}&start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}&days={Days from Yesterday?:1-30}&lang={Language-Specific Metadata?:en|de|es|...}",
+      "paged": true,
+      "pagePath": "$.total_pages",
+      "pageLimit": 100,
+      "freePageLimit": 100,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS Review Analysis",
+      "suffix": "/v3.0/ios/apps/topics.json?id={App ID}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS Country Availability",
+      "suffix": "/v2.0/ios/apps/availability.json?id={App ID}&bundleId={App Bundle ID?}&country={Countries?:US,DE,ES,...}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS IAB Category for Apps",
+      "suffix": "/v4.0/ios/apps/category.json?id={App ID}&bundleId={App Bundle ID?}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS App-Ads.txt for Apps",
+      "suffix": "/v3.0/ios/apps/app_ads_txt.json?id={App ID}&bundleId={App Bundle ID?}&include_unpublished={Include Unpublished?:true|false}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS Versions",
+      "suffix": "/v2.0/ios/apps/versions.json?id={App ID}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS App Matching",
+      "suffix": "/v2.0/ios/apps/matching.json?id={App ID?}&bundleId={App Bundle ID?}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS Search",
+      "suffix": "/v2.0/ios/apps/search.json?q={Query Phrase}&include_desc={Include Description?:true|false}&include_developer={Include Developer Name?:true|false}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&availabile_in={Supported Countries?:US,DE,ES,...}&fields={Fields?:artistName,prices,...}",
+      "paged": true,
+      "pagePath": "$.num_pages",
+      "pageLimit": 50,
+      "freePageLimit": 5,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS Advanced Query",
+      "suffix": "/v2.0/ios/apps/query.json?lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&fields={Fields?:artistName,prices,...}",
+      "paged": true,
+      "pagePath": "$.num_pages",
+      "pageLimit": 50,
+      "freePageLimit": 50,
+      "post": true,
+      "bodyTemplate": "{\n  \"query\": {\n    \"query_params\": {\n      \"see\": \"https://42matters.com/docs/app-market-data/ios/apps/advanced-query-api\"\n    }\n  }\n}\n"
+    },
+    {
+      "name": "iOS Integrated SDKs",
+      "suffix": "/v2.0/ios/apps/sdks.json?id={App ID}&bundleId={App Bundle ID?}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS Search by SDKs",
+      "suffix": "/v2.0/ios/apps/by_sdk.json?any_sdks={Any SDKs?:spotify,youtube-player,...}&all_sdks={All SDKs?:spotify,youtube-player,...}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&availabile_in={Supported Countries?:US,DE,ES,...}&fields={Fields?:artistName,prices,...}",
+      "paged": true,
+      "pagePath": "$.num_pages",
+      "pageLimit": 50,
+      "freePageLimit": 5,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS Search by Web Domain",
+      "suffix": "/v2.0/ios/apps/by_domain.json?domain_search_term={Domain Search Term:google.com}&domain_exact_match={Match Domain Exactly?:true|false}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&availabile_in={Supported Countries?:US,DE,ES,...}&fields={Fields?:artistName,prices,...}",
+      "paged": true,
+      "pagePath": "$.num_pages",
+      "pageLimit": 50,
+      "freePageLimit": 5,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS App Store Top Charts",
+      "suffix": "/v2.0/ios/apps/top_appstore_charts.json?list_name={List Name?:topselling_free|topselling_paid|topgrossing}&device_type={Device Type?:iphone|ipad}&primaryGenreId={App Primary Genre ID?:36|6000|7001|...}&country={List Country?:US|DE|ES|...}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&date={List Date?:dd-mm-YYYY}&fields={Fields?:artistName,prices,...}",
+      "paged": true,
+      "pagePath": "$.num_pages",
+      "pageLimit": 100,
+      "freePageLimit": 25,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "iOS App Store Rank History",
+      "suffix": "/v2.0/ios/apps/ranks.json?id={App ID}&start_date={Start Date?:yyyy-MM-dd}&end_date={End Date?:yyyy-MM-dd}&days={Days from Yesterday?:1-30}&list_names={List Names?:topselling_free,topselling_paid}&device_types={Device Types?:iphone,ipad}&primaryGenreIds={App Primary Genre IDs?:36,6000,7001,...}&countries={List Countries?:US,DE,ES,...}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Tencent Lookup",
+      "suffix": "/v2.0/tencent/android/apps/lookup.json?p={Package Name:com.tencent.mobile}&fields={Fields?:title,description,...}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Tencent MyApp Top Charts",
+      "suffix": "/v2.0/tencent/android/apps/top_myapp_charts.json?cat_key={App Category?:1|100|101|...}&lang={Language-Specific Metadata?:en|de|es|...}&app_country={Country-Specific Metadata?:US|DE|ES|...}&date={List Date?:dd-mm-YYYY}&fields={Fields?:title,description,...}",
+      "paged": true,
+      "pagePath": "num_pages",
+      "pageLimit": 100,
+      "freePageLimit": 25,
+      "post": false,
+      "bodyTemplate": null
+    },
+    {
+      "name": "Amazon Appstore Lookup",
+      "suffix": "/v2.0/amazon/android/apps/lookup.json?asin={ASIN}&fields={Fields?:title,description,...}",
+      "paged": false,
+      "pagePath": null,
+      "pageLimit": 0,
+      "freePageLimit": 0,
+      "post": false,
+      "bodyTemplate": null
+    }
+  ]
+}

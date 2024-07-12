@@ -1,0 +1,68 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="table-container">
+  <table mat-table matSort [dataSource]="matTableDataSource" (matSortChange)="sortData($event)">
+    <ng-container matColumnDef="selected">
+      <th mat-header-cell *matHeaderCellDef>
+        <mat-checkbox (change)="selectAll($event)"
+                      [checked]="selection.hasValue() && isAllSelected()"
+                      [indeterminate]="selection.hasValue() && !isAllSelected()"
+                      [disabled]="dataSource.length == 0">
+        </mat-checkbox>
+      </th>
+      <td mat-cell *matCellDef="let row" class="selected-cell">
+        <mat-checkbox (click)="$event.stopPropagation()"
+                      (change)="selectRow($event, row)"
+                      [checked]="selection.isSelected(row)">
+        </mat-checkbox>
+      </td>
+    </ng-container>
+    <ng-container matColumnDef="type">
+      <ng-container class="detail-cell">
+        <th mat-header-cell *matHeaderCellDef>_#(Type)</th>
+        <td mat-cell *matCellDef="let row">
+          <mat-icon fontSet="ineticons" [fontIcon]="getIcon(row.type)"></mat-icon>
+        </td>
+      </ng-container>
+    </ng-container>
+    <ng-container matColumnDef="name">
+      <ng-container class="detail-cell">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>_#(Name)</th>
+        <td mat-cell *matCellDef="let row"> {{row.identityID.name}}</td>
+      </ng-container>
+    </ng-container>
+    <ng-container *ngFor="let action of displayActions" [matColumnDef]="action">
+      <ng-container class="detail-cell">
+        <th mat-header-cell *matHeaderCellDef>{{ getResourceActionLabel(action) }}</th>
+        <td mat-cell *matCellDef="let row">
+          <mat-checkbox [checked]="actionChecked(row, action)"
+                        [disabled]="actionDisabled(row, action)"
+                        (change)="updateAction(row, action)">
+          </mat-checkbox>
+        </td>
+      </ng-container>
+    </ng-container>
+
+    <tr mat-header-row *matHeaderRowDef="displayColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayColumns;"></tr>
+  </table>
+  <mat-divider></mat-divider>
+  <mat-paginator [pageSizeOptions]="[10, 25, 100]" [showFirstLastButtons]="true"></mat-paginator>
+</div>

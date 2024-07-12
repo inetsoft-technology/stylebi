@@ -1,0 +1,55 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-drawer-container class="repository-pane" autosize>
+  <mat-drawer mode="side" disableClose
+              [opened]="!isScreenSmall() || !editing" [class.repository-tree]="!isScreenSmall()">
+    <em-repository-tree-view [dataSource]="dataSource"
+                             [selectedNodes]="selectedNodes | async"
+                             [smallDevice]="isScreenSmall()"
+                             [wsMVEnabled]="wsMVEnabled"
+                             (filter)="filterNodes($event)"
+                             (nodesSelected)="selectNode($event)"
+                             (newFolder)="addFolder()"
+                             (newDashboard)="addDashboard()"
+                             (importAsset)="importAsset()"
+                             (exportAsset)="exportAsset()"
+                             (moveAsset)="openMoveAssetDialog()"
+                             (deleteNodes)="deleteNodes()"
+                             (onDrop)="moveNodes($event)"
+                             (editNode)="editNode()"
+                             (openMaterializeDialog)="openMaterializeDialog()"
+                             emMultiSelectTree
+                             [tree]="dataSource"
+                             [currentSelection]="selectedNodes | async">
+    </em-repository-tree-view>
+  </mat-drawer>
+  <mat-drawer-content [class.repository-editor]="!isScreenSmall()">
+    <em-repository-editor-page [editorModel]="editorModel | async"
+                               [editingNode]="editingNode?.data"
+                               [smallDevice]="isScreenSmall()"
+                               (cancel)="editing = false"
+                               (editorChanged)="editorChanged($event)"
+                               (mvChanged)="mvChanged($event)"
+                               (newDataSource)="finalizeNewDataSource($event)"
+                               (unsavedChanges)="unsavedChanges = $event">
+    </em-repository-editor-page>
+  </mat-drawer-content>
+</mat-drawer-container>
+<em-loading-spinner [loading]="loading"></em-loading-spinner>

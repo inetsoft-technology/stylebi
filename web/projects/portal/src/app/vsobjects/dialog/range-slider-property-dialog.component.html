@@ -1,0 +1,61 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Range Slider Properties)'" (onCancel)="close()"
+   [cshid]="'RangeSliderProperties'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
+  <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="defaultTab" (navChange)="defaultTab = $event.nextId">
+    <ng-container [ngbNavItem]="generalTab" *ngIf="!advancedPaneOnly">
+      <a ngbNavLink>_#(General)</a>
+      <ng-template ngbNavContent>
+        <range-slider-general-pane [form]="form.controls['rangeSliderForm']"
+                                   [model]="model.rangeSliderGeneralPaneModel"
+                                   [variableValues]="variableValues" [vsId]="runtimeId"
+                                   [columnTreeRoot]="scriptTreeModel?.columnTree"
+                                   [functionTreeRoot]="scriptTreeModel?.functionTree"
+                                   [operatorTreeRoot]="scriptTreeModel?.operatorTree"
+                                   [scriptDefinitions]="scriptTreeModel?.scriptDefinitions">
+        </range-slider-general-pane>
+      </ng-template>
+    </ng-container>
+    <ng-container ngbNavItem="dataTab" *ngIf="!advancedPaneOnly">
+      <a ngbNavLink>_#(Data)</a>
+      <ng-template ngbNavContent>
+        <range-slider-data-pane [model]="model.rangeSliderDataPaneModel" [runtimeId]="runtimeId"
+                                [sizeModel]="model.rangeSliderAdvancedPaneModel.rangeSliderSizePaneModel"
+                                (validData)="invalidData = $event">
+      </range-slider-data-pane></ng-template>
+    </ng-container>
+    <ng-container [ngbNavItem]="advancedTab">
+      <a ngbNavLink>_#(Advanced)</a>
+      <ng-template ngbNavContent><range-slider-advanced-pane [form]="form.controls['rangeSliderAdvancedForm']" [model]="model.rangeSliderAdvancedPaneModel" [dataModel]="model.rangeSliderDataPaneModel"></range-slider-advanced-pane></ng-template>
+    </ng-container>
+    <ng-container [ngbNavItem]="scriptTab" *ngIf="!advancedPaneOnly">
+      <a ngbNavLink>_#(Script)</a>
+      <ng-template ngbNavContent><vsassembly-script-pane [model]="model.vsAssemblyScriptPaneModel" [scriptTreeModel]="scriptTreeModel"></vsassembly-script-pane></ng-template>
+    </ng-container>
+  </ul>
+  <div [ngbNavOutlet]="nav"></div>
+</div>
+<div class="modal-footer">
+  <apply-button (onApply)="apply($event)" [disabled]="!form.valid"></apply-button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+  <button type="button" class="btn btn-primary" *ngIf="model" (click)="ok()" [disabled]="!form.valid">_#(OK)</button>
+</div>

@@ -1,0 +1,62 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="popup-editor__container" *ngIf="aggregate">
+  <div class="popup-editor__button-group">
+    <button class="popup-editor__button btn" title="_#(Apply)"
+            (click)="apply.emit(false)">
+      <i class="submit-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col">
+      <formula-option [vsId]="vsId" [variables]="variables"
+                      [availableFields]="availableFields"
+                      [grayedOutValues]="grayedOutValues"
+                      [aggregate]="aggregate"
+                      [formulaObjs]="formulaObjs"
+                      (formulaChange)="changeFormulaValue()">
+      </formula-option>
+    </div>
+  </div>
+  <div class="row form-row-float-label"
+       *ngIf="isPercentageFormula() && percentSupport && !isCrosstab()">
+    <div class="col percentage_label_id">
+      <div class="form-floating">
+        <dynamic-combo-box [(value)]="aggregate.percentage"
+                           [values]="percents" [vsId]="vsId" [variables]="variables"
+                           [assemblyName]="assemblyName" [disable]="groupNum == 0 || aggregate.formula == 'none'">
+        </dynamic-combo-box>
+        <label>_#(Percent)</label>
+      </div>
+    </div>
+  </div>
+  <fieldset>
+    <div class="row form-row-float-label">
+      <div class="col">
+        <calculate-pane *ngIf="isCrosstab()" [variables]="variables"
+                        [aggregate]="chartAggregate"
+                        [supportPercentageDirection]="true" [cube]="cube"
+                        [percentageDirection]="crosstabOption.percentageByValue"
+                        (onCalcChanged)="updateCalc($event)">
+        </calculate-pane>
+      </div>
+    </div>
+  </fieldset>
+</div>

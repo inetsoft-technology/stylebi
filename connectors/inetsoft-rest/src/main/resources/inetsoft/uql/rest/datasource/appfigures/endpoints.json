@@ -1,0 +1,199 @@
+{
+    "endpoints": [
+        {
+            "name": "Root",
+            "paged": false,
+            "suffix": "/v2/"
+        },
+        {
+            "name": "Product",
+            "paged": false,
+            "suffix": "/v2/products/{Product ID}"
+        },
+        {
+            "name": "Product Search",
+            "paged": false,
+            "suffix": "/v2/products/search/{Term}?filter={Filter?}"
+        },
+        {
+            "name": "Product by Store ID",
+            "paged": false,
+            "suffix": "/v2/products/{Store}/{Store ID}"
+        },
+        {
+            "name": "My Products",
+            "paged": false,
+            "suffix": "/v2/products/mine?store={Store Name?}"
+        },
+        {
+            "name": "Report Regions",
+            "paged": false,
+            "suffix": "/v2/reports/sales/regions?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&granularity={Granularity?:daily|weekly|monthly|yearly}&products={ProductIDs?}&countries={Countries?}&dataset={Dataset?:none|financial}&include_inapps={Include In Apps?:true|false}"
+        },
+        {
+            "name": "Report Revenue",
+            "paged": false,
+            "suffix": "/v2/reports/revenue?group_by={Group By?:product|country|date|store}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}"
+        },
+        {
+            "name": "Reports Subscriptions",
+            "paged": false,
+            "suffix": "/v2/reports/subscriptions?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}"
+        },
+        {
+            "name": "Reports Subscription",
+            "paged": false,
+            "suffix": "/v2/reports/subscriptions?group_by={Group By?:product|country|date|store}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}"
+        },
+        {
+            "name": "Reports Ads",
+            "paged": false,
+            "suffix": "/v2/reports/ads?group_by={Group By?:product|country|date|store|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}&networks={Networks?}"
+        },
+        {
+            "name": "Reports Ads Details",
+            "paged": false,
+            "suffix": "/v2/reports/ads?group_by={Group By?:product|country|date|store|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}"
+        },
+        {
+            "name": "Advertiser Analytics",
+            "paged": false,
+            "suffix": "/v2/reports/adspend?group_by={Group By?:product|country|date|store|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Products?}&countries={Countries?}&networks={Networks?}"
+        },
+        {
+            "name": "Ratings",
+            "paged": false,
+            "suffix": "/v2/reports/ratings?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&granularity={Granularity?}&products={Product IDs?}&countries={Countries?}"
+        },
+        {
+            "name": "Ratings Details",
+            "paged": false,
+            "suffix": "/v2/reports/ratings?group_by={Group By?:product|country|date}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&granularity={Granularity?}&products={Product IDs?}&countries={Countries?}"
+        },
+        {
+            "name": "Usages",
+            "paged": false,
+            "suffix": "/v2/reports/usage?group_by={Group By?:product|country|date|network}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Product IDs?}&countries={Countries?}&networks={Networks?}"
+        },
+        {
+            "name": "All Usages",
+            "paged": false,
+            "suffix": "/v2/usage"
+        },
+        {
+            "name": "Report Sales",
+            "paged": false,
+            "suffix": "/v2/reports/sales?group_by={Group By?:products|countries|dates|stores}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&products={Product IDs?}&countries={Countries?}"
+        },
+        {
+            "name": "Ranks",
+            "paged": false,
+            "suffix": "/v2/ranks/{Product IDS}/{Granularity:hourly|daily}/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?countries={Countries?}&filter={Filter?}&tz={Timezone?:user|utc|est}"
+        },
+        {
+            "name": "Ranks Snapshot",
+            "paged": false,
+           "suffix": "/v2/ranks/snapshots/{Time:HH-MM-SS}/{Country}/{Category}/{Subcategory:free|paid|topgrossing}?top={Top?}"
+        },
+        {
+            "name": "Featured",
+            "paged": false,
+            "suffix": "/v2/featured/summary/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?products={Products?}"
+        },
+        {
+            "name": "Featured Full",
+            "paged": false,
+            "suffix": "/v2/featured/full/{Product ID}/{Start Date:YYYY-MM-DD}/{End Date:YYYY-MM-DD}?countries={Countries?}"
+        },
+        {
+            "name": "Featured Count",
+            "paged": false,
+            "suffix": "/v2/featured/counts?end={End Date?:YYYY-MM-DD}&products={Products?}&granularity={Granularity?:daily|weekly}&show_empty={Show Empty?:true|false}"
+        },
+        {
+            "name": "Featured History",
+            "paged": false,
+            "suffix": "/v2/featured/history/{Product ID}/{Featured Category ID}"
+        },
+        {
+            "name": "Review",
+            "paged": false,
+            "suffix": "/v2/reviews?stars={Stars?}"
+        },
+        {
+            "name": "Review Filters Counts",
+            "paged": false,
+            "suffix": "/v2/reviews/count?stars={Stars?}"
+        },
+        {
+            "name": "Events",
+            "paged": false,
+            "suffix": "/v2/events/"
+        },
+        {
+            "name": "Archive",
+            "paged": false,
+            "suffix": "/v2/archive?type={Type?:daily|weekly|monthly|yearly|finance|payment|all}&date={Date?:YYYY-MM-DD}"
+        },
+        {
+            "name": "Latest Report Listings",
+            "paged": false,
+            "suffix": "/v2/archive/latest?type={Type?:daily|weekly|monthly|yearly|finance|payment|all}"
+        },
+        {
+            "name": "Raw Report Data",
+            "paged": false,
+            "suffix": "/v2/archive/raw/{ID}/"
+        },
+        {
+            "name": "Users",
+            "paged": false,
+            "suffix": "/v2/users/{Email}"
+        },
+        {
+            "name": "Accounts",
+            "paged": false,
+            "suffix": "/v2/external_accounts"
+        },
+        {
+            "name": "Account",
+            "paged": false,
+            "suffix": "/v2/external_accounts/{External Account ID}"
+        },
+        {
+            "name": "Categories",
+            "paged": false,
+            "suffix": "/v2/data/categories"
+        },
+        {
+            "name": "Countries",
+            "paged": false,
+            "suffix": "/v2/data/countries"
+        },
+        {
+            "name": "Apple Country",
+            "paged": false,
+            "suffix": "/v2/data/countries/apple"
+        },
+        {
+            "name": "Languages",
+            "paged": false,
+            "suffix": "/v2/data/languages"
+        },
+        {
+            "name": "Currencies",
+            "paged": false,
+            "suffix": "/v2/data/currencies"
+        },
+        {
+            "name": "Stores",
+            "paged": false,
+            "suffix": "/v2/data/stores"
+        },
+        {
+            "name": "Sdks",
+            "paged": false,
+            "suffix": "/v2/data/sdks"
+        }
+    ]
+}

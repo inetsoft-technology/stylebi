@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title data-th-text="#{Report Error}">Report Error2</title>
+</head>
+<body text="#000000">
+<form name="form1">
+  <table border="0" cellpadding="3" cellspacing="0" bgcolor="#FFFFFF" width="100%">
+    <tr bgcolor="#336699" valign="top">
+      <td height="57" bgcolor="#FFFFFF"><p><font color="#333333" size="3"></font>
+        <img data-th-src="@{/app/assets/reporterror.gif}" src="" width="88" height="89" style="margin-left:24;margin-top:20">
+        <font size="6" color="CCCCCC" style="margin:0;margin-top:20" data-th-text="#{Report Error}">Report Error</font> </p></td>
+    </tr>
+    <tr>
+      <td><div data-th-utext="${repletError.info}"></div></td>
+    </tr>
+    <tr>
+      <td><b><font size="3px" style="margin-left:14">&nbsp;&nbsp;&nbsp;&nbsp;</font></b><font size="2"><div data-th-utext="${repletError.error}"></div></font></td>
+    </tr>
+    <tr>
+      <td>&nbsp;</td>
+    </tr>
+    <tr>
+      <td><font size="3" style="margin-left:30"><div data-th-utext="${repletError.message}"></div></font></td>
+    </tr>
+  </table>
+</form>
+</body>
+</html>

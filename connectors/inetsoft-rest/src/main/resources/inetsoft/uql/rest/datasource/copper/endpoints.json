@@ -1,0 +1,207 @@
+{
+  "endpoints": [
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Account Details", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/account"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "User", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/users/{User ID}"
+    }, 
+    {
+      "post": "true",
+      "paged": "true", 
+      "name": "Users", 
+      "bodyTemplate": "{}",
+      "suffix": "/v1/users/search"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Lead", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/leads/{Lead ID}"
+    }, 
+    {
+      "post": "true",
+      "paged": "true", 
+      "name": "Leads", 
+      "bodyTemplate": "{\n  \"name\": \"John Doe\",\n  \"phone_number\": \"555-555-5555\",\n  \"emails\": \"user@example.com\",\n  \"assignee_ids\": [ 1 ],\n  \"status_ids\": [ 1 ],\n  \"customer_source_ids\": [ 1 ],\n  \"city\": \"Manhattan\",\n  \"state\": \"NY\",\n  \"postal_code\": \"10001\",\n  \"country\": \"US\",\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"age\": 1,\n  \"minimum_monetary_value\": 1,\n  \"maximum_monetary_value\": 1,\n  \"minimum_interaction_count\": 1,\n  \"maximum_interaction_count\": 1,\n  \"minimum_interaction_date\": 1,\n  \"maximum_interaction_date\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1,\n  \"minimum_modified_date\": 1,\n  \"maximum_modified_date\": 1\n}",
+      "suffix": "/v1/leads/search"
+    }, 
+    {
+      "post": "true", 
+      "paged": "false", 
+      "name": "Lead Activites", 
+      "bodyTemplate": "{\n  \"activity_types\": [\n    {\n      \"id\": 1,\n      \"category\": \"user\"\n    }\n  ]\n}", 
+      "suffix": "/v1/leads/{Lead ID}/activities"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Customer Sources", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/customer_sources"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Lead Statuses", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/lead_statuses"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Person", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/people/{Person ID}"
+    }, 
+    {
+      "post": "true",
+      "paged": "false", 
+      "name": "Person by Email",
+      "bodyTemplate": "{\n  \"email\": \"user@example.com\"\n}",
+      "suffix": "/v1/people/fetch_by_email"
+    }, 
+    {
+      "post": "true", 
+      "paged": "true", 
+      "name": "People", 
+      "bodyTemplate": "{\n  \"name\": \"John Doe\",\n  \"phone_number\": \"555-555-5555\",\n  \"emails\": [ \"user@example.com\" ],\n  \"contact_type_ids\": [ 1 ],\n  \"assignee_ids\": [ 1 ],\n  \"company_ids\": [ 1 ],\n  \"opportunity_ids\": [ 1 ],\n  \"city\": \"Manhattan\",\n  \"state\": \"NY\",\n  \"postal_code\": \"10001\",\n  \"country\": \"US\",\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"age\": 1,\n  \"minimum_interaction_count\": 1,\n  \"minimum_interaction_date\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1\n}", 
+      "suffix": "/v1/people/search"
+    }, 
+    {
+      "post": "true", 
+      "paged": "false", 
+      "name": "Person Activity", 
+      "bodyTemplate": "{\n  \"activity_types\": [\n    {\n      \"id\": 1,\n      \"category\": \"user\"\n    }\n  ]\n}", 
+      "suffix": "/v1/people/{Person ID}/activities"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Contact Types", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/contact_types"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Company", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/companies/{Company ID}"
+    }, 
+    {
+      "post": "true", 
+      "paged": "true", 
+      "name": "Companies", 
+      "bodyTemplate": "{\n  \"name\": \"Example Inc.\",\n  \"phone_number\": \"555-555-5555\",\n  \"email_domains\": \"example.com\",\n  \"contact_type_ids\": [ 1 ],\n  \"assignee_ids\": [ 1 ],\n  \"city\": \"Manhattan\",\n  \"state\": \"NY\",\n  \"postal_code\": \"10001\",\n  \"country\": \"US\",\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"age\": 1,\n  \"minimum_interaction_count\": 1,\n  \"maximum_interaction_count\": 1,\n  \"minimum_interaction_date\": 1,\n  \"maximum_interaction_date\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1\n}", 
+      "suffix": "/v1/companies/search"
+    }, 
+    {
+      "post": "true", 
+      "paged": "false", 
+      "name": "Company Activities", 
+      "bodyTemplate": "{\n  \"activity_types\": [\n    {\n      \"id\": 1,\n      \"category\": \"user\"\n    }\n  ]\n}", 
+      "suffix": "/v1/companies/{Company ID}/activities"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Opportunity", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/opportunities/{Opportunity ID}"
+    }, 
+    {
+      "post": "true", 
+      "paged": "true", 
+      "name": "Opportunities", 
+      "bodyTemplate": "{\n  \"name\": \"Op 1\",\n  \"assignee_ids\": [ 1 ],\n  \"status_ids\": [ 1 ],\n  \"pipeline_ids\": [ 1 ],\n  \"priority_ids\": [ 1 ],\n  \"customer_source_ids\": [ 1 ],\n  \"loss_reason_ids\": [ 1 ],\n  \"company_ids\": [ 1 ],\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"minimum_monetary_value\": 1,\n  \"maximum_monetary_value\": 1,\n  \"minimum_interaction_count\": 1,\n  \"maximum_interaction_count\": 1,\n  \"minimum_close_date\": 1,\n  \"maximum_close_date\": 1,\n  \"minimum_interaction_date\": 1,\n  \"maximum_interaction_date\": 1,\n  \"minimum_stage_change_date\": 1,\n  \"maximum_stage_change_date\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1,\n  \"minimum_modified_date\": 1,\n  \"maximum_modified_date\": 1\n}", 
+      "suffix": "/v1/opportunities/search"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Loss Reasons", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/loss_reasons"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Pipelines", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/pipelines"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Pipeline Stages", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/pipeline_stages"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Stages in Pipeline", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/pipeline_stages/pipeline/{Pipeline ID}"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Project", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/projects/{Project ID}"
+    }, 
+    {
+      "post": "true", 
+      "paged": "true", 
+      "name": "Projects", 
+      "bodyTemplate": "{\n  \"name\": \"Big Project\",\n  \"assignee_ids\": [ 1 ],\n  \"status_ids\": [ 1 ],\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1,\n  \"minimum_modified_date\": 1,\n  \"maximum_modified_date\": 1\n}", 
+      "suffix": "/v1/projects/search"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Task", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/tasks/{Task ID}"
+    }, 
+    {
+      "post": "true", 
+      "paged": "true", 
+      "name": "Tasks", 
+      "bodyTemplate": "{\n  \"name\": \"Task 1\",\n  \"assignee_ids\": [ 1 ],\n  \"opportunity_ids\": [ 1 ],\n  \"project_ids\": [ 1 ],\n  \"statuses\": [ \"Open\" ],\n  \"tags\": [ \"tag\" ],\n  \"followed\": 1,\n  \"minimum_due_date\": 1,\n  \"maximum_due_date\": 1,\n  \"minimum_created_date\": 1,\n  \"maximum_created_date\": 1,\n  \"minimum_modified_date\": 1,\n  \"maximum_modified_date\": 1\n}", 
+      "suffix": "/v1/tasks/search"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Activity", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/activities/{Activity ID}"
+    }, 
+    {
+      "post": "true", 
+      "paged": "true", 
+      "name": "Activities", 
+      "bodyTemplate": "{\n  \"parent\": {\n    \"id\": \"parent_id\",\n    \"type\": \"company\"\n  },\n  \"activity_types\": [\n    {\n      \"id\": 1,\n      \"category\": \"user\"\n    }\n  ],\n  \"minimum_activity_date\": 1,\n  \"maximum_activity_date\": 1,\n  \"full_result\": false\n}", 
+      "suffix": "/v1/activities/search"
+    }, 
+    {
+      "post": "false", 
+      "paged": "false", 
+      "name": "Activity Types", 
+      "bodyTemplate": null, 
+      "suffix": "/v1/activity_types"
+    }
+  ]
+}

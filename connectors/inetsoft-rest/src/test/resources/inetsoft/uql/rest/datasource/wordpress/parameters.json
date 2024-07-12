@@ -1,0 +1,708 @@
+{
+  "tests": [
+    {
+      "endpoint": "Site Users",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site User",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "User Login": "restapiinetsoftcom"
+      }
+    },
+    {
+      "endpoint": "Current User Metadata",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Current User Billing History",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Current User Settings",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Current User Preferences",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Current User Profile Links",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Current User Connected Applications",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Current User Connected Application",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Application ID": "136301315"
+      }
+    },
+    {
+      "endpoint": "Current User Likes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Site Shortcodes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Embeds",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Page Templates",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Post Types",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Post Counts by Type",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post Type": "post"
+      }
+    },
+    {
+      "endpoint": "Site Widgets",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site WordAds Settings",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site WordAds Earnings",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site WordAds TOS",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site WordAds Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Current User Sites",
+      "jsonPath": "$.sites",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Site Headers",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Post by ID",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post ID": "9"
+      }
+    },
+    {
+      "endpoint": "Post by Slug",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post Slug": "example-post-3"
+      }
+    },
+    {
+      "endpoint": "Search Posts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Search Term": "test"
+      }
+    },
+    {
+      "endpoint": "Current User Posts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Post Likes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post ID": "9"
+      }
+    },
+    {
+      "endpoint": "Current User Post Like Status",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post ID": "9"
+      }
+    },
+    {
+      "endpoint": "Post Subscribers",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post ID": "9"
+      }
+    },
+    {
+      "endpoint": "Current User Post Subscription Status",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post ID": "9"
+      }
+    },
+    {
+      "endpoint": "Current User Post Reblog Status",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post ID": "9"
+      }
+    },
+    {
+      "endpoint": "Comment",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Comment ID": "1"
+      }
+    },
+    {
+      "endpoint": "Recent Comments",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Post Recent Comments",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post ID": "9"
+      }
+    },
+    {
+      "endpoint": "Comment Counts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Comment Audit History",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Comment ID": "1"
+      }
+    },
+    {
+      "endpoint": "Comment Likes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Comment ID": "1"
+      }
+    },
+    {
+      "endpoint": "Current User Comment Like Status",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Comment ID": "1"
+      }
+    },
+    {
+      "endpoint": "Site Categories",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Tags",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Category",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Category Slug": "uncategorized"
+      }
+    },
+    {
+      "endpoint": "Site Tag",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Tag Slug": "hello"
+      }
+    },
+    {
+      "endpoint": "Taxonomy Term",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Taxonomy": "category",
+        "Term Slug": "uncategorized"
+      }
+    },
+    {
+      "endpoint": "Post Type Taxonomies",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post Type": "post"
+      }
+    },
+    {
+      "endpoint": "Taxonomy Terms",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Taxonomy": "category"
+      }
+    },
+    {
+      "endpoint": "Site Followers",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Current User Blog Following Status",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Sharing Buttons",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "External Services",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "External Service",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Service": "facebook"
+      }
+    },
+    {
+      "endpoint": "Current User Publicize Connections",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Current User Keyring Connections",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Site Publicize Connections",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "External Services with Sharing Buttons",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Insights List",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Insights Data",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Report Slug": "rest-api-calls"
+      }
+    },
+    {
+      "endpoint": "Default Reader Menu",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Followed Blog Posts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Liked Blog Posts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Tagged Posts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Tag": "hello"
+      }
+    },
+    {
+      "endpoint": "Subscribed Tags",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Trending Tags",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Tag",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Tag": "hello"
+      }
+    },
+    {
+      "endpoint": "Tag Subscription Status",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Tag": "hello"
+      }
+    },
+    {
+      "endpoint": "Followed Feeds",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Feed Search",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site Domain or URL": "174295544",
+        "Query Text": "test"
+      }
+    },
+    {
+      "endpoint": "Recommended Blogs",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Site Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Summary Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Top Post Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Referrer Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Outbound Click Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Views by Tag and Category",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Top Author Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Top Comment Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Video Plays Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site File Download Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Post View Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post ID": "9"
+      }
+    },
+    {
+      "endpoint": "Site Views by Country",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Follower Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Comment Follower Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Publicize Follower Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Site Search Term Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Post Total View Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Post IDs": "9"
+      }
+    },
+    {
+      "endpoint": "Calendar Heatmap Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Media Item",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Media ID": "31"
+      }
+    },
+    {
+      "endpoint": "Media Items",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    },
+    {
+      "endpoint": "Navigation Menu",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544",
+        "Menu ID": "1359"
+      }
+    },
+    {
+      "endpoint": "Navigation Menus",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Site ID or Domain": "174295544"
+      }
+    }
+  ]
+}

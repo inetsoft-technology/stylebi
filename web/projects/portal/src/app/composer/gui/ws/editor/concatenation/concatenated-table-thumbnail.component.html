@@ -1,0 +1,51 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<table>
+  <thead>
+    <tr class="concat-table-title ws-concat-table-title-bg" draggable="true"
+        [ngClass]="{'concat-table-title--composition-error': tableHasCompositionError()}">
+      <th [style.max-width.px]="colWidth * maxBoundNumCols"
+          [style.min-width.px]="colWidth * maxBoundNumCols">
+        <ws-assembly-thumbnail-title [assembly]="table"
+                                     [menuActions]="actions"
+                                     [isFrontMenu]="true"
+                                     [isVertical]="true"
+        ></ws-assembly-thumbnail-title>
+      </th>
+    </tr>
+  </thead>
+</table>
+<table>
+  <tbody>
+    <tr>
+      <td *ngFor="let _i of maxBoundNumCols | numberToArray" class="concat-table-data ws-concat-table-data-bg"
+          [ngClass]="{'bg-ws-concat-error': columnHasCompositionError(_i)}"
+          [style.min-width.px]="colWidth" [style.max-width.px]="colWidth">
+        <ng-template [ngIf]="getColumn(_i)" [ngIfElse]="missingColumn">
+          <div class="concat-col-header" [attr.title]="getColumnHeader(_i)">{{getColumnHeader(_i)}}</div>
+          <div class="concat-col-type" [attr.title]="getColumn(_i).dataType">&lt;{{getColumn(_i).dataType}}&gt;</div>
+        </ng-template>
+        <ng-template #missingColumn>
+          <div class="concat-missing-column">&lt;Missing Column&gt;</div>
+        </ng-template>
+      </td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,68 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<w-standard-dialog [title]="'_#(Preferences)'" (onClose)="closeDialog()"
+                   [submitOnEnter]="isValid"
+                   [cshid]="'PortalPreferences'"
+                   (onSubmit)="okClicked()">
+  <ng-template wDialogContent>
+    <div *ngIf="model" class="prefernces-pane">
+      <form ngNoForm class="container-fluid">
+        <div class="form-group row one-col-form-flex">
+          <div class="form-floating">
+            <input class="form-control email-input-id" type="text" [(ngModel)]="model.email"
+                   defaultFocus [autoSelect]="false"
+                   placeholder="_#(Email)" [formControl]="emailControl"
+                   [class.is-invalid]="!emailControl.valid && emailControl.dirty"/>
+            <label>_#(Email)</label>
+            <span class="invalid-feedback invalid-feedback-content"
+                  *ngIf="emailControl.getError('emailFormatIfNotNull')">
+                  _#(viewer.mailto.invalidFormat)
+                </span>
+          </div>
+        </div>
+        <div *ngIf="model.changePasswordAvailable" class="form-group row one-col-form-flex">
+          <span class="href-style" (click)="changePasswordClicked()"
+                enterClick tabindex="0" role="link">
+            _#(Change Password)
+          </span>
+        </div>
+        <div class="form-group form-row one-col-form-flex">
+          <div class="col">
+            <label class="form-check-label">
+              <input type="checkbox" class="form-check-input"
+                     [(ngModel)]="model.historyBarEnabled"/>
+              _#(portal.history.bar.enable)
+            </label>
+          </div>
+        </div>
+      </form>
+    </div>
+  </ng-template>
+  <ng-template wDialogButtons>
+    <button type="button" class="btn btn-primary" (click)="okClicked()" [disabled]="!isValid()">
+      _#(OK)
+    </button>
+    <button type="button" class="btn btn-default" (click)="closeDialog()">_#(Cancel)</button>
+  </ng-template>
+</w-standard-dialog>
+<ng-template #changePasswordDialog let-close="close" let-dismiss="dismiss">
+  <change-password-dialog (onCommit)="close($event)"
+                          (onCancel)="dismiss($event)"></change-password-dialog>
+</ng-template>

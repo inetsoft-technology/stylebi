@@ -1,0 +1,244 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div [style.position]="(viewer || embeddedVS) && model.containerType !== 'VSSelectionContainer' ? 'absolute' : 'relative'"
+     [style.top.px]="(viewer || embeddedVS) && model.containerType !== 'VSSelectionContainer' ? model.objectFormat.top : null"
+     [style.left.px]="(viewer || embeddedVS) && model.containerType !== 'VSSelectionContainer' ? model.objectFormat.left : null"
+     [style.width.px]="model.objectFormat.width"
+     [style.height.px]="model.objectFormat.height"
+     [style.display]="getVisible() ? null : 'none'"
+     [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+     [style.border-bottom]="model.objectFormat.border.bottom"
+     [style.border-top]="model.objectFormat.border.top"
+     [style.border-left]="model.objectFormat.border.left"
+     [style.border-right]="model.objectFormat.border.right"
+     [style.border-radius.px]="model.objectFormat.roundCorner"
+     [style.color]="model.objectFormat.foreground"
+     [style.background-color]="model.objectFormat.background"
+     [safeFont]="model.objectFormat.font"
+     [class.disable-actions-fade]="!model.enabled"
+     [class.move-handle]="selected && !viewer && !model.container && !model.adhocFilter"
+     VSDataTip [dataTipName]="getAssemblyName()"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex"
+     (mousedown)="selectTitle($event, false)"
+     role="slider" tabindex="-1"
+     [attr.aria-label]="model.objectType + ' ' + model.absoluteName"
+     [attr.aria-valuemin]="getMinLabel()"
+     [attr.aria-valuemax]="getMaxLabel()"
+     class="vs-range-slider vs-object" #rangeSliderContainer>
+
+  <div *ngIf="isInSelectionContainer()"
+       class="vs-range-slider-header"
+       [style.width.px]="model.titleFormat.width"
+       [style.height.px]="model.titleFormat.height"
+       [style.border-left]="model.titleFormat.border.left"
+       [style.border-right]="model.titleFormat.border.right"
+       [style.border-bottom]="model.titleFormat.border.bottom ? model.titleFormat.border.bottom : '1px solid ' + headerBorderBottomColor"
+       [style.border-top]="model.titleFormat.border.top"
+       [style.border-radius.px]="model.objectFormat.roundCorner">
+    <div *ngIf="!model.adhocFilter" class="vs-range-slider-header__buttons"
+         [class.force-toolbar]="keyNav || mobileDevice"
+         [style.color]="model.titleFormat.foreground">
+      <collapse-toggle-button #collapseButton
+                              tabindex="-1"
+                              role="button"
+                              aria-label="_#(Dropdown)"
+                              [attr.aria-expanded]="!model.hidden"
+                              [actionNames]="model.actionNames"
+                              [collapsed]="model.hidden"
+                              (hideClicked)="onHide()"
+                              (showClicked)="onShow()"
+                              [class.bd-selected-cell]="menuFocus == FocusRegions.DROPDOWN">
+      </collapse-toggle-button>
+      <mini-menu *ngIf="actions" #menu
+                 role="menu"
+                 aria-haspopup="true"
+                 aria-label="_#(Mini Menu)"
+                 tabindex="-1"
+                 [keyNav]="keyNav"
+                 [keyNavigation]="keyboardNavObservable"
+                 [actions]="actions.toolbarActions"
+                 (onClose)="miniMenuClosed()"
+                 class="mini-menu"
+                 [class.bd-selected-cell]="menuFocus == FocusRegions.MENU">
+      </mini-menu>
+    </div>
+    <div *ngIf="!editingTitle" class="float-start vs-range-slider-left-label"
+         [class.separator-visible]="!model.adhocFilter"
+         tooltipIf
+         [style.width.px]="model.titleFormat.width * model.titleRatio"
+         [style.max-width.%]="model.titleRatio * 100"
+         [style.height.px]="model.titleFormat.height"
+         [style.text-align]="model.titleFormat.hAlign"
+         [style.vertical-align]="model.titleFormat.vAlign"
+         [safeFont]="model.titleFormat.font"
+         [style.background]="model.titleFormat.background"
+         [style.color]="model.titleFormat.foreground"
+         [style.text-decoration]="model.titleFormat.decoration"
+         [style.white-space]="model.titleFormat.wrapping.whiteSpace"
+         [style.word-wrap]="model.titleFormat.wrapping.wordWrap"
+         [style.overflow]="model.titleFormat.wrapping.overflow"
+         [style.align-items]="model.titleFormat.alignItems"
+         [style.justify-content]="model.titleFormat.justifyContent"
+         [style.border-right-color]="headerSeparatorBorderColor"
+         [style.padding-top.px]="model.titleFormat?.padding?.top"
+         [style.padding-bottom.px]="model.titleFormat?.padding?.bottom"
+         [style.padding-left.px]="model.titleFormat?.padding?.left"
+         [style.padding-right.px]="model.titleFormat?.padding?.right"
+         [class.selected-cell]="isTitleSelected()"
+         (mousedown)="selectTitle($event, true)"
+         (dblclick)="!viewer ? editingTitle = true : null">
+      <span>{{model.title}}</span>
+    </div>
+    <input *ngIf="!viewer && editingTitle" class="component-input float-start"
+           [(ngModel)]="model.title"
+           (focusout)="updateTitle($event.target.value)"
+           defaultFocus [autoSelect]="true"
+           (keyup.enter)="$event.target.blur(); editingTitle = false;"
+           [style.width.px]="model.titleFormat.width * model.titleRatio"
+           [style.max-width.%]="model.titleRatio * 100"
+           [style.height.px]="model.titleFormat.height"
+           [style.text-align]="model.titleFormat.hAlign"
+           [style.vertical-align]="model.titleFormat.vAlign"
+           [style.color]="model.titleFormat.foreground"
+           [safeFont]="model.titleFormat.font"
+           [style.white-space]="model.titleFormat.wrapping.whiteSpace"
+           [style.wordWrap]="model.titleFormat.wrapping.wordWrap"
+           [style.overflow]="model.titleFormat.wrapping.overflow"
+           [style.text-decoration]="model.titleFormat.decoration"
+           [draggable]="true"
+           (dragstart)="dragStart($event)"/>
+
+    <div class="vs-range-slider-header-label float-start"
+         [style.width.px]="model.titleFormat.width - (model.titleFormat.width * model.titleRatio)"
+         [style.max-width.%]="100 - (model.titleRatio * 100)"
+         [style.height.px]="model.titleFormat.height"
+         [style.text-align]="model.titleFormat.hAlign"
+         [style.vertical-align]="model.titleFormat.vAlign"
+         [safeFont]="model.titleFormat.font"
+         [style.background]="model.titleFormat.background"
+         [style.color]="model.titleFormat.foreground"
+         [style.text-decoration]="model.titleFormat.decoration"
+         [style.white-space]="model.titleFormat.wrapping.whiteSpace"
+         [style.word-wrap]="model.titleFormat.wrapping.wordWrap"
+         [style.overflow]="model.titleFormat.wrapping.overflow"
+         [style.padding-top.px]="model.titleFormat?.padding?.top"
+         [style.padding-bottom.px]="model.titleFormat?.padding?.bottom"
+         [style.padding-left.px]="model.titleFormat?.padding?.left"
+         [style.padding-right.px]="model.titleFormat?.padding?.right"
+         wInteractable
+         [interactableResizable]="!viewer && selected"
+         [resizableTopEdge]="false"
+         [resizableBottomEdge]="false"
+         [resizableRightEdge]="false"
+         (onResizableMove)="title2ResizeMove($event)"
+         (onResizableEnd)="title2ResizeEnd()">
+      <span class="text-overflow"
+            [style.text-align]="model.titleFormat.hAlign"
+            [style.vertical-align]="model.titleFormat.vAlign"
+            [safeFont]="model.titleFormat.font"
+            [style.background]="model.titleFormat.background"
+            [style.color]="model.titleFormat.foreground"
+            [style.text-decoration]="model.titleFormat.decoration"
+            [style.white-space]="model.titleFormat.wrapping.whiteSpace"
+            [style.word-wrap]="model.titleFormat.wrapping.wordWrap">{{getContainerLabel()}}</span>
+    </div>
+  </div>
+
+  <div *ngIf="!model.container || !model.hidden" class="vs-range-slider-body"
+       [class.prevent-drag]="isInSelectionContainer()"
+       [style.height.px]="getBodyHeight()"
+       [style.text-decoration]="model.objectFormat.decoration">
+    <div class="range-slider" [style.top.px]="sliderTop" [style.width.px]="model.maxRangeBarWidth"
+         (click)="snapToSide($event)"></div>
+
+    <div class="range-line prevent-drag" [style.top.px]="sliderTop">
+      <ng-template #minLabelContent>{{getMinLabel()}}</ng-template>
+      <div [style.left.px]="leftHandlePosition"
+           class="range-slider-handle range-slider-left-handle"
+           [class.mobile-padding]="hasMobilePadding"
+           tabindex="-1" [attr.aria-label]="model.labels[model.selectStart]"
+           [wTooltip]="model.labels[model.selectStart] ? updateLeftHandle : null"
+           [followCursor]="true"
+           (touchstart)="mouseDown($event, handleType.Left)"
+           (touchmove)="mouseMove($event)"
+           (touchend)="mouseUp($event)"
+           (dblclick)="setMaxRange()"
+           (mousedown)="mouseDown($event, handleType.Left)" #leftHandle>
+        <div *ngIf="!isMouseDown && mouseHandle === handleType.Left"
+             class="overlay bd-selected-cell"></div>
+      </div>
+      <ng-template #maxLabelContent>{{getMaxLabel()}}</ng-template>
+      <ng-template #updateRightHandle>
+        <div class="range-slider-tip">{{model.labels[model.selectEnd]}}</div>
+      </ng-template>
+      <ng-template #updateLeftHandle>
+        <div class="range-slider-tip">{{model.labels[model.selectStart]}}</div>
+      </ng-template>
+      <div [style.left.px]="rightHandlePosition"
+           class="range-slider-handle range-slider-right-handle"
+           [class.mobile-padding]="hasMobilePadding"
+           tabindex="-1" [attr.aria-label]="model.labels[model.selectEnd]"
+           [wTooltip]="model.labels[model.selectEnd] ? updateRightHandle : null"
+           [followCursor]="true"
+           (touchstart)="mouseDown($event, handleType.Right)"
+           (touchmove)="mouseMove($event)"
+           (touchend)="mouseUp($event)"
+           (dblclick)="setMaxRange()"
+           (mousedown)="mouseDown($event, handleType.Right)" #rightHandle>
+        <div *ngIf="!isMouseDown && mouseHandle === handleType.Right"
+             class="overlay bd-selected-cell"></div>
+      </div>
+      <div class="thumb-middle" tabindex="-1"
+           [attr.aria-label]="model.labels[model.selectStart] + ' _#(to) ' + model.labels[model.selectEnd]"
+           [style.left.px]="leftHandlePosition + pointerOffset + mobilePadding"
+           [style.width.px]="rightHandlePosition - leftHandlePosition"
+           (dblclick)="setMaxRange()"
+           (touchstart)="mouseDown($event, handleType.Middle)"
+           (touchmove)="mouseMove($event)"
+           (touchend)="mouseUp($event)"
+           (mousedown)="mouseDown($event, handleType.Middle)" #middleHandle>
+        <div *ngIf="!isMouseDown && mouseHandle === handleType.Middle"
+             class="overlay bd-selected-cell"></div>
+      </div>
+    </div>
+
+    <div class="range-value range-left ps-1" *ngIf="model.minVisible"
+         [style.top.px]="sliderTop + rangeValueOffset">
+      {{getMinLabel()}}
+    </div>
+    <div class="range-value range-right pe-1" *ngIf="model.maxVisible"
+         [style.top.px]="sliderTop + rangeValueOffset">
+      {{getMaxLabel()}}
+    </div>
+    <div class="current-value-wrapper">
+      <div *ngIf="model.currentVisible || isMouseDown" class="current-value"
+           [style.left.px]="getLabelPosition()"
+           [style.top]="'calc(' + sliderTop + 'px - 1em)'">
+        {{getCurrentLabel()}}
+      </div>
+    </div>
+    <div *ngIf="model.tickVisible">
+      <div class="tick" *ngFor="let tick of ticks; trackBy: trackByIdx"
+           [style.left.px]="tick" [style.top.px]="sliderTop + tickOffset">|
+      </div>
+    </div>
+  </div>
+</div>

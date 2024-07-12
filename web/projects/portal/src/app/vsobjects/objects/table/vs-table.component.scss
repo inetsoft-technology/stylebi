@@ -1,0 +1,106 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@import "../../../../scss/internal/mixins";
+
+$stacking-order: (
+  vstable-wrapper,
+  border-div,
+  table-title,
+  title-move-zone,
+  drop-line,
+  annotation-hidden-container
+);
+
+@include set-z-index($stacking-order);
+
+.vstable-wrapper {
+  overflow: hidden;
+  box-sizing: border-box;
+  position: absolute;
+}
+
+.vstable-header {
+  position: absolute;
+}
+
+.vstable-data {
+  position: relative;
+}
+
+.table-cell {
+  overflow: visible;
+}
+
+.table-cell > input {
+  width: 100%;
+}
+
+#cell-dropdown-menu {
+  position: fixed;
+}
+
+.drop-line {
+  position: absolute;
+  pointer-events: none;
+}
+
+.top-bottom {
+  border-top: 3px solid;
+}
+
+.left-right {
+  border-left: 3px solid;
+}
+
+.table-wrapper {
+  position: absolute;
+  overflow: hidden;
+}
+
+.sort-number {
+  position: absolute;
+  line-height: 20px;
+  right: 0px;
+  background: var(--inet-toolbar-bg-color);
+  font-size: 12px;
+  font-weight: bold;
+  font-family: arial;
+  width: 10px;
+}
+
+.sort-button:not(.col-sorted) {
+  visibility: hidden;
+}
+
+.drag-message {
+  position: absolute;
+  display: flex;
+  width: 100%;
+  top: 40%;
+  left: 0;
+  justify-content: center;
+  align-items: center;
+  background: rgba(255,255,255,0.8);
+  color: rgba(0,0,0,0.35);
+}
+
+.table-focus-row {
+  > tbody > tr:hover > * {
+    background-color: var(--inet-hover-primary-bg-color) !important;
+  }
+}

@@ -1,0 +1,90 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  table {
+    width: 100%;
+
+    tr {
+      overflow: hidden;
+
+      td {
+        overflow: hidden;
+        max-width: 25vw;
+        padding-right: 24px;
+        -ms-text-overflow: ellipsis;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  .property-name {
+    width: 45%;
+  }
+
+  .property-value {
+    width: calc(100% - 2px);
+  }
+
+  .value-layout {
+    display: flex;
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .value-display {
+    flex: 1 1 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 0px;
+  }
+
+  .button-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex: 0 0 auto;
+  }
+
+  .search-bar {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    align-items: center;
+  }
+
+  .search-field {
+    flex: 1 1 auto;
+  }
+
+  .property-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .table-container {
+    flex: 1 1 auto;
+    overflow-y: auto;
+  }
+
+  mat-form-field {
+    width: 100%;
+  }
+}

@@ -1,0 +1,60 @@
+/*
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+package inetsoft.web.binding.model.graph.aesthetic;
+
+import inetsoft.graph.aesthetic.CategoricalTextureFrame;
+import inetsoft.graph.aesthetic.VisualFrame;
+import inetsoft.uql.viewsheet.graph.aesthetic.CategoricalTextureFrameWrapper;
+
+public class CategoricalTextureModel extends TextureFrameModel {
+   public CategoricalTextureModel() {
+   }
+
+   public CategoricalTextureModel(CategoricalTextureFrameWrapper wrapper) {
+      super(wrapper);
+      CategoricalTextureFrame frame = (CategoricalTextureFrame) wrapper.getVisualFrame();
+      int[] textures = new int[frame.getTextureCount()];
+
+      for(int i = 0; i < textures.length; i++) {
+         textures[i] = wrapper.getTexture(i);
+      }
+
+      setTextures(textures);
+   }
+
+   /**
+    * Set the current using textures.
+    */
+   public void setTextures(int[] textures) {
+      this.textures = textures;
+   }
+
+   /**
+    * Get the current using textures.
+    */
+   public int[] getTextures() {
+      return textures;
+   }
+
+   @Override
+   public VisualFrame createVisualFrame() {
+      return new CategoricalTextureFrame();
+   }
+
+   private int[] textures;
+}

@@ -1,0 +1,154 @@
+{
+  "endpoints": [
+    {
+      "name": "Collection Articles",
+      "paged": true,
+      "suffix": "/v1/collections/{Collection ID}/articles?status={Status?:all|published|notpublished}",
+      "lookups": [
+        {
+          "endpoint": "Article",
+          "jsonPath": "$.articles.items[*]",
+          "key": "id",
+          "parameterName": "Article ID or Number"
+        },
+        {
+          "endpoints": [
+            "Related Articles",
+            "Revisions"
+          ],
+          "jsonPath": "$.articles.items[*]",
+          "key": "id",
+          "parameterName": "Article ID"
+        }
+      ]
+    },
+    {
+      "name": "Category Articles",
+      "paged": true,
+      "suffix": "/v1/categories/{Category ID}/articles?status={Status?:all|published|notpublished}",
+      "lookups": [
+        {
+          "endpoint": "Article",
+          "jsonPath": "$.articles.items[*]",
+          "key": "id",
+          "parameterName": "Article ID or Number"
+        },
+        {
+          "endpoints": [
+            "Related Articles",
+            "Revisions"
+          ],
+          "jsonPath": "$.articles.items[*]",
+          "key": "id",
+          "parameterName": "Article ID"
+        }
+      ]
+    },
+    {
+      "name": "Article Search",
+      "paged": true,
+      "suffix": "/v1/search/articles?query={Query}&collectionId={Collection ID?}&siteId={Site ID?}&status={Status?:all|published|notpublished}&visibility={Visibility?:all|public|private}"
+    },
+    {
+      "name": "Related Articles",
+      "paged": true,
+      "suffix": "/v1/articles/{Article ID}/related?status={Status?:all|published|notpublished}",
+      "lookups": [
+        {
+          "endpoint": "Article",
+          "jsonPath": "$.articles.items[*]",
+          "key": "id",
+          "parameterName": "Article ID or Number"
+        },
+        {
+          "endpoints": [
+            "Related Articles",
+            "Revisions"
+          ],
+          "jsonPath": "$.articles.items[*]",
+          "key": "id",
+          "parameterName": "Article ID"
+        }
+      ]
+    },
+    {
+      "name": "Revisions",
+      "paged": true,
+      "suffix": "/v1/articles/{Article ID}/revisions"
+    },
+    {
+      "name": "Article",
+      "paged": false,
+      "suffix": "/v1/articles/{Article ID or Number}?draft={Draft: false|true}"
+    },
+    {
+      "name": "Revision",
+      "paged": false,
+      "suffix": "/v1/revisions/{Revision ID}"
+    },
+    {
+      "name": "Categories",
+      "paged": true,
+      "suffix": "/v1/collections/{Collection ID}/categories",
+      "lookups": [
+        {
+          "endpoint": "Category Articles",
+          "jsonPath": "$.categories.items[*]",
+          "key": "id",
+          "parameterName": "Category ID"
+        }
+      ]
+    },
+    {
+      "name": "Category",
+      "paged": false,
+      "suffix": "/v1/categories/{Category ID or Number}"
+    },
+    {
+      "name": "Collections",
+      "paged": true,
+      "suffix": "/v1/collections?siteId={Site ID?}&visibility={Visibility?:all|public|private}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Collection Articles",
+            "Categories"
+          ],
+          "jsonPath": "$.collections.items[*]",
+          "key": "id",
+          "parameterName": "Collection ID"
+        }
+      ]
+    },
+    {
+      "name": "Collection",
+      "paged": false,
+      "suffix": "/v1/collections/{Collection ID or Number}"
+    },
+    {
+      "name": "Redirects",
+      "paged": true,
+      "suffix": "/v1/redirects/site/{Site ID}"
+    },
+    {
+      "name": "Redirect",
+      "paged": false,
+      "suffix": "/v1/redirects/{Redirect ID}"
+    },
+    {
+      "name": "Redirect Search",
+      "paged": false,
+      "suffix": "v1/redirects?url={URL}&siteId={Site ID}"
+    },
+    {
+      "name": "Sites",
+      "paged": true,
+      "suffix": "/v1/sites"
+    },
+    {
+      "name": "Site",
+      "paged": false,
+      "suffix": "/v1/sites/{Site ID}"
+    }
+  ]
+}

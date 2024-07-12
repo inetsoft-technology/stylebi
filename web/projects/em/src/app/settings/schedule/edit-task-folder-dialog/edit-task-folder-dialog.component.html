@@ -1,0 +1,36 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [title]="'_#(em.schedule.task.folderEdit)'"></em-modal-header>
+<div mat-dialog-content [formGroup]="form">
+  <mat-form-field subscriptSizing="dynamic" appearance="outline" color="accent">
+    <mat-label>_#(Folder Name)</mat-label>
+    <input matInput formControlName="folderName" autofocus/>
+    <mat-error *ngIf="form.controls.folderName?.errors?.required">_#(viewer.nameValid)</mat-error>
+    <mat-error *ngIf="form.controls.folderName?.errors?.invalidTaskName">
+      _#(schedule.task.name.invalid)
+    </mat-error>
+  </mat-form-field>
+  <mat-error *ngIf="unchanged">_#(Name is unchanged)</mat-error>
+  <mat-error *ngIf="duplicate">_#(Duplicate Name)</mat-error>
+</div>
+<div mat-dialog-actions>
+  <button mat-raised-button color="primary" (click)="submit()" [disabled]="form.invalid">_#(OK)</button>
+  <button mat-button (click)="cancel()">_#(Cancel)</button>
+</div>

@@ -1,0 +1,30 @@
+#
+# inetsoft-server - StyleBI is a business intelligence web application.
+# Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+
+version: '3'
+services:
+  firestore:
+    image: 'gcr.io/google.com/cloudsdktool/cloud-sdk:316.0.0-emulators'
+    command: 'gcloud beta emulators firestore start --host-port 0.0.0.0:8080'
+    ports:
+      - '8081:8080'
+  gcs:
+    image: 'fsouza/fake-gcs-server'
+    command: ['-scheme', 'http']
+    ports:
+      - '4443:4443'

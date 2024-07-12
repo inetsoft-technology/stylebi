@@ -1,0 +1,86 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.editor-container {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 1rem;
+
+  input:not([type="checkbox"]) {
+    height: 100%;
+  }
+
+  .flex-fixed-container {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    overflow: hidden;
+
+    .flex-fixed-content {
+      flex-grow: 1;
+      overflow-x: hidden;
+      overflow-y: auto;
+
+      .catalog-input {
+        padding-right: 0;
+      }
+
+      .catalog-browser-btn {
+        padding-left: 0;
+      }
+    }
+  }
+}
+
+.region-label {
+  font-size: 85%;
+  font-weight: 700;
+}
+
+.region-pane {
+  margin-top: 8px;
+}
+
+.cube-tree {
+  min-height: 400px;
+}
+
+.locale-list {
+  max-height: 10em;
+  overflow-y: auto;
+}
+
+.locales-list-btn {
+  height: 100%;
+  margin-right: calc(var(--bs-gutter-x)*0.5);
+  margin-top: .375rem;
+  margin-bottom: .375rem;
+  position: absolute;
+  top: 0;
+  right: 10px;
+}
+
+.check-box-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

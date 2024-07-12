@@ -1,0 +1,225 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.chart-style-img-auto {
+  background-image: url('../../../assets/auto.svg');
+}
+
+.chart-style-img-bar {
+  background-image: url('../../../assets/bar.svg');
+}
+
+.chart-style-img-3dbar {
+  background-image: url('../../../assets/3d_bar.svg');
+}
+
+.chart-style-img-line {
+  background-image: url('../../../assets/line.svg');
+}
+
+.chart-style-img-area {
+  background-image: url('../../../assets/area.svg');
+}
+
+.chart-style-img-point {
+  background-image: url('../../../assets/point.svg');
+}
+
+.chart-style-img-pie {
+  background-image: url('../../../assets/pie.svg');
+}
+
+.chart-style-img-donut {
+  background-image: url('../../../assets/donut.svg');
+}
+
+.chart-style-img-sunburst {
+  background-image: url('../../../assets/sunburst.svg');
+}
+
+.chart-style-img-treemap {
+  background-image: url('../../../assets/treemap.svg');
+}
+
+.chart-style-img-circle-pack {
+  background-image: url('../../../assets/circle_packing.svg');
+}
+
+.chart-style-img-icicle {
+  background-image: url('../../../assets/icicle.svg');
+}
+
+.chart-style-img-3dpie {
+  background-image: url('../../../assets/3d_pie.svg');
+}
+
+.chart-style-img-radar {
+  background-image: url('../../../assets/radar.svg');
+}
+
+.chart-style-img-filledRadar {
+  background-image: url('../../../assets/filled_radar.svg');
+}
+
+.chart-style-img-stock {
+  background-image: url('../../../assets/stock.svg');
+}
+
+.chart-style-img-candle {
+  background-image: url('../../../assets/candle.svg');
+}
+
+.chart-style-img-boxplot {
+  background-image: url('../../../assets/boxplot.svg');
+}
+
+.chart-style-img-mekko {
+  background-image: url('../../../assets/mekko.svg');
+}
+
+.chart-style-img-tree {
+  background-image: url('../../../assets/tree.svg');
+}
+
+.chart-style-img-network {
+  background-image: url('../../../assets/network.svg');
+}
+
+.chart-style-img-circle-network {
+  background-image: url('../../../assets/circle-network.svg');
+}
+
+.chart-style-img-gantt {
+  background-image: url('../../../assets/gantt.svg');
+}
+
+.chart-style-img-funnel {
+  background-image: url('../../../assets/funnel.svg');
+}
+
+.chart-style-img-waterfall {
+  background-image: url('../../../assets/waterfall.svg');
+}
+
+.chart-style-img-pareto {
+  background-image: url('../../../assets/pareto.svg');
+}
+
+.chart-style-img-map {
+  background-image: url('../../../assets/map.svg');
+}
+
+.chart-style-img-stackBar {
+  background-image: url('../../../assets/stack_bar.svg');
+}
+
+.chart-style-img-stack3DBar {
+  background-image: url('../../../assets/stack_3d_bar.svg');
+}
+
+.chart-style-img-stackLine {
+  background-image: url('../../../assets/stack_line.svg');
+}
+
+.chart-style-img-stackArea {
+  background-image: url('../../../assets/stack_area.svg');
+}
+
+.chart-style-img-stackPoint {
+  background-image: url('../../../assets/stack_point.svg');
+}
+
+.chart-style-img-step {
+  background-image: url('../../../assets/step.svg');
+}
+
+.chart-style-img-stack-step {
+  background-image: url('../../../assets/stack-step.svg');
+}
+
+.chart-style-img-jump {
+  background-image: url('../../../assets/jump.svg');
+}
+
+.chart-style-img-step-area {
+  background-image: url('../../../assets/step-area.svg');
+}
+
+.chart-style-img-stack-step-area {
+  background-image: url('../../../assets/stack-step-area.svg');
+}
+
+.chart-style-img-interval {
+  background-image: url('../../../assets/interval.svg');
+}
+
+.chart-style-img-scatter-contour {
+  background-image: url('../../../assets/scatter-contour.svg');
+}
+
+.chart-style-img-map-contour {
+  background-image: url('../../../assets/map-contour.svg');
+}
+
+.chart-style-img {
+  background-repeat: no-repeat;
+  display: inline-block;
+  width: 60px;
+  height: 40px;
+}
+
+.chart-style-item {
+  cursor:pointer;
+  width: 59px;
+}
+
+.chart-style-label {
+  text-align: center;
+  font-size: 0.7rem;
+  overflow: visible;
+  white-space: break-spaces;
+  line-height: 1;
+}
+
+.thumbnail-pane {
+  position: relative;
+}
+
+.thumbnail-row {
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+.multi-style-pane {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  filter: alpha(opacity=50);
+  -moz-opacity: 0.5;
+  opacity: 0.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bottom-bar {
+  display: flex;
+  align-items: center;
+}

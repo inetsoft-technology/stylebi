@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="thumbnail__context-menu-anchor"
+     actionsContextmenuAnchor [actions]="actions.menuActions">
+  <div class="jsplumb-draggable-handle ws-graph-thumbnail__title bg-white2 bb-gray"
+       [attr.title]="titleTooltip">
+    <ws-assembly-thumbnail-title #thumbnailTitle
+                                 [assembly]="table"
+                                 [worksheet]="worksheet"
+                                 [editable]="true"
+                                 [menuActions]="actions.menuActions"
+                                 (onEditName)="editName($event)"
+                                 (onStartEditName)="startEditName()"
+                                 (onNotify)="notify($event)"></ws-assembly-thumbnail-title>
+  </div>
+  <div class="ws-assembly-thumbnail-info bg-white1">
+    <data-block-status-indicator [table]="table"
+                                 (onConditionIconClicked)="openAssemblyConditionDialog()"
+                                 (onAggregateIconClicked)="openAggregateDialog()"
+                                 (onSortIconClicked)="openSortColumnDialog()">
+    </data-block-status-indicator>
+  </div>
+</div>
+
+<div *ngIf="table.canDropAssetColumns" class="ws-table-thumbnail-drag-overlay"
+     [class.bl-highlight]="dragColumnsOverlayDropSide === 'left'"
+     [class.br-highlight]="dragColumnsOverlayDropSide === 'right'"
+     [style.height.px]="dragColumnsOverlayDimensions?.height"
+     [style.width.px]="dragColumnsOverlayDimensions?.width"
+     (dragover)="dragOver($event)" (dragleave)="clearOverlayDropSide()"
+     (drop)="dropColumns($event)">
+</div>

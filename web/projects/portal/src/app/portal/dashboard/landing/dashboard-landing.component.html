@@ -1,0 +1,55 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="hint-container" *ngIf="model?.dashboards.length == 0">
+  <div class="cards card-deck card-deck-extra">
+    <div class="card bd-gray-none bg-white1 text-center" *ngIf="reportTabEnabled" (click)="navigateToReportTab()"
+         tabindex="-1" role="link" aria-labelledby="repositoryDescription" enterClick>
+      <div class="card-header">
+        <div class="card-title">_#(Repository)</div>
+      </div>
+      <div class="card-body">
+        <div class="mb-2 card-image-placement col d-flex justify-content-center" >
+          <i class="card-image-border txt-light bd-highlight-primary bg-primary icon-size-xlarge field-tree-icon" aria-hidden="true"></i>
+        </div>
+        <span id="repositoryDescription">_#(viewer.RepositoryDes)</span>
+      </div>
+      <div class="card-footer">
+      </div>
+    </div>
+    <div *ngIf="model?.editable" class="card bd-gray-none bg-white1 text-center" (click)="newDashboard()">
+      <div class="card-header">
+        <div class="card-title">_#(Portal Dashboards)</div>
+      </div>
+      <div class="card-body">
+        <div class="mb-2 card-image-placement col d-flex justify-content-center" >
+          <i class="card-image-border txt-light bd-highlight-primary bg-primary icon-size-xlarge viewsheet-book-icon" aria-hidden="true"></i>
+        </div>
+        <div class="d-flex">
+          <button class="d-flex btn btn-light-no-bg ms-4" aria-labelledby="dashboardDescription"
+                  defaultFocus [autoSelect]="false"><i class="setting-icon icon-size-large"></i>
+          </button>
+          <span id="dashboardDescription" class="ms-2 text-left">_#(viewer.portalDashBoardDes)</span>
+        </div>
+      </div>
+      <div class="card-footer">
+      </div>
+    </div>
+  </div>
+</div>

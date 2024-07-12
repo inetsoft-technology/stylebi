@@ -1,0 +1,101 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="dimension">
+  <div class="row form-row-float-label">
+    <div class="col-5">
+      <div class="form-floating sort_label_id">
+        <select class="form-control" [ngModel]="getCurrentOrder()" id="currentOrder"
+                (ngModelChange)="changeOrderType($event)"
+                [disabled]="!isSortEnabled()">
+          <ng-container *ngFor="let sort of getSortOrders(); trackBy: trackByFn">
+            <option *ngIf="sortItemVisible(sort)" [value]="sort.value">{{sort.label}}</option>
+          </ng-container>
+        </select>
+        <label for="currentOrder"><span>_#(Sort)</span></label>
+      </div>
+    </div>
+    <div class="col" *ngIf="isSortByColVisible()">
+      <div class="form-floating sort_by_id" >
+        <dynamic-combo-box [values]="aggregates" [(value)]="dimension.sortByCol"
+                           [variables]="variables" [assemblyName]="assemblyName"
+                           [vsId]="vsId" [disable]="!isSortEnabled()">
+        </dynamic-combo-box>
+        <label>_#(By)</label>
+      </div>
+    </div>
+    <div class="col ps-0" *ngIf="showEdit() && isSortEnabled()">
+      <span (click)="openDialog()">
+        <i class="btn-icon edit-icon icon-size-medium icon-color-default" aria-hidden="true"
+           title="_#(Edit)"></i>
+      </span>
+    </div>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col ranking_id">
+      <div class="form-floating">
+        <dynamic-combo-box [values]="rankingOptions"
+                           [value]="rankingOption" [vsId]="vsId" [variables]="variables"
+                           [assemblyName]="assemblyName"
+                           (valueChange)="changeRankingOption($event)"
+                           [disable]="!isRankingEnable()">
+        </dynamic-combo-box>
+        <label>_#(Ranking)</label>
+      </div>
+    </div>
+    <div class="col top_n_id">
+      <div class="form-floating">
+        <dynamic-combo-box [editable]="true" [mode]="ValueMode.NUMBER"
+                           [value]="dimension.rankingN" [vsId]="vsId" [variables]="variables"
+                           [disable]="!isRankingColEnabled() || isEmptyAggregate()"
+                           [assemblyName]="assemblyName"
+                           (valueChange)="changeRankingN($event)"
+                           (onValueTyping)="changeRankingN($event)">
+        </dynamic-combo-box>
+        <label>_#(N)</label>
+      </div>
+    </div>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col group_other_id">
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" id="others"
+             [(ngModel)]="dimension.groupOthers"
+             [disabled]="!isOtherEnabled()">
+        <label class="form-check-label" for="others">
+          _#(Group all others together)
+        </label>
+      </div>
+    </div>
+    <div class="col ranking_of_id mt-2">
+      <div class="form-floating">
+        <dynamic-combo-box [(value)]="dimension.rankingCol"
+                           [values]="aggregates" [vsId]="vsId" [variables]="variables"
+                           [grayedOutValues]="grayedOutValues"
+                           [assemblyName]="assemblyName"
+                           [disable]="!isRankingColEnabled() || isEmptyAggregate()">
+        </dynamic-combo-box>
+        <label>_#(calculationOf)</label>
+      </div>
+    </div>
+  </div>
+  <div class="alert alert-danger" *ngIf="!isValidN()">
+    _#(common.widget.SortOption.enterPositiveTop)
+  </div>
+</div>

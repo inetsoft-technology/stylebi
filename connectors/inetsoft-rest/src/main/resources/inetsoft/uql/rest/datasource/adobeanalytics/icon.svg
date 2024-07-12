@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="30px" height="30px" viewBox="291 381 30 30" enable-background="new 291 381 30 30" xml:space="preserve">
+<title>analytics-logo_hori</title>
+<g>
+	
+		<radialGradient id="SVGID_1_" cx="43.0151" cy="900.9707" r="1.6938" gradientTransform="matrix(9.2412 0 0 -9.4044 -93.7639 8865.0322)" gradientUnits="userSpaceOnUse">
+		<stop  offset="0" style="stop-color:#3C3256"/>
+		<stop  offset="0.77" style="stop-color:#130732"/>
+	</radialGradient>
+	<path fill="url(#SVGID_1_)" d="M294.066,384.066h23.868v23.868h-23.868V384.066z"/>
+	<path fill="#E2D8FF" d="M303.736,396h-0.919v6.243c0.307,0.122,0.612,0.245,0.919,0.366V396z M305.449,395.571v7.345
+		c0.123,0,0.306,0.061,0.49,0.061c0.184,0,0.306,0,0.489,0v-7.405H305.449z M310.896,400.773c0.367-0.367,0.673-0.795,0.918-1.225
+		v-4.711h-0.918V400.773z M300.554,396.368l2.203-2.509l2.081,0.795l4.406-3.182l2.264,2.142l1.102-0.918l-0.184-0.429l-0.918,0.796
+		l-2.203-2.02l-4.467,3.183l-2.081-0.796l-2.325,2.632l-1.53,0.367v0.306L300.554,396.368z M300.982,397.896h-0.919v1.838
+		c0.307,0.365,0.612,0.795,0.919,1.102V397.896z M309.184,393.675h-0.919v8.874c0.306-0.123,0.612-0.246,0.919-0.367V393.675z"/>
+	<path fill="#9F7FFF" d="M295.719,395.878c0,5.691,4.59,10.282,10.281,10.282c5.692,0,10.281-4.591,10.281-10.282
+		c0-5.692-4.589-10.282-10.281-10.282C300.37,385.596,295.719,390.248,295.719,395.878z M296.82,395.878
+		c0-5.08,4.101-9.18,9.18-9.18c5.08,0,9.18,4.1,9.18,9.18c0,5.079-4.1,9.181-9.18,9.181
+		C300.921,405.119,296.82,400.957,296.82,395.878z"/>
+</g>
+</svg>

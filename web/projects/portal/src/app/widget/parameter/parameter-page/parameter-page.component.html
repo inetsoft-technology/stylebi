@@ -1,0 +1,128 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container-fluid d-flex flex-column flex-grow-1 flex-shrink-1 align-items-stretch overflow-hidden" *ngIf="pageModel">
+  <div *ngIf="!isDialog" class="g-0 border-bottom flex-grow-0 flex-shrink-0 py-3 align-middle text-nowrap">
+    <span class="font-weight-bold">_#(Report):</span>&nbsp;<span>{{pageModel.reportTitle}}</span>
+  </div>
+  <div class="row g-0 flex-grow-1 flex-shrink-1 overflow-hidden" [class.border-bottom]="!isDialog">
+    <div class="col-md-2 col-lg-3 report-description-container border-right d-flex flex-column align-items-stretch overflow-hidden h-100" *ngIf="sidePaneVisible">
+      <div class="report-description mb-3 pe-2 pt-3 flex-grow-1 flex-shrink-1 text-left align-top">{{pageModel.reportDesc}}</div>
+      <div class="parameter-footer border-top py-3 pe-2 flex-grow-0 flex-shrink-0 text-left align-top" *ngIf="pageModel.footerText">{{pageModel.footerText}}</div>
+    </div>
+    <div class="ps-3 pe-2 report-parameters-row overflow-hidden overflow-hidden h-100" [ngClass]="formWidthClasses">
+      <div class="report-parameters container-fluid pb-3 h-100">
+        <div class="row">
+          <div [ngClass]="fieldWidthClasses">
+            <ng-container *ngIf="pageModel.params">
+              <ng-container *ngFor="let param of pageModel.params">
+                <ng-container [ngSwitch]="param.type">
+                  <div class="form-row-checkbox form-row" *ngSwitchCase="'BooleanParameter'">
+                    <div class="col-auto">
+                      <div class="form-check">
+                        <input type="checkbox" class="form-check-input" [(ngModel)]="param.value" [attr.aria-label]="!!param.alias ? param.alias : param.name"/>
+                        <label class="form-check-label">{{!!param.alias ? param.alias : param.name}}</label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="form-row-float-label form-row" *ngSwitchCase="'RadioParameter'">
+                    <div class="col-12">
+                      <fieldset class="float-title bd-gray mt-0">
+                        <legend>{{!!param.alias ? param.alias : param.name}}</legend>
+                        <div class="container">
+                          <div class="row justify-content-start">
+                            <div class="col-auto" *ngFor="let val of param.choicesValue; let idx = index;">
+                              <div class="form-check">
+                                <input type="radio" class="form-check-input" [name]="param.name" [value]="val" [(ngModel)]="param.value" [attr.aria-label]="param.choicesLabel[idx]"/>
+                                <label class="form-check-label">{{param.choicesLabel[idx]}}</label>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </fieldset>
+                    </div>
+                  </div>
+                  <div class="form-row-float-label form-row" *ngSwitchCase="'OptionParameter'">
+                    <div class="col-12">
+                      <fieldset class="float-title bd-gray mt-0">
+                        <legend>{{!!param.alias ? param.alias : param.name}}</legend>
+                        <div class="container">
+                          <div class="row justify-content-start">
+                            <div class="col-auto" *ngFor="let val of param.choicesValue; let idx = index;">
+                              <div class="form-check">
+                                <input type="checkbox" class="form-check-input" [value]="val" [(ngModel)]="param.selectedValues[idx]" [attr.aria-label]="param.choicesLabel[idx]"/>
+                                <label class="form-check-label">{{param.choicesLabel[idx]}}</label>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </fieldset>
+                    </div>
+                  </div>
+                  <div class="form-row-float-label form-row" *ngSwitchCase="'SimpleParameter'">
+                    <div class="form-floating col-12">
+                      <input type="text" class="form-control" [(ngModel)]="param.value" [class.is-invalid]="!isValidDecimal(param)"/>
+                      <label>{{!!param.alias ? param.alias : param.name}}</label>
+                      <span class="invalid-feedback">_#(valid.decimal.date.format)</span>
+                    </div>
+                  </div>
+                  <div class="form-row-float-label form-row" *ngSwitchDefault>
+                    <div class="form-floating col-12">
+                      <input type="password" class="form-control" [(ngModel)]="param.value" *ngIf="param.type === 'PasswordParameter'"/>
+                      <div class="input-group input-with-actions" *ngIf="param.type === 'DateParameter' || param.type === 'TimeParameter' || param.type === 'DateTimeParameter'">
+                        <input type="text" class="form-control" [ngModel]="param.value" (ngModelChange)="changeValue($event, param)"/>
+                        <button type="button" class="date-time-value-toggle btn btn-sm btn-light-no-bg icon-size-small calendar-icon"
+                                (click)="openDateTimeValue(param)"></button>
+                      </div>
+                      <textarea class="form-control" [(ngModel)]="param.value" [rows]="param.rows" *ngIf="param.type === 'TextAreaParameter'"></textarea>
+                      <select class="form-control" [(ngModel)]="param.value" *ngIf="param.type === 'ChoiceParameter' && !!param.choicesValue">
+                        <option *ngFor="let val of param.choicesValue; let idx = index;" [value]="val">
+                          {{param.choicesLabel[idx]}}
+                        </option>
+                        <option *ngIf="param.dataTruncated" disabled>(_#(data.truncated))</option>
+                      </select>
+                      <select class="form-control" [(ngModel)]="param.values" multiple size="6" *ngIf="param.type === 'ListParameter'">
+                        <option *ngFor="let val of param.choicesValue; let i = index;" [value]="val">
+                          {{param.choicesLabel[i]}}
+                        </option>
+                        <option *ngIf="param.dataTruncated" disabled>(_#(data.truncated))</option>
+                      </select>
+                      <label *ngIf="!(param.type === 'ChoiceParameter' && !param.choicesValue)">{{!!param.alias ? param.alias : param.name}}</label>
+                    </div>
+                  </div>
+                </ng-container>
+              </ng-container>
+            </ng-container>
+          </div>
+        </div>
+        <div class="row">
+        <div [ngClass]="fieldWidthClasses">
+        <div *ngIf="!isDialog" class="row justify-content-end g-0 align-items-baseline">
+          <div class="col-sm-12 col-md-8 col-lg-6 d-flex flex-row align-items-baseline">
+            <button type="button" class="btn btn-primary flex-grow-1 flex-shrink-1" (click)="ok()" [disabled]="!canSubmit()">_#(OK)</button>
+            <button type="button" class="btn btn-primary ms-2 flex-grow-1 flex-shrink-1" (click)="clear()">_#(Clear)</button>
+            <button type="button" class="btn btn-primary ms-2 flex-grow-1 flex-shrink-1" (click)="cancel()">_#(Cancel)</button>
+          </div>
+        </div>
+        </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

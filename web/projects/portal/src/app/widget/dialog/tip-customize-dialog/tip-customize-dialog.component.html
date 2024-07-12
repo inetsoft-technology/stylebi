@@ -1,0 +1,94 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header
+  [title]="'_#(Customize Tooltip)'"
+  (onCancel)="cancelChanges()"
+  [cshid]="cshid">
+</modal-header>
+<div class="modal-body">
+  <form [formGroup]="form" (submit)="$event.preventDefault()" class="container-fluid">
+    <fieldset>
+      <legend>_#(Tooltip Format)</legend>
+      <div class="row form-row-checkbox">
+        <div class="col">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" id="default"
+                 formControlName="customRB" value="DEFAULT">
+            <label class="form-check-label" for="default">
+              _#(Default)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" id="custom"
+                 formControlName="customRB" value="CUSTOM">
+            <label class="form-check-label" for="custom">
+              _#(Custom)
+            </label>
+          </div>
+        </div>
+        <div class="col" *ngIf="model.chart">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" id="none"
+                 formControlName="customRB" value="NONE">
+            <label class="form-check-label" for="none">
+              _#(None)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="row form-row-checkbox" *ngIf="model.lineChart">
+        <div class="col">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="combinedTooltip"
+                   formControlName="combinedTip" [value]="false">
+            <label class="form-check-label" for="combinedTooltip">
+              _#(viewer.viewsheet.chart.tooltip.combine)
+            </label>
+          </div>
+        </div>
+      </div>
+      <textarea class="form-control" rows="5" required name="customText"
+                formControlName="customTip"></textarea>
+      <ngb-alert type="danger" [hidden]="model.customRB != 'CUSTOM' || form.get('customTip').valid" [dismissible]="false">
+        _#(viewer.viewsheet.chart.tooltip.valid)</ngb-alert>
+    </fieldset>
+  </form>
+  <div *ngIf="!!model.availableTipValues && model.availableTipValues.length > 0">
+    <hr/>
+    <div *ngIf="!tooltipOnly">
+      _#(hide.mark.column.tooltip)
+    </div>
+    <div>
+      _#(viewer.viewsheet.chart.tooltip.index):
+    </div>
+    <ul class="list-unstyled">
+      <li *ngFor="let dataRef of model.availableTipValues">
+        <span>{{dataRef}}</span>
+      </li>
+    </ul>
+    <hr/>
+  </div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" [disabled]="model.customRB == 'CUSTOM' && !form.get('customTip').valid" (click)="saveChanges()">_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+</div>

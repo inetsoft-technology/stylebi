@@ -1,0 +1,61 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model" class="report-tab-body">
+  <div *ngIf="historyBarEnabled && recentlyViewed && recentlyViewed.length > 0 && !mobile"
+       class="portal-sub-navbar bg-white4">
+    <div class="d-flex align-items-center px-2">
+      <i class="recent-icon icon-size-large" aria-hidden="true" title="_#(History)"></i>
+    </div>
+    <ul class="nav">
+      <li class="nav-item" *ngFor="let entry of recentlyViewed">
+        <a class="nav-link" (click)="showEntry(entry)" tabindex="-1" enterClick>{{ entry.alias || entry.label }}</a>
+      </li>
+    </ul>
+  </div>
+
+  <ng-container [ngSwitch]="viewType">
+    <p-repository-list-view *ngSwitchCase="'list'" class="h-100"
+                            [rootNode]="rootNode"
+                            [childRouteShown]="childRouteShown"
+                            [wizardShown]="wizardShown"
+                            (entryOpened)="showEntry($event)">
+      <router-outlet></router-outlet>
+    </p-repository-list-view>
+
+    <p-repository-desktop-view *ngSwitchCase="'desktop'" [model]="model"
+                               [rootNode]="rootNode" [selectedEntry]="selectedEntry"
+                               [treePaneCollapsed]="treePaneCollapsed"
+                               [openedEntrys]="openedEntrys"
+                               (entryOpened)="showEntry($event)" (entryDeleted)="deletedEntry($event)"
+                               (editViewsheet)="editViewsheet($event)"
+                               (collapseTree)="collapseTree($event)">
+      <router-outlet></router-outlet>
+    </p-repository-desktop-view>
+
+    <p-repository-mobile-view *ngSwitchCase="'mobile'" [model]="model" #mobileView
+                              [rootNode]="rootNode" [selectedEntry]="selectedEntry"
+                              [childRouteShown]="childRouteShown" (entryOpened)="showEntry($event)"
+                              (editViewsheet)="editViewsheet($event)">
+      <router-outlet></router-outlet>
+    </p-repository-mobile-view>
+  </ng-container>
+</div>
+
+<notifications #notifications class="notifications-report-tab" [timeout]="5000"></notifications>

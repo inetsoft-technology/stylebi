@@ -1,0 +1,47 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!-- Modal Header -->
+<modal-header [title]="'_#(Highlight)'" (onCancel)="cancel()"
+   [cshid]="'Highlights'">
+</modal-header>
+
+<!-- Modal Body -->
+<div class="modal-body" *ngIf="model">
+   <highlight-pane [model]="model"
+     (onCommit)="ok()" (onSelectHighlight)="selectHighlight($event)"
+     (onEditCondition)="editConditions()" [selectedHighlight]="selectedHighlight">
+   </highlight-pane>
+</div>
+
+<!-- Modal Footer -->
+<div class="modal-footer">
+  <apply-button (onApply)="apply($event)"></apply-button>
+  <button type="button" class="btn btn-primary" (click)="ok()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>
+<ng-template #vsConditionDialog let-close="close" let-dismiss="dismiss">
+  <vs-condition-dialog
+    (onCommit)="close($event)" (onCancel)="dismiss($event)"
+    [model]="modalVSConditionDialogModel" [runtimeId]="runtimeId"
+    [assemblyName]="assemblyName" [variableValues]="variableValues"
+    [supportApply]="false" [isHighlight]="true" [resizeable]="true"
+    [nonSupportBrowseFields]="model.nonsupportBrowseFields">
+  </vs-condition-dialog>
+</ng-template>

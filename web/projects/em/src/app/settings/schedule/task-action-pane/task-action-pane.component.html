@@ -1,0 +1,54 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined">
+  <mat-card-content>
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(Action Type)</mat-label>
+      <mat-select placeholder="_#(Action Type)" [(value)]="selectedActionType" (selectionChange)="changeActionType()">
+        <mat-option *ngIf="model?.viewsheetEnabled" value="ViewsheetAction">_#(Dashboard)</mat-option>
+        <mat-option value="BackupAction">_#(Backup)</mat-option>
+        <mat-option value="BatchAction">_#(Batch)</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </mat-card-content>
+</mat-card>
+<ng-container [ngSwitch]="selectedActionType">
+  <em-viewsheet-action-editor
+    *ngSwitchCase="'ViewsheetAction'"
+    [model]="model"
+    [actionModel]="action"
+    (modelChanged)="onModelChanged($event)"
+  >
+  </em-viewsheet-action-editor>
+  <em-backup-action-editor
+    *ngSwitchCase="'BackupAction'"
+    [model]="model"
+    [actionModel]="action"
+    (modelChanged)="onModelChanged($event)">
+  </em-backup-action-editor>
+  <em-batch-action-editor
+    *ngSwitchCase="'BatchAction'"
+    [model]="model"
+    [actionModel]="action"
+    [originalTaskName]="originalTaskName"
+    (modelChanged)="onModelChanged($event)"
+  >
+  </em-batch-action-editor>
+</ng-container>

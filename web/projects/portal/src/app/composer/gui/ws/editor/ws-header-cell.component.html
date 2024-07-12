@@ -1,0 +1,58 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="ws-header hover-table-header-resizer"
+     [ngClass]="{'ws-header-primary-bg-color': !nonGroupColumn,
+                 'ws-header-secondary-bg-color': nonGroupColumn,
+                 'ws-header--rest-source': isRest,
+                 'ws-header--selected': selected,
+                 'ws-header--focused': focusedHeader,
+                 'ws-header--selecting-source': selectingColumnSource,
+                 'ws-header--source-selectable': columnSourceExists,
+                 'ws-header--source-not-selectable': !columnSourceExists,
+                 'ws-header--wrap': wrapColumnHeaders}"
+     [wTooltip]="!selectingColumnSource ? tooltip : columnSourceTooltip"
+     [waitTime]="0" [followCursor]="true" [disableTooltipOnMousedown]="false"
+     tabindex="0" (dblclick)="startEditHeader($event)">
+  <span class="ws-header-column__display-container">
+    <span class="ws-header-column__display-name">{{displayName[0]}}</span>
+    <span class="ws-header-column__display-name"
+          [class.ws-header-column--searchResult]=!searchTarget
+          [class.ws-header-column--searchSelected]=searchTarget>{{displayName[1]}}</span>
+    <span class="ws-header-column__display-name">{{displayName[2]}}</span>
+  </span>
+  <div *ngIf="!selectingColumnSource" class="column-buttons ws-header-primary-bg-color"
+       (click)="$event.stopPropagation()">
+    <ng-container *ngFor="let _button of columnButtons">
+      <button *ngIf="!table.info.editMode || _button.editMode" [title]="_button.tooltip"
+            class="ws-header-cell-button column-button icon-size-small hover-bg-primary"
+            [ngClass]="'ws-header-cell-button-' + _button.label"
+            [class.grayout]="_button.disabled"
+            [class.force]="_button.force" [class.no-action]="_button.clickFunction == null"
+            (click)="_button.clickFunction && _button.clickFunction()"></button>
+    </ng-container>
+    <mini-menu role="menu" class="mini-menu ws-header-cell-button"
+               aria-haspopup="true"
+               aria-label="_#(Menu)"
+               tabindex="-1"
+               [smallIcon]="true"
+               [actions]="createActions()">
+    </mini-menu>
+  </div>
+</div>

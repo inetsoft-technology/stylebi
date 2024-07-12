@@ -1,0 +1,54 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@use '@angular/material' as mat;
+@import 'variables';
+
+$em-primary-palette: mat.define-palette($em-primary);
+$em-accent-palette: mat.define-palette($em-accent);
+$em-warn-palette: mat.define-palette(mat.$red-palette);
+
+$em-typography-config: mat.define-typography-config(
+  $font-family: var(--inet-em-font-family),
+  $headline-1: mat.define-typography-level(20px, 32px, 400, var(--inet-em-font-family)),
+  $subtitle-1: mat.define-typography-level(14px, 14px, 700, var(--inet-em-font-family)),
+  $subtitle-2: mat.define-typography-level(12px, 12px, 700, var(--inet-em-font-family)),
+  $body-1: mat.define-typography-level(12px, 20px, 400, var(--inet-em-font-family)),
+  $button: mat.define-typography-level(12px, 12px, 500, var(--inet-em-font-family))
+);
+
+$em-form-field-typography-config: mat.define-typography-config(
+  $font-family: var(--inet-em-font-family),
+  $body-1: mat.define-typography-level(12px, 20px, 400, var(--inet-em-font-family)),
+  $body-2: mat.define-typography-level(12px, 20px, 400, var(--inet-em-font-family)), //checkbox
+  $caption: mat.define-typography-level(9px, 9px, 500, var(--inet-em-font-family))
+);
+
+$em-theme: mat.define-dark-theme((
+  color: (
+    primary: $em-primary-palette,
+    accent: $em-accent-palette,
+    warn: $em-warn-palette
+  ),
+  typography: $em-typography-config,
+  density: 0
+));
+
+$em-font-foreground: map-get($em-theme, foreground);
+
+@mixin em-custom-theme($theme) {
+}

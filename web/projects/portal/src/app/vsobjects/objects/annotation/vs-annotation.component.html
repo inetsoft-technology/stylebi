@@ -1,0 +1,101 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="model && model.visible && model.annotationRectangleModel">
+  <ng-container *ngIf="!model.hidden; else annotationPlaceholder">
+    <ng-container *ngIf="isLineInContainer()">
+      <ng-container *ngIf="model.annotationLineModel">
+        <vs-line [model]="model.annotationLineModel">
+        </vs-line>
+        <div *ngIf="isAssemblyAnnotation()"
+             class="vs-annotation__line-endpoint hover-bg-white-border"
+             [style.top.px]="model.annotationLineModel.endTop + model.annotationLineModel.objectFormat.top"
+             [style.left.px]="model.annotationLineModel.endLeft + model.annotationLineModel.objectFormat.left"
+             [style.z-index]="model.annotationLineModel.objectFormat.zIndex"
+             wInteractable
+             [interactableDraggable]="true"
+             [draggableRestriction]="restrictTo"
+             [composited]="false"
+             (onDraggableMove)="onLineEndDragMove($event)"
+             (onDraggableEnd)="onLineEndDragEnd($event)">
+        </div>
+      </ng-container>
+      <div class="vs-annotation__rectangle vs-object"
+           [style.top.px]="model.annotationRectangleModel.objectFormat.top"
+           [style.left.px]="model.annotationRectangleModel.objectFormat.left"
+           [style.width.px]="model.annotationRectangleModel.objectFormat.width"
+           [style.height.px]="model.annotationRectangleModel.objectFormat.height"
+           [style.z-index]="model.annotationRectangleModel.objectFormat.zIndex"
+           [class.vs-annotation__rectangle--selected]="selected"
+           [class.active]="selected"
+           draggable="true"
+           wInteractable
+           [resizableMargin]="8"
+           [interactableDraggable]="selected"
+           [interactableResizable]="selected"
+           [resizableTopEdge]="'.top'"
+           [resizableBottomEdge]="'.bottom'"
+           [resizableLeftEdge]="'.left'"
+           [resizableRightEdge]="'.right'"
+           [interactableDraggableGroup]="'vs-annotation-rectangle-drag-group'"
+           outOfZone
+           (onMouseenter)="checkOverflow()"
+           (onDraggableMove)="onRectangleDragMove($event)"
+           (onDraggableEnd)="updateAnnotation($event)"
+           (onResizableMove)="onRectangleResizeMove($event)"
+           (onResizableEnd)="updateAnnotation($event)">
+        <img class="vs-annotation__rectangle-image" *ngIf="vsInfo?.linkUri"
+             [title]=""
+             [src]="getSrc()"/>
+        <div class="vs-annotation__rectangle-content-padding-box"
+             [style.padding.px]="contentPadding"
+             [class.vs-annotation__rectangle-content--selected]="selected"
+             [wTooltip]="isOverflowing ? content : ''">
+          <div class="vs-annotation__rectangle-content">
+            <p class="vs-annotation__rectangle-content-text" #annotationContent
+               [innerHtml]="content">
+            </p>
+          </div>
+        </div>
+        <ng-container *ngIf="selected">
+          <div class="container-gutter top"></div>
+          <div class="container-gutter bottom"></div>
+          <div class="container-gutter left"></div>
+          <div class="container-gutter right"></div>
+          <div class="container-gutter top left"></div>
+          <div class="container-gutter top right"></div>
+          <div class="container-gutter bottom left"></div>
+          <div class="container-gutter bottom right"></div>
+        </ng-container>
+      </div>
+    </ng-container>
+  </ng-container>
+  <ng-template #annotationPlaceholder>
+    <div *ngIf="isViewsheetAnnotation()"
+         class="vs-annotation__hidden-icon--viewsheet" aria-hidden="true"
+         [style.top.px]="model.annotationRectangleModel.objectFormat.top"
+         [style.left.px]="model.annotationRectangleModel.objectFormat.left">
+      <button type="button" class="btn-sm annotition-button" aria-label="Toggle Annotations"
+              (click)="toggleAnnotationStatus()"
+              [wTooltip]="content">
+        <span class="annotation-icon" aria-hidden="true"></span>
+      </button>
+    </div>
+  </ng-template>
+</ng-container>

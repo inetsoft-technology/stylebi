@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="200px" height="200px" viewBox="0 0 200 200" enable-background="new 0 0 200 200" xml:space="preserve">
+<path fill="#42BCF4" d="M25,5C18.232,5,11.561,5.408,5,6.177V175c0,11.046,8.955,20,20,20h168.823
+	c0.769-6.561,1.177-13.232,1.177-20C195,81.112,118.889,5,25,5z"/>
+<path fill="#FFFFFF" d="M25,10c-5.058,0-10.058,0.24-14.999,0.686L10,174.998c0-0.205,0.022-0.405,0.031-0.609
+	C10.022,174.594,10,174.794,10,175c0,8.284,6.717,15,15,15h37.667l126.647-0.001C189.76,185.058,190,180.057,190,175
+	C190,83.874,116.128,10,25,10z"/>
+<path fill="#8DD0FC" d="M25,85v6c46.317,0,84,37.682,84,84h6C115,125.294,74.707,85,25,85z"/>
+</svg>

@@ -1,0 +1,53 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="graph-pane-container" *ngIf="graphPaneModel">
+  <div *ngIf="graphPaneModel.joinEdit" class="graph-toolbar w-100 px-2 py-1 bb-gray">
+    <div class="join-edit-button-container">
+      <button type="button" class="btn btn-primary btn-sm" (click)="closeJoinEditPane(false)">
+        _#(Cancel)
+      </button>
+      <button type="button" class="btn btn-primary btn-sm" (click)="closeJoinEditPane(true)">
+        _#(Done)
+      </button>
+    </div>
+  </div>
+
+  <div class="graph-content-container w-100" #graphContainer
+       [style.top.px]="toolbarHeight"
+       [style.height]="graphContainerHeight">
+    <query-network-graph-pane *ngIf="!graphPaneModel.joinEdit"
+                              [graphViewModel]="graphPaneModel.graphViewModel"
+                              [runtimeId]="runtimeId"
+                              [scrollPoint]="scrollPoint"
+                              [selectedGraphNodePath]="selectedGraphNodePath"
+                              (onRefreshGraph)="onRefreshGraph($event)"
+                              (onNodeSelected)="onNodeSelected.emit($event)"
+                              (onQueryPropertiesChanged)="refresh()">
+    </query-network-graph-pane>
+
+    <query-join-edit-pane *ngIf="graphPaneModel.joinEdit"
+                          [model]="graphPaneModel.joinEditPaneModel"
+                          (onRefreshGraph)="onRefreshGraph($event)">
+    </query-join-edit-pane>
+
+    <loading-indicator-pane [show]="loadingGraphPane">
+    </loading-indicator-pane>
+  </div>
+</div>

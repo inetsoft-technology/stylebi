@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.1, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg version="1.0" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="200px" height="200px" viewBox="0 0 200 200" enable-background="new 0 0 200 200" xml:space="preserve">
+<g id="Layer_3">
+</g>
+<g id="Layer_1">
+	<rect fill="#E16F00" fill-opacity="0" width="200" height="200"/>
+	<circle fill="#FFFFFF" cx="100" cy="100" r="100"/>
+	<g>
+		<circle fill="#FFC73C" cx="100" cy="100" r="96.012"/>
+	</g>
+	<g>
+		<path fill="#CCCCCC" d="M195.023,100c0,52.396-42.627,95.025-95.024,95.025c-52.396,0-95.023-42.629-95.023-95.025
+			c0-52.396,42.628-95.023,95.023-95.023C152.396,4.977,195.023,47.604,195.023,100z M99.999,3C46.514,3,3,46.514,3,100
+			c0,53.486,43.514,97.001,96.999,97.001C153.484,197.001,197,153.486,197,100C197,46.514,153.484,3,99.999,3z"/>
+	</g>
+	<circle fill="#FFFFFF" stroke="#CCCCCC" stroke-width="1.9759" cx="100" cy="100" r="87.559"/>
+	
+		<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="-23.2246" y1="24.8188" x2="-23.2246" y2="-75.0352" gradientTransform="matrix(1 0 0 -1 123.2246 74.8926)">
+		<stop  offset="0.0169" style="stop-color:#EBEBEB"/>
+		<stop  offset="0.0444" style="stop-color:#F6F6F6"/>
+		<stop  offset="0.0832" style="stop-color:#FDFDFD"/>
+		<stop  offset="0.191" style="stop-color:#FFFFFF"/>
+		<stop  offset="0.3482" style="stop-color:#F3F3F3"/>
+		<stop  offset="0.7584" style="stop-color:#D9D9D9"/>
+		<stop  offset="0.9405" style="stop-color:#D7D7D7"/>
+		<stop  offset="1" style="stop-color:#D1D1D1"/>
+	</linearGradient>
+	<circle opacity="0.5" fill="url(#SVGID_1_)" enable-background="new    " cx="100" cy="100.001" r="49.927"/>
+	<circle opacity="0.5" fill="#CCCCCC" enable-background="new    " cx="100" cy="100.001" r="49.927"/>
+	<path display="none" fill="#FFD766" d="M167.434,100.077c0-37.314-30.25-67.566-67.565-67.566
+		c-37.316,0-67.566,30.252-67.566,67.566c0,18.464,7.414,35.188,19.418,47.387l0.086-0.085c1.06,1.249,2.639,2.044,4.406,2.044
+		c3.191,0,5.779-2.587,5.779-5.778c0-2.035-1.054-3.82-2.644-4.851C49.725,128.729,43.8,115.1,43.8,100.077
+		c0-30.965,25.103-56.066,56.066-56.066c30.963,0,56.065,25.102,56.065,56.066c0,15.344-6.168,29.241-16.156,39.364
+		c-1.278,1.062-2.094,2.66-2.094,4.451c0,3.192,2.588,5.779,5.778,5.779c1.81,0,3.424-0.833,4.483-2.136
+		C159.99,135.335,167.434,118.578,167.434,100.077z"/>
+</g>
+<path fill="#FFD766" d="M167.605,100.038c0-37.315-30.25-67.566-67.564-67.566c-37.316,0-67.566,30.251-67.566,67.566
+	c0,16.156,5.676,30.98,15.137,42.605l0.009-0.006c0.943,1.611,2.688,2.695,4.691,2.695c3.003,0,5.438-2.434,5.438-5.438
+	c0-1.404-0.537-2.682-1.412-3.646C48.167,126.4,43.25,113.754,43.25,99.957c0-31.412,25.463-56.875,56.875-56.875
+	C131.537,43.083,157,68.546,157,99.958c0,13.852-4.959,26.54-13.188,36.403c-1.185,0.998-1.938,2.49-1.938,4.16
+	c0,3.004,2.436,5.438,5.438,5.438c2.078,0,3.881-1.166,4.797-2.877C161.786,131.395,167.605,116.398,167.605,100.038z"/>
+</svg>

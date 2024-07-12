@@ -1,0 +1,81 @@
+/*
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+package inetsoft.web.composer.vs.objects.controller;
+
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.test.SreeHome;
+import inetsoft.uql.viewsheet.VSAssembly;
+import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
+import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.composer.vs.objects.event.LockVSObjectEvent;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
+import inetsoft.web.viewsheet.service.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.security.Principal;
+
+import static org.mockito.Mockito.*;
+
+@SreeHome()
+@ExtendWith(MockitoExtension.class)
+class ComposerObjectControllerTest {
+   @BeforeEach
+   void setup() throws Exception {
+      controller = new ComposerObjectController(runtimeViewsheetRef,
+                                                vsObjectTreeService,
+                                                placeholderService,
+                                                engine,
+                                                assemblyHandler,
+                                                objectModelService,
+                                                vsObjectService);
+   }
+
+   @Test
+   void imageLockTest() throws Exception {
+      when(engine.getViewsheet(any(), any())).thenReturn(rvs);
+      when(rvs.getViewsheet()).thenReturn(viewsheet);
+      when(viewsheet.getAssembly(anyString())).thenReturn(assembly);
+      when(event.getName()).thenReturn("Assembly1");
+
+      controller.changeLockState(event, principal, dispatcher);
+      verify(vsObjectTreeService, times(1)).getObjectTree(rvs);
+   }
+
+   @Mock RuntimeViewsheetRef runtimeViewsheetRef;
+   @Mock VSObjectTreeService vsObjectTreeService;
+   @Mock PlaceholderService placeholderService;
+   @Mock ViewsheetService engine;
+   @Mock RuntimeViewsheet rvs;
+   @Mock Viewsheet viewsheet;
+   @Mock VSAssembly assembly;
+   @Mock LockVSObjectEvent event;
+   @Mock Principal principal;
+   @Mock CommandDispatcher dispatcher;
+   @Mock VSAssemblyInfoHandler assemblyHandler;
+   @Mock VSObjectModelFactoryService objectModelService;
+   @Mock VSObjectService vsObjectService;
+
+   private ComposerObjectController controller;
+}

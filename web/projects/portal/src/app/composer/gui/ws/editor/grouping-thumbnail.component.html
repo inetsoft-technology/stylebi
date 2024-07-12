@@ -1,0 +1,47 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="thumbnail__context-menu-anchor"
+     actionsContextmenuAnchor [actions]="actions.menuActions">
+  <div class="jsplumb-draggable-handle ws-graph-thumbnail__title bg-white2 bb-gray"
+       [attr.title]="titleTooltip">
+    <ws-assembly-thumbnail-title [assembly]="grouping"
+                                 [worksheet]="worksheet"
+                                 [editable]="true"
+                                 [menuActions]="actions.menuActions"
+                                 (onEditName)="editName($event)"
+                                 (onStartEditName)="startEditName()"
+                                 (onNotify)="notify($event)"></ws-assembly-thumbnail-title>
+    <div *ngIf="grouping.info.mirrorInfo?.outerMirror" class="hover-bg-primary ws-assembly-thumbnail-buttons">
+      <button *ngIf="grouping.info.mirrorInfo.autoUpdate"
+              class="btn ws-assembly-thumbnail-button auto-reload-icon"
+              title="_#(Disable Auto Update)"
+              (click)="toggleAutoUpdate()"></button>
+      <button *ngIf="!grouping.info.mirrorInfo.autoUpdate"
+              class="btn ws-assembly-thumbnail-button reload-no-icon"
+              title="_#(Enable Auto Update)"
+              (click)="toggleAutoUpdate()"></button>
+    </div>
+  </div>
+  <div *ngFor="let _cond of grouping.conditionNames"
+       class="ws-assembly-thumbnail-info bg-white1 text-overflow"
+       [attr.title]="_cond">
+    {{_cond}}
+  </div>
+</div>

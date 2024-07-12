@@ -1,0 +1,78 @@
+{
+  "tests": [
+    {
+      "endpoint": "Application",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "User",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Table",
+      "jsonPath": "$.columns",
+      "expandArrays": false,
+      "parameters": {
+        "Table Name": "Task"
+      }
+    },
+    {
+      "endpoint": "Select Table",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Table Name": "Task",
+        "Columns": "Project Name,Task,Status"
+      }
+    },
+    {
+      "endpoint": "Select View",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Table Name": "Task",
+        "View Name": "Overdue Tasks"
+      }
+    },
+    {
+      "endpoint": "Retrieve Records",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Table Name": "Task",
+        "Columns": "Project Name,Task,Status",
+        "Row IDs": "24,25"
+      }
+    },
+    {
+      "endpoint": "Updated Records",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Table Name": "Task"
+      }
+    },
+    {
+      "endpoint": "Deleted Records",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Table Name": "Task"
+      }
+    },
+    {
+      "endpoint": "Attachments",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Table Name": "Document",
+        "Column Name": "File",
+        "Row ID": "4"
+      }
+    }
+  ]
+}

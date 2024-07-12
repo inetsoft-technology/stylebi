@@ -1,0 +1,146 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.full-view-container {
+  height: 100vh;
+  width: 100vw;
+}
+
+.split {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.left-container {
+  float: left;
+  padding: 0;
+  margin: 0;
+  height: 100%;
+}
+
+.left-top-container, .left-bottom-container {
+  padding: 0;
+  margin: 0;
+  overflow: auto;
+  width: 100%;
+  position: relative;
+}
+
+.right-container {
+  overflow-x: auto;
+  margin: 0;
+  height: 100%;
+  border: none;
+  padding: 0;
+  padding-top: 2px;
+}
+
+.right-binding-container {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.right-top-container {
+  padding: 0;
+  margin: 0;
+  width: 100%;
+}
+
+.right-bottom-container {
+  padding: 0;
+  width: calc(100% - 10px);
+}
+
+.object-view {
+  margin-top: 5px;
+  position: relative;
+  overflow: visible;
+}
+
+.chart-max-mode {
+  margin-left: 5px;
+}
+
+.adhoc-split-content {
+  position: relative;
+  height: calc(100vh - 144px);
+}
+
+.vs-split-content {
+  position: relative;
+  height: calc(100vh - 50px);
+}
+
+.left-bottom-container.split {
+  border-top: none;
+}
+
+.chart-style-container {
+  width: 100%;
+  height: 34px;
+}
+
+.notifications-binding-pane {
+  position: fixed;
+  top: 260px;
+  right: 20px;
+  z-index: 10000;
+}
+
+.drag-indicator {
+  position: absolute;
+  left: 5px;
+  right: 15px;
+  top: 5px;
+  bottom: 35px;
+  background: rgba(255,255,255,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: lightgray;
+  font-size: 1.5rem;
+  border: none;
+  border-radius: 10px;
+  z-index: 4;
+}
+
+.dc-applied-indicator {
+  color: darkgray;
+}
+
+.binding-border {
+  border-left: var(--inet-panel-border-zero, 1px solid var(--inet-default-border-color));
+  border-right: var(--inet-panel-border-zero, 1px solid var(--inet-default-border-color));
+  border-bottom: var(--inet-panel-border-zero, 1px solid var(--inet-default-border-color));
+}
+
+.high-low-pane {
+  padding-bottom: 3px;
+}
+
+.status-bar-component {
+  justify-content: flex-end;
+}
+
+.status-bar {
+  position: absolute;
+  right: 75px;
+  bottom: 20px;
+}

@@ -1,0 +1,63 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Table)'"
+   (onCancel)="close()"
+   [cshid]="'CreatingaQueryBasedVariableList'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
+  <form [formGroup]="form">
+    <div class="row">
+      <div class="col-6">
+        <select class="form-control" size="7" [ngModel]="modelIndex"
+                (ngModelChange)="updateTableName($event)" [ngModelOptions]="{standalone: true}">
+          <option *ngFor="let _table of tables; let _i = index" [value]="_i"
+            [attr.title]="_table.description">
+            {{_table.name}}</option>
+        </select>
+      </div>
+      <div class="col-6">
+        <div class="form-row-float-label">
+          <div class="form-floating">
+            <select class="form-control mb-1" formControlName="label" placeholder="_#(Label Column)">
+              <option *ngFor="let _col of headers; let i=index"
+                 [value]="_col" [attr.title]="getColumnTooltip(i)">
+                {{currentTable.name + "." + _col}}</option>
+            </select>
+            <label><span>_#(Label Column)</span></label>
+          </div>
+        </div>
+        <div class="form-row-float-label">
+          <div class="form-floating">
+            <select class="form-control" formControlName="value" placeholder="_#(Value Column)">
+              <option *ngFor="let _col of headers; let i = index"
+                      [value]="_col" [attr.title]="getColumnTooltip(i)">
+                {{currentTable.name + "." + _col}}</option>
+            </select>
+            <label><span>_#(Value Column)</span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!form.valid" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" (click)="close()">_#(Cancel)</button>
+</div>

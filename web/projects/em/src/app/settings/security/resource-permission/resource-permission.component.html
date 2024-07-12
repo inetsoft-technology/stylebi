@@ -1,0 +1,71 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card *ngIf="!model?.securityEnabled; else securitySettings" class="no-security-card">
+  <mat-card-content>
+    _#(em.noSecurity.selectSecurity)
+  </mat-card-content>
+</mat-card>
+<ng-template #securitySettings>
+  <mat-card class="mat-elevation-z0">
+    <mat-card-content [class.ignore-padding]="ignorePadding">
+      <div class="flex-col">
+        <mat-checkbox class="mat-checkbox-field" [checked]="model.permissions == null || (!model.hasOrgEdited)"
+                      (change)="derivePermissionChange($event.checked)">
+          {{model.derivePermissionLabel}}
+        </mat-checkbox>
+        <div *ngIf="(model.permissions != null || model.hasOrgEdited)  && showRadioButtons" class="flex">
+          <mat-radio-group [(ngModel)]="model.requiresBoth" (change)="model.changed = true; permissionChanged.emit(model.permissions)">
+            <div class="flex-col align-margin">
+              <mat-radio-button class="mat-checkbox-field" [value]=true>
+                _#(em.security.requiresBoth)
+              </mat-radio-button>
+              <mat-radio-button class="mat-checkbox-field" [value]=false>
+                _#(em.security.requiresEither)
+              </mat-radio-button>
+            </div>
+          </mat-radio-group>
+        </div>
+        <div class="flex">
+          <mat-checkbox *ngIf="model.grantReadToAllVisible"
+                        [(ngModel)]="model.grantReadToAll">
+            {{model.grantReadToAllLabel}}
+          </mat-checkbox>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+  <div *ngIf="model.permissions != null || model.hasOrgEdited"
+       class="permission-settings-container">
+    <mat-card class="table-card">
+      <mat-card-content>
+        <em-permissions-table #table
+                              [dataSource]="model.permissions"
+                              [displayActions]="model.displayActions"
+                              (tableDataChanged)="onTableDataChange($event)"
+                              (tableSelectionChanged)="onTableSelectionChange($event)">
+        </em-permissions-table>
+      </mat-card-content>
+      <mat-card-actions>
+        <button mat-stroked-button (click)="addPermission(table)">_#(Add)</button>
+        <button mat-stroked-button (click)="removePermission(table)" [disabled]="!tableSelected">_#(Remove)</button>
+      </mat-card-actions>
+    </mat-card>
+  </div>
+</ng-template>

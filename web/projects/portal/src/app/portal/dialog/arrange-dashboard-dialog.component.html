@@ -1,0 +1,78 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<w-standard-dialog [title]="'_#(Arrange Dashboards)'" (onClose)="closeDialog()"
+                   [cshid]="'DeployingDashboard'"
+                   [submitOnEnter]="isValid"
+                   (onSubmit)="okClicked()">
+  <ng-template wDialogContent>
+    <div *ngIf="model">
+      <div class="mb-2">
+        <button type="button" class="btn btn-default" (click)="enableAll()">
+          _#(Enable All)
+        </button>
+        <button type="button" class="btn btn-default ms-1" (click)="disableAll()">
+          _#(Disable All)
+        </button>
+      </div>
+      <table resizableTable class="table table-sm table-bordered" [style.max-height.px]="380">
+        <thead>
+        <tr>
+          <th>
+            _#(Dashboard)
+          </th>
+          <th>
+            _#(Enable)
+          </th>
+          <th>
+            _#(Arrange Order)
+          </th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr *ngFor="let dashboard of model.dashboards; let i = index">
+          <td class="align-middle">
+            {{dashboard.label}}
+          </td>
+          <td class="align-middle">
+            <input type="checkbox" [(ngModel)]="dashboard.enabled"
+                   (change)="enabledChanged(i)"/>
+          </td>
+          <td>
+            <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveDashboard(i, i - 1)"
+                    [disabled]="!canMoveUp(i)">
+              <i class="upward-icon" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveDashboard(i, i + 1)"
+                    [disabled]="!canMoveDown(i)">
+              <i class="downward-icon" aria-hidden="true"></i>
+            </button>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </ng-template>
+  <ng-template wDialogButtons>
+    <button type="button" class="btn btn-primary" (click)="okClicked()" [disabled]="!isValid()">
+      _#(OK)
+    </button>
+    <button type="button" class="btn btn-default" (click)="closeDialog()">_#(Cancel)</button>
+  </ng-template>
+</w-standard-dialog>

@@ -1,0 +1,66 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div [class.popup-editor__container]="popup">
+  <div *ngIf="popup" class="popup-editor__button-group">
+    <button class="popup-editor__button btn"
+            title="_#(Apply)" (click)="applyClick()">
+      <i class="submit-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="thumbnail-pane">
+    <div *ngFor="let stylesRow of stylesRows" class="thumbnail-row">
+      <div class="chart-style-item m-1" *ngFor="let item of stylesRow">
+        <span class="{{getCssIcon(item)}}" [title]="item.label"
+              (click)="updateChartType(item.data)"
+              (dblclick)="applyClick()"
+              [style.border]="getImageBorder(item.data)"></span>
+        <div class="chart-style-label">{{item.label}}</div>
+      </div>
+      <div class="multi-style-pane bd-gray bg-white4" *ngIf="multiStyles && !refName">
+        <span>_#(viewer.multiStyles)</span>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-bar m-1">
+    <div *ngIf="!refName" class="form-check">
+      <input type="checkbox" class="form-check-input" [(ngModel)]="multiStyles" id="multi"
+             [disabled]="multiDisabled()" (change)="multiChanged($event.target.checked)"/>
+      <label *ngIf="!refName" class="form-check-label" for="multi">
+        _#(Multiple Styles)
+      </label>
+    </div>
+    <div class="form-check" *ngIf="stackEnabled()" [class.ms-5]="!refName">
+      <input type="checkbox" class="form-check-input" id="stack"
+             (change)="stackChanged($event.target.checked)"
+             [checked]="stackChecked()"/>
+      <label class="form-check-label" for="stack">
+        _#(Stack)
+      </label>
+    </div>
+    <div class="form-check" *ngIf="stackMeasuresVisible && !refName" [class.ms-5]="true">
+      <input type="checkbox" class="form-check-input" id="stackMeasure"
+             [(ngModel)]="stackMeasures" [disabled]="!stackMeasuresEnabled"
+             (change)="stackMeasuresChanged($event.target.checked)">
+      <label class="form-check-label" for="stackMeasure" title="_#(viewer.viewsheet.chart.stackMeasures)">
+        _#(Stack Measures)
+      </label>
+    </div>
+  </div>
+</div>

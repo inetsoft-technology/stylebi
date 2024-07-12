@@ -1,0 +1,136 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="form-horizontal">
+  <ng-container *ngFor="let _row of rows; let _j = index">
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="row">
+          <div class="col">
+            <select [attr.id]="'aggregate pane columns #' + _j" class="form-control"
+                    [title]="_row.selectedRef ? _row.selectedRef.name : ''"
+                    [ngModel]="getIndexOfRef(refList, _row)"
+                    (ngModelChange)="resetRow(_j, $event)">
+              <option [ngValue]="EMPTY_REF_INDEX"></option>
+              <option *ngFor="let _ref of refList; let _i = index" [ngValue]="_i"
+                      [attr.title]="getTooltip(_ref)"
+                      [class.grayed-out-field]="trapField(_ref)">{{_ref.view}}</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <fieldset [disabled]="_row.isGroup == null" class="m-0">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" [ngModel]="_row.isGroup === true"
+                       (ngModelChange)="isGroupChange(_row, _j, $event, true)" [attr.id]="'group' + _j">
+                <label class="form-check-label" [attr.for]="'group' + _j">
+                  _#(Group)
+                </label>
+              </div>
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" [ngModel]="_row.isGroup === false"
+                       (ngModelChange)="isGroupChange(_row, _j, $event, false)" [attr.id]="'aggregate' + _j">
+                <label class="form-check-label" [attr.for]="'aggregate' + _j">
+                  _#(Aggregate)
+                </label>
+              </div>
+            </fieldset>
+          </div>
+          <div class="col-4">
+            <div class="row">
+              <div class="col">
+                <dynamic-combo-box *ngIf="_row.isGroup === true" id="group" [valueOnly]="true"
+                                   [value]="getGroupVal(_row, _j)"
+                                   [values]="getGroupObjs(_j)"
+                                   [examples]="dateLevelExamples[_j]"
+                                   (valueChange)="groupChange(_row, _j, $event)">
+                </dynamic-combo-box>
+                <select *ngIf="_row.isGroup === false" id="aggregate" class="form-control"
+                        [ngModel]="getAggregateIndexOf(_row, _j)"
+                        (ngModelChange)="aggregateChange(_row, _j, $event)">
+                  <option *ngFor="let _aggregate of aggregates[_j]; let _i = index" [ngValue]="_i">
+                    {{_aggregate.label}}</option>
+                </select>
+                <select *ngIf="_row.isGroup == null" id="empty" class="form-control" disabled>
+                  <option></option>
+                </select>
+              </div>
+            </div>
+            <div *ngIf="_row.aggregate?.twoColumns" class="row mt-3">
+              <div class="col-auto">
+                <div class="form-floating">
+                  <select id="withColumn" class="form-control" placeholder="_#(With)"
+                          [ngModel]="getIndexOfRef(aggregateRefList, _row, true)"
+                          (ngModelChange)="_row.aggregateRef = aggregateRefList[$event]; updateState()">
+                    <option *ngFor="let _ref of aggregateRefList; let _i = index" [value]="_i"
+                            [class.grayed-out-field]="trapField(_ref)"
+                            [title]="getTooltip(_ref)">{{_ref.name}}
+                    </option>
+                  </select>
+                  <label *ngIf="!isByFormula(_row.aggregate); else elseBlock">
+                    _#(With)
+                  </label>
+                  <ng-template #elseBlock>
+                    <label>_#(By)</label>
+                  </ng-template>
+                </div>
+              </div>
+            </div>
+            <div *ngIf="_row.aggregate?.hasN" class="row mt-3">
+              <div class="col-auto">
+                <div class="form-floating">
+                  <input type="text" id="num" class="form-control"
+                         [ngModel]="_row.n"
+                         (ngModelChange)="_row.n = $event; updateState()"/>
+                  <label>{{getNPLabel(_row.aggregate)}}</label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-auto">
+            <div class="form-check form-floating">
+              <select class="form-control" placeholder="_#(Percentage)"
+                      [attr.id]="'percentage' + _j"
+                      [disabled]="_row.isGroup || !_row.aggregate || !_row.aggregate.supportPercentage"
+                      [ngModel]="_row.percentageOption"
+                      (ngModelChange)="percentageChange($event, _row)">
+                <option *ngFor="let option of percentageOptions" [value]="option.value">{{option.label}}</option>
+              </select>
+              <label><span>_#(Percentage)</span></label>
+            </div>
+          </div>
+          <div class="col-auto">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" [attr.id]="'timeSeries' + _j"
+                     [disabled]="isTimeSeriesDisabled(_row)"
+                     [ngModel]="_row.timeSeries"
+                     (ngModelChange)="_row.timeSeries = $event; updateState()">
+              <label class="form-check-label" [attr.for]="'timeSeries' + _j">
+                _#(As time series)
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+  <div *ngIf="!valid"
+       class="alert alert-danger row mt-2 g-0 row-cols-auto">
+    <strong>Error:&nbsp;</strong>_#(duplicate.items)
+  </div>
+</form>

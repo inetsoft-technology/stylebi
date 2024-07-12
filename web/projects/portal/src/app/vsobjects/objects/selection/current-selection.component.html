@@ -1,0 +1,58 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="vs-object current-selection"
+     actionsContextmenuAnchor [actions]="actions?.menuActions"
+     [style.min-width.px]="titleFormat.width"
+     [style.max-width.px]="titleFormat.width"
+     [style.height.px]="titleHeight"
+     [draggable]="true"
+     (dragstart)="dragStart($event)">
+  <mini-menu *ngIf="!mobileDevice" [actions]="getActions()" class="mini-menu"></mini-menu>
+  <div class="align-middle float-start br-gray bb-gray hide-overflow"
+       [style.min-width.px]="titleFormat.width * titleRatio"
+       [style.max-width.px]="titleFormat.width * titleRatio"
+       [style.height.px]="titleHeight"
+       [style.border-bottom]="titleFormat.border.bottom">
+    <title-cell
+       [titleContent]="selection.title"
+       [titleFormat]="titleFormat"
+       [titleHeight]="titleHeight"
+       [editable]="false"
+       [editingTitle]="editState"
+       (editingTitleChange)="updateEditState($event)">
+    </title-cell>
+  </div>
+  <div class="align-middle current-selection-selected-text"
+       [style.min-width.px]="titleFormat.width - (titleFormat.width * titleRatio)"
+       [style.max-width.px]="titleFormat.width - (titleFormat.width * titleRatio)"
+       [style.height.px]="titleHeight"
+       [style.border-bottom]="titleFormat.border.bottom"
+       [style.text-decoration]="titleFormat.decoration"
+       [title]="selection.value"
+       wInteractable
+       [interactableResizable]="!viewer"
+       [resizableTopEdge]="false"
+       [resizableBottomEdge]="false"
+       [resizableRightEdge]="false"
+       (onResizableMove)="title2ResizeMove($event)"
+       (onResizableEnd)="title2ResizeEnd()">
+    <span class="d-block w-100 hide-overflow">{{selection.value}}</span>
+  </div>
+</div>

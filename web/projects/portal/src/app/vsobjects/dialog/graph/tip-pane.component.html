@@ -1,0 +1,133 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <fieldset>
+    <legend>_#(Tip)</legend>
+    <div class="form-row-float-label row" *ngIf="model.chart || tooltipOnly">
+      <div class="col-3">
+        <div class="radio">
+          <div *ngIf="!tooltipOnly" class="form-check">
+            <input name="tip" type="radio" class="form-check-input" id="tooltip"
+                 [(ngModel)]="model.tipOption" [value]="false">
+            <label class="form-check-label" for="tooltip">
+              _#(Tooltip)
+            </label>
+          </div>
+          <div *ngIf="tooltipOnly" class="form-check">
+            <input name="tip" type="checkbox" class="form-check-input" id="tooltipOnly"
+                   [(ngModel)]="model.tipOption" [value]="true" [disabled]="hideTip">
+            <label class="form-check-label" for="tooltipOnly">
+              _#(Tooltip)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div *ngIf="!tooltipOnly" class="col-3 pe-0 hide-overflow">
+        <button type="button" class="btn btn-default form-control w-100"
+                [style.font-weight]="model.tipCustomizeDialogModel.customTip ? 'bold' : null"
+                [disabled]="model.tipOption" (click)="editTip()">
+          _#(Customize)</button>
+      </div>
+      <div *ngIf="tooltipOnly" class="col-3 pe-0 hide-overflow">
+        <button type="button" class="btn btn-default form-control w-100"
+                [style.font-weight]="model.tipCustomizeDialogModel.customTip ? 'bold' : null"
+                [disabled]="!model.tipOption" (click)="editTip()">
+          _#(Customize)</button>
+      </div>
+    </div>
+    <div *ngIf="!tooltipOnly" class="form-row-float-label row data_tip_view_id">
+      <div class="col-3">
+        <div class="radio">
+          <label *ngIf="!model.chart" class="form-check-label">
+            <input name="tip" type="checkbox" class="form-check-input"
+                   [disabled]="!model.dataViewEnabled"
+                   [(ngModel)]="model.tipOption" [value]="true" (change)="dataTipChanged()">
+            <input type="text" name="_prevent_submit_on_enter" value="fix" [hidden]="true"/>
+            _#(Data Tip View)
+          </label>
+          <label *ngIf="model.chart" class="form-check-label">
+            <input name="tip" type="radio" class="form-check-input"
+                   [disabled]="!model.dataViewEnabled"
+                   [(ngModel)]="model.tipOption" [value]="true" (change)="dataTipChanged()">
+            _#(Data Tip View)
+          </label>
+        </div>
+      </div>
+      <div class="col">
+        <select class="form-control" [(ngModel)]="model.tipView" (change)="dataTipChanged()"
+                [disabled]="!model.tipOption || !model.dataViewEnabled">
+          <option [value]="null">_#(None)</option>
+          <option *ngFor="let component of model.popComponents" [value]="component">
+            {{component}}
+          </option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <div class="form-floating">
+          <alpha-dropdown [(alpha)]="model.alpha" (alphaInvalid)="changeAlphaWarning($event)"
+                          [disabled]="!model.tipOption || model.tipView == null || !model.dataViewEnabled">
+          </alpha-dropdown>
+          <label>_#(Alpha)</label>
+        </div>
+      </div>
+    </div>
+    <div *ngIf=alphaInvalid class="alert alert-danger">
+      _#(viewer.flash.format.invalidTransparencyError)
+    </div>
+  </fieldset>
+</form>
+<form *ngIf="!tooltipOnly" ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <fieldset>
+    <legend>_#(Flyover)</legend>
+    <w-large-form-field>
+      <div class="bordered-box bd-gray p-1 flyover_list_id" largeFieldElement>
+        <div class="flyover-item" *ngFor="let component of model.flyoverComponents; let i = index">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" [id]="'component' + i"
+                   [disabled]="!model.dataViewEnabled"
+                 [checked]="model.flyOverViews.indexOf(component) != -1"
+                 (change)="updateFlyOverView(component, $event.target.checked)">
+            <label class="form-check-label" [for]="'component' + i">{{component}}</label>
+          </div>
+        </div>
+      </div>
+      <ng-container largeFieldButtons>
+        <button type="button" class="btn btn-default mb-1" (click)="selectAll()"
+                [disabled]="!model.dataViewEnabled"
+                >_#(Select All)</button>
+        <button type="button" class="btn btn-default mb-1" (click)="clearAll()"
+                [disabled]="!model.dataViewEnabled">_#(Clear)</button>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [(ngModel)]="model.flyOnClick"
+                [disabled]="!model.dataViewEnabled" id="onclick">
+          <label class="form-check-label" for="onclick">
+            _#(On Click Only)
+          </label>
+        </div>
+      </ng-container>
+    </w-large-form-field>
+  </fieldset>
+</form>
+<notifications *ngIf="objectAddRemoved" class="warning-message" [timeout]="0"
+               message="_#(viewer.dialog.viewsheetModified)"></notifications>
+<ng-template #tipCustomizeDialog let-close="close" let-dismiss="dismiss">
+  <tip-customize-dialog (confirm)="close($event)" (cancel)="dismiss($event)"
+                        [model]="dialogModel" [tooltipOnly]="tooltipOnly"></tip-customize-dialog>
+</ng-template>

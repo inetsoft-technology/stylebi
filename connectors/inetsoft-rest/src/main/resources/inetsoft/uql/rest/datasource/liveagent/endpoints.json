@@ -1,0 +1,345 @@
+{
+  "endpoints": [
+    {
+      "name": "Agent list",
+      "suffix": "/v3/agents",
+      "paged": "true",
+      "lookups":[
+        {
+          "endpoint": "Agent statuses in departments",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "Agent",
+      "suffix": "/v3/agents/{User ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Agent statuses in departments",
+      "suffix": "/v3/agents/{User ID}/status",
+      "paged": "false"
+    },
+    {
+      "name": "Agent activity list",
+      "suffix": "/v3/agents/activity?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Ban list",
+      "suffix": "/v3/bans?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Ban",
+      "suffix": "/v3/bans/{Ban ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Call list",
+      "suffix": "/v3/calls?_filters={Filters?}",
+      "paged": "true",
+      "lookups":[
+        {
+          "endpoint": "Call status",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Call ID"
+        }
+      ]
+    },
+    {
+      "name": "Call status",
+      "suffix": "/v3/calls/{Call ID}/status?unreachableAgents={Unreachable Agents?}",
+      "paged": "false"
+    },
+    {
+      "name": "Canned message list",
+      "suffix": "/v3/canned_messages",
+      "paged": "true"
+    },
+    {
+      "name": "Canned message",
+      "suffix": "/v3/canned_messages/{Canned Message ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Chat list",
+      "suffix": "/v3/chats?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Company list",
+      "suffix": "/v3/companies?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Company",
+      "suffix": "/v3/companies/{Company ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Contact list",
+      "suffix": "/v3/contacts?_filters={Filters?}",
+      "paged": "true",
+      "lookups":[
+        {
+          "endpoint": "Page visits",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Contact ID"
+        }
+      ]
+    },
+    {
+      "name": "Contact",
+      "suffix": "/v3/contacts/{Contact ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Custom button list",
+      "suffix": "/v3/custom_buttons?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Custom button",
+      "suffix": "/v3/custom_buttons/{Custom Button ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Department list",
+      "suffix": "/v3/departments?_filters={Filters?}",
+      "paged": "true",
+      "lookups":[
+        {
+          "endpoint": "Device departments by department id",
+          "jsonPath": "$.[*]",
+          "key": "department_id",
+          "parameterName": "Department ID"
+        }
+      ]
+    },
+    {
+      "name": "Department",
+      "suffix": "/v3/departments/{Department ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Is agent in department",
+      "suffix": "/v3/departments/{Department ID}/{Agent ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Device list",
+      "suffix": "/v3/devices?_filters={Filters?}",
+      "paged": "true",
+      "lookups":[
+        {
+          "endpoint": "Device departments",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Device ID"
+        }
+      ]
+    },
+    {
+      "name": "Device",
+      "suffix": "/v3/devices/{Device ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Device departments",
+      "suffix": "/v3/devices/{Device ID}/departments?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Device department by id",
+      "suffix": "/v3/devices/{Device ID}/departments/{Department ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Device department plan",
+      "suffix": "/v3/devices/{Device ID}/departments/{Department ID}/plans",
+      "paged": "false"
+    },
+    {
+      "name": "Device departments by department id",
+      "suffix": "/v3/devices/departments/{Department ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Filter list",
+      "suffix": "/v3/filters?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Filter",
+      "suffix": "/v3/filters/{Filter ID}",
+      "paged": "false"
+    },
+    {
+      "name": "List of reports for time reports grid",
+      "suffix": "/v3/grid/reports/time?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Contact group list",
+      "suffix": "/v3/groups",
+      "paged": "true"
+    },
+    {
+      "name": "Contact group",
+      "suffix": "/v3/groups/{Group ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Message",
+      "suffix": "/v3/messages/{Message ID}?subString_Start={Substring Start?}&subString_Length={Substring Length?}",
+      "paged": "false"
+    },
+    {
+      "name": "Page visits",
+      "suffix": "/v3/page_visits/{Contact ID}/contact?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Phone numbers list",
+      "suffix": "/v3/phone_numbers?additionalObjects={Additional Objects?}&&_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Phone number",
+      "suffix": "/v3/phone_numbers/{Phone Number ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Available dial out prefix",
+      "suffix": "/v3/phone_numbers/availablePrefix",
+      "paged": "false"
+    },
+    {
+      "name": "Phone device list",
+      "suffix": "/v3/phones?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Phone device",
+      "suffix": "/v3/phones/{Phone ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Predefined answer list",
+      "suffix": "/v3/predefined_answers?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Predefined answer",
+      "suffix": "/v3/predefined_answers/{Predefined Answer ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Batch status and remaining items to process",
+      "suffix": "/v3/queue/batch/{Batch ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Settings list",
+      "suffix": "/v3/settings?settingsNames={Settings Names?}",
+      "paged": "false"
+    },
+    {
+      "name": "Sla list",
+      "suffix": "/v3/slas",
+      "paged": "false"
+    },
+    {
+      "name": "Sla",
+      "suffix": "/v3/slas/{Level ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Ticket Sla history",
+      "suffix": "/v3/slas/{Ticket ID}/history",
+      "paged": "false"
+    },
+    {
+      "name": "Tag list",
+      "suffix": "/v3/tags",
+      "paged": "true"
+    },
+    {
+      "name": "Tag",
+      "suffix": "/v3/tags/{Tag ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Ticket list",
+      "suffix": "/v3/tickets?_filters={Filters?}",
+      "paged": "true",
+      "lookups":[
+        {
+          "endpoint": "Ticket history",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        },
+        {
+          "endpoint": "Ticket message groups and messages",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        },
+        {
+          "endpoint": "Ticket Sla",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        },
+        {
+          "endpoint": "Ticket Sla history",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        }
+      ]
+    },
+    {
+      "name": "Ticket",
+      "suffix": "/v3/tickets/{Ticket ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Ticket attribute",
+      "suffix": "/v3/tickets/{Ticket ID}/attributes/{Attribute Name:endChatOrCall|note}",
+      "paged": "false"
+    },
+    {
+      "name": "Ticket history",
+      "suffix": "/v3/tickets/{Ticket ID}/history",
+      "paged": "false"
+    },
+    {
+      "name": "Ticket message groups and messages",
+      "suffix": "/v3/tickets/{Ticket ID}/messages?includeQuotedMessages={Include Quoted Messages?:true|false}&_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "Ticket Sla",
+      "suffix": "/v3/tickets/{Ticket ID}/sla",
+      "paged": "false"
+    },
+    {
+      "name": "Tickets history list",
+      "suffix": "/v3/tickets/history?_filters={Filters?}",
+      "paged": "true"
+    },
+    {
+      "name": "User",
+      "suffix": "/v3/users/{User ID}",
+      "paged": "false"
+    }
+  ]
+}

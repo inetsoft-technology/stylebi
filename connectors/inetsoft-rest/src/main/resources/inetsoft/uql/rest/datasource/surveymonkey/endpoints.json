@@ -1,0 +1,385 @@
+{
+  "endpoints": [
+    {
+      "name": "Me",
+      "paged": false,
+      "suffix": "/users/me"
+    },
+    {
+      "name": "User Workgroups",
+      "paged": true,
+      "suffix": "/users/{User ID}/workgroups"
+    },
+    {
+      "name": "Shared",
+      "paged": true,
+      "suffix": "/users/{User ID}/shared?resource_type={Resource Type?: survey}&resource_id={Resource ID?}&include={Include?}"
+    },
+    {
+      "name": "Groups",
+      "paged": true,
+      "suffix": "/groups",
+      "lookups": [
+        {
+          "endpoint": "Group Members",
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Group ID"
+        }
+      ]
+    },
+    {
+      "name": "Group",
+      "paged": false,
+      "suffix": "/groups/{Group ID}"
+    },
+    {
+      "name": "Group Members",
+      "paged": true,
+      "suffix": "/groups/{Group ID}/members"
+    },
+    {
+      "name": "Group Member",
+      "paged": false,
+      "suffix": "/groups/{Group ID}/members/{Member ID}"
+    },
+    {
+      "name": "Surveys",
+      "paged": true,
+      "suffix": "/surveys?include={Include?}&title={Title?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&folder_id={Folder ID?}",
+      "lookups": [
+        {
+          "endpoints": ["Survey Details", "Survey Pages", "Survey Languages", "Survey Collectors", "Survey Responses", "Bulk Survey Responses", "Survey Rollups", "Survey Trends"],
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Survey ID"
+        }
+      ]
+    },
+    {
+      "name": "Survey",
+      "paged": false,
+      "suffix": "/surveys/{Survey ID}"
+    },
+    {
+      "name": "Survey Details",
+      "paged": false,
+      "suffix": "/surveys/{Survey ID}/details"
+    },
+    {
+      "name": "Survey Categories",
+      "paged": false,
+      "suffix": "/survey_categories?language={Language?}"
+    },
+    {
+      "name": "Survey Template",
+      "paged": true,
+      "suffix": "/survey_templates?language={Language?}&category={Category?}"
+    },
+    {
+      "name": "All Languages",
+      "paged": true,
+      "suffix": "/survey_languages"
+    },
+    {
+      "name": "Survey Pages",
+      "paged": true,
+      "pageLimit": 100,
+      "suffix": "/surveys/{Survey ID}/pages"
+    },
+    {
+      "name": "Survey Page",
+      "paged": false,
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}"
+    },
+    {
+      "name": "Survey Questions",
+      "paged": true,
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions"
+    },
+    {
+      "name": "Survey Question",
+      "paged": false,
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}"
+    },
+    {
+      "name": "Questions",
+      "paged": true,
+      "suffix": "/question_bank/questions?locale={Locale?}&search={Search}&custom={Custom?:true|false}"
+    },
+    {
+      "name": "Survey Folders",
+      "paged": true,
+      "suffix": "/survey_folders"
+    },
+    {
+      "name": "Survey Languages",
+      "paged": true,
+      "suffix": "/surveys/{Survey ID}/languages"
+    },
+    {
+      "name": "Survey Language",
+      "paged": false,
+      "suffix": "/surveys/{Survey ID}/languages/{Language Code}?enabled={Enabled?:true|false}&translations={Translations}"
+    },
+    {
+      "name": "Contact Lists",
+      "paged": true,
+      "suffix": "/contact_lists",
+      "lookups": [
+        {
+          "endpoints": ["Contact List Contact", "Bulk Contact"],
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Contact List ID"
+        }
+      ]
+    },
+    {
+      "name": "Contact List",
+      "paged": false,
+      "suffix": "/contact_lists/{Contact List ID}"
+    },
+    {
+      "name": "Contact List Contact",
+      "paged": true,
+      "suffix": "/contact_lists/{Contact List ID}/contacts?status={Status?:active|optout|bounced}&search_by={Search By?}&search={Search?}"
+    },
+    {
+      "name": "Bulk Contact",
+      "paged": false,
+      "suffix": "/contact_lists/{Contact List ID}/contacts/bulk"
+    },
+    {
+      "name": "Contacts",
+      "paged": true,
+      "suffix": "/contacts?status={Status?:active|optout|bounced}&search_by={Search By?}&search={Search?}"
+    },
+    {
+      "name": "Bulk Contacts",
+      "paged": false,
+      "suffix": "/contacts/bulk"
+    },
+    {
+      "name": "Contact",
+      "paged": false,
+      "suffix": "/contact/{Contact ID}"
+    },
+    {
+      "name": "Contact Fields",
+      "paged": true,
+      "suffix": "/contact_fields"
+    },
+    {
+      "name": "Contact Field",
+      "paged": false,
+      "suffix": "/contact_fields/{Contact Field ID}"
+    },
+    {
+      "name": "Survey Collectors",
+      "paged": true,
+      "suffix": "/surveys/{Survey ID}/collectors?name={Name?}&start_date={Start Date?}&end_date={End Date?}&include={Include?}"
+    },
+    {
+      "name": "Collector",
+      "paged": false,
+      "suffix": "/collectors/{Collector ID}"
+    },
+    {
+      "name": "Collector Messages",
+      "paged": true,
+      "suffix": "/collectors/{Collector ID}/messages"
+    },
+    {
+      "name": "Collector Message",
+      "paged": false,
+      "suffix": "/collectors/{Collector ID}/messages/{Message ID}"
+    },
+    {
+      "name": "Message Recipients",
+      "paged": true,
+      "suffix": "/collectors/{Collector ID}/messages/{Message ID}/recipients?include={Include?}"
+    },
+    {
+      "name": "Recipients",
+      "paged": true,
+      "suffix": "/collectors/{Collector ID}/recipients?include={Include?}"
+    },
+    {
+      "name": "Recipient",
+      "paged": false,
+      "suffix": "/collectors/{Collector ID}/recipients/{Recipient ID}?include={Include?}"
+    },
+    {
+      "name": "Stats",
+      "paged": false,
+      "suffix": "/collectors/{Collector ID}/stats"
+    },
+    {
+      "name": "Message Stats",
+      "paged": false,
+      "suffix": "/collectors/{Collector ID}/messages/{Message ID}/stats"
+    },
+    {
+      "name": "Survey Responses",
+      "paged": true,
+      "suffix": "/surveys/{Survey ID}/responses"
+    },
+    {
+      "name": "Collector Responses",
+      "paged": true,
+      "suffix": "/collectors/{Collector ID}/responses?start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name}&last_name={Last Name}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}"
+    },
+    {
+      "name": "Bulk Collector Responses",
+      "paged": true,
+      "suffix": "/collectors/{Collector ID}/responses/bulk?simple={Simple?}&collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}&page_ids={Page IDs?}&question_ids={Question IDs?}"
+    },
+    {
+      "name": "Bulk Survey Responses",
+      "paged": true,
+      "suffix": "/surveys/{Survey ID}/responses/bulk?simple={Simple?}&collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}&page_ids={Page IDs?}&question_ids={Question IDs?}"
+    },
+    {
+      "name": "Survey Response",
+      "paged": false,
+      "suffix": "/surveys/{Survey ID}/responses/{Response ID}"
+    },
+    {
+      "name": "Collector Response",
+      "paged": false,
+      "suffix": "/collectors/{Collector ID}/responses/{Response ID}?survey_id={Survey ID?}&collector_id={Collector ID?}&recipient_id={Recipient ID?}&total_time={Total Time?}&custom_value={Custom Value?}&edit_url={Edit URL?}&analyze_url={Analyze URL?}&ip_address={IP Address?}&custom_variables={Custom Variables?}&logic_path={Logic Path?}&metadata={Metadata?}&response_status={Response Status?}&page_path={Page Path?}&collection_mode={Collection Mode?}&date_created={Date Created?}&date_modified={Date Modified?}"
+    },
+    {
+      "name": "Survey Response Details",
+      "paged": false,
+      "suffix": "/surveys/{Survey ID}/responses/{Response ID}/details"
+    },
+    {
+      "name": "Collector Response Details",
+      "paged": false,
+      "suffix": "/collectors/{Collector ID}/responses/{Response ID}/details?page_ids={Page IDs?}&question_ids={Question IDs?}"
+    },
+    {
+      "name": "Survey Rollups",
+      "paged": true,
+      "suffix": "/surveys/{Survey ID}/rollups?collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}"
+    },
+    {
+      "name": "Survey Page Rollups",
+      "paged": true,
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/rollups?collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}"
+    },
+    {
+      "name": "Survey Question Rollups",
+      "paged": true,
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}/rollups?collector_ids={Collector IDs?}&start_created_at={Start Created At?}&end_created_at={End Created At?}&start_modified_at={Start Modified At?}&end_modified_at={End Modified At?}&status={Status?}&email={Email?}&first_name={First Name?}&last_name={Last Name?}&ip={IP?}&custom={Custom?}&total_time_max={Total Time Max?}&total_time_min={Total Time Min?}&total_time_units={Total Time Units?}"
+    },
+    {
+      "name": "Survey Trends",
+      "paged": true,
+      "suffix": "/surveys/{Survey ID}/trends?first_respondent={First Respondent?}&last_respondent={Last Respondent?}&trendy_by={Trend By?:year|quarter|month|week|day|hour}"
+    },
+    {
+      "name": "Survey Page Trends",
+      "paged": true,
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/trends?first_respondent={First Respondent?}&last_respondent={Last Respondent?}&trendy_by={Trend By?:year|quarter|month|week|day|hour}"
+    },
+    {
+      "name": "Survey Question Trends",
+      "paged": true,
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}/trends?first_respondent={First Respondent?}&last_respondent={Last Respondent?}&trendy_by={Trend By?:year|quarter|month|week|day|hour}"
+    },
+    {
+      "name": "Webhooks",
+      "paged": true,
+      "suffix": "/webhooks"
+    },
+    {
+      "name": "Webhook",
+      "paged": false,
+      "suffix": "/webhooks/{Webhook ID}"
+    },
+    {
+      "name": "Benchmark Bundles",
+      "paged": true,
+      "suffix": "/benchmark_bundles?country={Country?}",
+      "lookups": [
+        {
+          "endpoint": "Benchmark Bundle Questions",
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Benchmark Bundle ID"
+        }
+      ]
+    },
+    {
+      "name": "Benchmark Bundle Questions",
+      "paged": false,
+      "suffix": "/benchmark_bundles/{Benchmark Bundle ID}"
+    },
+    {
+      "name": "Benchmark Bundle Benchmarks",
+      "paged": false,
+      "suffix": "/benchmark_bundles/{Bundle ID}/analyze?question_ids={Question IDs}&percentile_start={Percentile Start?}&percentile_end={Percentile End?}"
+    },
+    {
+      "name": "Survey Question Benchmark",
+      "paged": false,
+      "suffix": "/surveys/{Survey ID}/pages/{Page ID}/questions/{Question ID}/benchmark?percentile_start={Percentile Start?}&percentile_end={Percentile End?}"
+    },
+    {
+      "name": "Workgroups",
+      "paged": true,
+      "suffix": "/workgroups",
+      "lookups": [
+        {
+          "endpoints": ["Workgroup Members", "Workgroup Shares"],
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Workgroup ID"
+        }
+      ]
+    },
+    {
+      "name": "Workgroup",
+      "paged": false,
+      "suffix": "/workgroups/{Workgroup ID}"
+    },
+    {
+      "name": "Workgroup Members",
+      "paged": true,
+      "suffix": "/workgroups/{Workgroup ID}/members"
+    },
+    {
+      "name": "Workgroup Member",
+      "paged": false,
+      "suffix": "/workgroups/{Workgroup ID}/members/{Member ID}"
+    },
+    {
+      "name": "Workgroup Shares",
+      "paged": true,
+      "suffix": "/workgroups/{Workgroup ID}/shares?include={Include?}"
+    },
+    {
+      "name": "Workgroup Share",
+      "paged": false,
+      "suffix": "/workgroups/{Workgroup ID}/shares"
+    },
+    {
+      "name": "Roles",
+      "paged": true,
+      "suffix": "/roles"
+    },
+    {
+      "name": "Errors",
+      "paged": true,
+      "suffix": "/errors"
+    },
+    {
+      "name": "Error",
+      "paged": false,
+      "suffix": "/errors/{Error ID}"
+    }
+  ]
+}

@@ -1,0 +1,164 @@
+{
+    "endpoints": [
+        {
+            "name": "Projects",
+            "paged": false,
+            "suffix": "/v0/projects/{Project Owner}"
+        },
+        {
+            "name": "Project Information",
+            "paged": false,
+            "suffix": "/v0/projects/{Project Owner}/{Project ID}"
+        },
+        {
+            "name": "Project Information of a Version",
+            "paged": false,
+            "suffix": "/v0/projects/{Project Owner}/{Project ID}/v/{Version ID}"
+        },
+        {
+            "name": "Project Insights",
+            "paged": false,
+            "suffix": "/v0/insights/{Project Owner}/{Project ID}"
+        },
+        {
+            "name": "Project Insight",
+            "paged": false,
+            "suffix": "/v0/insights/{Project Owner}/{Project ID}/{ID}"
+        },
+        {
+            "name": "Project Insight of a Version",
+            "paged": false,
+            "suffix": "/v0/insights/{Project Owner}/{Project ID}/{ID}/v/{Version ID}"
+        },
+        {
+            "name": "Dataset Queries",
+            "paged": false,
+            "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}/queries"
+        },
+        {
+            "name": "Project Queries",
+            "paged": false,
+            "suffix": "/v0/projects/{Project Owner}/{Project ID}/queries"
+        },
+        {
+            "name": "Query Information",
+            "paged": false,
+            "suffix": "/v0/queries/{Query ID}"
+        },
+        {
+            "name": "Execute Query",
+            "paged": false,
+            "suffix": "/v0/queries/{Query ID}/results?includeTableSchema={Include Table Schema?:true|false}"
+        },
+        {
+            "name": "Query Information Of a Version",
+            "paged": false,
+            "suffix": "/v0/queries/{Query ID}/v/{Version ID}"
+        },
+        {
+            "name": "Execute SPARQL query",
+            "paged": false,
+            "suffix": "/v0/sparql/{Dataset Owner}/{ID}?query={SQL/SPARQL Query}"
+        },
+        {
+            "name": "Execute SQL query",
+            "paged": false,
+            "suffix": "/v0/sql/{Dataset or Project Owner}/{Dataset ID}?includeTableSchema={Include Table Schema?:true|false}&query={SQL/SPARQL Query}"
+        },
+        {
+            "name": "Datasets",
+            "paged": false,
+            "suffix": "/v0/datasets/{Dataset Owner}"
+        },
+        {
+            "name": "Dataset Info",
+            "paged": false,
+            "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}"
+        },
+        {
+            "name": "Dataset Information of a Version",
+            "paged": false,
+            "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}/v/{Version ID}"
+        },
+        {
+            "name": "Download Dataset",
+            "paged": false,
+            "suffix": "/v0/download/{Dataset Owner}/{Dataset ID}"
+        },
+        {
+            "name": "Sync Files",
+            "paged": false,
+            "suffix": "/v0/datasets/{Dataset Owner}/{Dataset ID}/sync"
+        },
+        {
+            "name": "Download File",
+            "paged": false,
+            "suffix": "/v0/file_download/{Dataset Owner}/{Dataset ID}/{File Name}"
+        },
+        {
+            "name": "Stream Schema",
+            "paged": false,
+            "suffix": "/v0/streams/{Dataset or Project Owner}/{Dataset ID}/{Stream ID}/schema"
+        },
+        {
+            "name": "User Profile",
+            "paged": false,
+            "suffix": "/v0/user"
+        },
+        {
+            "name": "User Contributing Datasets",
+            "paged": false,
+            "suffix": "/v0/user/datasets/contributing"
+        },
+        {
+            "name": "User Liked Datasets",
+            "paged": false,
+            "suffix": "/v0/user/datasets/liked"
+        },
+        {
+            "name": "User Own Datasets",
+            "paged": false,
+            "suffix": "/v0/user/datasets/own"
+        },
+        {
+            "name": "User Contributing Projects",
+            "paged": false,
+            "suffix": "/v0/user/projects/contributing"
+        },
+        {
+            "name": "User Liked Projects",
+            "paged": false,
+            "suffix": "/v0/user/projects/liked"
+        },
+        {
+            "name": "User Own Projects",
+            "paged": false,
+            "suffix": "/v0/user/projects/own"
+        },
+        {
+            "name": "Account User Profile",
+            "paged": false,
+            "suffix": "/v0/users/{Account}"
+        },
+        {
+            "name": "Webhook Subscriptions",
+            "paged": false,
+            "suffix": "/v0/user/webhooks"
+        },
+        {
+            "name": "Dataset Webhook Subscription",
+            "paged": false,
+            "suffix": "/v0/user/webhooks/datasets/{Dataset or Project Owner}/{Dataset ID}"
+        },
+        {
+            "name": "Project Webhook Subscription",
+            "paged": false,
+            "suffix": "/v0/user/webhooks/projects/{Project Owner}/{Project ID}"
+        },
+        {
+            "name": "Account Webhook Subscription",
+            "paged": false,
+            "suffix": "/v0/user/webhooks/users/{Account}"
+        }
+    ]
+}

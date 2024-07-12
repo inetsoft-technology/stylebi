@@ -1,0 +1,93 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="config-pane container-fluid">
+  <div class="row">
+    <div class="col align-column form-floating">
+      <input type="text" class="form-control" id="delimiter"
+             [(ngModel)]="model.delimiter" [ngModelOptions]="{standalone: true}"
+             [disabled]="model.tabDelimited" [class.disabled]="model.tabDelimited"
+             title="_#(Delimiter)">
+      <label>_#(Delimiter)</label>
+    </div>
+    <div class="form-check col-auto">
+      <input class="form-check-input" type="checkbox" [id]="formId + 'tabDelimited'"
+             name="tabDelimited" title="_#(Tab Delimited)"
+             [checked]="model.tabDelimited"
+             (change)="setTabDelimited($event)">
+      <label class="form-check-label" [for]="formId + 'tabDelimited'">
+        _#(Tab Delimited)
+      </label>
+    </div>
+    <div class="col form-floating">
+      <input type="text" class="form-control" id="quote"
+             [(ngModel)]="model.quote"
+             [ngModelOptions]="{standalone: true}"
+             title="_#(Quote)">
+      <label>_#(Quote)</label>
+    </div>
+    <div class="form-check col-auto">
+      <input class="form-check-input" type="checkbox" [id]="formId + 'keepHeader'"
+             name="keepHeader" title="_#(Keep Header)"
+             [checked]="model.keepHeader"
+             (change)="setKeepHeader($event)">
+      <label class="form-check-label" [for]="formId + 'keepHeader'">
+        _#(Keep Header)
+      </label>
+    </div>
+  </div>
+</div>
+<div *ngIf="selectAssemblyEnable" class="assemblies-list">
+  <div class="row assemblies-edit-item">
+    <div class="col-10" [class.mb-2]="!isExportAllTable()">
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" [id]="formId + 'selectAllTable'"
+               [ngModel]="isExportAllTable()" (ngModelChange)="selectAllTableChange($event)">
+        <label class="form-check-label" [for]="formId + 'selectAllTable'">
+          _#(Export All Tables)
+        </label>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="!isExportAllTable()" class="row">
+    <h4 class="col-10 font-style">_#(Assemblies)</h4>
+    <div class="col-10">
+      <div class="selectable-list">
+        <div class="unhighlightable d-table assemblies-list-item" *ngFor="let _item of tableDataAssemblies; let _i = index">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input"
+                   [ngModel]="isSelectedTable(_item)" (ngModelChange)="tableItemChange($event, _item)">
+            <label class="form-check-label">
+              {{_item}}
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-10">
+      <div class="alert alert-danger"
+           *ngIf="!isExportAllTable() && (!model.selectedAssemblies ||
+            model.selectedAssemblies.length == 0)">
+        _#(vs.export.csv.AssemblyRequired)
+      </div>
+    </div>
+  </div>
+</div>

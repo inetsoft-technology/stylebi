@@ -1,0 +1,59 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@mixin background-image($img-path) {
+  background-image: url("#{$img-path}");
+}
+
+@mixin background-position($top, $left){
+  background-position: #{$top}px #{$left}px;
+}
+
+// BEM element mixin
+@mixin element($e) {
+  &__#{$e} {
+    @content;
+  }
+}
+
+// BEM modifier mixin
+@mixin modifier($m) {
+  &--#{$m} {
+    @content;
+  }
+}
+
+/* pass a list of class names and set the z-index on each. z-index: 1..n; */
+@mixin set-z-index($stacking-order) {
+  @for $i from 1 through length($stacking-order) {
+    $class-name: nth($stacking-order, $i);
+
+    .#{$class-name} {
+      z-index: #{$i}
+    }
+  }
+}
+
+@mixin set-z-index-selector($stacking-order, $startIndex: 1) {
+  @for $i from 1 through length($stacking-order) {
+    $selector: nth($stacking-order, $i);
+
+    #{$selector} {
+      z-index: #{$startIndex + $i - 1}
+    }
+  }
+}

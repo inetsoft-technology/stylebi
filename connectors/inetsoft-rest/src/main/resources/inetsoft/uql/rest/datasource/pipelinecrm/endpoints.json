@@ -1,0 +1,476 @@
+{
+  "endpoints": [
+    {
+      "name": "Profile",
+      "paged": true,
+      "suffix": "/v3/profile.json"
+    },
+    {
+      "name": "Searches",
+      "paged": true,
+      "suffix": "/v3/searches.json"
+    },
+    {
+      "name": "Notes",
+      "paged": true,
+      "suffix": "/v3/notes.json?deal_id={Deal ID?}&person_id={Person ID?}&company_id={Company ID?}&\nsearch_id={Search ID?}&conditions[activity_modified][from_date={Activity Modified From?:YYYY-MM-DD}&conditions[activity_modified][to_date]={Activity Modified To?:YYYY-MM-DD}",
+      "lookups": [
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.entries.[*]",
+          "key": "id",
+          "parameterName": "Note ID"
+        }
+      ]
+    },
+    {
+      "name": "Note",
+      "paged": false,
+      "suffix": "/v3/notes/{Note ID}.json"
+    },
+    {
+      "name": "Account Notifications",
+      "paged": true,
+      "suffix": "/v3/account_notifications.json?conditions[user_id]={User ID?}"
+    },
+    {
+      "name": "Account Notification",
+      "paged": false,
+      "suffix": "/v3/account_notifications/{Account ID}.json"
+    },
+    {
+      "name": "Calendar Events",
+      "paged": true,
+      "suffix": "/v3/calendar_entries.json?search_id={Search ID?}&conditions[named]={Calendar Entry Name?}"
+    },
+    {
+      "name": "Calendar Event",
+      "paged": false,
+      "suffix": "/v3/calendar_entries/{Entry ID}.json"
+    },
+    {
+      "name": "Comments",
+      "paged": true,
+      "suffix": "/v3/notes/{Note ID}/comments.json"
+    },
+    {
+      "name": "Comment",
+      "paged": false,
+      "suffix": "/v3/notes/{Note ID}/comments/{Comment ID}.json"
+    },
+    {
+      "name": "Company Comments",
+      "paged": true,
+      "suffix": "/v3/companies/{Association ID}/notes/{Note ID}/comments.json"
+    },
+    {
+      "name": "Deal Comments",
+      "paged": true,
+      "suffix": "/v3/deals/{Association ID}/notes/{Note ID}/comments.json"
+    },
+    {
+      "name": "People Comments",
+      "paged": true,
+      "suffix": "/v3/people/{Association ID}/notes/{Note ID}/comments.json"
+    },
+    {
+      "name": "Company Notes",
+      "paged": true,
+      "suffix": "/v3/companies/{Company ID}/notes.json",
+      "lookups": [
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.entries.[*]",
+          "key": "id",
+          "parameterName": "Note ID"
+        }
+      ]
+    },
+    {
+      "name": "Company People",
+      "paged": true,
+      "suffix": "/v3/companies/{Company ID}/people.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Person Notes",
+            "Person Deals",
+            "Person Calendar Entries"
+          ],
+          "jsonPath": "$.entries.[*]",
+          "key": "id",
+          "parameterName": "Person ID"
+        }
+      ]
+    },
+    {
+      "name": "Company Deals",
+      "paged": true,
+      "suffix": "/v3/companies/{Company ID}/deals.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Deal Notes",
+            "Deal People",
+            "Deal Calendar Entries"
+          ],
+          "jsonPath": "$.entries.[*]",
+          "key": "id",
+          "parameterName": "Deal ID"
+        }
+      ]
+    },
+    {
+      "name": "Company Calendar Entries",
+      "paged": true,
+      "suffix": "/v3/companies/{Company ID}/calendar_entries.json"
+    },
+    {
+      "name": "Companies",
+      "paged": true,
+      "suffix": "/v3/companies.json?search_id={Search ID?}&conditions[company_id]={Company ID?}&conditions[Company Name]={Company Name?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Company Notes",
+            "Company People",
+            "Company Deals",
+            "Company Calendar Entries"
+          ],
+          "jsonPath": "$.entries.[*]",
+          "key": "id",
+          "parameterName": "Company ID"
+        }
+      ]
+    },
+    {
+      "name": "Company",
+      "paged": false,
+      "suffix": "/v3/companies/{Company ID}.json"
+    },
+    {
+      "name": "Deals",
+      "paged": true,
+      "suffix": "/v3/deals.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Deal Notes",
+            "Deal People",
+            "Deal Calendar Entries"
+          ],
+          "jsonPath": "$.entries.[*]",
+          "key": "id",
+          "parameterName": "Deal ID"
+        }
+      ]
+    },
+    {
+      "name": "Deal",
+      "paged": false,
+      "suffix": "/v3/deals/{Deal ID}.json"
+    },
+    {
+      "name": "Deal Notes",
+      "paged": true,
+      "suffix": "/v3/deals/{Deal ID}/notes.json",
+      "lookups": [
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.entries.[*]",
+          "key": "id",
+          "parameterName": "Note ID"
+        }
+      ]
+    },
+    {
+      "name": "Deal People",
+      "paged": true,
+      "suffix": "/v3/deals/{Deal ID}/people.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Person Notes",
+            "Person Deals",
+            "Person Calendar Entries"
+          ],
+          "jsonPath": "$.entries.[*]",
+          "key": "id",
+          "parameterName": "Person ID"
+        }
+      ]
+    },
+    {
+      "name": "Deal Calendar Entries",
+      "paged": true,
+      "suffix": "/v3/deals/{Deal ID}/calendar_entries.json"
+    },
+    {
+      "name": "Documents",
+      "paged": true,
+      "suffix": "/v3/documents.json?conditions[document_name]={Document Name?}&conditions[document_type]={Document Type?}&conditions[document_owner]={Document Owner?}"
+    },
+    {
+      "name": "Document",
+      "paged": false,
+      "suffix": "/v3/documents/{Document ID}.json"
+    },
+    {
+      "name": "Person Notes",
+      "paged": true,
+      "suffix": "/v3/people/{Person ID}/notes.json",
+      "lookups": [
+        {
+          "endpoint": "Comments",
+          "jsonPath": "$.entries.[*]",
+          "key": "id",
+          "parameterName": "Note ID"
+        }
+      ]
+    },
+    {
+      "name": "Person Deals",
+      "paged": true,
+      "suffix": "/v3/people/{Person ID}/deals.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Deal Notes",
+            "Deal People",
+            "Deal Calendar Entries"
+          ],
+          "jsonPath": "$.entries.[*]",
+          "key": "id",
+          "parameterName": "Deal ID"
+        }
+      ]
+    },
+    {
+      "name": "Person Calendar Entries",
+      "paged": true,
+      "suffix": "/v3/people/{Person ID}/calendar_entries.json"
+    },
+    {
+      "name": "People",
+      "paged": true,
+      "suffix": "/v3/people.json?search_id={Search ID?}&conditions[person_id]={Person ID?}&conditions[person_name]={Person Name?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Person Notes",
+            "Person Deals",
+            "Person Calendar Entries"
+          ],
+          "jsonPath": "$.entries.[*]",
+          "key": "id",
+          "parameterName": "Person ID"
+        }
+      ]
+    },
+    {
+      "name": "Person",
+      "paged": false,
+      "suffix": "/v3/people/{Person ID}.json"
+    },
+    {
+      "name": "Company Custom Groups",
+      "paged": true,
+      "suffix": "/v3/admin/company_custom_field_groups.json?conditions[company_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Company Custom Group",
+      "paged": false,
+      "suffix": "/v3/admin/company_custom_field_groups/{Group ID}.json"
+    },
+    {
+      "name": "Company Custom Labels",
+      "paged": true,
+      "suffix": "/v3/admin/company_custom_field_labels.json?conditions[company_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[company_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Company Custom Label",
+      "paged": false,
+      "suffix": "/v3/admin/company_custom_field_labels/{Label ID}.json"
+    },
+    {
+      "name": "Company Custom Label Entries",
+      "paged": true,
+      "suffix": "/v3/admin/custom_field_label_dropdown_entries.json?conditions[custom_field_label_dropdown_entry_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[custom_field_label_dropdown_entry_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[custom_field_label_dropdown_entry_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[custom_field_label_dropdown_entry_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Company Custom Label Entry",
+      "paged": false,
+      "suffix": "/v3/admin/custom_field_label_dropdown_entries/{Entry ID}.json"
+    },
+    {
+      "name": "Deal Custom Groups",
+      "paged": true,
+      "suffix": "/v3/admin/deal_custom_field_groups.json?conditions[deal_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Deal Custom Group",
+      "paged": false,
+      "suffix": "/v3/admin/deal_custom_field_groups/{Group ID}.json"
+    },
+    {
+      "name": "Deal Custom Labels",
+      "paged": false,
+      "suffix": "/v3/admin/deal_custom_field_labels.json?conditions[deal_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Deal Custom Label",
+      "paged": false,
+      "suffix": "/v3/admin/deal_custom_field_labels/{Label ID}.json"
+    },
+    {
+      "name": "Deal Loss Reasons",
+      "paged": true,
+      "suffix": "/v3/admin/deal_loss_reasons.json?conditions[deal_loss_reason_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_loss_reason_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_loss_reason_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_loss_reason_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Deal Loss Reason",
+      "paged": true,
+      "suffix": "/v3/admin/deal_loss_reasons/{Reason ID}.json"
+    },
+    {
+      "name": "Deal Stages",
+      "paged": true,
+      "suffix": "/v3/admin/deal_stages.json?conditions[deal_stage_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_stage_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[deal_stage_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[deal_stage_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Deal Stage",
+      "paged": false,
+      "suffix": "/v3/admin/deal_stages/{Stage ID}.json"
+    },
+    {
+      "name": "Documents Tags",
+      "paged": true,
+      "suffix": "/v3/admin/document_tags.json?conditions[document_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[document_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[document_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[document_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Document Tag",
+      "paged": false,
+      "suffix": "/v3/admin/document_tags/{Tag ID}.json"
+    },
+    {
+      "name": "Event Categories",
+      "paged": true,
+      "suffix": "/v3/admin/event_categories.json?conditions[event_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[event_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[event_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[event_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Event Category",
+      "paged": false,
+      "suffix": "/v3/admin/event_categories/{Event Category ID}.json"
+    },
+    {
+      "name": "Lead Sources",
+      "paged": true,
+      "suffix": "/v3/admin/lead_sources.json?conditions[lead_source_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_source_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_source_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_source_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Lead Source",
+      "paged": false,
+      "suffix": "/v3/admin/lead_sources/{Source ID}.json"
+    },
+    {
+      "name": "Lead Statuses",
+      "paged": true,
+      "suffix": "/v3/admin/lead_statuses.json?conditions[lead_status_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_status_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[lead_status_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[lead_status_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Lead Status",
+      "paged": false,
+      "suffix": "/v3/admin/lead_statuses/{Status ID}.json"
+    },
+    {
+      "name": "Note Categories",
+      "paged": true,
+      "suffix": "/v3/admin/note_categories.json?conditions[note_category_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[note_category_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[note_category_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[note_category_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Note Category",
+      "paged": false,
+      "suffix": "/v3/admin/note_categories/{Node Category ID}json"
+    },
+    {
+      "name": "Person Custom Groups",
+      "paged": true,
+      "suffix": "/v3/admin/person_custom_field_groups.json?conditions[person_custom_field_group_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_group_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_group_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_group_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Person Custom Group",
+      "paged": false,
+      "suffix": "/v3/admin/person_custom_field_groups/{Group ID}.json"
+    },
+    {
+      "name": "Person Custom Labels",
+      "paged": true,
+      "suffix": "/v3/admin/person_custom_field_labels.json?conditions[person_custom_field_label_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_label_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[person_custom_field_label_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[person_custom_field_label_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Person Custom Label",
+      "paged": false,
+      "suffix": "/v3/admin/person_custom_field_labels/{Label ID}.json"
+    },
+    {
+      "name": "Predefined Contact Tags",
+      "paged": true,
+      "suffix": "/v3/admin/predefined_contacts_tags.json?conditions[predefined_contacts_tag_created_at][from_date]={Created From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[predefined_contacts_tag_created_at][to_date]={Created To Date?:YYYY-MM-DDTHH:MM:SSZ}&conditions[predefined_contacts_tag_updated_at][from_date]={Updated From Date?:YYYY-MM-DDTHH:MM:SSZ}&\nconditions[predefined_contacts_tag_updated_at][to_date]={Updated To Date?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Predefined Contact Tag",
+      "paged": false,
+      "suffix": "/v3/admin/predefined_contacts_tags/{Tag ID}.json"
+    },
+    {
+      "name": "Teams",
+      "paged": true,
+      "suffix": "/v3/admin/teams.json"
+    },
+    {
+      "name": "Team",
+      "paged": false,
+      "suffix": "/v3/admin/teams/{Team ID}.json"
+    },
+    {
+      "name": "Todo Templates",
+      "paged": true,
+      "suffix": "/v3/admin/todo_templates.json"
+    },
+    {
+      "name": "Todo Template",
+      "paged": false,
+      "suffix": "/v3/admin/todo_templates/{Template ID}.json"
+    },
+    {
+      "name": "Todo Template Items",
+      "paged": true,
+      "suffix": "/v3/admin/todo_template_items.json"
+    },
+    {
+      "name": "Todo Template Item",
+      "paged": true,
+      "suffix": "/v3/admin/todo_template_items/{Template Item ID}.json"
+    },
+    {
+      "name": "Users",
+      "paged": true,
+      "suffix": "/v3/users.json?conditions[email]={Email Address?}&\nconditions[admin]={Admin?:true|false}&conditions[including_inactive]={Including Inactive?:true|false}&conditions[user_level]={User Level?}"
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/v3/users/{User ID}.json"
+    },
+    {
+      "name": "Revenue Types",
+      "paged": true,
+      "suffix": "/v3/admin/revenue_types.json"
+    },
+    {
+      "name": "Revenue Type",
+      "paged": false,
+      "suffix": "/v3/admin/revenue_types/{Revenue Type}.json"
+    }
+  ]
+}

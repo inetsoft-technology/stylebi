@@ -1,0 +1,107 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  display: inline-block;
+  font-weight: bold;
+  overflow-y: hidden;
+  white-space: normal;
+  overflow-x: hidden;
+  background-clip: padding-box; /* Fixes issue in ff where the bottom border of the header cell would not be displayed. */
+  vertical-align: top;
+}
+
+.column-buttons {
+  position: absolute;
+  top: 0;
+  height: 28px;
+  right: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.column-button {
+  display: none;
+}
+
+.mini-menu {
+  align-items: center;
+}
+
+.column-button.force {
+  display: block;
+}
+
+.ws-header {
+  display: block;
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 24px;
+  padding-left: 10px;
+  padding-right: 1px;
+
+  &.ws-header--wrap {
+    white-space: normal;
+    overflow-wrap: break-word;
+
+    .ws-header-column__display-name {
+      white-space: normal;
+      overflow-wrap: break-word;
+    }
+  }
+
+  &:hover .column-button {
+    display: block;
+  }
+
+  &.mini-menu {
+    display: flex;
+  }
+}
+
+.ws-header-cell-button {
+  padding: 0;
+  border: 1px solid transparent;
+  background: no-repeat center;
+  cursor: pointer;
+  height: 100%;
+
+  &.no-action {
+    cursor: default !important;
+  }
+}
+
+.ws-header-column__display-container {
+  font-size: 0px;
+}
+
+.ws-header-column__display-name {
+  white-space: pre;
+  pointer-events: none;
+  font-size: 13px;
+}
+
+.ws-header--rest-source {
+  direction: rtl;
+  text-overflow: ellipsis;
+}

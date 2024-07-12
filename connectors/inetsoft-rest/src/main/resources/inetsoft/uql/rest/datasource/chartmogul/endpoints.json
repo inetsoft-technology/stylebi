@@ -1,0 +1,134 @@
+{
+  "endpoints": [
+    {
+      "paged": "false",
+      "name": "Data Source",
+      "suffix": "/v1/data_sources/{Data Source UUID}"
+    },
+    {
+      "paged": "true",
+      "name": "Data Sources",
+      "suffix": "/v1/data_sources?name={Name?}&system={System?:Stripe|Recurly|Chargify|Import API}"
+    },
+    {
+      "paged": "false",
+      "name": "Customer",
+      "suffix": "/v1/customers/{Customer UUID}"
+    },
+    {
+      "paged": "true",
+      "name": "Customers",
+      "suffix": "/v1/customers?data_source_uuid={Data Source UUID?}&external_id={External ID?}&status={Status?:Lead|Active|Past_Due|Cancelled}&system={System?:Stripe|Recurly|Chargify|Import API}",
+      "lookups": [
+        {
+          "endpoints": [
+             "Customer",
+             "Customer's Subscriptions",
+             "Customer's Invoices",
+             "Customer's Attributes",
+             "Customer Subscriptions",
+             "Customer Activities"
+          ],
+          "jsonPath": "$.entries[*]",
+          "key": "uuid",
+          "parameterName": "Customer UUID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Plan",
+      "suffix": "/v1/plans/{Plan UUID}"
+    },
+    {
+      "paged": "true",
+      "name": "Plans",
+      "suffix": "/v1/plans?data_source_uuid={Data Source UUID?}&external_id={External ID?}&system={System?:Stripe|Recurly|Chargify|Import API}"
+    },
+    {
+      "paged": "true",
+      "name": "Customer's Subscriptions",
+      "suffix": "/v1/import/customers/{Customer UUID}/subscriptions"
+    },
+    {
+      "paged": "false",
+      "name": "Invoice",
+      "suffix": "/v1/invoices/{Invoice UUID}"
+    },
+    {
+      "paged": "true",
+      "name": "Customer's Invoices",
+      "suffix": "/v1/import/customers/{Customer UUID}/invoices"
+    },
+    {
+      "paged": "true",
+      "name": "Invoices",
+      "suffix": "/v1/invoices?data_source_uuid={Data Source UUID?}&customer_uuid={Customer UUID?}&external_id={External ID?}"
+    },
+    {
+      "paged": "true",
+      "name": "Search for Customers",
+      "suffix": "/v1/customers/search?email={Email}"
+    },
+    {
+      "paged": "false",
+      "name": "Customer's Attributes",
+      "suffix": "/v1/customers/{Customer UUID}/attributes"
+    },
+    {
+      "paged": "false",
+      "name": "Metrics",
+      "suffix": "/v1/metrics/all?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+    },
+    {
+      "paged": "false",
+      "name": "Monthly Recurring Revenue",
+      "suffix": "/v1/metrics/mrr?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+    },
+    {
+      "paged": "false",
+      "name": "Annualized Run Rate",
+      "suffix": "/v1/metrics/arr?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+    },
+    {
+      "paged": "false",
+      "name": "Average Revenue Per Account",
+      "suffix": "/v1/metrics/arpa?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+    },
+    {
+      "paged": "false",
+      "name": "Average Sale Price",
+      "suffix": "/v1/metrics/asp?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+    },
+    {
+      "paged": "false",
+      "name": "Customer Count",
+      "suffix": "/v1/metrics/customer-count?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+    },
+    {
+      "paged": "false",
+      "name": "Customer Churn Rate",
+      "suffix": "/v1/metrics/customer-churn-rate?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&interval={Interval?:day|week|month}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+    },
+    {
+      "paged": "false",
+      "name": "MRR Churn Rate",
+      "suffix": "/v1/metrics/mrr-churn-rate?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+    },
+    {
+      "paged": "false",
+      "name": "Customer Lifetime Value",
+      "suffix": "/v1/metrics/ltv?start-date={Start Date:YYYY-MM-DD}&end-date={End Date:YYYY-MM-DD}&geo={Geo?:US,GB,DE}&plans={Plans?}"
+    },
+    {
+      "paged": "true",
+      "name": "Customer Subscriptions",
+      "suffix": "/v1/customers/{Customer UUID}/subscriptions"
+    },
+    {
+      "paged": "true",
+      "name": "Customer Activities",
+      "suffix": "/v1/customers/{Customer UUID}/activities"
+    }
+  ]
+}

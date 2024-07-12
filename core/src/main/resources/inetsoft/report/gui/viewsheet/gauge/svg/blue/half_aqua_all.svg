@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="47.9819 618.7017" i:rulerOrigin="0 0" i:pageBounds="0 841.8896 595.2754 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="193.3" height="159.96" viewBox="0 0 193.3 159.96" overflow="visible" enable-background="new 0 0 193.3 159.96"
+	 xml:space="preserve">
+	<style type="text/css">
+	<![CDATA[
+@font-face{font-family:'ArialMT';src:url("data:;base64,\
+T1RUTwADACAAAQAQQ0ZGIBfztHoAAABwAAADwUdQT1OvZr8YAAAENAAAAFBjbWFwAFQATwAAADwA\
+AAA0AAAAAQAAAAMAAAAMAAQAKAAAAAYABAABAAIAIAA1//8AAAAgADD////h/9IAAQAAAAAAAAEA\
+BAIAAQEBCEFyaWFsTVQAAQEBOvgbAfgYBPgcDBUc+q/9LRwQOhwIDAUeoABIgoEl/4uLHqAASIKB\
+Jf+LiwwH91sP92IQ92QRkvpOEgACAQFlckFyaWFsKFIpIFRyYWRlbWFyayBvZiBUaGUgTW9ub3R5\
+cGUgQ29ycG9yYXRpb24gcGxjIHJlZ2lzdGVyZWQgaW4gdGhlIFVTIFBhdCAmIFRNIE9mZi4gYW5k\
+IGVsc2V3aGVyZS4vRlNUeXBlIDAgZGVmAAABAAEAABEFAAAACAIAAQAcAB4AtADeAWgCJwJRAtb5\
+8PeUFhwFAPqUHPsAB/50qxX6VBwEwP5UBg4gDuD5ZxX3QZ33IK/1Hq70wN3SxAjE0eOo9hva0Hts\
+xh/Ga7xdslCyT6lCoTYIoTWW+wj7JRr7QHn7H2giHmghVjlFUghRRDJuIBv7IfsDvvA6Hyr3Dlv3\
+W/enGvdNFvuFp/s0xDweO8PQY94b3tCz28Qfw9un9zT3hBr3hW/3NVPaHtpSRbM3GzhJaEVaH00y\
+bPs5+4UaDvmPFvtIHAR7BmBiUmFFYkRiTGxTdgj3QgfwuuPF1s7WzsHNqsoI9wgGDvqb90EV+0H+\
+XQeKtpK1mrOkzbLMwsvBy9nV8t/3M/cX9wDyw9gIw9en088a0nLIWLwevFhIozkbNEZxV1cfV1dx\
+Q4ov+02eGJj3Hrr03tQI0973A6/3Hxv3IfcDZD3dH909tCr7BxpQf1JzUh5zUmNQVExTTC41+xX7\
+AfsAMEZObGtsanJrd2oIDuH4FxX3SKOgJa5CvV4ZXrzIdNIb4NKoxsYfxcao0+Ia3nDPVcEewFVG\
+pjgbaWGEflgfn/cyBYqXlYqSG9jQn7PIH8izqsneGs11wl62HrZeUqFEG0VRdV9cH1xfbUl+M/tI\
+qxih9w296NnOCM3Z7Kz3CBvb1Xppzh/OaL9cr1AIrlCdTEgaTHpRaVceaVdZYkhs4nfOYrtMCLtM\
+ozwsGvsUXPsALjIeMi77Cl77Ixv7FSGx2DYfNtha7n/3DggO+SoW9/P9EPc5B/kx+koF9yf+Svda\
++zn7WvvzBvtI+JgV+SkH/F/9KQUO4PgUFfdRm5kvrEa+XRlcvsh00xvi1KzMxx/HzKni9wAa8m7c\
+UsYexlE/qS4bUVd+cVwfXHBnaXBh+z2hGPci+YUF+W37QPzdBjz8HgXI4+eq7Bv3FPcAXzLjH+My\
+t/sG+x8a+xlk+wY+Kh77Cy37FFD7Nxv7GfsBsNY3HzbWW+5/9w8IDhwEcxT5OBUAAAAAAQAAAAoA\
+HgAsAAFERkxUAAgABAAAAAD//wABAAAAAWtlcm4ACAAAAAEAAAABAAQAAgAAAAEACAABABIABAAA\
+AAEADAABAAP/aAABAAEAAw==")}
+	]]>
+	</style>
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_3" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+				</g>
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<linearGradient id="XMLID_10_" gradientUnits="userSpaceOnUse" x1="96.6499" y1="123.9878" x2="96.6499" y2="0.1499">
+						<stop  offset="0.0056" style="stop-color:#EDF1F4"/>
+						<stop  offset="0.5056" style="stop-color:#76BDCE"/>
+						<stop  offset="0.6604" style="stop-color:#61ADDB"/>
+						<stop  offset="0.9783" style="stop-color:#2C84FD"/>
+						<stop  offset="1" style="stop-color:#2881FF"/>
+						<a:midPointStop  offset="0.0056" style="stop-color:#EDF1F4"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#EDF1F4"/>
+						<a:midPointStop  offset="0.5056" style="stop-color:#76BDCE"/>
+						<a:midPointStop  offset="0.5446" style="stop-color:#76BDCE"/>
+						<a:midPointStop  offset="1" style="stop-color:#2881FF"/>
+					</linearGradient>
+					<path i:knockout="Off" fill="url(#XMLID_10_)" stroke="#0537A5" stroke-width="0.3" d="M165.527,28.571
+						C142.587,6.707,117.007,0.15,96.65,0.15c-20.543,0-45.617,6.315-69.024,28.487C8.872,46.952,0.248,70.43,0.151,86.76
+						c-0.015,2.612,0.163,5.008,0.52,7.123c0.269,1.585,0.636,3.014,1.099,4.257c4.262,11.453,16.226,10.914,24.872,9.074
+						c0.895-0.189,1.753-0.394,2.565-0.6h45.304c1.967,9.889,11.129,17.373,22.141,17.373c11.012,0,20.174-7.484,22.14-17.373
+						h45.305c0.811,0.206,1.669,0.41,2.564,0.6c8.646,1.84,20.611,2.379,24.871-9.074c0.463-1.243,0.832-2.672,1.099-4.257
+						c0.356-2.115,0.535-4.511,0.52-7.123C193.053,70.43,183.721,46.508,165.527,28.571z"/>
+					
+						<linearGradient id="XMLID_11_" gradientUnits="userSpaceOnUse" x1="-348.1133" y1="124.6699" x2="-346.8794" y2="180.5136" gradientTransform="matrix(0 1 -1 0 287.4258 445.688)">
+						<stop  offset="0.0112" style="stop-color:#FF801F"/>
+						<stop  offset="0.2091" style="stop-color:#F86C18"/>
+						<stop  offset="0.738" style="stop-color:#E63B07"/>
+						<stop  offset="1" style="stop-color:#DF2800"/>
+						<a:midPointStop  offset="0.0112" style="stop-color:#FF801F"/>
+						<a:midPointStop  offset="0.4514" style="stop-color:#FF801F"/>
+						<a:midPointStop  offset="1" style="stop-color:#DF2800"/>
+					</linearGradient>
+					<polygon i:knockout="Off" fill="url(#XMLID_11_)" stroke="#9B4B02" stroke-width="0.5565" points="153.865,101.011 
+						160.736,97.981 154.255,94.958 147.772,91.931 147.766,95.949 147.766,95.77 96.585,95.77 96.585,100.042 147.766,100.042 
+						147.766,103.88 "/>
+					<linearGradient id="XMLID_12_" gradientUnits="userSpaceOnUse" x1="98.0596" y1="3.4419" x2="98.0596" y2="32.5874">
+						<stop  offset="0.0112" style="stop-color:#D3E6EC"/>
+						<stop  offset="0.2921" style="stop-color:#76BDCE"/>
+						<stop  offset="0.4047" style="stop-color:#61ADDB"/>
+						<stop  offset="0.4663" style="stop-color:#54A3E3"/>
+						<stop  offset="1" style="stop-color:#4194EF"/>
+						<a:midPointStop  offset="0.0112" style="stop-color:#D3E6EC"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#D3E6EC"/>
+						<a:midPointStop  offset="0.2921" style="stop-color:#76BDCE"/>
+						<a:midPointStop  offset="0.5446" style="stop-color:#76BDCE"/>
+						<a:midPointStop  offset="0.4663" style="stop-color:#54A3E3"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#54A3E3"/>
+						<a:midPointStop  offset="1" style="stop-color:#4194EF"/>
+					</linearGradient>
+					<path i:knockout="Off" fill="url(#XMLID_12_)" d="M34.427,26.065c0,0,66.335-55.004,127.265,6.522
+						C161.692,32.587,137.049,1.966,34.427,26.065z"/>
+					
+						<linearGradient id="XMLID_13_" gradientUnits="userSpaceOnUse" x1="324.9946" y1="108.1865" x2="324.9946" y2="76.5469" gradientTransform="matrix(-0.9406 0.0042 0.0041 0.9225 401.9636 11.2938)">
+						<stop  offset="0" style="stop-color:#40AAFF"/>
+						<stop  offset="0.0365" style="stop-color:#51B2FF"/>
+						<stop  offset="0.1865" style="stop-color:#90CFFF"/>
+						<stop  offset="0.3132" style="stop-color:#BEE4FF"/>
+						<stop  offset="0.4104" style="stop-color:#DAF1FF"/>
+						<stop  offset="0.4663" style="stop-color:#E5F6FF"/>
+						<stop  offset="0.5454" style="stop-color:#E1F4FF"/>
+						<stop  offset="0.6173" style="stop-color:#D6EFFF"/>
+						<stop  offset="0.6865" style="stop-color:#C4E7FF"/>
+						<stop  offset="0.754" style="stop-color:#AADBFF"/>
+						<stop  offset="0.8203" style="stop-color:#88CBFF"/>
+						<stop  offset="0.8857" style="stop-color:#5FB8FF"/>
+						<stop  offset="0.9491" style="stop-color:#2FA2FF"/>
+						<stop  offset="1" style="stop-color:#038EFF"/>
+						<a:midPointStop  offset="0" style="stop-color:#40AAFF"/>
+						<a:midPointStop  offset="0.4146" style="stop-color:#40AAFF"/>
+						<a:midPointStop  offset="0.4663" style="stop-color:#E5F6FF"/>
+						<a:midPointStop  offset="0.7263" style="stop-color:#E5F6FF"/>
+						<a:midPointStop  offset="1" style="stop-color:#038EFF"/>
+					</linearGradient>
+					<circle i:knockout="Off" fill="url(#XMLID_13_)" stroke="#0C63AA" stroke-width="0.5565" cx="96.65" cy="97.867" r="14.093"/> 
+					<linearGradient id="XMLID_14_" gradientUnits="userSpaceOnUse" x1="9.1328" y1="97.8667" x2="21.9293" y2="82.6164">
+						<stop  offset="0" style="stop-color:#EDF1F4"/>
+						<stop  offset="0.0325" style="stop-color:#EAF0F3"/>
+						<stop  offset="0.5" style="stop-color:#C1DEE6"/>
+						<a:midPointStop  offset="0" style="stop-color:#EDF1F4"/>
+						<a:midPointStop  offset="0.4773" style="stop-color:#EDF1F4"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#C1DEE6"/>
+					</linearGradient>
+					<path i:knockout="Off" opacity="0.5" fill="url(#XMLID_14_)" d="M8.574,71.41c0,0-13.668,39.481,21.702,28.38
+						C30.276,99.79,6.348,100.346,8.574,71.41z"/>
+					
+						<linearGradient id="XMLID_15_" gradientUnits="userSpaceOnUse" x1="469.3979" y1="97.6812" x2="482.1945" y2="82.4309" gradientTransform="matrix(-1 0 0 1 654.3682 0)">
+						<stop  offset="0" style="stop-color:#EDF1F4"/>
+						<stop  offset="0.0325" style="stop-color:#EAF0F3"/>
+						<stop  offset="0.5" style="stop-color:#C1DEE6"/>
+						<a:midPointStop  offset="0" style="stop-color:#EDF1F4"/>
+						<a:midPointStop  offset="0.4773" style="stop-color:#EDF1F4"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#C1DEE6"/>
+					</linearGradient>
+					<path i:knockout="Off" opacity="0.5" fill="url(#XMLID_15_)" d="M185.529,71.224c0,0,13.667,39.482-21.702,28.38
+						C163.827,99.604,187.754,100.161,185.529,71.224z"/>
+					<g i:knockout="Off">
+						
+							<switch id="XMLID_17_" i:objectNS="&ns_imrep;" i:objectType="replaceable-image" transform="matrix(1 0 0 1 78.6519 80.3354)" opacity="0.68"  a:adobe-blending-mode="multiply"  a:adobe-opacity-share="1">
+							<foreignObject overflow="visible" requiredExtensions="&ns_imrep;" x="0" y="0" width="36" height="36" opacity="0.68">
+								
+									<imageReplacement  xmlns="&ns_imrep;" x="0" y="0" width="36" height="36" placementMethod="ratio" align="center" valign="middle" refWidth="36" refHeight="36"  opacity="0.68">
+								</imageReplacement>
+								<x:targetRef  xlink:href="#XMLID_16_" />
+							</foreignObject>
+							
+								<image opacity="0.68" width="36" height="36" id="XMLID_16_" xlink:href="data:;base64,iVBORw0KGgoAAAANSUhEUgAAACQAAAAkCAYAAADhAJiYAAAACXBIWXMAAAsSAAALEgHS3X78AAAA
+BGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAANgSURB
+VHjaYmSgALiULGEGUqxAzATE/4D4956emL+UmAkQQIykKI6edQvZASxAzAfE0kDMDcRfgfgpEH8C
+YpCj/sMcuTRNjWhHAgQQUQ6KX/gE5BB2IBaCOgDkEA4glgJiQyAWA+JXQHweiJ+BHAF11CeoI98B
+8c+F8TIEHQYQQIxEOIYNSAkDsRIQawGxMdQhHEghxAPEX9BC6DfUcWeB+BoQ3wPit0BH/cJnH0AA
+MRIRKiDfmwGxExDrALE81CEs0KhDSUNQ+j9SCD0E4itAvA+IT0FDEmdoAQQQIxGhogN1jBnUcSBH
+MhOZJECW/oQ64hTUUVfwhRZAADHiCBmQxVagjATEulCHgRzIRmbmAVn8FuqQy0C8B4iPgRyKHlIA
+AcSCRTMH1AEgx7gCsSSJoYINsEE9yQ/EElCxF9Ao/YqsECCAmLBElSg0mnShmrkodAwMMEPNkoCa
+DbJDFGonHAAEEBNaVAkjJWAlaGhRG8BiAJYuhaF2gwFAACFHGSi3yAKxPRCbQh3HTAMHwTwOsuMN
+ED8A4vfQDMAAEEBMaA4SAWIFKM3GQDvAhmYXK0wCIICYkKoEfmgICSMroCFghdoFspMf6gYGgABi
+QpKUhlYD0nR0EIadAAHEhBSvfNAqgY9GaQdbWsKwEyCAmNAUsNLJMTjtBAggJoZBBgACaNA5CCCA
+Bp2DAAJo0DkIIIAGnYMAAogJre0Ca3rSC2DYCRBATEgSn6BNzk90chRWOwECCOag39D28FloZfeD
+Dg76AbXrLNRukBsYAAII7CBoNwVU416H4vc0DiUM+2BdJYAAYsLi4tN0CCWcdgEEENxB0Lbte2iX
+5SoQv4a2hakNfkHNvgq16z1yuxoggJiwuPwetHdwHNru/UVlx7yAmr0PahdKTAAEEIqDoC4F9Q5O
+APEmaM+AWo6COeYY1OwT0K4QSloFCCB8/TIJaFfID4gtyeiTYeubHUf2KLZ+GUAAMRLoQoMcZYHW
+a+WHNhnwNVVgBR4If0TrvZ7A5RgQAAggRjL69bBmrjSOxhzyIAMo+h+T0r8HCCBiBhvQRz5g7WBD
+aGsPvbkLG2Q4D3XMW1JGQAACiOjxIajDYFHFT2QIfYRFHTFDMSAAEECM5GQXtIErdDPIGqiCAYAA
+GnQIIMAAh4oDMlHA/8EAAAAASUVORK5CYII=" i:alphaIsShape="yes" i:knockout="Off"/>
+						</switch>
+						<g>
+							<linearGradient id="XMLID_18_" gradientUnits="userSpaceOnUse" x1="96.6226" y1="112.7515" x2="96.6226" y2="83.3081">
+								<stop  offset="0.0056" style="stop-color:#E3F1F4"/>
+								<stop  offset="0.5337" style="stop-color:#76BDCE"/>
+								<stop  offset="1" style="stop-color:#2881FF"/>
+								<a:midPointStop  offset="0.0056" style="stop-color:#E3F1F4"/>
+								<a:midPointStop  offset="0.5" style="stop-color:#E3F1F4"/>
+								<a:midPointStop  offset="0.5337" style="stop-color:#76BDCE"/>
+								<a:midPointStop  offset="0.5" style="stop-color:#76BDCE"/>
+								<a:midPointStop  offset="1" style="stop-color:#2881FF"/>
+							</linearGradient>
+							<circle i:knockout="Off" fill="url(#XMLID_18_)" cx="96.623" cy="98.03" r="14.722"/> 
+							<circle i:knockout="Off" fill="none" stroke="#06477C" stroke-width="0.0556" cx="96.623" cy="98.03" r="14.722"/> 
+						</g>
+					</g>
+					<linearGradient id="XMLID_19_" gradientUnits="userSpaceOnUse" x1="96.6226" y1="85.3325" x2="96.6226" y2="95.3276">
+						<stop  offset="0.0056" style="stop-color:#E3F1F4"/>
+						<stop  offset="0.5" style="stop-color:#6CB5D4"/>
+						<stop  offset="1" style="stop-color:#5BA8DF"/>
+						<a:midPointStop  offset="0.0056" style="stop-color:#E3F1F4"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#E3F1F4"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#6CB5D4"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#6CB5D4"/>
+						<a:midPointStop  offset="1" style="stop-color:#5BA8DF"/>
+					</linearGradient>
+					<path i:knockout="Off" fill="url(#XMLID_19_)" d="M82.765,95.152c2.681-3.389,9.001-4.482,13.847-4.482
+						c4.843,0,11.345,1.274,14.026,4.658l0.075-0.164c-1.819-5.687-7.443-9.831-14.101-9.831c-6.633,0-12.24,4.114-14.081,9.77
+						L82.765,95.152z"/>
+					<linearGradient id="XMLID_20_" gradientUnits="userSpaceOnUse" x1="96.6226" y1="24.6587" x2="96.6226" y2="81.166">
+						<stop  offset="0.191" style="stop-color:#60B9FF"/>
+						<stop  offset="0.6404" style="stop-color:#C8E9FF"/>
+						<stop  offset="1" style="stop-color:#84BCFF"/>
+						<a:midPointStop  offset="0.191" style="stop-color:#60B9FF"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#60B9FF"/>
+						<a:midPointStop  offset="0.6404" style="stop-color:#C8E9FF"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#C8E9FF"/>
+						<a:midPointStop  offset="1" style="stop-color:#84BCFF"/>
+					</linearGradient>
+					<path i:knockout="Off" fill="url(#XMLID_20_)" d="M39.414,81.166c7.278-24.724,30.128-42.779,57.209-42.779
+						s49.931,18.055,57.209,42.779h14.192c-7.622-32.389-36.686-56.507-71.401-56.507S32.843,48.777,25.221,81.166H39.414z"/>
+					<switch i:objectNS="&ns_flows;" i:objectType="pathText">
+						<foreignObject requiredExtensions="&ns_flows;" x="0" y="0" width="1" height="1" overflow="visible">
+							<flowDef  xmlns="&ns_flows;">
+								<region  textMatrix="0.43 -0.9028 0.9028 0.43 0 0">
+									<path i:knockout="Off" fill="none" d="M159.16,97.42c0,34.54-28,62.541-62.541,62.541s-62.541-28-62.541-62.541
+										s28-62.541,62.541-62.541S159.16,62.88,159.16,97.42z"/>
+								</region>
+								<flow  xmlns="&ns_flows;"  font-family="'ArialMT'" font-size="12">
+									<p><span>5   15  20    25   30   40</span></p>
+								</flow>
+							</flowDef>
+							<x:targetRef  xlink:href="#XMLID_21_" />
+						</foreignObject>
+						<g>
+							<circle i:knockout="Off" fill="none" cx="96.62" cy="97.42" r="62.541"/> 
+							<text id="XMLID_21_" transform="matrix(0.43 -0.9028 0.9028 0.43 38.689 73.5757)"><tspan x="0" y="0" font-family="'ArialMT'" font-size="12">5</tspan><tspan x="6.685" y="0.067" font-family="'ArialMT'" font-size="12" rotate="4.607"> </tspan><tspan x="10.022" y="0.337" font-family="'ArialMT'" font-size="12" rotate="7.673"> </tspan><tspan x="13.309" y="0.779" font-family="'ArialMT'" font-size="12" rotate="10.704"> </tspan><tspan x="16.599" y="1.333" font-family="'ArialMT'" font-size="12" rotate="15.264">1</tspan><tspan x="23.052" y="3.095" font-family="'ArialMT'" font-size="12" rotate="21.349">5</tspan><tspan x="29.237" y="5.585" font-family="'ArialMT'" font-size="12" rotate="25.901"> </tspan><tspan x="32.238" y="7.041" font-family="'ArialMT'" font-size="12" rotate="28.945"> </tspan><tspan x="35.201" y="8.604" font-family="'ArialMT'" font-size="12" rotate="33.532">2</tspan><tspan x="40.767" y="12.292" font-family="'ArialMT'" font-size="12" rotate="39.659">0</tspan><tspan x="45.86" y="16.601" font-family="'ArialMT'" font-size="12" rotate="44.27"> </tspan><tspan x="48.246" y="18.928" font-family="'ArialMT'" font-size="12" rotate="47.346"> </tspan><tspan x="50.502" y="21.375" font-family="'ArialMT'" font-size="12" rotate="50.418"> </tspan><tspan x="52.637" y="23.959" font-family="'ArialMT'" font-size="12" rotate="53.508"> </tspan><tspan x="54.678" y="26.607" font-family="'ArialMT'" font-size="12" rotate="58.104">2</tspan><tspan x="58.175" y="32.288" font-family="'ArialMT'" font-size="12" rotate="63.606">5</tspan><tspan x="61.052" y="38.302" font-family="'ArialMT'" font-size="12" rotate="68.659"> </tspan><tspan x="62.262" y="41.396" font-family="'ArialMT'" font-size="12" rotate="71.689"> </tspan><tspan x="63.31" y="44.566" font-family="'ArialMT'" font-size="12" rotate="74.752"> </tspan><tspan x="64.253" y="47.77" font-family="'ArialMT'" font-size="12" rotate="79.365">3</tspan><tspan x="65.487" y="54.336" font-family="'ArialMT'" font-size="12" rotate="85.527">0</tspan><tspan x="65.94" y="61.01" font-family="'ArialMT'" font-size="12" rotate="90.153"> </tspan><tspan x="65.931" y="64.348" font-family="'ArialMT'" font-size="12" rotate="93.221"> </tspan><tspan x="65.744" y="67.672" font-family="'ArialMT'" font-size="12" rotate="96.272"> </tspan><tspan x="65.444" y="71.005" font-family="'ArialMT'" font-size="12" rotate="100.854">4</tspan><tspan x="64.188" y="77.558" font-family="'ArialMT'" font-size="12" rotate="106.93">0</tspan></text>
+						</g>
+					</switch>
+				</g>
+			</g>
+		</switch>
+	</svg>

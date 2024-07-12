@@ -1,0 +1,36 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="popup-editor__container">
+  <div class="popup-editor__button-group">
+    <button class="popup-editor__button btn" title="_#(Apply)"
+            (click)="apply.emit(false)">
+      <i class="submit-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="container">
+    <div class="row form-row-float-label" *ngFor="let aggr of chartRefs">
+      <div class="col text-style">{{aggr.view + ":"}}</div>
+      <div class="col-auto g-0">
+        <static-size-editor [sframe]="aggr.sizeFrame" (sizeChanged)="sizeChanged.emit($event)">
+        </static-size-editor>
+      </div>
+    </div>
+  </div>
+</div>

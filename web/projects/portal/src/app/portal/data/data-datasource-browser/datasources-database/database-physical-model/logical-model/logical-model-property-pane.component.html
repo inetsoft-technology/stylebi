@@ -1,0 +1,133 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="g-0 row data-model-edit-container logical-model-property-pane split-content">
+   <split-pane direction="horizontal" [sizes]="DEFAULT_SIZE" class="split-pane data-model-horizontal-split"
+               [minSize]="200" [snapOffset]="0" [gutterSize]="5" [fullWidth]="true">
+      <div class="data-model-left-top-pane split-content">
+         <div class="data-model-header-pane logical-model-property-toolbar">
+            <span class="font-weight-bold">_#(Logical Model)</span>
+            <div class="logical-toolbar">
+               <button type="button"
+                       class="btn btn-sm btn-light-no-bg"
+                       [attr.title]="'_#(data.logicalmodel.addComponent)'"
+                       [fixedDropdown]="elementDropdownMenu">
+                  <i class="add-icon"></i>
+               </button>
+               <button type="button"
+                       class="btn btn-sm btn-light-no-bg"
+                       [disabled]="!canDelete()"
+                       title="_#(Delete)"
+                       (click)="deleteSelectedItem()">
+                  <i class="trash-icon"></i>
+               </button>
+               <button type="button"
+                       class="btn btn-sm btn-light-no-bg"
+                       [attr.title]="'_#(data.logicalmodel.sortComponent)'"
+                       [fixedDropdown]="sortDropdownMenu"
+                       [attr.disabled]="logicalModel.entities.length <= 0 ? '' : null"
+                       [disabled]="logicalModel.entities.length <= 0">
+                  <i class="sort-icon"></i>
+               </button>
+            </div>
+         </div>
+         <div class="data-model-left-top">
+            <div tabindex="0" (keydown)="keyDown($event)">
+               <element-tree-node *ngFor="let entity of logicalModel.entities; let i = index"
+                                  [node]="entity"
+                                  [entityIndex]="i"
+                                  [firstNode]="i == 0"
+                                  [lastNode]="i == logicalModel.entities.length - 1"
+                                  [selected]="selectedEles"
+                                  [expandedNodes]="expanded"
+                                  [deleteEnable]="deleteEnable"
+                                  (onOpenNode)="editingEle = $event"
+                                  (onMoveDown)="moveEntityDown(i)"
+                                  (onMoveUp)="moveEntityUp(i)"
+                                  (onDeleteEntity)="deleteEntityByIndex(i)"
+                                  (onShiftSelect)="shiftSelect($event)"
+                                  (onToggleEntity)="entityToggle($event)"
+                                  (onDeleteAttribute)="onDeleteAttribute($event)"
+                                  (onAttributeOrderChanged)="attributeOrderChanged()">
+               </element-tree-node>
+               <loading-indicator-pane [show]="loading"></loading-indicator-pane>
+            </div>
+         </div>
+      </div>
+      <div class="data-model-right-pane">
+         <div class="data-model-right-content split">
+            <ng-container *ngIf="isElementSelected()" [ngSwitch]="editingElement?.type">
+               <logical-model-entity-editor *ngSwitchCase="'entity'"
+                                            [entity]="editingElement" [existNames]="existNames"
+                                            [form]="form"
+                                            [logicalModelParent]="parent">
+               </logical-model-entity-editor>
+               <logical-model-column-editor *ngSwitchCase="'column'"
+                                            [databaseName]="databaseName"
+                                            [physicalModelName]="physicalModelName"
+                                            [additional]="additional"
+                                            [attribute]="editingElement"
+                                            [existNames]="existNames"
+                                            [form]="form"
+                                            [logicalModelName]="originalName"
+                                            [logicalModelParent]="parent"
+                                            [entities]="logicalModel.entities">
+               </logical-model-column-editor>
+               <logical-model-expression-editor *ngSwitchCase="'expression'"
+                                                [databaseName]="databaseName"
+                                                [physicalModelName]="physicalModelName"
+                                                [additional]="additional"
+                                                [attribute]="editingElement"
+                                                [entities]="logicalModel.entities"
+                                                [logicalModelParent]="parent">
+               </logical-model-expression-editor>
+            </ng-container>
+         </div>
+      </div>
+   </split-pane>
+</div>
+
+<ng-template #sortDropdownMenu>
+   <div class="dropdown-pane">
+      <button class="dropdown-item" (click)="sortElements(true)"
+              [attr.title]="'_#(Sort All Entities)'">
+         _#(data.logicalmodel.sortEntities)
+      </button>
+      <button class="dropdown-item" *ngIf="editingEle.entity > -1"
+              (click)="sortElements(false)" [attr.title]="'_#(Sort Selected Attributes)'">
+         _#(data.logicalmodel.sortAttributes)
+      </button>
+   </div>
+</ng-template>
+
+<ng-template #elementDropdownMenu>
+   <div class="dropdown-pane">
+      <button class="dropdown-item" (click)="showEntityDialog()">
+         _#(Add Entity)
+      </button>
+      <button class="dropdown-item" *ngIf="logicalModel.entities.length > 0"
+              (click)="showAddAttributeDialog()">
+         _#(Add Attribute)
+      </button>
+      <button class="dropdown-item" *ngIf="logicalModel.entities.length > 0"
+              (click)="showAddExpressionDialog()">
+         _#(Add Expression)
+      </button>
+   </div>
+</ng-template>

@@ -1,0 +1,74 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="color-picker-palette" blockMouse *ngIf="!hidePane">
+  <form class="form" novalidate>
+    <div class="color-picker-toolbar">
+      <button type="button" class="color-picker-swatch current-color-swatch bd-gray"
+              [style.background-color]="color">
+        <span class="visually-hidden">{{color}}</span>
+      </button>
+      <span>RGB:#</span>
+      <label for="color" class="visually-hidden">_#(Color)</label>
+      <input type="text" class="form-control" id="color" name="color"
+             [ngModel]="colorValue" (ngModelChange)="setColorValue($event)" required/>
+      <i *ngIf="clearEnabled" class="reset-icon icon-size-small icon-color-default"
+         aria-hidden="true" (click)="clearColor()" title="_#(Reset to Default)"></i>
+      <img src="assets/colorIcon.gif" class="color-cell" style="border: none"
+           (click)="openColorEditor()">
+    </div>
+    <div class="form-row-float-label color-picker-palette-row color-picker-recent" *ngIf="showRecentColors">
+      <table>
+        <tr class="bb-gray">
+          <td *ngFor="let swatch of recentColors">
+            <button type="button" class="color-picker-swatch bd-gray"
+                    [class.transparent-swatch]="swatch === ''"
+                    [class.disable-actions]="(swatch === '' || !swatch) && !allowNullColors"
+                    (mousedown)="selectColor(swatch)" blockMouse
+                    [style.background-color]="swatch">
+              <span class="visually-hidden">{{swatch}}</span>
+            </button>
+          </td>
+        </tr>
+      </table>
+    </div>
+    <div class="form-row-float-label color-picker-palette-row" *ngFor="let row of palette">
+      <table>
+        <tr>
+          <td *ngFor="let swatch of row">
+            <button type="button" class="color-picker-swatch"
+                    [ngClass]="{'color-picker-selected bd-selected' : color == swatch || !color && !swatch,
+                                'border-0' : !(color == swatch || !color && !swatch)}"
+                    [class.transparent-swatch]="swatch === ''"
+                    (mousedown)="selectColor(swatch)" blockMouse
+                    [style.background-color]="swatch">
+              <span class="visually-hidden">
+                {{swatch}}
+              </span>
+            </button>
+          </td>
+        </tr>
+      </table>
+    </div>
+  </form>
+</div>
+<ng-template #colorEditorDialog let-close="close" let-dismiss="dismiss">
+  <cp-color-editor-dialog (onCommit)="close($event); dialogOpened.emit(false);" (onCancel)="dismiss($event); dialogOpened.emit(false);"
+                          [color]="color"></cp-color-editor-dialog>
+</ng-template>

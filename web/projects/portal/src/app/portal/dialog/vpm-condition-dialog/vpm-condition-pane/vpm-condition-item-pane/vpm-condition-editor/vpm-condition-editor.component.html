@@ -1,0 +1,79 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="editor-container">
+  <div [class.primary-condition-editor]="primaryValue">
+    <div *ngIf="value.type == ClauseValueTypes.VALUE" class="form-group pt-0">
+      <vpm-value-editor [operation]="operation"
+                        [(value)]="value.expression"
+                        [values]="values"
+                        [dataFunction]="dataFunction"
+                        [type]="type"
+                        [enableBrowseData]="enableBrowseData"
+                        (valueChange)="conditionValueChanged($event)"
+                        (valueChanges)="valueChanges.emit($event)">
+      </vpm-value-editor>
+    </div>
+    <div *ngIf="value.type == ClauseValueTypes.VARIABLE" class="form-group pt-0">
+      <vpm-variable-editor [(value)]="value.expression"
+                           (valueChange)="valueChanged()"
+                           [varShowDate]="varShowDate">
+      </vpm-variable-editor>
+    </div>
+    <div *ngIf="value.type == ClauseValueTypes.EXPRESSION" class="form-group pt-0">
+      <vpm-value-editor [dataFunction]="dataFunction"
+                        [enableBrowseData]="enableBrowseData"
+                        [(value)]="value.expression"
+                        (valueChange)="conditionValueChanged($event)">
+      </vpm-value-editor>
+    </div>
+    <div *ngIf="value.type == ClauseValueTypes.FIELD" class="form-group pt-0">
+      <vpm-field-editor [fields]="fields"
+                        [(value)]="value"
+                        (valueChange)="valueChanged()">
+      </vpm-field-editor>
+    </div>
+    <div *ngIf="value.type == ClauseValueTypes.SESSION_DATA" class="form-group pt-0">
+      <session-data-editor [(value)]="value.expression" (valueChange)="valueChanged()">
+      </session-data-editor>
+    </div>
+    <div *ngIf="value.type == ClauseValueTypes.SUBQUERY">
+      <vpm-subquery-editor [model]="value" [datasource]="datasource" [isWSQuery]="isWSQuery"
+                           (valueChange)="conditionSubQueryValueChanged($event)">
+      </vpm-subquery-editor>
+    </div>
+  </div>
+  <div class="d-flex align-items-start" keyboardNav="true">
+   <span>
+      <button id="simple-btn-keyboard-nav"
+         class="btn btn-sm btn-light d-flex align-items-center h-100"
+         [fixedDropdown]="dropdownMenu" [ngbTooltip]="'_#(Change Value Type)'">
+      <i class="value-type-list-icon icon-size-small align-middle"></i>
+    </button>
+   </span>
+  </div>
+</div>
+<ng-template #dropdownMenu>
+  <ul role="menu" class="dropdown-pane">
+    <li *ngFor="let type of valueTypes" class="dropdown-item" (click)="selectType(type)"
+       role="menuitem" [class.selected]="value.type == type">
+      {{type | clauseValueTypeToString}}
+    </li>
+  </ul>
+</ng-template>

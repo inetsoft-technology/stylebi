@@ -1,0 +1,51 @@
+{
+  "endpoints": [
+    {
+      "post": "true",
+      "name": "Query",
+      "bodyTemplate": "{\n  \"startDate\":\"YYYY-MM-DD\",\n  \"endDate\":\"YYYY-MM-DD\"\n}",
+      "suffix": "/v3/sites/{Site URL}/searchAnalytics/query"
+    },
+    {
+      "post": "false",
+      "name": "Sitemaps",
+      "bodyTemplate": null, 
+      "suffix": "/v3/sites/{Site URL}/sitemaps"
+    },
+    {
+      "post": "false",
+      "name": "Sitemap",
+      "bodyTemplate": null,
+      "suffix": "/v3/sites/{Site URL}/sitemaps/{Feedpath}"
+    },
+    {
+      "post": "false",
+      "name": "Sites",
+      "bodyTemplate": null,
+      "suffix": "/v3/sites",
+      "lookups": [
+        {
+          "endpoints": [
+            "Site",
+            "Sitemaps"
+          ],
+          "jsonPath": "$.siteEntry[*]",
+          "key": "siteUrl",
+          "parameterName": "Site URL"
+        }
+      ]
+    },
+    {
+      "post": "false",
+      "name": "Site",
+      "bodyTemplate": null,
+      "suffix": "/v3/sites/{Site URL}"
+    },
+    {
+      "post": "true",
+      "name": "URL Inspection",
+      "bodyTemplate": "{\n  \"inspectionUrl\":\"https://www.example.com/mypage\",\n  \"siteUrl\":\"https://www.example.com/\"\n}",
+      "suffix": "/v1/urlInspection/index:inspect"
+    }
+  ]
+}

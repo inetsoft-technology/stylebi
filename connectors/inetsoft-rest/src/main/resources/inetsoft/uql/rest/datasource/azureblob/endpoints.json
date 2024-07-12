@@ -1,0 +1,66 @@
+{
+  "endpoints": [
+    {
+      "name": "Containers",
+      "paged": true,
+      "suffix": "/?comp=list&prefix={Prefix?}&timeout={Timeout?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Blobs",
+            "Container Properties",
+            "Container ACL"
+          ],
+          "jsonPath": "/EnumerationResults/Containers/Container",
+          "key": "Name",
+          "parameterName": "Container"
+        }
+      ]
+    },
+    {
+      "name": "Blob Service Properties",
+      "paged": false,
+      "suffix": "/?restype=service&comp=properties&timeout={Timeout?}"
+    },
+    {
+      "name": "Account",
+      "paged": false,
+      "suffix": "/?restype=account&comp=properties&sv={SAS Token?}"
+    },
+    {
+      "name": "Container Properties",
+      "paged": false,
+      "suffix": "/{Container}?restype=container&timeout={Timeout?}"
+    },
+    {
+      "name": "Container Metadata",
+      "paged": false,
+      "suffix": "/{Container}?restype=container&comp=metadata&timeout={Timeout?}"
+    },
+    {
+      "name": "Container ACL",
+      "paged": false,
+      "suffix": "/{Container}?restype=container&comp=acl&timeout={Timeout?}"
+    },
+    {
+      "name": "Blobs",
+      "paged": true,
+      "suffix": "/{Container}?restype=container&comp=list&prefix={Prefix?}&delimiter={Delimiter?}&include={Include?:snapshots|metadata|uncommittedblobs|copy|deleted}&timeout={Timeout?}"
+    },
+    {
+      "name": "Blob Metadata",
+      "paged": false,
+      "suffix": "/{Container}/{Blob}?comp=metadata&snapshot={Snapshot?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&timeout={Timeout?}"
+    },
+    {
+      "name": "Block List",
+      "paged": false,
+      "suffix": "/{Container}/{Blob}?comp=blocklist&snapshot={Snapshot?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&blocklisttype={Blocklist Type:committed|uncommitted|all}&timeout={Timeout?}"
+    },
+    {
+      "name": "Page Ranges",
+      "paged": false,
+      "suffix": "/{Container}/{Blob}?comp=pagelist&snapshot={Snapshot?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&prevsnapshot={Previous Snapshot?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&timeout={Timeout?}"
+    }
+  ]
+}

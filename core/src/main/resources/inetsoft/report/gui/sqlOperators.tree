@@ -1,0 +1,13 @@
+Arithmetic
+	x*y	::Multiplication	*
+	x/y	::Division	/
+	x+y	::Addition	+
+	x-y	::Subtraction	-
+Relational
+	x<y	::Less Than	<
+	x>y	::Greater Than	>
+	x<=y	::Less Than or Equal To	<=
+	x>=y	::Greater Than or Equal To	>=
+	x=y	::Equal To	=
+	x<>y	::Not Equal To	<>
+

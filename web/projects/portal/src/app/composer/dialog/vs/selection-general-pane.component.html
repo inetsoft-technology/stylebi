@@ -1,0 +1,201 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<general-prop-pane [(form)]="form.controls['generalForm']" [model]="model.generalPropPaneModel"
+                   [variableValues]="variableValues" [columnTreeRoot]="columnTreeRoot"
+                   [vsId]="vsId"
+                   [functionTreeRoot]="functionTreeRoot" [operatorTreeRoot]="operatorTreeRoot"
+                   [scriptDefinitions]="scriptDefinitions">
+</general-prop-pane>
+<title-prop-pane [model]="model.titlePropPaneModel" [variableValues]="variableValues"
+                 [inSelectionContainer]="model.inSelectionContainer" [vsId]="vsId"
+                 [columnTreeRoot]="columnTreeRoot" [functionTreeRoot]="functionTreeRoot"
+                 [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions">
+</title-prop-pane>
+<form [formGroup]="form" class="container-fluid">
+  <fieldset>
+    <legend>_#(Options)</legend>
+    <div *ngIf="model.showNonContainerProps" class="form-row-float-label row">
+      <div class="col-8 pe-0">
+        <fieldset class="float-title bd-gray mt-0">
+          <legend>_#(Show as)</legend>
+          <div class="container">
+            <div class="row">
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="show-as" id="list"
+                         [ngModelOptions]="{standalone: true}"
+                         (change)="setEnabled()"
+                         [(ngModel)]="model.showType" [value]="0">
+                  <label class="form-check-label" for="list">
+                    _#(List)
+                  </label>
+                </div>
+              </div>
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="show-as" id="dropdown"
+                         [ngModelOptions]="{standalone: true}"
+                         (change)="setEnabled()"
+                         [(ngModel)]="model.showType" [value]="1">
+                  <label class="form-check-label" for="dropdown">
+                    _#(Dropdown)
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+      <div class="col-4 form-floating" [style.margin-top]="'0.5em'"
+           [ngClass]="{ 'has-error' : !form.controls['listHeight'].valid}">
+        <input id="listHeight" [attr.disabled]="model.showType != 1 ? '' : null"
+               placeholder="_#(Height)" class="form-control" type="number"
+               min="1" formControlName="listHeight" [(ngModel)]="model.listHeight"/>
+        <label><span>_#(Height)</span></label>
+        <div *ngIf="form.controls['listHeight'].errors && form.controls['listHeight'].errors['required']" class="alert alert-danger">_#(Height is required)</div>
+        <div *ngIf="form.controls['listHeight'].errors && !form.controls['listHeight'].errors['required'] && form.controls['listHeight'].errors['lessThanEqualToZero']" class="alert alert-danger">_#(height.positive.nonZero)</div>
+      </div>
+    </div>
+    <div *ngIf="model.showNonContainerProps" class="form-row-float-label row">
+      <div class="col">
+        <fieldset class="float-title bd-gray mt-0">
+          <legend>_#(Sort)</legend>
+          <div class="container">
+            <div class="row">
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="sort" id="asc"
+                         [ngModelOptions]="{standalone: true}"
+                         [(ngModel)]="model.sortType" [value]="styleConstants[0]">
+                  <label class="form-check-label" for="asc">
+                    _#(Ascending)
+                  </label>
+                </div>
+              </div>
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="sort" id="desc"
+                         [ngModelOptions]="{standalone: true}"
+                         [(ngModel)]="model.sortType" [value]="styleConstants[1]">
+                  <label class="form-check-label" for="desc">
+                    _#(Descending)
+                  </label>
+                </div>
+              </div>
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="sort" id="hideOthers"
+                       [ngModelOptions]="{standalone: true}"
+                       [(ngModel)]="model.sortType" [value]="styleConstants[2]">
+                  <label class="form-check-label col" for="hideOthers">
+                    _#(Hide Others)
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col-auto">
+        <div class="form-check">
+          <input id="submitBox" type="checkbox" class="form-check-input"
+               [ngModelOptions]="{standalone: true}" [(ngModel)]="model.submitOnChange"/>
+          <label class="form-check-label" for="submitBox">
+            _#(Submit on Change)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input id="singleBox" type="checkbox" class="form-check-input"
+               [ngModelOptions]="{standalone: true}" [(ngModel)]="model.singleSelection"
+               [disabled]="!columnMode && model.selectFirstItem"
+               (change)="refreshSingleSelectionLevels()"/>
+          <label class="form-check-label" for="singleBox">
+            _#(Single Selection)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input id="SuppressBox" type="checkbox" class="form-check-input"
+               [ngModelOptions]="{standalone: true}" [(ngModel)]="model.suppressBlank"/>
+          <label class="form-check-label" for="SuppressBox">
+            _#(Suppress Blank)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check" [title]="'_#(vs.select.first.tooltip)'">
+          <input id="SelectFirstItem" type="checkbox" class="form-check-input"
+                 [disabled]="selectFirstDisable()"
+                 [ngModelOptions]="{standalone: true}" [(ngModel)]="model.selectFirstItem"/>
+          <label class="form-check-label" for="SelectFirstItem">
+            _#(Select First Item on Dashboard Load)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+  <fieldset *ngIf="columnMode && levels.length != 0">
+    <legend>_#(Single Selection Levels)</legend>
+    <div class="form-row-float-label row">
+      <div class="col form-floating">
+        <select class="form-control"  [(ngModel)]="levelToAdd"
+                [ngModelOptions]="{standalone: true}"
+                [disabled]="!model.singleSelection"
+                placeholder="_#(Level)">
+          <option *ngFor="let level of levels" [value]="level">
+            {{level}}
+          </option>
+        </select>
+        <label><span>_#(Level)</span></label>
+      </div>
+      <div class="col-3 ps-0">
+        <div class="btn-container-vertical">
+          <button type="button" class="btn btn-default" (click)="addSingleSelection()"
+                  [disabled]="!model.singleSelection || !levelToAdd">_#(Add)</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="bordered-box bd-gray levels_id" [class.disabled]="!model.singleSelection">
+          <div [class.selected]="i === selectedLevelIndex && model.singleSelection"
+               *ngFor="let level of model.singleSelectionLevels; let i = index" (mousedown)="selectLevel(i)">
+            {{level}}
+          </div>
+        </div>
+      </div>
+      <div class="col-3 ps-0">
+        <div class="btn-container-vertical">
+          <button type="button" class="btn btn-default" (click)="deleteSingleSelection()"
+                  [disabled]="!model.singleSelection || selectedLevelIndex == -1">_#(Delete)</button>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>
+<size-position-pane [model]="model.sizePositionPaneModel"
+                    [(form)]="form.controls['sizePositionPaneForm']"
+                    [titleHeightEnable]="model.generalPropPaneModel.enabled == 'True'"
+></size-position-pane>

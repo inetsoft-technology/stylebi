@@ -1,0 +1,154 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 0;
+}
+
+.table-cell-relative-container {
+  position: relative;
+  overflow: hidden;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+
+  &:hover .table-cell__drill-icon {
+    display: block;
+    z-index: 20;
+  }
+}
+
+.table-cell-icon-container {
+  display: flex;
+  position: absolute;
+  overflow: hidden;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0 2px 0 2px;
+}
+
+.table-cell-content {
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  text-decoration: inherit;
+  padding: 1px 2px;
+
+  &.cell-padding-defined {
+    overflow: clip;
+    overflow-clip-margin: content-box;
+  }
+}
+
+.table-cell__drill-icon {
+  position: absolute;
+  left: 0;
+  background: var(--inet-toolbar-bg-color);
+  display: none;
+}
+
+.table-cell-sort-icon {
+  position: absolute;
+  right: 0;
+  display: none;
+}
+
+div:hover > .table-cell-sort-icon {
+  display: inline;
+  background: white;
+  color: darkblue;
+  border: 1px solid black;
+}
+
+div > .table-cell-sort-icon:active {
+  background: #bdbdbd;
+}
+
+.col-resize-handle {
+  position: absolute;
+  width: 5px;
+  top: 0;
+  right: -3px;
+  bottom: 0;
+  cursor: ew-resize;
+  z-index: 10;
+}
+
+.row-resize-handle {
+  position: absolute;
+  left: 0px;
+  right: 0px;
+  height: 5px;
+  bottom: -3px;
+  cursor: ns-resize;
+  z-index: 10;
+}
+
+.form-input {
+  width: 100%;
+  border: 0;
+  padding: 0;
+}
+
+textarea:focus, input:focus {
+  outline: none;
+}
+
+.calendar-icon {
+  border: none;
+  flex-grow: 1;
+  position: absolute;
+  right: 0;
+}
+
+.calendar-cell {
+  position: relative;
+  display: flex;
+}
+
+.cell-annotation-icon-zone {
+  position: absolute;
+  top: -1em;
+  right: -1em;
+  transform: rotateZ(45deg);
+  z-index: 999;
+}
+
+.linked-cell {
+  text-decoration: underline;
+}
+
+.wrap-text {
+  word-break: break-word;
+}
+
+.table-cell-content > .cell-editor {
+   z-index: 20;
+}
+
+.html-presenter {
+  all: initial;
+}

@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container-fluid h-100 w-100 g-0">
+  <div class="grouping-pane-container">
+    <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="activeTab" (navChange)="updateGroupingPaneTab($event)">
+      <ng-container ngbNavItem="group-by">
+        <a ngbNavLink>_#(Group by)</a>
+        <ng-template ngbNavContent>
+          <fields-pane class="tab-pane-content" [runtimeId]="runtimeId"
+                       [fields]="model.groupByFields" [grouping]="true"
+                       [queryFieldsMap]="queryFieldsMap"
+                       (groupByValidityChange)="groupByValidityChange.emit($event)"
+                       (onFieldsChange)="fieldsChanged($event)">
+          </fields-pane>
+        </ng-template>
+      </ng-container>
+      <ng-container ngbNavItem="having" [disabled]="!model.groupByFields || model.groupByFields.length == 0">
+        <a ngbNavLink>_#(Having)</a>
+        <ng-template ngbNavContent>
+          <query-conditions-pane #havingConditionsPane class="tab-pane-content" [runtimeId]="runtimeId"
+                                 [model]="model.havingConditions"
+                                 [databaseName]="databaseName"
+                                 [operations]="operations"
+                                 [sessionOperations]="sessionOperations"
+                                 [havingCondition]="true">
+          </query-conditions-pane>
+        </ng-template>
+      </ng-container>
+    </ul>
+    <div [ngbNavOutlet]="nav"></div>
+  </div>
+</div>

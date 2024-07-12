@@ -1,0 +1,65 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <div class="form-row-float-label row" *ngFor="let _sortRef of sortRefs; let _i = index">
+    <div class="col-auto pe-0">
+      <button [disabled]="_i >= model.selectedColumns.length - 1" class="btn btn-sm btn-light-no-bg"
+              type="button" id="downArrow" title="_#(Move Down)"
+              (click)="swap(_i, _i + 1)">
+        <i class="downward-icon" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="col-auto ps-1">
+      <button [disabled]="_i == 0 || _i >= model.selectedColumns.length" class="btn btn-sm btn-light-no-bg"
+              type="button" id="upArrow" title="_#(Move Up)"
+              (click)="swap(_i, _i - 1)">
+        <i class="upward-icon" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="col">
+      <select class="form-control" [ngModel]="_sortRef.name" (ngModelChange)="updateRow($event, _i)"
+              [disabled]="_i > model.selectedColumns.length">
+        <option *ngFor="let _col of columnList; let _j = index" [value]="_col.name"
+                [disabled]="isOptionDisabled(_col.name, _sortRef.name)"
+                [attr.title]="_col.tooltip">{{_col.label}}</option>
+      </select>
+    </div>
+    <div class="col-auto">
+      <div class="form-check">
+        <input type="radio" class="form-check-input" [name]="'sort' + _i" [attr.id]="'asc' + _i"
+               [disabled]="_sortRef.name === empty"
+               [ngModel]="_sortRef.order" (ngModelChange)="updateOrder($event, _i)" [value]="SortEnum.ASC">
+        <label class="form-check-label" [attr.for]="'asc' + _i">
+          _#(Ascending)
+        </label>
+      </div>
+    </div>
+    <div class="col-auto">
+      <div class="form-check">
+        <input type="radio" class="form-check-input" [name]="'sort' + _i"
+               [disabled]="_sortRef.name === empty" [attr.id]="'desc' + _i"
+               [ngModel]="_sortRef.order" (ngModelChange)="updateOrder($event, _i)" [value]="SortEnum.DESC">
+        <label class="form-check-label" [attr.for]="'desc' + _i">
+          _#(Descending)
+        </label>
+      </div>
+    </div>
+  </div>
+</form>

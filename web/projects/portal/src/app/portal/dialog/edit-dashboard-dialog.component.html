@@ -1,0 +1,73 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<w-standard-dialog [title]="isNew ? '_#(New Pin)' : '_#(Edit Dashboard)'"
+                   (onClose)="closeDialog()"
+                   [cshid]="'DeployingDashboard'"
+                   [submitOnEnter]="isValid"
+                   (onSubmit)="okClicked()">
+  <ng-template wDialogContent>
+    <div *ngIf="dashboard" class="mt-2">
+      <form ngNoForm class="container-fluid">
+        <div class="form-group form-row one-col-form-flex" *ngIf="nameControl">
+          <div class="form-floating col">
+            <input class="form-control dashboard_name_id" type="text" trim [(ngModel)]="name" [formControl]="nameControl"
+                   placeholder="_#(Dashboard Name)"
+                   defaultFocus [autoSelect]="false" aria-required="true"
+                   [class.is-invalid]="!nameControl.valid && nameControl.dirty">
+            <label>_#(Dashboard Name)</label>
+            <span class="invalid-feedback" *ngIf="nameControl.getError('required')">
+              _#(enter.name)
+            </span>
+            <span class="invalid-feedback"
+                  *ngIf="nameControl.getError('containsSpecialCharsForName')">
+              _#(repository.tree.SpecialChar)
+            </span>
+          </div>
+        </div>
+
+        <div class="form-group form-row one-col-form-flex">
+          <div class="form-floating col">
+            <textarea class="form-control" [(ngModel)]="dashboard.description" rows="3"
+                      placeholder="_#(Description)"></textarea>
+            <label>_#(Description)</label>
+          </div>
+        </div>
+        <fieldset>
+          <legend>_#(Select Viewsheet)</legend>
+        </fieldset>
+        <div class="form-group select-viewsheet bd-gray">
+          <span class="visually-hidden" role="heading" aria-required="true" aria-label="_#(Select Viewsheet)"></span>
+          <repository-tree #repositoryTree class="repository-tree"
+                           [root]="rootNode" [selector]="selector"
+                           [isReport]="false" [showVS]="true"
+                           [disabled]="isNew && compose"
+                           (nodeSelected)="nodeSelected($event)"></repository-tree>
+        </div>
+      </form>
+    </div>
+  </ng-template>
+
+  <ng-template wDialogButtons>
+    <button type="button" class="btn btn-primary" (click)="okClicked()" [disabled]="!isValid()">
+      _#(OK)
+    </button>
+    <button type="button" class="btn btn-default" (click)="closeDialog()">_#(Cancel)</button>
+  </ng-template>
+</w-standard-dialog>

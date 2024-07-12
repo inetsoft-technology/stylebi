@@ -1,0 +1,55 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="field-container" *ngIf="bindingModel">
+  <div class="field-row">
+    <div class="unhighlightable field-list-label">_#(X)</div>
+    <div class="field-list">
+      <chart-data-editor [fieldType]="'xfields'" [refs]="bindingModel.xfields"
+         [bindingModel]="bindingModel" [grayedOutValues]="grayedOutValues">
+      </chart-data-editor>
+    </div>
+  </div>
+  <div class="field-row">
+    <div class="unhighlightable field-list-label">_#(Y)</div>
+    <div class="field-list">
+      <chart-data-editor [fieldType]="'yfields'" [refs]="bindingModel.yfields"
+         [bindingModel]="bindingModel" [grayedOutValues]="grayedOutValues">
+      </chart-data-editor>
+    </div>
+  </div>
+  <div class="field-row" *ngIf="isMapChart()">
+    <div class="unhighlightable field-list-label">_#(G)</div>
+    <div class="field-list">
+      <chart-data-editor [fieldType]="'geofields'" [refs]="bindingModel.geoFields"
+         [bindingModel]="bindingModel" [grayedOutValues]="grayedOutValues">
+      </chart-data-editor>
+    </div>
+  </div>
+  <div class="field-row" *ngIf="bindingModel.supportsGroupFields">
+    <div class="unhighlightable field-list-label"
+         [class.label-plus]="!isTreemap()">{{isTreemap() ? "_#(T)" : "+"}}</div>
+    <div class="field-list">
+      <chart-data-editor [fieldType]="'groupfields'" [refs]="bindingModel.groupFields"
+         [bindingModel]="bindingModel" [grayedOutValues]="grayedOutValues" data-test="group-fields-editor">
+      </chart-data-editor>
+    </div>
+  </div>
+
+</div>

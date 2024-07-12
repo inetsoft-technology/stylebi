@@ -1,0 +1,69 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+
+  .split-pane {
+    display: flex;
+    height: 100%;
+    width: 100%;
+  }
+
+  .pane {
+    display: flex;
+    position: relative;
+    float: left;
+    height: 100%;
+    width: 100%;
+    overflow: auto;
+  }
+
+  .data-tree-pane {
+    overflow: visible;
+    flex-shrink: 0;
+
+    > p-data-sources-tree-view {
+      width: 100%;
+    }
+  }
+
+  $data-tab-gutter-margin: 16px;
+  $data-tab-gutter-width: 6px;
+
+  .collapse-pane-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: calc(50% - 50px);
+    height: 100px;
+    width: calc(#{$data-tab-gutter-margin} + #{$data-tab-gutter-width});
+    right: calc((#{-$data-tab-gutter-margin} + #{-$data-tab-gutter-width}));
+    z-index: 6;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+
+  .data-pane {
+    overflow-y: hidden;
+  }
+}

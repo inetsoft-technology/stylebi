@@ -1,0 +1,48 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="action-options">
+  <em-schedule-task-select [tasks]="tasks" [selectedTaskName]="selectedTaskName"
+                           (selectedChange)="selectedTaskNameChange($event)"></em-schedule-task-select>
+
+  <mat-card appearance="outlined" *ngIf="selectedTaskName" class="em-card fill-width">
+    <mat-card-title class="mat-card-title">
+      _#(Parameters)
+    </mat-card-title>
+    <mat-card-content class="parameters-card-content">
+      <div class="flex-row">
+        <mat-checkbox class="mat-checkbox-field margin-right" [(ngModel)]="actionModel.embeddedEnabled" (change)="fireModelChanged()">
+          _#(Embedded)
+        </mat-checkbox>
+        <button mat-button (click)="editEmbedded()" [disabled]="!actionModel || !actionModel.taskName || !actionModel.embeddedEnabled || loadingParameterNames">
+          _#(Edit)
+        </button>
+      </div>
+
+      <div class="flex-row">
+        <mat-checkbox class="mat-checkbox-field margin-right" [(ngModel)]="actionModel.queryEnabled" (change)="fireModelChanged()">
+          _#(Query)
+        </mat-checkbox>
+        <button mat-button (click)="editQuery()" [disabled]="!actionModel || !actionModel.taskName || !actionModel.queryEnabled || loadingParameterNames">
+          _#(Edit)
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg  xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="200" height="200" viewBox="0 0 200 200" overflow="visible" enable-background="new 0 0 200 200" xml:space="preserve">
+		<g id="Layer_1">
+			<linearGradient id="XMLID_4_" gradientUnits="userSpaceOnUse" x1="100" y1="200" x2="100" y2="4.882813e-004">
+				<stop  offset="0.0169" style="stop-color:#C1E7E1"/>
+				<stop  offset="0.191" style="stop-color:#FFFFFF"/>
+				<stop  offset="0.6643" style="stop-color:#D3F6EE"/>
+				<stop  offset="1" style="stop-color:#B8F0E3"/>
+				<a:midPointStop  offset="0.0169" style="stop-color:#C1E7E1"/>
+				<a:midPointStop  offset="0.5" style="stop-color:#C1E7E1"/>
+				<a:midPointStop  offset="0.191" style="stop-color:#FFFFFF"/>
+				<a:midPointStop  offset="0.4653" style="stop-color:#FFFFFF"/>
+				<a:midPointStop  offset="1" style="stop-color:#B8F0E3"/>
+			</linearGradient>
+			<rect opacity="0" fill="url(#XMLID_4_)" width="200" height="200"/> 
+			<g>
+				
+					<image opacity="0.6"  a:adobe-blending-mode="multiply"  a:adobe-opacity-share="1" width="59" height="16" id="XMLID_5_" xlink:href="data:;base64,iVBORw0KGgoAAAANSUhEUgAAADsAAAAQCAYAAACoTgdGAAAACXBIWXMAAAsSAAALEgHS3X78AAAA
+BGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAITSURB
+VHjaYmTADhjR+P8ZhgEACCBGLHwQZoJimEdB+N8Q8dN/XBEEEEAsWDzLCsTsQMwB9fBfIP4Npf8P
+ck/CIuUvknvhbgYIIBY0j4L4XEAsBMUcUI/+BOJfgzx2YZ78AcTfofgXciQBBBCyZ0GxyAbEgkCs
+AMSKQMwPNeQ71MN/B3Gs/oO68SMQvwLi11D2D6jcf4AAYkGKVZBnOYFYGIiVgFgXiCWBmBkau79h
+mgaph0ER8RWIXwLxPSC+jRTboBj+DxBAyDHLjORZWSBWAWI5aFL+h4QHtJDBA/5APfsMmmK/QmP2
+GzSiGAACCD1mQYUTNxALQPOsCJTPiMUB/2mY95DxfyLt+guNmJ/QrMgDLWiZYLUMQACxEKiWmKEB
+wEyhQ0iJUViy+4lUwPwjIWbfAvF7IP4CNQPuToAAYkHL4L+Rov8TEH+GepQFyUByHEJKrP6CuuET
+lP5FZFmBnmefQc34BdMLEEAsaIpBpe47IH4KxA+gHhWCxu5/ChxCSiHzA2r+eyj9g4haAFdp/Bka
+gWD3AQQQesyCPPsGGjJsUI38UM/+I9MhpFYfuAKU3HoWHhkAAcSIpfXEAy2YJKCxygWNYUocQmrD
+ADmr/CEy5RBsQQEEEHrbGFYic0I9yQmNfUYchccfGhRQ/7EUhFSptgACCF9HgAW52KaSQ2hZzxIE
+AAHESECckV4OoQcACDAAEkDngQPgRLMAAAAASUVORK5CYII=" transform="matrix(1 0 0 1 94.2241 92.3018)"/>
+				<g>
+					
+						<linearGradient id="XMLID_6_" gradientUnits="userSpaceOnUse" x1="124.5801" y1="100.1499" x2="124.5801" y2="93.9248" gradientTransform="matrix(1 -0.0087 0.0087 1 -1.6166 3.3307)">
+						<stop  offset="0" style="stop-color:#FF881F"/>
+						<stop  offset="1" style="stop-color:#DF1800"/>
+						<a:midPointStop  offset="0" style="stop-color:#FF881F"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#FF881F"/>
+						<a:midPointStop  offset="1" style="stop-color:#DF1800"/>
+					</linearGradient>
+					<path fill="url(#XMLID_6_)" d="M148.341,99.077c0.007,0.941-0.764,1.712-1.725,1.72l-45.577,1.799
+						c-0.96,0.008-1.758-2.156-1.766-3.098l0,0c-0.009-0.943,0.75-3.118,1.709-3.127l45.604,1.013
+						C147.546,97.375,148.331,98.132,148.341,99.077L148.341,99.077z"/>
+				</g>
+			</g>
+			
+				<linearGradient id="XMLID_7_" gradientUnits="userSpaceOnUse" x1="132.6431" y1="98.5127" x2="132.6431" y2="100.0449" gradientTransform="matrix(1 0.0059 -0.0059 1 0.8019 -1.6904)">
+				<stop  offset="0" style="stop-color:#FFB30A"/>
+				<stop  offset="1" style="stop-color:#EC4E08"/>
+				<a:midPointStop  offset="0" style="stop-color:#FFB30A"/>
+				<a:midPointStop  offset="0.5" style="stop-color:#FFB30A"/>
+				<a:midPointStop  offset="1" style="stop-color:#EC4E08"/>
+			</linearGradient>
+			<path fill="url(#XMLID_7_)" d="M147.456,98.839c-0.001,0.202-0.169,0.365-0.375,0.363l-28.45-0.149
+				c-0.207,0-0.372-0.166-0.371-0.369l0.004-0.794c0.001-0.204,0.17-0.367,0.376-0.366l27.574,0.159
+				c0.207,0.002,0.373,0.167,0.371,0.369L147.456,98.839z"/>
+		</g>
+	</svg>

@@ -1,0 +1,342 @@
+{
+  "endpoints": [
+    {
+      "paged": "false",
+      "name": "Attachment",
+      "suffix": "/2.0/sheets/{Sheet ID}/attachments/{Attachment ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Attachments",
+      "suffix": "/2.0/sheets/{Sheet ID}/attachments",
+      "lookups": [
+        {
+          "endpoint": "Versions",
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Attachment ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Discussion Attachments",
+      "suffix": "/2.0/sheets/{Sheet ID}/discussions/{Discussion ID}/attachments"
+    },
+    {
+      "paged": "true",
+      "name": "Row Attachments",
+      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/attachments"
+    },
+    {
+      "paged": "true",
+      "name": "Versions",
+      "suffix": "/2.0/sheets/{Sheet ID}/attachments/{Attachment ID}/versions"
+    },
+    {
+      "paged": "false",
+      "name": "Automation Rule",
+      "suffix": "/2.0/sheets/{Sheet ID}/automationrules/{Automation Rule ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Automation Rules",
+      "suffix": "/2.0/sheets/{Sheet ID}/automationrules"
+    },
+    {
+      "paged": "true",
+      "name": "Cell History",
+      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/columns/{Column ID}/history?include={Include?:columnType,objectValue}&level={Level?}"
+    },
+    {
+      "paged": "false",
+      "name": "Column",
+      "suffix": "/2.0/sheets/{Sheet ID}/columns/{Column ID}?level={Level?}"
+    },
+    {
+      "paged": "true",
+      "name": "Columns",
+      "suffix": "/2.0/sheets/{Sheet ID}/columns?level={Level?}"
+    },
+    {
+      "paged": "false",
+      "name": "Comment",
+      "suffix": "/2.0/sheets/{Sheet ID}/comments/{Comment ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Contact",
+      "suffix": "/2.0/contacts/{Contact ID}?include={Include?:profileImage}"
+    },
+    {
+      "paged": "true",
+      "name": "Contacts",
+      "suffix": "/2.0/contacts"
+    },
+    {
+      "paged": "false",
+      "name": "Cross-sheet Reference",
+      "suffix": "/2.0/sheets/{Sheet ID}/crosssheetreferences/{Cross Sheet Reference ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Cross-sheet References",
+      "suffix": "/2.0/sheets/{Sheet ID}/crosssheetreferences"
+    },
+    {
+      "paged": "true",
+      "name": "Discussions",
+      "suffix": "/2.0/sheets/{Sheet ID}/discussions?include={Include?:attachments,comments}"
+    },
+    {
+      "paged": "false",
+      "name": "Discussion",
+      "suffix": "/2.0/sheets/{Sheet ID}/discussions/{Discussion ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Row Discussions",
+      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}/discussions?include={Include?:attachments,comments}"
+    },
+    {
+      "paged": "true",
+      "name": "Favorites",
+      "suffix": "/2.0/favorites"
+    },
+    {
+      "paged": "false",
+      "name": "Folder",
+      "suffix": "/2.0/folders/{Folder ID}?include={Include?:ownerInfo,sheetVersion,source}"
+    },
+    {
+      "paged": "true",
+      "name": "Sheet Folders",
+      "suffix": "/2.0/home/folders"
+    },
+    {
+      "paged": "true",
+      "name": "Subfolders",
+      "suffix": "/2.0/folders/{Folder ID}/folders"
+    },
+    {
+      "paged": "true",
+      "name": "Workspace Folders",
+      "suffix": "/2.0/workspaces/{Workspace ID}/folders"
+    },
+    {
+      "paged": "false",
+      "name": "Group",
+      "suffix": "/2.0/groups/{Group ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Groups",
+      "suffix": "/2.0/groups"
+    },
+    {
+      "paged": "false",
+      "name": "Contents",
+      "suffix": "/2.0/home?include={Include?:source}&exclude={Exclude?:permalinks}"
+    },
+    {
+      "paged": "true",
+      "name": "Report",
+      "suffix": "/2.0/reports/{Report ID}?include={Include?:attachments,discussions...}&exclude={Exclude?:linkInFromCellDetails,linksOutToCellsDetails}&level={Level?}"
+    },
+    {
+      "paged": "true",
+      "name": "Reports",
+      "suffix": "/2.0/reports?modifiedSince={Modified Since?:YYYY-MM-DDTHH:MM:SSZ}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Report Shares",
+            "Report Publish Status"
+          ],
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Report ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Report Publish Status",
+      "suffix": "/2.0/reports/{Report ID}/publish"
+    },
+    {
+      "paged": "false",
+      "name": "Row",
+      "suffix": "/2.0/sheets/{Sheet ID}/rows/{Row ID}?include={Include?:attachments,columnType...}&exclude={Exclude?:linkInFromCellDetails,linksOutToCellsDetails...}&level={Level?}"
+    },
+    {
+      "paged": "false",
+      "name": "Search Everything",
+      "suffix": "/2.0/search?query={Query}&include={Include?:favorite,parentObjectFavorite}&location={Location?}&modifiedSince={Modified Since?:YYYY-MM-DDTHH:MM:SSZ}&scopes={Scopes?:attachments,cellData...}"
+    },
+    {
+      "paged": "false",
+      "name": "Search Sheet",
+      "suffix": "/2.0/search/sheets/{Sheet ID}?query={Query}"
+    },
+    {
+      "paged": "false",
+      "name": "Server Info",
+      "suffix": "/2.0/serverinfo"
+    },
+    {
+      "paged": "false",
+      "name": "Report Share",
+      "suffix": "/2.0/reports/{Report ID}/shares/{Share ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Report Shares",
+      "suffix": "/2.0/reports/{Report ID}/shares?include={Include?:workspaceShares}"
+    },
+    {
+      "paged": "false",
+      "name": "Sheet Share",
+      "suffix": "/2.0/sheets/{Sheet ID}/shares/{Share ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Sheet Shares",
+      "suffix": "/2.0/sheets/{Sheet ID}/shares?include={Include?:workspaceShares}"
+    },
+    {
+      "paged": "false",
+      "name": "Sheet Version",
+      "suffix": "/2.0/sheets/{Sheet ID}/version"
+    },
+    {
+      "paged": "true",
+      "name": "Sheet",
+      "suffix": "/2.0/sheets/{Sheet ID}?include={Include?:attachments,crossSheetReferences...}&exclude={Exclude?:filteredOutRows,linkInFromCellDetails...}&columnIds={Column IDs?:value1,value2...}&filterId={Filter ID?}&ifVersionAfter={If Version After?:version}&level={Level?}&rowIds={Row IDs?:value1,value2...}&rowNumbers={Row Numbers?:value1,value2...}&rowsModifiedSince={Rows Modified Since?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Sheets",
+      "suffix": "/2.0/users/sheets?modifiedSince={Modified Since?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "paged": "true",
+      "name": "Sheets",
+      "suffix": "/2.0/sheets?include={Include?:sheetVersion,source}&modifiedSince={Modified Since?:YYYY-MM-DDTHH:MM:SSZ}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Attachments",
+            "Automation Rules",
+            "Columns",
+            "Cross-sheet References",
+            "Discussions",
+            "Sheet Shares",
+            "Sheet Version",
+            "Sheet Publish Status",
+            "Sheet Summary",
+            "Summary Fields",
+            "Update Requests",
+            "Sent Update Requests"
+          ],
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Sheet ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Sheet Publish Status",
+      "suffix": "/2.0/sheets/{Sheet ID}/publish"
+    },
+    {
+      "paged": "false",
+      "name": "Sheet Summary",
+      "suffix": "/2.0/sheets/{Sheet ID}/summ?include={Include?:format,writerInfo}&exclude={Exclude?:displayValue,image,imageAltText}"
+    },
+    {
+      "paged": "true",
+      "name": "Summary Fields",
+      "suffix": "/2.0/sheets/{Sheet ID}/summary/fields?include={Include?:format,writerInfo}&exclude={Exclude?:displayValue,image,imageAltText}"
+    },
+    {
+      "paged": "false",
+      "name": "Sight",
+      "suffix": "/2.0/sights/{Sight ID}?include={Include?:source}&level={Level?}&objectValue={Object Value?}"
+    },
+    {
+      "paged": "true",
+      "name": "Sights",
+      "suffix": "/2.0/sights?modifiedSince={Modified Since?:YYYY-MM-DDTHH:MM:SSZ}",
+      "lookups": [
+        {
+          "endpoint": "Sight Publish Status",
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Sight ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Sight Publish Status",
+      "suffix": "/2.0/sights/{Sight ID}/publish"
+    },
+    {
+      "paged": "true",
+      "name": "Public Templates",
+      "suffix": "/2.0/templates/public"
+    },
+    {
+      "paged": "true",
+      "name": "User-created Templates",
+      "suffix": "/2.0/templates"
+    },
+    {
+      "paged": "false",
+      "name": "Update Request",
+      "suffix": "/2.0/sheets/{Sheet ID}/updaterequests/{Update Request ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Update Requests",
+      "suffix": "/2.0/sheets/{Sheet ID}/updaterequests"
+    },
+    {
+      "paged": "false",
+      "name": "Sent Update Request",
+      "suffix": "/2.0/sheets/{Sheet ID}/sentupdaterequests/{Sent Update Request ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Sent Update Requests",
+      "suffix": "/2.0/sheets/{Sheet ID}/sentupdaterequests"
+    },
+    {
+      "paged": "false",
+      "name": "Current User",
+      "suffix": "/2.0/users/me?include={Include?:groups}"
+    },
+    {
+      "paged": "false",
+      "name": "User",
+      "suffix": "/2.0/users/{User ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Users",
+      "suffix": "/2.0/users?email={Email?}&include={Include?:lastLogin}"
+    },
+    {
+      "paged": "false",
+      "name": "Workspace",
+      "suffix": "/2.0/workspaces/{Workspace ID}?loadAll={Load All?:true|false}&include={Include?:ownerInfo,source,sheetVersion}"
+    },
+    {
+      "paged": "true",
+      "name": "Workspaces",
+      "suffix": "/2.0/workspaces"
+    }
+  ]
+}

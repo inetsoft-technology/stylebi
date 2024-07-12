@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1"
+	 id="svg5512" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:svg="http://www.w3.org/2000/svg" inkscape:version="0.92.0 r15299" sodipodi:docname="stripe.svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+	 xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="64px" height="30px"
+	 viewBox="0 0 64 30" enable-background="new 0 0 64 30" xml:space="preserve">
+<sodipodi:namedview  units="px" id="base" inkscape:window-maximized="1" inkscape:pageopacity="0.0" inkscape:pageshadow="2" inkscape:window-x="-4" inkscape:window-height="744" inkscape:window-width="1280" fit-margin-right="0" fit-margin-bottom="0" inkscape:current-layer="layer1" inkscape:window-y="-4" fit-margin-top="0" inkscape:cy="74.899999" pagecolor="#ffffff" bordercolor="#666666" inkscape:zoom="2.2277778" showgrid="false" fit-margin-left="0" inkscape:cx="180" borderopacity="1.0" inkscape:document-units="mm">
+	</sodipodi:namedview>
+<g id="layer1" transform="translate(24.946428,-325.0345)" inkscape:groupmode="layer" inkscape:label="Layer 1">
+	<g id="Stripe" transform="matrix(0.26458333,0,0,0.26458333,-38.969344,315.77409)">
+		<path id="path5516" inkscape:connector-curvature="0" d="M247.417,92.715c0-10.455-5.057-18.698-14.731-18.698
+			c-9.718,0-15.594,8.244-15.594,18.613c0,12.287,6.939,18.488,16.897,18.488c4.857,0,8.53-1.1,11.309-2.646v-8.161
+			c-2.779,1.384-5.961,2.24-10.002,2.24c-3.957,0-7.467-1.388-7.917-6.201h19.961C247.34,95.812,247.417,93.693,247.417,92.715z
+			 M227.261,88.834c0-4.612,2.809-6.529,5.381-6.529c2.495,0,5.145,1.917,5.145,6.529H227.261z"/>
+		<path id="path5518" inkscape:connector-curvature="0" d="M201.336,74.019c-3.997,0-6.574,1.879-8.002,3.187l-0.531-2.532h-8.976
+			v47.598l10.202-2.17l0.041-11.549c1.473,1.063,3.636,2.573,7.231,2.573c7.301,0,13.955-5.88,13.955-18.82
+			C215.217,80.469,208.478,74.019,201.336,74.019L201.336,74.019z M198.889,102.146c-2.406,0-3.835-0.86-4.82-1.923l-0.041-15.144
+			c1.063-1.183,2.532-1.999,4.861-1.999c3.713,0,6.289,4.165,6.289,9.51C205.178,98.06,202.639,102.146,198.889,102.146z"/>
+		<polygon id="polygon5520" points="180.028,69.407 180.028,61.117 169.784,63.284 169.784,71.612 		"/>
+		<rect id="rect5522" x="169.784" y="74.713" width="10.244" height="35.715"/>
+		<path id="path5524" inkscape:connector-curvature="0" d="M158.803,77.734l-0.653-3.021h-8.818v35.715h10.205V86.225
+			c2.407-3.145,6.489-2.573,7.755-2.126v-9.386C165.986,74.222,161.211,73.327,158.803,77.734L158.803,77.734z"/>
+		<path id="path5526" inkscape:connector-curvature="0" d="M138.394,65.853l-9.962,2.12l-0.037,32.704
+			c0,6.042,4.529,10.49,10.573,10.49c3.344,0,5.793-0.616,7.144-1.351v-8.282c-1.308,0.531-7.758,2.403-7.758-3.632V83.405h7.758
+			v-8.692h-7.758L138.394,65.853z"/>
+		<path id="path5528" inkscape:connector-curvature="0" d="M110.798,85.079c0-1.591,1.307-2.202,3.469-2.202
+			c3.104,0,7.022,0.939,10.124,2.61v-9.591c-3.388-1.347-6.736-1.879-10.124-1.879c-8.284,0-13.797,4.326-13.797,11.555
+			c0,11.259,15.511,9.469,15.511,14.323c0,1.882-1.635,2.491-3.914,2.491c-3.39,0-7.718-1.384-11.145-3.263v9.718
+			c3.794,1.631,7.631,2.325,11.145,2.325c8.487,0,14.325-4.208,14.325-11.512C126.352,87.487,110.798,89.654,110.798,85.079z"/>
+	</g>
+</g>
+</svg>

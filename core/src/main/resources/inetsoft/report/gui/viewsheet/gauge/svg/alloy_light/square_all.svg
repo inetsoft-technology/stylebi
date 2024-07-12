@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="200px" height="200px" viewBox="0 0 200 200" enable-background="new 0 0 200 200" xml:space="preserve">
+<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="100.0005" y1="200.0005" x2="100.0005" y2="4.882813e-004">
+	<stop  offset="0" style="stop-color:#D6D6D6"/>
+	<stop  offset="0.01" style="stop-color:#D2D2D2"/>
+	<stop  offset="0.1212" style="stop-color:#A4A5A8"/>
+	<stop  offset="0.2278" style="stop-color:#808286"/>
+	<stop  offset="0.3275" style="stop-color:#67696E"/>
+	<stop  offset="0.4173" style="stop-color:#575960"/>
+	<stop  offset="0.489" style="stop-color:#52545B"/>
+	<stop  offset="0.5611" style="stop-color:#595B61"/>
+	<stop  offset="0.6658" style="stop-color:#6C6E73"/>
+	<stop  offset="0.7906" style="stop-color:#8C8D91"/>
+	<stop  offset="0.9296" style="stop-color:#B8B8BA"/>
+	<stop  offset="1" style="stop-color:#D1D1D1"/>
+</linearGradient>
+<path fill="url(#SVGID_1_)" d="M200,179.468c0,11.339-8.606,20.532-19.223,20.532H19.223C8.606,200,0,190.807,0,179.468V20.532
+	C0,9.192,8.606,0,19.223,0h161.554C191.394,0,200,9.192,200,20.532V179.468z"/>
+<path fill="#404040" d="M186.698,168.896c0,9.831-7.461,17.802-16.666,17.802H29.969c-9.205,0-16.666-7.971-16.666-17.802V31.104
+	c0-9.832,7.461-17.802,16.666-17.802h140.063c9.205,0,16.666,7.97,16.666,17.802V168.896z"/>
+<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="100.0005" y1="184.8452" x2="100.0005" y2="15.1553">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.1559" style="stop-color:#F2F2F2"/>
+	<stop  offset="0.442" style="stop-color:#D1D1D1"/>
+	<stop  offset="0.5" style="stop-color:#C9C9C9"/>
+	<stop  offset="0.6028" style="stop-color:#D7D7D7"/>
+	<stop  offset="0.8557" style="stop-color:#F4F4F4"/>
+	<stop  offset="1" style="stop-color:#FFFFFF"/>
+</linearGradient>
+<path fill="url(#SVGID_2_)" d="M184.846,167.425c0,9.62-7.302,17.42-16.31,17.42H31.465c-9.008,0-16.31-7.8-16.31-17.42V32.575
+	c0-9.621,7.302-17.42,16.31-17.42h137.071c9.008,0,16.31,7.799,16.31,17.42V167.425z"/>
+<g opacity="0.7">
+	<g>
+		<linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="100.4478" y1="179.5356" x2="100.4477" y2="36.4766">
+			<stop  offset="0" style="stop-color:#FFFFFF"/>
+			<stop  offset="0.0392" style="stop-color:#F1F1F1"/>
+			<stop  offset="0.2623" style="stop-color:#A3A3A3"/>
+			<stop  offset="0.4214" style="stop-color:#737373"/>
+			<stop  offset="0.5" style="stop-color:#606060"/>
+			<stop  offset="1" style="stop-color:#FFFFFF"/>
+		</linearGradient>
+		<path fill="url(#SVGID_3_)" d="M166.113,107.053c0-38.98-29.953-70.577-66.901-70.577c-36.949,0-66.901,31.597-66.901,70.577
+			c0,11.969,2.833,23.236,7.817,33.112c0.774,3.059,3.384,5.313,6.493,5.313c3.719,0,6.734-3.22,6.734-7.191
+			c0-1.313-0.334-2.539-0.909-3.599l0.041-0.019c-4.347-8.168-6.836-17.583-6.836-27.616c0-31.208,23.981-56.506,53.563-56.506
+			s53.562,25.298,53.562,56.506c0,9.295-2.149,18.051-5.918,25.784c-0.639,1.093-1.014,2.379-1.014,3.761
+			c0,3.931,2.983,7.119,6.665,7.119c2.833,0,5.247-1.892,6.212-4.553l0.05,0.023C163.454,129.547,166.113,118.631,166.113,107.053z"
+			/>
+	</g>
+</g>
+<g>
+	<path fill="none" stroke="#06FF00" stroke-width="6" stroke-linecap="round" d="M56.482,137.811
+		c-6.669-9.07-10.622-20.349-10.622-32.57"/>
+	<path fill="none" stroke="#06FF00" stroke-width="6" stroke-linecap="round" d="M45.86,105.241
+		c0-29.963,23.755-54.252,53.059-54.252c29.305,0,53.058,24.289,53.058,54.252c0,12.114-3.883,23.303-10.446,32.331"/>
+	<path fill="none" stroke="#06FF00" stroke-width="6" stroke-linecap="round" d="M151.977,105.241
+		c0,12.114-3.883,23.303-10.446,32.331"/>
+</g>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="99.517" cy="43.152" rx="2.625" ry="2.805"/>
+<ellipse fill="none" cx="98.62" cy="107.762" rx="74.289" ry="79.348"/>
+<text transform="matrix(-0.6822 -0.6412 0.6849 -0.7286 50.5845 168.311)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.6585 -0.6656 0.7109 -0.7033 48.5532 166.4009)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.6338 -0.6891 0.7361 -0.6769 46.5684 164.396)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.6086 -0.7115 0.7599 -0.65 44.6729 162.3345)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.5827 -0.7328 0.7827 -0.6224 42.8481 160.2007)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.5565 -0.7529 0.8042 -0.5944 41.1128 158.019)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.5294 -0.7722 0.8248 -0.5654 39.4341 155.7485)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.5019 -0.7903 0.8442 -0.5361 37.8486 153.4341)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.4739 -0.8075 0.8624 -0.5062 36.3398 151.0591)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.4456 -0.8234 0.8795 -0.476 34.9243 148.6479)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.4168 -0.8384 0.8954 -0.4452 33.5898 146.1792)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.3878 -0.8522 0.9102 -0.4142 32.3477 143.6831)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.358 -0.8651 0.924 -0.3824 31.1763 141.1069)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.3133 -0.8823 0.9423 -0.3347 30.0757 138.5435)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">0</text>
+<text transform="matrix(-0.2677 -0.8972 0.9583 -0.2859 28.2261 133.2251)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.2373 -0.9057 0.9674 -0.2534 27.4268 130.5474)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.2065 -0.9132 0.9754 -0.2206 26.7144 127.8296)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.1758 -0.9196 0.9822 -0.1878 26.0977 125.1011)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.1449 -0.925 0.988 -0.1548 25.5698 122.3384)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.1141 -0.9293 0.9925 -0.1218 25.1362 119.5698)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.0834 -0.9325 0.996 -0.0891 24.7964 116.8042)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.0527 -0.9348 0.9984 -0.0563 24.5459 114.0063)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.0222 -0.936 0.9997 -0.0237 24.3887 111.2134)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.0236 -0.9359 0.9997 0.0252 24.2876 108.3931)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">1</text>
+<text transform="matrix(0.0848 -0.9324 0.9959 0.0906 24.4287 102.7896)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">0</text>
+<text transform="matrix(0.1312 -0.927 0.9901 0.1401 24.9727 97.1909)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.1619 -0.9221 0.9849 0.1729 25.3638 94.4277)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.1927 -0.9162 0.9786 0.2058 25.8486 91.666)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.2236 -0.9092 0.9711 0.2388 26.4287 88.9082)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.2542 -0.9011 0.9624 0.2715 27.0977 86.188)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.2847 -0.8919 0.9526 0.3041 27.8628 83.4761)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.3149 -0.8817 0.9417 0.3364 28.7148 80.8066)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.3447 -0.8705 0.9298 0.3682 29.6523 78.1807)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.3744 -0.8581 0.9166 0.3999 30.6855 75.5728)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.4183 -0.8376 0.8946 0.4468 31.7769 72.98)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">2</text>
+<text transform="matrix(0.4757 -0.8064 0.8613 0.508 34.293 67.9419)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">0</text>
+<text transform="matrix(0.5171 -0.7805 0.8336 0.5524 37.1655 63.144)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.5443 -0.7618 0.8137 0.5813 38.7114 60.8101)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.5711 -0.7419 0.7924 0.6099 40.3506 58.5161)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.5972 -0.721 0.7701 0.6379 42.0659 56.2886)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.6227 -0.6992 0.7468 0.6651 43.854 54.1284)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.6475 -0.6763 0.7223 0.6915 45.7139 52.04)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.6718 -0.6521 0.6965 0.7175 47.6631 50.0044)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.6951 -0.6273 0.67 0.7424 49.6611 48.0645)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.7178 -0.6011 0.6421 0.7667 51.7451 46.1831)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.7503 -0.56 0.5981 0.8014 53.8677 44.355)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">3</text>
+<text transform="matrix(0.7906 -0.5014 0.5356 0.8445 58.3765 40.9893)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">0</text>
+<text transform="matrix(0.8183 -0.4548 0.4858 0.8741 63.1489 38.0103)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.8353 -0.4228 0.4516 0.8922 65.5938 36.6519)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.8512 -0.3899 0.4164 0.9092 68.0903 35.3872)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.8659 -0.3561 0.3803 0.9248 70.6377 34.2207)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.8793 -0.3215 0.3434 0.9392 73.2339 33.1533)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.8915 -0.2861 0.3056 0.9522 75.876 32.1865)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.9022 -0.2503 0.2674 0.9636 78.5361 31.333)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.9115 -0.2139 0.2285 0.9735 81.2368 30.5835)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.9194 -0.177 0.1891 0.982 83.978 29.9404)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.9284 -0.1213 0.1295 0.9916 86.7236 29.3682)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">4</text>
+<text transform="matrix(0.9351 -0.0467 0.0498 0.9988 92.2905 28.6411)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">0</text>
+<text transform="matrix(0.9361 0.0162 -0.0173 0.9998 97.9082 28.3931)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.9351 0.0463 -0.0494 0.9988 100.7168 28.4307)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.9325 0.0833 -0.089 0.996 103.499 28.5684)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.9284 0.1209 -0.1291 0.9916 106.3135 28.8203)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.9229 0.1578 -0.1685 0.9857 109.0693 29.1787)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.9157 0.195 -0.2082 0.9781 111.8516 29.6548)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.9071 0.2316 -0.2474 0.9689 114.5996 30.2397)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.8971 0.2677 -0.286 0.9582 117.3105 30.9321)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.8857 0.3035 -0.3242 0.946 120.0107 31.7378)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.8662 0.3554 -0.3796 0.9251 122.6563 32.5996)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">5</text>
+<text transform="matrix(0.8355 0.4225 -0.4513 0.8924 127.8652 34.7388)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">0</text>
+<text transform="matrix(0.8094 0.4705 -0.5026 0.8645 132.8691 37.3149)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.7908 0.5011 -0.5352 0.8447 135.2852 38.7202)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.7713 0.5308 -0.5669 0.8238 137.6465 40.2168)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.7507 0.5594 -0.5975 0.8018 139.9521 41.8032)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.7293 0.5871 -0.6271 0.7789 142.1992 43.4775)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.707 0.6138 -0.6556 0.7551 144.3857 45.2368)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.6839 0.6394 -0.683 0.7304 146.5068 47.0801)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.66 0.6641 -0.7093 0.7049 148.5635 49.0024)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.6355 0.6875 -0.7343 0.6788 150.5322 50.9839)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.5975 0.7208 -0.7699 0.6382 152.4697 53.0249)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">6</text>
+<text transform="matrix(0.5448 0.7614 -0.8133 0.5819 156.0469 57.3389)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">0</text>
+<text transform="matrix(0.5036 0.7892 -0.843 0.5379 159.2949 61.9448)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.4759 0.8062 -0.8612 0.5083 160.793 64.2915)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.4474 0.8224 -0.8784 0.4779 162.2285 66.7236)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.4186 0.8374 -0.8945 0.4471 163.5693 69.188)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.3897 0.8513 -0.9093 0.4162 164.8154 71.6816)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.3602 0.8642 -0.923 0.3848 165.9814 74.2261)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.3303 0.876 -0.9357 0.3528 167.0615 76.8223)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.3003 0.8868 -0.9471 0.3208 168.0488 79.437)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.2545 0.901 -0.9623 0.2718 168.9902 82.1079)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">7</text>
+<text transform="matrix(0.1931 0.9161 -0.9785 0.2062 170.5176 87.5171)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">0</text>
+<text transform="matrix(0.1469 0.9246 -0.9876 0.1569 171.6396 93.0049)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.1161 0.929 -0.9923 0.124 172.0781 95.7695)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.0852 0.9324 -0.9959 0.0909 172.4277 98.5669)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.0544 0.9347 -0.9983 0.0581 172.6826 101.3618)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(0.0239 0.9359 -0.9997 0.0256 172.8447 104.1538)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.0142 0.9361 -0.9999 -0.0152 172.9287 106.938)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.0368 0.9355 -0.9992 -0.0393 172.8975 109.7466)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.0675 0.9338 -0.9974 -0.0721 172.7871 112.563)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.0983 0.9311 -0.9945 -0.1049 172.584 115.354)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.1445 0.925 -0.988 -0.1544 172.3262 118.1479)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">8</text>
+<text transform="matrix(-0.2062 0.9133 -0.9754 -0.2202 171.46 123.6919)" fill="#404040" font-family="'ArialMT'" font-size="10.7817">0</text>
+<text transform="matrix(-0.2522 0.9016 -0.963 -0.2694 170.1885 129.1626)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.2828 0.8925 -0.9533 -0.302 169.4297 131.8745)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.313 0.8824 -0.9425 -0.3343 168.583 134.5483)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<text transform="matrix(-0.3428 0.8712 -0.9306 -0.3661 167.6504 137.1772)" fill="#404040" font-family="'ArialMT'" font-size="10.7817"> </text>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="41.983" cy="129.691" rx="2.626" ry="2.804"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="39.77" cy="119.936" rx="1.56" ry="1.666"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="38.823" cy="111.084" rx="1.56" ry="1.666"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="40.954" cy="89.333" rx="1.56" ry="1.667"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="43.795" cy="81.494" rx="1.56" ry="1.666"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="55.161" cy="62.525" rx="1.56" ry="1.667"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="61.318" cy="56.708" rx="1.56" ry="1.667"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="80.498" cy="46.591" rx="1.56" ry="1.667"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="88.785" cy="44.315" rx="1.56" ry="1.667"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="110.807" cy="44.062" rx="1.56" ry="1.666"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="119.804" cy="46.591" rx="1.56" ry="1.667"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="137.327" cy="57.213" rx="1.56" ry="1.667"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="143.957" cy="65.054" rx="1.56" ry="1.667"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="154.612" cy="81.24" rx="1.561" ry="1.666"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="157.454" cy="89.839" rx="1.56" ry="1.667"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="159.584" cy="111.337" rx="1.56" ry="1.666"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="157.454" cy="121.454" rx="1.56" ry="1.666"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="38.69" cy="99.67" rx="2.626" ry="2.804"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="49.075" cy="70.354" rx="2.626" ry="2.805"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="70.588" cy="50.811" rx="2.626" ry="2.805"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="129.931" cy="51.603" rx="2.625" ry="2.805"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="150.948" cy="72.731" rx="2.625" ry="2.805"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="159.603" cy="100.462" rx="2.625" ry="2.804"/>
+<ellipse fill="#FFFFFF" stroke="#5E5E5E" cx="154.41" cy="131.362" rx="2.626" ry="2.805"/>
+<linearGradient id="SVGID_4_" gradientUnits="userSpaceOnUse" x1="95.0972" y1="65.5132" x2="104.3213" y2="65.5132">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.1922" style="stop-color:#FFBEBE"/>
+	<stop  offset="0.4103" style="stop-color:#FF7B7B"/>
+	<stop  offset="0.6082" style="stop-color:#FF4646"/>
+	<stop  offset="0.7787" style="stop-color:#FF2020"/>
+	<stop  offset="0.9149" style="stop-color:#FF0909"/>
+	<stop  offset="1" style="stop-color:#FF0000"/>
+</linearGradient>
+<polygon fill="url(#SVGID_4_)" stroke="#8E8E8E" points="104.321,102.217 95.097,102.217 99.858,28.809 "/>
+<ellipse fill="#636363" cx="101.615" cy="101.415" rx="18.203" ry="19.442"/>
+<linearGradient id="SVGID_5_" gradientUnits="userSpaceOnUse" x1="86.8774" y1="86.5801" x2="113.5113" y2="113.214">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.0836" style="stop-color:#D2D2D4"/>
+	<stop  offset="0.1802" style="stop-color:#A4A5A9"/>
+	<stop  offset="0.273" style="stop-color:#808287"/>
+	<stop  offset="0.3596" style="stop-color:#67696F"/>
+	<stop  offset="0.4377" style="stop-color:#575960"/>
+	<stop  offset="0.5" style="stop-color:#52545B"/>
+	<stop  offset="0.5573" style="stop-color:#595B62"/>
+	<stop  offset="0.6405" style="stop-color:#6C6E74"/>
+	<stop  offset="0.7397" style="stop-color:#8C8E92"/>
+	<stop  offset="0.8511" style="stop-color:#B8B9BC"/>
+	<stop  offset="0.9713" style="stop-color:#F1F1F1"/>
+	<stop  offset="1" style="stop-color:#FFFFFF"/>
+</linearGradient>
+<ellipse fill="url(#SVGID_5_)" cx="100.194" cy="99.896" rx="18.203" ry="19.443"/>
+<linearGradient id="SVGID_6_" gradientUnits="userSpaceOnUse" x1="99.6509" y1="169.2183" x2="99.6509" y2="142.2065">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.1672" style="stop-color:#D2D2D4"/>
+	<stop  offset="0.3604" style="stop-color:#A4A5A9"/>
+	<stop  offset="0.5459" style="stop-color:#808287"/>
+	<stop  offset="0.7192" style="stop-color:#67696F"/>
+	<stop  offset="0.8755" style="stop-color:#575960"/>
+	<stop  offset="1" style="stop-color:#52545B"/>
+</linearGradient>
+<path fill="url(#SVGID_6_)" d="M129.888,167.701c0,0.838-0.637,1.518-1.421,1.518H70.834c-0.785,0-1.421-0.68-1.421-1.518v-23.977
+	c0-0.838,0.636-1.518,1.421-1.518h57.633c0.784,0,1.421,0.68,1.421,1.518V167.701z"/>
+<linearGradient id="SVGID_7_" gradientUnits="userSpaceOnUse" x1="99.8164" y1="143.9712" x2="99.8164" y2="167.4546">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.3118" style="stop-color:#F2F2F2"/>
+	<stop  offset="0.884" style="stop-color:#D1D1D1"/>
+	<stop  offset="1" style="stop-color:#C9C9C9"/>
+</linearGradient>
+<path fill="url(#SVGID_7_)" d="M128.937,166.134c0,0.729-0.612,1.32-1.368,1.32H72.065c-0.756,0-1.368-0.591-1.368-1.32v-20.844
+	c0-0.729,0.612-1.319,1.368-1.319h55.503c0.756,0,1.368,0.591,1.368,1.319V166.134z"/>
+<g>
+	<text transform="matrix(0.9362 0 0 1 81.5527 161.6646)" fill="#404040" font-family="'ArialMT'" font-size="18.2098">8566</text>
+</g>
+</svg>

@@ -1,0 +1,53 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="summary-chart-view">
+  <mat-card appearance="outlined" class="em-card fill-width">
+    <mat-card-header>
+      <h5 class="light-gray-bg table-cell-padding-sm m-0">
+        <span>{{info.title}}</span>
+      </h5>
+    </mat-card-header>
+
+    <div class="summary-chart-container" #chartContainer (resized)="updateChartUri()">
+      <img [src]="chartUri" [class.summary-chart-link]="chartLink" #chartImg
+           [style.display]="monitorLevelLabel != null || imageError ? 'none' : ''"
+           (error)="onImageError()"
+           (click)="onLinkClick.emit({link: chartLink, text: chartLink})">
+      <div *ngIf="monitorLevelLabel != null">
+        {{getMonitorLevelErrorMessage(monitorLevelLabel)}}
+        <a href="../em/settings/properties">_#(Go To Page)</a>
+      </div>
+      <div *ngIf="monitorLevelLabel == null && imageError">
+        _#(monitor.dashboard.imageInvisible2)
+      </div>
+    </div>
+
+    <div *ngIf="showLegends" class="summary-chart-legends">
+      <div class="summary-chart-legend-item" *ngFor="let legend of legends">
+        <div class="summary-chart-legend"
+             [style.background]="legend.color"
+             [class.summary-chart-link]="legend.link"
+             (click)="onLinkClick.emit({link: legend.link, text: legend.text})">
+        </div>
+        {{legend.text}}
+      </div>
+    </div>
+  </mat-card>
+</div>

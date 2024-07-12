@@ -1,0 +1,479 @@
+<!--
+
+    inetsoft-xml-formats - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.inetsoft.stylebi</groupId>
+    <artifactId>utils-parent</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>inetsoft-xml-formats</artifactId>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <poi.version>5.2.5</poi.version>
+    <batik.version>1.17</batik.version>
+    <xerces.version>2.12.2</xerces.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-core</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi</artifactId>
+      <version>${poi.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+      <exclusions>
+        <exclusion>
+          <groupId>junit</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-scratchpad</artifactId>
+      <version>${poi.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>${poi.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.xmlgraphics</groupId>
+          <artifactId>batik-all</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.apache.poi</groupId>
+          <artifactId>poi-ooxml-lite</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.bouncycastle</groupId>
+          <artifactId>bcpkix-jdk15on</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.bouncycastle</groupId>
+          <artifactId>bcprov-jdk15on</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>org.apache.commons</groupId>
+          <artifactId>commons-compress</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml-full</artifactId>
+      <version>${poi.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+      <exclusions>
+        <exclusion>
+          <groupId>junit</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-awt-util</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-bridge</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-codec</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-css</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>xmlgraphics-commons</artifactId>
+      <version>2.9</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-dom</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-ext</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-extension</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-gui-util</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-gvt</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-parser</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-script</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.xmlgraphics</groupId>
+          <artifactId>batik-js</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-svg-dom</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-svggen</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-swing</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-transcoder</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-util</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.apache.xmlgraphics</groupId>
+      <artifactId>batik-xml</artifactId>
+      <version>${batik.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>xerces</groupId>
+      <artifactId>xercesImpl</artifactId>
+      <version>${xerces.version}</version>
+      <scope>compile</scope>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.12.1</version>
+        <configuration>
+          <useIncrementalCompilation>false</useIncrementalCompilation>
+        </configuration>
+      </plugin><plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.2</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <shadedArtifactAttached>true</shadedArtifactAttached>
+              <artifactSet>
+                <includes>
+                  <include>com.github.virtuald</include>
+                  <include>com.zaxxer</include>
+                  <include>org.apache.poi:*</include>
+                  <include>org.apache.xmlbeans</include>
+                  <include>org.apache.xmlgraphics:*</include>
+                  <include>xerces:*</include>
+                  <include>xml-apis:xml-apis-ext</include>
+                </includes>
+              </artifactSet>
+              <relocations>
+                <relocation>
+                  <pattern>org.apache.batik</pattern>
+                  <shadedPattern>inetsoft.xml.org.apache.batik</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.html</pattern>
+                  <shadedPattern>inetsoft.xml.org.apache.html</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.poi</pattern>
+                  <shadedPattern>inetsoft.xml.org.apache.poi</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.wml</pattern>
+                  <shadedPattern>inetsoft.xml.org.apache.wml</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.xerces</pattern>
+                  <shadedPattern>inetsoft.xml.org.apache.xerces</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.xml</pattern>
+                  <shadedPattern>inetsoft.xml.org.apache.xml</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.xmlbeans</pattern>
+                  <shadedPattern>inetsoft.xml.org.apache.xmlbeans</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.apache.xmlgraphics</pattern>
+                  <shadedPattern>inetsoft.xml.org.apache.xmlgraphics</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.graphbuilder</pattern>
+                  <shadedPattern>inetsoft.xml.com.graphbuilder</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.microsoft</pattern>
+                  <shadedPattern>inetsoft.xml.com.microsoft</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>com.zaxxer</pattern>
+                  <shadedPattern>inetsoft.xml.com.zaxxer</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.etsi</pattern>
+                  <shadedPattern>inetsoft.xml.org.etsi</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.openxmlformats</pattern>
+                  <shadedPattern>inetsoft.xml.org.openxmlformats</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.w3.</pattern>
+                  <shadedPattern>inetsoft.xml.org.w3.</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.w3c.dom.html.HTMLDOM</pattern>
+                  <shadedPattern>inetsoft.xml.org.w3c.dom.html.HTMLDOM</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.w3c.dom.svg</pattern>
+                  <shadedPattern>inetsoft.xml.org.w3c.dom.svg</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.w3c.dom.smil</pattern>
+                  <shadedPattern>inetsoft.xml.org.w3c.dom.smil</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>org.w3c.css.sac</pattern>
+                  <shadedPattern>inetsoft.xml.org.w3c.css.sac</shadedPattern>
+                </relocation>
+                <relocation>
+                  <pattern>schemaorg_apache_xmlbeans</pattern>
+                  <shadedPattern>inetsoft.xml.schemaorg_apache_xmlbeans</shadedPattern>
+                </relocation>
+              </relocations>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>module-info.class</exclude>
+                    <exclude>META-INF/MANIFEST.MF</exclude>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                    <exclude>META-INF/LICENSE</exclude>
+                    <exclude>META-INF/LICENSE.txt</exclude>
+                    <exclude>META-INF/*-LICENSE</exclude>
+                    <exclude>META-INF/NOTICE</exclude>
+                    <exclude>META-INF/NOTICE.txt</exclude>
+                    <exclude>META-INF/*-NOTICE</exclude>
+                    <exclude>META-INF/license/LICENSE.*.txt</exclude>
+                    <exclude>META-INF/AL2.0</exclude>
+                    <exclude>META-INF/LGPL2.1</exclude>
+                    <exclude>META-INF/DEPENDENCIES</exclude>
+                    <exclude>META-INF/maven/**/*</exclude>
+                    <exclude>META-INF/native-image/**/*</exclude>
+                    <exclude>META-INF/proguard/**/*</exclude>
+                    <exclude>META-INF/versions/**/*</exclude>
+                    <exclude>**/BUILD.bazel</exclude>
+                    <exclude>org/apache/batik/util/resources/XMLResourceDescriptor.properties</exclude>
+                    <exclude>org/apache/xml/serializer/output_xml.properties</exclude>
+                    <exclude>META-INF/services/javax.xml.datatype.DatatypeFactory</exclude>
+                    <exclude>META-INF/services/javax.xml.parsers.DocumentBuilderFactory</exclude>
+                    <exclude>META-INF/services/javax.xml.parsers.SAXParserFactory</exclude>
+                    <exclude>META-INF/services/javax.xml.stream.XMLEventFactory</exclude>
+                    <exclude>META-INF/services/javax.xml.transform.TransformerFactory</exclude>
+                    <exclude>META-INF/services/javax.xml.transform.URIResolver</exclude>
+                    <exclude>META-INF/services/javax.xml.validation.SchemaFactory</exclude>
+                    <exclude>META-INF/services/javax.xml.xpath.XPathFactory</exclude>
+                  </excludes>
+                </filter>
+                <filter>
+                  <artifact>com.inetsoft.stylebi:inetsoft-xml-formats</artifact>
+                  <excludes>
+                    <exclude>**/*.proto</exclude>
+                    <exclude>META-INF/native/*</exclude>
+                    <exclude>META-INF/imports/*</exclude>
+                    <exclude>META-INF/*.kotlin_module</exclude>
+                    <exclude>font_metrics.properties</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <transformers>
+                <transformer implementation="com.inetsoft.build.shade.XsbTransformer"/>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.properties.PropertiesTransformer">
+                  <resource>META-INF/io.netty.versions.properties</resource>
+                </transformer>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+        <dependencies>
+          <dependency>
+            <groupId>com.inetsoft.stylebi.build</groupId>
+            <artifactId>maven-shade-transformers</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+          </dependency>
+        </dependencies>
+      </plugin>
+    </plugins>
+  </build>
+
+</project>

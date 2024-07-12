@@ -1,0 +1,75 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined">
+  <mat-card-content [formGroup]="form">
+    <div appearance="outline" color="accent" class="time-container">
+      <div class="time-content">
+        <mat-label class="mat-form-field-wrapper time-content-item">_#(Start Time)</mat-label>
+        <em-time-picker class="time-content-item" formControlName="startTime"
+                        [meridian]="showMeridian">
+        </em-time-picker>
+        <mat-hint class="mat-form-field-wrapper time-content-item">HH:mm {{ timeZoneLabel }}</mat-hint>
+      </div>
+      <mat-error *ngIf="form.controls.startTime?.errors">
+        _#(viewer.schedule.condition.startTimeValid)
+      </mat-error>
+    </div>
+    <div appearance="outline" color="accent" class="time-container">
+      <div class="time-content">
+        <mat-label class="mat-form-field-wrapper time-content-item">_#(End Time)</mat-label>
+        <em-time-picker class="start-time time-content-item" formControlName="endTime"
+                        [meridian]="showMeridian">
+        </em-time-picker>
+        <mat-hint class="mat-form-field-wrapper time-content-item">HH:mm {{ timeZoneLabel }}</mat-hint>
+      </div>
+      <mat-error *ngIf="form.controls.endTime?.errors">
+        _#(viewer.schedule.condition.endTimeValid)
+      </mat-error>
+      <mat-error *ngIf="form.errors?.timeChronological">
+        _#(viewer.schedule.condition.startEndValid)
+      </mat-error>
+    </div>
+    <em-time-zone-select formControlName="timeZone"
+                         [timeZoneOptions]="timeZoneOptions" [serverTimeZone]="timeZone"
+                         (labelChanged)="setTimeZoneLabel($event)" (changed)="fireModelChanged()">
+    </em-time-zone-select>
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(Interval)</mat-label>
+      <input matInput type="number" placeholder="_#(Interval)" step="0.01" formControlName="interval" (input)="fireModelChanged()"/>
+      <mat-hint>_#(Every) <i>n</i> _#(Hour_s)</mat-hint>
+      <mat-error>
+        _#(viewer.schedule.condition.hourValid)
+      </mat-error>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(Days of the Week)</mat-label>
+      <mat-select formControlName="weekdays" placeholder="_#(Days of the Week)" (selectionChange)="fireModelChanged()" multiple>
+        <mat-option [value]="1">_#(Sunday)</mat-option>
+        <mat-option [value]="2">_#(Monday)</mat-option>
+        <mat-option [value]="3">_#(Tuesday)</mat-option>
+        <mat-option [value]="4">_#(Wednesday)</mat-option>
+        <mat-option [value]="5">_#(Thursday)</mat-option>
+        <mat-option [value]="6">_#(Friday)</mat-option>
+        <mat-option [value]="7">_#(Saturday)</mat-option>
+      </mat-select>
+      <mat-error>_#(em.schedule.condition.weekdayRequired)</mat-error>
+    </mat-form-field>
+  </mat-card-content>
+</mat-card>

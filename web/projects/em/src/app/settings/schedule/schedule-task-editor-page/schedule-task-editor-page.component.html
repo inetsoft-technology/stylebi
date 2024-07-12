@@ -1,0 +1,124 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-editor-panel
+  contentClass="tabbed-editor-panel-content"
+  applyLabel="_#(Save)"
+  [applyDisabled]="!valid"
+  resetLabel="_#(Close)"
+  (applyClicked)="save()"
+  (resetClicked)="close()"
+>
+  <mat-form-field [formGroup]="form" appearance="outline" color="accent">
+    <mat-label>_#(Name)</mat-label>
+    <input matInput formControlName="taskName" (input)="taskChanged = true">
+    <mat-error *ngIf="form.controls.taskName?.errors?.required">_#(em.schedule.task.nameRequired)</mat-error>
+    <mat-error *ngIf="form.controls.taskName?.errors?.invalidTaskName">_#(em.schedule.task.nameInvalid)</mat-error>
+  </mat-form-field>
+  <mat-tab-group>
+    <mat-tab label="_#(Conditions)">
+      <div class="editor">
+        <div class="nav-pane">
+          <mat-card appearance="outlined">
+            <mat-card-content>
+              <mat-nav-list dense>
+                <mat-list-item *ngFor="let condition of conditionItems; let i = index" [class.mat-active]="selectedConditionIndex === i" (click)="selectCondition(i)">
+                  <a class="list-label" [class.mat-error]="!condition.valid" [matTooltip]="condition.label">
+                    {{ condition.label }}
+                  </a>
+                </mat-list-item>
+              </mat-nav-list>
+            </mat-card-content>
+            <mat-card-actions>
+              <button mat-stroked-button (click)="addCondition()">_#(Add)</button>
+              <button mat-button (click)="deleteConditions()" [disabled]="!canDeleteConditions">_#(Delete)</button>
+            </mat-card-actions>
+          </mat-card>
+        </div>
+        <div class="content-pane">
+          <em-task-condition-pane
+            *ngIf="condition"
+            [model]="model?.taskConditionPaneModel"
+            [condition]="condition"
+            [originalTaskName]="model?.name"
+            [timeZone]="model?.timeZone"
+            [timeZoneOptions]="model?.timeZoneOptions"
+            [taskDefaultTime]="model?.taskDefaultTime"
+            [timeRanges]="model?.timeRanges"
+            [startTimeEnabled]="model?.startTimeEnabled"
+            [timeRangeEnabled]="model?.timeRangeEnabled"
+            (modelChanged)="onConditionChanged($event)"
+          >
+          </em-task-condition-pane>
+          <mat-card appearance="outlined" *ngIf="!condition">
+            <mat-card-content>
+              <p>_#(em.schedule.selectCondition)</p>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </div>
+    </mat-tab>
+    <mat-tab label="_#(Actions)" [disabled]="model?.internalTask">
+      <ng-template matTabContent>
+        <div class="editor">
+          <div class="nav-pane">
+            <mat-card appearance="outlined">
+              <mat-card-content>
+                <mat-nav-list dense>
+                  <mat-list-item *ngFor="let action of actionItems; let i = index" [class.mat-active]="selectedActionIndex === i" (click)="selectAction(i)">
+                    <a class="list-label" [class.mat-error]="!action.valid" [matTooltip]="action.label">
+                      {{ action.label }}
+                    </a>
+                  </mat-list-item>
+                </mat-nav-list>
+              </mat-card-content>
+              <mat-card-actions>
+                <button mat-stroked-button (click)="addAction()">_#(Add)</button>
+                <button mat-button (click)="deleteActions()" [disabled]="!canDeleteActions">_#(Delete)</button>
+              </mat-card-actions>
+            </mat-card>
+          </div>
+          <div class="content-pane">
+            <em-schedule-task-action-pane
+                    *ngIf="action"
+                    [model]="model?.taskActionPaneModel"
+                    [action]="action"
+                    [originalTaskName]="model?.name"
+                    (modelChanged)="onActionChanged($event)"
+            >
+            </em-schedule-task-action-pane>
+            <mat-card appearance="outlined" *ngIf="!action">
+              <mat-card-content>
+                <p>_#(em.schedule.selectAction)</p>
+              </mat-card-content>
+            </mat-card>
+          </div>
+        </div>
+      </ng-template>
+    </mat-tab>
+    <mat-tab label="_#(Options)">
+      <em-task-options-pane
+        [model]="model?.taskOptionsPaneModel" [internal]="model?.internalTask"
+        (modelChanged)="onOptionsChanged($event)"
+      >
+      </em-task-options-pane>
+    </mat-tab>
+  </mat-tab-group>
+</em-editor-panel>
+<em-loading-spinner [loading]="loading"></em-loading-spinner>

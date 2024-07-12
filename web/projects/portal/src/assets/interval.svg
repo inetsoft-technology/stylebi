@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="Layer_1"
+   x="0px"
+   y="0px"
+   width="60px"
+   height="40px"
+   viewBox="-17.5 -8.5 60 40"
+   enable-background="new -17.5 -8.5 60 40"
+   xml:space="preserve"
+   sodipodi:docname="interval.svg"
+   inkscape:version="1.0.2 (e86c870879, 2021-01-15, custom)"><metadata
+   id="metadata42"><rdf:RDF><cc:Work
+       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /><dc:title /></cc:Work></rdf:RDF></metadata><defs
+   id="defs40" /><sodipodi:namedview
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="1146"
+   inkscape:window-height="798"
+   id="namedview38"
+   showgrid="false"
+   inkscape:zoom="20.533333"
+   inkscape:cx="30"
+   inkscape:cy="20"
+   inkscape:window-x="3750"
+   inkscape:window-y="389"
+   inkscape:window-maximized="0"
+   inkscape:current-layer="Layer_1"
+   inkscape:document-rotation="0" />
+<polyline
+   fill="#62A640"
+   points="14.618,13.617 9.383,13.617 9.383,-0.778 14.618,-0.778 14.618,13.617 "
+   id="polyline27" />
+<polyline
+   fill="#fc8f2a"
+   points="18.543,-0.778 23.777,-0.778 23.777,22.777 18.543,22.777 18.543,-0.778 "
+   id="polyline29"
+   transform="matrix(1,0,0,0.71738321,0,3.0767729)" />
+<rect
+   x="0.223"
+   y="9.6169996"
+   fill="#518db9"
+   width="5.2340002"
+   height="13.153506"
+   id="rect31"
+   style="stroke-width:1.19832" />
+<g
+   id="g35">
+	<path
+   fill="none"
+   stroke="#F0F0F0"
+   stroke-width="1.0648"
+   d="M41.5,28.37c0,1.172-0.958,2.13-2.13,2.13h-53.741   c-1.171,0-2.129-0.958-2.129-2.13V-5.371c0-1.171,0.958-2.129,2.129-2.129H39.37c1.172,0,2.13,0.958,2.13,2.129V28.37z"
+   id="path33" />
+</g>
+</svg>

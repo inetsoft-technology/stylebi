@@ -1,0 +1,55 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Show/Hide Columns)'"
+              (onCancel)="cancel()"
+              [cshid]="'ReorderingColumn'">
+</modal-header>
+<div class="modal-body" enterSubmit (onEnter)="ok()" *ngIf="model">
+  <w-large-form-field [search]="true"
+                      (onSearchChange)="search($event)"
+                      (onCloseSearch)="initSearchResults()">
+    <div class="bordered-box bd-gray bordered-box-md cols-container" largeFieldElement>
+      <div *ngIf="searchResults != null && searchResults.length > 0">
+        <div class="form-check mb-1" *ngFor="let result of searchResults; let _i = index;"
+             [wTooltip]="getTooltip(result.column)">
+          <input type="checkbox" class="form-check-input"
+                 [checked]="result.column.visible" [id]="getColumn(result.column)"
+                 (change)="changeColVisibility(result)">
+          <label class="form-check-label" [for]="getColumn(result.column)">
+            {{getColumn(result.column)}}
+          </label>
+        </div>
+      </div>
+      <span *ngIf="searchResults == null || searchResults.length == 0">
+        _#(composer.ws.noColumnsAvailable)
+      </span>
+    </div>
+    <ng-container largeFieldButtons>
+      <button type="button" class="btn btn-default btn-up"
+              (click)="showHideAll(true)">_#(Show All)</button>
+      <button type="button" class="btn btn-default btn-down"
+              (click)="showHideAll(false)">_#(Hide All)</button>
+    </ng-container>
+  </w-large-form-field>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" [disabled]="!isValid()" (click)="ok()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>

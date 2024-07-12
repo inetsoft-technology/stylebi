@@ -1,0 +1,88 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  .em-content-container {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow: hidden;
+
+    > .mat-mdc-card {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      flex-grow: 1;
+      flex-shrink: 1;
+      overflow: hidden;
+      width: 100%;
+
+      > .mat-mdc-card-title {
+        flex-grow: 0;
+        flex-shrink: 0;
+      }
+
+      > .mat-mdc-card-content {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        flex-grow: 1;
+        flex-shrink: 1;
+        overflow: hidden;
+
+        > * {
+          flex-grow: 0;
+          flex-shrink: 0;
+        }
+
+        > .sso-properties {
+          flex-grow: 1;
+          flex-shrink: 1;
+          overflow-y: auto;
+          overflow-x: hidden;
+
+          .roles-container {
+            display: flex;
+            flex-direction: row;
+            align-items: baseline;
+
+            > .mat-mdc-form-field {
+              flex-grow: 1;
+              flex-shrink: 1;
+            }
+
+            > .mat-mdc-icon-button {
+              flex-grow: 0;
+              flex-shrink: 0;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .none-apply {
+    display: block;
+    margin-top: 10px;
+  }
+
+  .mat-mdc-form-field {
+    display: block;
+  }
+}

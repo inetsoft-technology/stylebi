@@ -1,0 +1,317 @@
+{
+  "endpoints": [
+    {
+      "name": "Account Profile",
+      "paged": false,
+      "suffix": "/v1/account/profile"
+    },
+    {
+      "name": "Commissions",
+      "paged": true,
+      "suffix": "/v1/affiliates/commissions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&affiliateId={Affiliate ID?}"
+    },
+    {
+      "name": "Affiliate Model",
+      "paged": false,
+      "suffix": "/v1/affiliates/model"
+    },
+    {
+      "name": "Appointments",
+      "paged": true,
+      "suffix": "/v1/appointments?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID?}"
+    },
+    {
+      "name": "Appointment",
+      "paged": false,
+      "suffix": "/v1/appointments/{Appointment ID}"
+    },
+    {
+      "name": "Appointment Model",
+      "paged": false,
+      "suffix": "/v1/appointments/model"
+    },
+    {
+      "name": "Campaigns",
+      "paged": true,
+      "suffix": "/v1/campaigns?search_text={Search Text?}"
+    },
+    {
+      "name": "Campaign",
+      "paged": false,
+      "suffix": "/v1/campaigns/{Campaign ID}?optional_properties={Optional Properties?: value1,value2,...}"
+    },
+    {
+      "name": "Companies",
+      "paged": true,
+      "suffix": "/v1/companies?company_name={Company Name?}&optional_properties={Optional Properties?: value1,value2,...}"
+    },
+    {
+      "name": "Company Model",
+      "paged": false,
+      "suffix": "/v1/companies/model"
+    },
+    {
+      "name": "Contacts",
+      "paged": true,
+      "suffix": "/v1/contacts?email={Email?}&given_name={Given Name?}&family_name={Family Name?}&since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Credit Cards",
+            "Contact Emails",
+            "Applied Tags"
+          ],
+          "jsonPath": "$.contacts[*]",
+          "key": "id",
+          "parameterName": "Contact ID"
+        }
+      ]
+    },
+    {
+      "name": "Credit Cards",
+      "paged": false,
+      "suffix": "/v1/contacts/{Contact ID}/creditCards"
+    },
+    {
+      "name": "Contact Emails",
+      "paged": true,
+      "suffix": "/v1/contacts/{Contact ID}/emails?email={Email?}"
+    },
+    {
+      "name": "Applied Tags",
+      "paged": true,
+      "suffix": "/v1/contacts/{Contact ID}/tags"
+    },
+    {
+      "name": "Contact",
+      "paged": false,
+      "suffix": "/v1/contacts/{ID}?optional_properties={Optional Properties?: value1,value2,...}"
+    },
+    {
+      "name": "Contact Model",
+      "paged": false,
+      "suffix": "/v1/contacts/model"
+    },
+    {
+      "name": "Orders",
+      "paged": true,
+      "suffix": "/v1/orders?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&paid={Paid?:true | false}&contact_id={Contact ID}&product_id={Product ID}",
+      "lookups": [
+        {
+          "endpoint": "Order Transactions",
+          "jsonPath": "$.orders[*]",
+          "key": "id",
+          "parameterName": "Order ID"
+        }
+      ]
+    },
+    {
+      "name": "Order",
+      "paged": false,
+      "suffix": "/v1/orders/{Order ID}"
+    },
+    {
+      "name": "Order Transactions",
+      "paged": true,
+      "suffix": "/v1/orders/{Order ID}/transactions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID}"
+    },
+    {
+      "name": "Custom Order Model",
+      "paged": false,
+      "suffix": "/v1/orders/model"
+    },
+    {
+      "name": "Subscriptions",
+      "paged": true,
+      "suffix": "/v1/subscriptions?contact_id={Contact ID?}"
+    },
+    {
+      "name": "Subscription Model",
+      "paged": false,
+      "suffix": "/v1/subscriptions/model"
+    },
+    {
+      "name": "Transactions",
+      "paged": true,
+      "suffix": "/v1/transactions?since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&contact_id={Contact ID?}"
+    },
+    {
+      "name": "Transaction",
+      "paged": false,
+      "suffix": "/v1/transactions/{Transaction ID}"
+    },
+    {
+      "name": "Emails",
+      "paged": true,
+      "suffix": "/v1/emails?contact_id={Contact ID?}&email={Email?}&since_sent_date={Since Sent Date?:yyyy-MM-ddTHH:mm:ssZ}&until_sent_date={Until Sent Date?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "name": "Email",
+      "paged": false,
+      "suffix": "/v1/emails/{ID}"
+    },
+    {
+      "name": "Files",
+      "paged": true,
+      "suffix": "/v1/files?viewable={Viewable?:PUBLIC | PRIVATE | BOTH}&permission={Permission?:USER | COMPANY | BOTH}&type={Type?:Application | Image | Fax | ... }&name={Name?}&contact_id={Contact ID}"
+    },
+    {
+      "name": "File",
+      "paged": false,
+      "suffix": "/v1/files/{FileId}?optional_properties={Optional Properties?: value1,value2,...}"
+    },
+    {
+      "name": "Countries",
+      "paged": false,
+      "suffix": "/v1/locales/countries"
+    },
+    {
+      "name": "Country's Provinces",
+      "paged": false,
+      "suffix": "/v1/locales/countries/{Country Code}/provinces"
+    },
+    {
+      "name": "Merchants",
+      "paged": false,
+      "suffix": "/v1/merchants"
+    },
+    {
+      "name": "Notes",
+      "paged": true,
+      "suffix": "/v1/notes?user_id={User ID?}&contact_id={Contact ID?}"
+    },
+    {
+      "name": "Note",
+      "paged": false,
+      "suffix": "/v1/notes/{Note ID}"
+    },
+    {
+      "name": "Note Model",
+      "paged": false,
+      "suffix": "/v1/notes/model"
+    },
+    {
+      "name": "Opportunities",
+      "paged": true,
+      "suffix": "/v1/opportunities?user_id={User ID?}&stage_id={Stage ID?}&search_term={Search Term?}"
+    },
+    {
+      "name": "Opportunity",
+      "paged": false,
+      "suffix": "/v1/opportunities/{Opportunity ID}?optional_properties={Optional Properties?: value1,value2,...}"
+    },
+    {
+      "name": "Opportunity Model",
+      "paged": false,
+      "suffix": "/v1/opportunities/model"
+    },
+    {
+      "name": "Opportunity Stage Pipelines",
+      "paged": false,
+      "suffix": "/v1/opportunity/stage_pipeline"
+    },
+    {
+      "name": "Products",
+      "paged": true,
+      "suffix": "/v1/products?active={Active?:true | false}"
+    },
+    {
+      "name": "Product",
+      "paged": false,
+      "suffix": "/v1/products/{Product ID}"
+    },
+    {
+      "name": "Product Subscription",
+      "paged": false,
+      "suffix": "/v1/products/{Product ID}/subscriptions/{Subscription ID}"
+    },
+    {
+      "name": "Synced Products",
+      "paged": true,
+      "suffix": "/v1/products/sync?sync_token={Sync Token}"
+    },
+    {
+      "name": "Hook Event Types",
+      "paged": false,
+      "suffix": "/v1/hooks/event_keys"
+    },
+    {
+      "name": "Hook Subscriptions",
+      "paged": false,
+      "suffix": "/v1/hooks"
+    },
+    {
+      "name": "Hook Subscription",
+      "paged": false,
+      "suffix": "/v1/hooks/{Key}"
+    },
+    {
+      "name": "Application Status",
+      "paged": false,
+      "suffix": "/v1/setting/application/enabled"
+    },
+    {
+      "name": "Contact Types",
+      "paged": false,
+      "suffix": "/v1/setting/contact/optionTypes"
+    },
+    {
+      "name": "Tags",
+      "paged": true,
+      "suffix": "/v1/tags?category={Category?}&name={Name?}",
+      "lookups": [
+        {
+          "endpoints": ["Tagged Companies", "Tagged Contacts"],
+          "jsonPath": "$.tags[*]",
+          "key": "id",
+          "parameterName": "Tag ID"
+        }
+      ]
+    },
+    {
+      "name": "Tag",
+      "paged": false,
+      "suffix": "/v1/tags/{ID}"
+    },
+    {
+      "name": "Tagged Companies",
+      "paged": true,
+      "suffix": "/v1/tags/{Tag ID}/companies"
+    },
+    {
+      "name": "Tagged Contacts",
+      "paged": true,
+      "suffix": "/v1/tags/{Tag ID}/contacts"
+    },
+    {
+      "name": "Tasks",
+      "paged": true,
+      "suffix": "/v1/tasks?contact_id={Contact ID?}&has_due_date={Has Due Date?:true | false}&user_id={User ID?}&since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&completed={Completed?:true | false}"
+    },
+    {
+      "name": "Task",
+      "paged": false,
+      "suffix": "/v1/tasks/{Task ID}"
+    },
+    {
+      "name": "Task Model",
+      "paged": false,
+      "suffix": "/v1/tasks/model"
+    },
+    {
+      "name": "Search Tasks",
+      "paged": true,
+      "suffix": "/v1/tasks/search?contact_id={Contact ID?}&has_due_date={Has Due Date?:true | false}&user_id={User ID}&since={Since?: yyyy-MM-ddTHH:mm:ssZ}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}&completed={Completed?:true | false}"
+    },
+    {
+      "name": "User Info",
+      "paged": false,
+      "suffix": "/v1/oauth/connect/userinfo"
+    },
+    {
+      "name": "Users",
+      "paged": true,
+      "suffix": "/v1/users?include_inactive={Include Inactive?:true|false}&include_partners={Include Partners?:true | false}"
+    }
+  ]
+}

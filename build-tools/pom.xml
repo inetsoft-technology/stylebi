@@ -1,0 +1,66 @@
+<!--
+
+    build-tools-parent - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.inetsoft.stylebi</groupId>
+    <artifactId>inetsoft-stylebi</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <groupId>com.inetsoft.stylebi.build</groupId>
+  <artifactId>build-tools-parent</artifactId>
+  <packaging>pom</packaging>
+
+  <profiles>
+    <profile>
+      <id>community</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <modules>
+        <module>antlr2-maven-plugin</module>
+        <module>inetsoft-runner-maven-plugin</module>
+        <module>maven-shade-transformers</module>
+        <module>node-maven-plugin</module>
+        <module>tern-annotations</module>
+        <module>path-utils-maven-plugin</module>
+      </modules>
+    </profile>
+    <profile>
+      <id>enterprise</id>
+      <modules>
+        <module>antlr2-maven-plugin</module>
+        <module>inetsoft-runner-maven-plugin</module>
+        <module>inetsoft-shell-maven-plugin</module>
+        <module>key-generator</module>
+        <module>keygen-maven-plugin</module>
+        <module>maven-shade-transformers</module>
+        <module>node-maven-plugin</module>
+        <module>tern-annotations</module>
+        <module>path-utils-maven-plugin</module>
+      </modules>
+    </profile>
+  </profiles>
+
+</project>

@@ -1,0 +1,77 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.tree-div {
+  display: flex;
+  flex-direction: column;
+
+  .search-box {
+    display: flex;
+    flex-grow: 0;
+    width: 100%;
+    position: relative;
+    flex-wrap: nowrap;
+    flex-direction: row;
+    height: 30px;
+
+    .search-input-container {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .search-icon-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      &:not(.icon-disabled) {
+        cursor: pointer;
+      }
+    }
+
+    /**
+     * delete 'x' in IE
+     */
+    input[type=text]::-ms-clear {
+      display: none;
+    }
+  }
+
+  .tree-container {
+    flex-grow: 1;
+    //height: 100%;
+    padding-left: 4px;
+
+    &.vscrollable-always {
+      overflow-y: auto;
+    }
+  }
+
+  .tree-container.disabled {
+    pointer-events: none;
+  }
+}
+
+.vscrollable-on-hover {
+  overflow: hidden;
+
+  &:hover {
+    overflow: auto;
+  }
+}

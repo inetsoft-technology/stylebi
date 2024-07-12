@@ -1,0 +1,77 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.mat-mdc-dialog-content {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: hidden;
+  height: 575px;
+  max-height: calc(100vh - 136px);
+
+  .property-card {
+    flex: 0 0 auto;
+    padding-top: 0;
+
+    .mat-mdc-form-field {
+      display: block;
+      width: 100%;
+    }
+    /* TODO(mdc-migration): The following rule targets internal classes of checkbox that may no longer apply for the MDC version. */
+    .mat-checkbox-label {
+      white-space: nowrap;
+    }
+  }
+
+  .asset-card-container {
+    overflow-y: auto;
+    flex: 1 1 auto;
+    padding: 5px;
+
+    .asset-card {
+      &+.asset-card {
+        margin-top: 10px;
+      }
+    }
+  }
+
+  .progress-bar-container {
+    visibility: hidden;
+    flex: 0 0 auto;
+    padding: 5px;
+  }
+
+  &.loading {
+    .progress-bar-container {
+      visibility: visible;
+    }
+  }
+}
+
+.selected-node {
+  background: lightgrey;
+}
+
+.flat-tree-node-label {
+  flex: 1 1 auto;
+  word-wrap: break-word;
+}
+
+.select-folder-label {
+  padding: 0px;
+  margin: 0px;
+}

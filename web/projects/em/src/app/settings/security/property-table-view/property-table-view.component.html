@@ -1,0 +1,67 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined">
+  <mat-card-header>{{label}}</mat-card-header>
+  <mat-card-content>
+    <div class="table-container">
+      <table mat-table [dataSource]="matTableDataSource">
+        <ng-container matColumnDef="selected">
+          <th mat-header-cell *matHeaderCellDef>
+            <mat-checkbox (change)="$event ? masterToggle() : null"
+                          [checked]="selection.hasValue() && isAllSelected()"
+                          [indeterminate]="selection.hasValue() && !isAllSelected()">
+            </mat-checkbox>
+          </th>
+          <td mat-cell *matCellDef="let row" class="selected-cell">
+            <mat-checkbox (click)="$event.stopPropagation()"
+                          (change)="$event ? toggleRow(row) : null"
+                          [checked]="selection.isSelected(row)">
+            </mat-checkbox>
+          </td>
+        </ng-container>
+        <ng-container [matColumnDef]="'name'">
+          <ng-container class="detail-cell">
+            <th mat-header-cell *matHeaderCellDef>_#(Name)</th>
+            <td mat-cell *matCellDef="let row">{{getLabel(row.name)}}</td>
+          </ng-container>
+        </ng-container>
+        <ng-container [matColumnDef]="'value'">
+          <ng-container class="detail-cell">
+            <th mat-header-cell *matHeaderCellDef>_#(Value)</th>
+            <td mat-cell *matCellDef="let row"> {{row.value}}</td>
+          </ng-container>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="displayColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayColumns;" (click)="selection.toggle(row)"></tr>
+      </table>
+      <mat-paginator [pageSizeOptions]="[10, 25, 100]" [showFirstLastButtons]="true"></mat-paginator>
+    </div>
+  </mat-card-content>
+  <mat-card-actions>
+    <button mat-raised-button [disabled]="!editable" (click)="openAddDialog(true)">_#(Add)
+    </button>
+    <button mat-raised-button (click)="openAddDialog(false)" [disabled]="!editable || !selection ||
+    selection.selected.length == 0 || selection.selected.length > 1 || !editable">_#(Edit)
+    </button>
+    <button mat-raised-button (click)="removeProperties.emit(selection.selected)"
+            [disabled]="!editable || !selection || selection.selected.length == 0 || !editable">_#(Remove)
+    </button>
+  </mat-card-actions>
+</mat-card>

@@ -1,0 +1,101 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="wizard-preview-container object-editor" *ngIf="!!vsObject" #wizardPreviewContainer>
+  <div *ngIf="showLegendCheckbox" class="option-pane">
+    <div class="form-check">
+      <input [ngModel]="showLegend"
+             (ngModelChange)="showLegendChange.emit($event)"
+             class="form-check-input" type="checkbox" id="show-legend">
+      <label class="form-check-label" for="show-legend">_#(Show Legend)</label>
+    </div>
+  </div>
+  <div wInteractContainer
+       class="assembly-container"
+       [style.width.px]="previewPaneWidth"
+       [style.display]="showLeftDescription ? 'flex' : 'block'" (mouseenter)="resetToolbarVisible($event)">
+    <div *ngIf="showTopDescription || showLeftDescription" class="preview-title">
+      <input class="form-control"
+             placeholder="_#(Description)"
+             [(ngModel)]="description"
+             (focusout)="changeDescription()">
+    </div>
+    <div class="assembly-object" #assemblyObject>
+      <vs-calendar *ngIf="vsObject.objectType == 'VSCalendar'" cCalendarActionHandler
+                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+      </vs-calendar>
+      <vs-chart *ngIf="vsObject.objectType == 'VSChart'" cChartActionHandler
+                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+      </vs-chart>
+      <vs-crosstab *ngIf="vsObject.objectType == 'VSCrosstab'" cCrosstabActionHandler
+                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+      </vs-crosstab>
+      <vs-gauge *ngIf="vsObject.objectType == 'VSGauge'" cGaugeActionHandler
+                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions">
+      </vs-gauge>
+      <vs-range-slider *ngIf="vsObject.objectType == 'VSRangeSlider'" cRangeSliderActionHandler
+                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+      </vs-range-slider>
+      <vs-selection *ngIf="vsObject.objectType == 'VSSelectionList'" cSelectionListActionHandler
+                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true"
+                [isWizard]="true">
+      </vs-selection>
+      <vs-selection *ngIf="vsObject.objectType == 'VSSelectionTree'" cSelectionTreeActionHandler
+                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+      </vs-selection>
+      <vs-table *ngIf="vsObject.objectType == 'VSTable'" cTableActionHandler
+                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions" [selected]="true">
+      </vs-table>
+      <vs-text *ngIf="vsObject.objectType == 'VSText'" cTextActionHandler
+                [vsInfo]="vsInfo" [model]="vsObject" [actions]="actions">
+      </vs-text>
+    </div>
+  </div>
+  <div class="status-bar">
+    <status-bar>
+      <div class="d-flex align-items-end status-bar-component" status-bar-component>
+        <button type="button" class="btn btn-sm btn-primary me-1 text-nowrap"
+                (click)="openConsoleDialog()">
+          _#(Console) <span class="badge text-bg-light">{{consoleMessages ? consoleMessages.length : 0}}</span>
+        </button>
+      </div>
+    </status-bar>
+  </div>
+</div>
+
+<ng-container *ngIf="isMiniToolbarVisible()">
+  <mini-toolbar *ngIf="hasMiniToolbar()"
+                [actions]="actions"
+                [forceAbove]="searchDisplayed"
+                [top]="miniToolbarTop"
+                [left]="miniToolbarLeft"
+                [width]="miniToolbarWidth"
+                [assembly]="vsObject?.absoluteName" [forceHide]="toolbarForceHidden()">
+  </mini-toolbar>
+</ng-container>
+<ng-template #consoleDialog let-close="close" let-dismiss="dismiss">
+  <console-dialog [messages]="consoleMessages"
+                  [messageLevels]="messageLevels"
+                  [runtimeId]="runtimeId"
+                  (messagesChange)="changeMessage($event)"
+                  (onClose)="dismiss($event)" (onCommit)="close($event)"
+  >
+  </console-dialog>
+</ng-template>
+

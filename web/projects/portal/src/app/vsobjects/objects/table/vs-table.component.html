@@ -1,0 +1,358 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model" #tableContainer
+     VSDataTip [dataTipName]="model.absoluteName"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex"
+     class="table-container vs-object"
+     [class.mobile]="mobileDevice"
+     [class.at-bottom]="atBottom"
+     [class.show-hints]="showHints"
+     [style.display]="getVisible() ? null : 'none'"
+     [class.fade-assembly]="!viewer && !model.visible"
+     [style.top.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ?
+     model.objectFormat.top : null"
+     [style.left.px]="(viewer || embeddedVS) && !model.maxMode && !isBinding ? model.objectFormat.left : null"
+     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+     [style.width.px]="getObjectWidth()"
+     [style.height.px]="getObjectHeight()"
+     (onMouseleave)="mouseLeave($event)"
+     outOfZone (onDragover)="dropOverEmptyTable($event, null)"
+     (drop)="dropEmptyTable($event)"
+     (onClick)="showPagingControl()">
+  <div #loadingMessage class="loading-message">_#(Loading data)...</div>
+  <div class="drag-message" *ngIf="isBinding && (!tableData || !tableData.length)">
+    _#(viewer.dragColumns)</div>
+  <div class="z-index-wrapper"
+       #zIndexWrapper
+       [style.background]="model.objectFormat.background"
+       [style.overflow]="model.objectFormat.roundCorner != 0 ? 'hidden' : ''"
+       [style.border-radius.px]="model.objectFormat.roundCorner"
+       [style.z-index]="getZIndex()">
+    <div class="border-div"
+         [style.width.px]="getObjectWidth()"
+         [style.height.px]="borderDivHeight"
+         [style.border-top]="model.objectFormat.border.top"
+         [style.border-left]="model.objectFormat.border.left"
+         [style.border-bottom]="model.objectFormat.border.bottom"
+         [style.border-right]="model.objectFormat.border.right"
+         [style.border-radius.px]="model.objectFormat.roundCorner"></div>
+    <div *ngIf="dropIndex != -1" class="drop-line top-bottom border-success"
+         outOfZone (onDragover)="$event.preventDefault()"
+         [style.height.px]="1"
+         [style.width.px]="dropRect.width"
+         [style.top.px]="dropRect.top"
+         [style.left.px]="dropRect.left">
+    </div>
+    <div *ngIf="dropIndex != -1" class="drop-line left-right border-success"
+         outOfZone (onDragover)="$event.preventDefault()"
+         [style.width.px]="1"
+         [style.height.px]="dropRect.height"
+         [style.top.px]="dropRect.top"
+         [style.left.px]="dropRect.left">
+    </div>
+    <div *ngIf="dropIndex != -1" class="drop-line top-bottom border-success"
+         outOfZone (onDragover)="$event.preventDefault()"
+         [style.height.px]="1"
+         [style.width.px]="dropRect.width + 3"
+         [style.top.px]="dropRect.top + dropRect.height"
+         [style.left.px]="dropRect.left">
+    </div>
+    <div *ngIf="dropIndex != -1" class="drop-line left-right border-success"
+         outOfZone (onDragover)="$event.preventDefault()"
+         [style.width.px]="1"
+         [style.height.px]="dropRect.height"
+         [style.top.px]="dropRect.top"
+         [style.left.px]="dropRect.left + dropRect.width">
+    </div>
+    <div class="table-title" [class.disable-actions-fade]="!model.enabled">
+       <vs-title *ngIf="!isBinding && (!viewer || model.titleVisible)"
+           [titleContent]="model.title"
+           [titleFormat]="model.titleFormat"
+           [selected]="selected"
+           [formatPainterMode]="vsInfo?.formatPainterMode"
+           [titleSelected]="model.titleSelected"
+           [titleVisible]="model.titleVisible"
+           [titleWidth]="getObjectWidth()"
+           (selectTitle)="selectTitle($event)"
+           (changeTitle)="changeTableTitle($event)"
+           (titleResizeMove)="titleResizeMove($event)"
+           (titleResizeEnd)="titleResizeEnd()">
+       </vs-title>
+    </div>
+    <div [style.width.px]="scrollbarWidth" class="vertical-scrollbar-wrapper-container">
+      <div class="vertical-scroll-wrapper vertical-scrollbar-offset"
+           [style.width.px]="scrollbarWidth + 1"
+           [style.height.px]="verticalScrollbarHeight"
+           [style.top.px]="verticalScrollbarTop"
+           outOfZone (onScroll)="verticalScrollHandler($event.target.scrollTop)"
+           (onMousedown)="$event.stopPropagation()"
+           ngbTooltip="0"
+           placement="right"
+           container="body"
+           (onMouseenter)="updateVerticalScrollTooltip(true)"
+           (onMouseleave)="verticalScrollTooltip.close()"
+           #verticalScrollTooltip="ngbTooltip"
+           #verticalScrollWrapper>
+        <div [style.height.px]="scrollHeight">
+        </div>
+      </div>
+    </div>
+    <div class="vstable-wrapper"
+         [style.top.px]="tableWrapperTop"
+         [style.width]="getWrapperWidth()"
+         [style.height.px]="tableWrapperHeight"
+         outOfZone
+         (onWheel)="wheelScrollHandler($event)">
+      <div #tableHeaderDiv class="vstable-header"
+           [class.disable-actions-fade]="!model.enabled"
+           [style.left.px]="-scrollX"
+           [style.z-index]="1">
+        <table>
+          <tbody>
+          <tr *ngFor="let _header of tableHeaders; let i = index; trackBy: trackByConstant"
+              [class.hidden-row]="getRowHeight(i) <= 0"
+              [style.height.px]="getHeaderRowHeight(i)">
+            <td vs-table-cell *ngFor="let _cell of _header; let j = index; trackBy: trackByConstant"
+                class="table-cell"
+                [cell]="_cell"
+                [table]="model"
+                [viewsheet]="viewsheet"
+                [isHeader]="true"
+                [linkUri]="vsInfo.linkUri"
+                [width]="tableCellDisplayWidth(j)"
+                [height]="getHeaderRowHeight(i)"
+                [style.width.px]="tableCellDisplayWidth(j)"
+                [style.height.px]="getRowHeight(i)"
+                (onLinkClicked)="linkClicked($event, true)"
+                (resizeColumn)="changeColumnWidth($event, _cell)"
+                (resizeRow)="changeRowHeight($event, _cell, i)"
+                (rename)="changeCellTitle(_cell)"
+                (onSelectCell)="selectCell($event, _cell, true)"
+                [selected]="isSelected(_cell, true)"
+                [wTooltip]="getTooltip(_cell)"
+                [cellAnnotations]="model.leftTopAnnotations"
+                [class.selected-table-cell]="isSelected(_cell, true)"
+                [class.hyperlink]="isHyperlink(_cell)"
+                [style.min-width.px]="tableCellDisplayWidth(j)"
+                [style.max-width.px]="tableCellDisplayWidth(j)"
+                [style.border-top]="_cell.vsFormatModel.border.top"
+                [style.border-left]="_cell.vsFormatModel.border.left"
+                [style.border-bottom]="_cell.vsFormatModel.border.bottom"
+                [style.border-right]="_cell.vsFormatModel.border.right"
+                [style.white-space]="_cell.vsFormatModel.wrapping.whiteSpace"
+                [style.overflow]="_cell.vsFormatModel.wrapping.overflow"
+                [style.word-wrap]="_cell.vsFormatModel.wrapping.wordWrap"
+                [style.color]="_cell.vsFormatModel.foreground"
+                [style.background]="_cell.vsFormatModel.background"
+                [safeFont]="_cell.vsFormatModel.font"
+                (dragleave)="dragLeave($event)"
+                outOfZone (onDragover)="dragOverTable($event, j)"
+                (drop)="dropOnTable($event)"
+                [draggable]="isDraggable(true)" (dragstart)="dragStart($event, j)">
+              <i sortButton *ngIf="isHeaderSortEnabled() && !vsWizard"
+                 [class.col-sorted]="isHeaderSortVisible(_cell)"
+                 [class.sort-ascending-icon]="isSorted(_cell.col, 'asc')"
+                 [class.sort-descending-icon]="isSorted(_cell.col, 'desc')"
+                 [class.sort-icon]="isSorted(_cell.col, 'none')"
+                 class="sort-button vs-header-cell-button-sort hover-bg-secondary" aria-hidden="true"
+                 title="_#(viewer.viewsheet.table.sortColumn)"
+                 (click)="sortColumn($event, _cell)">
+                <label class="sort-number">{{displaySortNumber(_cell)}}</label>
+              </i>
+              <div class="chip" title="_#(Chip)"></div>
+            </td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+      <div #dataTableWrapper
+           touchScroll (vScroll)="touchVScroll($event)" (hScroll)="touchHScroll($event)"
+           [touchScrollEnabled]="selected"
+           class="table-wrapper"
+           [class.disable-actions-fade]="!model.enabled"
+           [style.width]="getWrapperWidth()"
+           [style.height.px]="tableDataWrapperHeight"
+           selectionBox
+           [selectionBoxBannedSelector]="'input, .highlightable'"
+           (onSelectionBox)="selectCells($event)"
+           (mousedown)="onDown($event)"
+           [style.top.px]="getHeaderHeight()">
+        <table #dataTable class="vstable-data"
+               [style.left.px]="-scrollX"
+               [class.table-focus-row]="rowHoverable()"
+               [class.cursor-pointer]="rowHoverable() && viewer">
+          <tbody>
+          <tr *ngFor="let _row of tableData; let i = index; first as firstRow; trackBy: trackByConstant"
+              [class.hidden-row]="getRowHeight(indexToRow(i)) <= 0"
+              [style.height.px]="getRowHeight(indexToRow(i))">
+            <td vs-table-cell *ngFor="let _cell of _row; let j = index; trackBy: trackByConstant"
+                class="table-cell"
+                valign="top"
+                [cell]="_cell"
+                [table]="model"
+                [viewsheet]="viewsheet"
+                [dataTip]="model.dataTip"
+                [isFlyOnClick]="model.isFlyOnClick || flyoverCellSelected"
+                [isForm]="model.form"
+                [formVisible]="model.formVisible"
+                [columnEditorEnabled]="model.form ? model?.columnEditorEnabled[j] : false"
+                [linkUri]="vsInfo.linkUri"
+                [width]="tableCellDisplayWidth(j)"
+                [height]="getRowHeight(indexToRow(i))"
+                [selectedDataIndex]="selectedDataIndex"
+                [dataCellIndex]="{row: i, column: j}"
+                [isRendered]="!firstRow || loadedRows.start > 0"
+                (nextCellChanged)="nextCellChange($event)"
+                (onFlyover)="flyoverCell(_cell)"
+                (onLinkClicked)="linkClicked($event, false, i)"
+                (resizeColumn)="changeColumnWidth($event, _cell)"
+                (resizeRow)="changeRowHeight($event, _cell, i)"
+                (rename)="changeCellText($event, _cell)"
+                (formInputChanged)="formInputChanged($event, _cell)"
+                (onSelectCell)="selectCell($event, _cell)"
+                (focusNext)="focusNext($event)"
+                [selected]="isSelected(_cell)"
+                [wTooltip]="getTooltip(_cell, i)"
+                [cellAnnotations]="model.leftBottomAnnotations"
+                [class.selected-table-cell]="isSelected(_cell)"
+                [class.hyperlink]="isHyperlink(_cell)"
+                [style.min-width.px]="tableCellDisplayWidth(j)"
+                [style.max-width.px]="tableCellDisplayWidth(j)"
+                [style.color]="_cell.vsFormatModel?.foreground"
+                [style.background]="_cell.vsFormatModel?.background"
+                [safeFont]="_cell.vsFormatModel?.font"
+                [style.border-top]="_cell.vsFormatModel?.border.top"
+                [style.border-left]="_cell.vsFormatModel?.border.left"
+                [style.border-bottom]="_cell.vsFormatModel?.border.bottom"
+                [style.border-right]="_cell.vsFormatModel?.border.right"
+                [style.white-space]="_cell.vsFormatModel?.wrapping.whiteSpace"
+                [style.overflow]="_cell.vsFormatModel?.wrapping.overflow"
+                [style.word-wrap]="_cell.vsFormatModel?.wrapping.wordWrap"
+                outOfZone (onDragover)="dragOverTable($event, j)"
+                (dragleave)="dragLeave($event)"
+                (drop)="dropOnTable($event)"
+                (click)="rowLinkClicked(_cell, i)"
+                [draggable]="isDraggable(false)" (dragstart)="dragStart($event, j)">
+            </td>
+          </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div [style.width.px]="scrollbarWidth" class="horizontal-scrollbar-wrapper-container">
+      <div class="horizontal-scroll-wrapper horizontal-scrollbar-offset"
+           [style.width.px]="getObjectWidth()"
+           [style.height.px]="scrollbarWidth + 1"
+           ngbTooltip="0"
+           placement="bottom"
+           container="body"
+           outOfZone
+           (onScroll)="horizontalScrollHandler($event.target.scrollLeft)"
+           (onMouseenter)="updateHorizontalScrollTooltip(true)"
+           (onMouseleave)="horizontalScrollTooltip.close()"
+           #horizontalScrollTooltip="ngbTooltip"
+           #horizontalScrollWrapper>
+        <div class="d-inline-block"
+             [style.width.px]="getColumnWidthSum(0, model.colCount)">
+        </div>
+      </div>
+    </div>
+  </div>
+  <ng-container *ngIf="enableAnnotation">
+    <div class="annotation-hidden-container">
+      <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
+    </div>
+    <div class="annotation-container">
+      <vs-annotation *ngFor="let annotationModel of model.assemblyAnnotationModels"
+                     [model]="annotationModel"
+                     [actions]="actions"
+                     [restrictTo]="tableContainer"
+                     [vsInfo]="vsInfo"
+                     [selected]="isAnnotationSelected(annotationModel)"
+                     (remove)="removeAnnotation(annotationModel)"
+                     (mouseSelect)="selectAnnotation($event)">
+      </vs-annotation>
+    </div>
+  </ng-container>
+  <div *ngIf="enableAnnotation"
+       class="annotation-container"
+       [style.left.px]="-scrollX">
+    <ng-container *ngFor="let annotationModel of model.leftTopAnnotations">
+      <div *ngIf="annotationModel.cellOffset"
+           class="annotation-cell-container"
+           [style.top.px]="annotationModel.cellOffset.y"
+           [style.left.px]="annotationModel.cellOffset.x">
+        <vs-annotation [model]="annotationModel"
+                       [actions]="actions"
+                       [vsInfo]="vsInfo"
+                       [offsetX]="-scrollX + annotationModel.cellOffset.x"
+                       [offsetY]="-scrollY + annotationModel.cellOffset.y"
+                       [tetherTo]="tableContainer"
+                       [restrictTo]="tableContainer"
+                       [selected]="isAnnotationSelected(annotationModel)"
+                       (remove)="removeAnnotation(annotationModel)"
+                       (mouseSelect)="selectAnnotation($event)">
+        </vs-annotation>
+      </div>
+    </ng-container>
+  </div>
+  <div *ngIf="enableAnnotation"
+       class="annotation-container"
+       [style.top.px]="-scrollY"
+       [style.left.px]="-scrollX">
+    <ng-container *ngFor="let annotationModel of model.leftBottomAnnotations">
+      <div *ngIf="annotationModel.cellOffset && isCellLoaded(annotationModel)"
+           class="annotation-cell-container"
+           [style.top.px]="annotationModel.cellOffset.y"
+           [style.left.px]="annotationModel.cellOffset.x">
+        <vs-annotation [model]="annotationModel"
+                       [actions]="actions"
+                       [vsInfo]="vsInfo"
+                       [offsetX]="annotationModel.cellOffset.x - scrollX"
+                       [offsetY]="annotationModel.cellOffset.y - scrollY"
+                       [tetherTo]="tableContainer"
+                       [restrictTo]="dataTableWrapper"
+                       [selected]="isAnnotationSelected(annotationModel)"
+                       (remove)="removeAnnotation(annotationModel)"
+                       (mouseSelect)="selectAnnotation($event)">
+        </vs-annotation>
+      </div>
+    </ng-container>
+  </div>
+  <div *ngIf="mobileDevice" #resizeLine class="col-resize-line"
+       [style.height.px]="tableWrapperHeight"
+       [style.top.px]="tableWrapperTop">
+  </div>
+  <div #colResize class="col-resize-handle">
+    <div class="resize-label">{{colResizeLabel}}</div>
+  </div>
+  <div #rowResize class="row-resize-handle">
+    <div class="resize-label">{{rowResizeLabel}}</div>
+  </div>
+  <vs-loading-display *ngIf="model && model?.sourceType != -1 && isLoading"
+                      [allowInteraction]="true"
+                      [assemblyLoading]="true"></vs-loading-display>
+</div>
+<vs-preview-table [assemblyName]="getAssemblyName()" [linkUri]="vsInfo?.linkUri"
+                  [formatGetter]="formatFunction" [isDataTip]="isDataTip()"
+                  (onChange)="showDetails($event.sortInfo, $event.format,$event.column,
+                  $event.str, $event.detailStyle, $event.dndInfo, $event.newColName, $event.toggleHide)">
+</vs-preview-table>

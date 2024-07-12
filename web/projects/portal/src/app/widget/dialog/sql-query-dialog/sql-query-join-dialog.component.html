@@ -1,0 +1,86 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Add Join)'"
+   [cshid]="'DatabaseQuery'"
+   (onCancel)="close()">
+</modal-header>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()">
+  <div class="container-fluid">
+    <div class="row form-row-checkbox" [style.visibility]="">
+      <ng-template #emptyBlock><div>&nbsp;</div></ng-template>
+      <ng-container *ngIf="join.operator === '='; else emptyBlock">
+        <div class="col-4">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" [ngModel]="join.all1" id="all"
+                 (ngModelChange)="join.all1 = $event; validate()">
+            <label class="form-check-label" for="all">
+              _#(All)
+            </label>
+          </div>
+        </div>
+        <div class="col-4"></div>
+        <div class="col-4">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" [ngModel]="join.all2" id="all2"
+                 (ngModelChange)="join.all2 = $event; validate()">
+            <label class="form-check-label" for="all2">
+              _#(All)
+            </label>
+          </div>
+        </div>
+      </ng-container>
+    </div>
+    <div class="row form-row-float-label">
+      <div class="col-4">
+        <select class="form-control" [(ngModel)]="join.table1" (ngModelChange)="tableChange($event, true)">
+          <option *ngFor="let table of getTableNames()" [ngValue]="table">{{table}}</option>
+        </select>
+      </div>
+      <div class="col-4"></div>
+      <div class="col-4">
+        <select class="form-control" [(ngModel)]="join.table2" (ngModelChange)="tableChange($event, false)">
+          <option *ngFor="let table of getTableNames()" [ngValue]="table">{{table}}</option>
+        </select>
+      </div>
+    </div>
+    <div class="row form-row-float-label">
+      <div class="col-4">
+        <select class="form-control" [ngModel]="columns1?.indexOf(tempColumn1)" (ngModelChange)="tempColumn1 = columns1[$event]; validate()" [disabled]="columns1 == null">
+          <option *ngFor="let _col of columns1; let _i = index" [ngValue]="_i">{{_col.properties.attribute}}</option>
+        </select>
+      </div>
+      <div class="col-4">
+        <select class="form-control" [ngModel]="join.operator" (ngModelChange)="changeOperator($event)">
+          <option *ngFor="let operator of operators" [ngValue]="operator">{{operator}}</option>
+        </select>
+      </div>
+      <div class="col-4">
+        <select class="form-control" [ngModel]="columns2?.indexOf(tempColumn2)" (ngModelChange)="tempColumn2 = columns2[$event]; validate()" [disabled]="columns2 == null">
+          <option *ngFor="let _col of columns2; let _i = index" [ngValue]="_i">{{_col.properties.attribute}}</option>
+        </select>
+      </div>
+    </div>
+    <div *ngIf="error" class="alert alert-danger">{{error}}</div>
+  </div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="error" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+</div>

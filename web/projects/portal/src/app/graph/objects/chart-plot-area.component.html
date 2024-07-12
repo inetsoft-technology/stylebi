@@ -1,0 +1,109 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="chartObject"
+     #chartObjectArea
+     class="chart-plot-area"
+     [class.mobile]="mobile"
+     [class.chart-selected]="selected"
+     [class.pan-mode]="panMode"
+     [id]="'chart-' + chartObject.areaName"
+     [style.top.px]="chartObject.layoutBounds.y"
+     [style.left.px]="chartObject.layoutBounds.x"
+     [style.width.px]="chartObject.layoutBounds.width < 0 ? 0 : chartObject.layoutBounds.width + 1"
+     [style.height.px]="chartObject.layoutBounds.height < 0 ? 0 : chartObject.layoutBounds.height + 1"
+     selectionBox [enableTouch]="selectionBoxWithTouch && !panMode"
+     [selectionBoxScale]="viewsheetScale"
+     (onSelectionBox)="onSelectionBox($event)"
+     (onSelectionPoint)="onSelectionBox($event)"
+     [selectionBoxEnabled]="!panMode"
+     outOfZone
+     (onMouseleave)="onLeave($event)"
+     (onMousemove)="onMove($event)"
+     (onMousedown)="onDown($event)"
+     (onMouseup)="onUp($event)"
+     (touchstart)="onDown($event)"
+     (touchmove)="onMove($event)"
+     (touchend)="onUp($event)"
+     (click)="click($event)"
+     (contextmenu)="onContextMenu($event)">
+     <!-- add 1 to match size in VGraphPair.getSubGraphic -->
+  <img [src]="panBackground" class="chart-background"
+       [style.top.px]="panY - chartObject.layoutBounds.height * chartObject.geoPadding"
+       [style.left.px]="panX - chartObject.layoutBounds.width * chartObject.geoPadding">
+  <div class="chart-plot-area-scroll-container"
+       [style.width.px]="scrollContainerWidth"
+       [style.height.px]="scrollContainerHeight"
+       [scrollTop]="scrollTop"
+       [scrollLeft]="scrollLeft"
+       (scroll)="onScroll($event)">
+    <ng-container *ngFor="let tile of chartObject.tiles; trackBy: trackByFn">
+      <div class="chart-plot-area__tile" [class.panning]="hideTile"
+           [style.top.px]="tile.bounds.y + panY"
+           [style.left.px]="tile.bounds.x + panX"
+           [style.width.px]="tile.bounds.width"
+           [style.height.px]="tile.bounds.height">
+        <!-- <div class="loading-hint" *ngIf="!tile.loaded"></div> -->
+        <img (error)="loaded(false, tile)"
+             (load)="loaded(true, tile)"
+             [src]="getSrc(tile, container)">
+<!-- use nature size to avoid scaling image
+             [style.width.px]="tile.bounds.width"
+             [style.height.px]="tile.bounds.height"
+-->
+      </div>
+      <!-- double buffer to prevent flickering  -->
+      <div class="chart-plot-area__tile" *ngIf="panning || panX != 0 || panY != 0"
+           [style.top.px]="tile.bounds.y + panY"
+           [style.left.px]="tile.bounds.x + panX"
+           [style.width.px]="tile.bounds.width"
+           [style.height.px]="tile.bounds.height">
+        <img (load)="panImgLoaded()"
+             [src]="panSnapshot">
+<!-- use nature size to avoid scaling image
+             [style.width.px]="tile.bounds.width"
+             [style.height.px]="tile.bounds.height"
+-->
+      </div>
+    </ng-container>
+    <canvas #referenceLineCanvas
+            class="chart-plot-area__reference-canvas"
+            [id]="chartObject.areaName + '-reference-canvas'"
+            [style.width.px]="chartObject.layoutBounds.width + scrollLeft"
+            [style.height.px]="chartObject.layoutBounds.height + scrollTop"
+            [attr.width]="chartObject.layoutBounds.width + scrollLeft"
+            [attr.height]="chartObject.layoutBounds.height + scrollTop"
+            title="">
+    </canvas>
+    <canvas #objectCanvas
+            class="chart-object-canvas chart-plot-area__canvas"
+            [class.panning]="panning || hideTile"
+            [id]="chartObject.areaName + '-canvas'"
+            [style.left.px]="scrollLeft"
+            [style.top.px]="scrollTop"
+            [style.width.px]="chartObject.layoutBounds.width"
+            [style.height.px]="chartObject.layoutBounds.height"
+            [attr.width]="chartObject.layoutBounds.width"
+            [attr.height]="chartObject.layoutBounds.height"
+            outOfZone
+            (dblclick)="brushChart.emit()"
+            title="">
+    </canvas>
+  </div>
+</div>

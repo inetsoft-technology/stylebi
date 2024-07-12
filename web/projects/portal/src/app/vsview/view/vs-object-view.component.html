@@ -1,0 +1,58 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model" actionsContextmenuAnchor #objectView
+     class="vs-object-container"
+     (onContextmenuOpened)="contextmenuOpened()"
+     (onContextmenuClosed)="contextmenuClosed()"
+     [actions]="actions?.menuActions"
+     [class.object-margin]="!chartMaxMode"
+     [style.min-width.px]="model.objectFormat.width"
+     [style.min-height.px]="model.objectFormat.height" (mouseenter)="onMouseEnter($event)">
+  <vs-chart *ngIf="model.objectType == 'VSChart'" #object
+            [variableValues]="variableValuesFunction"
+            [model]="model" [actions]="actions" [vsInfo]="vsInfo"
+            (maxModeChange)="onChartMaxModeChange($event)"
+            (onOpenWizardPane)="onOpenWizardPane.emit($event)"
+            (onOpenFormatPane)="onOpenFormatPane.emit('openFormatPane')">
+  </vs-chart>
+  <vs-table *ngIf="model.objectType === 'VSTable'" bTableActionHandler #object
+            (onLoadData)="resizeModelView()"
+            [modelTS]="modelTS" [scrollWrapper]="true"
+            [model]="model" [actions]="actions"
+            [vsInfo]="vsInfo" [selected]="true"
+            (onPopupNotifications)="onPopupNotifications.emit($event)"
+            (onOpenFormatPane)="onOpenFormatPane.emit('openFormatPane')">
+  </vs-table>
+  <vs-crosstab *ngIf="model.objectType === 'VSCrosstab'" bCrosstabActionHandler #object
+               [modelTS]="modelTS" [scrollWrapper]="true"
+               (onLoadData)="resizeModelView()"
+               [model]="model" [actions]="actions" [vsInfo]="vsInfo" [selected]="true"
+               (onOpenFormatPane)="onOpenFormatPane.emit('openFormatPane')">
+  </vs-crosstab>
+  <vs-calc-table-layout *ngIf="model.objectType === 'VSCalcTable'" #calcObject
+                        bCalcTableActionHandler [actions]="actions" [vsObject]="model"
+                        (onOpenFormatPane)="onOpenFormatPane.emit('openFormatPane')"
+                        (calcTableLayout)="getCalcTableLayout($event)" [layoutModel]="layoutModel">
+  </vs-calc-table-layout>
+  <mini-toolbar *ngIf="model.objectType !== 'VSCalcTable'" [actions]="actions" [forceAbove]="true"
+                [top]="0" [left]="5"
+                [width]="model.objectFormat.width" [assembly]="model?.absoluteName" [forceHide]="!showMiniToolbar()">
+  </mini-toolbar>
+</div>

@@ -1,0 +1,440 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="btn-toolbar composer-btn-toolbar" role="toolbar" aria-label="Composer Toolbar">
+  <span *ngIf="!hiddenComposerIcon" class="composer-icon composer-breadcrumb txt-primary"></span>
+  <i class="assets-icon composer-breadcrumb-1 icon-size-medium me-2"></i>
+  <toolbar-group *ngIf="!deployed" [showTooltips]="true" [actionGroup]="newAssetOperations" [asMenu]="true"></toolbar-group>
+  <toolbar-group [showTooltips]="true" [actionGroup]="saveOperations" [asMenu]="editCollapsed"></toolbar-group>
+  <toolbar-group [showTooltips]="true" [actionGroup]="previewOperations" [asMenu]="previewCollapsed"></toolbar-group>
+  <toolbar-group *ngIf="!mergeMenuCollapsed && !isScript" [showTooltips]="true"  [actionGroup]="editOperations" [asMenu]="editCollapsed"></toolbar-group>
+
+  <ng-template #snappingTooltip>
+    <div class="composer-tooltip"><b>_#(Snapping)</b>
+      _#(viewer.viewsheet.action.layoutSnappingDes)</div>
+  </ng-template>
+  <ng-template #alignTooltip>
+    <div class="composer-tooltip"><b>_#(Align)</b>
+      _#(fl.action.LayoutAlignDes)</div>
+  </ng-template>
+  <ng-template #guideTooltip>
+    <div class="composer-tooltip"><b>_#(Guides)</b>
+      _#(fl.action.LayoutGuidesDes)</div>
+  </ng-template>
+  <ng-template #zoomTooltip>
+    <div class="composer-tooltip"><b>_#(Zoom)</b>
+      _#(viewer.help.report.zoom)</div>
+  </ng-template>
+  <ng-template #EditHeaderTooltip>
+    <div class="composer-tooltip"><b>_#(Edit Header)</b>
+      _#(viewer.viewsheet.action.layoutHeaderEditDes)</div>
+  </ng-template>
+  <ng-template #EditContentTooltip>
+    <div class="composer-tooltip"><b>_#(Edit Content)</b>
+      _#(viewer.viewsheet.action.layoutContentEditDes)</div>
+  </ng-template>
+  <ng-template #EditFooterTooltip>
+    <div class="composer-tooltip"><b>_#(Edit Footer)</b>
+      _#(viewer.viewsheet.action.layoutFooterEditDes)</div>
+  </ng-template>
+  <div class="btn-group" role="group" aria-label="Edit Operations">
+    <div ngbDropdown #snappingDropdown="ngbDropdown" *ngIf="isViewsheet && !mergeMenuCollapsed" class="snap-options-dropdown">
+      <button id="editorSnapOptionsButton" class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 snap-options-button"
+              [disabled]="!sheet || isPreview"
+              [ngbTooltip]="snappingTooltip"
+              [placement]="snappingDropdown.isOpen() ? 'right' : 'bottom'"
+              container="body" ngbDropdownToggle>
+        <i class="snap-grid-icon icon-size-medium"></i>
+        <span>_#(Snapping)<i class="downward-icon icon-size1"
+                         style="display: inline-block;vertical-align: middle;"></i></span>
+      </button>
+      <div ngbDropdownMenu aria-labelledby="editorSnapOptionsButton">
+        <div class="form-check dropdown-item">
+          <input type="checkbox" id="editorSnapToGridCheck" class="form-check-input ms-3" id="snapGrid"
+               [ngModel]="snapToGrid" (change)="snapToGridChanged()"/>
+          <label class="form-check-label" for="snapGrid">
+              _#(Snap to Grid)
+          </label>
+        </div>
+        <div class="form-check dropdown-item">
+          <input type="checkbox" id="editorSnapToObjectsCheck" class="form-check-input ms-3" id="snapObj"
+               [ngModel]="snapToObjects" (change)="snapToObjectsChanged()"/>
+          <label class="form-check-label" for="snapObj">
+            _#(Snap to Objects)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div ngbDropdown #arrangeDropdown="ngbDropdown" *ngIf="sheet && isViewsheet && !deployed && !mergeMenuCollapsed">
+      <button id="editorLayoutAlignButton" class="btn composer-btn toolbar-btn pb-1 ps-0 pe-0 layout-align-button"
+              [ngbTooltip]="alignTooltip"
+              [placement]="arrangeDropdown.isOpen() ? 'right' : 'bottom'"
+              container="body"
+              [disabled]="!enableLayoutAlign() || isPreview" ngbDropdownToggle>
+        <i class="align-top-icon icon-size-medium"></i>
+        <span>_#(Arrange)<i class="downward-icon icon-size1"
+                             style="display: inline-block;vertical-align: middle;"></i></span>
+      </button>
+      <div ngbDropdownMenu aria-labelledby="editorLayoutAlignButton">
+        <button class="dropdown-item layout-align-top-button"
+                (click)="layoutAlign(LayoutAlignment.TOP)" [disabled]="!layoutAlignEnabled">
+          <i class="align-top-icon icon-size-medium"></i>
+          <span class="item-label">_#(Align Top)</span>
+        </button>
+        <button class="dropdown-item layout-align-bottom-button"
+                (click)="layoutAlign(LayoutAlignment.BOTTOM)" [disabled]="!layoutAlignEnabled">
+          <i class="align-bottom-icon icon-size-medium"></i>
+          <span class="item-label">_#(Align Bottom)</span>
+        </button>
+        <button class="dropdown-item layout-align-middle-button"
+                (click)="layoutAlign(LayoutAlignment.MIDDLE)" [disabled]="!layoutAlignEnabled">
+          <i class="align-middle-icon icon-size-medium"></i>
+          <span class="item-label">_#(Align Middle)</span>
+        </button>
+        <button class="dropdown-item layout-align-center-button"
+                (click)="layoutAlign(LayoutAlignment.CENTER)" [disabled]="!layoutAlignEnabled">
+          <i class="align-center-icon icon-size-medium"></i>
+          <span class="item-label">_#(Align Center)</span>
+        </button>
+        <button class="dropdown-item layout-align-left-button"
+                (click)="layoutAlign(LayoutAlignment.LEFT)" [disabled]="!layoutAlignEnabled">
+          <i class="align-left-icon icon-size-medium"></i>
+          <span class="item-label">_#(Align Left)</span>
+        </button>
+        <button class="dropdown-item layout-align-right-button"
+                (click)="layoutAlign(LayoutAlignment.RIGHT)" [disabled]="!layoutAlignEnabled">
+          <i class="align-right-icon icon-size-medium"></i>
+          <span class="item-label">_#(Align Right)</span>
+        </button>
+        <button class="dropdown-item layout-dist-horizontal-button"
+                (click)="layoutDistribute(LayoutAlignment.DIST_H)" [disabled]="!layoutDistributeEnabled">
+          <i class="distribute-H-icon icon-size-medium"></i>
+          <span class="item-label">_#(Distribute Horizontally)</span>
+        </button>
+        <button class="dropdown-item layout-dist-vertical-button"
+                (click)="layoutDistribute(LayoutAlignment.DIST_V)" [disabled]="!layoutDistributeEnabled">
+          <i class="distribute-V-icon icon-size-medium"></i>
+          <span class="item-label">_#(Distribute Vertically)</span>
+        </button>
+        <button class="dropdown-item layout-resize-min-width-button"
+                (click)="layoutResize(LayoutAlignment.RESIZE_MIN_W)" [disabled]="!layoutResizeEnabled">
+          <i class="min-width-icon icon-size-medium"></i>
+          <span class="item-label">_#(Resize Min Width)</span>
+        </button>
+        <button class="dropdown-item layout-resize-max-width-button"
+                (click)="layoutResize(LayoutAlignment.RESIZE_MAX_W)" [disabled]="!layoutResizeEnabled">
+          <i class="max-width-icon icon-size-medium"></i>
+          <span class="item-label">_#(Resize Max Width)</span>
+        </button>
+        <button class="dropdown-item layout-resize-min-height-button"
+                (click)="layoutResize(LayoutAlignment.RESIZE_MIN_H)" [disabled]="!layoutResizeEnabled">
+          <i class="min-height-icon icon-size-medium"></i>
+          <span class="item-label">_#(Resize Min Height)</span>
+        </button>
+        <button class="dropdown-item layout-resize-max-height-button"
+                (click)="layoutResize(LayoutAlignment.RESIZE_MAX_H)" [disabled]="!layoutResizeEnabled">
+          <i class="max-height-icon icon-size-medium"></i>
+          <span class="item-label">_#(Resize Max Height)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div ngbDropdown *ngIf="sheet && isViewsheet && layoutShowing">
+    <button id="editContentButton" class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 edit-content"
+            [ngbTooltip]="isPrintLayoutSelected(PrintLayoutSection.HEADER) ? EditHeaderTooltip : (isPrintLayoutSelected(PrintLayoutSection.FOOTER) ? EditFooterTooltip : EditContentTooltip)"
+            [disabled]="!isPrintLayout" ngbDropdownToggle>
+      <i class="edit-print-icon icon-size-medium"></i>
+      <span *ngIf="isPrintLayoutSelected(PrintLayoutSection.HEADER)">_#(Edit Header)</span>
+      <span *ngIf="isPrintLayoutSelected(PrintLayoutSection.CONTENT)">_#(Edit Content)</span>
+      <span *ngIf="isPrintLayoutSelected(PrintLayoutSection.FOOTER)">_#(Edit Footer)</span>
+        <i class="downward-icon icon-size1"
+           style="display: inline-block;vertical-align: middle;"></i>
+    </button>
+    <div ngbDropdownMenu aria-labelledby="editorLayoutAlignButton">
+      <button class="dropdown-item edit-header-button" (click)="editPrintHeader()"
+        [ngbTooltip]="EditHeaderTooltip" placement="bottom">
+        <span class="icon-size-medium page-header-icon"></span>
+        <div class="item-label">_#(Edit Header)</div>
+      </button>
+      <button class="dropdown-item edit-content-button" (click)="editPrintContent()"
+        [ngbTooltip]="EditContentTooltip" placement="bottom">
+        <span class="icon-size-medium page-body-icon"></span>
+        <div class="item-label">_#(Edit Content)</div>
+      </button>
+      <button class="dropdown-item edit-footer-button" (click)="editPrintFooter()"
+        [ngbTooltip]="EditFooterTooltip" placement="bottom">
+        <span class="icon-size-medium page-footer-icon"></span>
+        <div class="item-label">_#(Edit Footer)</div>
+      </button>
+    </div>
+  </div>
+  <div ngbDropdown *ngIf="sheet && isViewsheet && layoutShowing">
+    <button id="guidesButton" class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 guides-button"
+            [ngbTooltip]="guideTooltip" placement="bottom" container="body"
+            [disabled]="isPrintLayout || isPreview" ngbDropdownToggle>
+      <i class="mobile-icon icon-size-medium"></i>
+      <span>_#(Guides)<i class="downward-icon icon-size1"
+                     style="display: inline-block;vertical-align: middle;"></i></span>
+    </button>
+    <div ngbDropdownMenu class="dropdown-menu-right" aria-labelledby="Guides">
+      <button class="dropdown-item" (click)="selectGuideType(GuideBounds.GUIDES_NONE)"
+              [class.selected]="isGuideSelected(GuideBounds.GUIDES_NONE)">
+        _#(None)
+      </button>
+      <button class="dropdown-item" (click)="selectGuideType(GuideBounds.GUIDES_16_9_PORTRAIT)"
+              [class.selected]="isGuideSelected(GuideBounds.GUIDES_16_9_PORTRAIT)">
+        _#(layout.vsLayout.guidesPortrait16_9)
+      </button>
+      <button class="dropdown-item" (click)="selectGuideType(GuideBounds.GUIDES_4_3_PORTRAIT)"
+              [class.selected]="isGuideSelected(GuideBounds.GUIDES_4_3_PORTRAIT)">
+        _#(layout.vsLayout.guidesPortrait4_3)
+      </button>
+      <button class="dropdown-item" (click)="selectGuideType(GuideBounds.GUIDES_16_9_LANDSCAPE)"
+              [class.selected]="isGuideSelected(GuideBounds.GUIDES_16_9_LANDSCAPE)">
+        _#(layout.vsLayout.guidesLandscape16_9)
+      </button>
+      <button class="dropdown-item" (click)="selectGuideType(GuideBounds.GUIDES_4_3_LANDSCAPE)"
+              [class.selected]="isGuideSelected(GuideBounds.GUIDES_4_3_LANDSCAPE)">
+        _#(layout.vsLayout.guidesLandscape4_3)
+      </button>
+    </div>
+  </div>
+  <div ngbDropdown *ngIf="sheet && isViewsheet && !isPreview">
+    <button id="zoomButton" class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 zoom-button"
+            [ngbTooltip]="zoomTooltip" placement="bottom" container="body" ngbDropdownToggle>
+      <i class="zoom-in-icon icon-size-medium"></i>
+      <span>_#(Zoom)<i class="downward-icon icon-size1"
+                         style="display: inline-block;vertical-align: middle;"></i></span>
+    </button>
+    <div ngbDropdownMenu class="dropdown-menu-right" aria-labelledby="Zoom">
+      <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_IN)"
+              [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_IN)"
+              [disabled]="!zoomInEnabled()">
+        _#(Zoom In)
+      </button>
+      <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_OUT)"
+              [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_OUT)"
+              [disabled]="!zoomOutEnabled()">
+        _#(Zoom Out)
+      </button>
+
+      <div class="dropdown-divider"></div>
+
+      <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_20)"
+              [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_20)">
+        20%
+      </button>
+      <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_60)"
+              [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_60)">
+        60%
+      </button>
+      <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_100)"
+              [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_100)">
+        100%
+      </button>
+      <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_140)"
+              [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_140)">
+        140%
+      </button>
+      <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_180)"
+              [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_180)">
+        180%
+      </button>
+    </div>
+  </div>
+
+  <div class="btn-group" role="group" aria-label="Worksheet Operations" *ngIf="isInitializedWorksheet() && !deployed">
+    <div ngbDropdown class="new-object-dropdown">
+      <button id="newWorksheetObjectButton"
+              class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 new-ws-object-button"
+              [ngbTooltip]="addTooltip" placement="bottom"
+              [disabled]="worksheetOperationsDisabled"
+              ngbDropdownToggle (mousedown)="loadDataSources()">
+        <i class="new-objects-icon icon-size-medium"></i>
+        <span>_#(Add)<i class="downward-icon icon-size1"
+                       style="display: inline-block;vertical-align: middle;"></i></span>
+      </button>
+      <div ngbDropdownMenu class="scrollable-menu" aria-labelledby="newWorksheetObjectButton">
+        <button class="dropdown-item new-embedded-table-button" (click)="newEmbeddedTable()"
+          [ngbTooltip]="embeddedTableTooltip" placement="bottom">
+          <i class="embedded-table-icon icon-size-medium"></i>
+          <span>_#(Embedded Table)</span>
+        </button>
+        <button class="dropdown-item new-upload-file-button" (click)="newUploadTable(false)"
+          [ngbTooltip]="uploadFileTooltip" placement="bottom">
+          <i class="upload-icon icon-size-medium"></i>
+          <span>_#(Upload File)</span>
+        </button>
+        <button class="dropdown-item new-variable-button" (click)="newVariable()"
+          [ngbTooltip]="variableTooltip" placement="bottom">
+          <i class="variable-icon icon-size-medium"></i>
+          <span>_#(Variable)</span>
+        </button>
+        <button class="dropdown-item new-grouping-button" (click)="newGrouping()"
+          [ngbTooltip]="groupingTooltip" placement="bottom">
+          <i class="grouping-icon icon-size-medium"></i>
+          <span>_#(Grouping)</span>
+        </button>
+        <button *ngFor="let dataSource of databaseDataSources" [ngbTooltip]="databaseQueryTooltip"
+                placement="bottom" [disabled]="!sqlEnabled"
+                class="dropdown-item new-database-query-button"
+                (click)="newDatabaseQuery(dataSource.name, false)">
+          <i class="query-icon icon-size-medium"></i>
+          <span>{{getDatabaseLabel(dataSource)}} _#(Query)</span>
+        </button>
+        <ng-container *ngFor="let type of tabularDataSourceTypes">
+          <button class="dropdown-item" *ngIf="type.exists" (click)="newTabularQuery(type)">
+            <i class="tabular-subquery-icon icon-size-medium"></i>
+            <span>{{getTabularLabel(type)}} _#(Query)</span>
+          </button>
+        </ng-container>
+      </div>
+    </div>
+
+    <ng-template #addTooltip>
+      <div class="composer-tooltip"><b>_#(Add)</b>
+        _#(fl.action.addDes)</div>
+    </ng-template>
+    <ng-template #embeddedTableTooltip>
+      <div class="composer-tooltip"><b>_#(Embedded Table)</b>
+        _#(fl.action.newEmbeddedTableDes)</div>
+    </ng-template>
+    <ng-template #uploadFileTooltip>
+      <div class="composer-tooltip"><b>_#(Upload File)</b>
+        _#(fl.action.uploadFileDes)</div>
+    </ng-template>
+    <ng-template #databaseQueryTooltip>
+      <div class="composer-tooltip"><b>_#(Database Query)</b>
+        _#(fl.action.newSQLQueryDes)</div>
+    </ng-template>
+    <ng-template #variableTooltip>
+      <div class="composer-tooltip"><b>_#(Variable)</b>
+        _#(fl.action.newVariableDes)</div>
+    </ng-template>
+    <ng-template #groupingTooltip>
+      <div class="composer-tooltip"><b>_#(Grouping)</b>
+        _#(fl.action.newGroupDes)</div>
+    </ng-template>
+
+    <div ngbDropdown>
+      <button id="concatenateTablesButton" class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 concatenate-tables-button"
+              [disabled]="!concatEnabled()" ngbDropdownToggle>
+        <i class="concat-icon icon-size-medium"></i>
+        <span>_#(Concatenate)<i class="downward-icon icon-size1"
+                                style="display: inline-block;vertical-align: middle;"></i></span>
+      </button>
+      <div ngbDropdownMenu aria-labelledby="concatenateTablesButton">
+        <button class="dropdown-item intersect-button" (click)="newConcatTable('intersect')">
+          <i class="intersect-tables-icon icon-size-medium"></i>
+          <span>_#(Intersect)</span>
+        </button>
+        <button class="dropdown-item union-button" (click)="newConcatTable('union')">
+          <i class="union-tables-icon icon-size-medium"></i>
+          <span>_#(Union)</span>
+        </button>
+        <button class="dropdown-item intersect-button" (click)="newConcatTable('minus')">
+          <i class="minus-tables-icon icon-size-medium"></i>
+          <span>_#(Minus)</span>
+        </button>
+      </div>
+    </div>
+    <div ngbDropdown>
+      <button id="joinTablesButton" class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1 join-tables-button"
+              [disabled]="!joinEnabled()" ngbDropdownToggle>
+        <!-- TODO create join tables icons -->
+        <i class="join-icon icon-size-medium"></i>
+        <span>_#(Join)<i class="downward-icon icon-size1"
+                         style="display: inline-block;vertical-align: middle;"></i></span>
+      </button>
+      <div ngbDropdownMenu aria-labelledby="joinTablesButton">
+        <button class="dropdown-item merge-button" (click)="newJoinTable('merge')">
+          <i class="merge-join-icon icon-size-medium"></i>
+          <span class="item-label">_#(Merge Join)</span>
+        </button>
+        <button class="dropdown-item cross-button" (click)="newJoinTable('cross')"
+                [disabled]="!crossJoinEnabled">
+          <i class="cross-join-icon icon-size-medium"></i>
+          <span class="item-label">_#(Cross Join)</span>
+        </button>
+        <button class="dropdown-item inner-button" (click)="newJoinTable('inner')">
+          <i class="inner-join-icon icon-size-medium"></i>
+          <span class="item-label">_#(Inner/Outer Join)</span>
+        </button>
+      </div>
+    </div>
+
+  </div>
+  <toolbar-group  *ngIf="!moreCollapsed" class="btn-toolbar-pull-right" [showTooltips]="true"
+    [actionGroup]="fileOperations" [asMenu]="false"></toolbar-group>
+  <toolbar-group *ngIf="!mergeMenuCollapsed" [actionGroup]="moreOperations" [showTooltips]="true"
+    [asMenu]="moreCollapsed" [placeOnRight]="true"></toolbar-group>
+  <toolbar-group *ngIf="mergeMenuCollapsed" [actionGroup]="moreOperations" [showTooltips]="true"
+    [mergeActionGroup]="mergeMenuOperations" [asMenu]="true" [placeOnRight]="true"
+    [snapToObjects]="snapToObjects" [snapToGrid]="snapToGrid"></toolbar-group>
+</div>
+
+<ng-template #importCsvDialog let-close="close" let-dismiss="dismiss">
+  <import-csv-dialog [worksheet]="sheet" [mashUpData]="showMashUpData" (onCommit)="close($event)"
+                     (onCancel)="dismiss($event)">
+  </import-csv-dialog>
+</ng-template>
+<ng-template #sqlQueryDialog let-close="close" let-dismiss="dismiss">
+  <sql-query-dialog [controller]="wsSqlQueryController"
+                    [initTableName]="newTableName" [tables]="tables"
+                    [crossJoinEnabled]="crossJoinEnabled" [mashUpData]="showMashUpData"
+                    (onCommit)="close($event)" [applyVisible]="false"
+                    (onCancel)="dismiss($event)"></sql-query-dialog>
+</ng-template>
+<ng-template #tabularQueryDialog let-close="close" let-dismiss="dismiss">
+  <tabular-query-dialog [runtimeId]="sheet.runtimeId" [dataSourceType]="selectedDataSourceType"
+                        [initTableName]="newTableName" [tables]="tables"
+                        (onCommit)="close($event)" [applyVisible]="false"
+                        (onCancel)="dismiss($event)"></tabular-query-dialog>
+</ng-template>
+<ng-template #groupingDialog let-close="close" let-dismiss="dismiss">
+  <grouping-dialog [worksheet]="sheet" (onCommit)="close($event)" (onCancel)="dismiss($event)"></grouping-dialog>
+</ng-template>
+<ng-template #selectDataSourceDialog let-close="close" let-dismiss="dismiss">
+  <select-data-source-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                             [model]="selectDataSourceModel"></select-data-source-dialog>
+</ng-template>
+<ng-template #embeddedTableDialog let-close="close" let-dismiss="dismiss">
+  <embedded-table-dialog [worksheet]="sheet" (onCommit)="close($event)" (onCancel)="dismiss($event)"></embedded-table-dialog>
+</ng-template>
+<ng-template #worksheetPropertyDialog let-close="close" let-dismiss="dismiss">
+  <worksheet-property-dialog [runtimeId]="sheet.runtimeId" (onCommit)="close($event)" (onCancel)="dismiss($event)"></worksheet-property-dialog>
+</ng-template>
+<ng-template #variableAssemblyDialog let-close="close" let-dismiss="dismiss">
+  <variable-assembly-dialog [worksheet]="sheet" [tables]="tables" (onCommit)="close($event)" (onCancel)="dismiss($event)"></variable-assembly-dialog>
+</ng-template>
+<ng-template #variableInputDialog let-close="close" let-dismiss="dismiss">
+  <variable-input-dialog [model]="variableInputDialogModel"
+                         (onCommit)="close($event)" (onCancel)="dismiss($event)"></variable-input-dialog>
+</ng-template>
+<ng-template #vpmPrincipalDialog let-close="close" let-dismiss="dismiss">
+  <vpm-principal-dialog [worksheet]="sheet"
+                         (onCommit)="close($event)" (onCancel)="dismiss($event)"></vpm-principal-dialog>
+</ng-template>
+<ng-template #newWSDialog let-close="close" let-dismiss="dismiss">
+  <new-worksheet-dialog [tabularDataSourceTypes]="tabularDataSourceTypes" [sqlEnabled]="sqlEnabled"
+                        [sqlEnabled]="sqlEnabled"
+                        [databaseDataSources]="databaseDataSources"
+                        (onCommit)="close($event)" (onCancel)="dismiss($event)">
+  </new-worksheet-dialog>
+</ng-template>

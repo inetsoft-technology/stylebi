@@ -1,0 +1,72 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<fieldset class="container-fluid" [disabled]="model.isCube">
+  <div class="row">
+    <div class="col container-fluid">
+      <legend>_#(Columns)</legend>
+      <div class="bordered-box bd-gray bordered-box-md"
+           outOfZone (onDragover)="allowDrop($event)"
+           (drop)="columnDrop($event)">
+        <div draggable="true" (dragstart)="columnDragStart($event, columnRef, i)"
+             (dragend)="columnDragEnd($event)"
+             [class.selected]="selectedColumn == columnRef"
+             (mousedown)="mouseDownSelect(columnRef)" class="ps-1 column_item_id"
+             [attr.title]="columnRef.description"
+             *ngFor="let columnRef of localColumnList; let i = index;">
+          {{columnRef.name}}
+        </div>
+      </div>
+    </div>
+    <div class="col container-fluid">
+      <legend>_#(Hierarchy)</legend>
+      <div class="bordered-box bd-gray bordered-box-md hierarchy-content-list"
+           (dragleave)="contentDragLeave($event)">
+        <div class="col-12 px-0"
+             outOfZone (onDragover)="allowDrop($event)"
+             *ngFor="let dimension of model.dimensions; let dimIndex = index">
+          <div draggable="true"
+               class="hierarchy-content-item ps-1 item-{{memberIndex}} hierarchy_item_id"
+               (dragstart)="contentDragStart($event, member, dimension, dimIndex, memberIndex)"
+               (dragenter)="contentDragEnter($event, dimension, dimIndex, memberIndex)"
+               (dragleave)="contentDragLeave($event)"
+               (dragend)="contentDragEnd($event)"
+               (drop)="contentDrop($event, dimension, dimIndex, memberIndex)"
+               (mousedown)="mouseDownSelect(member)"
+               [class.bd-primary]="selectedColumn == member"
+               [attr.title]="member.dataRef?.description"
+               *ngFor="let member of dimension.members; let memberIndex = index;">
+            <i class="column-icon" (dragleave)="contentDragLeave($event)"></i>
+            {{getMemberName(member)}}
+          </div>
+          <hr/>
+        </div>
+        <div class="col-12 pb-1 drop-zone"
+             outOfZone (onDragover)="allowDrop($event)"
+             (dragenter)="isDragAccepted($event, null)"
+             (drop)="newDimensionDrop($event)">
+          _#(viewer.flash.crosstab.hierDesc)
+        </div>
+      </div>
+      <hierarchy-editor [model]="model.hierarchyEditorModel"
+                        [selectedColumn]="selectedColumn"></hierarchy-editor>
+      <button type="button" class="btn btn-default btn-clear_id" (click)="clear()">_#(Clear)</button>
+    </div>
+  </div>
+</fieldset>

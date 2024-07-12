@@ -1,0 +1,48 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="description-scroll-container container-fluid light-gray-bg h-100 asset-description-container bl-gray" *ngIf="!!selectedFile">
+  <div class="row justify-content-end g-0 py-1">
+    <button type="button" class="btn-close cursor-pointer" (click)="close()" aria-label="close">
+    </button>
+  </div>
+  <div class="form-group">
+    <h2>{{selectedFile.name}}</h2>
+  </div>
+  <div class="form-group" *ngIf="!!getBasedView()">
+    <div class="font-weight-bold">_#(data.datasources.basedView)</div>
+    <div>{{getBasedView()}}</div>
+  </div>
+  <div class="form-group">
+    <div class="font-weight-bold">_#(data.datasources.creationDate)</div>
+    <div>{{selectedFile.createdDateLabel}}</div>
+  </div>
+  <div class="form-group">
+    <div class="font-weight-bold">_#(Creation By)</div>
+    <div>{{selectedFile.createdBy}}</div>
+  </div>
+  <div *ngIf="isWorksheet" class="form-group">
+    <div class="font-weight-bold">_#(Last Modified)</div>
+    <div>{{selectedFile.modifiedDateLabel}}</div>
+  </div>
+  <div class="form-group">
+    <div class="font-weight-bold">_#(Description)</div>
+    <div>{{selectedFile.description}}</div>
+  </div>
+</div>

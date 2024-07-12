@@ -1,0 +1,264 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Hyperlink)'" (onCancel)="close()"
+   [cshid]="'Hyperlinks'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
+  <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="link" id="asset"
+               (change)="chooseLink(LinkType.VIEWSHEET_LINK)"
+               [checked]="model.linkType != LinkType.WEB_LINK && model.linkType != LinkType.NONE">
+          <label class="form-check-label" for="asset">
+            _#(Asset Link)
+          </label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="link" id="web"
+               (change)="chooseLink(LinkType.WEB_LINK)"
+               [checked]="model.linkType == LinkType.WEB_LINK || model.linkType == LinkType.MESSAGE_LINK">
+          <label class="form-check-label" for="web">
+            _#(Web Link)
+          </label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="link" id="none"
+               (change)="chooseLink(LinkType.NONE)" [checked]="model.linkType == LinkType.NONE">
+          <label class="form-check-label" for="none">
+            _#(None)
+          </label>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <fieldset [disabled]="model.linkType == LinkType.NONE">
+    <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div [ngSwitch]="model.linkType == LinkType.MESSAGE_LINK ? LinkType.WEB_LINK : model.linkType">
+            <div *ngSwitchCase="LinkType.WEB_LINK" class="form-row-float-label row">
+              <div *ngIf="valueType == ValueType.VALUE" class="col">
+                <div class="form-floating">
+                      <input type="text" class="form-control" [(ngModel)]="model.webLink"
+                             [class.is-invalid]="!isValid()"
+                             placeholder="_#(Link)">
+                </div>
+              </div>
+              <div *ngIf="valueType == ValueType.FIELD" class="col web-field">
+                <select [ngModel]="model.webLink" (ngModelChange)="selectWebLink($event)"
+                        class="form-control" >
+                  <option [ngValue]="null" [selected]="model.webLink == null">
+                  <option *ngFor="let field of model.fields"
+                          [ngValue]="'hyperlink:' + field.name" [selected]="field.name == model.webLink">
+                    hyperlink:{{field.view}}
+                  </option>
+                </select>
+              </div>
+              <div *ngIf="valueType == ValueType.EXPRESSION" class="col">
+                <expression-editor [vsId]="runtimeId"
+                                   [columns]="model.fields" [isHyperLink]="true"
+                                   [expressionTypes]="expressionTypes" [isVSContext]="isVSContext"
+                                   [(value)]="expressionValue" (valueChange)="expressionChange($event)"
+                                   class="d-flex align-items-start">
+                </expression-editor>
+              </div>
+              <div *ngIf="!!model.fields" class="form-check col-auto ms-1" keyboardNav="true">
+                <div id="simple-btn-keyboard-nav"
+                     class="value-type-list-icon btn btn-sm btn-light"
+                     [fixedDropdown]="selectTypeDropdownMenu" title="_#(Change Value Type)">
+                </div>
+              </div>
+            </div>
+            <div *ngSwitchCase="LinkType.NONE">
+              <input class="form-control" [disabled]="true" placeholder="_#(Link)">
+            </div>
+            <div *ngSwitchDefault>
+              <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'">
+                <div class="form-floating">
+                  <input type="text" readonly [value]="selectedNodePath"
+                         [class.is-invalid]="!isValid()"
+                         placeholder="_#(Link)" class="form-control input-dropdown" ngbDropdownToggle>
+                  <label>_#(Link)</label>
+                  <span *ngIf="isAssetLink() && !model.assetLinkPath" class="invalid-feedback">
+                    _#(viewer.dialog.hyperlink.linkValid)
+                  </span>
+                  <div class="dropdown-arrow icon-size-small"></div>
+                </div>
+                <div ngbDropdownMenu class="tree-dropdown-menu">
+                  <repository-tree [root]="rootNode" [selector]="selector"
+                                   [selectedNode]="selectedNode"
+                                   [autoExpandToSelectedNode]="true"
+                                   [checkDetailType]="true"
+                                   (nodeSelected)="assetNodeSelected($event, dropdown)">
+                  </repository-tree>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+            <div class="form-floating">
+              <select class="form-control bookmark-menu" [ngModel]="getBookmark()"
+                      (ngModelChange)="changeBookmark($event)"
+                      [disabled]="!bookmarks || bookmarks.length == 0"
+                      placeholder="_#(Bookmark)">
+                <option [ngValue]="null" [selected]="model.bookmark == null">
+                <option *ngFor="let bookmark of bookmarks"
+                     [ngValue]="getBookMarkValue(bookmark)" [selected]="bookmarkSelected(bookmark)">
+                  {{bookmark}}
+                </option>
+              </select>
+            <label>_#(Bookmark)</label>
+            </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-floating">
+            <input type="text" class="form-control target-text_id" [(ngModel)]="model.targetFrame"
+                     [disabled]="model.self || model.linkType == LinkType.NONE" placeholder="_#(Target Frame)">
+              <label>_#(Target Frame)</label>
+          </div>
+        </div>
+        <div class="form-check col-auto ms-1">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input self-check_id"
+                   [(ngModel)]="model.self" id="self"
+                 [attr.disabled]="model.linkType == LinkType.NONE ? '' : null"
+                 (click)="resetTargetFrame()">
+            <label class="form-check-label" for="self">
+              _#(Self)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-floating">
+            <input type="text" class="form-control" [(ngModel)]="model.tooltip"
+                     placeholder="_#(Tooltip)">
+              <label>_#(Tooltip)</label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="disablePrompt"
+                 [(ngModel)]="model.disableParameterPrompt">
+            <label class="form-check-label" for="disablePrompt">
+              _#(Disable parameter prompt)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="sendParam"
+                 [(ngModel)]="model.sendViewsheetParameters">
+            <label class="form-check-label" for="sendParam">
+              _#(Send viewsheet parameters)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="sendSelection"
+                 [(ngModel)]="model.sendSelectionsAsParameters">
+            <label class="form-check-label" for="sendSelection">
+              _#(Send selections as parameters)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div *ngIf="model.showRow" class="form-row-float-label row">
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="applyToRow"
+                 [(ngModel)]="model.applyToRow">
+            <label class="form-check-label" for="applyToRow">
+              _#(Apply to Row)
+            </label>
+          </div>
+        </div>
+      </div>
+      <legend>_#(Parameter)</legend>
+      <w-large-form-field>
+        <div class="parameter-list" largeFieldElement>
+          <generic-selectable-list [itemList]="model.paramList" [(selectedIndex)]="selectedParam"
+                                   [elementToString]="paramListElementToString"
+                                   [disabled]="model.linkType == LinkType.NONE">
+          </generic-selectable-list>
+        </div>
+        <ng-container largeFieldButtons>
+          <button type="button" class="btn btn-default btn-wide" (click)="add()">_#(Add)</button>
+          <button type="button" class="btn btn-default btn-wide" (click)="edit()"
+                  [disabled]="!paramSelected">_#(Edit)</button>
+          <button type="button" class="btn btn-default btn-wide" (click)="remove()"
+                  [disabled]="!paramSelected">_#(Remove)</button>
+        </ng-container>
+      </w-large-form-field>
+    </form>
+  </fieldset>
+</div>
+
+<div class="modal-footer">
+  <apply-button (onApply)="apply($event)" [disabled]="!isValid()"></apply-button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">
+    _#(Cancel)
+  </button>
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!isValid()" #okButton>
+    _#(OK)
+  </button>
+</div>
+
+<ng-template #parameterDialog let-close="close" let-dismiss="dismiss">
+  <input-parameter-dialog (onCommit)="close($event)"
+                          (onCancel)="dismiss($event)"
+                          [selectEdit]="editing"
+                          [fields]="model.fields"
+                          [viewsheetParameters]="viewsheetParameters"
+                          [model]="parameterModel">
+  </input-parameter-dialog>
+</ng-template>
+<ng-template #selectTypeDropdownMenu>
+  <ul role="menu" class="dropdown-pane">
+      <a class="dropdown-item" [class.selected]="valueType == ValueType.VALUE"
+         (click)="selectType(ValueType.VALUE)">
+        _#(Value)
+      </a>
+      <a class="dropdown-item" [class.selected]="valueType == ValueType.FIELD"
+         (click)="selectType(ValueType.FIELD)">
+        _#(Field)
+      </a>
+      <a class="dropdown-item" [class.selected]="valueType == ValueType.EXPRESSION"
+         (click)="selectType(ValueType.EXPRESSION)">
+        _#(Expression)
+      </a>
+  </ul>
+</ng-template>

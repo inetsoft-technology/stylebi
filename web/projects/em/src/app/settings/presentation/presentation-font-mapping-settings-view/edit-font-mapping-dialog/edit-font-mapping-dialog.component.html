@@ -1,0 +1,39 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMPresentationFontMapping'" [title]="title">
+</em-modal-header>
+<div mat-dialog-content [formGroup]="form">
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(TrueType Font)</mat-label>
+    <input matInput formControlName="trueTypeFont" placeholder="_#(TrueType Font)"/>
+    <mat-error *ngIf="form.controls.trueTypeFont?.errors?.required">_#(em.pdfMap.nameEmpty)</mat-error>
+    <mat-error *ngIf="form.controls.trueTypeFont?.errors?.illegalStr">_#(em.pdfMap.invalidCharacter)</mat-error>
+  </mat-form-field>
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(CID Font)</mat-label>
+    <input matInput formControlName="cidFont" placeholder="_#(CID Font)"/>
+    <mat-error *ngIf="form.controls.cidFont?.errors?.required">_#(em.pdfMap.nameEmpty)</mat-error>
+    <mat-error *ngIf="form.controls.cidFont?.errors?.illegalStr">_#(em.pdfMap.invalidCharacter)</mat-error>
+  </mat-form-field>
+</div>
+<div mat-dialog-actions>
+  <button mat-raised-button color="primary" (click)="submit()" [disabled]="form.invalid">_#(OK)</button>
+  <button mat-button (click)="cancel()">_#(Cancel)</button>
+</div>

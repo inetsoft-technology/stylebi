@@ -1,0 +1,100 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form *ngIf="form" class="openid-config" [formGroup]="form">
+  <mat-form-field>
+    <mat-label>_#(OIDC Discovery URL)</mat-label>
+    <input matInput type="url" (input)="enableDiscoveryApply()" formControlName="discoveryUrl">
+    <button mat-button matSuffix [disabled]="disableDiscoveryApply" (click)="loadDiscovery()">_#(Apply)</button>
+  </mat-form-field>
+  <mat-form-field>
+    <mat-label>_#(Client ID)</mat-label>
+    <input matInput formControlName="clientId">
+  </mat-form-field>
+  <mat-form-field>
+    <mat-label>_#(Client Secret)</mat-label>
+    <input matInput formControlName="clientSecret">
+  </mat-form-field>
+  <mat-form-field>
+    <mat-label>_#(Scopes)</mat-label>
+    <mat-autocomplete #scopeOptions (optionSelected)="scopeSelected($event)">
+      <mat-option *ngFor="let scope of filteredScopes | async" [value]="scope">{{scope}}</mat-option>
+    </mat-autocomplete>
+    <mat-chip-grid #scopeList aria-label="_#(Scopes)">
+      <mat-chip-row *ngFor="let scope of selectedScopes" (removed)="removeScope(scope)">
+        {{scope}}
+        <button matChipRemove>
+          <mat-icon fontSet="ineticons" fontIcon="close-circle-icon icon-size-small"></mat-icon>
+        </button>
+      </mat-chip-row>
+      <input
+        #scopeInput
+        formControlName="scopeInput"
+        [matAutocomplete]="scopeOptions"
+        [matChipInputFor]="scopeList"
+        [matChipInputSeparatorKeyCodes]="separatorKeyCodes"
+        (matChipInputTokenEnd)="addScope($event)">
+    </mat-chip-grid>
+  </mat-form-field>
+  <mat-form-field>
+    <mat-label>_#(Authorization Endpoint)</mat-label>
+    <input matInput type="url" formControlName="authorizationEndpoint">
+  </mat-form-field>
+  <mat-form-field>
+    <mat-label>_#(Token Endpoint)</mat-label>
+    <input matInput type="url" formControlName="tokenEndpoint">
+  </mat-form-field>
+  <mat-form-field>
+    <mat-label>_#(JWKS URL)</mat-label>
+    <input matInput type="url" formControlName="jwksUri">
+  </mat-form-field>
+  <mat-form-field>
+    <mat-label>_#(JWK Certificate)</mat-label>
+    <textarea matInput formControlName="jwkCertificate"></textarea>
+    <mat-hint>_#(openid.jwk.cert.description)</mat-hint>
+  </mat-form-field>
+  <mat-form-field class="name-claim-margin">
+    <mat-label>_#(Name Claim)</mat-label>
+    <mat-autocomplete #nameClaimOptions>
+      <mat-option *ngFor="let claim of filteredNameClaims | async" [value]="claim">{{claim}}</mat-option>
+    </mat-autocomplete>
+    <input matInput formControlName="nameClaim" [matAutocomplete]="nameClaimOptions">
+  </mat-form-field>
+  <mat-form-field>
+    <mat-label>_#(Role Claim)</mat-label>
+    <mat-autocomplete #roleClaimOptions>
+      <mat-option *ngFor="let claim of filteredRoleClaims | async" [value]="claim">{{claim}}</mat-option>
+    </mat-autocomplete>
+    <input matInput formControlName="roleClaim" [matAutocomplete]="roleClaimOptions">
+  </mat-form-field>
+  <mat-form-field>
+    <mat-label>_#(Group Claim)</mat-label>
+    <mat-autocomplete #groupClaimOptions>
+      <mat-option *ngFor="let claim of filteredGroupClaims | async" [value]="claim">{{claim}}</mat-option>
+    </mat-autocomplete>
+    <input matInput formControlName="groupClaim" [matAutocomplete]="groupClaimOptions">
+  </mat-form-field>
+  <mat-form-field>
+    <mat-label>_#(Organization ID Claim)</mat-label>
+    <mat-autocomplete #organizationIDClaimOptions>
+      <mat-option *ngFor="let claim of filteredOrganizationIDClaims | async" [value]="claim">{{claim}}</mat-option>
+    </mat-autocomplete>
+    <input matInput formControlName="orgIDClaim" [matAutocomplete]="organizationIDClaimOptions">
+  </mat-form-field>
+</form>

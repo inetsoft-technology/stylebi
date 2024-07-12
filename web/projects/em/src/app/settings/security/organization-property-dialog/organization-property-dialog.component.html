@@ -1,0 +1,50 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMSettingsOrganizationProperties'" [title]="'_#(em.propertyEditor.title)'">
+</em-modal-header>
+<div [formGroup]="form" mat-dialog-content>
+  <mat-form-field class="full-width" appearance="outline" color="accent">
+    <mat-label>_#(Property)</mat-label>
+    <mat-select placeholder="_#(Property)" [(value)]="propertyName" formControlName="propertyName"
+                (selectionChange)="propertyChange()">
+      <mat-option value="max.row.count">_#(Max Row Count)</mat-option>
+      <mat-option value="max.col.count">_#(Max Column Count)</mat-option>
+      <mat-option value="max.cell.size">_#(Max Cell Size)</mat-option>
+      <mat-option value="max.user.count">_#(Max User Count)</mat-option>
+    </mat-select>
+    <mat-error *ngIf="form.controls.propertyName?.errors?.required">
+      _#(em.organization.emptyPropertyName)
+    </mat-error>
+  </mat-form-field>
+  <mat-form-field class="full-width" appearance="outline" color="accent">
+    <mat-label>_#(Property Value)</mat-label>
+    <input matInput type="number" formControlName="propertyValue" (input)="propertyValueChange()">
+    <mat-error *ngIf="form.controls['propertyValue'].errors && form.controls['propertyValue'].errors['required']">
+      _#(em.organization.emptyPropertyValue)
+    </mat-error>
+  </mat-form-field>
+</div>
+<div>
+<div class="add-property-actions">
+  <button mat-raised-button color="primary"  (click)="addProperty()" [disabled]="!addEnabled()">
+    _#(OK)</button>
+  <button mat-button (click)="cancel()">_#(Cancel)</button>
+</div>
+</div>

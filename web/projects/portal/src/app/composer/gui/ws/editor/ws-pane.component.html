@@ -1,0 +1,91 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="h-100 position-relative">
+  <split-pane direction="vertical" [sizes]="[75,25]"
+              [minSize]="32" [snapOffset]="0"
+              [gutterSize]="4" (onDrag)="onSplitDrag()">
+    <div class="ws-graph-pane-container bb-gray">
+      <ws-assembly-graph-pane
+        *ngIf="worksheet.runtimeId && !worksheet.isCompositeView()"
+        [worksheet]="worksheet" [pasteEnabled]="pasteEnabled"
+        [sqlEnabled]="sqlEnabled" [freeFormSqlEnabled]="freeFormSqlEnabled"
+        [columnSourceTable]="selectingColumnSource ? columnSourceTable : null"
+        (onCut)="cut()" (onCopy)="copy()" (onPaste)="paste($event)"
+        (onConcatenateTables)="concatenateTables($event[0], $event[1])"
+        (onSelectCompositeTable)="selectCompositeTable($event)"
+        (onEditJoin)="editJoin()"
+        (onInsertColumns)="insertColumns($event)"
+        (onOpenAssemblyConditionDialog)="openAssemblyConditionDialog($event)"
+        (onOpenAggregateDialog)="openAggregateDialog($event)"
+        (onOpenSortColumnDialog)="openSortColumnDialog($event)"
+        (onEditQuery)="editQuery($event)"
+        (onNotification)="processNotification($event)"
+        (onToggleAutoUpdate)="toggleAutoUpdate($event)">
+      </ws-assembly-graph-pane>
+      <ws-composite-table-focus-pane
+        *ngIf="worksheet.isCompositeView()"
+        [worksheet]="worksheet"
+        [crossJoinEnabled]="crossJoinEnabled"
+        (onNotification)="processNotification($event)"
+        (onWorksheetCompositionChanged)="worksheetCompositionChanged()"
+        (onWorksheetCancel)="worksheetCancel()">
+      </ws-composite-table-focus-pane>
+      <div class="message-indicator" *ngIf="showGettingStartedMessage" (mousemove)="showGettingStartedMessage = false">
+        <span>_#(worksheet.startup.hint1)</span>
+        <span>_#(worksheet.startup.hint2)</span>
+      </div>
+    </div>
+    <div class="ws-details-pane-container bg-white1">
+      <ws-details-pane *ngIf="worksheet.runtimeId"
+                       [worksheet]="worksheet" [table]="worksheet.focusedTable"
+                       [selectingColumnSource]="selectingColumnSource"
+                       [freeFormSqlEnabled]="freeFormSqlEnabled"
+                       [(consoleMessages)]="consoleMessageMap[worksheet.focusedTable?.name]"
+                       (onInsertColumns)="insertColumns($event)"
+                       (onReplaceColumns)="replaceColumns($event)"
+                       (onOpenAssemblyConditionDialog)="openAssemblyConditionDialog($event)"
+                       (onOpenAggregateDialog)="openAggregateDialog($event)"
+                       (onOpenSortColumnDialog)="openSortColumnDialog($event)"
+                       (onEditQuery)="editQuery($event)"
+                       (onToggleAutoUpdate)="toggleAutoUpdate($event)"
+                       (onToggleShowColumnName)="toggleShowColumnName($event)"
+                       (onSelectColumnSource)="selectColumnSource($event)"
+                       (onOozColumnMouseEvent)="oozColumnMouseEvent($event)"></ws-details-pane>
+    </div>
+  </split-pane>
+  <vs-loading-display *ngIf="worksheet.loading"
+                      [preparingData]="preparingData"
+                      [runtimeId]="worksheet.runtimeId"
+                      (cancelLoading)="cancelLoading()">
+  </vs-loading-display>
+</div>
+
+<notifications #notifications class="notifications-ws-pane" [timeout]="6000" [fullWidth]="true"
+               [style.top.px]="worksheet.isCompositeView() ? 85 : 52">
+</notifications>
+
+<ng-template #concatenateTablesDialog let-close="close" let-dismiss="dismiss">
+  <concatenate-tables-dialog [tables]="dialogData" [socket]="worksheet.socketConnection"
+                             (onCommit)="close($event)" (onCancel)="dismiss($event)"></concatenate-tables-dialog>
+</ng-template>
+<ng-template #variableInputDialog let-close="close" let-dismiss="dismiss">
+  <variable-input-dialog [model]="dialogData" [enterParameters]="!worksheet.init"
+                         (onCommit)="close($event)" (onCancel)="dismiss($event)"></variable-input-dialog>
+</ng-template>

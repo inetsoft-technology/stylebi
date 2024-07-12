@@ -1,0 +1,232 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="format-pane m-3">
+  <fieldset *ngIf="!!vsObjectFormat" [disabled]="formatDisabled">
+    <div class="row g-0 form-row-float-label">
+      <div class="col" >
+        <div class="form-floating" [class.disabled]="fontDisabled">
+          <dropdown-view #fontDropdown [label]="getFont()" [disabled]="fontDisabled">
+            <font-pane [fontModel]="_format?.font"
+                       [fonts]="fonts"
+                       (onFontChange)="updateFormat()"
+                       (onApply)="fontDropdown.close()">
+            </font-pane>
+          </dropdown-view>
+          <label>_#(Font)</label>
+        </div>
+      </div>
+    </div>
+    <div class="row g-0 form-row-float-label">
+      <div class="col pe-0">
+        <div class="form-floating"
+          [class.disabled]="formatDisabled || colorDisabled || dynamicColorDisabled">
+          <dynamic-combo-box [(type)]="colorType" [(value)]="color"
+            [disable]="formatDisabled || colorDisabled || dynamicColorDisabled"
+            [vsId]="vsId" [variables]="variableValues">
+          </dynamic-combo-box>
+          <label>_#(Color)</label>
+        </div>
+      </div>
+      <div class="col-auto ps-1">
+        <color-dropdown [color]="_format?.color" [chart]="false" data-test="foreground-color-dropdown"
+          [enabled]="!!_format && vsObjectFormat.colorType == ColorDropdown.STATIC && !colorDisabled"
+          (colorChange)="changeColor($event, 'color')">
+        </color-dropdown>
+      </div>
+    </div>
+    <div class="row g-0 form-row-float-label">
+      <div class="col pe-0">
+        <div class="form-floating"
+          [class.disabled]="(formatDisabled || dynamicColorDisabled || backgroundDisabled) && !vsSelected">
+          <dynamic-combo-box [(type)]="backgroundColorType"
+                             [(value)]="backgroundColor"
+                             [disable]="(formatDisabled || dynamicColorDisabled || backgroundDisabled) && !vsSelected"
+                             [vsId]="vsId" [variables]="variableValues">
+          </dynamic-combo-box>
+          <label>_#(Background)</label>
+        </div>
+      </div>
+      <div class="col-auto ps-1">
+        <color-dropdown [color]="_format?.backgroundColor" [chart]="false" data-test="background-color-dropdown"
+           [isBg]="true" [transEnabled]="true"
+           [enabled]="!!_format && vsObjectFormat.backgroundColorType == ColorDropdown.STATIC && !backgroundDisabled"
+           (colorChange)="changeColor($event, 'backgroundColor')">
+        </color-dropdown>
+      </div>
+    </div>
+    <div class="row g-0 form-row-float-label" *ngIf="isValueFillVisible()">
+      <div class="col pe-0">
+        <div class="form-floating"
+          [class.disabled]="formatDisabled || colorDisabled || dynamicColorDisabled">
+          <dynamic-combo-box [value]="getColorLabel(vsObjectFormat.valueFillColor)"
+            [disable]="formatDisabled || colorDisabled || dynamicColorDisabled"
+            [vsId]="vsId" [variables]="variableValues"
+            (valueChange)="changeColor($event == '_#(Static)' ? 0 : $event, 'valueFillColor')">
+          </dynamic-combo-box>
+          <label>_#(Value Fill)</label>
+        </div>
+      </div>
+      <div class="col-auto ps-1">
+        <color-dropdown [color]="vsObjectFormat?.valueFillColor"
+           [transEnabled]="true"
+           [enabled]="!!_format && !Tool.isDynamic(vsObjectFormat.valueFillColor)"
+           (colorChange)="changeColor($event, 'valueFillColor')">
+        </color-dropdown>
+      </div>
+    </div>
+    <div class="row g-0 form-row-float-label">
+      <div class="col">
+        <div class="form-floating">
+          <alpha-dropdown [(alpha)]="vsObjectFormat.backgroundAlpha"
+                          [disabled]="formatDisabled || vsSelected"
+                          (alphaChange)="updateFormat()"
+                          (alphaInvalid)="changeAlphaWarning($event)">
+          </alpha-dropdown>
+          <label>_#(Alpha)</label>
+        </div>
+        <div *ngIf=alphaInvalid class="col-12 alert alert-danger">
+          _#(viewer.flash.format.invalidTransparencyError)
+        </div>
+      </div>
+    </div>
+    <div class="row g-0 form-row-float-label mt-4">
+      <div class="col">
+        <div class="form-floating" [class.disabled]="alignDisabled">
+          <dropdown-view #alignmentDropdown [label]="getAlignment()" [disabled]="alignDisabled" data-test="alignment-dropdown">
+            <binding-alignment-pane [alignmentInfo]="_format?.align"
+                                    [enableHAlign]="isHAlignmentEnabled()"
+                                    [enableVAlign]="isVAlignmentEnabled()"
+                                    (onAlignmentChange)="updateFormat()"
+                                    (onApply)="alignmentDropdown.close()">
+            </binding-alignment-pane>
+          </dropdown-view>
+          <label>_#(Alignment)</label>
+        </div>
+      </div>
+    </div>
+    <div class="row g-0 form-row-float-label">
+      <div class="col">
+        <div class="form-floating" [class.disabled]="borderDisabled">
+          <i *ngIf="borderTooltip" class="help-question-mark-icon field-help-icon"
+            [ngbTooltip]="borderTooltip" triggers="click" [openDelay]="0" placement="left"></i>
+          <dropdown-view #borderDropdown [label]="getBorderLabel()" [disabled]="borderDisabled"
+                         (closed)="updateFormat()" data-test="border-dropdown">
+            <binding-border-pane [formatModel]="_format" [composerPane]="true"
+                                 (onApply)="updateFormat(); borderDropdown.close()">
+            </binding-border-pane>
+          </dropdown-view>
+          <label>_#(Border)</label>
+        </div>
+      </div>
+    </div>
+    <div class="row g-0 form-row-float-label">
+    <div class="col">
+        <div class="form-floating">
+          <radius-dropdown [radius]="vsObjectFormat.roundCorner" [max]="roundCornerMax"
+                           [disabled]="roundCornerDisabled"
+                           (radiusChange)="vsObjectFormat.roundCorner = $event; updateFormat()">
+          </radius-dropdown>
+          <label>_#(Round Corner)</label>
+        </div>
+    </div>
+  </div>
+    <div class="row g-0 form-row-float-label" *ngIf="roundTopCornersOnlyVisible">
+      <div class="col">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="roundTopCornersOnly"
+                 [(ngModel)]="vsObjectFormat.roundTopCornersOnly" (ngModelChange)="updateFormat()">
+          <label class="form-check-label" for="roundTopCornersOnly">
+            _#(Round Top Corners Only)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="row g-0 form-row-checkbox">
+      <div class="col">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="wrap"
+               [(ngModel)]="vsObjectFormat.wrapText"
+               [disabled]="wrapTextDisabled" (ngModelChange)="updateFormat()">
+          <label class="form-check-label" for="wrap">
+            _#(Wrap Text)
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-0 form-row-float-label mt-4">
+      <div class="col">
+        <div class="form-floating" [class.disabled]="formattingDisabled">
+          <dropdown-view #formatDropdown [label]="getFormat()" [isOk]="false"
+                         [disabled]="formattingDisabled" [zIndex]="1039"
+                         (closed)="updateFormat()" data-test="format-dropdown">
+            <formatting-pane [formatModel]="_format" [dynamic]="!dynamicColorDisabled"
+                             [vsId]="vsId" [variableValues]="variableValues"
+                             (onApply)="updateFormat(); formatDropdown.close()"></formatting-pane>
+          </dropdown-view>
+          <label>_#(Format)</label>
+        </div>
+      </div>
+    </div>
+    <div class="row g-0 form-row-float-label">
+      <div class="col">
+        <div class="form-floating" [class.disabled]="cssDisabled">
+          <dropdown-view #cssDropdown [label]="getCSSLabel()" [disabled]="cssDisabled"
+                         (closed)="updateFormat()" data-test="css-dropdown">
+            <format-css-pane [cssID]="vsObjectFormat.cssID"
+               [cssClass]="vsObjectFormat.cssClass"
+               [cssType]="vsObjectFormat.cssType" [cssIDs]="vsObjectFormat.cssIDs"
+               [cssClasses]="vsObjectFormat.cssClasses"
+               (cssIDChange)="updateCSS($event, true)"
+               (cssClassChange)="updateCSS($event, false)"
+               (onApply)="updateFormat(); cssDropdown.close()">
+            </format-css-pane>
+          </dropdown-view>
+          <label>_#(CSS)</label>
+        </div>
+      </div>
+    </div>
+    <div class="row g-0 form-row-float-label" *ngIf="showPresenter()">
+      <div class="col">
+        <div class="form-floating">
+          <format-presenter-pane [presenterLabel]="vsObjectFormat.presenterLabel"
+             [presenterPath]="vsObjectFormat.presenter"
+             [hasDescriptors]="vsObjectFormat.presenterHasDescriptors"
+             [runtimeId]="vsId" [layout]="layout"
+             [tableSelected]="tableSelected" [textSelected]="textSelected"
+             (onOpenPresenterPropertyDialog)="openPresenterPropertyDialog()"
+             (onPresenterChange)="updatePresenter($event)">
+          </format-presenter-pane>
+          <label>_#(Presenter)</label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+  <button class="btn btn-default" [disabled]="formatDisabled" (click)="reset()">
+    _#(Reset)
+  </button>
+  <i class="help-icon" [helpLink]="'FormatDialogBox'"></i>
+</div>
+<ng-template #presenterPropertyDialog let-close="close" let-dismiss="dismiss">
+  <presenter-property-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                             [model]="presenterPropertyDialogModel" [runtimeId]="vsId"
+                             [animateGif]="false">
+  </presenter-property-dialog>
+</ng-template>

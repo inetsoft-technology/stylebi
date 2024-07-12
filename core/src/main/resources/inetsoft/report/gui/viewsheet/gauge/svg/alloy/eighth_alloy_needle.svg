@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="163.5771 486.2588" i:rulerOrigin="0 0" i:pageBounds="0 792 612 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="153.394" height="200.848" viewBox="0 0 153.394 200.848" overflow="visible" enable-background="new 0 0 153.394 200.848"
+	 xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					
+						<rect x="0.424" y="0.424" i:knockout="Off" opacity="0" fill="#FFFFFF" stroke="#000000" stroke-width="0.8472" width="152.546" height="200"/> 
+					<path i:knockout="Off" fill="none" stroke="#000000" stroke-width="6.7778" stroke-dasharray="0.8472 1.9402" d="
+						M141.913,42.543"/>
+					
+						<linearGradient id="XMLID_2_" gradientUnits="userSpaceOnUse" x1="-787.1084" y1="-235.9297" x2="-787.1084" y2="-333.1406" gradientTransform="matrix(1 0 0 1 864.0732 407.9834)">
+						<stop  offset="0" style="stop-color:#F7F7F7"/>
+						<stop  offset="0.4775" style="stop-color:#878787"/>
+						<stop  offset="0.547" style="stop-color:#8C8C8C"/>
+						<stop  offset="0.6966" style="stop-color:#949494"/>
+						<stop  offset="0.8239" style="stop-color:#6D6D6D"/>
+						<stop  offset="1" style="stop-color:#3B3B3B"/>
+						<a:midPointStop  offset="0" style="stop-color:#F7F7F7"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#F7F7F7"/>
+						<a:midPointStop  offset="0.4775" style="stop-color:#878787"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#878787"/>
+						<a:midPointStop  offset="0.547" style="stop-color:#8C8C8C"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#8C8C8C"/>
+						<a:midPointStop  offset="0.6966" style="stop-color:#949494"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#949494"/>
+						<a:midPointStop  offset="0.8239" style="stop-color:#6D6D6D"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#6D6D6D"/>
+						<a:midPointStop  offset="1" style="stop-color:#3B3B3B"/>
+					</linearGradient>
+					<polygon fill="url(#XMLID_2_)" stroke="#5E5E5E" stroke-width="0.8472" points="78.967,84.43 83.034,84.429 79.998,79.636 
+						76.959,74.843 73.926,79.64 70.896,84.435 74.962,84.434 74.985,154.085 75.007,154.085 75.007,172.054 78.978,172.054 
+						78.978,154.081 78.989,154.081 "/>
+				</g>
+			</g>
+		</switch>
+	</svg>

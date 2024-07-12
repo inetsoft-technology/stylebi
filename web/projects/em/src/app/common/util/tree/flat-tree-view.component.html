@@ -1,0 +1,104 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<cdk-virtual-scroll-viewport class="flat-tree" itemSize="48">
+  <ng-container *cdkVirtualFor="let node of dataSource; let i = index; trackBy: trackByFn">
+    <div *ngIf="!hasChild(node)" class="mat-tree-node flat-tree-node"
+         [style.padding-left.px]="node.level * nodePadding"
+         [title]="node.label"
+         [class.selected]="isSelected(node)"
+         (click)="selectNode(node, $event)"
+         (dblclick)="onDblclick(node)"
+         (drop)="$event.preventDefault(); dropIntoParent(node)"
+         (dragover)="$event.preventDefault()"
+         (dragstart)="onDragStart(node, $event)"
+         draggable="true">
+      <button mat-icon-button aria-hidden="true" [disableRipple]="true" disabled>
+      </button>
+      <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="getIcon(node)" [inline]="true" >
+      </mat-icon>
+      <span class="flat-tree-node-label" [class.flat-tree-node-no-wrap-label]="!wrap">{{node.label}}</span>
+      <div (click)="clickMenu($event, node)">
+        <button mat-icon-button
+                *ngIf="!!node.contextMenu"
+                aria-label="_#(Menu)"
+                class="em-flat-tree-menu"
+                title="_#(Actions)"
+                [matMenuTriggerFor]="nodeMenu"
+                [matMenuTriggerData]="{node: node, menu: node.contextMenu}">
+          <mat-icon fontSet="ineticons" fontIcon="menu-vertical-icon"></mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <div *ngIf="hasChild(node)" class="mat-tree-node flat-tree-node"
+         [style.padding-left.px]="node.level * nodePadding"
+         [title]="node.label"
+         [class.selected]="isSelected(node)"
+         (click)="selectNode(node, $event)"
+         (dblclick)="onDblclick(node)"
+         (dragover)="$event.preventDefault()"
+         (drop)="$event.preventDefault(); onDrop.emit(node)"
+         (dragstart)="onDragStart(node, $event)"
+         draggable="true">
+      <button mat-icon-button [attr.aria-label]="'toggle ' + node.label"
+              (click)="toggle($event, node)" (dblclick)="$event.stopPropagation()">
+        <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="treeControl.isExpanded(node) ? 'downward-icon' : 'forward-icon'">
+        </mat-icon>
+      </button>
+      <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="getIcon(node, true)" [inline]="true" ></mat-icon>
+      <span class="flat-tree-node-label" [class.flat-tree-node-no-wrap-label]="!wrap">{{node.label}}</span>
+      <div *ngIf="!menuIconFloatRight" (click)="clickMenu($event, node)">
+        <button mat-icon-button
+                *ngIf="!!node.contextMenu"
+                aria-label="_#(Menu)"
+                class="em-flat-tree-menu"
+                title="_#(Actions)"
+                [matMenuTriggerFor]="nodeMenu"
+                [matMenuTriggerData]="{node: node, menu: node.contextMenu}">
+          <mat-icon fontSet="ineticons" fontIcon="menu-vertical-icon"></mat-icon>
+        </button>
+      </div>
+      <div *ngIf="menuIconFloatRight"
+           class="em-flat-tree-menu menu-btn-container flat-tree-node-menu-background"
+           (click)="clickMenu($event, node)">
+        <div class="menu-selected-over">
+          <button mat-icon-button
+                  *ngIf="!!node.contextMenu"
+                  aria-label="_#(Menu)"
+                  title="_#(Actions)"
+                  [matMenuTriggerFor]="nodeMenu"
+                  [matMenuTriggerData]="{node: node, menu: node.contextMenu}">
+            <mat-icon fontSet="ineticons" fontIcon="menu-vertical-icon"></mat-icon>
+          </button>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+</cdk-virtual-scroll-viewport>
+<mat-menu #nodeMenu="matMenu">
+  <ng-template matMenuContent let-menu="menu" let-node="node">
+    <button
+      mat-menu-item
+      *ngFor="let item of menu.items"
+      (click)="contextMenuClicked(node, item)"
+      [disabled]="item.disabled()"
+    >{{item.label}}</button>
+  </ng-template>
+</mat-menu>

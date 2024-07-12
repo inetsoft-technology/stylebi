@@ -1,0 +1,386 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+$stacking-order: (
+        ".fixed-dropdown",
+        w-tooltip
+);
+
+@include set-z-index-selector($stacking-order, 999900);
+
+/**
+ fixedDropdown directive
+ */
+.fixed-dropdown {
+  position: fixed;
+  display: block;
+  top: 0;
+  left: 0;
+  user-select: none;
+}
+
+/**
+ resizableTable directive
+ */
+.resizable-table-container {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  td, th {
+    word-break: break-all;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  table {
+    margin-bottom: 0;
+    table-layout: fixed;
+  }
+
+  .resizable-table-body-container {
+    position: relative;
+    overflow-x: hidden;
+    overflow-y: auto;
+    width: fit-content;
+
+    table {
+      position: relative;
+    }
+  }
+
+  .column-resize-container {
+    position: absolute;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    background-color: transparent;
+  }
+
+  .resize-handle {
+    height: 100%;
+    box-sizing: border-box;
+    position: absolute;
+    border-right: 6px solid transparent;
+    margin-left: -6px;
+    cursor: ew-resize;
+  }
+}
+
+/**
+ rotation-radio-group
+ */
+.rotation-radio-button {
+  background: no-repeat center center;
+  width: 29px;
+  height: 27px;
+  margin-left: 0.25em;
+  font-size: 1.5em;
+}
+
+/**
+  scrollable-table
+ */
+table.scrollable-table {
+  > thead > tr > th {
+    white-space: nowrap;
+  }
+
+  > thead, > tbody {
+    display: block;
+  }
+
+  > tbody {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
+
+/**
+  split-pane
+ */
+.gutter {
+  //  background: #eee no-repeat 50%;
+  position: relative;
+  z-index: 5;
+  background-color: transparent;
+  transition: box-shadow 0.3s ease-in-out;
+  box-sizing: content-box;
+  flex-shrink: 0;
+
+  &:hover, &:active {
+    box-shadow: 3px 0 6px 0px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.gutter.gutter-horizontal {
+  height: 100%;
+  float: left;
+  cursor: col-resize;
+}
+
+.gutter.gutter-vertical {
+  cursor: row-resize;
+}
+
+.report-viewer:not(.explorerVisible) {
+  .gutter-horizontal {
+    border: none;
+  }
+}
+
+.report-viewer.explorerVisible {
+  .gutter-horizontal {
+    width: var(--inet-panel-border-zero, 4px) !important;
+  }
+}
+
+.asset-pane-gutter:not(.worksheet-in-view) {
+  .gutter-horizontal {
+    &::before {
+      content: " ";
+      display: block;
+      position: absolute;
+      height: 30px;
+      width: 100%;
+      top: 0;
+      left: 0;
+      z-index: 7;
+    }
+  }
+}
+
+.composer-body.viewsheet-in-view {
+  .gutter-horizontal {
+    &::after {
+      content: " ";
+      display: block;
+      position: absolute;
+      height: 33px;
+      width: 100%;
+      bottom: 0;
+      left: 0;
+      z-index: 7;
+    }
+  }
+}
+
+.composer-body.library-in-view {
+  .gutter-horizontal {
+    &::after {
+      content: " ";
+      display: block;
+      position: absolute;
+      height: 33px;
+      width: 100%;
+      bottom: 0;
+      left: 0;
+      z-index: 7;
+    }
+  }
+}
+
+/**
+  tooltip
+ */
+.widget__default-tooltip {
+  max-width: 40vw;
+  max-height: 40vh;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+
+  color: #555;
+  font-size: 12px;
+  background-color: #fff;
+  border-radius: 1px;
+  box-shadow: 1px 2px 1px rgba(0, 0, 0, 0.22);
+  padding: 4px 6px;
+  border: 1px solid #d4d4d4;
+  margin: 3px;
+  //display: flex;
+  //flex-direction: column;
+}
+
+.hidden__annotation-tooltip {
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+
+  color: #555;
+  font-size: 12px;
+  background-color: #fff;
+  border-radius: 1px;
+  box-shadow: 1px 2px 1px rgba(0, 0, 0, 0.22);
+  padding: 4px 6px;
+  border: 1px solid #d4d4d4;
+  margin: 3px;
+  //display: flex;
+  //flex-direction: column;
+}
+
+//Add delay to ngbTooltip; only used in scrollbars
+.tooltip > div {
+  animation-name: delayedFadeIn;
+  animation-duration: 1s; /* Adjust this duration */
+}
+
+.instantTooltip > .tooltip > div {
+  animation-name: none;
+}
+
+@keyframes delayedFadeIn {
+  0% {opacity: 0;}
+  75% {opacity: 0;} /* Set this to 99% for no fade-in. */
+  100% {opacity: 1;}
+}
+
+/**
+  jsplumb
+  */
+.table-endpoint {
+  &::before {
+    z-index: 1;
+  }
+}
+
+.table-endpoint-top {
+  animation: flyUp 0.5s, endpointFadein 0.5s;
+}
+
+.table-endpoint-bottom {
+  animation: flyDown 0.5s, endpointFadein 0.5s;
+}
+
+.table-endpoint-left {
+  animation: flyLeft 0.5s, endpointFadein 0.5s;
+}
+
+.table-endpoint-right {
+  animation: flyRight 0.5s, endpointFadein 0.5s;
+}
+
+.table-endpoint-join {
+  &::before {
+    color: white;
+    top: 0.17em;
+    left: 0.20em;
+    position: absolute;
+    font-size: 12px;
+  }
+}
+
+.table-endpoint-concat {
+  &::before {
+    color: white;
+    top: 2px;
+    left: 0.16em;
+    position: absolute;
+    font-size: 12px;
+  }
+}
+
+$stacking-order: (
+        dependency-type-overlay-container,
+        ws-graph-thumbnail,
+        "ws-assembly-connector-endpoint.ws-assembly-graph-element--dimmed",
+        selected-ws-graph-thumbnail,
+        ws-assembly-connector-endpoint,
+        table-endpoint,
+        "dependency-type-overlay-container:hover",
+        jtk-dragging,
+        ws-graph-thumbnail--drag-copy
+);
+
+@include set-z-index($stacking-order);
+
+.jtk-draggable {
+  transform: translateZ(0); /*Appears to get rid of graphical artifacts*/
+}
+
+.jtk-overlay:hover {
+  z-index: 1;
+}
+
+.ws-assembly-graph-element--dimmed {
+    opacity: 0.5;
+}
+
+.dependency-type-overlay-container {
+  padding: 0 4px;
+  @extend .unhighlightable;
+}
+
+.physical-graph-type-overlay-container {
+  background-color: var(--inet-main-panel-bg-color) !important;
+}
+
+/**
+  ws-schema
+  */
+.overlay-operator {
+  padding: 1px 3px;
+}
+
+//below classes are dynamically added via jsplumb
+.schema-connector-cross-join {
+  stroke-dasharray: 6, 2;
+  shape-rendering: crispEdges;
+}
+
+/**
+  animation
+ */
+
+@keyframes endpointFadein {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes flyUp {
+  from {
+    transform: translateY(8px);
+  }
+}
+
+@keyframes flyDown {
+  from {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes flyLeft {
+  from {
+    transform: translateX(8px);
+  }
+}
+
+@keyframes flyRight {
+  from {
+    transform: translateX(-8px);
+  }
+}
+
+@keyframes floatDown {
+  from {
+    transform: translateY(-100%);
+  }
+}

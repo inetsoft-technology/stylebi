@@ -1,0 +1,55 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <mat-card-title>
+      <mat-checkbox [disabled]="disabled" [(ngModel)]="enabled" (change)="fireAlertsChanged()"></mat-checkbox>
+      <label>_#(schedule.alert.enabled)</label>
+    </mat-card-title>
+  </mat-card-header>
+  <mat-card-content *ngIf="enabled && !disabled">
+    <table mat-table [dataSource]="dataSource">
+      <ng-container matColumnDef="select">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let element">
+          <mat-checkbox [(ngModel)]="element.selected" (change)="fireAlertsChanged()"></mat-checkbox>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="element">
+        <th mat-header-cell *matHeaderCellDef> _#(Element) </th>
+        <td mat-cell *matCellDef="let element"><span [class.highlight-disabled]="isElementDisabled(element)">{{element.element}}</span></td>
+      </ng-container>
+
+      <ng-container matColumnDef="highlight">
+        <th mat-header-cell *matHeaderCellDef> _#(Highlight) </th>
+        <td mat-cell *matCellDef="let element"><span [class.highlight-disabled]="isElementDisabled(element)">{{element.label}}</span></td>
+      </ng-container>
+
+      <ng-container matColumnDef="condition">
+        <th mat-header-cell *matHeaderCellDef> _#(Condition) </th>
+        <td mat-cell *matCellDef="let element"><span [class.highlight-disabled]="isElementDisabled(element)">{{element.condition}}</span></td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="columnsToDisplay"></tr>
+      <tr mat-row *matRowDef="let element; columns: columnsToDisplay;"></tr>
+    </table>
+  </mat-card-content>
+</mat-card>

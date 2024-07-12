@@ -1,0 +1,70 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.viewsheet-loading-container {
+  // removes mask and allows user interaction. Used when only want to show the loading icon.
+  &.allow-interaction {
+    background-color: initial;
+    pointer-events: none;
+  }
+
+  .viewsheet-loading-icon {
+    text-align: center;
+
+    .loading-btns-container {
+      /* keep space of cancel button so it doesn't move loading icon when shown */
+      height: 2rem;
+      display: flex;
+      justify-content: space-between;
+
+      .btn {
+        min-width: 100px;
+      }
+    }
+  }
+}
+
+// if server refresh, don't show the loading icon, which is distracting and shows often.
+:host-context(.server-refresh) .loading-container {
+  display: none;
+}
+
+.loading-message {
+  font-size: 1rem;
+  border-radius: 5px;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
+.materialize-hint-label {
+  min-width: 25rem;
+  background: rgba(255, 255, 255, 0.8);
+  margin-top: 0.5rem;
+}
+
+.prepare-label {
+  min-width: 25rem;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.message-label {
+  min-width: 15rem;
+  background: rgba(255,255,255,0.6);
+}

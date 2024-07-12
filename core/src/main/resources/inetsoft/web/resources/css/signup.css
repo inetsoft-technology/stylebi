@@ -1,0 +1,126 @@
+/**
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.login-root {
+  left: 0;
+  bottom: 0;
+  right: 0;
+  overflow: auto;
+}
+
+.card {
+  margin: 16px auto;
+  width: 600px;
+  max-width: 90%;
+
+  .view-container {
+    margin-left: 30px;
+    margin-right: 30px;
+  }
+}
+
+.btn-center-container {
+  align-content: center;
+  flex-direction: column;
+
+  .signup-btn {
+    width: 200px;
+    border-radius: 10px;
+  }
+}
+
+input::placeholder {
+  text-align: center;
+}
+
+.start-text {
+  text-align: center;
+}
+
+.layout-item {
+  margin-bottom: 1rem;
+}
+
+.google-log {
+  width: 18px;
+  height: 18px;
+  margin-right: 5px;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.loginBanner {
+  border: none;
+}
+
+div.alert {
+  margin: 2px auto;
+  width: 600px;
+  max-width: 90%;
+}
+
+div.loading-indicator {
+  display: none;
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.33);
+  z-index: 9999;
+  top: 0;
+}
+
+div.loading-indicator.loading {
+  display: table;
+}
+
+div.loading-indicator > div {
+  display: table-cell;
+  text-align: center;
+  vertical-align: middle;
+}
+
+div.loading-indicator > div > i.fa {
+  color: rgb(62, 120, 179);
+}
+
+.custom-logo {
+  height: 50px;
+  vertical-align: middle;
+}
+
+.separator-div {
+  display: flex;
+  align-items: center;
+  margin-top: calc(1rem - 16px);
+  margin-bottom: 1rem;
+  width: 100%;
+}
+
+.separator-line {
+  display: flex;
+  flex-grow: 1;
+  height: 1px;
+  background-color: #d6d6d6;
+}
+
+.separator-text {
+  color: #434343;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}

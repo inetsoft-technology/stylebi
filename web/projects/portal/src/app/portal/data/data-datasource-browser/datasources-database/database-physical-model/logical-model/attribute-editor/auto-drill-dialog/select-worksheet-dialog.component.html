@@ -1,0 +1,74 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Query Selection)'" [cshid]="'AutoDrill'" (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body" enterSubmit (onEnter)="ok()" (onEsc)="cancel()">
+  <fieldset>
+    <legend>
+      <div class="select-worksheet-legend">
+        _#(Select a Worksheet)
+      </div>
+    </legend>
+    <div class="bordered-box bd-gray tree-container">
+      <asset-tree [datasources]="false" [columns]="false" [viewsheets]="false"
+                  [readOnly]="true"
+                  [dataSourcePath]="selectedEntry?.path"
+                  [dataSourceScope]="selectedEntry?.scope"
+                  (nodeSelected)="selectWorksheet($event)">
+      </asset-tree>
+    </div>
+  </fieldset>
+  <fieldset *ngIf="queryParams != null && queryParams.length != 0" class="parameter-container">
+    <legend>
+      <div class="new-viewsheet-legend">
+        _#(Values for Query Parameters)
+      </div>
+    </legend>
+    <div class="parameter-content pt-2">
+      <ng-container *ngFor="let param of queryParams; let i = index;">
+        <div #dropdownBody class="field-combo" [class.form-group]="i != queryParams.length - 1">
+          <div #dropDownToggle class="field-combo-toggle form-floating form-control dropdown-toggle bd-gray"
+               [fixedDropdown]="dropdownMenu"
+               dropdownPlacement="bottom">
+            <div class="field-combo-text ps-1">
+              {{getSelectedParamVal(param)}}&nbsp;
+            </div>
+            <label class="base-font-size"><span>{{param}}</span></label>
+          </div>
+        </div>
+        <ng-template #dropdownMenu>
+          <div class="dropdown-pane" [style.min-width.px]="dropdownMinWidth">
+            <select-attribute-pane *ngIf="entities" [entities]="entities" [info]="getSelectedInfo(param)"
+                                   (onSelectItem)="selectItem($event, param)">
+            </select-attribute-pane>
+            <select-query-field-pane [fields]="fields" [selectedField]="getSelectedParamVal(param)"
+                                     (onSelectField)="selectItem($event, param)">
+            </select-query-field-pane>
+          </div>
+        </ng-template>
+      </ng-container>
+    </div>
+  </fieldset>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="okDisabled()">_#(OK)</button>
+  <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+  <button type="button" class="btn btn-primary" (click)="clear()">_#(Clear)</button>
+</div>

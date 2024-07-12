@@ -1,0 +1,167 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="repository-editor-page">
+  <div class="flex repository-editor-container" *ngIf="editorModel">
+    <ng-container [ngSwitch]="editorType">
+      <em-auto-save-recycle-bin-page *ngSwitchCase="'auto-save-ws'" [model]="editorModel"
+                                     (editorChanged)="handleEditorChange($event)">
+      </em-auto-save-recycle-bin-page>
+      <em-auto-save-recycle-bin-page *ngSwitchCase="'auto-save-vs'" [model]="editorModel"
+                                     (editorChanged)="handleEditorChange($event)">
+      </em-auto-save-recycle-bin-page>
+      <em-auto-save-folder-page *ngSwitchCase="'vs-auto-save-folder'" [model]="editorModel"
+                                (editorChanged)="handleEditorChange($event)">
+      </em-auto-save-folder-page>
+      <em-auto-save-folder-page *ngSwitchCase="'ws-auto-save-folder'" [model]="editorModel"
+                                     (editorChanged)="handleEditorChange($event)">
+      </em-auto-save-folder-page>
+      <div *ngSwitchCase="'auto-save-folder'"></div>
+      <em-repository-report-settings-page *ngSwitchCase="'report'"
+                                          [model]="editorModel" [selectedTab]="selectedTab"
+                                          [smallDevice]="smallDevice"
+                                          (editorChanged)="handleEditorChange($event)"
+                                          (cancel)="cancel.emit()"
+                                          (selectedTabChanged)="selectedTab = $event"
+                                          (unsavedChanges)="unsavedChanges.emit($event)">
+      </em-repository-report-settings-page>
+      <em-repository-viewsheet-settings-page *ngSwitchCase="'viewsheet'"
+                                             [model]="editorModel"
+                                             [selectedTab]="selectedTab"
+                                             [editingNode]="editingNode"
+                                             [smallDevice]="smallDevice"
+                                             [hasMVPermission]="hasMVPermission"
+                                             (selectedTabChanged)="selectedTab = $event"
+                                             (editorChanged)="handleEditorChange($event)"
+                                             (mvChanged)="mvChanged.emit(editorModel)"
+                                             (cancel)="cancel.emit()"
+                                             (unsavedChanges)="unsavedChanges.emit($event)">
+      </em-repository-viewsheet-settings-page>
+      <em-repository-worksheet-settings-page *ngSwitchCase="'worksheet'"
+                                             [model]="editorModel"
+                                             [selectedTab]="selectedTab"
+                                             [editingNode]="editingNode"
+                                             [smallDevice]="smallDevice"
+                                             [hasMVPermission]="hasMVPermission"
+                                             (selectedTabChanged)="selectedTab = $event"
+                                             (editorChanged)="handleEditorChange($event)"
+                                             (mvChanged)="mvChanged.emit(editorModel)"
+                                             (cancel)="cancel.emit()"
+                                             (unsavedChanges)="unsavedChanges.emit($event)">
+      </em-repository-worksheet-settings-page>
+      <em-repository-dashboard-settings-page *ngSwitchCase="'dashboard'"
+                                             [model]="editorModel"
+                                             [selectedTab]="selectedTab"
+                                             [smallDevice]="smallDevice"
+                                             (selectedTabChanged)="selectedTab = $event"
+                                             (editorChanged)="handleEditorChange($event)"
+                                             (cancel)="cancel.emit()"
+                                             (unsavedChanges)="unsavedChanges.emit($event)">
+      </em-repository-dashboard-settings-page>
+      <em-repository-data-source-settings-page *ngSwitchCase="'data-source'"
+                                               [model]="editorModel"
+                                               [selectedTab]="selectedTab"
+                                               [smallDevice]="smallDevice"
+                                               (selectedTabChanged)="selectedTab = $event"
+                                               (editorChanged)="handleDataSourceChange($event)"
+                                               (cancel)="cancel.emit()"
+                                               (unsavedChanges)="unsavedChanges.emit($event)">
+      </em-repository-data-source-settings-page>
+      <em-repository-folder-trashcan-settings-page *ngSwitchCase="'folder-trashcan'"
+                                                   [model]="editorModel"
+                                                   [smallDevice]="smallDevice"
+                                                   (editorChanged)="editorChanged.emit(editorModel)"
+                                                   (cancel)="cancel.emit()"
+                                                   (unsavedChanges)="unsavedChanges.emit($event)">
+      </em-repository-folder-trashcan-settings-page>
+      <em-repository-folder-recycle-bin-page *ngSwitchCase="'folder-recycle-bin'"
+                                             [model]="editorModel"
+                                             [smallDevice]="smallDevice"
+                                             (editorChanged)="handleEditorChange(null)"
+                                             (cancel)="cancel.emit()"
+                                             (unsavedChanges)="unsavedChanges.emit($event)">
+      </em-repository-folder-recycle-bin-page>
+      <em-repository-script-settings-page *ngSwitchCase="'script'"
+                                          [model]="editorModel"
+                                          (editorChanged)="handleEditorChange($event)"
+                                          (unsavedChanges)="unsavedChanges.emit($event)">
+      </em-repository-script-settings-page>
+      <div class="clear-trash-button" *ngSwitchCase="'recycle-bin-root'">
+        <button mat-stroked-button title="_#(Clear All)" (click)="mangleAssets()">
+          _#(Clear All)
+        </button>
+        <em-loading-spinner [loading]="loading"></em-loading-spinner>
+      </div>
+      <em-repository-folder-dashboard-settings-page *ngSwitchCase="'folder-dashboard'"
+                                                    [model]="editorModel"
+                                                    [smallDevice]="smallDevice"
+                                                    [selectedTab]="selectedTab"
+                                                    (selectedTabChanged)="selectedTab = $event"
+                                                    (editorChanged)="editorChanged.emit(editorModel)"
+                                                    (cancel)="cancel.emit()"
+                                                    (unsavedChanges)="unsavedChanges.emit($event)">
+      </em-repository-folder-dashboard-settings-page>
+      <em-repository-folder-settings-page
+        *ngSwitchCase="'folder'"
+        [model]="editorModel"
+        [selectedTab]="selectedTab"
+        [smallDevice]="smallDevice"
+        (selectedTabChanged)="selectedTab = $event"
+        (editorChanged)="handleEditorChange($event)"
+        (cancel)="cancel.emit()"
+        (unsavedChanges)="unsavedChanges.emit($event)"
+      ></em-repository-folder-settings-page>
+      <em-repository-data-source-folder-settings-page
+        *ngSwitchCase="'data-source-folder'"
+        [model]="editorModel"
+        [selectedTab]="selectedTab"
+        [smallDevice]="smallDevice"
+        (selectedTabChanged)="selectedTab = $event"
+        (editorChanged)="handleEditorChange($event)"
+        (cancel)="cancel.emit()"
+        (unsavedChanges)="unsavedChanges.emit($event)"
+      ></em-repository-data-source-folder-settings-page>
+      <em-repository-permission-editor-page *ngSwitchCase="'permission'"
+                                            [model]="editorModel"
+                                            [smallDevice]="smallDevice"
+                                            (editorChanged)="editorChanged.emit(editorModel)"
+                                            (cancel)="cancel.emit()"
+                                            (unsavedChanges)="unsavedChanges.emit($event)">
+      </em-repository-permission-editor-page>
+      <em-repository-recycle-bin-page *ngSwitchCase="'recycle-bin'"
+                                      [model]="editorModel"
+                                      [nodeType]="selectedNodeType"
+                                      [smallDevice]="smallDevice"
+                                      (editorChanged)="handleEditorChange($event)"
+                                      (cancel)="cancel.emit()"
+                                      (unsavedChanges)="unsavedChanges.emit($event)">
+      </em-repository-recycle-bin-page>
+      <em-repository-schedule-task-folder-settings-page
+        *ngSwitchCase="'schedule-task-folder'"
+        [model]="editorModel"
+        (editorChanged)="handleEditorChange($event)"
+        (cancel)="cancel.emit()"
+        (unsavedChanges)="unsavedChanges.emit($event)"
+      ></em-repository-schedule-task-folder-settings-page>
+      <div *ngSwitchDefault>
+        <!-- WARNING: NULL EDITOR TYPE -->
+      </div>
+    </ng-container>
+  </div>
+</div>

@@ -1,0 +1,666 @@
+{
+  "endpoints": [
+    {
+      "name": "Balance",
+      "paged": false,
+      "suffix": "/v1/balance"
+    },
+    {
+      "name": "Balance Transaction",
+      "paged": false,
+      "suffix": "/v1/balance_transactions/{Balance Transactions ID}"
+    },
+    {
+      "name": "Balance Transactions",
+      "paged": true,
+      "suffix": "/v1/balance_transactions?payout={Payout ID?}&type={Type?:charge|refund|...}&available_on={Available On?:Unix timestamp}&Created={Created?:Unix timestamp}&currency={Currency?:ISO currency code}&source={Source ID?}"
+    },
+    {
+      "name": "Charge",
+      "paged": false,
+      "suffix": "/v1/charges/{Charge ID}"
+    },
+    {
+      "name": "Charges",
+      "paged": true,
+      "suffix": "/v1/charges?created={Created?:Unix timestamp}&payment_intent={Payment Intent ID?}&transfer_group={Transfer Group?}",
+      "lookups": [
+        {
+          "endpoints": ["Disputes", "Refunds", "Application Fees", "Early Fraud Warnings"],
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Charge ID"
+        }
+      ]
+    },
+    {
+      "name": "Customer",
+      "paged": false,
+      "suffix": "/v1/customers/{Customer ID}"
+    },
+    {
+      "name": "Customers",
+      "paged": true,
+      "suffix": "/v1/customers?email={Email?}&created={Created?:Unix timestamp}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Bank Accounts",
+            "Cards",
+            "Customer Balance Transactions",
+            "Tax IDs",
+            "Upcoming Invoice",
+            "Upcoming Invoice Line Items"
+          ],
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Customer ID",
+          "inheritParameters": false
+        }
+      ]
+    },
+    {
+      "name": "Dispute",
+      "paged": false,
+      "suffix": "/v1/disputes/{Dispute ID}"
+    },
+    {
+      "name": "Disputes",
+      "paged": true,
+      "suffix": "/v1/disputes?charge={Charge ID?}&payment_intent={Payment Intent ID?}&created={Created?:Unix timestamp}"
+    },
+    {
+      "name": "Event",
+      "paged": false,
+      "suffix": "/v1/events/{Event ID}"
+    },
+    {
+      "name": "Events",
+      "paged": true,
+      "suffix": "/v1/events?created={Created?:Unix timestamp}&delivery_success={Delivery Success?:true|false}&type={Event Type?}"
+    },
+    {
+      "name": "File",
+      "paged": false,
+      "suffix": "/v1/files/{File ID}"
+    },
+    {
+      "name": "Files",
+      "paged": true,
+      "suffix": "/v1/files?purpose={Purpose?}&created={Created?:Unix timestamp}"
+    },
+    {
+      "name": "File Link",
+      "paged": false,
+      "suffix": "/v1/file_links/{File Link ID}"
+    },
+    {
+      "name": "File Links",
+      "paged": true,
+      "suffix": "/v1/file_links?created={Created?:Unix timestamp}&expired={Expired?:true|false}&file={File ID?}"
+    },
+    {
+      "name": "Mandate",
+      "paged": false,
+      "suffix": "/v1/mandates/{Mandate ID}"
+    },
+    {
+      "name": "Payment Intent",
+      "paged": false,
+      "suffix": "/v1/payment_intents/{Payment Intent ID}?client_secret={Client Secret}"
+    },
+    {
+      "name": "Payment Intents",
+      "paged": true,
+      "suffix": "/v1/payment_intents?customer={Customer ID?}&created={Created?:Unix timestamp}",
+      "lookups": [
+        {
+          "endpoint": "Payment Method",
+          "jsonPath": "$.data.[*]",
+          "key": "payment_method",
+          "parameterName": "Payment Method ID"
+        }
+      ]
+    },
+    {
+      "name": "Setup Intent",
+      "paged": false,
+      "suffix": "/v1/setup_intents/{Setup Intent ID}?client_secret={Client Secret}"
+    },
+    {
+      "name": "Setup Intents",
+      "paged": true,
+      "suffix": "/v1/setup_intents?customer={Customer ID?}&payment_method={Payment Method?}&created={Created?:Unix timestamp}",
+      "lookups": [
+        {
+          "endpoint": "Mandate",
+          "jsonPath": "$.data.[*]",
+          "key": "mandate",
+          "parameterName": "Mandate ID"
+        }
+      ]
+    },
+    {
+      "name": "Payout",
+      "paged": false,
+      "suffix": "/v1/payouts/{Payout ID}"
+    },
+    {
+      "name": "Payouts",
+      "paged": true,
+      "suffix": "/v1/payouts?status={Status?:pending|paid|failed|canceled}&arrival_date={Arrival Date?:Unix timestamp}&created={Created?:Unix timestamp}&destination={Destination?}"
+    },
+    {
+      "name": "Product",
+      "paged": false,
+      "suffix": "/v1/products/{Product ID}"
+    },
+    {
+      "name": "Products",
+      "paged": true,
+      "suffix": "/v1/products?active={Active?:true|false}&created={Created?:Unix timestamp}&ids={IDs?:id1,id2,...}&shippable={Shippable?:true|false}&type={Product Type?}&url={Product URL?}"
+    },
+    {
+      "name": "Refund",
+      "paged": false,
+      "suffix": "/v1/refunds/{Refund ID}"
+    },
+    {
+      "name": "Refunds",
+      "paged": true,
+      "suffix": "/v1/refunds?charge={Charge ID?}&payment_intent={Payment Intent ID?}&created={Created?:Unix timestamp}"
+    },
+    {
+      "name": "Token",
+      "paged": false,
+      "suffix": "/v1/tokens/{Token ID}"
+    },
+    {
+      "name": "Payment Method",
+      "paged": false,
+      "suffix": "/v1/payment_methods/{Payment Method ID}"
+    },
+    {
+      "name": "Payment Methods",
+      "paged": true,
+      "suffix": "/v1/payment_methods?customer={Customer ID}&type={Payment Method Type:card|ideal|sepa_debit}"
+    },
+    {
+      "name": "Bank Account",
+      "paged": false,
+      "suffix": "v1/customers/{Customer ID}/sources/{Bank Account ID}"
+    },
+    {
+      "name": "Bank Accounts",
+      "paged": true,
+      "suffix": "v1/customers/{Customer ID}/sources/?object=bank_account"
+    },
+    {
+      "name": "Card",
+      "paged": false,
+      "suffix": "/v1/customers/{Customer ID}/sources/{Card ID}"
+    },
+    {
+      "name": "Cards",
+      "paged": true,
+      "suffix": "v1/customers/{Customer ID}/sources/?object=card"
+    },
+    {
+      "name": "Source",
+      "paged": false,
+      "suffix": "/v1/sources/{Source ID}?client_secret={Client Secret?}"
+    },
+    {
+      "name": "Session",
+      "paged": false,
+      "suffix": "/v1/checkout/sessions/{Session ID}"
+    },
+    {
+      "name": "Coupon",
+      "paged": false,
+      "suffix": "/v1/coupons/{Coupon ID}"
+    },
+    {
+      "name": "Coupons",
+      "paged": true,
+      "suffix": "/v1/coupons?created={Created?:Unix timestamp}"
+    },
+    {
+      "name": "Credit Note",
+      "paged": false,
+      "suffix": "/v1/credit_notes/{Credit Note ID}"
+    },
+    {
+      "name": "Credit Note Line Items",
+      "paged": true,
+      "suffix": "/v1/credit_notes/{Credit Note ID}/lines"
+    },
+    {
+      "name": "Credit Notes",
+      "paged": true,
+      "suffix": "/v1/credit_notes?invoice={Invoice ID}&customer={Customer ID?}",
+      "lookups": [
+        {
+          "endpoint": "Credit Note Line Items",
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Credit Note ID"
+        }
+      ]
+    },
+    {
+      "name": "Customer Balance Transaction",
+      "paged": false,
+      "suffix": "/v1/customers/{Customer ID}/balance_transactions/{Customer Balance Transaction ID}"
+    },
+    {
+      "name": "Customer Balance Transactions",
+      "paged": true,
+      "suffix": "/v1/customers/{Customer ID}/balance_transactions"
+    },
+    {
+      "name": "Tax ID",
+      "paged": false,
+      "suffix": "/v1/customers/{Customer ID}/tax_ids/{Tax ID}"
+    },
+    {
+      "name": "Tax IDs",
+      "paged": true,
+      "suffix": "/v1/customers/{Customer ID}/tax_ids"
+    },
+    {
+      "name": "Invoice",
+      "paged": false,
+      "suffix": "/v1/invoices/{Invoice ID}"
+    },
+    {
+      "name": "Invoice Line Items",
+      "paged": true,
+      "suffix": "/v1/invoices/{Invoice ID}/lines"
+    },
+    {
+      "name": "Upcoming Invoice",
+      "paged": false,
+      "suffix": "/v1/invoices/upcoming?customer={Customer ID}&subscription={Subscription?}&coupon={Coupon?}"
+    },
+    {
+      "name": "Upcoming Invoice Line Items",
+      "paged": true,
+      "suffix": "/v1/invoices/upcoming/lines?customer={Customer ID}&subscription={Subscription?}&coupon={Coupon?}"
+    },
+    {
+      "name": "Invoices",
+      "paged": true,
+      "suffix": "/v1/invoices?customer={Customer ID?}&status={Status?:draft|open|paid|uncollectible|void}&subscription={Subscription?}&collection_method={Collection Method?:charge_automatically|send_invoice}&created={Created?:Unix timestamp}&due_date={Due Date?:Unix timestamp}",
+      "lookups": [
+        {
+          "endpoint": "Invoice Line Items",
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Invoice ID"
+        }
+      ]
+    },
+    {
+      "name": "Invoice Item",
+      "paged": false,
+      "suffix": "/v1/invoiceitems/{Invoice Item ID}"
+    },
+    {
+      "name": "Invoice Items",
+      "paged": true,
+      "suffix": "/v1/invoiceitems?created={Created?:Unix timestamp}&invoice={Invoice ID?}&pending={Pending?:true|false}"
+    },
+    {
+      "name": "Plan",
+      "paged": false,
+      "suffix": "/v1/plans/{Plan ID}"
+    },
+    {
+      "name": "Plans",
+      "paged": true,
+      "suffix": "/v1/plans?active={Active?:true|false}&product={Product ID?}&created={Created?:Unix timestamp}"
+    },
+    {
+      "name": "Account",
+      "paged": false,
+      "suffix": "/v1/accounts/{Account ID}"
+    },
+    {
+      "name": "Subscription",
+      "paged": false,
+      "suffix": "/v1/subscriptions/{Subscription ID}"
+    },
+    {
+      "name": "Subscriptions",
+      "paged": true,
+      "suffix": "/v1/subscriptions?customer={Customer ID?}&plan={Plan ID?}&status={Status?:incomplete|trialing|...}&collection_method={Collection Method?}&created={Created?:Unix timestamp}&current_period_end={Current Period End?:Unix timestamp}&current_period_start={Current Period Start?:Unix timestamp}",
+      "lookups": [
+        {
+          "endpoint": "Subscription Items",
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Subscription ID"
+        }
+      ]
+    },
+    {
+      "name": "Subscription Item",
+      "paged": false,
+      "suffix": "/v1/subscription_items/{Subscription Item ID}"
+    },
+    {
+      "name": "Subscription Items",
+      "paged": true,
+      "suffix": "/v1/subscription_items?subscription={Subscription ID}",
+      "lookups": [
+        {
+          "endpoint": "Subscription Item Period Summaries",
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Subscription Item ID"
+        }
+      ]
+    },
+    {
+      "name": "Schedule",
+      "paged": false,
+      "suffix": "/v1/subscription_schedules/{Subscription Schedule ID}"
+    },
+    {
+      "name": "Schedules",
+      "paged": true,
+      "suffix": "/v1/subscription_schedules?customer={Customer ID?}&canceled_at={Canceled At?:Unix timestamp}&completed_at={Completed At?:Unix timestamp}&created={Created?:Unix timestamp}&released_at={Released At?}&scheduled={Scheduled?:true|false}"
+    },
+    {
+      "name": "Tax Rate",
+      "paged": false,
+      "suffix": "/v1/tax_rates/{Tax Rate ID}"
+    },
+    {
+      "name": "Tax Rates",
+      "paged": true,
+      "suffix": "/v1/tax_rates?active={Active?:true|false}&created={Created?:Unix timestamp}&inclusive={Inclusive?:true|false}"
+    },
+    {
+      "name": "Subscription Item Period Summaries",
+      "paged": true,
+      "suffix": "/v1/subscription_items/{Subscription Item ID}/usage_record_summaries"
+    },
+    {
+      "name": "Connected Accounts",
+      "paged": true,
+      "suffix": "/v1/accounts?created={Created?:Unix timestamp}",
+      "lookups": [
+        {
+          "endpoints": ["Account Capabilities", "Account Bank Accounts", "Account Cards", "People"],
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Account ID"
+        }
+      ]
+    },
+    {
+      "name": "Application Fee",
+      "paged": false,
+      "suffix": "/v1/application_fees/{Application Fee ID}"
+    },
+    {
+      "name": "Application Fees",
+      "paged": true,
+      "suffix": "/v1/application_fees?charge={Charge ID?}&created={Created?:Unix timestamp}",
+      "lookups": [
+        {
+          "endpoint": "Application Fee Refunds",
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Application Fee ID"
+        }
+      ]
+    },
+    {
+      "name": "Application Fee Refund",
+      "paged": false,
+      "suffix": "/v1/application_fees/{Application Fee ID}/refunds/{Refund ID}"
+    },
+    {
+      "name": "Application Fee Refunds",
+      "paged": true,
+      "suffix": "/v1/application_fees/{Application Fee ID}/refunds"
+    },
+    {
+      "name": "Account Capability",
+      "paged": false,
+      "suffix": "/v1/accounts/{Account ID}/capabilities/{Capability ID}"
+    },
+    {
+      "name": "Account Capabilities",
+      "paged": false,
+      "suffix": "/v1/accounts/{Account ID}/capabilities"
+    },
+    {
+      "name": "Country",
+      "paged": true,
+      "suffix": "/v1/country_specs"
+    },
+    {
+      "name": "Countries",
+      "paged": false,
+      "suffix": "/v1/country_specs/{Country ID}"
+    },
+    {
+      "name": "Account Bank Account",
+      "paged": false,
+      "suffix": "/v1/accounts/{Account ID}/external_accounts/{Bank Account ID}"
+    },
+    {
+      "name": "Account Bank Accounts",
+      "paged": true,
+      "suffix": "/v1/accounts/{Account ID}/external_accounts"
+    },
+    {
+      "name": "Account Card",
+      "paged": false,
+      "suffix": "/v1/accounts/{Account ID}/external_accounts/{Card ID}"
+    },
+    {
+      "name": "Account Cards",
+      "paged": true,
+      "suffix": "/v1/accounts/{Account ID}/external_accounts"
+    },
+    {
+      "name": "Person",
+      "paged": false,
+      "suffix": "/v1/accounts/{Account ID}/persons/{Person ID}"
+    },
+    {
+      "name": "People",
+      "paged": true,
+      "suffix": "/v1/accounts/{Account ID}/persons?relationship={Relationship?}"
+    },
+    {
+      "name": "Top-Up",
+      "paged": false,
+      "suffix": "/v1/topups/{Top-up ID}"
+    },
+    {
+      "name": "Top-Ups",
+      "paged": true,
+      "suffix": "/v1/topups?amount={Amount?}&created={Created?:Unix timestamp}"
+    },
+    {
+      "name": "Transfer",
+      "paged": false,
+      "suffix": "/v1/transfers/{Transfer ID}"
+    },
+    {
+      "name": "Transfers",
+      "paged": true,
+      "suffix": "/v1/transfers?destination={Destination?}created={Created?:Unix timestamp}&transfer_group={Transfer Group}",
+      "lookups": [
+        {
+          "endpoint": "Reversals",
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Transfer ID"
+        }
+      ]
+    },
+    {
+      "name": "Reversal",
+      "paged": false,
+      "suffix": "/v1/transfers/{Transfer ID}/reversals/{Reversal ID}"
+    },
+    {
+      "name": "Reversals",
+      "paged": true,
+      "suffix": "/v1/transfers/{Transfer ID}/reversals"
+    },
+    {
+      "name": "Early Fraud Warning",
+      "paged": false,
+      "suffix": "/v1/radar/early_fraud_warnings/{Early Fraud Warning ID}"
+    },
+    {
+      "name": "Early Fraud Warnings",
+      "paged": true,
+      "suffix": "/v1/radar/early_fraud_warnings?charge={Charge ID}"
+    },
+    {
+      "name": "Review",
+      "paged": false,
+      "suffix": "/v1/reviews/{Review ID}"
+    },
+    {
+      "name": "Open Reviews",
+      "paged": true,
+      "suffix": "/v1/reviews?created={Created?:Unix timestamp}"
+    },
+    {
+      "name": "Value List",
+      "paged": false,
+      "suffix": "/v1/radar/value_lists/{Value List ID}"
+    },
+    {
+      "name": "Value Lists",
+      "paged": true,
+      "suffix": "/v1/radar/value_lists?alias={Alias?}&contains={Contains?:value1,value2,...}&created={Created?:Unix timestamp}",
+      "lookups": [
+        {
+          "endpoint": "Value List Items",
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Value List ID"
+        }
+      ]
+    },
+    {
+      "name": "Value List Item",
+      "paged": false,
+      "suffix": "/v1/radar/value_list_items/{Value List Item ID}"
+    },
+    {
+      "name": "Value List Items",
+      "paged": true,
+      "suffix": "/v1/radar/value_list_items?value_list={Value List ID}&value={Value?}&created={Created?:Unix timestamp}"
+    },
+    {
+      "name": "Location",
+      "paged": false,
+      "suffix": "/v1/terminal/locations/{Location ID}"
+    },
+    {
+      "name": "Locations",
+      "paged": true,
+      "suffix": "/v1/terminal/locations"
+    },
+    {
+      "name": "Reader",
+      "paged": false,
+      "suffix": "v1/terminal/readers/{Reader ID}"
+    },
+    {
+      "name": "Readers",
+      "paged": true,
+      "suffix": "/v1/terminal/readers?device_type={Device Type?:bbpos_chipper2x|verifone_P400}&location={Location ID?}&status={Status?:offline|online}"
+    },
+    {
+      "name": "Order",
+      "paged": false,
+      "suffix": "/v1/orders/{Order ID}"
+    },
+    {
+      "name": "Orders",
+      "paged": true,
+      "suffix": "/v1/orders?customer={Customer ID?}&status={Status?:created|paid|fulfilled|refunded}&created={Created?:Unix timestamp}&ids={Order IDs?}&status_transitions={Status Transitions?}&upstream_ids={Upstream Order Ids?}",
+      "lookups": [
+        {
+          "endpoint": "Order Returns",
+          "jsonPath": "$.data.[*]",
+          "key": "id",
+          "parameterName": "Order ID"
+        }
+      ]
+    },
+    {
+      "name": "Order Return",
+      "paged": false,
+      "suffix": "/v1/order_returns/{Order Return ID}"
+    },
+    {
+      "name": "Order Returns",
+      "paged": true,
+      "suffix": "/v1/order_returns?order={Order ID}&created={Created?:Unix timestamp}"
+    },
+    {
+      "name": "SKU",
+      "paged": false,
+      "suffix": "/v1/skus/{SKU ID}"
+    },
+    {
+      "name": "SKUs",
+      "paged": true,
+      "suffix": "/v1/skus?active={Active?:true|false}&product={Product ID?}&ids={SKU IDs?}&in_stock={In Stock?:true|false}"
+    },
+    {
+      "name": "Scheduled Query Run",
+      "paged": false,
+      "suffix": "/v1/sigma/scheduled_query_runs/{Scheduled Query Run ID}"
+    },
+    {
+      "name": "Scheduled Query Runs",
+      "paged": true,
+      "suffix": "/v1/sigma/scheduled_query_runs"
+    },
+    {
+      "name": "Report Run",
+      "paged": false,
+      "suffix": "/v1/reporting/report_runs/{Report Run ID}"
+    },
+    {
+      "name": "Report Runs",
+      "paged": true,
+      "suffix": "/v1/reporting/report_runs?created={Created?:Unix timestamp}"
+    },
+    {
+      "name": "Report Type",
+      "paged": false,
+      "suffix": "/v1/reporting/report_types/{Report Type ID}"
+    },
+    {
+      "name": "Report Types",
+      "paged": false,
+      "suffix": "/v1/reporting/report_types"
+    },
+    {
+      "name": "Webhook Endpoint",
+      "paged": false,
+      "suffix": "/v1/webhook_endpoints/{Webhook Endpoint ID}"
+    },
+    {
+      "name": "Webhook Endpoints",
+      "paged": true,
+      "suffix": "/v1/webhook_endpoints"
+    }
+  ]
+}

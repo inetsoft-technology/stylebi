@@ -1,0 +1,83 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMGeneralEmail'" [title]="'_#(Select Email Addresses)'">
+</em-modal-header>
+<mat-dialog-content>
+  <div [formGroup]="form" class="select-email-form">
+    <mat-form-field>
+      <input type="email" matInput formControlName="email"
+             [matAutocomplete]="auto" [matAutocompleteDisabled]="!autocompleteEmails">
+      <button matSuffix mat-icon-button
+              title="_#(Add Email)" aria-label="_#(Add Email)"
+              (click)="addEmail()" [disabled]="form.invalid || !form.controls.email?.value">
+        <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="add-icon"></mat-icon>
+      </button>
+      <mat-error *ngIf="form.controls.email?.errors?.email">_#(em.schedule.action.invalidEmail)</mat-error>
+    </mat-form-field>
+    <mat-autocomplete #auto="matAutocomplete">
+      <mat-tree [dataSource]="dataSource" [treeControl]="treeControl" class="select-user-tree">
+        <mat-tree-node *matTreeNodeDef="let node" matTreeNodeToggle matTreeNodePadding>
+          <button mat-icon-button disabled></button>
+          <mat-option class="dropdownItem" [value]="node.name + '(User)'" *ngIf="!node.group">
+            <mat-icon fontSet="ineticons" fontIcon="account-icon"></mat-icon>
+            {{node.label}}
+          </mat-option>
+          <span *ngIf="node.folder">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="user-group-icon"></mat-icon>
+            {{node.label}}
+          </span>
+        </mat-tree-node>
+        <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding>
+          <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'_#(Toggle) ' + node.label">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="treeControl.isExpanded(node) ? 'downward-icon' : 'forward-icon'">
+            </mat-icon>
+          </button>
+          <mat-option class="dropdownItem" [value]="node.name + '(Group)'">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="user-group-icon"></mat-icon>
+            {{node.label}}
+          </mat-option>
+        </mat-tree-node>
+      </mat-tree>
+    </mat-autocomplete>
+  </div>
+  <h4 matLine>_#(Emails)</h4>
+  <mat-list dense role="list">
+    <ng-container *ngFor="let email of emails">
+      <mat-list-item role="listitem">
+        <div class="emailListItem">
+          <div class="flex-row">
+            <mat-icon *ngIf="!!getIdentityIcon(email)" matListItemIcon fontSet="ineticons" fontIcon="{{getIdentityIcon(email)}}"></mat-icon>
+            <span [title]="email">{{email}}</span>
+          </div>
+          <button mat-icon-button
+                  title="_#(Remove Email)" aria-label="_#(Remove Email)"
+                  (click)="removeEmail(email)">
+            <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+          </button>
+        </div>
+      </mat-list-item>
+      <mat-divider></mat-divider>
+    </ng-container>
+  </mat-list>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-button [mat-dialog-close]="emails">_#(OK)</button>
+  <button mat-button mat-dialog-close>_#(Cancel)</button>
+</mat-dialog-actions>

@@ -1,0 +1,190 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model"
+     class="vs-object vs-chart"
+     [class.show-hints]="showHints"
+     VSDataTip [dataTipName]="getAssemblyName()"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex"
+     #chartContainer
+     (click)="click($event)"
+     [class.vs-chart--max-mode]="model.maxMode"
+     [style.position]="viewer || model.inEmbeddedViewsheet ? 'absolute' : 'relative'"
+     [style.top.px]="model.maxMode ? 0 : (!isBinding && (viewer || model.inEmbeddedViewsheet) ?
+     model.objectFormat.top : 0)"
+     [style.left.px]="model.maxMode ? 0 : (!isBinding && (viewer || model.inEmbeddedViewsheet) ?
+     model.objectFormat.left : 0)"
+     [style.width.px]="model.objectFormat.width"
+     [style.height.px]="model.objectFormat.height"
+     [style.border-radius.px]="model.objectFormat.roundCorner"
+     [class.disable-actions-fade]="!model.enabled"
+     [class.fade-assembly]="!viewer && !model.visible"
+     [style.display]="getVisible() ? null : 'none'">
+  <i *ngIf="model.drillTip" [wTooltip]="model.drillTip" class="drill-filter-icon drill-tip"
+     [class.move-down]="isTipOverlapToolbar()"></i>
+  <i *ngIf="showDCIcon" [wTooltip]="model.dateComparisonDescription"
+     class="compare-icon date-comparison-tip" [style]="dateComparisonTipStyle"
+     [style.color]="model.dateComparisonDefined && !model.appliedDateComparison ? 'red' : 'black'"
+     [class.move-down]="isTipOverlapToolbar()"
+     (click)="showDateComparisonDialog()"></i>
+  <div class="border-div"
+       [style.width.px]="model.objectFormat.width"
+       [style.height.px]="model.objectFormat.height"
+       [style.border-top]="model.objectFormat.border.top"
+       [style.border-left]="model.objectFormat.border.left"
+       [style.border-bottom]="model.objectFormat.border.bottom"
+       [style.border-right]="model.objectFormat.border.right"
+       [style.background]="model.objectFormat.background"
+       [style.z-index]="getZIndex()"
+       [style.border-radius.px]="model.objectFormat.roundCorner">
+  </div>
+  <vs-title *ngIf="model.titleVisible"
+            [style.position]="'relative'"
+            [style.left.px]="model.paddingLeft"
+            [style.top.px]="model.paddingTop"
+            [titleContent]="model.title"
+            [titleFormat]="model.titleFormat"
+            [selected]="selected || isBinding"
+            [formatPainterMode]="vsInfo?.formatPainterMode"
+            [titleSelected]="model.titleSelected"
+            [titleVisible]="model.titleVisible"
+            [titleWidth]="model.objectFormat.width - model.paddingLeft - model.paddingRight"
+            (selectTitle)="selectTitle()"
+            (changeTitle)="changeTitle($event)"
+            (titleResizeMove)="titleResizeMove($event)"
+            (titleResizeEnd)="titleResizeEnd()"
+            [zIndex]="viewer ? getZIndex() + 1 : 100">
+  </vs-title>
+  <chart-area *ngIf="!viewer || model.visible || model.active"
+              #chartArea
+              [model]="model"
+              [selected]="selected"
+              [emptyChart]="emptyChart"
+              [modelTS]="modelTS"
+              [viewerMode]="contextProvider.viewer"
+              [isBinding]="contextProvider.binding"
+              [previewMode]="contextProvider.preview"
+              [supportHyperlink]="viewer"
+              [class.resizer-open]="model.showPlotResizers"
+              [urlPrefix]="getImageUrlPrefix()"
+              [format]="model.objectFormat"
+              [titleFormat]="model.titleFormat"
+              [titleVisible]="this.model.titleVisible"
+              [showEmptyArea]="showEmptyArea"
+              [noChartData]="noChartData"
+              [plotScaleInfo]="plotScaleInfo"
+              [zIndex]="getZIndex()"
+              [hideSortIcon]="isDataTip() || vsWizard || model.dateComparisonDefined"
+              [isDataTip]="isDataTip()"
+              [isResizeVisible]="isResizeVisible"
+              [isVSChart]="true"
+              [dateComparisonDefined]="model.dateComparisonDefined"
+              (onDrill)="drill($event)" (onSendFlyover)="sendFlyover($event)"
+              (onShowDataTip)="showDataTip($event)"
+              (onEndAxisResize)="endAxisResize($event)"
+              (onEndLegendResize)="endLegendResize($event)"
+              (onEndLegendMove)="endLegendMove($event)"
+              (onSortAxis)="sortAxis($event)"
+              (onBrushChart)="brushChartArea()"
+              (onShowHyperlink)="clickHyperlink($event)"
+              (onSelectRegion)="selectRegion($event)"
+              (onScroll)="onScroll($event)"
+              outOfZone (onMouseleave)="mouseLeave($event)"
+              (onError)="clearChartLoading()"
+              (onLoad)="clearChartLoading()"
+              (onLoading)="showChartLoading(true, 1)"
+              (onZoomIn)="zoomInMap($event)"
+              (onZoomOut)="zoomOutMap($event)"
+              (onClearPanZoom)="clearPanZoomMap()"
+              (onPanMap)="panMap($event)"
+              (mousewheel)="zoomByWheel($event)"
+              [container]="container">
+    <ng-container *ngIf="enableAnnotation && !!model.plot" ngProjectAs="vs-annotation">
+      <ng-container *ngFor="let annotationModel of model.dataAnnotationModels">
+        <vs-annotation [model]="annotationModel"
+                       [actions]="actions"
+                       [tetherTo]="chartContainerBounds"
+                       [restrictTo]="annotationContainerBounds"
+                       [offsetX]="-scrollLeft"
+                       [offsetY]="-scrollTop"
+                       [vsInfo]="vsInfo"
+                       [selected]="isAnnotationSelected(annotationModel)"
+                       (remove)="removeAnnotation(annotationModel)"
+                       (mouseSelect)="selectAnnotation($event)">
+        </vs-annotation>
+      </ng-container>
+    </ng-container>
+    <ng-container *ngIf="model.showPlotResizers && model.horizontallyResizable">
+      <div class="chart-plot-resizer-horizontal">
+        <div class="chart-plot-resizer-horizontal-container">
+          <input id="horizontal-resize-slider"
+                 type="range"
+                 [attr.min]="model.initialWidthRatio"
+                 [attr.max]="model.maxHorizontalResize"
+                 step="0.01"
+                 (change)="changeSizeRatio($event.target.value, false)"
+                 (input)="sizeSliderTick($event.target.value, false)"
+                 [value]="model.widthRatio"/>
+        </div>
+      </div>
+    </ng-container>
+    <ng-container *ngIf="model.showPlotResizers && model.verticallyResizable">
+      <div class="chart-plot-resizer-vertical">
+        <div class="chart-plot-resizer-vertical-container">
+          <input id="vertical-resize-slider"
+                 type="range"
+                 [attr.min]="model.initialHeightRatio"
+                 [attr.max]="model.maxVerticalResize"
+                 step="0.01"
+                 (touchstart)="$event.stopPropagation()"
+                 (change)="changeSizeRatio($event.target.value, true)"
+                 (input)="sizeSliderTick($event.target.value, true)"
+                 [value]="model.heightRatio"/>
+        </div>
+      </div>
+    </ng-container>
+    <div *ngIf="!model.maxMode && viewer"
+         class="annotation-hidden-container">
+      <vs-hidden-annotation [annotations]="allAnnotations"></vs-hidden-annotation>
+    </div>
+  </chart-area>
+  <vs-preview-table [assemblyName]="getAssemblyName()" [linkUri]="vsInfo?.linkUri"
+                    [formatGetter]="formatFunction"
+                    [isDetails]="previewTableType === 'Details'"
+                    [isDataTip]="isDataTip()"
+                    (onChange)="previewTableType === 'Data' ?
+                    showData($event.sortInfo, $event.format, $event.column, $event.str, $event.detailStyle, $event.dndInfo, $event.newColName, $event.toggleHide) :
+                    showDetails($event.sortInfo, $event.format, $event.column, $event.str, $event.detailStyle, $event.dndInfo, $event.newColName, $event.toggleHide)">
+  </vs-preview-table>
+  <ng-container *ngIf="enableAnnotation">
+    <vs-annotation *ngFor="let annotationModel of model.assemblyAnnotationModels"
+                   [model]="annotationModel"
+                   [actions]="actions"
+                   [restrictTo]="chartContainer"
+                   [vsInfo]="vsInfo"
+                   [selected]="isAnnotationSelected(annotationModel)"
+                   (remove)="removeAnnotation(annotationModel)"
+                   (mouseSelect)="selectAnnotation($event)">
+    </vs-annotation>
+  </ng-container>
+  <vs-loading-display *ngIf="model && model?.sourceType != -1 && chartLoading && chartLoadingIcon && (isBinding || !model.maxMode)"
+                      [allowInteraction]="true"
+                      [assemblyLoading]="true"></vs-loading-display>
+</div>

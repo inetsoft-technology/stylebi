@@ -1,0 +1,69 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div #colorEditor class="color-editor">
+  <form class="form" novalidate>
+    <div class="input-group">
+      <span class="input-group-addon">H</span>
+      <label for="hue" class="visually-hidden">_#(Hue)</label>
+      <input class="form-control" id="hue" name="hue" type="number" required min="0" max="360"
+             [ngModel]="hue" (ngModelChange)="hueChange.emit($event)"/>
+    </div>
+    <div class="input-group">
+      <span class="input-group-addon">S</span>
+      <label for="saturation" class="visually-hidden">_#(Saturation)</label>
+      <input class="form-control" id="saturation" name="saturation" type="number" required
+             min="0" max="100" [ngModel]="saturation"
+             (ngModelChange)="saturationChange.emit($event)"/>
+    </div>
+    <div class="input-group">
+      <span class="input-group-addon">V</span>
+      <label for="brightness" class="visually-hidden">_#(Brightness)</label>
+      <input class="form-control" id="brightness" name="brightness" type="number" required
+             min="0" max="100" [ngModel]="brightness"
+             (ngModelChange)="brightnessChange.emit($event)"/>
+    </div>
+    <div class="input-group">
+      <span class="input-group-addon">R</span>
+      <label for="red" class="visually-hidden">_#(Red)</label>
+      <input class="form-control" id="red" name="red" type="number" required min="0" max="255"
+             [ngModel]="red" (ngModelChange)="redChange.emit($event)"/>
+    </div>
+    <div class="input-group">
+      <span class="input-group-addon">G</span>
+      <label for="green" class="visually-hidden">_#(Green)</label>
+      <input class="form-control" id="green" name="green" type="number" required min="0" max="255"
+             [ngModel]="green" (ngModelChange)="greenChange.emit($event)"/>
+    </div>
+    <div class="input-group">
+      <span class="input-group-addon">B</span>
+      <label for="blue" class="visually-hidden">_#(Blue)</label>
+      <input class="form-control" id="blue" name="blue" type="number" required min="0" max="255"
+             [ngModel]="blue" (ngModelChange)="blueChange.emit($event)"/>
+    </div>
+    <div class="input-group">
+      <span class="input-group-addon">#</span>
+      <label for="color" class="visually-hidden">_#(Color)</label>
+      <input class="form-control" id="color" name="color" type="text" required
+             [style.color]="colorForeground"
+             [style.background-color]="colorBackground"
+             [ngModel]="hex" (ngModelChange)="hexChange.emit($event)"/>
+    </div>
+  </form>
+</div>

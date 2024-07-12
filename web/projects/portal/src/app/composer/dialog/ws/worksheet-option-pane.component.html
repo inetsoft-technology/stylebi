@@ -1,0 +1,61 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form" class="container-fluid">
+  <fieldset>
+    <legend>_#(Deployment)</legend>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <input type="text" id="deploymentPaneName" class="form-control" trim
+                 [(ngModel)]="model.name" formControlName="name" placeholder="_#(Name)">
+          <label>_#(Name)</label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col form-floating">
+        <input type="text" id="deploymentPaneAlias" class="form-control" trim
+               [(ngModel)]="model.alias" formControlName="alias"
+               [class.is-invalid]="!form.controls['alias'].valid" placeholder="_#(Alias)">
+        <label><span>_#(Alias)</span></label>
+        <span *ngIf="form.controls['alias'].errors && !form.controls['alias'].errors['assetNameStartWithCharDigit'] &&
+                     form.controls['alias'].errors['assetEntryBannedCharacters']" class="invalid-feedback">
+          _#(worksheet.alias.special.chars)
+        </span>
+        <span *ngIf="form.controls['alias'].errors && form.controls['alias'].errors['assetNameStartWithCharDigit']"
+             class="invalid-feedback">_#(viewer.dialog.wsProperties.AliasStartChartDigitError)
+        </span>
+      </div>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>_#(Content)</legend>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-floating">
+            <textarea class="form-control" [(ngModel)]="model.description"
+                      [ngModelOptions]="{standalone: true}"
+                      placeholder="_#(Description)"></textarea>
+            <label>_#(Description)</label>
+          </div>
+        </div>
+      </div>
+  </fieldset>
+</form>

@@ -1,0 +1,37 @@
+{
+  "users": [
+    {
+      "name": "freeuser",
+      "emails": ["free.user@example.com"],
+      "groups": ["Free Customers"],
+      "roles": ["Everyone"],
+      "password": "success123"
+    },
+    {
+      "name": "paiduser",
+      "emails": ["paid.user@example.com"],
+      "groups": ["Paid Customers"],
+      "roles": ["Everyone"],
+      "password": "success123"
+    }
+  ],
+  "groups": [
+    {
+      "name": "Paid Customers",
+      "groups": [],
+      "roles": []
+    },
+    {
+      "name": "Free Customers",
+      "groups": [],
+      "roles": []
+    }
+  ],
+  "roles": [
+    {
+      "name": "Everyone",
+      "roles": [],
+      "defaultRole": true
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="list-group">
+  <div class="d-flex align-items-center mt-1" *ngFor="let val of value; let i = index; trackBy: trackByIdx">
+    <input type="checkbox" class="checkbox me-1"
+           [class.query-parameter-checkbox]="type == 'PARAMETER'"
+           [(ngModel)]="selected[i]" (ngModelChange)="valueChanged()"/>
+    <div class="flex-grow-1">
+      <tabular-text-editor *ngIf="type == 'TEXT'" [(value)]="value[i]" (valueChange)="valueChanged()" [password]="password" [rows]="rows" [columns]="columns" [enabled]="enabled"></tabular-text-editor>
+      <tabular-boolean-editor *ngIf="type == 'BOOLEAN'" [(value)]="value[i]" (valueChange)="valueChanged()" [label]="label" [enabled]="enabled"></tabular-boolean-editor>
+      <tabular-number-editor *ngIf="type == 'BYTE' || type == 'SHORT' || type == 'INT' || type == 'LONG' || type == 'FLOAT' || type == 'DOUBLE'" [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-number-editor>
+      <tabular-column-definition-editor *ngIf="type == 'COLUMN'" [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-column-definition-editor>
+      <tabular-date-editor *ngIf="type == 'DATE'" [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-date-editor>
+      <tabular-http-parameter-editor *ngIf="type == 'HTTP_PARAMETER'" [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled" [editorPropertyNames]="editorPropertyNames"
+                                     [editorPropertyValues]="editorPropertyValues"></tabular-http-parameter-editor>
+      <tabular-query-parameter-editor *ngIf="type == 'PARAMETER'" [(value)]="value[i]" (valueChange)="valueChanged()" [enabled]="enabled"></tabular-query-parameter-editor>
+      <tabular-file-editor *ngIf="type == 'FILE'" [(value)]="value[i]"
+                           (valueChange)="valueChanged()" [property]="property"
+                           [editorPropertyNames]="editorPropertyNames"
+                           [editorPropertyValues]="editorPropertyValues"
+                           [pattern]="pattern" [enabled]="enabled"></tabular-file-editor>
+      <tabular-tags-editor *ngIf="type == 'TAGS'"
+                           [(value)]="value[i]"
+                           (valueChange)="valueChanged()"
+                           [tags]="tags" [labels]="labels"
+                           [enabled]="enabled"
+                           [editorPropertyNames]="editorPropertyNames"
+                           [editorPropertyValues]="editorPropertyValues"></tabular-tags-editor>
+      <tabular-autocomplete-editor *ngIf="type == 'AUTOCOMPLETE'"
+                                   [(value)]="value[i]"
+                                   (valueChange)="valueChanged()"
+                                   [tags]="tags"
+                                   [enabled]="enabled"></tabular-autocomplete-editor>
+    </div>
+  </div>
+</div>
+<div class="form-group pt-1">
+  <button type="button" class="btn btn-default me-1" (click)="addClicked()">_#(Add)</button>
+  <button type="button" class="btn btn-default" [disabled]="!isSelected()" (click)="removeClicked()">_#(Remove)</button>
+</div>
+<div *ngIf="required && value == null">
+  <div class="alert alert-danger">_#(value.required)</div>
+</div>

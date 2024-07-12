@@ -1,0 +1,33 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="presentation-settings-page">
+  <nav mat-tab-nav-bar mat-stretch-tabs="false" class="nav-bar-scroll" [tabPanel]="tabPanel">
+    <a mat-tab-link class="mat-tab-link-label"
+       *ngFor="let link of visibleLinks"
+       [routerLink]="link.path"
+       routerLinkActive #rla="routerLinkActive"
+       [active]="rla.isActive">
+      {{link.label}}
+    </a>
+  </nav>
+  <mat-tab-nav-panel #tabPanel class="presentation-settings-view" emTopScroll>
+    <router-outlet></router-outlet>
+  </mat-tab-nav-panel>
+</div>

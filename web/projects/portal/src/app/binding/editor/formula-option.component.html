@@ -1,0 +1,62 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="aggregate_id">
+   <div class="form-floating">
+      <dynamic-combo-box [values]="formulaObjs"
+         [value]="aggregate.formula"
+         [label]="aggregated ? formulaLabel : '_#(None)'"
+         [variables]="variables" [vsId]="vsId" [assemblyName]="assemblyName"
+         (valueChange)="changeFormulaValue($event)"
+         [disable]="!isFormulaEnabled() || !enabled">
+      </dynamic-combo-box>
+      <label>_#(Aggregate)</label>
+   </div>
+</div>
+<div class="mt-2 with_label_id" *ngIf="isWithFormula() && aggregated">
+   <div class="form-floating">
+      <dynamic-combo-box
+         [value]="secondColumnValue" [values]="availableValues"
+         [variables]="variables" [vsId]="vsId" [assemblyName]="assemblyName"
+         [grayedOutValues]="grayedOutValues"
+         (valueChange)="changeSecondColumnValue($event)">
+      </dynamic-combo-box>
+      <ng-container *ngIf="!isByFormula(); else elseBlock">
+        <label>_#(With)</label>
+      </ng-container>
+      <ng-template #elseBlock>
+        <label>_#(By)</label>
+      </ng-template>
+   </div>
+</div>
+<div class="mt-2 n_id" *ngIf="hasN()">
+   <div class="form-floating">
+      <dynamic-combo-box [editable]="true"
+         [value]="aggregate.numValue"
+         [variables]="variables" [vsId]="vsId" [assemblyName]="assemblyName"
+         [disable]="!isFormulaEnabled() || !enabled"
+         (valueChange)="npValueChange($event)"
+         (onValueTyping)="aggregate.numValue = $event">
+      </dynamic-combo-box>
+      <label>{{getNPLabel()}}</label>
+   </div>
+</div>
+<div *ngIf="hasN() && !isNValid()" class="alert alert-danger">
+  _#(table.formula.parameterError)
+</div>

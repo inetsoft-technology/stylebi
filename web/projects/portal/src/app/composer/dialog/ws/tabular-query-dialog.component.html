@@ -1,0 +1,69 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="displayTitle + ' Query'" (onCancel)="cancel()"
+              [cshid]="'CreatingDataSet' + helpDisplayTitle">
+</modal-header>
+<div class="loading-container" *ngIf="isLoading">
+  <i class="loading-icon--spin icon-size-xlarge loading-icon"></i>
+</div>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
+  <div *ngIf="model.tabularView">
+    <div [formGroup]="form" class="row form-row-float-label" *ngIf="!!tables">
+      <div class="col form-floating">
+        <input type="text" class="form-control" formControlName="name" trim placeholder="_#(Name)">
+        <label><span>_#(Name)</span></label>
+        <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']"
+             class="alert alert-danger">
+          _#(designer.chartProp.specifyTargetName)
+        </div>
+        <div *ngIf="form.controls['name'].errors &&
+             form.controls['name'].errors['nameSpecialCharacters']" class="alert alert-danger">
+          _#(viewer.worksheet.Grouping.SpecialChar)
+        </div>
+        <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['exists']"
+             class="alert alert-danger">
+          _#(viewer.worksheet.Grouping.nameAlready)
+        </div>
+      </div>
+    </div>
+    <tabular-view [rootView]="model.tabularView" (viewChange)="viewChanged($event)"
+                  [browseFunction]="browseFunction" (validChange)="validChanged($event)"
+                  (buttonClick)="buttonClicked($event)" [panel]="true"
+                  [cancelButtonExists]="cancelButtonExists"></tabular-view>
+  </div>
+  <div class="loading-container" *ngIf="showLoading">
+    <i class="loading-icon--spin icon-size-xlarge loading-icon"></i>
+  </div>
+  <div class="form-floating">
+    <select class="form-control" [(ngModel)]="model.dataSource" (change)="refreshView()">
+      <option *ngFor="let dataSource of model.dataSources" [value]="dataSource">{{dataSource}}</option>
+    </select>
+    <label><span>_#(Data Source)</span></label>
+  </div>
+</div>
+<div class="modal-footer">
+  <apply-button *ngIf="applyVisible" (onApply)="apply($event)"
+                [disabled]="!formValid()"></apply-button>
+  <button type="button" class="btn btn-primary" (click)="ok()"
+          [disabled]="!formValid()">_#(OK)
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)
+  </button>
+</div>

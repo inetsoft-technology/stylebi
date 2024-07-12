@@ -1,0 +1,59 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Rectangle Properties)'" (onCancel)="close()"
+   [cshid]="'ShapeProperties'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
+  <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="defaultTab" (navChange)="defaultTab = $event.nextId">
+    <ng-container [ngbNavItem]="generalTab">
+      <a ngbNavLink>_#(General)</a>
+      <ng-template ngbNavContent>
+        <shape-general-pane [model]="model.shapeGeneralPaneModel" [vsId]="runtimeId"
+                            [variableValues]="variableValues"
+                            [form]="form.controls['shapeGeneralPaneForm']"
+                            [columnTreeRoot]="scriptTreeModel?.columnTree"
+                            [functionTreeRoot]="scriptTreeModel?.functionTree"
+                            [operatorTreeRoot]="scriptTreeModel?.operatorTree"
+                            [scriptDefinitions]="scriptTreeModel?.scriptDefinitions">
+        </shape-general-pane>
+      </ng-template>
+    </ng-container>
+    <ng-container ngbNavItem="shapeTab">
+      <a ngbNavLink>_#(Shape)</a>
+      <ng-template ngbNavContent>
+        <rectangle-property-pane [model]="model.rectanglePropertyPaneModel"
+                                 [variableValues]="variableValues"
+                                 [form]="form.controls['rectanglePropertyForm']"
+                                 [vsId]="runtimeId"
+                                 [height]="model.shapeGeneralPaneModel.sizePositionPaneModel.height"
+                                 [width]="model.shapeGeneralPaneModel.sizePositionPaneModel.width"></rectangle-property-pane></ng-template>
+    </ng-container>
+    <ng-container [ngbNavItem]="scriptTab">
+      <a ngbNavLink>_#(Script)</a>
+      <ng-template ngbNavContent><vsassembly-script-pane [model]="model.vsAssemblyScriptPaneModel" [scriptTreeModel]="scriptTreeModel"></vsassembly-script-pane></ng-template>
+    </ng-container>
+  </ul>
+  <div [ngbNavOutlet]="nav"></div>
+</div>
+<div class="modal-footer">
+  <apply-button (onApply)="apply($event)" [disabled]="form && !form.valid"></apply-button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+  <button type="button" class="btn btn-primary" [disabled]="form && !form.valid" (click)="ok()" #okButton>_#(OK)</button>
+</div>

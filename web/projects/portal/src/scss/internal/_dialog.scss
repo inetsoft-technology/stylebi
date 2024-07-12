@@ -1,0 +1,459 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+slide-out div.slide-out-content-container {
+  .modal-body {
+    overflow-y: hidden;
+    max-height: calc(100% - 120px);
+    flex-grow: 1;
+  }
+
+  .modal-body:hover {
+    overflow-y: auto;
+  }
+
+  .modal-body-min-height {
+    min-height: 30rem;
+  }
+}
+
+.property-dialog-window .modal-content {
+  min-height: 30rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: 750px;
+  width: 95vw;
+
+  > * {
+    display: flex;
+    flex-grow: 1;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.property-dialog-window .modal-dialog {
+  max-width: 750px;
+}
+
+.property-dialog-window.chart-area-dialog .modal-content {
+  min-height: 28rem;
+}
+
+.chart-target-dialog .modal-dialog {
+  max-width: 700px;
+}
+
+.geo-mapping-dialog .modal-dialog {
+  max-width: 750px;
+}
+
+.property-dialog-window.calc-named-group-dialog .modal-content {
+  min-height: 30rem;
+  width: 95vw;
+  max-width: 850px;
+}
+
+.axis-property-dialog .modal-content {
+  min-width: 700px;
+}
+
+.formula-dialog {
+  .modal-dialog {
+    width: 90vw;
+    max-width: 1000px;
+  }
+}
+
+slide-out div.condition-dialog.slide-out-content-container {
+  max-width: 950px;
+}
+
+slide-out div.highlight-dialog.slide-out-content-container {
+  max-width: 950px;
+}
+
+slide-out div.sort-column-dialog.slide-out-content-container {
+  max-width: 600px;
+}
+
+slide-out div.preview-table-dialog.slide-out-content-container {
+  max-width: 1250px;
+  width: calc(100% - 30px); // 30px is hard-coded in slide-out.component.scss
+}
+
+slide-out div.formula-dialog.slide-out-content-container {
+  max-width: 800px;
+}
+
+slide-out div.aggregate-dialog.slide-out-content-container {
+  max-width: 800px;
+}
+
+slide-out div.query-dialog.slide-out-content-container {
+  max-width: 950px;
+}
+
+.content-div > * {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.condition-dialog, .property-dialog-window.condition-dialog {
+  .modal-dialog {
+    width: 1000px;
+    max-width: 90%;
+  }
+}
+
+.parameter-table-dialog {
+  margin-top: 200px;
+}
+
+.highlight-dialog, .property-dialog-window.highlight-dialog {
+  .modal-dialog {
+    width: 1000px;
+    max-width: 90%;
+  }
+}
+
+div.adhoc-image-property-dialog.slide-out-content-container {
+  max-width: 750px;
+}
+
+div.adhoc-table-property-dialog.slide-out-content-container {
+  max-width: 650px;
+}
+
+div.ws-grouping-property-dialog.slide-out-content-container {
+  max-width: 750px;
+}
+
+.select-color-dialog {
+  .modal-dialog {
+    max-width: 650px;
+    width: 500px;
+  }
+}
+
+.schedule-task-dialog {
+  .modal-dialog {
+    max-width: 850px;
+    width: 90vw;
+  }
+}
+
+.save-as-dialog {
+  .modal-dialog {
+    max-width: 850px;
+    width: 90vw;
+  }
+}
+
+.profiling-dialog {
+  .modal-dialog {
+    max-width: 850px;
+  }
+}
+
+.viewsheet-parameters-dialog {
+  .modal-dialog {
+    max-width: 1000px;
+    width: 80vw;
+  }
+}
+
+.adhoc-parameter-dialog {
+  .modal-dialog {
+    width: 1000px;
+    max-width: 1200px;
+  }
+}
+
+.email-addr-dialog {
+  .modal-dialog {
+    max-width: 800px;
+    min-width: 350px;
+  }
+
+  .modal-content {
+    height: 560px;
+  }
+}
+
+.analyze-mv-dialog {
+  .modal-dialog {
+    max-width: 1000px;
+    width: 90vw;
+  }
+}
+
+.vswizard-dialog {
+   .modal-dialog {
+      max-width: 1100px;
+      width: 100%;
+   }
+
+   .modal-content {
+      height: 700px;
+   }
+}
+
+.console-dialog {
+  .modal-dialog {
+    max-width: 900px;
+    width: 80vw;
+  }
+}
+
+.query-field-dialog {
+  .modal-dialog {
+    width: 650px;
+    max-width: 850px;
+  }
+}
+
+.remove-bookmarks-dialog {
+  z-index: 999902!important;
+}
+
+.remove-bookmarks-dialog-backdrop {
+  z-index: 999901!important;
+}
+
+.data-auto-drill-dialog.modal-content {
+  height: 750px;
+}
+
+.line-display {
+  --inet-line-style-color: var(--inet-text-color);
+  height: 0;
+  margin-top: 5px;
+  margin-bottom: 5px;
+  min-width: 100%;
+  width: 100%;
+  display: inline-block;
+  border-top: 0 !important;
+  border-right: 0 !important;
+  border-left: 0 !important;
+  border-color: var(--inet-line-style-color);
+}
+
+.line-style-NONE, .line-style-AUTO, .line-style-THIN_THIN_LINE,
+.line-style-ULTRA_THIN_LINE {
+  display: inline-block;
+  margin: 0;
+}
+
+.line-style-NONE::before {
+  content: "(NONE)";
+}
+
+.line-style-Default::before {
+  content: "Default";
+}
+
+.line-style-THIN_THIN_LINE::before {
+  content: "(THIN THIN LINE)";
+}
+
+.line-style-ULTRA_THIN_LINE::before {
+  content: "(ULTRA THIN LINE)";
+}
+
+//noinspection CssOptimizeSimilarProperties
+.line-style-THIN_LINE {
+  border-width: 1px;
+  border-style: solid;
+}
+
+//noinspection CssOptimizeSimilarProperties
+.line-style-MEDIUM_LINE {
+  border-width: 2px;
+  border-style: solid;
+}
+
+//noinspection CssOptimizeSimilarProperties
+.line-style-THICK_LINE {
+  border-width: 3px;
+  border-style: solid;
+}
+
+.line-style-DOUBLE_LINE {
+  border-style: double;
+}
+
+//noinspection CssOptimizeSimilarProperties
+.line-style-DOT_LINE {
+  border-width: 1px;
+  border-style: dotted;
+}
+
+//noinspection CssOptimizeSimilarProperties
+.line-style-DASH_LINE {
+  border-width: 1px;
+  border-style: dashed;
+}
+
+//noinspection CssOptimizeSimilarProperties
+.line-style-MEDIUM_DASH {
+  background-image: linear-gradient(to right, var(--inet-line-style-color) 40%, rgba(255, 255, 255, 0) 20%);
+  background-size: 12px 1px;
+  background-repeat: repeat-x;
+  height: 1px;
+}
+
+//noinspection CssOptimizeSimilarProperties
+.line-style-LARGE_DASH {
+  background-image: linear-gradient(to right, var(--inet-line-style-color) 50%, rgba(255, 255, 255, 0) 20%);
+  background-size: 24px 1px;
+  background-repeat: repeat-x;
+  height: 1px;
+}
+
+.line-style-SOLID_ARROW,
+.line-style-OPEN_ARROW,
+.line-style-CLOSED_ARROW {
+  --inet-line-style-color: var(--inet-text-color);
+  width: 100%;
+  height: 10px;
+  background: no-repeat center center;
+  display: inline-block;
+}
+
+.line-style-SOLID_ARROW {
+  background-image: linear-gradient(to right, var(--inet-line-style-color) 100%, rgba(255, 255, 255, 0) 0%);
+  background-size: 24px 1px;
+  background-repeat: repeat-x;
+  background-position: center;
+  position: relative;
+
+  &::after {
+    content: "";
+    border-top: 0.5em solid transparent;
+    border-right: 0.5em solid transparent;
+    border-bottom: 0.5em solid transparent;
+    border-left: 0.5em solid var(--inet-line-style-color);
+    position: absolute;
+    right: -0.75em;
+    vertical-align: middle;
+    top: -1px;
+  }
+}
+
+.line-style-OPEN_ARROW {
+  background-image: linear-gradient(to right, var(--inet-line-style-color) 100%, rgba(255, 255, 255, 0) 0%);
+  background-size: 24px 1px;
+  background-repeat: repeat-x;
+  background-position: center;
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-left: 2px solid var(--inet-line-style-color);
+    border-top: 2px solid var(--inet-line-style-color);
+    border-bottom: 2px solid transparent;
+    border-right: 2px solid transparent;
+    transform: rotate(135deg);
+    right: 0;
+  }
+}
+
+.line-style-CLOSED_ARROW {
+  background-image: linear-gradient(to right, var(--inet-line-style-color) 100%, rgba(255, 255, 255, 0) 0%);
+  background-size: calc(100% - 6px) 1px;
+  background-position: left;
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-left: 2px solid var(--inet-line-style-color);
+    border-top: 2px solid var(--inet-line-style-color);
+    border-bottom: 2px solid transparent;
+    border-right: 2px solid transparent;
+    transform: rotate(135deg);
+    right: 0;
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    width: 6px;
+    height: 12px;
+    border-left: 2px solid var(--inet-line-style-color);
+    right: 0;
+    top: -1px;
+  }
+}
+
+.line-style-RAISED_3D {
+  background-image: linear-gradient(to top, var(--inet-line-style-color) 10%, var(--inet-main-panel-bg-color) 110%);
+  background-size: 24px 2px;
+  background-repeat: repeat-x;
+  height: 2px;
+}
+
+.line-style-LOWERED_3D {
+  background-image: linear-gradient(to bottom, var(--inet-line-style-color) 10%, var(--inet-main-panel-bg-color) 110%);
+  background-size: 24px 2px;
+  background-repeat: repeat-x;
+  height: 2px;
+}
+
+.line-style-DOUBLE_3D_RAISED {
+  background-image: linear-gradient(to top, var(--inet-line-style-color) 15%, var(--inet-main-panel-bg-color) 45%, var(--inet-line-style-color) 115%);
+  background-size: 24px 3px;
+  background-repeat: repeat-x;
+  height: 3px;
+}
+
+.line-style-DOUBLE_3D_LOWERED {
+  background-image: linear-gradient(to bottom, var(--inet-line-style-color) 15%, var(--inet-main-panel-bg-color) 45%, var(--inet-line-style-color) 115%);
+  background-size: 24px 3px;
+  background-repeat: repeat-x;
+  height: 3px;
+}
+
+.dialog-resize-handle {
+  display: block;
+  position: absolute;
+  font-size: 15px;
+  bottom: 0;
+  right: 0;
+  top: unset;
+  left: unset;
+  cursor: se-resize;
+}
+
+.model-title {
+  width: 100%;
+  overflow: hidden;
+}
+
+.getting-started-dialog {
+  .modal-dialog {
+    min-width: 50vw;
+  }
+}

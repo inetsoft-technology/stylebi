@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="vs-calc-table-layout" #tableContainer
+     [style.height.px]="vsObjectModel.objectFormat.height"
+     [style.max-width.px]="vsObjectModel.objectFormat.width"
+     outOfZone (onScroll)="onScroll($event)"
+     (onDocMousemove)="onMouseMove($event)">
+  <table *ngIf="tableModel" class="table-border"
+         [style.background-color]="vsObjectModel.objectFormat.background">
+    <tr *ngFor="let row of tableModel.tableRows; let r = index; trackBy: trackByIdx">
+      <td *ngFor="let cell of row.tableCells; let c = index; trackBy: trackByIdx"
+          class="table-cell" [ngStyle]="getCellStyle(cell, r, c)"
+          outOfZone (onMousedown)="clickCell($event, cell)">
+        <div class="table-cell-div">
+          <calc-table-cell [cell]="cell" [spanCell]="getSpanCell(r, c)"
+                           [assemblyName]="getAssemblyName()"
+                           [columnWidth]="tableModel.tableColumns[c].width"
+                           [rowHeight]="row.height" [rowIndex]="r" [columnIndex]="c"
+                           (dragOverChange)="detectChanges()"
+                           (cellResize)="resizeCell($event, r, c)">
+          </calc-table-cell>
+        </div>
+      </td>
+    </tr>
+  </table>
+  <div #colResize class="col-resize-handle"></div>
+  <div #rowResize class="row-resize-handle"></div>
+  <vs-loading-display *ngIf="vsObjectModel && isLoading"
+                      [allowInteraction]="true"
+                      [assemblyLoading]="true">
+  </vs-loading-display>
+</div>

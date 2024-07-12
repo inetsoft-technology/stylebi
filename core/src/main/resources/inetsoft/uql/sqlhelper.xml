@@ -1,0 +1,500 @@
+<?xml version="1.0"?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<config>
+   <helper type="access" class="inetsoft.uql.jdbc.AccessSQLHelper">
+     <maxidentifier>64</maxidentifier>
+   </helper>
+   <helper type="oracle" class="inetsoft.uql.jdbc.OracleSQLHelper">
+     <maxidentifier>30</maxidentifier>
+   </helper>
+   <helper type="db2" class="inetsoft.uql.jdbc.DB2SQLHelper">
+     <maxidentifier>30</maxidentifier>
+   </helper>
+   <helper type="informix" class="inetsoft.uql.jdbc.InformixSQLHelper">
+     <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="sql server" class="inetsoft.uql.jdbc.SQLServerHelper">
+     <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="sybase" class="inetsoft.uql.jdbc.SybaseHelper">
+     <maxidentifier>30</maxidentifier>
+   </helper>
+   <helper type="mysql" class="inetsoft.uql.jdbc.MySQLHelper">
+     <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="derby" class="inetsoft.uql.jdbc.DerbyHelper">
+     <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="derby embedded" class="inetsoft.uql.jdbc.DerbyHelper">
+     <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="cloudscape" class="inetsoft.uql.jdbc.DerbyHelper">
+     <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="ingres" class="inetsoft.uql.jdbc.IngresHelper">
+     <maxidentifier>32</maxidentifier>
+   </helper>
+   <helper type="postgresql" class="inetsoft.uql.jdbc.PostgreSQLHelper">
+     <maxidentifier>63</maxidentifier>
+   </helper>
+   <helper type="vertica" class="inetsoft.uql.jdbc.VerticaHelper">
+     <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="hive" class="inetsoft.uql.jdbc.HiveHelper">
+     <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="obiee" class="inetsoft.uql.jdbc.OracleBIHelper">
+     <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="denodo" class="inetsoft.uql.jdbc.DenodoSQLHelper">
+      <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="impala" class="inetsoft.uql.jdbc.ImpalaHelper">
+      <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="h2" class="inetsoft.uql.jdbc.H2Helper">
+      <maxidentifier>1024</maxidentifier>
+   </helper>
+   <helper type="dremio" class="inetsoft.uql.jdbc.DremioHelper">
+      <maxidentifier>1024</maxidentifier>
+   </helper>
+   <helper type="snowflake" class="inetsoft.uql.jdbc.SnowflakeHelper">
+      <maxidentifier>255</maxidentifier>
+   </helper>
+   <helper type="google bigquery" class="inetsoft.uql.jdbc.GoogleBigQueryHelper">
+      <maxidentifier>128</maxidentifier>
+   </helper>
+   <helper type="mongo" class="inetsoft.uql.jdbc.MongoHelper">
+      <maxidentifier>128</maxidentifier>
+   </helper>
+
+  <!--row limit-->
+   <unsupported type="default" op="maxrows"/>
+   <unsupported type="sybase" op="maxrows"/>
+   <unsupported type="informix" op="maxrows"/>
+   <unsupported type="ingres" op="maxrows"/>
+   <unsupported type="luciddb" op="maxrows"/>
+   <unsupported type="impala" op="maxrows"/>
+   <unsupported type="h2" op="maxrows"/>
+
+   <!--concatenation like union/intersect/minus-->
+   <unsupported type="access" op="concatenation_table"/>
+   <unsupported type="derby" op="concatenation_table"/>
+   <unsupported type="informix" op="concatenation_table"/>
+   <unsupported type="mysql" op="concatenation_table"/>
+   <unsupported type="sybase" op="concatenation_table"/>
+   <unsupported type="ingres" op="concatenation_table"/>
+   <!--unsupported type="sql server" op="concatenation_table"/-->
+   <!--unsupported type="db2" op="concatenation_table"/-->
+
+   <!--order by together with distinct-->
+   <!--unsupported type="oracle" op="distinct_orderby"/-->
+   <!--unsupported type="access" op="distinct_orderby"/-->
+
+   <!--order by aggregate-->
+   <!--unsupported type="db2" op="aggregate_orderby"/-->
+   <unsupported type="informix" op="aggregate_orderby"/>
+   <!--unsupported type="oracle" op="aggregate_orderby"/-->
+
+   <!--subquery in where clause-->
+   <!--unsupported type="informix" op="condition_subquery"/-->
+   <unsupported type="sybase" op="condition_subquery"/>
+
+   <!--subquery in from clause-->
+   <unsupported type="informix" op="from_subquery"/>
+   <!--unsupported type="sybase" op="from_subquery"/-->
+   <!--<unsupported type="ingres" op="from_subquery"/>-->
+
+   <!--full outer join in from clause-->
+   <unsupported type="access" op="full_outerjoin"/>
+   <unsupported type="mysql" op="full_outerjoin"/>
+   <unsupported type="derby" op="full_outerjoin"/>
+   <unsupported type="sybase" op="full_outerjoin"/>
+   <unsupported type="h2" op="full_outerjoin"/>
+
+   <!--order by hidden column-->
+   <unsupported type="informix" op="hidden_orderby"/>
+
+   <!--order by aggregate column not aggregate alias-->
+   <!--unsupported type="mysql" op="aggregate_column_orderby"/-->
+
+   <!--group by expression column-->
+   <unsupported type="derby" op="expression_groupby"/>
+
+   <!--group by number not expression column-->
+   <unsupported type="informix" op="expression_column_groupby"/>
+
+   <unsupported type="sybase" op="sumsq"/>
+   <unsupported type="sybase" op="variance"/>
+   <unsupported type="sybase" op="covariance"/>
+   <unsupported type="sybase" op="populationvariance"/>
+   <unsupported type="sybase" op="populationstandarddeviation"/>
+   <unsupported type="sybase" op="standarddeviation"/>
+   <unsupported type="sybase" op="correlation"/>
+
+   <unsupported type="h2" op="covariance"/>
+   <unsupported type="h2" op="correlation"/>
+   <unsupported type="h2" op="group_ordered"/>
+
+   <!--count distinct-->
+   <unsupported type="access" op="distinctcount"/>
+   <!--unsupported type="informix" op="count_distinct"/-->
+   <!--unsupported type="mysql" op="count_distinct"/-->
+
+   <unsupported type="default" op="multi_distinct"/>
+   <unsupported type="derby" op="multi_distinct"/>
+   <unsupported type="derby embedded" op="multi_distinct"/>
+   <unsupported type="cloudscape" op="multi_distinct"/>
+
+   <!-- aggregate functions -->
+
+   <aggregate type="access" function="stddev" name="stdev" />
+   <aggregate type="access" function="stddevp" name="stdevp" />
+   <aggregate type="access" function="var" name="var" />
+   <aggregate type="access" function="varp" name="varp" />
+
+   <aggregate type="sql server" function="stddev" name="stdev" />
+   <aggregate type="sql server" function="stddevp" name="stdevp" />
+   <aggregate type="sql server" function="var" name="var" />
+   <aggregate type="sql server" function="varp" name="varp" />
+
+   <aggregate type="oracle" function="stddev" name="stddev" />
+   <aggregate type="oracle" function="var" name="variance" />
+   <aggregate type="oracle" function="correl" name="corr" />
+   <aggregate type="oracle" function="covar" name="covar_pop" />
+   <aggregate type="oracle" function="varp" name="var_pop" />
+   <aggregate type="oracle" function="stddevp" name="stddev_pop" />
+
+   <aggregate type="db2" function="correl" name="correlation" />
+   <aggregate type="db2" function="covar" name="covariance" />
+   <aggregate type="db2" function="stddev" name="stddev" />
+   <aggregate type="db2" function="var" name="variance" />
+
+   <aggregate type="mysql" function="stddev" name="stddev_samp" />
+   <aggregate type="mysql" function="stddevp" name="stddev_pop" />
+   <aggregate type="mysql" function="var" name="var_samp" />
+   <aggregate type="mysql" function="varp" name="var_pop" />
+
+   <aggregate type="ingres" function="stddev" name="stddev_samp" />
+   <aggregate type="ingres" function="stddevp" name="stddev_pop" />
+   <aggregate type="ingres" function="var" name="var_samp" />
+   <aggregate type="ingres" function="varp" name="var_pop" />
+
+   <!-- test query -->
+   <testQuery type="default">SELECT 1</testQuery>
+   <testQuery type="access">SELECT 1 FROM DUAL</testQuery>
+   <testQuery type="postgresql">SELECT 1</testQuery>
+   <testQuery type="sql server">SELECT 1</testQuery>
+   <testQuery type="h2">SELECT 1</testQuery>
+   <testQuery type="ingres">SELECT 1</testQuery>
+   <testQuery type="mysql">SELECT 1</testQuery>
+   <testQuery type="oracle">SELECT 1 FROM dual</testQuery>
+   <testQuery type="db2">SELECT 1 FROM sysibm.sysdummy1</testQuery>
+   <testQuery type="derby">SELECT 1 FROM SYSIBM.SYSDUMMY1</testQuery>
+   <testQuery type="informix">SELECT count(1) FROM systables</testQuery>
+
+   <!-- math functions -->
+   <sqlfunc type="access" function="ceil" command="int({0} + 0.999999999)"/>
+   <sqlfunc type="sql server" function="ceil" command="ceiling({0})"/>
+   <sqlfunc type="sybase" function="ceil" command="ceiling({0})"/>
+   <sqlfunc type="oracle" function="ceil" command="ceil({0})"/>
+   <sqlfunc type="db2" function="ceil" command="ceiling({0})"/>
+   <sqlfunc type="mysql" function="ceil" command="ceil({0})"/>
+   <sqlfunc type="ingres" function="ceil" command="ceiling({0})"/>
+
+   <!-- date functions -->
+   <sqlfunc type="oracle" function="fullyear" command="to_char({0},''&quot;Date.&quot;YYYY'')"/>
+   <sqlfunc type="oracle" function="fullquarter" command="to_char({0},''&quot;Date.&quot;YYYY.&quot;Qtr&quot;Q'')"/>
+   <sqlfunc type="oracle" function="fullmonth" command="to_char({0},''&quot;Date.&quot;YYYY.&quot;Qtr&quot;Q.MM'')"/>
+   <sqlfunc type="oracle" function="fullday" command="to_char({0},''&quot;Date.&quot;YYYY.&quot;Qtr&quot;Q.MM.DD'')"/>
+
+   <sqlfunc type="oracle" function="year" command="case when {0} is null then null else to_date(rtrim(to_char({0},''YYYY''))||''-01-01 00:00:00'', ''yyyy-mm-dd hh24:mi:ss'') end"/>
+   <sqlfunc type="oracle" function="quarter" command="case when {0} is null then null else to_date(rtrim(to_char({0},''YYYY''))||''-''||rtrim(to_char({0},''Q'')*3-2)||''-01 00:00:00'',''yyyy-mm-dd hh24:mi:ss'') end"/>
+   <sqlfunc type="oracle" function="month" command="case when {0} is null then null else to_date(rtrim(to_char({0},''YYYY''))||''-''||rtrim(to_char({0},''MM''))||''-01 00:00:00'',''yyyy-mm-dd hh24:mi:ss'') end"/>
+   <sqlfunc type="oracle" function="week" command="case when {0} is null then null else to_date(to_char({0}+1-to_number(to_char({0},''d'')),''yyyy-mm-dd'')||'' 00:00:00'',''yyyy-mm-dd hh24:mi:ss'') end"/>
+   <sqlfunc type="oracle" function="day" command="case when {0} is null then null else to_date(rtrim(to_char({0},''YYYY''))||''-''||rtrim(to_char({0},''MM''))||''-''||rtrim(to_char({0},''DD''))||'' 00:00:00'',''yyyy-mm-dd hh24:mi:ss'') end"/>
+   <sqlfunc type="oracle" function="hour" command="case when {0} is null then null else to_date(rtrim(to_char({0},''YYYY''))||''-''||rtrim(to_char({0},''MM''))||''-''||rtrim(to_char({0},''DD''))||'' ''||rtrim(to_char({0},''HH24''))||'':00:00'',''yyyy-mm-dd hh24:mi:ss'') end"/>
+   <sqlfunc type="oracle" function="minute" command="case when {0} is null then null else to_date(rtrim(to_char({0},''YYYY''))||''-''||rtrim(to_char({0},''MM''))||''-''||rtrim(to_char({0}, ''DD''))||'' ''||rtrim(to_char({0},''HH24''))||'':''||rtrim(to_char({0},''MI''))||'':00'', ''yyyy-mm-dd hh24:mi:ss'') end"/>
+   <sqlfunc type="oracle" function="second" command="case when {0} is null then null else to_date(rtrim(to_char({0},''YYYY''))||''-''||rtrim(to_char({0},''MM''))||''-''||rtrim(to_char({0},''DD''))||'' ''||rtrim(to_char({0},''HH24''))||'':''||rtrim(to_char({0},''MI''))||'':''||rtrim(to_char({0},''SS'')),''yyyy-mm-dd hh24:mi:ss'') end"/>
+
+   <sqlfunc type="oracle" function="quarter_part" command="to_number(to_char({0},''Q''))"/>
+   <sqlfunc type="oracle" function="month_part" command="to_number(to_char({0},''MM''))"/>
+   <sqlfunc type="oracle" function="week_part" command="to_number(to_char({0},''WW''))"/>
+   <sqlfunc type="oracle" function="day_part" command="to_number(to_char({0},''DD''))"/>
+   <sqlfunc type="oracle" function="dayofweek" command="to_number(to_char({0},''D''))"/>
+   <sqlfunc type="oracle" function="hour_part" command="to_number(to_char({0},''HH24''))"/>
+   <sqlfunc type="oracle" function="minute_part" command="to_number(to_char({0},''MI''))"/>
+   <sqlfunc type="oracle" function="second_part" command="to_number(to_char({0},''SS''))"/>
+   <sqlfunc type="oracle" function="none" command="{0}"/>
+
+   <sqlfunc type="db2" function="fullyear" command="''Date.''||rtrim(char(year({0})))"/>
+   <sqlfunc type="db2" function="fullquarter" command="''Date.''||rtrim(char(year({0})))||''.''||''Qtr''||rtrim(char(quarter({0})))"/>
+   <sqlfunc type="db2" function="fullmonth" command="''Date.''||rtrim(char(year({0})))||''.''||''Qtr''||rtrim(char(quarter({0})))||''.''||rtrim(char(month({0})))"/>
+   <sqlfunc type="db2" function="fullday" command="''Date.''||rtrim(char(year({0})))||''.''||''Qtr''||rtrim(char(quarter({0})))||''.''||rtrim(char(month({0})))||''.''||rtrim(char(day({0})))"/>
+
+   <sqlfunc type="db2" function="year" command="timestamp(rtrim(char(year(TIMESTAMP_ISO({0}))))||''-01-01 00:00:00'')"/>
+   <sqlfunc type="db2" function="quarter" command="timestamp(rtrim(char(year(TIMESTAMP_ISO({0}))))||''-''||rtrim(char((quarter(TIMESTAMP_ISO({0}))*3)-2))||''-01 00:00:00'')"/>
+   <sqlfunc type="db2" function="month" command="timestamp(rtrim(char(year(TIMESTAMP_ISO({0}))))||''-''||rtrim(char(month(TIMESTAMP_ISO({0}))))||''-01 00:00:00'')"/>
+   <sqlfunc type="db2" function="week" command="timestamp(char(DATE(TIMESTAMP_ISO({0})-dayofweek(TIMESTAMP_ISO({0})) DAY + 1 day))||'' 00:00:00'')"/>
+   <sqlfunc type="db2" function="day" command="timestamp(rtrim(char(year(TIMESTAMP_ISO({0}))))||''-''||rtrim(char(month(TIMESTAMP_ISO({0}))))||''-''||rtrim(char(day(TIMESTAMP_ISO({0}))))||'' 00:00:00'')"/>
+   <sqlfunc type="db2" function="hour" command="timestamp(rtrim(char(year(TIMESTAMP_ISO({0}))))||''-''||rtrim(char(month(TIMESTAMP_ISO({0}))))||''-''||rtrim(char(day(TIMESTAMP_ISO({0}))))||'' ''||rtrim(char(hour(TIMESTAMP_ISO({0}))))||'':00:00'')"/>
+   <sqlfunc type="db2" function="minute" command="timestamp(rtrim(char(year(TIMESTAMP_ISO({0}))))||''-''||rtrim(char(month(TIMESTAMP_ISO({0}))))||''-''||rtrim(char(day(TIMESTAMP_ISO({0}))))||'' ''||rtrim(char(hour(TIMESTAMP_ISO({0}))))||'':''||rtrim(substr(char(time(TIMESTAMP_ISO({0}))),4,2))||'':00'')"/>
+   <sqlfunc type="db2" function="second" command="timestamp(TIMESTAMP_ISO({0}))"/>
+   <sqlfunc type="db2" function="time_hour" command="time(rtrim(char(hour(TIMESTAMP_ISO({0}))))||'':00:00'')"/>
+   <sqlfunc type="db2" function="time_minute" command="time(rtrim(char(hour(TIMESTAMP_ISO({0}))))||'':''||rtrim(substr(char(time(TIMESTAMP_ISO({0}))),4,2))||'':00'')"/>
+   <sqlfunc type="db2" function="time_second" command="time(TIMESTAMP_ISO({0}))"/>
+
+   <sqlfunc type="db2" function="quarter_part" command="quarter(TIMESTAMP_ISO({0}))"/>
+   <sqlfunc type="db2" function="month_part" command="month(TIMESTAMP_ISO({0}))"/>
+   <sqlfunc type="db2" function="week_part" command="week(TIMESTAMP_ISO({0}))"/>
+   <sqlfunc type="db2" function="day_part" command="day(TIMESTAMP_ISO({0}))"/>
+   <sqlfunc type="db2" function="dayofweek" command="dayofweek(TIMESTAMP_ISO({0}))"/>
+   <sqlfunc type="db2" function="hour_part" command="hour(TIMESTAMP_ISO({0}))"/>
+   <sqlfunc type="db2" function="minute_part" command="minute(TIMESTAMP_ISO({0}))"/>
+   <sqlfunc type="db2" function="minute_part" command="minute(TIMESTAMP_ISO({0}))"/>
+   <sqlfunc type="db2" function="none" command="{0}"/>
+
+   <sqlfunc type="db2" function="time_hour2" command="time(rtrim(char(hour({0})))||'':00:00'')"/>
+   <sqlfunc type="db2" function="time_minute2" command="time(rtrim(char(hour({0})))||'':''||rtrim(substr(char(time({0})),4,2))||'':00'')"/>
+   <sqlfunc type="db2" function="time_second2" command="time({0})"/>
+   <sqlfunc type="db2" function="hour_part2" command="hour({0})"/>
+   <sqlfunc type="db2" function="minute_part2" command="minute({0})"/>
+   <sqlfunc type="db2" function="second_part2" command="second({0})"/>
+
+   <sqlfunc type="sql server" function="fullyear" command="''Date.''+ltrim(str(datepart(yy,{0})))"/>
+   <sqlfunc type="sql server" function="fullquarter" command="''Date.''+ltrim(str(datepart(yy,{0})))+''.''+''Qtr''+ltrim(str(datepart(q,{0})))"/>
+   <sqlfunc type="sql server" function="fullmonth" command="''Date.''+ltrim(str(datepart(yy,{0})))+''.''+''Qtr''+ltrim(str(datepart(q,{0})))+''.''+ltrim(str(datepart(mm,{0})))"/>
+   <sqlfunc type="sql server" function="fullday" command="''Date.''+ltrim(str(datepart(yy,{0})))+''.''+''Qtr''+ltrim(str(datepart(q,{0})))+''.''+ltrim(str(datepart(mm,{0})))+''.''+ltrim(str(datepart(dd,{0})))"/>
+
+   <sqlfunc type="sql server" function="year" command="convert(datetime,rtrim(str(datepart(year,{0})))+''-01-01 00:00:00'', 120)"/>
+   <sqlfunc type="sql server" function="quarter" command="convert(datetime,rtrim(str(datepart(year,{0})))+''-''+ltrim(str(datepart(quarter,{0})*3-2))+''-01 00:00:00'', 120)"/>
+   <sqlfunc type="sql server" function="month" command="convert(datetime,str(datepart(year,{0}))+''-''+ltrim(str(datepart(month,{0})))+''-01 00:00:00'', 120)"/>
+   <sqlfunc type="sql server" function="week" command="convert(datetime,CONVERT(varchar(19), CONVERT(varchar(10), {0} - datepart (dw, {0}) + 1, 25) + '' 00:00:00'', 120), 120)"/>
+   <sqlfunc type="sql server" function="day" command="convert(datetime,ltrim(str(datepart(year,{0})))+''-''+ltrim(str(datepart(month,{0})))+''-''+ltrim(str(datepart(day,{0})))+'' 00:00:00'', 120)"/>
+   <sqlfunc type="sql server" function="hour" command="convert(datetime,ltrim(str(datepart(year,{0})))+''-''+ltrim(str(datepart(month,{0})))+''-''+ltrim(str(datepart(day,{0})))+'' ''+ltrim(str(datepart(hour,{0})))+'':00:00'', 120)"/>
+   <sqlfunc type="sql server" function="minute" command="convert(datetime,ltrim(str(datepart(year,{0})))+''-''+ltrim(str(datepart(month,{0})))+''-''+ltrim(str(datepart(day,{0})))+'' ''+ltrim(str(datepart(hour,{0})))+'':''+ltrim(str(datepart(minute,{0})))+'':00'', 120)"/>
+   <sqlfunc type="sql server" function="second" command="convert(datetime,ltrim(str(datepart(year,{0})))+''-''+ltrim(str(datepart(month,{0})))+''-''+ltrim(str(datepart(day,{0})))+'' ''+ltrim(str(datepart(hour,{0})))+'':''+ltrim(str(datepart(minute,{0})))+'':''+ltrim(str(datepart(second,{0}))), 120)"/>
+
+   <sqlfunc type="sql server" function="quarter_part" command="datepart(quarter,{0})"/>
+   <sqlfunc type="sql server" function="month_part" command="datepart(month,{0})"/>
+   <sqlfunc type="sql server" function="week_part" command="datepart(week,{0})"/>
+   <sqlfunc type="sql server" function="day_part" command="datepart(dd,{0})"/>
+   <sqlfunc type="sql server" function="dayofweek" command="datepart(dw,{0})"/>
+   <sqlfunc type="sql server" function="hour_part" command="datepart(hh,{0})"/>
+    <sqlfunc type="sql server" function="minute_part" command="datepart(mi,{0})"/>
+    <sqlfunc type="sql server" function="second_part" command="datepart(ss,{0})"/>
+   <sqlfunc type="sql server" function="none" command="{0}"/>
+
+   <sqlfunc type="mysql" function="fullyear" command="convert_tz(concat(''Date.'',year({0})))"/>
+   <sqlfunc type="mysql" function="fullquarter" command="convert_tz(concat(''Date.'',year({0}),''.'',''Qtr'',quarter({0})))"/>
+   <sqlfunc type="mysql" function="fullmonth" command="convert_tz(concat(''Date.'',year({0}),''.'',''Qtr'',quarter({0}),''.'',month({0})))"/>
+   <sqlfunc type="mysql" function="fullday" command="convert_tz(concat(''Date.'',year({0}),''.'',''Qtr'',quarter({0}),''.'',month({0}),''.'',day({0})))"/>
+
+   <sqlfunc type="mysql" function="year" command="convert_tz(date(concat(year({0}), ''-01-01 00:00:00'')))"/>
+   <sqlfunc type="mysql" function="quarter" command="convert_tz(date(concat(year({0}),''-'',quarter({0})*3-2, ''-01 00:00:00'')))"/>
+   <sqlfunc type="mysql" function="month" command="convert_tz(date(concat(year({0}),''-'',month({0}),''-01 00:00:00'')))"/>
+   <sqlfunc type="mysql" function="week" command="convert_tz(date(concat(str_to_date(concat(yearweek({0}),'' Sunday''),''%Y%U %W''),'' 00:00:00'')))"/>
+   <sqlfunc type="mysql" function="day" command="convert_tz(date(concat(year({0}),''-'',month({0}),''-'',day({0}),'' 00:00:00'')))"/>
+   <sqlfunc type="mysql" function="hour" command="convert_tz(timestamp(concat(year({0}),''-'',month({0}),''-'',day({0}),'' '',hour({0}),'':00:00'')))"/>
+   <sqlfunc type="mysql" function="minute" command="convert_tz(timestamp(concat(year({0}),''-'',month({0}),''-'',day({0}),'' '',hour({0}),'':'',minute({0}),'':00'')))"/>
+   <sqlfunc type="mysql" function="second" command="convert_tz(timestamp(concat(year({0}),''-'',month({0}),''-'',day({0}),'' '',hour({0}),'':'',minute({0}),'':'',second({0}))))"/>
+   <sqlfunc type="mysql" function="time_hour" command="time(concat(hour({0}),'':00:00''))"/>
+   <sqlfunc type="mysql" function="time_minute" command="time(concat(hour({0}),'':'',minute({0}),'':00''))"/>
+   <sqlfunc type="mysql" function="time_second" command="time(concat(hour({0}),'':'',minute({0}),'':'',second({0})))"/>
+
+   <sqlfunc type="mysql" function="quarter_part" command="quarter({0})"/>
+   <sqlfunc type="mysql" function="month_part" command="month({0})"/>
+   <sqlfunc type="mysql" function="week_part" command="week({0})+1"/>
+   <sqlfunc type="mysql" function="day_part" command="dayofmonth({0})"/>
+   <sqlfunc type="mysql" function="dayofweek" command="dayofweek({0})"/>
+   <sqlfunc type="mysql" function="hour_part" command="hour({0})"/>
+   <sqlfunc type="mysql" function="minute_part" command="minute({0})"/>
+   <sqlfunc type="mysql" function="second_part" command="second({0})"/>
+   <sqlfunc type="mysql" function="none" command="{0}"/>
+
+   <sqlfunc type="sybase" function="fullyear" command="''Date.''+convert(varchar(4),datepart(year,{0}))"/>
+   <sqlfunc type="sybase" function="fullquarter" command="''Date.''+convert(varchar(4),datepart(year,{0}))+''.''+''Qtr''+convert(varchar(1),datepart(quarter,{0}))"/>
+   <sqlfunc type="sybase" function="fullmonth" command="''Date.''+convert(varchar(4),datepart(year,{0}))+''.''+''Qtr''+convert(varchar(1),datepart(quarter,{0}))+''.''+convert(varchar(2),datepart(month,{0}))"/>
+   <sqlfunc type="sybase" function="fullday" command="''Date.''+convert(varchar(4),datepart(year,{0}))+''.''+''Qtr''+convert(varchar(1),datepart(quarter,{0}))+''.''+convert(varchar(2),datepart(month,{0}))+''.''+convert(varchar(2),datepart(day,{0}))"/>
+
+   <sqlfunc type="sybase" function="year" command="case {0} when null then null else convert(datetime,convert(char, datepart(year, {0}))+''.1.1'' , 102) end"/>
+   <sqlfunc type="sybase" function="quarter" command="case {0} when null then null else convert(datetime, convert(char, datepart(year, {0})) + ''.''+convert(char, datepart(quarter, {0})*3-2)+''.1'', 102) end"/>
+   <sqlfunc type="sybase" function="month" command="case {0} when null then null else convert(datetime, convert(char, datepart(year, {0})) + ''.''+convert(char, datepart(month, {0}))+''.1'',102) end"/>
+   <sqlfunc type="sybase" function="week" command="case {0} when null then null else dateadd(day, datediff(day, ''1970/01/01'', {0})-datepart(weekday, {0})+1, ''1970/01/01'') end"/>
+   <sqlfunc type="sybase" function="day" command="case {0} when null then null else convert(datetime, convert(char, datepart(year, {0})) + ''.''+convert(char, datepart(month, {0}))+''.''+convert(char, datepart(day, {0})),102) end"/>
+   <sqlfunc type="sybase" function="hour" command="case {0} when null then null else convert(datetime, convert(varchar(12), {0}, 109)+convert(char, datepart(hour, {0}))+'':00:00:000AM'', 109) end"/>
+   <sqlfunc type="sybase" function="minute" command="case {0} when null then null else convert(datetime, convert(varchar(15), {0}, 109)+convert(char, datepart(minute, {0}))+'':00:000AM'', 109) end"/>
+   <sqlfunc type="sybase" function="second" command="case {0} when null then null else convert(datetime, convert(varchar(18), {0}, 109)+convert(char, datepart(second, {0}))+'':000AM'', 109) end"/>
+
+   <sqlfunc type="sybase" function="quarter_part" command="datepart(quarter,{0})"/>
+   <sqlfunc type="sybase" function="month_part" command="datepart(month,{0})"/>
+   <sqlfunc type="sybase" function="week_part" command="datepart(week,{0})"/>
+   <sqlfunc type="sybase" function="day_part" command="datepart(day,{0})"/>
+   <sqlfunc type="sybase" function="dayofweek" command="datepart(weekday,{0})"/>
+   <sqlfunc type="sybase" function="hour_part" command="datepart(hour,{0})"/>
+   <sqlfunc type="sybase" function="minute_part" command="datepart(minute,{0})"/>
+   <sqlfunc type="sybase" function="second_part" command="datepart(second,{0})"/>
+   <sqlfunc type="sybase" function="none" command="{0}"/>
+
+   <sqlfunc type="ingres" function="fullyear" command="''Date.''+trim(char(date_part(''year'',{0})))"/>
+   <sqlfunc type="ingres" function="fullquarter" command="''Date.''+trim(char(date_part(''year'',{0})))+''.''+''Qtr''+trim(char(date_part(''quarter'',{0})))"/>
+   <sqlfunc type="ingres" function="fullmonth" command="''Date.''+trim(char(date_part(''year'',{0})))+''.''+''Qtr''+trim(char(date_part(''quarter'',{0})))+''.''+trim(char(date_part(''month'',{0})))"/>
+   <sqlfunc type="ingres" function="fullday" command="''Date.''+trim(char(date_part(''year'',{0})))+''.''+''Qtr''+trim(char(date_part(''quarter'',{0})))+''.''+trim(char(date_part(''month'',{0})))+''.''+trim(char(date_part(''day'',{0})))"/>
+
+   <sqlfunc type="ingres" function="year" command="date_trunc(''year'',{0})"/>
+   <sqlfunc type="ingres" function="quarter" command="date_trunc(''quarter'',{0})"/>
+   <sqlfunc type="ingres" function="month" command="date_trunc(''month'',{0})"/>
+   <sqlfunc type="ingres" function="week" command="date_trunc(''week'',{0})"/>
+   <sqlfunc type="ingres" function="day" command="date_trunc(''day'',{0})"/>
+   <sqlfunc type="ingres" function="hour" command="date_trunc(''hour'',{0})"/>
+   <sqlfunc type="ingres" function="minute" command="date_trunc(''minute'',{0})"/>
+   <sqlfunc type="ingres" function="second" command="date_trunc(''second'',{0})"/>
+
+   <sqlfunc type="ingres" function="quarter_part" command="date_part(''quarter'',{0})"/>
+   <sqlfunc type="ingres" function="month_part" command="date_part(''month'',{0})"/>
+   <sqlfunc type="ingres" function="week_part" command="date_part(''week'',{0})+1"/>
+   <sqlfunc type="ingres" function="day_part" command="date_part(''day'',{0})"/>
+   <sqlfunc type="ingres" function="hour_part" command="date_part(''hour'',{0})"/>
+   <sqlfunc type="ingres" function="minute_part" command="date_part(''minute'',{0})"/>
+   <sqlfunc type="ingres" function="second_part" command="date_part(''second'',{0})"/>
+   <sqlfunc type="ingres" function="none" command="{0}"/>
+
+   <sqlfunc type="access" function="fullyear" command="''Date.'' + DATEPART(''yyyy'', {0})"/>
+   <sqlfunc type="access" function="fullquarter" command="''Date.'' + DATEPART(''yyyy'', {0}) + ''.Qtr'' + DATEPART(''q'', {0})"/>
+   <sqlfunc type="access" function="fullmonth" command="''Date.'' + DATEPART(''yyyy'', {0}) + ''.Qtr'' + DATEPART(''q'', {0}) + ''.'' + DATEPART(''m'', {0})"/>
+   <sqlfunc type="access" function="fullday" command="''Date.'' + DATEPART(''yyyy'', {0}) + ''.Qtr'' + DATEPART(''q'', {0}) + ''.'' + DATEPART(''m'', {0}) + ''.'' + DATEPART(''d'', {0})"/>
+
+   <sqlfunc type="access" function="year" command="IIF({0} is null, null, Cdate(Format({0}, ''yyyy-01-01 00:00:00'')))"/>
+   <sqlfunc type="access" function="quarter" command="IIF({0} is null, null, Cdate(Format({0}, ''yyyy-'') + trim(str(datepart(''q'',{0})*3-2)) + ''-01''))"/>
+   <sqlfunc type="access" function="month" command="IIF({0} is null, null, Cdate(Format({0}, ''yyyy-mm-01 00:00:00'')))"/>
+   <sqlfunc type="access" function="week" command="IIF({0} is null, null, dateADD(''d'', 1-datepart(''w'', {0}), {0}))"/>
+   <sqlfunc type="access" function="day" command="IIF({0} is null, null, Cdate(Format({0}, ''yyyy-mm-dd 00:00:00'')))"/>
+   <sqlfunc type="access" function="hour" command="IIF({0} is null, null, Cdate(Format({0}, ''yyyy-mm-dd hh:00:00'')))"/>
+   <sqlfunc type="access" function="minute" command="IIF({0} is null, null, Cdate(Format({0}, ''yyyy-mm-dd'') + '' '' + trim(str(datepart(''h'',{0}))) + '':'' + trim(str(datepart(''n'',{0}))) + '':0''))"/>
+   <sqlfunc type="access" function="second" command="IIF({0} is null, null, Cdate(Format({0}, ''yyyy-mm-dd'') + '' '' + trim(str(datepart(''h'',{0}))) + '':'' + trim(str(datepart(''n'',{0}))) + '':'' + trim(str(datepart(''s'',{0})))))"/>
+
+   <sqlfunc type="access" function="quarter_part" command="datepart(''q'',{0})"/>
+   <sqlfunc type="access" function="month_part" command="datepart(''m'',{0})"/>
+   <sqlfunc type="access" function="week_part" command="datepart(''ww'',{0})"/>
+   <sqlfunc type="access" function="day_part" command="datepart(''d'',{0})"/>
+   <sqlfunc type="access" function="dayofweek" command="datepart(''w'',{0})"/>
+   <sqlfunc type="access" function="hour_part" command="datepart(''h'',{0})"/>
+   <sqlfunc type="access" function="minute_part" command="datepart(''n'',{0})"/>
+   <sqlfunc type="access" function="second_part" command="datepart(''s'',{0})"/>
+   <sqlfunc type="access" function="none" command="{0}"/>
+
+   <sqlfunc type="derby" function="year" command="case when {0} is null then null else timestamp(char(year({0}), 4)||''-01-01 00:00:00'') end"/>
+   <sqlfunc type="derby" function="quarter" command="case when {0} is null then null else timestamp(char(year({0}), 4)||''-''||(case when ((month({0})+2)/3*3-2) &lt; 10 then char((month({0})+2)/3*3-2, 1) else char((month({0})+2)/3*3-2, 2) end)||''-01 00:00:00'') end"/>
+   <sqlfunc type="derby" function="month" command="case when {0} is null then null else timestamp(char(year({0}), 4)||''-''||(case when month({0}) &lt; 10 then char(month({0}), 1) else char(month({0}), 2) end)||''-01 00:00:00'') end"/>
+   <sqlfunc type="derby" function="day" command="case when {0} is null then null else timestamp(char(year({0}), 4)||''-'' || (case when month({0}) &lt; 10 then char(month({0}), 1) else char(month({0}), 2) end)||''-''||(case when day({0}) &lt; 10 then char(day({0}), 1) else char(day({0}), 2) end)||'' 00:00:00'') end"/>
+
+   <sqlfunc type="derby" function="quarter_part" command="(month({0})+2)/3"/>
+   <sqlfunc type="derby" function="month_part" command="month({0})"/>
+   <sqlfunc type="derby" function="day_part" command="day({0})"/>
+   <sqlfunc type="derby" function="hour_part" command="case when {0} is null then 0 else hour({0}) end"/>
+   <sqlfunc type="derby" function="none" command="{0}"/>
+
+   <sqlfunc type="informix" function="year" command="date(year({0})||''-01-01'')"/>
+   <sqlfunc type="informix" function="quarter" command="date(year({0})||''-''||lpad(to_char(round((month({0})+1)/3)*3-2),2,0)||''-01'')"/>
+   <sqlfunc type="informix" function="month" command="date(year({0})||''-''||lpad(to_char(month({0})),2,0)||''-01'')"/>
+   <sqlfunc type="informix" function="day" command="date(year({0})||''-''||lpad(to_char(month({0})),2,0)||''-''||lpad(to_char(day({0})),2,0))"/>
+
+   <sqlfunc type="informix" function="quarter_part" command="round((month({0})+1)/3)"/>
+   <sqlfunc type="informix" function="month_part" command="month({0})"/>
+   <sqlfunc type="informix" function="day_part" command="day({0})"/>
+   <sqlfunc type="informix" function="dayofweek" command="weekday({0})+1"/>
+   <sqlfunc type="informix" function="none" command="{0}"/>
+
+   <sqlfunc type="postgresql" function="fullyear" command="to_char({0},''&quot;Date.&quot;YYYY'')"/>
+   <sqlfunc type="postgresql" function="fullquarter" command="to_char({0},''&quot;Date.&quot;YYYY.&quot;Qtr&quot;Q'')"/>
+   <sqlfunc type="postgresql" function="fullmonth" command="to_char({0},''&quot;Date.&quot;YYYY.&quot;Qtr&quot;Q.MM'')"/>
+   <sqlfunc type="postgresql" function="fullday" command="to_char({0},''&quot;Date.&quot;YYYY.&quot;Qtr&quot;Q.MM.DD'')"/>
+
+   <sqlfunc type="postgresql" function="year" command="case when {0} is null then null else cast(to_char({0},''YYYY'')||''-01-01 00:00:00'' as timestamp) end"/>
+   <sqlfunc type="postgresql" function="quarter" command="case when {0} is null then null else cast(to_char({0},''YYYY'')||''-''||case when to_char({0},''MM'') = ''00'' then ''01-01 00:00:00'' else cast((date_part(''quarter'', {0}) - 1) * 3 + 1 as varchar)||''-01 00:00:00'' end as timestamp) end"/>
+   <sqlfunc type="postgresql" function="month" command="case when {0} is null then null else cast(to_char({0},''YYYY'')||''-''||case when to_char({0},''MM'') = ''00'' then ''01'' else to_char({0},''MM'') end||''-01 00:00:00'' as timestamp) end"/>
+   <sqlfunc type="postgresql" function="week" command="case when {0} is null then null when to_char({0},''DD'')=''00'' then null else date_trunc(''day'',{0}) - interval ''24 hour'' * date_part(''dow'',{0}) end"/>
+   <sqlfunc type="postgresql" function="day" command="case when {0} is null then null else cast(to_char({0},''YYYY'')||''-''||case when to_char({0},''MM'') = ''00'' then ''01'' else to_char({0},''MM'') end||''-''||case when to_char({0},''DD'') = ''00'' then ''01'' else to_char({0},''DD'') end||'' 00:00:00'' as timestamp) end"/>
+   <sqlfunc type="postgresql" function="hour" command="case when {0} is null then null else date_trunc(''hour'',{0}) end"/>
+   <sqlfunc type="postgresql" function="minute" command="case when {0} is null then null else date_trunc(''minute'',{0}) end"/>
+   <sqlfunc type="postgresql" function="second" command="case when {0} is null then null else date_trunc(''second'',{0}) end"/>
+   <sqlfunc type="postgresql" function="time_hour" command="case when {0} is null then null else cast(date_trunc(''hour'',cast({0} as time)) as time) end"/>
+   <sqlfunc type="postgresql" function="time_minute" command="case when {0} is null then null else cast(date_trunc(''minute'',cast({0} as time)) as time) end"/>
+   <sqlfunc type="postgresql" function="time_second" command="case when {0} is null then null else cast(date_trunc(''second'',cast({0} as time)) as time) end"/>
+
+   <sqlfunc type="postgresql" function="quarter_part" command="case when to_char({0},''MM'') = ''00'' then 0 else cast(date_part(''quarter'',{0}) as integer) end"/>
+   <sqlfunc type="postgresql" function="month_part" command="case when to_char({0},''MM'') = ''00'' then 0 else cast(date_part(''month'',{0}) as integer) end"/>
+   <sqlfunc type="postgresql" function="week_part" command="case when to_char({0},''DD'') = ''00'' then 0 when date_part(''dow'',{0})=''0'' then cast(date_part(''week'',{0}) + 1 as integer) else cast(date_part(''week'',{0}) as integer) end"/>
+   <sqlfunc type="postgresql" function="day_part" command="case when to_char({0},''DD'') = ''00'' then 0 else cast(date_part(''day'',{0}) as integer) end"/>
+   <sqlfunc type="postgresql" function="dayofweek" command="case when to_char({0},''DD'') = ''00'' then 0 else cast(date_part(''dow'',{0}) + 1 as integer) end"/>
+   <sqlfunc type="postgresql" function="hour_part" command="cast(date_part(''hour'',{0}) as integer)"/>
+   <sqlfunc type="postgresql" function="minute_part" command="cast(date_part(''minute'',{0}) as integer)"/>
+   <sqlfunc type="postgresql" function="second_part" command="cast(date_part(''second'',{0}) as integer)"/>
+   <sqlfunc type="postgresql" function="none" command="{0}"/>
+
+   <sqlfunc type="vertica" function="fullyear" command="''Date.''||substr(to_char({0},''yyyy-mm-dd''), 1, 4)"/>
+   <sqlfunc type="vertica" function="fullquarter" command="''Date.''||substr(to_char({0},''yyyy-mm-dd''), 1, 4)||''.Qtr''||cast(to_char({0}, ''q'') as integer)"/>
+   <sqlfunc type="vertica" function="fullmonth" command="''Date.''||substr(to_char({0},''yyyy-mm-dd''), 1, 4)||''.Qtr''||cast(substr(to_char({0},''yyyy-q-01''), 6, 1) as integer)||''.''||cast(substr(to_char({0},''yyyy-mm-dd''), 6, 2) as integer)"/>
+   <sqlfunc type="vertica" function="fullday" command="''Date.''||substr(to_char({0},''yyyy-mm-dd''), 1, 4)||''.Qtr''||cast(substr(to_char({0},''yyyy-q-01''), 6, 1) as integer)||''.''||cast(substr(to_char({0},''yyyy-mm-dd''), 6, 2) as integer)||''.''||cast(substr(to_char(date,''yyyy-mm-dd''), 9, 2) as integer)"/>
+
+   <sqlfunc type="vertica" function="year" command="case when {0} is null then null else cast(to_char({0},''yyyy-01-01 00:00:00'') as timestamp) end"/>
+   <sqlfunc type="vertica" function="quarter" command="case when {0} is null then null else cast(to_char({0},''yyyy-0''||(cast(to_char({0},''q'') as integer)*3 - 2)||''-01 00:00:00'') as timestamp) end"/>
+   <sqlfunc type="vertica" function="month" command="case when {0} is null then null else cast(to_char({0},''yyyy-mm-01 00:00:00'') as timestamp) end"/>
+   <sqlfunc type="vertica" function="week" command="case when {0} is null then null else cast(({0} - cast(to_char({0},''d'') as integer) + 1) as timestamp) end"/>
+   <sqlfunc type="vertica" function="day" command="case when {0} is null then null else cast(to_char({0},''yyyy-mm-dd 00:00:00'') as timestamp) end"/>
+   <sqlfunc type="vertica" function="hour" command="case when {0} is null then null when length(to_char({0})) = 8 then cast(substr(to_char(sysdate), 1, 10)||'' ''||substr(to_char({0}), 1, 2)||'':00:00''as timestamp) else cast(to_char({0},''yyyy-mm-dd hh24:00:00'') as timestamp) end"/>
+   <sqlfunc type="vertica" function="minute" command="case when {0} is null then null when length(to_char({0})) = 8 then cast(substr(to_char(sysdate), 1, 10)||'' ''||substr(to_char({0}), 1, 5)||'':00''as timestamp) else cast(to_char({0},''yyyy-mm-dd hh24:mi:00'') as timestamp) end"/>
+   <sqlfunc type="vertica" function="second" command="case when {0} is null then null when length(to_char({0})) = 8 then cast(substr(to_char(sysdate), 1, 10)||'' ''||to_char({0}) as timestamp) else cast(to_char({0},''yyyy-mm-dd hh24:mi:ss'') as timestamp) end"/>
+
+   <sqlfunc type="vertica" function="time_hour" command="case when {0} is null then null when length(to_char({0})) = 8 then cast(substr(to_char({0}), 1,2)||'':00:00'' as time) else cast(to_char({0},''hh24:00:00'') as time) end"/>
+   <sqlfunc type="vertica" function="time_minute" command="case when {0} is null then null when length(to_char({0})) = 8 then cast(substr(to_char({0}), 1,5)||'':00'' as time) else cast(to_char({0},''hh24:mi:00'') as time) end"/>
+   <sqlfunc type="vertica" function="time_second" command="case when {0} is null then null when length(to_char({0})) = 8 then cast(substr(to_char({0}), 1, 8) as time) else cast(to_char({0},''hh24:mi:ss'') as time) end"/>
+
+   <sqlfunc type="vertica" function="quarter_part" command="cast(to_char({0}, ''q'') as integer)"/>
+   <sqlfunc type="vertica" function="month_part" command="cast(to_char({0}, ''mm'') as integer)"/>
+   <sqlfunc type="vertica" function="week_part" command="cast(to_char({0},''ww'') as integer)"/>
+   <sqlfunc type="vertica" function="day_part" command="cast(to_char({0}, ''dd'') as integer)"/>
+   <sqlfunc type="vertica" function="dayofweek" command="cast(to_char({0}, ''d'') as integer)"/>
+   <sqlfunc type="vertica" function="hour_part" command="cast(to_char({0}, ''hh24'') as integer)"/>
+   <sqlfunc type="vertica" function="minute_part" command="cast(to_char({0}, ''mi'') as integer)"/>
+   <sqlfunc type="vertica" function="second_part" command="cast(to_char({0}, ''ss'') as integer)"/>
+   <sqlfunc type="vertica" function="none" command="{0}"/>
+
+   <sqlfunc type="impala" function="year" command="cast(concat(cast(year({0}) as varchar), ''-01-01 00:00:00.0'') as timestamp)"/>
+   <sqlfunc type="impala" function="quarter" command="cast(concat(cast(year({0}) as varchar), case when cast((month({0})+2)/3 as int) &lt; 10 then ''-0'' else ''-'' end, cast(cast((month({0})+2)/3 as int) as varchar), ''-01 00:00:00.0'') as timestamp)"/>
+   <sqlfunc type="impala" function="month" command="cast(concat(cast(year({0}) as varchar), case when month({0}) &lt; 10 then ''-0'' else ''-'' end, cast(month({0}) as varchar), ''-01 00:00:00.0'') as timestamp)"/>
+   <sqlfunc type="impala" function="week" command="date_sub({0}, dayofweek({0}) - 1)"/>
+   <sqlfunc type="impala" function="day" command="cast(concat(cast(year({0}) as varchar),case when month({0}) &lt; 10 then ''-0'' else ''-'' end, cast(month({0}) as varchar), case when day({0}) &lt; 10 then ''-0'' else ''-'' end, cast(day({0}) as varchar),'' 00:00:00.0'') as timestamp)"/>
+   <sqlfunc type="impala" function="hour" command="cast(concat(cast(year({0}) as varchar),case when month({0}) &lt; 10 then ''-0'' else ''-'' end, cast(month({0}) as varchar), case when day({0}) &lt; 10 then ''-0'' else ''-'' end, cast(day({0}) as varchar), case when hour({0}) &lt; 10 then '' 0'' else '' '' end, cast(hour({0}) as varchar),'':00:00.0'') as timestamp)"/>
+   <sqlfunc type="impala" function="minute" command="cast(concat(cast(year({0}) as varchar),case when month({0}) &lt; 10 then ''-0'' else ''-'' end, cast(month({0}) as varchar), case when day({0}) &lt; 10 then ''-0'' else ''-'' end, cast(day({0}) as varchar), case when hour({0}) &lt; 10 then '' 0'' else '' '' end, cast(hour({0}) as varchar),  case when minute({0}) &lt; 10 then '':0'' else '':'' end, cast(minute({0}) as varchar), '':00.0'') as timestamp)"/>
+   <sqlfunc type="impala" function="second" command="cast(concat(cast(year({0}) as varchar),case when month({0}) &lt; 10 then ''-0'' else ''-'' end, cast(month({0}) as varchar), case when day({0}) &lt; 10 then ''-0'' else ''-'' end, cast(day({0}) as varchar), case when hour({0}) &lt; 10 then '' 0'' else '' '' end, cast(hour({0}) as varchar),  case when minute({0}) &lt; 10 then '':0'' else '':'' end, cast(minute({0}) as varchar), case when second({0}) &lt; 10 then '':0'' else '':'' end , cast(second({0}) as varchar)) as timestamp)"/>
+
+   <sqlfunc type="impala" function="quarter_part" command="cast((month({0})+2)/3 as int)"/>
+   <sqlfunc type="impala" function="month_part" command="month({0})"/>
+   <sqlfunc type="impala" function="week_part" command="weekofyear({0})"/>
+   <sqlfunc type="impala" function="day_part" command="day({0})"/>
+   <sqlfunc type="impala" function="dayofweek" command="dayofweek({0})"/>
+   <sqlfunc type="impala" function="hour_part" command="hour({0})"/>
+   <sqlfunc type="impala" function="minute_part" command="minute({0})"/>
+   <sqlfunc type="impala" function="second_part" command="second({0})"/>
+   <sqlfunc type="impala" function="none" command="{0}"/>
+</config>

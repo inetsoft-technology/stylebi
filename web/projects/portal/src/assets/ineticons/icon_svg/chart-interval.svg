@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="Layer_1"
+   x="0px"
+   y="0px"
+   width="24px"
+   height="24px"
+   viewBox="0 0 24 24"
+   enable-background="new 0 0 24 24"
+   xml:space="preserve"
+   sodipodi:docname="chart-interval.svg"
+   inkscape:version="1.0.2 (e86c870879, 2021-01-15, custom)"><metadata
+   id="metadata919"><rdf:RDF><cc:Work
+       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /><dc:title></dc:title></cc:Work></rdf:RDF></metadata><defs
+   id="defs917" /><sodipodi:namedview
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="1920"
+   inkscape:window-height="1051"
+   id="namedview915"
+   showgrid="false"
+   inkscape:zoom="35.458333"
+   inkscape:cx="12"
+   inkscape:cy="12"
+   inkscape:window-x="3191"
+   inkscape:window-y="257"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="Layer_1" />
+<polygon
+   points="18,17 18,19 16.917,19 16,19 12,19 11.417,19 10,19 10,17 6,17 6,19 4,19 4,3 2,3 2,21 22,21 22,17 "
+   id="polygon906" />
+<polyline
+   points="16,12.958 12,12.958 12,4.625 16,4.625 16,12.958 "
+   id="polyline908"
+   transform="matrix(1,0,0,1.3678906,0,-2.4629513)" />
+<polyline
+   points="18,4.625 22,4.625 22,17.375 18,17.375 18,4.625 "
+   id="polyline910"
+   transform="matrix(1,0,0,0.71337697,0.02820212,2.3290763)" />
+<rect
+   x="6"
+   y="7"
+   width="4"
+   height="5.7485313"
+   id="rect912"
+   style="stroke-width:1.1988" />
+<rect
+   style="fill:#ffffff;stroke-width:0;stroke-miterlimit:4;stroke-dasharray:none"
+   id="rect921"
+   width="5.3301997"
+   height="2.5381904"
+   x="5.2455935"
+   y="16.470036" /><rect
+   style="fill:#ffffff;stroke-width:0;stroke-miterlimit:4;stroke-dasharray:none"
+   id="rect923"
+   width="4.8225617"
+   height="2.5099883"
+   x="17.569918"
+   y="16.470036" /></svg>

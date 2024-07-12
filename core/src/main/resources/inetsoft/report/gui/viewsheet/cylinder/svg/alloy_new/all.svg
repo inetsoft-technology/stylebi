@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="68.044px" height="200px" viewBox="0 0 68.044 200" enable-background="new 0 0 68.044 200" xml:space="preserve">
+<g opacity="0.4">
+	<g>
+		<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="2.5161" y1="99.5498" x2="65.5283" y2="99.5498">
+			<stop  offset="0.0225" style="stop-color:#454545"/>
+			<stop  offset="0.4045" style="stop-color:#919191"/>
+			<stop  offset="0.5935" style="stop-color:#8E8E8E"/>
+			<stop  offset="0.7358" style="stop-color:#858585"/>
+			<stop  offset="0.8628" style="stop-color:#757575"/>
+			<stop  offset="0.9801" style="stop-color:#5E5E5E"/>
+			<stop  offset="1" style="stop-color:#595959"/>
+		</linearGradient>
+		<path fill="url(#SVGID_1_)" d="M34.022,18.295c-16.724,0-30.399-3.683-31.436-8.334h-0.07v170.842
+			c0,4.917,14.106,8.902,31.506,8.902c17.4,0,31.506-3.985,31.506-8.902V9.961h-0.07C64.421,14.612,50.747,18.295,34.022,18.295z"/>
+	</g>
+</g>
+<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="64.8032" y1="166.0469" x2="3.2412" y2="166.0469">
+	<stop  offset="0" style="stop-color:#356396"/>
+	<stop  offset="0.0196" style="stop-color:#386699"/>
+	<stop  offset="0.3291" style="stop-color:#5F90C5"/>
+	<stop  offset="0.6066" style="stop-color:#7CAEE5"/>
+	<stop  offset="0.8397" style="stop-color:#8EC0F8"/>
+	<stop  offset="1" style="stop-color:#94C7FF"/>
+</linearGradient>
+<path fill="url(#SVGID_2_)" d="M3.241,143.373v36.65c0,4.803,13.781,8.697,30.781,8.697c17,0,30.781-3.895,30.781-8.697v-36.65
+	H3.241z"/>
+<linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="3.2417" y1="143.4072" x2="64.8032" y2="143.4072">
+	<stop  offset="0" style="stop-color:#356396"/>
+	<stop  offset="0.0196" style="stop-color:#386699"/>
+	<stop  offset="0.3291" style="stop-color:#5F90C5"/>
+	<stop  offset="0.6066" style="stop-color:#7CAEE5"/>
+	<stop  offset="0.8397" style="stop-color:#8EC0F8"/>
+	<stop  offset="1" style="stop-color:#94C7FF"/>
+</linearGradient>
+<ellipse fill="url(#SVGID_3_)" cx="34.022" cy="143.406" rx="30.781" ry="8.698"/>
+<g>
+	<g>
+		<path fill="#303030" d="M34.022,192.606c-18.79,0-34.022-4.304-34.022-9.614v7.395C0,195.696,15.232,200,34.022,200
+			c18.79,0,34.022-4.304,34.022-9.613v-7.395C68.044,188.303,52.812,192.606,34.022,192.606z"/>
+	</g>
+</g>
+<g>
+	<g>
+		<linearGradient id="SVGID_4_" gradientUnits="userSpaceOnUse" x1="0" y1="184.708" x2="68.0444" y2="184.708">
+			<stop  offset="0" style="stop-color:#52545B"/>
+			<stop  offset="0.1251" style="stop-color:#686A6F"/>
+			<stop  offset="0.3842" style="stop-color:#A0A1A4"/>
+			<stop  offset="0.5879" style="stop-color:#D1D1D1"/>
+			<stop  offset="0.6633" style="stop-color:#CDCDCD"/>
+			<stop  offset="0.744" style="stop-color:#C0C0C1"/>
+			<stop  offset="0.8271" style="stop-color:#AAABAD"/>
+			<stop  offset="0.9119" style="stop-color:#8C8E92"/>
+			<stop  offset="0.9973" style="stop-color:#66686E"/>
+			<stop  offset="1" style="stop-color:#65676D"/>
+		</linearGradient>
+		<path fill="url(#SVGID_4_)" d="M34.022,190.623C15.232,190.623,0,186.319,0,181.01v7.395c0,5.31,15.232,9.613,34.022,9.613
+			c18.79,0,34.022-4.304,34.022-9.613v-7.395C68.044,186.319,52.812,190.623,34.022,190.623z"/>
+	</g>
+</g>
+<g opacity="0.3">
+	<g>
+		<linearGradient id="SVGID_5_" gradientUnits="userSpaceOnUse" x1="0" y1="99.8135" x2="68.0444" y2="99.8135">
+			<stop  offset="0.0225" style="stop-color:#454545"/>
+			<stop  offset="0.4045" style="stop-color:#F4F4F4"/>
+			<stop  offset="0.5314" style="stop-color:#F1F1F1"/>
+			<stop  offset="0.6269" style="stop-color:#E7E7E7"/>
+			<stop  offset="0.7121" style="stop-color:#D7D7D7"/>
+			<stop  offset="0.7914" style="stop-color:#C0C0C0"/>
+			<stop  offset="0.8666" style="stop-color:#A3A3A3"/>
+			<stop  offset="0.9376" style="stop-color:#7F7F7F"/>
+			<stop  offset="1" style="stop-color:#595959"/>
+		</linearGradient>
+		<path fill="url(#SVGID_5_)" d="M34.022,18.544c-18.391,0-33.364-4.124-33.992-9.277H0v181.429h68.044V9.267h-0.03
+			C67.387,14.42,52.414,18.544,34.022,18.544z"/>
+	</g>
+</g>
+<linearGradient id="SVGID_6_" gradientUnits="userSpaceOnUse" x1="0.0288" y1="9.4756" x2="68.0156" y2="9.4756">
+	<stop  offset="0" style="stop-color:#DBDBDB"/>
+	<stop  offset="0.3778" style="stop-color:#D8D8D8"/>
+	<stop  offset="0.662" style="stop-color:#CECECE"/>
+	<stop  offset="0.9149" style="stop-color:#BEBEBE"/>
+	<stop  offset="1" style="stop-color:#B7B7B7"/>
+</linearGradient>
+<ellipse opacity="0.7" fill="url(#SVGID_6_)" cx="34.022" cy="9.475" rx="33.993" ry="9.476"/>
+<linearGradient id="SVGID_7_" gradientUnits="userSpaceOnUse" x1="17.689" y1="-6.8589" x2="50.3567" y2="25.8089">
+	<stop  offset="0" style="stop-color:#F4F2F2"/>
+	<stop  offset="0.2304" style="stop-color:#F1EFEF"/>
+	<stop  offset="0.4038" style="stop-color:#E7E6E6"/>
+	<stop  offset="0.5586" style="stop-color:#D7D6D6"/>
+	<stop  offset="0.7025" style="stop-color:#C0BFBF"/>
+	<stop  offset="0.8388" style="stop-color:#A3A2A2"/>
+	<stop  offset="0.9678" style="stop-color:#7F7F7F"/>
+	<stop  offset="1" style="stop-color:#757575"/>
+</linearGradient>
+<ellipse opacity="0.5" fill="url(#SVGID_7_)" cx="34.022" cy="9.475" rx="31.45" ry="8.806"/>
+</svg>

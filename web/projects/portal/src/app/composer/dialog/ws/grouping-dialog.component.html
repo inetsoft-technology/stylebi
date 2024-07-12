@@ -1,0 +1,165 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Grouping)'"
+   (onCancel)="cancel()"
+   [cshid]="'CreatingaNamedGrouping'">
+</modal-header>
+
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="form">
+  <form class="container-fluid" [formGroup]="form">
+    <div class="form-row-float-label row">
+      <div class="col form-floating">
+        <input type="text" class="form-control" formControlName="newName" trim placeholder="_#(Name)"
+               [class.is-invalid]="!form.controls['newName'].valid">
+        <label><span>_#(Name)</span></label>
+        <span *ngIf="form.get('newName').errors && (form.get('newName').errors['required'] || form.get('newName').errors['notWhiteSpace'])"
+             class="invalid-feedback">
+          _#(designer.chartProp.specifyTargetName)
+        </span>
+        <span *ngIf="form.get('newName').errors && form.get('newName').errors['exists']"
+             class="invalid-feedback">
+          _#(viewer.worksheet.Grouping.nameAlready)
+        </span>
+        <span
+          *ngIf="form.get('newName').errors && form.get('newName').errors['variableSpecialCharacters']"
+          class="invalid-feedback">_#(viewer.worksheet.Grouping.nameSpecialChar)
+        </span>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col-6 form-floating">
+        <select class="form-control" formControlName="type" placeholder="_#(Type)">
+          <option *ngFor="let _type of types" [value]="_type.data">{{_type.label}}</option>
+        </select>
+        <label><span>_#(Type)</span></label>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <tree-dropdown *ngIf="root" [root]="root" [selected]="model.onlyFor?.properties.source"
+                         [isDisabled]="onlyForDisabled" [iconFunction]="getCSSIcon"
+                         [expandSelectedNodes]="true" [currentSelectedNode]="currentSelectedNode"
+                         (nodeExpanded)="nodeExpanded($event)"
+                         (nodeSelected)="updateOnlyFor($event)"></tree-dropdown>
+          <label class="only-for-label">_#(Only for)</label>
+        </div>
+      </div>
+      <div class="col form-floating">
+        <select class="form-control" formControlName="attributeIndex"
+                [class.is-invalid]="!this.form.get('attribute').value && this.form.get('type').value === '-1'"
+                placeholder="_#(Attribute)">
+          <option *ngFor="let _attr of attributes; let i = index"
+            [value]="i" [attr.title]="getTooltip(_attr)">
+            {{_attr.name}}
+          </option>
+        </select>
+        <label><span>_#(Attribute)</span></label>
+        <span *ngIf="!this.form.get('attribute').value && this.form.get('type').value === '-1'"
+             class="invalid-feedback">
+          _#(common.userGrouping.selectDataTypeNull)
+        </span>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <fieldset class="float-title bd-gray">
+          <legend>_#(Others)</legend>
+          <div class="row p-1">
+            <div class="col">
+              <div class="form-check">
+                <input type="radio" class="form-check-input" formControlName="groupAllOthers"
+                     [value]="true" id="groupOthers">
+                <label class="form-check-label" for="groupOthers">
+                  _#(Group all others together)
+                </label>
+              </div>
+            </div>
+            <div class="col">
+              <div class="form-check">
+                <input type="radio" class="form-check-input" formControlName="groupAllOthers"
+                     [value]="false" id="leaveOthers">
+                <label class="form-check-label" for="leaveOthers">
+                  _#(designer.binding.namedGroup.leaveOthers)
+                </label>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+
+    <fieldset>
+      <legend class="ms-1">_#(Conditions)</legend>
+      <w-large-form-field>
+        <div class="col bordered-box bd-gray" largeFieldElement>
+          <div *ngFor="let _expr of form.get('conditionExpressions').value; let i = index"
+               class="condition-container"
+               [class.selected]="i === selectedConditionIndex"
+               [class.hover-bg-primary-selectable]="i !== selectedConditionIndex"
+               (click)="selectedConditionIndex = i">
+            {{_expr.name}} -
+            <div
+              *ngFor="let _clause of _expr.list; let even = even; let first = first; let last = last"
+              class="condition-element">
+              {{(first ? '(' : '') + (even ? (_clause | conditionToString) : (_clause |
+              junctionOperatorToString)) + (last ? ')' : '&nbsp;')}}
+            </div>
+          </div>
+        </div>
+        <ng-container largeFieldButtons>
+          <button type="button" class="btn btn-secondary" (click)="addCondition()"
+                  [disabled]="addDisabled">_#(Add)</button>
+          <button type="button" class="btn btn-default" (click)="editCondition()"
+                  [disabled]="editDisabled">_#(Edit)</button>
+          <button type="button" class="btn btn-default" (click)="deleteCondition()"
+                  [disabled]="deleteDisabled">_#(Delete)</button>
+          <button type="button" class="btn btn-default" (click)="moveConditionUp()"
+                  [disabled]="upDisabled">_#(Up)</button>
+          <button type="button" class="btn btn-default" (click)="moveConditionDown()"
+                  [disabled]="downDisabled">_#(Down)</button>
+        </ng-container>
+      </w-large-form-field>
+      <div
+      *ngIf="form.get('conditionExpressions').errors && form.get('conditionExpressions').errors['required']"
+      class="alert alert-danger">
+        _#(common.userGrouping.nullConditionList)
+      </div>
+    </fieldset>
+  </form>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()"
+          [disabled]="!model || outerMirror || !form?.valid" #okButton>
+    _#(OK)
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)
+  </button>
+</div>
+
+<ng-template #groupingConditionDialog let-close="close" let-dismiss="dismiss">
+  <grouping-condition-dialog [model]="form.value" [runtimeId]="worksheet.runtimeId"
+                             [conditionList]="selectedConditionExpr?.list"
+                             [conditionName]="selectedConditionExpr?.name"
+                             [conditionExpressions]="form.get('conditionExpressions').value"
+                             (onCommit)="close($event)"
+                             (onCancel)="dismiss($event)"></grouping-condition-dialog>
+</ng-template>

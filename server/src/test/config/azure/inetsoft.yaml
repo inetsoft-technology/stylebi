@@ -1,0 +1,59 @@
+#
+# inetsoft-server - StyleBI is a business intelligence web application.
+# Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+
+version: "13.5.0"
+cluster:
+  portNumber: 5701
+  outboundPortNumber: 0
+  multicastEnabled: true
+  multicastAddress: "224.2.2.3"
+  multicastPort: 54327
+  tcpEnabled: false
+  singleNode: true
+  tcpMembers: [ "localhost:47500..47509" ]
+pluginDirectory: "${project.build.directory}/server/config/plugins"
+fipsComplianceMode: false
+keyValue:
+  type: "cosmosdb"
+  cosmosdb:
+    accountHost: "https://localhost:8081"
+    accountKey: "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw=="
+    database: "inetsoft"
+    container: "inetsoft"
+    throughput: 400
+    emulated: true
+secrets:
+  type: "azure"
+  azureKeyVault:
+    clientId: "AZURE_CLIENT_ID"
+    tenantId: "AZURE_TENANT_ID"
+    secretKey: "AZURE_SECRET_KEY"
+    keyVaultURI: "AZURE_KEY_VAULT_URI"
+blob:
+  type: "azure"
+  cacheDirectory: "${project.build.directory}/server/config/blob_cache"
+  azure:
+    connectionString: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://localhost:10000/devstoreaccount1"
+    container: "inetsoft"
+externalStorage:
+  type: "azure"
+  azure:
+    connectionString: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://localhost:10000/devstoreaccount1"
+    container: "inetsoft-files"
+additionalProperties:
+  masterPasswordCheck: "\\masterJvH+Cw++qdXFXqdYN6pDIVGOq0edVcJwjcwXHM3+xLGAXqw4QU6maufCbNhgGBEa/isngnOWadKW7IwKsrd56KTLLPNX12S3pn/u8xYZ/Ae8XA=="

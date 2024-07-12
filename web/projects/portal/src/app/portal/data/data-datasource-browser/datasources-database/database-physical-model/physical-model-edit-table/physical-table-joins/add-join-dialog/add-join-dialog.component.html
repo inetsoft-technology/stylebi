@@ -1,0 +1,81 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Add Join)'"
+              [cshid]="'CreatePhysicalView'"
+              (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body">
+  <form #joinForm="ngForm">
+    <div class="form-group form-floating">
+        <select #selectFocus #columnCtrl="ngModel"
+                name="column"
+                class="form-control"
+                [class.is-invalid]="columnCtrl.invalid"
+                [(ngModel)]="join.column"
+                (ngModelChange)="joinSelectionChanged()"
+                required>
+          <option></option>
+          <option *ngFor="let column of columns" [value]="column">{{column}}</option>
+        </select>
+        <label>_#(Column)</label>
+        <span class="invalid-feedback" *ngIf="columnCtrl.invalid">_#(data.physicalmodel.columnRequired)
+        </span>
+    </div>
+    <div class="form-group form-floating">
+        <select #foreignTableCtrl="ngModel"
+                name="foreignTable"
+                class="form-control"
+                [class.is-invalid]="foreignTableCtrl.invalid"
+                [(ngModel)]="join.foreignTable"
+                (ngModelChange)="joinSelectionChanged(true)"
+                required>
+          <option></option>
+          <option *ngFor="let foreignTable of foreignTables" [ngValue]="foreignTable.qualifiedName">
+            {{foreignTable.qualifiedName}}
+          </option>
+        </select>
+        <label>_#(data.physicalmodel.foreignTable)</label>
+        <span class="invalid-feedback" *ngIf="foreignTableCtrl.invalid">
+          _#(data.physicalmodel.foreignTableRequired)
+        </span>
+    </div>
+    <div class="form-group form-floating">
+        <select #foreignColumnCtrl="ngModel"
+                name="foreignColumn"
+                class="form-control"
+                [class.is-invalid]="foreignColumnCtrl.invalid"
+                [(ngModel)]="join.foreignColumn"
+                required>
+          <option></option>
+          <option *ngFor="let column of filteredForeignColumns" [value]="column">{{column}}</option>
+        </select>
+        <label>_#(data.physicalmodel.foreignColumn)</label>
+        <span class="invalid-feedback" *ngIf="foreignColumnCtrl.invalid">
+          _#(data.physicalmodel.foreignColumnRequired)
+        </span>
+    </div>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="joinForm.invalid">_#(OK)
+  </button>
+  <button type="button" class="btn btn-secondary" (click)="cancel()">_#(Cancel)
+  </button>
+</div>

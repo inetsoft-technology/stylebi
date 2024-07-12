@@ -1,0 +1,76 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="vs-wizard-pane">
+  <div class="composer-header">
+    <wizard-tool-bar (onClose)="close($event)" [sheet]="viewsheet"
+                     [hiddenNewBlock]="hiddenNewBlock"
+                     (onHiddenNewBlockChanged)="hiddenNewBlockChanged()">
+    </wizard-tool-bar>
+  </div>
+  <div #paneContainer class="vs-wizard-pane-container"
+       (click)="viewsheet.clearFocusedAssemblies()">
+    <div #scrollContainer class="scroll-container" selectionBox
+         selectionBoxBannedSelector="[data-is-element-editor].active"
+         [selectOnMouseMove]="true"
+         (onSelectionBox)="onSelectionBox($event)">
+      <div class="wizard-pane-content" wInteractContainer
+           [style.margin-bottom.px]="PADDING_V"
+           [style.margin-top.px]="PADDING_V"
+           [style.margin-left.px]="PADDING_H"
+           [style.margin-right.px]="PADDING_H"
+           (click)="$event.stopPropagation()"
+           outOfZone (onDocKeydown)="keyDown($event)"
+           [draggableRestriction]="draggableRestriction"
+           (dragenter)="$event.preventDefault()"
+           (dragover)="$event.preventDefault()">
+        <vs-wizard-grid-pane class="bottom-pane" [rowCount]="gridRowCount" [colCount]="gridColCount"
+                             [cellHeight]="gridCellHeight" [cellWidth]="gridCellWidth"
+                             (onChangeNewObject)="changeNewObject($event)">
+        </vs-wizard-grid-pane>
+        <div class="top-pane">
+          <ng-container *ngFor="let object of viewsheet.vsObjects; trackBy: trackByFn;">
+            <vs-wizard-object [vsObject]="object" [viewsheet]="viewsheet"
+                              [willFollow]="isFollow(object.absoluteName)"
+                              [heightIncrement]="gridCellHeight" [widthIncrement]="gridCellWidth"
+                              [maxHeight]="gridCellHeight * gridRowCount"
+                              [maxWidth]="gridCellWidth * gridColCount"
+                              (onRowsChanged)="changeRows($event)"
+                              (onColsChanged)="changeCols($event)"
+                              (onDragResizeStart)="dragResizeStart($event)"
+                              (onDragResizeEnd)="dragResizeEnd()"
+                              (onResize)="resizeObject($event)"
+                              (onMove)="moveWizardObject($event)"
+                              (onRemove)="removeWizardObject($event)"
+                              (onEdit)="editWizardObject($event)"
+                              (onMouseIn)="mouseOnWizardObject()"
+                              (onChangeFollowDirection)="changeFollowDirection($event)">
+            </vs-wizard-object>
+          </ng-container>
+          <wizard-new-object [model]="newObjectModel"
+                             (toComponentWizard)="toComponentWizard.emit({point: $event})"
+                             (doInsertObject)="insertObject($event.type, $event.point)">
+          </wizard-new-object>
+        </div>
+      </div>
+      <input #uploadInput class="hidden-input" type="file" accept=".jpg,.gif,.png,.svg,.tif"
+             (change)="fileChanged($event)" hidden/>
+    </div>
+  </div>
+</div>

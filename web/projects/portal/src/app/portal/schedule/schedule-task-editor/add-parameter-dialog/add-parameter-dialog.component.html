@@ -1,0 +1,146 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="modal-header">
+  <h4 class="modal-title">{{ title }}</h4>
+  <div class="d-flex align-items-center">
+    <i [helpLink]="'EMAddParameter'" tabindex="0" aria-label="_#(Help Information)" role="link" enterClick></i>
+    <button type="button" class="btn-close" (click)="close()" aria-label="_#(Close)" title="_#(Close)"></button>
+  </div>
+</div>
+<div class="modal-body" [enterSubmit]="enterSubmit" (onEnter)="ok()" *ngIf="model && form">
+  <form [formGroup]="form">
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <input class="form-control" type="text" placeholder="_#(Parameter Name)"
+                 [ngClass]="{'input-transparent': parameterNames && parameterNames.length > 0,
+                             'hideText' : parameterNames.includes(model.name)}"
+                 [(ngModel)]="model.name" formControlName="name"
+                 [class.is-invalid]="!form.controls['name'].valid"/>
+          <label>_#(Parameter Name)</label>
+          <select *ngIf="parameterNames && parameterNames.length > 0" class="form-control"
+                  [(ngModel)]="model.name" formControlName="name">
+            <option></option>
+            <option *ngFor="let name of parameterNames" [value]="name">{{name}}</option>
+          </select>
+          <span class="invalid-feedback" *ngIf="form && form.controls['name'].errors
+            && form.controls['name'].errors['required']">_#(parameter.name.emptyValid)</span>
+          <span class="invalid-feedback" *ngIf="form && form.controls['name'].errors
+            && form.controls['name'].errors['variableSpecialCharacters']">_#(parameter.name.characterValid)
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <select class="form-control" formControlName="type">
+            <option *ngFor="let type of dataTypeList" [value]="type.data"
+                    [selected]="model.type == type.data">{{type.label}}</option>
+          </select>
+          <label>_#(Type)</label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" formControlName="array" id="array">
+          <label class="form-check-label" for="array">
+            _#(Array)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div *ngIf="isSupportDynamic() && !model.array" class="form-row-float-label row">
+      <div class="col" *ngIf="!model.array">
+        <div class="form-floating">
+          <dynamic-value-editor *ngIf="!model.array"
+                                [type]="model.type"
+                                [valueModel]="model.value"
+                                [columnTreeRoot]="getDynamicDates()"
+                                [supportVariable]="false" [expressionSubmitCallback]="getScriptTester()"
+                                [task]="true"
+                                (onValueModelChange)="updateDynamicValue()">
+          </dynamic-value-editor>
+          <label>_#(Value)</label>
+        </div>
+        <div *ngIf="!verifyDynamicValue()" class="alert alert-danger mb-0">
+          {{getErrorMessage()}}
+        </div>
+      </div>
+    </div>
+    <div *ngIf="!isSupportDynamic() && !model.array" class="form-row-float-label row">
+      <ng-container *ngIf="model.type == XSchema.BOOLEAN && !model.array">
+        <div class="col-auto">
+          <label class="form-check-label">_#(Value):</label>
+        </div>
+        <div class="col">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" formControlName="value" id="true"
+                   [value]="true" [(ngModel)]="model.value.value">
+            <label class="form-check-label" for="true">
+              _#(True)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" formControlName="value" id="false"
+                   [value]="false" [(ngModel)]="model.value.value">
+            <label class="form-check-label" for="false">
+              _#(False)
+            </label>
+          </div>
+        </div>
+      </ng-container>
+      <div class="col" *ngIf="model.type != XSchema.BOOLEAN && !model.array">
+        <div class="form-floating">
+          <date-value-editor *ngIf="model.type === XSchema.DATE && !model.array" [(ngModel)]="model.value.value"
+                             formControlName="value" class="w-100"></date-value-editor>
+          <time-value-editor *ngIf="model.type == XSchema.TIME && !model.array" [model]="model.value.value"
+                             (timeChange)="changeValue($event)" class="w-100"></time-value-editor>
+          <time-instant-value-editor *ngIf="model.type == XSchema.TIME_INSTANT && !model.array"
+                                     [(ngModel)]="model.value.value" [ngModelOptions]="{standalone: true}"
+                                     class="w-100" (timeChange)="changeValue($event)"></time-instant-value-editor>
+          <input type="number" class="form-control" formControlName="value"
+                 [(ngModel)]="model.value.value" *ngIf="XSchema.isNumericType(model.type) && !model.array">
+          <input type="text" class="form-control" formControlName="value"
+                 [(ngModel)]="model.value.value" *ngIf="model.type == XSchema.STRING || model.type == XSchema.CHARACTER && !model.array">
+          <label>_#(Value)</label>
+        </div>
+      </div>
+
+    </div>
+   <div class="form-row-float-label row">
+     <div class="col" *ngIf="model.array">
+       <div class="form-floating">
+         <input type="text" class="form-control" formControlName="value" [(ngModel)]="model.value.value">
+         <label>_#(Value)</label>
+         <div *ngIf="!verifyDynamicValue()" class="alert alert-danger mb-0">
+           {{getErrorMessage()}}
+         </div>
+       </div>
+     </div>
+   </div>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!form.valid || !verifyDynamicValue()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+</div>

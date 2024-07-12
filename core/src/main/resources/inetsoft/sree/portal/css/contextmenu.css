@@ -1,0 +1,68 @@
+/**
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/**
+ *  CSS for repository_tree contextmenu
+ */
+
+.cxmenu {
+   position: absolute;
+   visibility:visible;
+   font:menutext;
+   text-align:left;
+   cursor:default;
+   font-size: 8pt;
+   background-color:gray;
+   z-index: 100;
+   font-family: Roboto,Verdana,Arial,Helvetica,sans-serif;
+   width:137px;
+   padding:0px;
+}
+
+.cxmenu iframe{
+   position:absolute;
+   left:1;
+   top:1;
+   width:135px;
+   background-color:white;
+   z-index:0;
+}
+
+.cxmenuItemContainer{
+   position:absolute;
+   left:0;top:0;
+   width:135px;
+   z-index:1;
+   margin:1px;
+   border: 1px
+   solid gray;
+}
+
+.cxmenuItem {
+   padding-left:15px;
+   padding-right:10px;
+   padding-top:2px;
+   padding-bottom:2px;
+   background-color:menu;
+}
+
+.cxmenuSep {
+   padding-top:0px;
+   padding-bottom:0px;
+   border-top: 1px;
+   solid gray;
+}

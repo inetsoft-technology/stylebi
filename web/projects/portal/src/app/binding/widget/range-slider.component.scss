@@ -1,0 +1,108 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Component Defaults */
+.vs-range-slider {
+   position: relative;
+   vertical-align: top;
+}
+
+.vs-range-slider .range-slider {
+   position: relative;
+   top: 13px;
+   height: 9px;
+   left: 0px;
+   border-radius: 2px;
+   background-image: url('../../../assets/default/timeslider/track.png');
+}
+
+.vs-range-slider .range-line {
+   position: absolute;
+   top: 13px;
+   height: 8px;
+   z-index: 3;
+}
+
+.vs-range-slider .range-slider-handle {
+   position: absolute;
+   cursor: default;
+   width: 14px;
+   height: 16px;
+   top: -4px;
+   background-repeat: no-repeat;
+   z-index: 4;
+   background-image:url('../../../assets/default/timeslider/button_up.png');
+}
+
+.vs-range-slider .range-slider-left-handle {
+   left: -7px;
+}
+
+.vs-range-slider .range-slider-right-handle {
+   right: -7px;
+}
+
+.vs-range-slider .thumb-middle {
+   left: 3px;
+   top: 0px;
+   height: 9px;
+   background-image:url('../../../assets/default/timeslider/thumb_middle_up.png');
+}
+
+.vs-range-slider .range-value {
+   position: absolute;
+   overflow: hidden;
+   text-overflow: ellipsis;
+   top: 23px;
+   width: 70px;
+   line-height: 1;
+   text-decoration: inherit;
+}
+
+.vs-range-slider .range-left {
+   left: -1px;
+   text-align: left;
+}
+
+.vs-range-slider .range-right {
+   right: -1px;
+   text-align: right;
+}
+
+.vs-range-slider .current-value {
+   position: absolute;
+   overflow: hidden;
+   text-overflow: ellipsis;
+   width: 80px;
+   height: 16px;
+   line-height: 1;
+   top: 0.2px;
+   text-align: center;
+}
+
+.vs-range-slider .tick {
+   position: absolute;
+   width: 10px;
+   left: 0px;
+   top: 18px;
+   z-index: 1;
+   color: rgb(0, 0, 0);
+   font-size: 5px;
+   font-weight: bold;
+   font-style: normal;
+   text-align: left;
+}

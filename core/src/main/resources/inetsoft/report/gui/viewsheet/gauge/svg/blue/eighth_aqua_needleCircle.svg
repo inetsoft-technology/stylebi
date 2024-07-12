@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="151.6387 464.0273" i:rulerOrigin="0 0" i:pageBounds="0 841.8896 595.2754 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="173.492" height="200" viewBox="0 0 173.492 200" overflow="visible" enable-background="new 0 0 173.492 200"
+	 xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_3" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+				</g>
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<linearGradient id="XMLID_13_" gradientUnits="userSpaceOnUse" x1="86.7466" y1="200" x2="86.7466" y2="4.882813e-004">
+						<stop  offset="0.0056" style="stop-color:#E3F1F4"/>
+						<stop  offset="0.5337" style="stop-color:#76BDCE"/>
+						<stop  offset="1" style="stop-color:#2881FF"/>
+						<a:midPointStop  offset="0.0056" style="stop-color:#E3F1F4"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#E3F1F4"/>
+						<a:midPointStop  offset="0.5337" style="stop-color:#76BDCE"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#76BDCE"/>
+						<a:midPointStop  offset="1" style="stop-color:#2881FF"/>
+					</linearGradient>
+					<rect i:knockout="Off" opacity="0" fill="url(#XMLID_13_)" width="173.492" height="200"/> 
+					<g i:knockout="Off">
+						<g i:knockout="Off">
+							
+								<switch id="XMLID_9_" i:objectNS="&ns_imrep;" i:objectType="replaceable-image" transform="matrix(0.7659 0 0 0.7659 63.0596 146.6221)" opacity="0.68" enable-background="new    ">
+								
+									<foreignObject overflow="visible" requiredExtensions="&ns_imrep;" x="0" y="0" width="62" height="62" opacity="0.68" enable-background="new    ">
+									
+										<imageReplacement  xmlns="&ns_imrep;" x="0" y="0" width="62" height="62" placementMethod="ratio" align="center" valign="middle" refWidth="62" refHeight="62"  opacity="0.68" enable-background="new    ">
+									</imageReplacement>
+									<x:targetRef  xlink:href="#XMLID_14_" />
+								</foreignObject>
+								
+									<image opacity="0.68" enable-background="new    " width="62" height="62" id="XMLID_14_" xlink:href="data:;base64,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" i:isolated="yes" i:knockout="Off"/>
+							</switch>
+							<g i:knockout="Off">
+								
+									<linearGradient id="XMLID_16_" gradientUnits="userSpaceOnUse" x1="-162.2739" y1="180.2832" x2="-162.2739" y2="140.4053" gradientTransform="matrix(1 0 0 1 249.0205 9.9141)">
+									<stop  offset="0.0056" style="stop-color:#E3F1F4"/>
+									<stop  offset="0.5337" style="stop-color:#76BDCE"/>
+									<stop  offset="1" style="stop-color:#2881FF"/>
+									<a:midPointStop  offset="0.0056" style="stop-color:#E3F1F4"/>
+									<a:midPointStop  offset="0.5" style="stop-color:#E3F1F4"/>
+									<a:midPointStop  offset="0.5337" style="stop-color:#76BDCE"/>
+									<a:midPointStop  offset="0.5" style="stop-color:#76BDCE"/>
+									<a:midPointStop  offset="1" style="stop-color:#2881FF"/>
+								</linearGradient>
+								<circle fill="url(#XMLID_16_)" cx="86.746" cy="170.258" r="19.939"/> 
+								<circle fill="none" stroke="#06477C" stroke-width="0.0766" cx="86.746" cy="170.258" r="19.939"/> 
+							</g>
+						</g>
+						
+							<linearGradient id="XMLID_17_" gradientUnits="userSpaceOnUse" x1="-162.2739" y1="143.1465" x2="-162.2739" y2="156.6855" gradientTransform="matrix(1 0 0 1 249.0205 9.9141)">
+							<stop  offset="0.0056" style="stop-color:#E3F1F4"/>
+							<stop  offset="0.5" style="stop-color:#6CB5D4"/>
+							<stop  offset="1" style="stop-color:#5BA8DF"/>
+							<a:midPointStop  offset="0.0056" style="stop-color:#E3F1F4"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#E3F1F4"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#6CB5D4"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#6CB5D4"/>
+							<a:midPointStop  offset="1" style="stop-color:#5BA8DF"/>
+						</linearGradient>
+						<path fill="url(#XMLID_17_)" d="M67.978,166.361c3.631-4.591,12.192-6.074,18.755-6.074c6.558,0,15.366,1.727,18.996,6.313
+							l0.102-0.223c-2.464-7.703-10.079-13.316-19.098-13.316c-8.983,0-16.58,5.57-19.071,13.232L67.978,166.361z"/>
+					</g>
+				</g>
+			</g>
+		</switch>
+	</svg>

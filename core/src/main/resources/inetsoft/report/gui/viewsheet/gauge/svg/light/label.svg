@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="109.6167 650.2334" i:rulerOrigin="0 0" i:pageBounds="0 841.8896 510.2363 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/" width="200" height="200"
+	 viewBox="0 0 200 200" overflow="visible" enable-background="new 0 0 200 200" xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<path i:knockout="Off" opacity="0.4" fill="none" stroke="#83B0FF" stroke-width="0.6124" d="M130,174.231c0,1.657-1.344,3-3,3
+						H73c-1.656,0-3-1.343-3-3v-24c0-1.657,1.344-3,3-3h54c1.656,0,3,1.343,3,3V174.231z"/>
+					<g i:knockout="Off">
+						
+							<switch id="XMLID_2_" i:objectNS="&ns_imrep;" i:objectType="replaceable-image" transform="matrix(1 0 0 1 63.3833 140.2334)"  a:adobe-blending-mode="screen"  a:adobe-opacity-share="1">
+							<foreignObject overflow="visible" requiredExtensions="&ns_imrep;" x="0" y="0" width="73" height="44">
+								
+									<imageReplacement  xmlns="&ns_imrep;" x="0" y="0" width="73" height="44" placementMethod="ratio" align="center" valign="middle" refWidth="73" refHeight="44">
+								</imageReplacement>
+								<x:targetRef  xlink:href="#XMLID_1_" />
+							</foreignObject>
+							
+								<image width="73" height="44" id="XMLID_1_" xlink:href="data:;base64,iVBORw0KGgoAAAANSUhEUgAAAEkAAAAsCAYAAAApSpU1AAAACXBIWXMAAAsSAAALEgHS3X78AAAA
+BGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAPySURB
+VHjaYmAYBQQBQAAx4pM87MbAOFICwnYXw39ccgABhDUQHgYyMDKiyg/nwIIFzn8QQ349ZmABBBCK
+518EMzCyMzMwMDMyMDFCAgaEmYZxQMEC5B80kP7//c/w7+dfBgaJtYjAAggguMfvBTAwCrIxMHIw
+MzACAwmIGIDBBcZMUDxcA+kfFAPDh+EvkPj74y/D//e/GP4rbYAEFEAAscBUg0OFERxALEDMCuSy
+AYVZoWpggcQ4zAIIFkh/gPg3kPMLRAP9/weI4SkJIIBYYAU00PdMkHACBxAnEHMApdihATXcU9Jv
+IP4JTSsgj/5nhITLP1CBDhBALGjlEyh7gVIQKIC4oIHEjCUPD7eanRXJn3+h+B9MEiCAWKabwbMR
+LJBYoYHDDg0wBiRN/4ZJQDEilbXMaAH0C4pBWZARGD4MAAGEnJJgmljQQhaWFP9ADfk/xAMKOUGw
+IBUpzGhlMBPUvwwAAcSClvSYkDAsZEEB9A0poIZLIMECiAHJv+j+B6n7DxBALFg0I9disJIfFEA/
+oOx/wyCQmJASCBvUT0w4woABIIBY8BRosJL/LzRw/kCz3nAJJAakIuQfvt4FQACxENmWQG50DYdA
+YkDyB8HiAyCAWIgw9D86Zlw6dAPpfzRWP+EFAAHENDoQQhgABNBoIBEBAAJoNJCIAAABNBpIRACA
+ABoNJCIAQACNBhIRACCARgOJCAAQQKOBRAQACKDRQCICAATQaCARAQACaDSQiAAAATQaSEQAgAAa
+DSQiAEAAjQYSEQAggEYDiQgAEECjgUQEAAggQoNujNgwdOBqqAJGHBgnAAggbIH0H81AJgbMWYTh
+MMaNjBlx+B8MAAKIBU0SfUgTecLyD1RsuEwEsDIg5tsY8YQBA0AAsaCFHnyFBQNiDQBsRhemfjgF
+EvJah/8MqDPV8HABCCDklASThE0f/WVAzOZyIqWm4TQ5CfMfAwPq1BlyQDEABBBL5imG/4fd4KEG
+UghfYQFVA1tEwToMAghX4Q0KmF9Qf/9mQJrOB4UPQAChl0mwBQOwfPoPGkDIBdxwWIKDXrzAAugH
+lP0XOTEABBDcw6B1koJsDEwczOBFXGyMiFUl7NBkyTxMAgp5shWWxUAB9Aso+PPvf4ZfP/4y/Hn/
+i+EfbP0kQADBUxJ4Ldx/8JpBcGpiRCxu+jUCAgnkzz9AwT8g/0PDAQ4AAgjbwlLQkkDwyjekgGFG
+a08wDoOshhxQsDWT/0AB9PMvw3/khaUAAYTh2fsBDIzQpbfIBdtwCSBcAQVOXaDVt/+AhOIG1MoJ
+IIBwehhpoTsjMeqHcEDB2bgWvAMEEFGehi4ZHJYAVMUTUgMQYAAKmiEG5jjEyQAAAABJRU5ErkJg
+gg==" i:alphaIsShape="yes" i:knockout="Off"/>
+						</switch>
+						<g>
+							<path i:knockout="Off" fill="none" stroke="#69F1FF" stroke-width="0.3" d="M130,174.25c0,1.657-1.344,3-3,3H73
+								c-1.656,0-3-1.343-3-3v-24c0-1.657,1.344-3,3-3h54c1.656,0,3,1.343,3,3V174.25z"/>
+						</g>
+					</g>
+					<path i:knockout="Off" opacity="0.7" fill="none" stroke="#92B1FF" stroke-width="0.4797" d="M127.756,172.472
+						c0,1.411-1.242,2.555-2.775,2.555H75.02c-1.533,0-2.776-1.144-2.776-2.555v-20.443c0-1.41,1.243-2.555,2.776-2.555h49.961
+						c1.533,0,2.775,1.145,2.775,2.555V172.472z"/>
+					<rect i:knockout="Off" fill="none" width="200" height="200"/> 
+				</g>
+			</g>
+		</switch>
+	</svg>

@@ -1,0 +1,35 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div #inputDropdown class="input-dropdown form-control dropdown-toggle unhighlightable"
+     [ngClass]="{disabled: isDisabled}"
+     [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom" [autoClose]="false">
+  <div class="label-container" [title]="currentLabel">
+    {{currentLabel}}
+  </div>
+</div>
+<ng-template #dropdownMenu>
+  <div class="tree-dropdown-menu dropdown-menu show bd-gray">
+    <tree [root]="root" [showRoot]="false" [iconFunction]="iconFunction"
+          [selectedNodes]="selectedNodes" [showTooltip]="true"
+          [initSelectedNodesExpanded]="expandSelectedNodes"
+          (nodeExpanded)="nodeExpanded.emit($event)"
+          (nodesSelected)="onTreeNodeSelect($event[0])"></tree>
+  </div>
+</ng-template>

@@ -1,0 +1,149 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Edit Join)'"
+              [cshid]="'CreatePhysicalView'"
+              (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body">
+  <div class="split flex-fixed-container physical-table-joins-properties">
+    <div class="physical-model-panel-heading physical-model-panel-heading-border py-1
+                light-gray-bg truncate-parent align-items-center">
+    <span class="truncate-text font-weight-bold">
+      _#(Join Properties):
+    </span>
+    </div>
+    <div class="flex-fixed-content">
+      <div class="mt-3 col-12" *ngIf="!!joinModel">
+        <div class="form-floating">
+          <input type="text" name="joinPreview" class="form-control"
+                 [ngModel]="joinPreview"
+                 disabled/>
+          <label>_#(Join)</label>
+        </div>
+
+        <div class="form-group mt-2 form-floating">
+            <select class="form-control"
+                    [(ngModel)]="joinModel.type" defaultFocus [autoSelect]="false">
+              <option *ngFor="let option of joinTypes" [value]="option.value">
+                {{option.label}}
+              </option>
+            </select>
+            <label>_#(Join Type)</label>
+        </div>
+        <ng-container *ngIf="dataType == 'physical'">
+          <div class="form-group">
+            <div class="form-floating">
+              <input type="number" #orderPriorityCtrl="ngModel"
+                     name="orderPriority"
+                     class="form-control"
+                     [class.is-invalid]="orderPriorityCtrl.dirty && orderPriorityCtrl.invalid"
+                     [(ngModel)]="selectedJoinOrderPriority"
+                     (ngModelChange)="validateOrderPriority(orderPriorityCtrl.valid)"
+                     [minNumber]="1"
+                     [maxNumber]="2147483647"
+                     required/>
+              <label>_#(Order Priority)</label>
+              <span class="invalid-feedback" *ngIf="orderPriorityCtrl.hasError('required')">
+              _#(data.physicalmodel.joinOrderPriorityRequired)
+            </span>
+              <span class="invalid-feedback" *ngIf="orderPriorityCtrl.hasError('min')">
+              _#(data.physicalmodel.joinOrderPriorityMin)
+            </span>
+              <span class="invalid-feedback" *ngIf="orderPriorityCtrl.hasError('max')">
+              _#(data.physicalmodel.joinOrderPriorityMax)
+            </span>
+            </div>
+
+            <div class="mt-1 font-weight-bold">_#(Merging Rule):</div>
+            <div class="form-check form-check-inline">
+              <label class="form-check-label">
+                <input class="form-check-input align-middle" type="radio"
+                       name="mergingRadio"
+                       [value]="MergingRule.AND"
+                       [(ngModel)]="joinModel.mergingRule">
+                _#(And)
+              </label>
+            </div>
+            <div class="form-check form-check-inline">
+              <label class="form-check-label">
+                <input class="form-check-input align-middle" type="radio"
+                       name="mergingRadio"
+                       [value]="MergingRule.OR"
+                       [(ngModel)]="joinModel.mergingRule">
+                _#(Or)
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="font-weight-bold">_#(Cardinality):</div>
+            <div class="form-check form-check-inline">
+              <label class="form-check-label">
+                <input class="form-check-input align-middle" type="radio"
+                       name="cardinalityRadio"
+                       [value]="Cardinality.ONE_TO_ONE"
+                       [(ngModel)]="joinModel.cardinality">
+                _#(One to one)
+              </label>
+            </div>
+            <div class="form-check form-check-inline">
+              <label class="form-check-label">
+                <input class="form-check-input align-middle" type="radio"
+                       name="cardinalityRadio"
+                       [value]="Cardinality.ONE_TO_MANY"
+                       [(ngModel)]="joinModel.cardinality">
+                _#(One to many)
+              </label>
+            </div>
+            <div class="form-check form-check-inline">
+              <label class="form-check-label">
+                <input class="form-check-input align-middle" type="radio"
+                       name="cardinalityRadio"
+                       [value]="Cardinality.MANY_TO_ONE"
+                       [(ngModel)]="joinModel.cardinality">
+                _#(Many to one)
+              </label>
+            </div>
+            <div class="form-check form-check-inline">
+              <label class="form-check-label">
+                <input class="form-check-input align-middle" type="radio"
+                       name="cardinalityRadio"
+                       [value]="Cardinality.MANY_TO_MANY"
+                       [(ngModel)]="joinModel.cardinality">
+                _#(Many to many)
+              </label>
+            </div>
+          </div>
+          <div class="form-group form-check form-check-inline">
+            <label class="form-check-label">
+              <input class="form-check-input align-middle" type="checkbox"
+                     [(ngModel)]="joinModel.weak">
+              _#(Weak join)
+            </label>
+          </div>
+        </ng-container>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-footer">
+  <button *ngIf="removeEnabled" type="button" class="btn btn-primary" (click)="remove()">_#(Remove)</button>
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="okDisabled">_#(OK)</button>
+  <button type="button" class="btn btn-secondary" (click)="cancel()">_#(Cancel)</button>
+</div>

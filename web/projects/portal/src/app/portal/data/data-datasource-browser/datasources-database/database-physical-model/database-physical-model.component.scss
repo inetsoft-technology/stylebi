@@ -1,0 +1,89 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.join-pane-toolbar {
+   height: 33px !important;
+   line-height: 33px;
+   padding-bottom: 0px;
+   margin-bottom: 0px;
+   margin-right: 0px;
+
+   .join-pane-toolbar-title {
+      padding-left: 20px;
+      font-weight: bold;
+      font-size: medium;
+   }
+}
+
+.join-pane-toolbar-toggle-btn {
+   padding-right: 5px;
+   text-align: right;
+   line-height: 45px;
+}
+
+.join-tree-toolbar {
+   flex: 1;
+   overflow: hidden;
+}
+
+.table-search-input {
+   display: flex;
+   flex-wrap: nowrap;
+   width: calc(100% - 15px);
+   position: relative;
+
+   .search-input::-ms-clear {
+      display: none;
+   }
+
+   .close-icon {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+   }
+}
+
+.outgoing-header-pane {
+   height: 33px !important;
+   padding-bottom: 0px;
+   margin-bottom: 0px;
+   margin-right: 0px;
+  justify-content: space-between;
+
+   .pane-title {
+      padding-left: 20px;
+      line-height: 33px;
+      font-weight: bold;
+   }
+}
+
+.outgoing-toggle-btn {
+   padding-right: 5px;
+   text-align: right;
+   height: 33px;
+   width: 33px;
+}
+
+.outgoing-toggle-icon {
+   line-height: 30px;
+   flex: 1;
+}
+
+.physical-left-top-pane {
+   height: calc(100% - 40px - 33px - 33px);
+   padding-left: 5px;
+}

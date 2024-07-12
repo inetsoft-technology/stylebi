@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="134.4595 423.9727" i:rulerOrigin="0 0" i:pageBounds="0 792 612 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="200" height="131.451" viewBox="0 0 200 131.451" overflow="visible" enable-background="new 0 0 200 131.451"
+	 xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_2" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#FFFF4F004F00">
+				</g>
+				<g id="Layer_6" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#FFFF4F00FFFF">
+				</g>
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+				</g>
+				<g id="Layer_5" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#FFFFFFFF4F00">
+				</g>
+				<g id="Layer_4" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F004F00FFFF">
+				</g>
+				<g id="Layer_3" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+					<rect i:knockout="Off" opacity="0" fill="#FFFFFF" width="200" height="131.451"/> 
+					<g>
+						<g>
+							<path i:knockout="Off" fill="#FFFFFF" d="M169.69,31.45C146.362,9.287,120.287,3.832,100.001,3.832
+								c-20.473,0-46.362,5.455-69.689,27.619C11.559,49.268,3.929,74.084,3.833,90.408c-0.015,2.611,0.162,5.006,0.518,7.119
+								c0.267,1.585,0.633,3.013,1.095,4.256c4.247,11.448,16.169,10.91,24.785,9.071c0.892-0.19,1.748-0.394,2.556-0.601h45.148
+								c1.96,9.886,11.091,17.365,22.065,17.365c10.974,0,20.104-7.479,22.064-17.365h45.148c0.809,0.207,1.664,0.41,2.555,0.601
+								c8.617,1.839,20.541,2.377,24.786-9.071c0.462-1.243,0.829-2.671,1.095-4.256c0.355-2.113,0.533-4.508,0.519-7.119
+								C196.072,74.084,188.442,49.268,169.69,31.45z"/>
+						</g>
+						<g>
+							<path i:knockout="Off" fill="#6EB068" d="M170.263,30.847C150.813,12.369,127.175,3,100.001,3s-50.814,9.369-70.263,27.847
+								C10.152,49.456,3.094,74.56,3.001,90.403c-0.016,2.642,0.163,5.085,0.529,7.263c0.275,1.637,0.658,3.119,1.135,4.406
+								c3.441,9.278,12.101,12.506,25.739,9.596c0.85-0.182,1.72-0.387,2.588-0.607l-0.206,0.025h45.148l-0.815-0.67
+								c2.072,10.451,11.695,18.035,22.881,18.035s20.809-7.584,22.879-18.035l-0.814,0.67h45.148l-0.205-0.025
+								c0.867,0.221,1.738,0.426,2.586,0.607c13.639,2.91,22.299-0.317,25.74-9.596c0.479-1.289,0.86-2.771,1.136-4.406
+								c0.365-2.181,0.544-4.624,0.528-7.263C196.907,74.561,189.848,49.457,170.263,30.847z M195.335,90.413
+								c0.015,2.543-0.155,4.89-0.507,6.977c-0.257,1.531-0.611,2.913-1.054,4.104c-3.109,8.383-11.128,11.258-23.833,8.547
+								c-0.827-0.177-1.676-0.377-2.522-0.593l-0.102-0.026h-0.104h-45.148h-0.684l-0.133,0.671
+								c-1.918,9.674-10.854,16.695-21.248,16.695s-19.331-7.021-21.25-16.696l-0.132-0.67h-0.684H32.787h-0.104l-0.101,0.026
+								c-0.847,0.216-1.696,0.415-2.524,0.593c-12.704,2.711-20.722-0.164-23.832-8.547c-0.441-1.189-0.796-2.57-1.055-4.104
+								c-0.351-2.083-0.521-4.431-0.506-6.977c0.098-16.743,8.244-41.281,26.219-58.36c19.128-18.174,42.383-27.39,69.117-27.39
+								c26.732,0,49.986,9.215,69.116,27.39C187.092,49.134,195.238,73.672,195.335,90.413z"/>
+						</g>
+					</g>
+					<path i:knockout="Off" fill="#B8F6A1" stroke="#B8F6A1" stroke-width="4" d="M34.584,94.082
+						c3.651-32.918,31.56-58.521,65.452-58.521c33.892,0,61.801,25.603,65.451,58.521h8.497
+						c-3.685-37.594-35.385-66.969-73.948-66.969c-38.563,0-70.263,29.375-73.95,66.969H34.584z"/>
+					<g i:knockout="Off">
+						<g i:knockout="Off">
+							<circle fill="#9FFB96" stroke="#0F8902" stroke-width="0.5546" cx="100" cy="101.574" r="14.045"/> 
+							
+								<circle i:isolated="yes" i:knockout="Off" fill="#9FFB96" stroke="#0F8902" stroke-width="0.5546"  a:adobe-blending-mode="screen" enable-background="new    " cx="100" cy="101.574" r="14.045"/> 
+							
+								<circle i:isolated="yes" i:knockout="Off" fill="#9FFB96" stroke="#0F8902" stroke-width="0.5546"  a:adobe-blending-mode="multiply" enable-background="new    " cx="100" cy="101.574" r="14.045"/> 
+						</g>
+					</g>
+					<polygon fill="#ED0000" stroke="#161616" stroke-width="0.5546" points="99.974,99.065 99.974,103.045 149.55,103.081 
+						149.522,107.101 155.59,104.023 162.438,101 155.977,97.99 149.514,94.978 149.44,99.15 "/>
+				</g>
+			</g>
+		</switch>
+	</svg>

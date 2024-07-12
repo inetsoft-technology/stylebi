@@ -1,0 +1,85 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Customize Parameters)'" (onCancel)="cancelChanges()"
+              [cshid]="'CustomizeParameters'">
+</modal-header>
+
+<div class="modal-body" enterSubmit (onEnter)="saveChanges()">
+  <w-shuffle-list leftTitle="_#(Enabled Parameters)" rightTitle="_#(Disabled Parameters)">
+    <div shuffleLeft>
+      <table class="table table-sm table-bordered shuffle-table" wScrollableTable>
+        <thead>
+        </thead>
+        <tbody>
+        <div *ngFor="let _item of model.enabledParameters; let _i = index"
+             class="parameter-item"
+             (click)="select(true, _i, $event)" [class.selected]="isSelected(true, _i)">
+          <span>{{_item}}</span>
+          <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveParameter(_i, _i - 1)"
+                  [disabled]="!canMoveUp(_i)">
+            <i class="upward-icon" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-light-no-bg icon-hover-bg" (click)="moveParameter(_i, _i + 1)"
+                  [disabled]="!canMoveDown(_i)">
+            <i class="downward-icon" aria-hidden="true"></i>
+          </button>
+        </div>
+        </tbody>
+      </table>
+    </div>
+    <ng-container shuffleButtons>
+      <button type="button" class="btn btn-default mb-1" (click)="disableParameter()"
+              [disabled]="!model.enabledParameters || selectedEnabledIndexes.length == 0">
+        _#(Add)
+      </button>
+      <button type="button" class="btn btn-default mb-1" (click)="enableParameter()"
+              [disabled]="!model.disabledParameters || selectedDisabledIndexes.length == 0">
+        _#(Remove)
+      </button>
+      <button type="button" class="btn btn-default mb-1" (click)="disableAll()"
+              [disabled]="!model.enabledParameters || model.enabledParameters.length == 0">
+        _#(Add All)
+      </button>
+      <button type="button" class="btn btn-default" (click)="enableAll()"
+              [disabled]="!model.disabledParameters || model.disabledParameters.length == 0">
+        _#(Remove All)
+      </button>
+    </ng-container>
+    <div shuffleRight>
+      <table class="table table-sm table-bordered shuffle-table" wScrollableTable>
+        <thead>
+        </thead>
+        <tbody>
+        <div *ngFor="let _item of model.disabledParameters; let _i = index"
+             class="parameter-item"
+             (click)="select(false, _i, $event)" [class.selected]="isSelected(false, _i)">
+          <span>{{_item}}</span>
+        </div>
+        </tbody>
+      </table>
+    </div>
+  </w-shuffle-list>
+  <span>_#(composer.vs.parameters)</span>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="saveChanges()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+</div>

@@ -1,0 +1,65 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="identity-tables-container">
+  <em-security-table-view *ngIf="!root"
+                          [name]="name"
+                          [globalRole]="globalRole"
+                          [type]="type"
+                          [label]="userTableLabel"
+                          [dialogData]="type == 0 ? groupsType : type == 1 || type == 2 ? membersType : allMembersType"
+                          [dataSource]="members"
+                          [editable]="editable"
+                          (dropOnTable)="addMembers([$event])"
+                          (addIdentities)="addMembers($event)"
+                          (removeSelection)="removeMembers($event)">
+  </em-security-table-view>
+  <em-security-table-view *ngIf="!root && type != IdentityType.ORGANIZATION"
+                          [name]="name"
+                          [globalRole]="globalRole"
+                          [type]="type"
+                          [label]="roleTableLabel"
+                          [dialogData]="rolesType"
+                          [dataSource]="roles"
+                          [editable]="editable"
+                          (dropOnTable)="addRoles([$event])"
+                          (addIdentities)="addRoles($event)"
+                          (removeSelection)="removeRoles($event)">
+  </em-security-table-view>
+  <em-security-table-view *ngIf="root || type != IdentityType.ROLE" [name]="name"
+                          [globalRole]="globalRole"
+                          [type]="type"
+                          [label]="permissionTableLabel"
+                          [dialogData]="permissionsType"
+                          [dataSource]="permittedIdentities"
+                          [editable]="editable"
+                          (dropOnTable)="addPermittedIdentities([$event])"
+                          (addIdentities)="addPermittedIdentities($event)"
+                          (removeSelection)="removePermittedIdentities($event)">
+  </em-security-table-view>
+  <em-property-table-view *ngIf="!root && type==IdentityType.ORGANIZATION"
+                          [name]="name"
+                          [type]="type"
+                          [editable]="true"
+                          [label]="propertyLabel"
+                          [dataSource]="properties"
+                          (addProperties)="addProperties($event)"
+                          (removeProperties)="removeProperties($event)">
+  </em-property-table-view>
+</div>

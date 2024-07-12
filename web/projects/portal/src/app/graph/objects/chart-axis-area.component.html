@@ -1,0 +1,123 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="chartObject" #axisArea
+     class="chart-axis-area"
+     [class.cursor-pointer]="isShowPointer && !altDown"
+     [style.top.px]="chartObject.layoutBounds.y"
+     [style.left.px]="chartObject.layoutBounds.x"
+     [style.width.px]="chartObject.layoutBounds.width + 1"
+     [style.height.px]="chartObject.layoutBounds.height + 1"
+     [style.min-width.px]="minWidth"
+     [class.prevent-drag]="resizeCursor"
+     [class.no-actions]="chartObject.layoutBounds.width < 3 || chartObject.layoutBounds.height < 3"
+     outOfZone
+     (onMousemove)="onMove($event)"
+     (onMouseenter)="showDrill()"
+     (onMouseleave)="onLeave($event)"
+     (onMousedown)="onDown($event)"
+     (mouseup)="onUp($event)"
+     (pointerdown)="onDown($event)"
+     (pointerup)="onUp($event)"
+     (contextmenu)="onUp($event)"
+     (click)="onClick($event)"
+     (dblclick)="onDblClick($event)">
+     <!-- add 1 to match size in VGraphPair.getSubGraphic -->
+  <div class="chart-axis-area-scroll-container"
+       [style.left.px]="-scrollLeft"
+       [style.top.px]="-scrollTop"
+       (scroll)="onScroll($event)">
+    <ng-container *ngFor="let tile of chartObject.tiles; trackBy: trackByFn">
+      <img class="chart-axis-area__tile"
+           [style.top.px]="tile.bounds.y"
+           [style.left.px]="tile.bounds.x"
+           (error)="loaded(false, tile)"
+           (load)="loaded(true, tile)"
+           [src]="getSrc(tile, container)">
+<!-- use nature size to avoid scaling image
+           [style.width.px]="tile.bounds.width"
+           [style.height.px]="tile.bounds.height"
+-->
+    </ng-container>
+    <canvas #objectCanvas
+            [id]="chartObject.areaName + '-canvas'"
+            class="chart-object-canvas chart-axis-area__canvas"
+            [style.left.px]="scrollLeft"
+            [style.top.px]="scrollTop"
+            [style.width.px]="chartObject.layoutBounds.width"
+            [style.height.px]="chartObject.layoutBounds.height"
+            [attr.width]="chartObject.layoutBounds.width"
+            [attr.height]="chartObject.layoutBounds.height"
+            title="">
+    </canvas>
+  </div>
+  <div *ngIf="this.showSortIcon && isActionVisibleInViewer('Sort Axis')"
+       class="axis__sort-icon bg-white1"
+       [style.top.px]="getSortIconTop(chartObject.axisOps)"
+       title="_#(Sort Axis)"
+       (click)="clickSort($event)">
+    <span class="floating-icon" [class.sort-icon]="chartObject.sortOp === ''"
+          [class.sort-ascending-icon]="chartObject.sortOp === 'Asc'"
+          [class.sort-descending-icon]="chartObject.sortOp === 'Desc'">
+    </span>
+  </div>
+</div>
+<div *ngIf="!vsWizardPreview && !vsWizard && drillVisible && !dateComparisonDefined" class="axis-drill-area"
+     [style.z-index]="drillVisible ? 10000 : null"
+     [style.top.px]="chartObject.layoutBounds.y"
+     [style.left.px]="chartObject.layoutBounds.x"
+     outOfZone
+     (onMouseenter)="hoverOverDrill()"
+     (onMouseleave)="hideDrill(true)">
+  <ng-container *ngIf="chartObject.axisOps">
+    <div class="axis-drill-area__icon-container"
+         *ngFor="let op of chartObject.axisOps; let i = index; trackBy: trackByFn"
+         [style.top.px]="chartObject.axisType == 'y' ? chartObject.layoutBounds.height - 22 : getDrillIconPosition(i)"
+         [style.left.px]="getDrillIconLeft(i)">
+      <i *ngIf="op === '+'"
+         title="_#(Drill Down)"
+         (click)="drillDown(i)"
+         class="plus-box-outline-icon floating-icon"
+         [style.visibility]="drillVisible ? 'visible' : 'hidden'"
+         aria-hidden="true">
+      </i>
+      <i *ngIf="op === '-'"
+         title="_#(Drill Up)"
+         (click)="drillUp(i)"
+         class="minus-box-outline-icon floating-icon"
+         [style.visibility]="drillVisible ? 'visible' : 'hidden'"
+         aria-hidden="true">
+      </i>
+      <ng-container *ngIf="op === '-+'">
+        <i title="_#(Drill Down)"
+           (click)="drillDown(i)"
+           class="plus-box-outline-icon floating-icon"
+           [style.visibility]="drillVisible ? 'visible' : 'hidden'"
+           aria-hidden="true">
+        </i>
+        <i title="_#(Drill Up)"
+           (click)="drillUp(i)"
+           class="minus-box-outline-icon floating-icon"
+           [style.visibility]="drillVisible ? 'visible' : 'hidden'"
+           aria-hidden="true">
+        </i>
+      </ng-container>
+    </div>
+  </ng-container>
+</div>

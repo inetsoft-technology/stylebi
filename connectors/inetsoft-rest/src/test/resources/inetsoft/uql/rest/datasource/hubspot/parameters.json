@@ -1,0 +1,22 @@
+{
+  "tests": [
+    {
+      "endpoint": "Account Details",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Recently Created Companies",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Company Properties",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    }
+  ]
+}

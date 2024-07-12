@@ -1,0 +1,488 @@
+{
+  "endpoints": [
+    {
+      "name": "CSAT Ratings",
+      "suffix": "/v1/csat/ratings?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "true"
+    },
+    {
+      "name": "CSAT Rating",
+      "suffix": "/v1/csat/ratings/{CSAT Rating ID}",
+      "paged": "false"
+    },
+    {
+      "name": "CSAT Stats",
+      "suffix": "/v1/csat/stats?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "CSAT Histogram",
+      "suffix": "/v1/csat/histogram?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "CSAT Surveys",
+      "suffix": "/v1/csat/surveys",
+      "paged": "true"
+    },
+    {
+      "name": "CES Ratings",
+      "suffix": "/v1/ces/ratings?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "true"
+    },
+    {
+      "name": "CES Rating",
+      "suffix": "/v1/ces/ratings/{CESRating ID}",
+      "paged": "false"
+    },
+    {
+      "name": "CES Stats",
+      "suffix": "/v1/ces/stats?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "CES Histogram",
+      "suffix": "/v1/ces/histogram?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "CES Surveys",
+      "suffix": "/v1/ces/surveys",
+      "paged": "true"
+    },
+    {
+      "name": "NPS Ratings",
+      "suffix": "/v1/nps/ratings?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "true"
+    },
+    {
+      "name": "NPS Rating",
+      "suffix": "/v1/nps/ratings/{NPSRating ID}",
+      "paged": "false"
+    },
+    {
+      "name": "NPS Stats",
+      "suffix": "/v1/nps/stats?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "NPS Histogram",
+      "suffix": "/v1/nps/histogram?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "NPS Surveys",
+      "suffix": "/v1/nps/surveys",
+      "paged": "true"
+    },
+    {
+      "name": "Customers",
+      "suffix": "/v1/customers",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "Customer Ratings",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer Stats",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer Histogram",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        }
+      ]
+    },
+    {
+      "name": "All Customer Stats",
+      "suffix": "/v1/customers/stats?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "Customer",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer Ratings",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        },
+        {
+          "endpoint": "Customer Histogram",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Customer ID"
+        }
+      ]
+    },
+    {
+      "name": "Customer",
+      "suffix": "/v1/customers/{Customer ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Customer Ratings",
+      "suffix": "/v1/customers/{Customer ID}/ratings?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "true"
+    },
+    {
+      "name": "Customer Stats",
+      "suffix": "/v1/customers/{Customer ID}/stats?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "Customer Histogram",
+      "suffix": "/v1/customers/{Customer ID}/histogram?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "Surveys",
+      "suffix": "/v1/surveys",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "Survey Ratings",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Survey ID"
+        },
+        {
+          "endpoint": "Survey Stats",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Survey ID"
+        },
+        {
+          "endpoint": "Survey Histogram",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Survey ID"
+        }
+      ]
+    },
+    {
+      "name": "All Survey Stats",
+      "suffix": "/v1/surveys/stats?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "Survey",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Survey ID"
+        },
+        {
+          "endpoint": "Survey Ratings",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Survey ID"
+        },
+        {
+          "endpoint": "Survey Histogram",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Survey ID"
+        }
+      ]
+    },
+    {
+      "name": "Survey",
+      "suffix": "/v1/surveys/{Survey ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Survey Ratings",
+      "suffix": "/v1/surveys/{Survey ID}/ratings?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "true"
+    },
+    {
+      "name": "Survey Stats",
+      "suffix": "/v1/surveys/{Survey ID}/stats?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "Survey Histogram",
+      "suffix": "/v1/surveys/{Survey ID}/histogram?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "Teams",
+      "suffix": "/v1/teams",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "Team Ratings",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Stats",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Histogram",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Users",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        }
+      ]
+    },
+    {
+      "name": "All Team Stats",
+      "suffix": "/v1/teams/stats?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "Team",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Ratings",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Histogram",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Users",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        }
+      ]
+    },
+    {
+      "name": "All Team Users",
+      "suffix": "/v1/teams/users",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "Team",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Ratings",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Stats",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Histogram",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "User Ratings",
+          "jsonPath": "$._results[*].users[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "User Stats",
+          "jsonPath": "$._results[*].users[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "User Histogram",
+          "jsonPath": "$._results[*].users[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "Team",
+      "suffix": "/v1/teams/{Team ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Team Ratings",
+      "suffix": "/v1/teams/{Team ID}/ratings?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "true"
+    },
+    {
+      "name": "Team Stats",
+      "suffix": "/v1/teams/{Team ID}/stats?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "Team Histogram",
+      "suffix": "/v1/teams/{Team ID}/histogram?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "Team Users",
+      "suffix": "/v1/teams/{Team ID}/users",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "User Ratings",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "User Stats",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "User Histogram",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "suffix": "/v1/users",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "User Ratings",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "User Stats",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "User Histogram",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "User Teams",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "All User Stats",
+      "suffix": "/v1/users/stats?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "User",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "User Ratings",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "User Histogram",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "User Teams",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "suffix": "/v1/users/{User ID}",
+      "paged": "false"
+    },
+    {
+      "name": "User Ratings",
+      "suffix": "/v1/users/{User ID}/ratings?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "true"
+    },
+    {
+      "name": "User Stats",
+      "suffix": "/v1/users/{User ID}/stats?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "User Histogram",
+      "suffix": "/v1/users/{User ID}/histogram?period_start={Period Start?}&period_end={Period End?}",
+      "paged": "false"
+    },
+    {
+      "name": "User Teams",
+      "suffix": "/v1/users/{User ID}/teams",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "Team Ratings",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Stats",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Histogram",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        },
+        {
+          "endpoint": "Team Users",
+          "jsonPath": "$._results[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        }
+      ]
+    }
+  ]
+}

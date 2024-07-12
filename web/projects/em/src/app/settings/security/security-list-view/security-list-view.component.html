@@ -1,0 +1,72 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-spinner color="accent" *ngIf="!providers"></mat-spinner>
+<mat-list>
+  <mat-list-item class="list-item"
+                 *ngFor="let provider of providers; let i = index; let first = first; let last = last;"
+                 [draggable]="true" [disableRipple]="true"
+                 (dragenter)="dragEnter($event)"
+                 (dragstart)="dragStart($event)"
+                 (dragend)="dragEnd($event)">
+    <div class="provider-row">
+      <span class="provider-name">{{provider.name}}</span>
+      <div class="provider-action">
+        <div>
+          <button mat-icon-button [disableRipple]="true" title="_#(Content Duplicate)"
+                  aria-label="_#(Content Duplicate)"
+                  (click)="copyProvider.emit(i)">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="content-duplicate-icon"></mat-icon>
+          </button>
+          <button mat-icon-button [disableRipple]="true" title="_#(Move Up)"
+                  [disabled]="first" aria-label="_#(Move Up)"
+                  (click)="moveProviderUp.emit(i)">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="shape-arrow-up-bold-icon"></mat-icon>
+          </button>
+          <button mat-icon-button [disableRipple]="true" title="_#(Move Down)"
+                  [disabled]="last" aria-label="_#(Move Down)"
+                  (click)="moveProviderDown.emit(i)">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="shape-arrow-down-bold-icon"></mat-icon>
+          </button>
+          <button mat-icon-button [disableRipple]="true" title="_#(Edit)"
+                  (click)="editProvider.emit(provider.name)" aria-label="_#(Edit)">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="edit-icon"></mat-icon>
+          </button>
+          <button mat-icon-button [disableRipple]="true"
+                  title="_#(Remove)" aria-label="_#(Remove)"
+                  (click)="removeProvider.emit(i)" [disabled]="providers.length === 1">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="trash-icon"></mat-icon>
+          </button>
+          <button *ngIf="provider.cacheEnabled" mat-icon-button [disableRipple]="true"
+                  title="_#(Clear Security Cache)" aria-label="_#(Clear Security Cache)"
+                  (click)="clearProviderCache.emit(i)" [disabled]="provider.loading">
+            <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="refresh-icon"></mat-icon>
+          </button>
+        </div>
+        <div>
+          <ng-container *ngIf="provider.cacheEnabled">
+            <div>_#(Cache Age): </div>
+            <div>{{provider.cacheAgeLabel}}</div>
+            <div *ngIf="provider.loading"> (_#(Loading))</div>
+          </ng-container>
+        </div>
+      </div>
+    </div>
+  </mat-list-item>
+</mat-list>

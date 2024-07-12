@@ -1,0 +1,586 @@
+/**
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+body {
+   font-family: Roboto, Verdana, Arial, Helvetica, sans-serif;
+   font-family: $(font-family);
+   font-size: 11px;
+}
+
+.repositoryList {
+    border: 1px solid #bbb;
+}
+
+.designButton {
+   font-family: $(font-family),Roboto, Verdana,Arial,Helvetica,sans-serif;
+   font-size: 13px;
+   color: #333333;
+}
+
+.loginPortalBody {
+   color: #9D9D9D;
+   margin: 0;
+   padding: 0;
+   background: url("$(SERVLET)?op=Resource&name=%2finetsoft%2fsree%2fportal%2fimages%2flogin_top_user_portal_viewer%2ejpg") no-repeat right top;
+}
+
+.loginEMBody {
+   color: #9D9D9D;
+   margin:0;
+   padding:0px;
+   background: url("$(SERVLET)?op=Resource&name=%2finetsoft%2fsree%2fportal%2fimages%2flogin_top_em%2ejpg") no-repeat right top;
+}
+
+.emIndexBody {
+   overflow: hidden;
+   margin: 0;
+   padding: 0;
+   background: url("$(SERVLET)?op=resource&style=false&theme=true&type=portal&name=title_em%2ejpg") repeat-x right top;
+   color: #FFFFFF;
+}
+
+.portalIndexBody {
+   overflow: hidden;
+   margin: 0;
+   padding: 0;
+   background: url("$(SERVLET)?op=resource&style=false&theme=true&type=portal&name=title_viewer%2ejpg") repeat-x right top;
+}
+
+.emBody, .portalBody {
+   margin: 0px;
+   overflow: hidden;
+}
+
+td {
+   font-family: $(font-family);
+   font-size: 11px;
+   white-space: nowrap;
+}
+
+input {
+   font-family: $(font-family);
+   font-size: 11px;
+}
+
+select {
+   font-family: $(font-family);
+   font-size: 11px;
+}
+
+textarea {
+   font-family: $(font-family);
+   font-size: 11px;
+   resize:none;
+}
+
+iframe {
+   border:0px;
+   font-family: $(font-family);
+   font-size: 11px;
+}
+
+#logout a{
+   text-decoration: underline;
+   color: blue;
+}
+
+/**
+ * css for dnd
+ */
+.inetsoft_drag_label{
+   background-color: #D2E1FF;
+   border: 1px solid #97B9FF;
+   font-size: 13px;
+   color:black;
+}
+
+.inetsoft_drag_label td{
+   font-size: 13px;
+   color:black;
+}
+
+/**
+ * css for tooltip
+ */
+.isii_tooltip_table{
+   background-color: #ffffe1;
+   border: 1px solid black;
+   font-size: 10px;
+   color:black;
+}
+
+/**
+ * css for isii_JSDailog
+ */
+.dialog_container{
+   position: absolute;
+   margin: auto;
+   top: 0;
+   left: 0;
+}
+
+.dialog_content{
+   top: 22px;
+   left: 0;
+   position: absolute;
+   background-color: #fff;
+   border: 1px solid #C9C2A6;
+   overflow: visible;
+}
+
+.dialog_iFrame {
+   overflow: auto;
+   border:0;
+   margin:0;
+   padding:0;
+   font-family: $(font-family);
+   font-size: 11px;
+}
+
+.dialog_titleBar{
+   margin: 0;
+   top: 0;
+   height: 22px;
+   position: absolute;
+   background: transparent url("$(SERVLET_PREF)op=resource&style=false&theme=true&type=portal&name=dialog_right_corner%2egif") no-repeat right top;
+}
+
+.dialog_titleImage_middle {
+   margin: 0 7px 0 6px;
+   padding:0;
+   top: 0;
+   position: absolute;
+   background: url("$(SERVLET_PREF)op=resource&style=false&theme=true&type=portal&name=dialog_middle%2egif") repeat-x top;
+}
+
+.dialog_titleImage_left{
+   height: 22px;
+   position: absolute;
+   margin: 0;
+   top:0;
+   left: 0;
+   width:6px;
+   background:transparent url("$(SERVLET_PREF)op=resource&style=false&theme=true&type=portal&name=dialog_left_corner%2egif") no-repeat left top;
+}
+
+.dialog_titleInner{
+   font-size: 12px;
+   text-indent:4px;
+   color:#765;
+   font-weight: bold;
+   padding: 4px 0 0 5px;
+   margin: 0;
+   text-align: left;
+}
+
+.dialog_closeBtn{
+   margin: 5px 3px 0 0;
+   padding: 2px 2px 0 0;
+   float: right;
+   cursor: pointer;
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=dialog_close%2egif");
+   background-repeat: no-repeat;
+   width:15px;
+   height:13px;
+}
+
+.dialog_mask{
+  	position: absolute;
+	top: 0px;
+	left: 0px;
+	width: 100%;
+	height: 100%;
+	background-color: transparent;
+	background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=dialog_mask%2epng");
+}
+
+/**
+ * for dialig iframe winidow
+ */
+#dialog_iFrame{
+   overflow: auto;
+   border:0;
+   margin:5px;
+   padding:0;
+   font-family: $(font-family);
+   font-size: 11px;
+}
+
+div#indexLogoDiv {
+   padding: 5px 0 0 20px;
+}
+
+/**
+ * css for tabbed panel
+ */
+.tabsLine_top, .tabsLine_bottom {
+   clear: both;
+   height: 0px;
+   font-size: 0px;
+}
+
+.isii_JSTabbedPanel_tabs ul{
+   margin:0;
+   padding:0px 0px 0;
+   list-style:none;
+}
+
+.isii_JSTabbedPanel_contents_top{
+   clear:both;
+   border:1px solid #9d9d9d;
+}
+
+.isii_JSTabbedPanel_contents_bottom{
+   clear:both;
+   border:1px solid #9d9d9d;
+}
+
+.isii_JSTabbedPanel_iframe{
+   margin:0px;
+   border:0;
+   overflow: auto;
+   position:relative;
+   top:0;
+   left:0;
+}
+
+.isii_JSTabbedPanel_li{
+   float:left;
+   background: url("$(SERVLET_PREF)op=resource&style=true&type=portal&name=tab_left_top.gif") no-repeat left top;
+   margin:0;
+   padding:0 0 0 6px;
+   font-size:12px;
+   font-weight: bold;
+   text-align:center;
+}
+
+.li_bottom{
+   background: url("$(SERVLET_PREF)op=resource&style=true&type=portal&name=tab_left_bottom.gif") no-repeat left bottom;
+}
+
+.cli_top{
+   background: url("$(SERVLET_PREF)op=resource&style=true&theme=true&type=portal&name=tab_left_on_top.gif") no-repeat left top;
+}
+
+.cli_bottom{
+   background: url("$(SERVLET_PREF)op=resource&style=true&theme=true&type=portal&name=tab_left_on_bottom.gif") no-repeat left bottom;
+}
+
+.isii_JSTabbedPanel_span{
+   float:left;
+   display:block;
+   background: url("$(SERVLET_PREF)op=resource&style=true&type=portal&name=tab_right_top.gif") no-repeat right top;
+   padding:2px 8px 2px 2px;
+   color:black;
+}
+
+.span_bottom{
+   background: url("$(SERVLET_PREF)op=resource&style=true&type=portal&name=tab_right_bottom.gif") no-repeat right bottom;
+}
+
+.cspan_top{
+   background: url("$(SERVLET_PREF)op=resource&style=true&theme=true&type=portal&name=tab_right_on_top.gif") no-repeat right top;
+}
+
+.cspan_bottom{
+   background: url("$(SERVLET_PREF)op=resource&style=true&theme=true&type=portal&name=tab_right_on_bottom.gif") no-repeat right bottom;
+}
+
+.isii_JSTabbedPanel_tabs span:hover{
+   text-decoration: underline;
+}
+
+/**
+ * css for isii_JSGrid
+ */
+.containerBox {
+   float:left;
+}
+
+.scrollBarBox {
+   float:left;
+}
+
+.tableContainer {
+   border: 0;
+}
+
+/* add a border around the table when the (inner) table border is
+   not drawn or there is no border around the table */
+.tableContainer_hideBorder {
+   border: 1px solid #c0c0c0;
+}
+
+.tableObj {
+   border-collapse: collapse;
+}
+
+.tableObj td {
+   border: 1px solid #c0c0c0;
+   font-family: $(font-family);
+   font-size:11px;
+   padding:0 5px 0 5px;
+   white-space:normal;
+   font-weight: normal;
+}
+
+.tableHeader td {
+   background-color:#f2f2f6;
+   color: #454545;
+   text-align: center;
+   font-weight: bold;
+   white-space:normal;
+   font-family: $(font-family);
+   font-size: 11px;
+   padding: 1px 5px 1px 5px;
+   margin: 0px;
+}
+
+.tableObj_hideBorder td {
+   border:0;
+   font-family: $(font-family);
+   font-size:11px;
+   padding:1px 5px 0 5px;
+   white-space:normal;
+}
+
+.rowselected, .rowselected td {
+   background-color:#CFDAED;
+   color:black;
+}
+
+/**
+ * css for the scroll bar of isii_JSGrid
+ */
+.sr_blockContainer {
+   background-color:#D4D0C8;
+}
+.sr_scrollbar_block {
+   background-image: url("$(SERVLET_PREF)op=Resource&type=portal&name=grid_bar%2egif");
+   border-bottom:1px solid #ACA899;
+   border-right:1px solid #ACA899;
+   border-top:1px solid white;
+}
+.sr_scrollbar_top {
+   background-image: url("$(SERVLET_PREF)op=Resource&type=portal&name=grid_spinup%2egif");
+   border-right:1px solid #ACA899;
+}
+.sr_scrollbar_top_press {
+   background-image: url("$(SERVLET_PREF)op=Resource&type=portal&name=grid_spinupPress%2egif");
+}
+.sr_scrollbar_bottom {
+   background-image: url("$(SERVLET_PREF)op=Resource&type=portal&name=grid_spindown%2egif");
+   border-right:1px solid #ACA899;
+}
+.sr_scrollbar_bottom_press {
+   background-image: url("$(SERVLET_PREF)op=Resource&type=portal&name=grid_spindownPress%2egif");
+}
+.sr_scrollbar_top_disable {
+   background-image: url("$(SERVLET_PREF)op=Resource&name=%2finetsoft%2fsree%2fportal%2fimages%2fgrid_upDisable%2egif");
+}
+.sr_scrollbar_bottom_disable {
+   background-image: url("$(SERVLET_PREF)op=Resource&name=%2finetsoft%2fsree%2fportal%2fimages%2fgrid_downDisable%2egif");
+}
+
+.commandButton {
+   border: 0px;
+   text-decoration: underline;
+   color: blue;
+   padding-left: 0;
+   cursor: pointer;
+   text-align: left;
+   background: none;
+}
+
+.commandButton:disabled {
+   color: silver;
+}
+
+.pagetitle {
+   color: #F0942E;
+   font-weight: bold;
+   text-align: left;
+   font-size: 13px;
+   text-indent: 10px;
+   position:relative;
+   bottom:3pt;
+   height:20px;
+}
+
+.topborder {
+   border-top: 1px solid silver ;
+}
+
+.pagenote {
+   text-align: left;
+   font-size: 11px;
+   padding-top:4pt;
+   padding-bottom:20px;
+   border-top: 1px solid silver;
+   position:relative;
+   top:5pt;
+}
+
+.secondarytitle {
+   text-indent: 5pt;
+   text-align: left;
+   color: #321;
+   font-weight: bold;
+   padding: 4px 0 0 0;
+   background: url("$(SERVLET_PREF)op=resource&type=portal&theme=true&style=true&name=title_bg2%2epng") no-repeat left bottom;
+}
+
+.seperaterline {
+   background:url('$(SERVLET_PREF)op=Resource&name=%2finetsoft%2fsree%2fportal%2fimages%2fseperater_line%2egif') no-repeat;
+}
+
+.leftTreeDiv {
+   width:599px; /*overridden in code*/
+   float:left;
+   position:absolute;
+   border:0px;
+   top: 7px; /*overridden in code*/
+}
+
+.rightIframeDiv {
+   border: 1px solid #bbb;
+   float:left;
+   position:absolute;
+   left:220px; /*overridden in code*/
+   top: 7px; /*overridden in code*/
+}
+
+.longpagetitle {
+   text-indent: 5pt;
+   text-align: left;
+   color: #321;
+   position: relative;
+   font-weight: bold;
+   padding: 2px 0 2px 0;
+   background: url("$(SERVLET_PREF)op=resource&type=portal&theme=true&style=true&name=title_bg2%2epng") no-repeat left bottom;
+}
+
+.loginline {
+   border-top:1px solid #9d9d9d;
+   width:100%
+}
+
+.isii_AJAX_loadingImg {
+}
+
+.isii_AJAX_loadingTxt {
+   font-family: $(font-family);
+   font-weight: bold;
+}
+
+.isii_AJAX_loadingTable {
+   border: 1px solid #BABADC;
+   background-color: white;
+}
+
+#resizeMask{
+   z-index:100;
+   position:absolute;
+   top:0;
+   left:220px;
+   border:0;
+   width:5px;
+   height:100%;
+   background-color: transparent;
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=dialog_mask%2epng");
+}
+
+/**
+ * css for menu
+ */
+.isii_menu_table{
+   background-color: #fff;
+   border: 1px solid black;
+   font-size: 10px;
+   color:black;
+}
+
+.isii_menu_table_td{
+   border-color : white Gray Gray white;
+   text-align: left;
+   margin:0px;
+   font-weight:normal;
+   white-space:normal;
+   font-size: 11px;
+   padding: 0 5px 0 5px;
+   margin: 0px;
+   color:black;
+}
+
+
+.gridText {
+   background:transparent;
+}
+
+.toggleCollapse {
+   background: url('$(SERVLET_PREF)op=resource&name=%2Finetsoft%2Fsree%2Fadm%2Fmarkup%2Fimages%2Fbg_collapse%2Egif') no-repeat;
+   height: 18px;
+   cursor: pointer;
+}
+
+.toggleExpand {
+   background: url('$(SERVLET_PREF)op=resource&name=%2Finetsoft%2Fsree%2Fadm%2Fmarkup%2Fimages%2Fbg_expand%2Egif') no-repeat;
+   height: 18px;
+   cursor: pointer;
+}
+
+/* class for adhoc wizard */
+.wizard_image {
+   border: 3px solid #f0f0f3;
+   padding:0px;
+}
+
+.wizard_desc {
+   white-space:normal;
+}
+
+.wizard_title {
+   border-bottom: 2px solid #f0f0f3;
+   height: 20px;
+}
+
+.wizard_menu {
+   background-color: #f3f3f6;
+}
+
+#saveAs_comment, #IEBtn {
+   margin-top: 1px;
+}
+
+.timeout_error_message {
+   alignment: left;
+   color: #85646c;
+   font-size: 12px;
+   padding-left: 8px;
+}
+
+.report_reload_link {
+   float: right;
+   color: #656616;
+   padding-right: 8px;
+   font-size: 12px;
+   text-decoration: none;
+}
+
+.report_reload_link:hover {
+   text-decoration: underline;
+}

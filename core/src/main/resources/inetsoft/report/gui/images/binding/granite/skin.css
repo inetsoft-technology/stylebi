@@ -1,0 +1,97 @@
+/**
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "http://www.adobe.com/2006/mxml";
+@namespace widget "inetsoft.fl.widget.*";
+@namespace gui "inetsoft.fl.gui.*";
+@namespace ws "inetsoft.fl.gui.ws.*";
+@namespace vs "inetsoft.fl.gui.vs.*";
+@namespace vsdialog "inetsoft.fl.gui.vs.dialog.*";
+@namespace graph "inetsoft.fl.graph.dialog.*";
+
+.imageButton {
+   skinClass: ClassReference("inetsoft.fl.skins.ImageButtonSkin");
+}
+
+widget|Box2 {
+   skinClass: ClassReference("inetsoft.fl.skins.Box2Skin");
+}
+
+widget|Button2 {
+   skinClass: ClassReference("inetsoft.fl.skins.Button2Skin");
+}
+
+widget|IconButton {
+   skinClass: ClassReference("inetsoft.fl.skins.IconButtonSkin");
+}
+
+widget|EmptyButton {
+   skinClass: ClassReference("inetsoft.fl.skins.EmptyButtonSkin");
+}
+
+widget|Image2 {
+   skinClass: ClassReference("spark.skins.spark.ImageSkin");
+}
+
+widget|CheckBox2 {
+   skinClass: ClassReference("inetsoft.fl.skins.CheckBoxSkin");
+}
+
+widget|ComboBox2 {
+   skinClass: ClassReference("inetsoft.fl.skins.ComboBoxSkin");
+}
+
+widget|SparkList {
+   skinClass: ClassReference("spark.skins.spark.ListSkin");
+}
+
+widget|RadioButton2 {
+   skinClass: ClassReference("inetsoft.fl.skins.RadioButton2Skin");
+}
+
+widget|SparkTextArea {
+   skinClass: ClassReference("spark.skins.spark.TextAreaSkin");
+}
+
+widget|SparkTextInput {
+   skinClass: ClassReference("spark.skins.spark.TextInputSkin");
+}
+
+widget|TabButton {
+   skinClass: ClassReference("inetsoft.fl.skins.TabButtonSkin");
+}
+
+widget|TitleWindow2, widget|RemoteWindow, vs|MaxModeView, widget|Alert2 {
+   skinClass: ClassReference("inetsoft.fl.skins.TitleWindowSkin");
+}
+
+widget|DataGrid2 {
+   skinClass: ClassReference("inetsoft.fl.skins.DataGridSkin");
+}
+
+s|Scroller {
+   skinClass: ClassReference("spark.skins.spark.ScrollerSkin");
+}
+
+s|HScrollBar {
+   skinClass: ClassReference("inetsoft.fl.skins.HScrollBarSkin");
+}
+
+s|VScrollBar {
+   skinClass: ClassReference("inetsoft.fl.skins.VScrollBarSkin");
+}

@@ -1,0 +1,143 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ul ngbNav #nav="ngbNav" class="nav-tabs"
+    [activeId]="dateComparisonPaneModel.periodPaneModel.custom ? 'custom' : 'standard'"
+    (navChange)="dateComparisonPaneModel.periodPaneModel.custom = $event.nextId == 'custom'">
+  <ng-container ngbNavItem="standard">
+    <a ngbNavLink>_#(Standard Periods)</a>
+  </ng-container>
+  <ng-container ngbNavItem="custom">
+    <a ngbNavLink>_#(Custom Periods)</a>
+  </ng-container>
+</ul>
+<div class="content-pane">
+  <date-comparison-periods-pane [periodPaneModel]="dateComparisonPaneModel.periodPaneModel"
+                                [variableValues]="variableValues" [disable]="disable"
+                                [columnTreeRoot]="scriptTreeModel?.columnTree"
+                                [functionTreeRoot]="scriptTreeModel?.functionTree"
+                                [operatorTreeRoot]="scriptTreeModel?.operatorTree"
+                                [scriptDefinitions]="scriptTreeModel?.scriptDefinitions"
+                                [intervalEndDate]="intervalEndDate"
+                                [toDateDisabled]="toDateDisabled"
+                                [weekly]="isWeekly()">
+  </date-comparison-periods-pane>
+  <date-comparison-interval-pane [intervalPaneModel]="dateComparisonPaneModel.intervalPaneModel"
+                                 [disable]="disable" [variableValues]="variableValues"
+                                 [standardPeriodLevel]="dateComparisonPaneModel.periodPaneModel.standardPeriodPaneModel.dateLevel"
+                                 [periodEndDay]="getPeriodEndDay()"
+                                 [isCustomPeriod]="dateComparisonPaneModel.periodPaneModel.custom"
+                                 [columnTreeRoot]="scriptTreeModel?.columnTree"
+                                 [functionTreeRoot]="scriptTreeModel?.functionTree"
+                                 [operatorTreeRoot]="scriptTreeModel?.operatorTree"
+                                 [scriptDefinitions]="scriptTreeModel?.scriptDefinitions">
+  </date-comparison-interval-pane>
+  <form class="container-fluid">
+    <fieldset>
+      <legend>_#(Display)</legend>
+      <div class="form-row-float-label row">
+        <div class="col-11 d-flex justify-content-between">
+          <ng-container *ngFor="let option of comparisonOption; let i = index;">
+            <div class="option form-check">
+              <input type="radio" class="form-check-input"
+                     [ngModelOptions]="{standalone: true}"
+                     [(ngModel)]="dateComparisonPaneModel.comparisonOption"
+                     [id]="option.label" [value]="option.value" [disabled]="disable"
+                     [checked]="dateComparisonPaneModel.comparisonOption === option.value">
+              <label class="form-check-label" [for]="option.label">
+                {{option.label}}
+              </label>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+      <div *ngIf="showAsFacet()" class="form-row-float-label row">
+        <div class="col-1">
+          <div class="form-check check-box-container">
+            <input type="checkbox" class="form-check-input"
+                   [disabled]="editColorDisable()"
+                   [ngModelOptions]="{standalone: true}"
+                   [(ngModel)]="dateComparisonPaneModel.useFacet"
+                   id="facet">
+            <label class="form-check-label" for="facet">_#(date.comparison.useFacet)</label>
+          </div>
+        </div>
+      </div>
+      <div *ngIf="isOnlyShowRecentDateVisible()" class="form-row-float-label row">
+        <div class="col-1">
+          <div class="form-check check-box-container">
+            <input type="checkbox" class="form-check-input"
+                   [disabled]="editColorDisable()"
+                   [ngModelOptions]="{standalone: true}"
+                   [(ngModel)]="dateComparisonPaneModel.onlyShowMostRecentDate"
+                   id="onlyShowMostRecentDate">
+            <label class="form-check-label" for="onlyShowMostRecentDate">_#(date.comparison.onlyShowMostRecentDate)</label>
+          </div>
+        </div>
+      </div>
+<!-- @dcColorRemove
+      <div class="form-row-float-label row" *ngIf="isChart()">
+        <div class="col-11 d-flex">
+          <label class="form-check-label" >
+            _#(date.comparison.colorPalette)
+          </label>
+          <div [fixedDropdown]="dropdownMenu" [autoClose]="false" [zIndex]="100000"
+               [closeOnEsc]="!dialogOpened" [disabled]="editColorDisable()"
+               [class.hover-bg-secondary]="!editColorDisable()"
+               class="field-icon visual-cell-container" (openChange)="openChanged($event)">
+            <div title="_#(Edit Color)">
+              <color-cell [(frameModel)]="dateComparisonPaneModel.visualFrameModel" [isMixed]="false"></color-cell>
+            </div>
+          </div>
+        </div>
+      </div>
+-->
+    </fieldset>
+  </form>
+</div>
+
+
+<!--<date-comparison-periods-pane [periodPaneModel]="dateComparisonPaneModel.periodPaneModel"-->
+<!--                              [variableValues]="variableValues" [disable]="disable"-->
+<!--                              [columnTreeRoot]="scriptTreeModel?.columnTree"-->
+<!--                              [functionTreeRoot]="scriptTreeModel?.functionTree"-->
+<!--                              [operatorTreeRoot]="scriptTreeModel?.operatorTree"-->
+<!--                              [scriptDefinitions]="scriptTreeModel?.scriptDefinitions"-->
+<!--                              [intervalEndDate]="intervalEndDate"-->
+<!--                              [toDateDisabled]="toDateDisabled">-->
+<!--</date-comparison-periods-pane>-->
+<!--<date-comparison-interval-pane [intervalPaneModel]="dateComparisonPaneModel.intervalPaneModel"-->
+<!--                               [disable]="disable" [variableValues]="variableValues"-->
+<!--                               [standardPeriodLevel]="dateComparisonPaneModel.periodPaneModel.standardPeriodPaneModel.dateLevel"-->
+<!--                               [isCustomPeriod]="dateComparisonPaneModel.periodPaneModel.custom"-->
+<!--                               [columnTreeRoot]="scriptTreeModel?.columnTree"-->
+<!--                               [functionTreeRoot]="scriptTreeModel?.functionTree"-->
+<!--                               [operatorTreeRoot]="scriptTreeModel?.operatorTree"-->
+<!--                               [scriptDefinitions]="scriptTreeModel?.scriptDefinitions">-->
+<!--</date-comparison-interval-pane>-->
+
+<ng-template #dropdownMenu>
+  <div class="dropdown-pane">
+    <categorical-color-pane [isDC]="true"
+                            [(frameModel)]="dateComparisonPaneModel.visualFrameModel"
+                            (openDialog)="dialogOpened = $event"
+                            (apply)="openChanged($event)">
+    </categorical-color-pane>
+  </div>
+</ng-template>

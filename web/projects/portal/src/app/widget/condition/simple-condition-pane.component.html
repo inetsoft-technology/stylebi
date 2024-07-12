@@ -1,0 +1,55 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container-fluid">
+  <div class="row">
+    <div class="selectable-list col-12">
+      <div *ngFor="let item of conditionList; let even = even; let i = index;" class="unhighlightable"
+           [class.selected]="selectedIndex == i" (click)="conditionItemSelected(i)">
+        <div *ngIf="even">
+          {{item | conditionToString}}
+        </div>
+        <div *ngIf="!even">
+          {{item | junctionOperatorToString}}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-12">
+      <div class="pull-right">
+        <button type="button" class="btn btn-default" (click)="more()">_#(More)</button>
+        <button type="button" class="btn btn-default ms-1" (click)="fewer()"
+                [disabled]="this.selectedIndex == null || this.selectedIndex % 2 != 0">_#(Fewer)</button>
+      </div>
+    </div>
+  </div>
+</div>
+<fieldset>
+  <legend>_#(Edit)</legend>
+  <div class="condition-item-container">
+    <condition-item-pane *ngIf="condition != null" [provider]="provider" [variableNames]="variableNames"
+                         [subqueryTables]="subqueryTables" [fields]="fields"
+                         [condition]="condition" [isVSContext]="isVSContext"
+                         [showOriginalName]="true"
+                         (conditionChange)="conditionChange($event)"
+                         [addNoneItem]="false">
+    </condition-item-pane>
+  </div>
+</fieldset>

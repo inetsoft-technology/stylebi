@@ -1,0 +1,58 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<w-large-form-field>
+  <div class="table-container table-bordered" largeFieldElement>
+    <table class="table table-sm table-hover">
+    <thead>
+      <tr>
+        <th class="variable-list-table-header bb-gray">_#(Label)</th>
+        <th class="variable-list-table-header bb-gray">_#(Value)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let _tuple of variableList; let i = index" (click)="selectedIndex = i"
+          [class.selected]="i === selectedIndex">
+        <td>
+          <input type="text" class="form-control" [(ngModel)]="_tuple.label"
+                 (ngModelChange)="onValueChange()" [attr.data-test]="'l' + i">
+        </td>
+        <td>
+          <input type="text" class="form-control" [attr.placeholder]="placeholder"
+                 [attr.maxlength]="maxlength" [(ngModel)]="_tuple.value"
+                 (ngModelChange)="validateValue(_tuple)" [attr.data-test]="'v' + i">
+        </td>
+      </tr>
+    </tbody>
+     </table>
+  </div>
+  <ng-container largeFieldButtons>
+    <button type="button" class="btn btn-default mb-1" data-test="add-button" (click)="addRow()">_#(Add)</button>
+    <button type="button" class="btn btn-default mb-1" data-test="delete-button"
+            [disabled]="!variableSelected" (click)="deleteRow()">_#(Delete)</button>
+    <button type="button" class="btn btn-default" data-test="clear-button"
+            [disabled]="variableList.length == 0" (click)="clear()">_#(Clear)</button>
+    <button type="button" class="btn btn-default" data-test="move-up-button"
+            [disabled]="!variableSelected || selectedIndex == 0"
+            (click)="swap(selectedIndex - 1)">_#(Move Up)</button>
+    <button type="button" class="btn btn-default" data-test="move-down-button"
+            [disabled]="!variableSelected || selectedIndex == variableList.length - 1"
+            (click)="swap(selectedIndex + 1)">_#(Move Down)</button>
+  </ng-container>
+</w-large-form-field>

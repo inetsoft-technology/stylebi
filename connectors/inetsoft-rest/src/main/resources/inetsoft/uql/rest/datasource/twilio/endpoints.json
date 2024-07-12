@@ -1,0 +1,87 @@
+{
+  "endpoints": [
+    {
+      "name": "Account",
+      "paged": false,
+      "suffix": "/2010-04-01/Accounts/{Account ID}.json"
+    },
+    {
+      "name": "Accounts",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts.json?FriendlyName={Account Name?}&Status={Status?:closed|suspended|active}",
+      "lookups": [
+        {
+          "endpoints": ["Addresses", "Applications", "Keys", "Usage Records", "Usage Triggers"],
+          "jsonPath": "$.accounts.[*]",
+          "key": "sid",
+          "parameterName": "Account ID"
+        }
+      ]
+    },
+    {
+      "name": "Address",
+      "paged": false,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Addresses/{Address ID}.json"
+    },
+    {
+      "name": "Addresses",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Addresses.json?CustomerName={Customer Name?}&FriendlyName={Address Name?}&IsoCountry={ISO Country Code?}"
+    },
+    {
+      "name": "Application",
+      "paged": false,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Applications/{Application ID}.json"
+    },
+    {
+      "name": "Applications",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Applications.json?FriendlyName={Application Name?}"
+    },
+    {
+      "name": "Key",
+      "paged": false,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Keys/{Key ID}.json"
+    },
+    {
+      "name": "Keys",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Keys.json"
+    },
+    {
+      "name": "Usage Records",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Records.json?Category={Category?:calls|sms|...}&StartDate={Start Date?:YYYY-MM-DD}&EndDate={End Date?:YYYY-MM-DD}&IncludeSubaccounts={Include Subaccounts?:true|false}"
+    },
+    {
+      "name": "Usage Trigger",
+      "paged": false,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Triggers/{Trigger ID}.json"
+    },
+    {
+      "name": "Usage Triggers",
+      "paged": true,
+      "suffix": "/2010-04-01/Accounts/{Account ID}/Usage/Triggers.json?Recurring={Recurring?:daily|monthly|yearly}&TriggerBy={Trigger By?:count|usage|price}&UsageCategory={Usage Category?:calls|sms|...}"
+    },
+    {
+      "name": "Alert",
+      "paged": false,
+      "suffix": "v1/Alerts/{Alert ID}"
+    },
+    {
+      "name": "Alerts",
+      "paged": true,
+      "suffix": "/v1/Alerts?LogLevel={Log Level?:error|warning|notice|debug}&StartDate={Start Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}&End Date={EndDate?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}"
+    },
+    {
+      "name": "Event",
+      "paged": false,
+      "suffix": "/v1/Events/{Event ID}"
+    },
+    {
+      "name": "Events",
+      "paged": true,
+      "suffix": "/v1/Events?ActorSid={Actor ID?}&EventType={Event Type?}&ResourceSid={Resource ID?}&SourceIpAddress={Source IP Address?}&StartDate={Start Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}&EndDate={End Date?:YYYY-MM-DD|YYYY-MM-DDThh:mm:ssZ}"
+    }
+  ]
+}

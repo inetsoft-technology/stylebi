@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
+
+  <!-- Schema migration for changes made in v12.1. -->
+
+  <property name="indexStorage.name" value="indexstorage" dbms="postgresql"/>
+  <property name="indexStorage.name" value="INDEXSTORAGE" dbms="db2"/>
+  <property name="indexStorage.name" value="indexStorage" dbms="derby,h2,mssql,mysql,oracle"/>
+  <property name="indexStorage.lastModified.name" value="lastmodified" dbms="postgresql"/>
+  <property name="indexStorage.lastModified.name" value="lastModified" dbms="db2,derby,h2,mssql,mysql,oracle"/>
+
+  <changeSet id="changelog-12.1.0" author="inetsoft">
+    <validCheckSum>8:85be2ee72d485615b284c9c27bb648fa</validCheckSum>
+
+    <preConditions onFail="MARK_RAN">
+      <customPrecondition className="inetsoft.util.db.LegacyTablePrecondition"/>
+    </preConditions>
+
+    <comment>Add last modified column to indexed storage table.</comment>
+
+    <sql dbms="mssql" splitStatements="true" endDelimiter=";">
+      alter table indexStorage add lastModified datetime constraint defStorageModified not null default (getdate());
+
+      create trigger indexStorageModifiedTrigger
+      on indexStorage
+      after update
+      as
+      update indexStorage set lastModified = getdate() from INSERTED i where i.path = indexStorage.path and i.objectKey = indexStorage.objectKey;
+    </sql>
+
+    <sql dbms="oracle" splitStatements="true" endDelimiter="/">
+      alter table indexStorage add lastModified timestamp default systimestamp
+      /
+
+      create trigger indexStorageModifiedTrigger
+      before update on indexStorage
+      for each row
+      begin
+      :new.lastModified := systimestamp;
+      end;
+      /
+    </sql>
+
+    <sql dbms="derby" splitStatements="true" endDelimiter=";">
+      alter table indexStorage add column lastModified timestamp default current_timestamp;
+
+      create trigger indexStorageModifiedTrigger
+      after update of path, objectKey, content on indexStorage
+      referencing OLD as EXISTING
+      for each row mode DB2SQL
+      update indexStorage set lastModified = current_timestamp where path = EXISTING.path and objectKey = EXISTING.objectKey;
+    </sql>
+
+    <sql dbms="db2">
+      alter table indexStorage add lastModified timestamp not null generated always for each row on update as row change timestamp
+    </sql>
+
+    <sql dbms="postgresql" splitStatements="true" endDelimiter="/">
+      alter table indexStorage add lastModified timestamp default current_timestamp
+      /
+
+      create or replace function updateIndexStorageModified()
+      returns trigger as $$
+      begin
+      NEW.lastModified = now();
+      return NEW;
+      end;
+      $$ language plpgsql
+      /
+
+      create trigger indexStorageModifiedTrigger
+      before update on indexStorage
+      for each row execute procedure updateIndexStorageModified()
+      /
+    </sql>
+
+    <sql dbms="mysql">
+      alter table indexStorage add lastModified timestamp default current_timestamp on update current_timestamp
+    </sql>
+
+    <sql dbms="h2">
+      alter table indexStorage add lastModified timestamp as now()
+    </sql>
+
+    <rollback>
+      <sql dbms="oracle, derby" splitStatements="true" endDelimiter=";">
+        drop trigger indexStorageModifiedTrigger;
+        alter table indexStorage drop column lastModified;
+      </sql>
+
+      <sql dbms="db2, mysql, h2">
+        alter table indexStorage drop column lastModified
+      </sql>
+
+      <sql dbms="postgresql" splitStatements="true" endDelimiter=";">
+        drop trigger indexStorageModifiedTrigger on indexStorage;
+        drop function updateIndexStorageModified();
+        alter table indexStorage drop column lastModified;
+      </sql>
+
+      <sql dbms="mssql" splitStatements="true" endDelimiter=";">
+        drop trigger indexStorageModifiedTrigger;
+        alter table indexStorage drop constraint defStorageModified;
+        alter table indexStorage drop column lastModified;
+      </sql>
+    </rollback>
+
+  </changeSet>
+
+</databaseChangeLog>

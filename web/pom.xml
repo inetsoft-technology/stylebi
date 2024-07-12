@@ -1,0 +1,115 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.inetsoft.stylebi</groupId>
+    <artifactId>inetsoft-stylebi</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>inetsoft-web</artifactId>
+  <packaging>jar</packaging>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <node.version>v18.18.1</node.version>
+    <npm.version>9.8.1</npm.version>
+    <ng.build.script>build</ng.build.script>
+    <ng.verify.script>verify</ng.verify.script>
+  </properties>
+
+  <build>
+    <resources>
+      <resource>
+        <directory>${project.build.directory}/generated-resources/gulp</directory>
+      </resource>
+      <resource>
+        <directory>${project.build.directory}/generated-resources/ng</directory>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>com.inetsoft.stylebi.build</groupId>
+        <artifactId>node-maven-plugin</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <executions>
+          <execution>
+            <id>install-node</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>install-node</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>npm-install</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>ci --prefer-offline --no-audit --no-fund --no-progress</arguments>
+              <outputDirectory>${basedir}/node_modules</outputDirectory>
+            </configuration>
+          </execution>
+          <execution>
+            <id>ng-build</id>
+            <phase>generate-resources</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>run ${ng.build.script}</arguments>
+              <outputDirectory>${project.build.directory}/generated-resources/ng</outputDirectory>
+            </configuration>
+          </execution>
+          <execution>
+            <phase>test</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>run ${ng.verify.script}</arguments>
+            </configuration>
+          </execution>
+        </executions>
+        <configuration>
+          <nodeVersion>${node.version}</nodeVersion>
+          <installDirectory>${settings.localRepository}/node/node-${node.version}</installDirectory>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <profile>
+      <id>production</id>
+      <properties>
+        <ng.build.script>build:prod</ng.build.script>
+        <ng.verify.script>verify:prod</ng.verify.script>
+      </properties>
+    </profile>
+  </profiles>
+
+</project>

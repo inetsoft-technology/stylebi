@@ -1,0 +1,116 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="object-wizard-pane-container">
+  <object-wizard-tool-bar [runtimeId]="runtimeId"
+                          [assemblyType]="assemblyType"
+                          [isFullEditorVisible]="isFullEditorVisible()"
+                          [vsObject]="vsObject"
+                          (onFullEditor)="goToFullEditor($event)"
+                          (onClose)="close($event)">
+  </object-wizard-tool-bar>
+  <div class="object-wizard-pane split-content">
+      <split-pane direction="horizontal" [sizes]="[35, 65]" [minSize]="200"
+                  [snapOffset]="0" [gutterSize]="5" (onDragEnd)="splitPaneDragEnd()">
+          <div class="left-container wizard-left-container split-content">
+            <split-pane #splitPane direction="vertical" [sizes]="DEFAULT_VERTICAL_SIZE"
+                        [minSize]="0" [snapOffset]="0" [gutterSize]="4">
+              <div class="left-top-container bb-gray">
+                <div class="object-wizard-left-top">
+                  <wizard-binding-tree [runtimeId]="runtimeId" [originalMode]="originalMode"
+                                       [temporarySheet]="temporarySheet"></wizard-binding-tree>
+                </div>
+
+                <div class="row wizard-aggregate-toolbar btn-toolbar bg-white1 bb-gray" role="toolbar">
+                  <div class="col-10 aggregate-pane-title">
+                    {{isDetail ? "_#(Details)" : "_#(Group and Aggregate)"}}
+                  </div>
+                  <div class="col-2 wizard-aggregate-toolbar-toggle-btn"
+                       (click)="toggleRepositoryTreePane()"
+                       title="_#(viewer.explorer.toggle)">
+                      <i class="wizard-aggregate-toggle-icon"
+                         [class.chevron-circle-arrow-down-icon]="!treePaneCollapsed"
+                         [class.chevron-circle-arrow-up-icon]="treePaneCollapsed"
+                         aria-hidden="true"></i>
+                      <span class="visually-hidden">_#(viewer.explorer.toggle)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="left-bottom-container row">
+                <wizard-aggregate-pane class="w-100 aggregate-scroll-pane"
+                    [dimensions]="dimensions" [measures]="measures"
+                    [details]="details" [isAssemblyBinding]="isAssemblyBinding" [isCube]="isCube"
+                    [fixedFormulaMap]="fixedFormulaMap"
+                    [isDetail]="isDetail"
+                    [showAutoOrder]="showAutoOrder"
+                    [grayedOutFields]="bindingTreeService.treeInfo?.grayedOutFields"
+                    [availableFields]="availableFields"
+                    [formatMap]="formatMap"
+                    [autoOrder]="autoOrder"
+                    [objectType]="vsObject?.objectType"
+                    (onAutoOrderChange)="onAutoOrderChange($event)"
+                    (onEditAggregate)="onEditAggregate()"
+                    (onEditSecondColumn)="onEditSecondColumn($event)"
+                    (onAddAggregate)="onAddAggregate()"
+                    (onDeleteAggregate)="onDeleteAggregate($event)"
+                    (onEditDimension)="onEditDimension()"
+                    (onAddDimension)="onAddDimension()"
+                    (onDeleteDimension)="onDeleteDimension($event)"
+                    (onUpdateDetails)="onUpdateDetails($event)"
+                    (onUpdateFormat)="updateFormat($event)">
+                </wizard-aggregate-pane>
+              </div>
+            </split-pane>
+          </div>
+          <div class="right-pane right-container split">
+            <div class="right-top-container">
+              <wizard-visualization-pane [model]="recommenderModel"
+                                         (onChangeSubtype)="changeSubtype($event)">
+              </wizard-visualization-pane>
+            </div>
+            <wizard-preview-pane #wizardPreviewPane
+                                 [runtimeId]="runtimeId" [linkuri]="linkuri"
+                                 [formatMap]="formatMap" [editMode]="editMode"
+                                 [vsObject]="vsObject"
+                                 [showLegend]="_bindingModel?.showLegend"
+                                 [consoleMessages]="consoleMessages"
+                                 (showLegendChange)="showLegend($event)"
+                                 (onUpdateFormat)="updateFormat($event)"
+                                 (onMessageChange)="messageChange($event)"
+            >
+            </wizard-preview-pane>
+            <vs-loading-display *ngIf="eventLoading"
+                                [runtimeId]="runtimeId"
+                                message="_#(Analyzing data)"
+                                [autoShowMetaButton]="true"
+                                [autoShowCancel]="false"
+                                (switchToMeta)="switchToMeta()">
+            </vs-loading-display>
+          </div>
+      </split-pane>
+  </div>
+  <notifications #notifications class="notifications-wizard-pane" [timeout]="5000"></notifications>
+</div>
+<div *ngIf="blocking" class="loading-container"
+     (contextmenu)="$event.stopPropagation(); $event.preventDefault();">
+  <div class="loading-content">
+    <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i>
+  </div>
+</div>

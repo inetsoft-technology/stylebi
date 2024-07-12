@@ -1,0 +1,46 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="visibleActions.length > 0"
+     class="dropdown-menu show contextmenu-container">
+  <ng-template ngFor let-group [ngForOf]="visibleActions" let-_first="first" let-i="index">
+    <div class="dropdown-divider" *ngIf="!_first"></div>
+    <ng-template ngFor let-action [ngForOf]="group.actions" let-j="index">
+      <a class="dropdown-item" *ngIf="itemVisible(action)"
+         [attr.data-menu-id]="action.id()"
+         [class.disable-link]="!action.enabled()"
+         [class.selected]="isFocused(i, j)"
+         [ngClass]="action.classes && action.classes()"
+         [class.has-child-item]="action.childAction"
+         (click)="onClick(action)"
+         outOfZone
+         (onMouseover)="oozOpenChild($event, action)">
+        <span class="item-label" [innerHTML]="action.label()"></span>
+        <span class="bare-arrow-right-icon" *ngIf="action.childAction"></span>
+      </a>
+      <a class="dropdown-item" *ngIf="action.visible() && action.link"
+         [attr.data-menu-id]="action.id()"
+         [class.disable-link]="!action.enabled()"
+         [class.selected]="isFocused(i, j)"
+         [ngClass]="action.classes && action.classes()"
+         [innerHTML]="action.label()"
+         [href]="action.link()" [target]="forceTab ? '_blank' : action.target()"></a>
+    </ng-template>
+  </ng-template>
+</div>

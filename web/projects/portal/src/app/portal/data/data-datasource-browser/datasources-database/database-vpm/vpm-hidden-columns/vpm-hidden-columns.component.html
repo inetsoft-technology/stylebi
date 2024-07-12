@@ -1,0 +1,181 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="hidden-column-container">
+  <ul ngbNav #nav="ngbNav" class="nav-tabs">
+    <ng-container ngbNavItem="columns">
+      <a ngbNavLink>_#(Columns)</a>
+      <ng-template ngbNavContent>
+        <div class="flex-auto-item">
+          <div class="flex-auto-item">
+            <div class="form-row">
+              <div class="col shuffle-left">
+                <div class="search-pane">
+                  <input type="text" [ngModel]="filterStr" class="form-control"
+                         placeholder="_#(Search)" (ngModelChange)="refreshFilterTreeModel($event)">
+                  <div class="search-clear-container">
+                    <i *ngIf="filterStr" class="close-icon icon-size-medium icon-color-default"
+                       aria-hidden="true" (click)="refreshFilterTreeModel(null)"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="form-row shuffle-list flex-auto-item flex-row">
+              <div class="col shuffle-left">
+                <div class="shuffle-title">_#(Available Columns)</div>
+                <div shuffleLeft class="bd-gray shuffle-list-pane">
+                  <tree #columnTree [root]="databaseRoot" [showRoot]="false"
+                        [searchStr]="filterStr"
+                        [iconFunction]="getTreeNodeIcon" [multiSelect]="true"
+                        (nodeExpanded)="expandNode($event)">
+                  </tree>
+                  <loading-indicator-pane [show]="loadingTree"></loading-indicator-pane>
+                </div>
+              </div>
+              <div class="col-auto shuffle-buttons">
+                <ng-container shuffleButtons>
+                  <button type="button" class="btn btn-light-no-bg btn-sm mb-1 add-localization-button"
+                          (click)="addHiddenColumn()"
+                          [title]="'_#(Add)'"
+                          [disabled]="selectedColumns.length == 0 || loadingTree">
+                    <i class="forward-icon"></i>
+                    <span class="visually-hidden">_#(Add)</span>
+                  </button>
+                  <button type="button" class="btn btn-light-no-bg btn-sm mb-1 add-localization-button"
+                          [disabled]="loadingTree" [title]="'_#(Add All)'"
+                          (click)="addAllToHiddenColumns()">
+                    <i class="forward-fast-icon"></i>
+                    <span class="visually-hidden">_#(Add All)</span>
+                  </button>
+                  <button type="button" class="btn btn-light-no-bg btn-sm remove-localization-button"
+                          [disabled]="loadingTree || selectedHiddenColumns?.length == 0"
+                          [title]="'_#(Remove)'"
+                          (click)="removeHiddenColumn()">
+                    <i class="backward-icon"></i>
+                    <span class="visually-hidden">_#(Remove)</span>
+                  </button>
+                  <button type="button" class="btn btn-light-no-bg btn-sm remove-localization-button"
+                          [disabled]="loadingTree || hidden?.hiddens?.length == 0"
+                          [title]="'_#(Remove All)'"
+                          (click)="clearHiddenColumns()">
+                    <i class="backward-fast-icon"></i>
+                    <span class="visually-hidden">_#(Remove All)</span>
+                  </button>
+                </ng-container>
+              </div>
+              <div class="col shuffle-right">
+                <div class="shuffle-title">_#(Hidden Columns)</div>
+                <div shuffleRight class="bd-gray shuffle-list-pane">
+                  <div *ngIf="hidden" class="hidden-columns-table" (click)="clearHiddenSelected()">
+                    <ng-container *ngFor="let column of hidden.hiddens">
+                      <div class="hidden-columns-table-row"
+                           [class.bg-node-selected]="isSelectedHiddenColumn(column)"
+                           (click)="selectHiddenColumn($event, column)">
+                        {{column.name}}
+                      </div>
+                    </ng-container>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="flex-auto-item">
+            <div class="form-row shuffle-list flex-auto-item flex-row">
+              <div class="col shuffle-left">
+                <div class="shuffle-title">_#(Grant access to):</div>
+                <div class="shuffle-title">_#(Available Roles)</div>
+                <div shuffleLeft class="bd-gray shuffle-list-pane">
+                  <div class="hidden-columns-table">
+                    <div class="hidden-columns-table-row" *ngFor="let role of availableRoles"
+                         [class.bg-node-selected]="selectedAvailableRoles.includes(role?.value)"
+                         (click)="selectAvailableRole($event, role?.value)">
+                      {{role?.label}}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-auto shuffle-buttons shuffle-bottom-right">
+                <ng-container shuffleButtons>
+                  <button type="button" class="btn btn-light-no-bg btn-sm mb-1 add-localization-button"
+                          [title]="'_#(Add)'"
+                          [disabled]="selectedAvailableRoles?.length == 0"
+                          (click)="addGrantRoles()">
+                    <i class="forward-icon"></i>
+                    <span class="visually-hidden">_#(Add)</span>
+                  </button>
+                  <button type="button" class="btn btn-light-no-bg btn-sm remove-localization-button"
+                          [title]="'_#(Remove)'"
+                          [disabled]="selectedGrantRoles?.length == 0"
+                          (click)="removeGrantRoles()">
+                    <i class="backward-icon"></i>
+                    <span class="visually-hidden">_#(Remove)</span>
+                  </button>
+                </ng-container>
+              </div>
+              <div class="col shuffle-right shuffle-bottom-right">
+                <div class="shuffle-title">_#(Grant to)</div>
+                <div shuffleRight class="bd-gray shuffle-list-pane">
+                  <div *ngIf="hidden" class="hidden-columns-table">
+                    <ng-container *ngFor="let role of hidden.roles">
+                      <div class="hidden-columns-table-row"
+                           [class.bg-node-selected]="selectedGrantRoles.includes(role)"
+                           (click)="selectGrantRole($event, role)">
+                        {{getBaseName(role)}}
+                      </div>
+                    </ng-container>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-template>
+    </ng-container>
+    <ng-container ngbNavItem="trigger">
+      <a ngbNavLink>_#(Trigger)</a>
+      <ng-template ngbNavContent>
+        <div class="col-12 flex-container">
+          <div>
+            /**<br/>
+            &nbsp;* Return hidden columns(array).<br/>
+            &nbsp;*<br/>
+            &nbsp;* @param user user id.<br/>
+            &nbsp;* @param roles user roles(array).<br/>
+            &nbsp;* @param groups user groups(array).<br/>
+            &nbsp;* @param parameter parameters if any; might be empty.<br/>
+            &nbsp;* @param tables list of tables in the query.<br/>
+            &nbsp;* @param columns query columns(array).<br/>
+            &nbsp;* @param hiddenColumns hidden columns defined in the VPM.<br/>
+            &nbsp;*/<br/>
+            function columnScript(user, roles, groups, parameter, tables, columns, hiddenColumns)&nbsp;{{'{'}}
+          </div>
+          <div class="w-100 auto-size-flex-item">
+            <data-model-script-pane [expression]="hidden?.script" [fullContainer]="true"
+                                    (expressionChange)="expressionChange.emit($event)">
+            </data-model-script-pane>
+          </div>
+          <div>
+            &nbsp;}&nbsp;
+          </div>
+        </div>
+      </ng-template>
+    </ng-container>
+  </ul>
+  <div [ngbNavOutlet]="nav"></div>
+</div>

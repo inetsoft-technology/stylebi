@@ -1,0 +1,54 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<th
+   [ngClass]="{'hover': isHoverRegion(regionName), 'selected' : isSelectRegion(regionName)}"
+   (mouseenter)="onRegionHover.emit(regionName)" (mouseleave)="onUnHoverRegion.emit()"
+   (click)="onRegionSelect.emit(regionName)">
+   <ng-container *ngIf="regionName == 'Top Border'">
+      <div class="border-row">
+         <span [style.margin-right]="'100px'" [style.margin-bottom]="'-10px'" [ngClass]="'downward-icon'"></span>
+         <div>_#(Top Border)</div>
+         <span [style.margin-left]="'100px'" [style.margin-bottom]="'-10px'" [ngClass]="'downward-icon'"></span>
+      </div>
+   </ng-container>
+   <ng-container *ngIf="regionName == 'Left Border'">
+      <div class="border-col">
+         <span [style.margin-bottom]="'10px'" [style.margin-right]="'-30px'" [ngClass]="'forward-icon'"></span>
+         <div>_#(Left)</div>
+         <div>_#(Border)</div>
+         <span [style.margin-top]="'10px'" [style.margin-right]="'-30px'" [ngClass]="'forward-icon'"></span>
+      </div>
+   </ng-container>
+   <ng-container *ngIf="regionName == 'Right Border'">
+      <div class="border-col">
+         <span [style.margin-bottom]="'10px'" [style.margin-left]="'-30px'" [ngClass]="'backward-icon'"></span>
+         <div>_#(Right)</div>
+         <div>_#(Border)</div>
+         <span [style.margin-top]="'10px'" [style.margin-left]="'-30px'" [ngClass]="'backward-icon'"></span>
+      </div>
+   </ng-container>
+   <ng-container *ngIf="regionName == 'Bottom Border'">
+      <div class="border-row">
+         <span [style.margin-right]="'100px'" [ngClass]="'upward-icon'"></span>
+         <div>_#(Bottom Border)</div>
+         <span [style.margin-left]="'100px'" [ngClass]="'upward-icon'"></span>
+      </div>
+   </ng-container>
+</th>

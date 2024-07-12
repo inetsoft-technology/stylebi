@@ -1,0 +1,60 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="em-card mat-small">
+  <mat-card-title>_#(Web Map)</mat-card-title>
+  <mat-card-content>
+    <form *ngIf="form" [formGroup]="form">
+      <mat-button-toggle-group name="service" formControlName="service" aria-label="Web Map Service">
+        <mat-button-toggle [value]="null">_#(None)</mat-button-toggle>
+        <mat-button-toggle value="mapbox">_#(Mapbox)</mat-button-toggle>
+        <mat-button-toggle value="googlemaps">_#(Google Maps)</mat-button-toggle>
+      </mat-button-toggle-group>
+      <div *ngIf="form.controls['service'].value" class="flex-col">
+        <mat-checkbox class="mat-checkbox-field" formControlName="defaultOn">
+          _#(Use Web Map By Default)
+        </mat-checkbox>
+        <mat-form-field appearance="outline" color="accent" *ngIf="isMapbox()">
+          <mat-label>_#(User)</mat-label>
+          <input matInput formControlName="mapboxUser" placeholder="_#(User)">
+          <mat-error *ngIf="form.controls['mapboxUser']?.errors?.required">_#(em.settings.webmap.userEmpty)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent" *ngIf="isMapbox()">
+          <mat-label>_#(Token)</mat-label>
+          <input matInput formControlName="mapboxToken" placeholder="_#(Access Token)">
+          <mat-error *ngIf="form.controls['mapboxToken']?.errors?.required">_#(em.settings.webmap.tokenEmpty)</mat-error>
+        </mat-form-field>
+        <mat-error *ngIf="stylesError">{{stylesError}}</mat-error>
+        <mat-form-field *ngIf="isMapbox()">
+          <mat-label>_#(Mapbox Style)</mat-label>
+          <mat-select formControlName="mapboxStyle" placeholder="_#(Mapbox Style)">
+            <mat-option *ngFor="let style of model?.mapboxStyles" [value]="style.id"
+                        [title]="style.name">{{style.name}}</mat-option>
+          </mat-select>
+          <mat-error *ngIf="form.controls['mapboxStyle']?.errors?.required">_#(em.settings.webmap.styleEmpty)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent" *ngIf="isGoogleMaps()">
+          <mat-label>_#(API Key)</mat-label>
+          <input matInput formControlName="googleKey" placeholder="_#(API Key)">
+          <mat-error *ngIf="form.controls['googleKey']?.errors?.required">_#(em.settings.webmap.keyEmpty)</mat-error>
+        </mat-form-field>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

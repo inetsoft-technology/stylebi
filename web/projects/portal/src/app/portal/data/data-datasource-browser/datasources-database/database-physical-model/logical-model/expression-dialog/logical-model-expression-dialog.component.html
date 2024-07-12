@@ -1,0 +1,71 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Add Expression)'"
+              [cshid]="'AddExpression'"
+              (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body">
+  <form [formGroup]="form">
+    <div class="container-fluid form-group">
+      <div class="row form-row-float-label">
+        <div class="ps-0 pe-1 col-6 form-floating">
+          <input type="text" class="form-control" formControlName="name"
+                 [class.is-invalid]="!nameControl.valid">
+          <label>_#(Expression Name)</label>
+          <span class="invalid-feedback" *ngIf="nameControl.getError('required')">
+          _#(data.logicalmodel.expressionNameRequired)
+          </span>
+        </div>
+        <div class="ps-0 pe-1 col-6 form-floating">
+          <select class="form-control" formControlName="parent" [class.is-invalid]="!parentControl.valid">
+            <option *ngFor="let entity of entities; let i = index" [value]="i">{{ entity.name }}</option>
+          </select>
+          <label>_#(data.logicalmodel.parentEntity)</label>
+          <span class="invalid-feedback" *ngIf="parentControl.getError('required')">
+            _#(data.logicalmodel.parentEntityRequired)
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="script-container">
+        <script-pane [sql]="true" [expression]="expression"
+                     (expressionChange)="updateExpression($event)"
+                     [columnTreeRoot]="columnTreeRoot"
+                     [columnTreeEnabled]="!!columnTreeRoot"
+                     [functionTreeRoot]="functionTreeRoot"
+                     [functionTreeEnabled]="!!functionTreeRoot"
+                     [operatorTreeRoot]="operatorTreeRoot"
+                     [required]="true"
+                     [cursor]="cursor"
+                     [preventEscape]="true">
+        </script-pane>
+      </div>
+    </div>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()"
+          [disabled]="!form.valid || expression == null || expression.length == 0">_#(OK)
+  </button>
+  <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="cancel()">_#(Cancel)
+  </button>
+</div>
+<notifications #notifications class="notifications-physical-model" [timeout]="5000"></notifications>

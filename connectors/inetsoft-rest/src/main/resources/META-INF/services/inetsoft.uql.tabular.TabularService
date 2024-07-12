@@ -1,0 +1,85 @@
+#
+# This file is part of StyleBI.
+#
+# Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+#
+# The software and information contained herein are copyrighted and
+# proprietary to InetSoft Technology Corp. This software is furnished
+# pursuant to a written license agreement and may be used, copied,
+# transmitted, and stored only in accordance with the terms of such
+# license and with the inclusion of the above copyright notice. Please
+# refer to the file "COPYRIGHT" for further copyright and licensing
+# information. This software and information or any other copies
+# thereof may not be provided or otherwise made available to any other
+# person.
+#
+
+inetsoft.uql.rest.datasource.activecampaign.ActiveCampaignService
+inetsoft.uql.rest.datasource.adobeanalytics.AdobeAnalyticsService
+inetsoft.uql.rest.datasource.airtable.AirtableService
+inetsoft.uql.rest.datasource.appfigures.AppfiguresService
+inetsoft.uql.rest.datasource.asana.AsanaService
+inetsoft.uql.rest.datasource.azureblob.AzureBlobService
+inetsoft.uql.rest.datasource.azuresearch.AzureSearchService
+inetsoft.uql.rest.datasource.box.BoxService
+inetsoft.uql.rest.datasource.campaignmonitor.CampaignMonitorService
+inetsoft.uql.rest.datasource.chargebee.ChargebeeService
+inetsoft.uql.rest.datasource.chargify.ChargifyService
+inetsoft.uql.rest.datasource.chartmogul.ChartMogulService
+inetsoft.uql.rest.datasource.clockify.ClockifyService
+inetsoft.uql.rest.datasource.constantcontact.ConstantContactService
+inetsoft.uql.rest.datasource.copper.CopperService
+inetsoft.uql.rest.datasource.datadotworld.DataDotWorldService
+inetsoft.uql.rest.datasource.firebase.FirebaseService
+inetsoft.uql.rest.datasource.fortytwomatters.FortyTwoMattersService
+inetsoft.uql.rest.datasource.freshdesk.FreshdeskService
+inetsoft.uql.rest.datasource.freshsales.FreshsalesService
+inetsoft.uql.rest.datasource.freshservice.FreshserviceService
+inetsoft.uql.rest.datasource.fusebill.FusebillService
+inetsoft.uql.rest.datasource.github.GitHubService
+inetsoft.uql.rest.datasource.gitlab.GitLabService
+inetsoft.uql.rest.datasource.googlecal.GoogleCalendarService
+inetsoft.uql.rest.datasource.gsearchconsole.GoogleSearchConsoleService
+inetsoft.uql.rest.datasource.gosquared.GoSquaredService
+inetsoft.uql.rest.datasource.graphql.GraphQLService
+inetsoft.uql.rest.datasource.monday.MondayService
+inetsoft.uql.rest.datasource.harvest.HarvestService
+inetsoft.uql.rest.datasource.helpscoutdocs.HelpScoutDocsService
+inetsoft.uql.rest.datasource.hubspot.HubSpotService
+inetsoft.uql.rest.datasource.influxdb.InfluxDBService
+inetsoft.uql.rest.datasource.insightly.InsightlyService
+inetsoft.uql.rest.datasource.intervals.IntervalsService
+inetsoft.uql.rest.datasource.jira.JiraService
+inetsoft.uql.rest.datasource.jive.JiveService
+inetsoft.uql.rest.datasource.lighthouse.LighthouseService
+inetsoft.uql.rest.datasource.linkedin.LinkedinService
+inetsoft.uql.rest.datasource.liveagent.LiveAgentService
+inetsoft.uql.rest.datasource.mailchimp.MailchimpService
+inetsoft.uql.rest.datasource.mixpanel.MixpanelService
+inetsoft.uql.rest.datasource.nicereply.NicereplyService
+inetsoft.uql.rest.datasource.pipedrive.PipedriveService
+inetsoft.uql.rest.datasource.pipelinecrm.PipelineCRMService
+inetsoft.uql.rest.datasource.quickbooks.QuickbooksReportsService
+inetsoft.uql.rest.datasource.prometheus.PrometheusService
+inetsoft.uql.rest.datasource.remedyforce.RemedyforceService
+inetsoft.uql.rest.datasource.sendgrid.SendGridService
+inetsoft.uql.rest.datasource.seomonitor.SEOmonitorService
+inetsoft.uql.rest.datasource.servicenow.ServiceNowService
+inetsoft.uql.rest.datasource.shopify.ShopifyService
+inetsoft.uql.rest.datasource.sfreports.SalesforceReportsService
+inetsoft.uql.rest.datasource.smartsheet.SmartsheetService
+inetsoft.uql.rest.datasource.square.SquareService
+inetsoft.uql.rest.datasource.stripe.StripeService
+inetsoft.uql.rest.datasource.surveymonkey.SurveyMonkeyService
+inetsoft.uql.rest.datasource.teamdesk.TeamDeskService
+inetsoft.uql.rest.datasource.toggl.TogglService
+inetsoft.uql.rest.datasource.twilio.TwilioService
+inetsoft.uql.rest.datasource.twitter.TwitterService
+inetsoft.uql.rest.datasource.wordpress.WordPressService
+inetsoft.uql.rest.datasource.xero.XeroService
+inetsoft.uql.rest.datasource.youtubeanalytics.YouTubeAnalyticsService
+inetsoft.uql.rest.datasource.zendesk.ZendeskService
+inetsoft.uql.rest.datasource.zendesksell.ZendeskSellService
+inetsoft.uql.rest.datasource.zohocrm.ZohoCRMService
+inetsoft.uql.rest.json.RestJsonService
+inetsoft.uql.rest.xml.RestXMLService

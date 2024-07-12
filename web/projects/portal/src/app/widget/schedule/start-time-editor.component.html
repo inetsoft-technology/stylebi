@@ -1,0 +1,90 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container [formGroup]="form">
+  <div class="form-row-float-label row" [class.single-option]="!timeRangeEnabled" *ngIf="startTimeEnabled">
+    <div class="col-auto select-type-option">
+      <input
+        class="form-check-input"
+        type="radio"
+        name="selectedType"
+        formControlName="selectedType"
+        value="START_TIME"
+        (change)="fireStartTimeChanged()"
+      />
+    </div>
+    <div class="col-auto">
+      <div class="form-floating">
+        <ngb-timepicker
+          [spinners]="false"
+          [meridian]="showMeridian"
+          formControlName="startTime"
+        >
+        </ngb-timepicker>
+        <label class="time-label">_#(Start Time)</label>
+      </div>
+    </div>
+    <div class="col-auto" *ngIf="timeZoneName">
+      <div class="mt-2 ms-2">{{ timeZoneName + (serverTimeZone ? " (_#(em.scheduler.servertimezone))" : "")}}</div>
+    </div>
+  </div>
+  <div class="form-row-float-label row">
+    <div class="col-auto">
+      <ng-content></ng-content>
+    </div>
+  </div>
+  <div class="form-row-float-label row time-range-row" [class.single-option]="!startTimeEnabled" *ngIf="timeRangeEnabled">
+    <div class="col-auto select-type-option">
+      <input
+        class="form-check-input"
+        type="radio"
+        name="selectedType"
+        formControlName="selectedType"
+        value="TIME_RANGE"
+        (change)="fireStartTimeChanged()"
+      />
+    </div>
+    <div class="col-auto">
+      <div class="form-floating time-range-input">
+        <select
+          class="form-control"
+          formControlName="timeRange"
+          [compareWith]="compareTimeRange"
+          (change)="fireStartTimeChanged()"
+        >
+          <option
+            *ngFor="let range of timeRanges"
+            [ngValue]="range"
+          >
+            {{range.label}}
+          </option>
+        </select>
+        <label>_#(Time Range)</label>
+      </div>
+    </div>
+  </div>
+  <div class="alert alert-danger"
+       *ngIf="form.controls.startTime?.invalid ||
+       !!timeRanges && timeRanges.length != 0 && form.controls.timeRange?.invalid">
+    _#(viewer.schedule.condition.startTimeValid)
+  </div>
+  <div class="alert alert-danger" *ngIf="!startTimeSelected() && (!timeRanges || timeRanges.length == 0)">
+    _#(viewer.schedule.condition.timeRangeRequired)
+  </div>
+</ng-container>

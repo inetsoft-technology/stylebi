@@ -1,0 +1,153 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="width - hBorderWidth > 1" class="table-cell-relative-container"
+     [style.width.px]="width - hBorderWidth"
+     [style.height]="getCellHeight(false)"
+     outOfZone (onMouseenter)="onEnter($event)">
+  <div class="table-cell-content" *ngIf="isRendered && width > 0"
+       [style.text-align]="cell.vsFormatModel?.hAlign"
+       [style.text-decoration]="cell.vsFormatModel?.decoration"
+       [style.align-items]="alignItems"
+       [style.height.px]="height - vBorderWidth"
+       [style.line-height]="cell.vsFormatModel?.lineHeight ? cell.vsFormatModel.lineHeight + 'px' : null"
+       [style.padding-top.px]="cell.vsFormatModel?.padding?.top"
+       [style.padding-left.px]="cell.vsFormatModel?.padding?.left"
+       [style.padding-bottom.px]="cell.vsFormatModel?.padding?.bottom"
+       [style.padding-right.px]="cell.vsFormatModel?.padding?.right"
+       [class.cursor-pointer]="isShowLinkedHeader && (viewer || preview)"
+       [class.cell-padding-defined]="!!cell.vsFormatModel?.padding">
+
+    <div class="w-100"
+         [class.cell-editor]="selected && !cell.drillOp && !numLinks"
+         [class.highlightable]="selected && (viewer || preview)"
+         [class.disable-actions]="!enabled">
+
+      <ng-container *ngIf="isHeader || !isForm || !formVisible || !columnEditorEnabled" [ngSwitch]="cellType">
+        <div #staticHeaderContent *ngSwitchCase="CellType0.TEXT"
+             [class.wrap-text]="!!cell.vsFormatModel?.wrapping?.wordWrap"
+             [class.linked-cell]="numLinks > 0">{{cell.cellLabel}}</div>
+        <div #staticHeaderContent *ngSwitchCase="CellType0.HTML"
+             class="default-p"
+             [class.wrap-text]="!!cell.vsFormatModel?.wrapping?.wordWrap"
+             [class.linked-cell]="numLinks > 0"
+             [innerHTML]="htmlText"></div>
+        <img *ngSwitchCase="CellType0.IMAGE" [src]="presenter"/>
+        <img *ngSwitchCase="CellType0.PRESENTER" [src]="presenter"/>
+        <div #staticHeaderContent *ngSwitchCase="CellType0.HTML_PRESENTER"
+             class="html-presenter" [innerHTML]="htmlText"></div>
+        <input *ngSwitchCase="CellType0.INPUT" #cellInput
+               class="form-input" type="text"
+               [(ngModel)]="cell.cellData" (focusout)="changeCellText(null)"
+               defaultFocus [autoSelect]="true" [preventScroll]="true"
+               outOfZone
+               [style.background-color]="formBgColor"
+               [style.color]="cell.vsFormatModel?.foreground"
+               (onKeydown)="changeCellText($event)"/>
+      </ng-container>
+
+      <ng-container *ngIf="!isHeader && isForm && formVisible && columnEditorEnabled">
+        <ng-container *ngIf="!selected && cell.editorType != ColumnOptionType.BOOLEAN || (composer || binding || !cell.editable) && !isEmbedded || popComponentShow">
+          <span #cellContent *ngIf="!cell.presenter"
+            [innerHTML]="htmlText"></span>
+          <img *ngIf="cell.presenter" [src]="presenter"/>
+        </ng-container>
+        <ng-container *ngIf="((viewer || preview) && cell.editable || isEmbedded) && !popComponentShow && cell.editorType == ColumnOptionType.BOOLEAN">
+          <i class="icon-size1" [class.selected-icon]="cell.cellData"
+             [class.select-empty-icon]="!cell.cellData"
+             [style.color]="cell.vsFormatModel?.foreground"
+             (click)="changeFormInput(!cell.cellData)"></i>
+        </ng-container>
+        <ng-container *ngIf="((viewer || preview) && cell.editable || isEmbedded) && selected && !popComponentShow">
+          <ng-container *ngIf="cell.editorType == ColumnOptionType.TEXT || !cell.editorType">
+            <input class="form-input" type="text" [(ngModel)]="cell.cellData"
+                   [style.background-color]="formBgColor"
+                   [style.color]="cell.vsFormatModel?.foreground"
+                   (change)="changeFormInput($event.target.value)" defaultFocus
+                   [autoSelect]="false" [preventScroll]="true">
+          </ng-container>
+          <ng-container *ngIf="cell.editorType == ColumnOptionType.DATE">
+            <div class="calendar-cell">
+              <input class="form-input" [(ngModel)]="cell.cellData" placeholder="yyyy-mm-dd"
+                     [style.background-color]="formBgColor"
+                     [style.color]="cell.vsFormatModel?.foreground"
+                     (change)="changeFormInput($event.target.value)">
+              <button class="calendar-icon" [style.background-color]="formBgColor"
+                      [style.color]="cell.vsFormatModel?.foreground"
+                      (click)="openCalendar($event)"></button>
+            </div>
+          </ng-container>
+          <ng-container *ngIf="cell.editorType == ColumnOptionType.COMBOBOX">
+            <select class="form-input" [ngModel]="selectedOption"
+                    [style.background-color]="formBgColor"
+                    [style.color]="cell.vsFormatModel?.foreground"
+                    [style.--inet-dropdown-toggle-color]="cell.vsFormatModel?.foreground"
+                    (change)="changeFormInput($event.target.value)">
+              <option *ngFor="let option of cell.options" [value]="option">{{option}}</option>
+            </select>
+          </ng-container>
+          <ng-container *ngIf="cell.editorType == ColumnOptionType.INTEGER || cell.editorType == ColumnOptionType.FLOAT">
+            <input class="form-input" type="number" [(ngModel)]="cell.cellData"
+                   [style.background-color]="formBgColor"
+                   [style.color]="cell.vsFormatModel?.foreground"
+                   (change)="changeFormInput($event.target.value, cell.editorType)" defaultFocus
+                   [autoSelect]="false" [preventScroll]="true">
+          </ng-container>
+        </ng-container>
+      </ng-container>
+      <ng-content select="vs-annotation"></ng-content>
+    </div>
+    <div class="cell-annotation-icon-zone" *ngIf="cellAnnotations && viewer || preview">
+      <vs-hidden-annotation [annotations]="cellAnnotations">
+        <span #customIcon class="txt-danger shape-filled-triangle-icon"
+              aria-hidden="true"></span>
+      </vs-hidden-annotation>
+    </div>
+  </div>
+  <div class="table-cell-icon-container" *ngIf="isRendered && width > 0"
+       [style.align-items]="alignItems"
+       [style.height]="getCellHeight(true)"
+       [class.cursor-pointer]="isShowLinkedHeader && (viewer || preview)"
+       [class.linked-header-indicator]="isShowLinkedHeader && (viewer || preview)"
+       (click)="clickLink($event)">
+    <div class="w-100" [style.height]="'20px'"
+         [class.highlightable]="selected && (viewer || preview)"
+         [class.disable-actions]="!enabled">
+      <span #drillIcon *ngIf="drillVisible"
+            class="table-cell__drill-icon hover-bg-secondary"
+            [ngClass]="cell.drillOp === '+' ? 'plus-box-outline-icon': 'minus-box-outline-icon'"
+            [attr.title]="cell.drillOp === '+' ? '_#(Drill Down)': '_#(Drill Up)'"
+            (click)="$event.stopPropagation(); drillClicked.emit(); ">
+      </span>
+
+      <ng-content select="[sortButton]"></ng-content>
+
+    </div>
+  </div>
+  <div *ngIf="showResizeZone && !vsWizard" #colResize class="col-resize-handle"
+       (mousedown)="changeColumnWidth($event)"
+       (touchstart)="changeColumnWidth($event)">
+    <div *ngIf="resizeLabel" class="resize-label">{{resizeLabel}}</div>
+  </div>
+  <div *ngIf="showResizeZone && !isWrapped && (composer || binding) && !vsWizard"
+       class="row-resize-handle" #rowResize
+       (mousedown)="changeRowHeight($event)">
+    <div *ngIf="resizeLabel" class="resize-label">{{resizeLabel}}</div>
+  </div>
+</div>

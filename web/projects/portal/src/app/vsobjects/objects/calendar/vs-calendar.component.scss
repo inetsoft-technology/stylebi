@@ -1,0 +1,242 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.vs-calendar {
+  position: absolute;
+  display: table;
+  table-layout: fixed;
+}
+
+.dropdown-calendar {
+  overflow: visible;
+}
+
+.calendar-title {
+  display: flex;
+  width: 100%;
+  z-index: 0;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  align-items: center;
+  justify-content: center;
+
+  .non-editable-text.title-text {
+    display: table;
+    width: 100%;
+    padding-left: 2px;
+    top: 0;
+    left: 0;
+    text-decoration: inherit;
+
+    span {
+      display: table-cell;
+      text-align: inherit;
+      vertical-align: inherit;
+    }
+  }
+}
+
+.calendar-title.inactive {
+  opacity: 0.4 !important;
+}
+
+.calendar-body {
+  display: flex;
+  flex-direction: row;
+}
+
+year-calendar, month-calendar {
+  flex-grow: 1;
+  flex-basis: 100%;
+  min-width: 0px;
+}
+
+.month-calendar, .year-calendar {
+  overflow: hidden;
+  z-index: 2;
+}
+
+.year-calendar {
+  display: flex;
+  flex-direction: column;
+
+  .month-table {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.calendar-navBtn {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.calendar-navBtn.btn-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.calendar-title-label {
+  overflow: hidden;
+}
+
+.day-row.not-selectable .day-cell,
+.not-selectable {
+  pointer-events: none;
+}
+
+.selectable {
+  cursor: pointer;
+}
+
+.calendar-mode-btn {
+  height: 20px;
+  z-index: 3;
+  display: inline-block;
+}
+
+.vs-calendar:hover .selection-list__header-buttons {
+  visibility: visible;
+}
+
+.vs-calendar .force-toolbar.selection-list__header-buttons {
+  visibility: visible;
+}
+
+.selection-list__header-buttons {
+  position: absolute;
+  right: 1px;
+  background: transparent;
+  visibility: hidden;
+  z-index: 5;
+}
+
+.title-text {
+  white-space: nowrap;
+  width: 100%;
+  overflow: hidden;
+}
+
+.day-table {
+  display: flex;
+  width: calc(100% - 2px);
+  height: calc(100% - 18px);
+}
+
+.day-column {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  min-width: 0px;
+
+  .day-cell,
+  .day-title-cell {
+    flex-grow: 1;
+    border: 0;
+    padding-left: 2px;
+    display: flex;
+  }
+}
+
+.month-row {
+  display: flex;
+  flex-grow: 1;
+}
+
+.month-cell {
+  display: flex;
+  flex-basis: 25%;
+  line-height: 33px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  font-style: normal;
+  white-space: nowrap;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.month-calendar,
+.year-calendar {
+  width: 100%;
+
+  .vs-calendar.dropdown-calendar &.double-calendar.second-calendar {
+    left: 100%;
+  }
+
+  .vs-calendar.dropdown-calendar & {
+    &.double-calendar:not(.second-calendar) {
+      border-right: 0;
+    }
+
+    &.double-calendar.second-calendar {
+      border-left: 0;
+    }
+  }
+}
+
+.calendar-title-label-container {
+  position: relative;
+  width: calc(100% - 26px);
+  height: 100%;
+
+  .calendar-title-label {
+    width: 100%;
+    height: 100%;
+    border-width: 0;
+    opacity: 1;
+    display: flex;
+  }
+}
+
+.child-calendar-title {
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.row-resize-label {
+  left: 50%;
+  bottom: 0;
+  padding-top: 2px;
+  color: white;
+  min-width: 35px;
+  min-height: 16px;
+  text-align: center;
+  background-color: gray;
+  z-index: 99;
+  position: absolute;
+}
+
+.calendar-selected-cell {
+  border: solid 2px gray;
+}
+
+.pending-alert {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  width: 20px;
+
+  &.left {
+    left: 1px;
+    background-color: rgb(245, 245, 245);
+  }
+}

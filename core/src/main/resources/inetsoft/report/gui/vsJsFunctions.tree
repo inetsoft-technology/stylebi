@@ -1,0 +1,7 @@
+ViewsheetGlobal
+	addImage(path, img)	addImage()
+	appendRow(embeddedTableName, values)	appendRow()
+	createConnection(source, user, password)	createConnection()
+	saveWorksheet()	saveWorksheet()
+	setCellValue(embeddedTableName, row, col, value)	setCellValue()
+

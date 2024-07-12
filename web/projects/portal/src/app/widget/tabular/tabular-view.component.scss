@@ -1,0 +1,74 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/* Make the layout vertical if the size of the screen is too small */
+@media only screen and (max-width: 760px),
+(min-device-width: 768px) and (max-device-width: 1024px) {
+  table, thead, tbody, th, td, tr {
+    display: block;
+  }
+
+  td {
+    position: relative;
+    text-align: left !important;
+    vertical-align: middle !important;
+  }
+
+  td:before {
+    position: absolute;
+    white-space: nowrap;
+  }
+}
+
+.form-floating {
+  label {
+    z-index: 10;
+  }
+
+  &.list-group-item {
+    padding-bottom: 0;
+    margin-bottom: 0.5em;
+  }
+}
+
+button {
+  white-space: nowrap;
+}
+
+.btn.btn-google-auth {
+  width: 191px;
+  height: 46px;
+  border: none;
+  background-color: transparent;
+  background-image: url("../../../assets/oauth/google/btn_google_signin_dark_normal_web.png");
+  &:active {
+    border: none;
+    background-color: transparent;
+    background-image: url("../../../assets/oauth/google/btn_google_signin_dark_pressed_web.png");
+  }
+  &:focus {
+    border: none;
+    background-color: transparent;
+    background-image: url("../../../assets/oauth/google/btn_google_signin_dark_focus_web.png");
+  }
+  &:disabled, &:disabled:focus {
+    border: none;
+    background-color: #4285F4;
+    background-image: url("../../../assets/oauth/google/btn_google_signin_dark_disabled_web.png");
+  }
+}
+

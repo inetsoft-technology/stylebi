@@ -1,0 +1,100 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.profile-content {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  margin-left: 30px;
+  margin-right: 30px;
+}
+
+.profile-content-option {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.profiling-chart {
+  text-align: center;
+  margin-bottom: 10px;
+  overflow: auto;
+}
+
+.preview-table-container {
+  color: var(--inet-table-text-color);
+
+  th {
+    color: var(--inet-table-heading-text-color);
+    background-color: var(--inet-table-heading-bg-color, transparent);
+
+    .format-icon, .sort-icon {
+      visibility: hidden;
+    }
+
+    &:hover .format-icon {
+      visibility: visible;
+    }
+
+
+    &:hover .sort-icon {
+      visibility: visible;
+    }
+  }
+
+  td, th {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow-y: hidden;
+    overflow-x: hidden;
+    position: relative;
+    user-select: text;
+  }
+
+  table, td, th {
+    border: 1px solid var(--inet-table-border-color);
+    text-align: left;
+  }
+
+  table {
+    width: 100%;
+  }
+}
+
+.preview-table {
+  position: relative;
+}
+
+.preview-table-container {
+  position: relative;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  height: 220px;
+}
+
+.profile-banner {
+  padding: 5px;
+  border-radius: 5px;
+  font-weight: 500;
+}
+
+:host-context(.slide-out-wrapper) .preview-table-container {
+  height: calc(100vh - 16rem);
+}
+
+:host-context(.modal-dialog) .preview-table-container {
+  height: 50vh;
+}

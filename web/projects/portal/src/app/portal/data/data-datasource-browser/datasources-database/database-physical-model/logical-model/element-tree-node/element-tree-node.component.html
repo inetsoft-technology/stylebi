@@ -1,0 +1,76 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="tree-node hover-bg-primary truncate-parent"
+     [class.txt-danger]="node.errorMessage"
+     [class.bg-selected]="isNodeSelected()"
+     (click)="select($event)"
+     [draggable]="draggable"
+     (dragstart)="dragStarted($event)"
+     (mouseenter)="focusin = true"
+     (mouseleave)="focusin = false"
+     [style.padding-left.px]="indentLevel * INDENT_SIZE">
+  <span *ngIf="!node.leaf"
+        class="{{getToggleIcon()}} tree-node-toggle truncate-addon cursor-pointer"
+        (click)="toggleNode()"></span>
+  <span class="tree-node-icon" [ngClass]="getIcon()"></span>
+  <label class="tree-node-label truncate-text" [class.disable-actions-fade]="node.baseElement">
+    <span [attr.title]="node.errorMessage || node.name"
+          placement="bottom">{{ node.name }}</span>
+  </label>
+  <div class="logical-toolbar" [style.visibility]="focusin && moveEnabled ? 'visible' : 'hidden'">
+    <button type="button"
+            class="btn btn-sm btn-light-no-bg"
+            [disabled]="firstNode"
+            title="_#(Move Up)"
+            (click)="moveNodeUp()">
+      <i class="chevron-circle-arrow-up-icon"></i>
+    </button>
+    <button type="button"
+            class="btn btn-sm btn-light-no-bg"
+            [disabled]="lastNode"
+            title="_#(Move Down)"
+            (click)="moveNodeDown()">
+      <i class="chevron-circle-arrow-down-icon"></i>
+    </button>
+    <button type="button" *ngIf="deleteEnable(entityIndex, attrIndex)"
+            class="btn btn-sm btn-light-no-bg"
+            title="_#(Delete)"
+            (click)="onDeleteEntity.emit()">
+      <i class="trash-icon"></i>
+    </button>
+  </div>
+</div>
+<div class="tree-children" *ngIf="expanded && !!entityNode">
+  <element-tree-node *ngFor="let attribute of entityNode.attributes; let i = index"
+                     [node]="attribute" [moveEnabled]="moveEnabled"
+                     [attrIndex]="i" [draggable]="draggable" [droppable]="droppable"
+                     [entityIndex]="entityIndex"
+                     [indentLevel]="indentLevel + 1"
+                     [firstNode]="i == 0"
+                     [deleteEnable]="deleteEnable"
+                     [lastNode]="i == entityNode.attributes.length - 1"
+                     [selected]="selected" (onOpenNode)="onOpenNode.emit($event)"
+                     (onMoveDown)="moveAttributeDown(i)"
+                     (onMoveUp)="moveAttributeUp(i)"
+                     (onDeleteEntity)="deleteAttribute(i)"
+                     (onShiftSelect)="onShiftSelect.emit($event)"
+                     (onAttributeOrderChanged)="onAttributeOrderChanged.emit()">
+  </element-tree-node>
+</div>

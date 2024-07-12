@@ -1,0 +1,217 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/* table cell style */
+
+.table-container {
+  position: absolute;
+}
+
+.table-container:hover .vertical-scroll-wrapper {
+  overflow-y: auto;
+  pointer-events: all;
+}
+
+.table-container:hover .horizontal-scroll-wrapper {
+  overflow-x: auto;
+  pointer-events: all;
+}
+
+.moving-resizing .vertical-scroll-wrapper,
+.moving-resizing .horizontal-scroll-wrapper {
+  overflow: hidden !important;
+  visibility: hidden !important;
+}
+
+.border-div {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* scrollbar container divs */
+
+.vs-object.at-bottom .horizontal-scroll-wrapper {
+  display: block;
+}
+
+.vertical-scroll-wrapper {
+  position: absolute;
+  height: 100%;
+  left: 100%;
+  overflow: hidden;
+  pointer-events: none;
+
+  div {
+    width: inherit;
+  }
+}
+
+.horizontal-scroll-wrapper {
+  position: absolute;
+  height: 100%;
+  overflow: hidden;
+  right: 0;
+  top: 100%;
+  pointer-events: none;
+
+  div {
+    height: 1px;
+  }
+}
+
+.mobile .vertical-scroll-wrapper {
+  overflow-y: auto;
+}
+
+.mobile .horizontal-scroll-wrapper {
+  overflow-x: auto;
+}
+
+.annotation-container,
+.annotation-cell-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.z-index-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.annotation-hidden-container {
+  display: none;
+  position: absolute;
+}
+
+.table-container:hover .annotation-hidden-container {
+  display: block;
+}
+
+.table-cell:hover .sort-button {
+  visibility: visible;
+}
+
+.vs-header-cell-button-sort {
+  position: absolute;
+  right: 2px;
+  height: 18px;
+  width: 20px;
+  z-index: 20; // match z-index from .table-cell-content > .cell-editor
+  overflow: hidden;
+}
+
+td {
+  color: #333; // don't inherit table color (orange) if not set
+}
+
+.row-resize-handle {
+  background-color: gray;
+  left: 0;
+  height: 1px;
+  width: 100%;
+  z-index: 999;
+  position: fixed;
+  visibility: hidden;
+
+  .resize-label {
+    left: 50%;
+    top: 0;
+  }
+}
+
+.col-resize-line {
+  background-color: gray;
+  width: 2px;
+  height: 100%;
+  z-index: 999;
+  position: absolute;
+  visibility: hidden;
+}
+
+.col-resize-handle {
+  background-color: gray;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  z-index: 999;
+  position: fixed;
+  visibility: hidden;
+
+  .resize-label {
+    top: 50%;
+    left: 0;
+  }
+}
+
+.resize-label {
+  position: absolute;
+  min-width: 40px;
+  min-height: 20px;
+  background: gray;
+  color: white;
+  vertical-align: middle;
+  text-align: center;
+  padding: 2px;
+}
+
+.loading-message {
+  position: absolute;
+  display: none;
+  width: 70%;
+  top: 45%;
+  left: 15%;
+  text-align: center;
+  z-index: 99;
+  background: rgba(255,255,255,0.8);
+  font-weight: bold;
+  font-size: 16px;
+  color: rgba(0,0,0,0.35);
+  border: 1px solid rgba(0,0,0,0.2);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+tr.hidden-row {
+  td:not(.visible-cell) {
+    padding: 0 !important;
+    border: 0 !important;
+  }
+}
+
+// in ie11 scrollbar buttons do not work if element is the same width as scrollbar
+.vertical-scrollbar-offset {
+  margin-left: -1px;
+}
+
+.vertical-scrollbar-wrapper-container {
+  overflow-x: hidden;
+}
+
+.horizontal-scrollbar-offset {
+  margin-top: -1px;
+}
+
+.horizontal-scrollbar-wrapper-container {
+  overflow-y: hidden;
+}
+

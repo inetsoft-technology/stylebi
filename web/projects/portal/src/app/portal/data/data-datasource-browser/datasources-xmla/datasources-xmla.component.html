@@ -1,0 +1,274 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model" class="editor-container">
+    <div class="container-fluid h-100 flex-fixed-container">
+        <div class="row flex-fixed-content content-spacing">
+            <div class="col-10">
+                <div class="row region-pane">
+                    <form [formGroup]="form">
+                        <div class="form-group mt-2 form-floating">
+                            <input type="text"
+                                   name="name"
+                                   class="form-control"
+                                   formControlName="name"
+                                   [class.is-invalid]="form?.controls['name']?.invalid"
+                                   required>
+                            <label><span>_#(Name)</span></label>
+                            <span class="invalid-feedback" *ngIf="form?.controls['name']?.hasError('required')">
+                            _#(data.datasources.enterDataSourceName)
+                            </span>
+                            <span class="invalid-feedback" *ngIf="form?.controls['name']?.hasError('pattern')">
+                                _#(data.databases.enterValidName)
+                            </span>
+                        </div>
+                        <div class="form-group form-floating">
+                            <textarea class="form-control" formControlName="description"></textarea>
+                            <label><span>_#(Description)</span></label>
+                        </div>
+                        <div class="form-group form-floating" >
+                            <input type="text" name="url" class="form-control" formControlName="url"
+                                   [class.is-invalid]="form?.controls['url']?.invalid">
+                            <label><span>_#(XMLA URL)</span></label>
+                            <span class="invalid-feedback" *ngIf="form?.controls['url']?.hasError('required')">
+                                _#(olap.common.emptyURL)
+                            </span>
+                        </div>
+                        <div class="form-group form-floating" >
+                            <input type="text" name="datasourceInfo" class="form-control"
+                                   formControlName="datasourceInfo">
+                            <label><span>_#(Datasource Info)</span></label>
+                        </div>
+                        <div class="row form-group">
+                            <div class="input-group">
+                                <div class="form-floating">
+                                    <input type="text" name="catalog" class="form-control" formControlName="catalog"
+                                           [class.is-invalid]="form?.controls['catalog']?.invalid">
+                                    <label><span>_#(Catalog Name)</span></label>
+                                    <span class="invalid-feedback"
+                                          *ngIf="form?.controls['catalog']?.hasError('required')">
+                                            _#(olap.common.emptyCatalog)
+                                        </span>
+                                </div>
+                                <button type="button" class="btn-sm btn btn-default"
+                                        [disabled]="!!!this.form.get('url').value"
+                                        [class.disabled]="!!!this.form.get('url').value"
+                                        [fixedDropdown]="dropdownMenu" (click)="loadCatalogs()">
+                                    _#(Browse Catalogs)
+                                </button>
+                            </div>
+                            <ng-template #dropdownMenu>
+                                <div class="dropdown-pane browse-data-dropdown">
+                                    <a *ngFor="let catalog of catalogs" role="menuitem" class="dropdown-item"
+                                       (click)="selectCatalog(catalog)">{{ catalog }}</a>
+                                    <a *ngIf="(!catalogs || catalogs.length === 0) && !loadingCatalogsFailed && !loadingCatalogs"
+                                       role="menuitem" class="dropdown-item disable-link">_#(No Data)</a>
+                                    <div *ngIf="loadingCatalogs && (!catalogs || catalogs.length == 0)"
+                                         role="menuitem" class="dropdown-item disable-link">
+                                        _#(Loading)
+                                        <span class="loading-icon loading-icon--spin"></span>
+                                    </div>
+                                    <div *ngIf="loadingCatalogsFailed" class="alert alert-danger mb-0">_#(common.asset.dataError)</div>
+                                </div>
+                            </ng-template>
+                        </div>
+                        <fieldset>
+                            <div class="form-check form-group">
+                                <div class="form-check">
+                                    <input type="checkbox" id="required" class="form-check-input"
+                                           formControlName="requiresLogin">
+                                    <label class="form-check-label" for="required">
+                                        _#(Requires Login)
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-check form-group">
+                                <div class="form-check">
+                                    <input type="checkbox" id="saveUserPassword" class="form-check-input"
+                                           formControlName="saveUserPassword">
+                                    <label class="form-check-label" for="saveUserPassword">
+                                        _#(Save User/Password)
+                                    </label>
+                                </div>
+                            </div>
+                        </fieldset>
+                        <fieldset>
+                            <div class="form-group form-floating">
+                                <input type="text" name="userName" class="form-control" formControlName="user">
+                                <label><span>_#(User ID)</span></label>
+                                <span class="invalid-feedback"></span>
+                            </div>
+                            <div class="form-group form-floating">
+                                <input type="password" name="password" class="form-control" formControlName="password">
+                                <label><span>_#(Password)</span></label>
+                            </div>
+                        </fieldset>
+                        <div class="form-group">
+                            <button class="btn btn-default" type="button"
+                                    (click)="testDatabase()">_#(Test Connection)
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <label class="region-label">_#(Olap Data) :</label>
+                    </div>
+                </div>
+                <div class="row region-pane">
+                    <div class="row mb-1">
+                        <div class="col margin-top">
+                            <div class="form-check form-group">
+                                <input type="checkbox" id="keepOriginalOrder" class="form-check-input"
+                                       [ngModel]="selectedDimension?.originalOrder"
+                                       [disabled]="!selectedDimension" (ngModelChange)="changeOriginalOrder()">
+                                <label class="form-check-label" for="keepOriginalOrder">
+                                    _#(Keep Original Order)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col">
+                            <button type="button" class="btn btn-default" [disabled]="loadingMeta"
+                                    (click)="loadMetadata()">
+                                {{refreshMetaLabel}}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="cube-tree bordered-box bd-gray bordered-box-lg position-relative">
+                            <tree *ngIf="cubeTree" [showRoot]="false" [root]="cubeTree" [multiSelect]="false"
+                                  [fillHeight]="true" [iconFunction]="getCSSIcon" (nodesSelected)="selectedNode($event)">
+                            </tree>
+                            <loading-indicator-pane [show]="loadingMeta">
+                            </loading-indicator-pane>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="row">
+                            <div class="col">
+                                <label class="region-label">_#(Input Format) :</label>
+                            </div>
+                        </div>
+                        <div class="row region-pane">
+                            <div class="row">
+                                <div class="col-3">
+                                    <div class="form-check form-group">
+                                        <input type="checkbox" id="asDate" class="form-check-input flex-shrink-0"
+                                               [ngModel]="selectedCubeNode?.member?.metaInfo?.asDate"
+                                               (ngModelChange)="changeAsDate()"
+                                               [disabled]="!selectedDimensionMember">
+                                        <label class="form-check-label check-box-label" for="asDate" [title]="'_#(As Date)'">
+                                            _#(As Date)
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col">
+                                    <div class="row">
+                                        <div class="form-group form-floating" #patternInput>
+                                            <input type="text" name="pattern" class="form-control" autocomplete="off"
+                                                   [fixedDropdown]="localeList" dropdownPlacement="bottom"
+                                                   [disabledSelfAction]="true" [id]="'localList'"
+                                                   [closeOnOutsideClick]="false"
+                                                   [disabled]="!selectedDimensionMember || !selectedCubeNode?.member?.metaInfo?.asDate"
+                                                   [ngModel]="selectedCubeNode?.member?.metaInfo?.locale"
+                                                   (ngModelChange)="changeLocal($event)">
+                                            <label><span>_#(Database Locale)</span></label>
+                                            <div class="locales-list-btn" (click)="clickLocaleListBtn($event)">
+                                                <i class="caret-down-icon" aria-hidden="true"></i>
+                                            </div>
+                                        </div>
+                                        <ng-template #localeList>
+                                            <div class="dropdown-pane browse-data-dropdown locale-list"
+                                                 [style.min-width.px]="patternInput?.offsetWidth - 20">
+                                                <a *ngFor="let locale of defaultLocals" role="menuitem"
+                                                   [class.selected]="selectedCubeNode?.member?.metaInfo?.locale == locale.value"
+                                                   class="dropdown-item" (click)="changeLocal(locale.value)">
+                                                    {{locale.label}}
+                                                </a>
+                                            </div>
+                                        </ng-template>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col">
+                                            <div class="form-group form-floating" >
+                                                <input type="text" name="pattern" class="form-control"
+                                                       [disabled]="!selectedDimensionMember || !selectedCubeNode?.member?.metaInfo?.asDate"
+                                                       [ngModel]="selectedCubeNode?.member?.metaInfo?.datePattern"
+                                                       (ngModelChange)="changeDatePattern($event)">
+                                                <label><span>_#(Parse Pattern)</span></label>
+                                            </div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <button type="button" class="btn btn-default"
+                                                    [disabled]="!selectedDimensionMember" (click)="viewSampleData()">
+                                                _#(View Sample Data)
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="row">
+                            <div class="col">
+                                <label class="region-label">_#(Output Format) :</label>
+                            </div>
+                        </div>
+                        <div class="row region-pane">
+                            <div class="form-group form-floating">
+                                <dropdown-view #formatDropdown [disabled]="!!!selectedCubeNode?.member"
+                                               [label]="formatString" (closed)="updateFormatString()">
+                                    <attribute-formatting-pane
+                                            [formatModel]="selectedCubeNode?.member?.metaInfo?.formatInfo"
+                                            (onApply)="updateFormatString(); formatDropdown.close()">
+                                    </attribute-formatting-pane>
+                                </dropdown-view>
+                                <label><span>_#(Format)</span></label>
+                            </div>
+                            <div class="form-group">
+                                <div class="input-group">
+                                    <div class="form-floating">
+                                        <input type="text" class="form-control" [readOnly]="true"
+                                               [ngModel]="drillString"/>
+                                        <label><span>_#(Auto Drill)</span></label>
+                                    </div>
+                                    <button class="btn btn-secondary" type="button"
+                                            [attr.title]="'_#(Edit Auto Drill)'"
+                                            [disabled]="!selectedDimensionMember" (click)="openAutoDrillDialog()">
+                                        ...
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group text-right mt-2">
+                <button type="button" class="btn btn-primary me-2" [disabled]="form.invalid" (click)="ok()">_#(OK)
+                </button>
+                <button type="button" class="btn btn-secondary" (click)="close(false)">_#(Cancel)
+                </button>
+            </div>
+        </div>
+    </div>
+    <data-notifications #dataNotifications></data-notifications>
+</div>

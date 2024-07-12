@@ -1,0 +1,91 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@import "../../../../scss/internal/mixins";
+
+$stacking-order: (
+  right-top-table,
+  left-bottom-table,
+  left-top-table,
+  border-div,
+  table-title,
+  title-move-zone,
+  annotation-hidden-container
+);
+
+@include set-z-index($stacking-order);
+
+/* table and table wrapper style */
+
+.table-wrapper {
+  position: absolute;
+  width: 100%;
+  overflow: hidden;
+}
+
+.lower-table-wrapper {
+  position: absolute;
+}
+
+.right-top-table {
+  position: absolute;
+  pointer-events: none;
+}
+
+.left-top-table {
+  position: absolute;
+  pointer-events: none;
+}
+
+.overflow-wrapper {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: hidden;
+  position: absolute;
+}
+
+.left-bottom-table {
+  display: flex;
+  position: relative;
+  overflow: visible;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.table-cell.editable {
+  pointer-events: all;
+}
+
+/* border fixes - need to override format set border */
+
+.right-top-table .table-cell:first-child {
+  border-left: 0;
+}
+
+.empty-cell {
+  border: 0 solid;
+}
+
+.invisible-cell {
+  padding: 0 !important;
+  border: 0 solid;
+}
+
+#cell-dropdown-menu {
+  position: fixed;
+}

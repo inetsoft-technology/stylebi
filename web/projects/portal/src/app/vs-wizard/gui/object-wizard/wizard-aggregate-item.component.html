@@ -1,0 +1,136 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="field-container">
+  <div class="name-field">
+    <div class="wizard-convert" *ngIf="showName && isConvertEnabled()">
+      <button [attr.data-test]="'Convert ' + dataRef.columnValue || dataRef.name"
+              class="btn btn-light btn-sm"
+              (click)="convert()" [title]="convertBtnTitle()">
+        <i class="convert-handle icon-size-small wizard-btn-icon"
+           [class.measure-icon]="!isDimension()"
+           [class.dimension-icon]="isDimension()"></i>
+      </button>
+    </div>
+    <div class="name-text">{{showName ? dataRef.columnValue || dataRef.name : ""}}</div>
+    <div class="arrow-container" *ngIf="showName">
+      <button type="button" class="btn" [ngbTooltip]="moveUpTooltip"
+              [disabled]="!moveUpEnabled" (click)="moveUp.emit()">
+        <i class="upward-icon" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="btn" [ngbTooltip]="moveDownTooltip"
+              [disabled]="!moveDownEnabled" (click)="moveDown.emit()">
+        <i class="downward-icon" aria-hidden="true"></i>
+      </button>
+    </div>
+  </div>
+  <div class="second-field" *ngIf="!isDynamic">
+    <dynamic-combo-box [attr.data-test]="dataRef.columnValue + dataRef.formula || dataRef.name + dataRef.formula"
+                       *ngIf="!forceFormula" [valueOnly]="true" [values]="formulaObjs"
+                       [value]="dataRef.formula"
+                       [label]="formulaLabel"
+                       (valueChange)="formulaChange($event)"
+                       [disable]="isAggrCalculateRef()">
+    </dynamic-combo-box>
+    <dynamic-combo-box *ngIf="!!forceFormula" [valueOnly]="true" [values]="formulaObjs"
+                       [value]="forceFormula"
+                       [disable]="true">
+    </dynamic-combo-box>
+  </div>
+  <div class="button-pane">
+    <div class="action-pane">
+      <div>
+        <button [attr.data-test]="dataRef.columnValue + ' format' || dataRef.name + ' format'"
+                *ngIf="(isNumber() || isDate()) && !isDynamic" [autoClose]="false"
+                [fixedDropdown]="formatDropdownMenu" (openChange)="closeToApplyFormat($event)">
+          <i class="setting-icon" title="_#(Format)"></i>
+        </button>
+      </div>
+      <div>
+        <button [attr.data-test]="dataRef.columnValue + ' more button' || dataRef.name + ' more button'"
+                *ngIf="!isDynamic && showMore == true" (click)="addAggregate()"
+                [disabled]="isAggrCalculateRef()">
+          <i class="add-icon" title="_#(More)" [class.icon-disabled]="isAggrCalculateRef()"></i>
+        </button>
+      </div>
+      <div>
+        <button *ngIf="!isDynamic" (click)="deleteColumn()">
+          <i class="close-icon" title="_#(Delete)"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="field-container mt-2" *ngIf="withVisible()">
+  <div class="name-field">
+  </div>
+  <div class="second-field">
+    <div class="form-floating">
+      <dynamic-combo-box [attr.data-test]="dataRef.columnValue + secondColumnValue  || dataRef.name + secondColumnValue"
+                         [valueOnly]="true" [values]="availableValues"
+                         [value]="secondColumnValue" [grayedOutValues]="grayedOutValues"
+                         (valueChange)="changeSecondColumnValue($event)">
+      </dynamic-combo-box>
+      <label *ngIf="!isByFormula(); else elseBlock" class="clearWidth">_#(With)</label>
+      <ng-template #elseBlock>
+        <label>_#(By)</label>
+      </ng-template>
+    </div>
+  </div>
+  <div class="button-pane">
+    <div class="action-pane">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+  </div>
+</div>
+<div class="field-container mt-2" *ngIf="npVisible()">
+  <div class="name-field">
+  </div>
+  <div class="second-field">
+    <div class="form-floating">
+      <dynamic-combo-box [attr.data-test]="dataRef.columnValue + dataRef.numValue || dataRef.name + dataRef.numValue"
+                         [valueOnly]="true"
+                         [value]="dataRef.numValue"
+                         [editable]="true"
+                         (valueChange)="npValueChange($event)">
+      </dynamic-combo-box>
+      <label class="clearWidth">{{getNPLabel()}}</label>
+    </div>
+  </div>
+  <div class="button-pane">
+    <div class="action-pane">
+      <div></div>
+      <div></div>
+      <div></div>
+    </div>
+  </div>
+</div>
+<ng-template #formatDropdownMenu>
+  <div class="dropdown-pane">
+    <formatting-pane [formatModel]="format" (onApply)="changeFormat()"></formatting-pane>
+  </div>
+</ng-template>
+<ng-template #moveUpTooltip>
+  <div class="button-tooltip"><b>_#(Move Up)</b><br>_#(vs.wizard.customize)</div>
+</ng-template>
+<ng-template #moveDownTooltip>
+  <div class="button-tooltip"><b>_#(Move Down)</b><br>_#(vs.wizard.customize)</div>
+</ng-template>

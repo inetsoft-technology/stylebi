@@ -1,0 +1,46 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="form-group-column">
+  <condition-editor [dataFunction]="dataFunction" [variablesFunction]="variablesFunction"
+                    [columnTreeFunction]="columnTreeFunction"
+                    [scriptDefinitionsFunction]="scriptDefinitionsFunction"
+                    [expressionTypes]="expressionTypes"
+                    [valueTypes]="valueTypes" [subqueryTables]="subqueryTables"
+                    [fieldsModel]="fieldsModel" [grayedOutFields]="grayedOutFields"
+                    [field]="field" [showUseList]="showUseList" [source]="source"
+                    [enableBrowseData]="enableBrowseData" [table]="table"
+                    [isVSContext]="isVSContext" [vsId]="vsId"
+                    [showOriginalName]="showOriginalName"
+                    [(value)]="values[0]" (valueChange)="valuesChange.emit(values)">
+  </condition-editor>
+  <div class="binary-and mb-1">_#(and)</div>
+  <condition-editor [dataFunction]="dataFunction" [variablesFunction]="variablesFunction"
+                    [columnTreeFunction]="columnTreeFunction" [vsId]="vsId"
+                    [scriptDefinitionsFunction]="scriptDefinitionsFunction"
+                    [expressionTypes]="expressionTypes"
+                    [valueTypes]="valueTypes" [subqueryTables]="subqueryTables"
+                    [fieldsModel]="fieldsModel" [grayedOutFields]="grayedOutFields"
+                    [field]="field" [showUseList]="showUseList" [source]="source"
+                    [enableBrowseData]="enableBrowseData" [table]="table"
+                    [isVSContext]="isVSContext"
+                    [showOriginalName]="showOriginalName"
+                    [(value)]="values[1]" (valueChange)="valuesChange.emit(values)">
+  </condition-editor>
+</div>

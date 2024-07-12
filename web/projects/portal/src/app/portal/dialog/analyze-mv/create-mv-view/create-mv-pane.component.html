@@ -1,0 +1,100 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="form-row-float-label row">
+  <div class="row-style table-style">
+    <table class="table table-bordered table-sm w-100 mv-table">
+      <thead class="thead-light">
+        <tr>
+          <th class="table-header">
+            <input type="checkbox" [ngModel]="isModelAllSelected()"
+                   (ngModelChange)="selectionAll($event)">
+          </th>
+          <th class="table-header" *ngFor="let header of tableHeaders" sortColumn
+              [sortKey]="header.name" [data]="models" [sortType]="sortType"
+              (sortTypeChanged)="changeSortType($event)">{{header.label}}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let model of models; let i = index">
+          <td>
+            <input type="checkbox" [ngModel]="isModelSelected(model)"
+                   (ngModelChange)="selectionChanged($event, model)">
+          </td>
+          <td *ngFor="let header of tableHeaders">{{model[header.name]}}</td>
+        </tr>
+        <tr *ngIf="!models || models.length == 0">
+          <td class="text-center align-middle materialization-empty-warning" colspan="12">
+            <span class="invalid-feedback">_#(viewer.viewsheet.materialization.noAssets)</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="form-row-float-label row">
+  <div class="col-style">
+    <div class="form-check">
+      <label class="form-check-label">
+        <input class="form-check-input" type="checkbox" [ngModel]="hideMV" (ngModelChange)="changeHideExistingMV($event)"
+               [ngModelOptions]="{standalone: true}" title="_#(Hide existing MV)">
+        _#(Hide existing MV)
+      </label>
+    </div>
+  </div>
+  <div class="col-style">
+    <div class="form-check">
+      <label class="form-check-label">
+        <input class="form-check-input" type="checkbox" [ngModel]="hideMVData" (ngModelChange)="changeHideExistingMVWithData($event)"
+               [ngModelOptions]="{standalone: true}" title="_#(Hide existing MV with data)">
+        _#(Hide existing MV with data)
+      </label>
+    </div>
+  </div>
+  <div class="col-style">
+    <div class="form-check">
+      <label class="form-check-label">
+        <input class="form-check-input" type="checkbox" [(ngModel)]="generateData" (ngModelChange)="generateDataChanged($event)"
+               [ngModelOptions]="{standalone: true}" title="_#(em.mv.genertate)">
+        _#(em.mv.genertate)
+      </label>
+    </div>
+  </div>
+  <div class="col-style">
+    <div class="form-check">
+      <label class="form-check-label">
+        <input class="form-check-input" type="checkbox" [(ngModel)]="runInBackground" (ngModelChange)="runInBackgroundChanged($event)"
+               [ngModelOptions]="{standalone: true}" title="_#(em.mv.background)">
+        _#(em.mv.background)
+      </label>
+    </div>
+  </div>
+</div>
+<div class="form-row-float-label row">
+  <div class="row-style">
+    <div class="form-floating">
+      <select class="form-control" [(ngModel)]="mvCycle"
+              (ngModelChange)="cycleChange()" placeholder="_#(Set Cycle)">
+        <option [value]="''">_#(None)</option>
+        <option *ngFor="let cycle of cycles" [value]="cycle.name">{{cycle.label}}</option>
+      </select>
+      <label>_#(Set Cycle)</label>
+    </div>
+  </div>
+</div>

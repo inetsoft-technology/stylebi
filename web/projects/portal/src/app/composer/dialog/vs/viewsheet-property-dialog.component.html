@@ -1,0 +1,57 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<w-tabbed-dialog [title]="'_#(Viewsheet Options)'" (onClose)="cancelChanges()"
+                 [defaultTab]="openToScript ? 'Script' : null"
+                 [submitOnEnter]="formValid" (onSubmit)="saveChanges()">
+  <ng-container *ngIf="!viewsheet.preview">
+    <ng-template wDialogTab title="_#(Options)">
+      <viewsheet-options-pane *ngIf="model" [model]="model.vsOptionsPane"
+                              [runtimeId]="viewsheet?.runtimeId"
+                              [form]="form.controls['viewsheetOptionsPaneForm']">
+      </viewsheet-options-pane>
+    </ng-template>
+    <ng-template wDialogTab title="_#(Filters)">
+      <filters-pane *ngIf="model" [model]="model.filtersPane"></filters-pane>
+    </ng-template>
+  </ng-container>
+  <ng-template wDialogTab title="_#(Layout)">
+    <screens-pane *ngIf="model" [model]="model.screensPane" [form]="form.controls['screensPaneForm']"
+                  [isPrintLayout]="isPrintLayout" [viewsheet]="viewsheet">
+    </screens-pane>
+  </ng-template>
+  <ng-container *ngIf="!viewsheet.preview">
+    <ng-template wDialogTab *ngIf="model?.localizationPane" title="_#(Localization)">
+      <localization-pane *ngIf="model && model?.localizationPane" [model]="model.localizationPane"></localization-pane>
+    </ng-template>
+    <ng-template wDialogTab title="_#(Script)">
+      <viewsheet-script-pane *ngIf="model" [model]="model.vsScriptPane" [scriptTreeModel]="scriptTreeModel">
+      </viewsheet-script-pane>
+    </ng-template>
+  </ng-container>
+  <ng-template wDialogButtons>
+    <button type="button" class="btn btn-primary" (click)="saveChanges()"
+            [disabled]="!model || !form?.valid" #okButton>
+      _#(OK)
+    </button>
+    <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">
+      _#(Cancel)
+    </button>
+  </ng-template>
+</w-tabbed-dialog>

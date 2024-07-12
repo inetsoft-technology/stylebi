@@ -1,0 +1,88 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!-- Modal Header -->
+<modal-header [title]="'_#(Calculated Field)'"
+   (onCancel)="cancelChanges()"
+   [cshid]="'ViewsheetFormulaEditor'">
+</modal-header>
+
+<!-- Modal Body -->
+<div class="modal-body" *ngIf="form">
+  <form [formGroup]="form" class="container-fluid">
+    <div class="row form-row-float-label">
+      <div class="col form-floating">
+        <input class="form-control" type="text" id="name" trim formControlName="name"
+               [value]="name" placeholder="_#(Name)">
+        <label><span>_#(Name)</span></label>
+        <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']"
+             class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(binding.nameInput.isEmpty)
+        </div>
+        <div *ngIf="form.controls['name'].errors && form.controls['name'].errors['calcSpecialCharacters']"
+             class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(formula.editor.charValid)
+        </div>
+      </div>
+    </div>
+    <fieldset class="float-title bd-gray">
+      <legend>_#(Calculate Field From)</legend>
+      <div class="container">
+        <div class="row">
+          <div class="col">
+            <div class="form-check">
+              <input type="radio" class="form-check-input" name="calcType" value="detail"
+                   id="detail" formControlName="calcType"
+                   [checked]="calcType == 'detail'">
+              <label class="form-check-label" for="detail">
+                _#(Detail)
+              </label>
+            </div>
+          </div>
+          <div class="col">
+            <div class="form-check">
+              <input type="radio" class="form-check-input" name="calcType" value="aggregate"
+                     id="aggregate" formControlName="calcType"
+                     [checked]="calcType == 'aggregate'">
+              <label class="form-check-label" for="aggregate">_#(Aggregate)</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+  </form>
+</div>
+
+<!-- Modal Footer -->
+<div class="modal-footer" *ngIf="form">
+   <button type="button" class="btn btn-primary" (click)="showCreateMeasureDialog()"
+      [disabled]="!form.valid">_#(OK)</button>
+   <button type="button" class="btn btn-default" data-dismiss="modal"
+      (click)="cancelChanges()">_#(Cancel)</button>
+</div>
+<ng-template #formulaEditorDialog let-close="close" let-dismiss="dismiss">
+   <formula-editor-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+      [vsId]="vsId" [expression]="expression" [formulaType]="formulaType"
+      [formulaName]="name" [dataType]="dataType" [createCalcField]="true"
+      [availableFields]="availableFields"
+      [columns]="columns" [aggregates]="aggregates" [calcType]="calcType" [isCalc]="true"
+      [sqlMergeable]="sqlMergeable" [resizeable]="true"
+      (aggregateModify)="aggregateModify.emit($event)">
+   </formula-editor-dialog>
+</ng-template>

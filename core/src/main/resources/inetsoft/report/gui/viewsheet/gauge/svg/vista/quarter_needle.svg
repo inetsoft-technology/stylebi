@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg  xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="200" height="199.999" viewBox="0 0 200 199.999" overflow="visible" enable-background="new 0 0 200 199.999"
+	 xml:space="preserve">
+		<g id="Layer_3">
+			<linearGradient id="XMLID_2_" gradientUnits="userSpaceOnUse" x1="9.4419" y1="207.9219" x2="190.5572" y2="-7.9229">
+				<stop  offset="0.0112" style="stop-color:#C7C7C7"/>
+				<stop  offset="0.0124" style="stop-color:#C8C8C8"/>
+				<stop  offset="0.0339" style="stop-color:#D9D9D9"/>
+				<stop  offset="0.0605" style="stop-color:#E4E4E4"/>
+				<stop  offset="0.0981" style="stop-color:#EBEBEB"/>
+				<stop  offset="0.2022" style="stop-color:#EDEDED"/>
+				<stop  offset="0.2441" style="stop-color:#E2E2E2"/>
+				<stop  offset="0.4094" style="stop-color:#B8B8B8"/>
+				<stop  offset="0.4944" style="stop-color:#A8A8A8"/>
+				<stop  offset="0.6117" style="stop-color:#ABABAB"/>
+				<stop  offset="0.6953" style="stop-color:#B4B4B4"/>
+				<stop  offset="0.7683" style="stop-color:#C4C4C4"/>
+				<stop  offset="0.8034" style="stop-color:#CFCFCF"/>
+				<stop  offset="0.8863" style="stop-color:#CDCDCD"/>
+				<stop  offset="0.9162" style="stop-color:#C6C6C6"/>
+				<stop  offset="0.9375" style="stop-color:#BABABA"/>
+				<stop  offset="0.9547" style="stop-color:#A9A9A9"/>
+				<stop  offset="0.9694" style="stop-color:#939393"/>
+				<stop  offset="0.9825" style="stop-color:#787878"/>
+				<stop  offset="0.994" style="stop-color:#595959"/>
+				<stop  offset="1" style="stop-color:#454545"/>
+				<a:midPointStop  offset="0.0112" style="stop-color:#C7C7C7"/>
+				<a:midPointStop  offset="0.13" style="stop-color:#C7C7C7"/>
+				<a:midPointStop  offset="0.2022" style="stop-color:#EDEDED"/>
+				<a:midPointStop  offset="0.4423" style="stop-color:#EDEDED"/>
+				<a:midPointStop  offset="0.4944" style="stop-color:#A8A8A8"/>
+				<a:midPointStop  offset="0.7714" style="stop-color:#A8A8A8"/>
+				<a:midPointStop  offset="0.8034" style="stop-color:#CFCFCF"/>
+				<a:midPointStop  offset="0.87" style="stop-color:#CFCFCF"/>
+				<a:midPointStop  offset="1" style="stop-color:#454545"/>
+			</linearGradient>
+			<rect opacity="0" fill="url(#XMLID_2_)" width="200" height="199.999"/> 
+		</g>
+		<g id="Layer_1">
+			<g>
+				
+					<image opacity="0.3"  a:adobe-blending-mode="multiply"  a:adobe-opacity-share="1" width="116" height="34" id="XMLID_3_" xlink:href="data:;base64,iVBORw0KGgoAAAANSUhEUgAAAHQAAAAiCAYAAACOTf3NAAAACXBIWXMAAAsSAAALEgHS3X78AAAA
+BGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAATLSURB
+VHjaYmAYBcMKAAQQ42gQ0C2MkcP6PxpNNQAQQKMRSp+IZILSjNBIxIapAgACaDRCaRuhoIhkBmIW
+KA0L779I+B81IxYggEYjlPaRyQ7EHEDMBo1YUKT9BuJfUPwbKXIpLooBAoh5NOxpAmCRCYpELiAW
+AGIhKOYDYk6oHDO1MxVAAI1GKG1yJyM0N7JDI1AUiMWBWAKIRaBioFzLila/Ulx6AgTQaITSrrhl
+geZOQWhEykCxBDSn8kAjnBUpp2JrEZMUsQABxDJav9IsQmGRCsqJ/EAsBsRy0NwJqi8/A/EraIS/
+AOLXQPwOKv4NiH9C61hY/cpATP0KEEAseIoMBhxFwSggHKGwli0rNBdyQSNVFFrkguS/Q3OqILSO
+FYBG8Fsg/oAWsb+RWsR4IxUggFiw5EgmLHg0x5IeobDWLScUcwMxLzQCQeJ/oLmVHxqZIHFhIH4J
+xG+gEfseGrHfoRH7B6k1jLWbAxBALFhaZ7CUBcMso5FKVpHLDo0sPmh9yYWEuaHquKFyvNBIFYFG
+6itoMYycY79CI/Y3NGL/YcuxAAHEgqUiZ0eylBvKZ0FqjY0C4iKUDRpREtBIgnVXOKAYORdzQeUF
+ocWwMFJRDItYUG79BC2Gf+AqhgECCD1CWaGGwwwVgjqKHUtLbBTg74cih6UUlOaGRjSsZYtcEnJA
+5ZGLYRjmh0bqG7SIhdWv8BwKEEAsaHUnK9RQYWgTG+YQLqQ+0yggrh8Ky4G8SBmEG2lAgRltEIIV
+LcfCimI+pEjmgcrD4u0/A2LoEJxLAQIIVw6F9Z3koTQPkkNGAeEIRc4g7Eh1JRfaYAJyAkAe92WD
+YlijClb3skHV/YPWo8j1KbhrAxBALFjKflaoIXzQlAUb2WAfrUfJyqWwSGXHEZkMSLmNEUu1BsuF
+v6GNos/QRtJHbG0bgAAaLUKHGQAIIBY8KeETdOSCDdqqGi1yKS9yYcUqE1KuZEDqU/6FFqE/od0U
+WBy8QeqbgnLnF2ic/EGrQxkAAogFS2R+g7akXkAt/jzaKKJao4gRLUKRw/4PUmb6Co24N9CBhufQ
++IDRb6Hx8hMpUsEAIIBYkMpuWIR+hWpggEbuaLeFOt0WBqS6FLlkBOXKX9DI+QaNKFCufI0Uic9x
+dFt+oY0cMQAEEK4cygC14OPowAJVBhYYGBDjuTzQyP6HFJnfkBo7b5FGip4TMbCAMvwHEEAsWLI9
+A5T9E2rJ6NAfZUN/DNBeghi0OP2BVNr9hNaH76ERCStiyR76Awgg9LHcf0iKfzOMDs6TG6Gw+hMW
+mV+gOQuGYeEMK16RI5CiwXmAAEJv5TIgtZr+jtaZFEXof2hu/I7U0PmM1B75Do20l2hFK6HpM7yL
+yQACCNt86H+khtL/0fghu9sCa7XCGjsfoQ2dnwyoE9wvGIib4CZqARlAAOFbsTAameSDf0jF6g9o
+ZL6CynFAI+oDNBJfE6gnSVriCRBALKNhTxMAa2T+gkbSO2hb5Au0uIVF8gek4pXoehIfAAig0fqR
+dv1Q2DJObmhrlxeaOxmgEfoNGtkk15P4AEAAjUYobbsudF9oDRBAoxFKn0il21YIgAAajVDat3bp
+ulkJIIBGI5S+EYveg6B6TwIggEbRMAMAAQYARYiBH2YbO6oAAAAASUVORK5CYII=" transform="matrix(1 0 0 1 31.1724 147.6719)"/>
+				<g>
+					<polygon fill="#282828" points="119.546,173.307 138.134,162.574 119.546,151.843 119.546,159.854 35.605,159.854 
+						35.605,165.295 119.546,165.295 "/>
+				</g>
+			</g>
+		</g>
+	</svg>

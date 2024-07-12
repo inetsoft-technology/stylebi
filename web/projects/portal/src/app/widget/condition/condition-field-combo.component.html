@@ -1,0 +1,77 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div #dropdownBody class="condition-field-combo">
+  <div #conditionFieldToggle class="condition-field-combo-toggle form-control dropdown-toggle bd-gray"
+       [class.opacity-0]="showSearch"
+       [ngClass]="{disabled: !enabled}" [fixedDropdown]="dropdownMenu"
+       (openChange)="dropDownOpenChange($event)"
+       dropdownPlacement="bottom" [autoClose]="false">
+    <div class="condition-field-combo-text ps-1" [attr.title]="getTooltip(field)">
+      {{field ? field.view : getDefaultValue()}}&nbsp;
+    </div>
+  </div>
+  <input *ngIf="showSearch" #searchInput type="text" class="search-field form-control"
+         (mousedown)="$event.stopImmediatePropagation()"
+         [(ngModel)]="searchStr"/>
+  <div *ngIf="!showSearch" class="search-button search-icon"
+       [class.txt-highlight]="!!searchStr" title="_#(Search)"
+       role="button" aria-label="_#(Search)" tabindex="-1"
+    (mousedown)="startSearch($event)"></div>
+  <div *ngIf="showSearch" class="search-close close-icon" title="_#(Clear Search)"
+       role="button" aria-label="_#(Clear Search)" tabindex="-1"
+       (mousedown)="closeSearch($event)"></div>
+  <button class="btn btn-light btn-sm switch-button"
+          [class.field-list-icon]="displayList" [class.field-tree-icon]="!displayList"
+          [title]="convertSwitchBtnTitle()"
+          (click)="convertDropDownStyle()"></button>
+</div>
+
+<ng-template #dropdownMenu>
+  <div #dropdownMenuContainer class="condition-field-combo-dropdown dropdown-pane bg-white1" role="menu"
+       [style.min-width.px]="dropdownMinWidth" (scroll)="noOp()"
+       [style.max-height.px]="dropdownHeight"
+       *ngIf="enabled">
+    <div *ngIf="displayList && listModel != null">
+      <condition-field-combo-list
+        [field]="field"
+        [listModel]="listModel | searchDataRef: searchStr"
+        [grayedOutFields]="grayedOutFields"
+        [noneItem]="noneItem"
+        [scrollTop]="dropdownMenuContainer.scrollTop"
+        [showOriginalName]="showOriginalName"
+        (onSelectField)="selectField($event)">
+      </condition-field-combo-list>
+    </div>
+    <tree *ngIf="!displayList && treeModel != null" [root]="treeModel"
+          [showRoot]="false" [showTooltip]="true" [iconFunction]="getCSSIcon"
+          [searchStr]="searchStr"
+          [selectOnClick]="true"
+          [fillHeight]="true"
+          [maxHeight]="DROPDOWN_HEIGHT - 20"
+          [useVirtualScroll]="needUseVirtualScroll"
+          [showOriginalName]="showOriginalName"
+          [dataSource]="virtualScrollTreeDatasource"
+          (nodeExpanded)="nodeStateChanged($event, true)"
+          (nodeCollapsed)="nodeStateChanged($event, false)"
+          [selectedNodes]="selectedNodes" [grayedOutFields]="grayedOutFields"
+          (nodesSelected)="selectNode($event[0])">
+    </tree>
+  </div>
+</ng-template>

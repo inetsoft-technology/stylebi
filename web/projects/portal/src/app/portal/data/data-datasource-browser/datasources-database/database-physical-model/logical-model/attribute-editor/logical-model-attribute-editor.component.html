@@ -1,0 +1,124 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<script src="auto-drill-dialog/data-auto-drill-dialog.component.ts"></script>
+<form [formGroup]="form">
+  <div class="form-group content-spacing form-floating">
+    <input type="text" class="form-control"
+           formControlName="name"
+           [class.is-invalid]="nameControl.invalid">
+    <label><span>_#(Attribute Name)</span></label>
+    <span class="invalid-feedback" *ngIf="nameControl.getError('required')">
+      _#(data.logicalmodel.attributeNameRequired)
+    </span>
+    <span class="invalid-feedback" *ngIf="!nameControl.getError('required') && nameControl.hasError('exists')">
+      _#(data.logicalmodel.attributeNameDuplicate)
+    </span>
+  </div>
+  <div class="form-group form-floating">
+    <textarea type="text"
+              class="form-control"
+              [disabled]="!editable"
+              [(ngModel)]="attribute.description"
+              [ngModelOptions]="{standalone: true}"></textarea>
+    <label><span>_#(Description)</span></label>
+  </div>
+  <div class="form-group form-floating">
+    <select class="form-control" [ngModel]="attribute.dataType"
+            formControlName="dataType" (ngModelChange)="updateDataType($event)"
+            [class.is-invalid]="dataTypeControl.invalid">
+      <option *ngFor="let dataType of dataTypes" [value]="dataType.data">
+        {{ dataType.label }}
+      </option>
+    </select>
+    <label><span>_#(Data Type)</span></label>
+    <span class="invalid-feedback" *ngIf="dataTypeControl.getError('required')">
+      _#(data.logicalmodel.attribute.dataTypeRequired)
+    </span>
+  </div>
+  <div class="form-group form-floating">
+    <tree-dropdown [root]="columnsTree" [selected]="selectedNode?.data?.qualifiedName"
+                   [isDisabled]="isExpression || !editable"
+                   [initSelectedNodes]="[selectedNode]"
+                   [expandSelectedNodes]="true"
+                   [iconFunction]="iconFunction"
+                   (nodeSelected)="selectPhysicalColumn($event)"></tree-dropdown>
+    <label><span>_#(Physical Column)</span></label>
+  </div>
+  <div class="form-group form-floating">
+    <dropdown-view #formatDropdown [label]="formatString" [disabled]="!editable"
+                   (closed)="getFormatString()">
+      <attribute-formatting-pane [formatModel]="attribute.format"
+                                 (onApply)="getFormatString(); formatDropdown.close()">
+      </attribute-formatting-pane>
+    </dropdown-view>
+    <label><span>_#(Format)</span></label>
+  </div>
+  <div class="form-group">
+    <div class="input-group">
+      <div class="form-floating">
+        <input type="text" class="form-control" [ngModel]="drillString" [readOnly]="true"
+               [ngModelOptions]="{standalone: true}"/>
+        <label><span>_#(Auto Drill)</span></label>
+      </div>
+      <button class="btn btn-secondary" type="button" [attr.title]="'_#(Edit Auto Drill)'"
+              [disabled]="!editable"
+              (click)="openAutoDrillDialog()">
+        ...
+      </button>
+    </div>
+  </div>
+  <div class="form-group form-floating" #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'">
+    <input type="text" class="form-control input-dropdown" [value]="selectedFormulaLabel"
+           [disabled]="!editable" readonly ngbDropdownToggle>
+    <div class="caret-down-icon dropdown-caret"></div>
+    <label><span>_#(Reference Type)</span></label>
+    <span class="invalid-feedback" *ngIf="dataTypeControl.getError('required')">
+      _#(data.logicalmodel.attribute.referenceTypeRequired)
+    </span>
+    <div ngbDropdownMenu class="tree-dropdown-menu">
+      <div class="ps-2 font-weight-bold">_#(Measure)</div>
+      <ng-container *ngFor="let ref of currentFormulas">
+        <div class="ps-4" (click)="selectFormula(ref, dropdown)"
+             [class.selected]="isSelected(ref)">{{ ref.label }}</div>
+      </ng-container>
+      <ng-container *ngFor="let ref of defaultRefTypes">
+        <div class="ps-2" (click)="selectFormula(ref, dropdown)"
+             [class.selected]="isSelected(ref)">{{ ref.label }}</div>
+      </ng-container>
+    </div>
+  </div>
+  <div class="form-group">
+    <div class="checkbox col-6 select-option">
+      <label class="control-label">
+        <input type="checkbox" [(ngModel)]="attribute.browseData" [ngModelOptions]="{standalone: true}"
+               [disabled]="!editable"/>
+        <span>_#(Browse Data)</span>
+      </label>
+    </div>
+  </div>
+  <div class="form-group" *ngIf="logicalModelParent">
+    <div class="checkbox col-6 select-option">
+      <label class="control-label">
+        <input type="checkbox" [(ngModel)]="attribute.visible" [ngModelOptions]="{standalone: true}"/>
+        <span>_#(Visible)</span>
+      </label>
+    </div>
+  </div>
+</form>

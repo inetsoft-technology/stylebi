@@ -1,0 +1,1436 @@
+{
+  "endpoints": [
+    {
+      "name": "Abuse Report",
+      "paged": false,
+      "suffix": "/api/core/v3/abuseReports/{Report ID}?fields={Fields?}"
+    },
+    {
+      "name": "Acclaims",
+      "paged": true,
+      "suffix": "/api/core/v3/acclaim?before={Before?:yyyy-MM-dd'T'HH:mm:ssZ}"
+    },
+    {
+      "name": "Action",
+      "paged": false,
+      "suffix": "/api/core/v3/actions/{Action ID}?fields={Fields?}"
+    },
+    {
+      "name": "Actions",
+      "paged": true,
+      "suffix": "/api/core/v3/actions?filter={Filter?:entryState}&fields={Fields?}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Action"
+          ],
+          "jsonPath": "$.list.*",
+          "key": "id",
+          "parameterName": "Action ID"
+        }
+      ]
+    },
+    {
+      "name": "Actions Counts",
+      "paged": false,
+      "suffix": "/api/core/v3/actions/counts"
+    },
+    {
+      "name": "Activities",
+      "paged": true,
+      "suffix": "/api/core/v3/activities?filter={Filter?:author|notifications|object|type|unread|verb}&before={Before?:yyyy-MM-dd'T'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}"
+    },
+    {
+      "name": "Activities Count",
+      "paged": false,
+      "suffix": "/api/core/v3/activities/count?after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&max={Max Number?}&exclude={Exclude?:false|true}"
+    },
+    {
+      "name": "Frequent Content",
+      "paged": true,
+      "suffix": "/api/core/v3/activities/frequent/content?fields={Fields?}&filter={Filter?}&abridged={Abridged?:false|true}"
+    },
+    {
+      "name": "Frequent People",
+      "paged": true,
+      "suffix": "/api/core/v3/activities/frequent/people?fields={Fields?}"
+    },
+    {
+      "name": "Frequent Places",
+      "paged": true,
+      "suffix": "/api/core/v3/activities/frequent/places?fields={Fields?}"
+    },
+    {
+      "name": "Add On",
+      "paged": true,
+      "suffix": "/api/core/v3/addOns/{AddOn UUID}?fields={Fields?}"
+    },
+    {
+      "name": "Plugin",
+      "paged": false,
+      "suffix": "/api/core/v3/admin/plugins/{Plugin Name}?fields={Fields?}"
+    },
+    {
+      "name": "Plugins",
+      "paged": true,
+      "suffix": "/api/core/v3/admin/plugins?fields={Fields?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Plugin"
+          ],
+          "jsonPath": "$.list.*",
+          "key": "pluginID",
+          "parameterName": "Plugin Name"
+        }
+      ]
+    },
+    {
+      "name": "Profile Field",
+      "paged": false,
+      "suffix": "/api/core/v3/admin/profileFields/{Profile Field ID}?fields={Fields?}"
+    },
+    {
+      "name": "Profile Field Name",
+      "paged": false,
+      "suffix": "/api/core/v3/admin/profileFields/@name?fields={Fields?}"
+    },
+    {
+      "name": "Profile Fields",
+      "paged": true,
+      "suffix": "/api/core/v3/admin/profileFields?fields={Fields?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Profile Field"
+          ],
+          "jsonPath": "$.list.*",
+          "key": "profileFieldID",
+          "parameterName": "Profile Field ID"
+        }
+      ]
+    },
+    {
+      "name": "Properties",
+      "paged": true,
+      "suffix": "/api/core/v3/admin/properties?fields={Fields?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Property"
+          ],
+          "jsonPath": "$.list.*",
+          "key": "id",
+          "parameterName": "Property Name"
+        }
+      ]
+    },
+    {
+      "name": "Property",
+      "paged": false,
+      "suffix": "/api/core/v3/admin/properties/{Property Name}?fields={Fields?}"
+    },
+    {
+      "name": "Announcement",
+      "paged": false,
+      "suffix": "/api/core/v3/announcements/{Announcement ID}?fields={Fields?}"
+    },
+    {
+      "name": "System Announcements",
+      "paged": true,
+      "suffix": "/api/core/v3/announcements?fields={Fields?}&activeOnly={Active Only?:false|true}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Announcement"
+          ],
+          "jsonPath": "$.list.*",
+          "key": "id",
+          "parameterName": "Announcement ID"
+        }
+      ]
+    },
+    {
+      "name": "Attachment",
+      "paged": false,
+      "suffix": "/api/core/v3/attachments/{Attachment ID}?fields={Fields?}"
+    },
+    {
+      "name": "Attachments",
+      "paged": true,
+      "suffix": "/api/core/v3/attachments/contents/{Content ID}?fields={Fields?}"
+    },
+    {
+      "name": "Event Calendar",
+      "paged": false,
+      "suffix": "/api/core/v3/calendar/{Place ID}"
+    },
+    {
+      "name": "Check Points",
+      "paged": true,
+      "suffix": "/api/core/v3/checkpoints/{Project ID}?fields={Fields?}"
+    },
+    {
+      "name": "Collaboration",
+      "paged": false,
+      "suffix": "/api/core/v3/collaborations/{Collaboration ID}"
+    },
+    {
+      "name": "Collaboration by External ID",
+      "paged": false,
+      "suffix": "/api/core/v3/collaborations/ext/{External ID}"
+    },
+    {
+      "name": "Interaction",
+      "paged": false,
+      "suffix": "/api/core/v3/collaborations/interactions/{Interaction ID}"
+    },
+    {
+      "name": "Interaction Optionally With Context",
+      "paged": false,
+      "suffix": "/api/core/v3/collaborations/{Collaboration ID}/interactions/{Interaction ID}"
+    },
+    {
+      "name": "Interactions",
+      "paged": true,
+      "suffix": "/api/core/v3/collaborations/{Collaboration ID}/interactions"
+    },
+    {
+      "name": "Participants",
+      "paged": true,
+      "suffix": "/api/core/v3/collaborations/{Collaboration ID}/participants"
+    },
+    {
+      "name": "Abuse Reports for Comment",
+      "paged": true,
+      "suffix": "/api/core/v3/comments/{Comment ID}/abuseReports?fields={Fields?}"
+    },
+    {
+      "name": "Comment",
+      "paged": false,
+      "suffix": "/api/core/v3/comments/{Comment ID}?fields={Fields?}&abridged={Abridged?:false|true}"
+    },
+    {
+      "name": "Comment Likes",
+      "paged": true,
+      "suffix": "/api/core/v3/comments/{Comment ID}/likes?fields={Fields?}"
+    },
+    {
+      "name": "Comment Comments",
+      "paged": true,
+      "suffix": "/api/core/v3/comments/{Comment ID}/comments?fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}"
+    },
+    {
+      "name": "Editable Comment",
+      "paged": false,
+      "suffix": "/api/core/v3/comments/{Comment ID}/editable?fields={Fields?}"
+    },
+    {
+      "name": "Comment Marked Helpful",
+      "paged": true,
+      "suffix": "/api/core/v3/comments/{Comment ID}/helpful?fields={Fields?}"
+    },
+    {
+      "name": "Comment Marked Unhelpful",
+      "paged": true,
+      "suffix": "/api/core/v3/comments/{Comment ID}/unhelpful?fields={Fields?}"
+    },
+    {
+      "name": "Comment Outcome Types",
+      "paged": true,
+      "suffix": "/api/core/v3/comments/{Comment ID}/outcomeTypes?fields={Fields?}"
+    },
+    {
+      "name": "Abuse Reports for Content",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/{Content ID}/abuseReports?fields={Fields?}"
+    },
+    {
+      "name": "Child Outcome Types",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/{Content ID}/childOutcomeTypes?fields={Fields?}&isCreate={Is Create?:false|true}"
+    },
+    {
+      "name": "Content Comments",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/{Content ID}/comments?filter={Filter?:outcomeType}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}&author={Author?:false|true}&inline={Inline?:false|true}"
+    },
+    {
+      "name": "Content Data",
+      "paged": false,
+      "suffix": "/api/core/v3/contents/{Content ID}/data"
+    },
+    {
+      "name": "Content Followers",
+      "paged": false,
+      "suffix": "/api/core/v3/contents/{Content ID}/followers?fields={Fields?}"
+    },
+    {
+      "name": "Content Following In",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/{Content ID}/followingIn?fields={Fields?}"
+    },
+    {
+      "name": "Content Likes",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/{Content ID}/likes?fields={Fields?}"
+    },
+    {
+      "name": "Contents",
+      "paged": true,
+      "suffix": "/api/core/v3/contents?filter={Filter?}&fields={Fields?}&abridged={Abridged?:false|true}&includeBlogs={Include Blogs?:false|true}"
+    },
+    {
+      "name": "Editable Content",
+      "paged": false,
+      "suffix": "/api/core/v3/contents/{Content ID}/editable?fields={Fields?}"
+    },
+    {
+      "name": "Featured Content",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/featured?filter={Filter?:place|type}&fields={Fields?}&abridged={Abridged?:false|true}"
+    },
+    {
+      "name": "My Entitlements",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/{Content ID}/entitlements?fields={Fields?}"
+    },
+    {
+      "name": "Content Outcomes",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/{Content ID}/outcomes?fields={Fields?}&includeChildrenOutcomes={Include?:false|true}"
+    },
+    {
+      "name": "Content Outcome Types",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/{Content ID}/outcomeTypes?fields={Fields?}"
+    },
+    {
+      "name": "Popular Content",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/popular"
+    },
+    {
+      "name": "Preview Image",
+      "paged": false,
+      "suffix": "/api/core/v3/contents/{Content ID}/previewImage?size={Size?}&returnDefaultImageWhenNoPreviewAvailable={Preview Available?}"
+    },
+    {
+      "name": "Recent Content",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/recent?filter={Filter?:place|type}&fields={Fields?}&abridged={Abridged?:false|true}"
+    },
+    {
+      "name": "Recommended Content",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/recommended?fields={Fields?}&abridged={Abridged?:false|true}"
+    },
+    {
+      "name": "Trending Content",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/trending?filter={Filter?:place|type}&fields={Fields?}&abridged={Abridged?:false|true}"
+    },
+    {
+      "name": "User Entitlements",
+      "paged": true,
+      "suffix": "/api/core/v3/contents/{Content ID}/entitlements/{Person ID}?fields={Fields?}"
+    },
+    {
+      "name": "Deleted Contents",
+      "paged": true,
+      "suffix": "/api/core/v3/deletedObjects/contents?filter={Filter?:since|type}&fields={Fields?}"
+    },
+    {
+      "name": "Deleted Object",
+      "paged": false,
+      "suffix": "/api/core/v3/deletedObjects/{Deleted Object ID}?fields={Fields?}"
+    },
+    {
+      "name": "Deleted People",
+      "paged": true,
+      "suffix": "/api/core/v3/deletedObjects/people?filter={Filter?:since}&fields={Fields?}"
+    },
+    {
+      "name": "Deleted Places",
+      "paged": true,
+      "suffix": "/api/core/v3/deletedObjects/places?filter={Filter?:since|type}&fields={Fields?}"
+    },
+    {
+      "name": "Direct Message Comments",
+      "paged": true,
+      "suffix": "/api/core/v3 /dms/{Direct Message ID}/comments?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}"
+    },
+    {
+      "name": "Direct Message Images",
+      "paged": true,
+      "suffix": "/api/core/v3/dms/{Direct Message ID}/images?fields={Fields?}"
+    },
+    {
+      "name": "Direct Message",
+      "paged": false,
+      "suffix": "/api/core/v3/dms/{Direct Message ID}?fields={Fields?}"
+    },
+    {
+      "name": "Event Type",
+      "paged": false,
+      "suffix": "/api/core/v3/eventTypes/{Event Type ID}"
+    },
+    {
+      "name": "Event Types",
+      "paged": true,
+      "suffix": "/api/core/v3/eventTypes"
+    },
+    {
+      "name": "External Stream Definition",
+      "paged": false,
+      "suffix": "/api/core/v3/extstreamDefs/{Definition ID}?fields={Fields?}"
+    },
+    {
+      "name": "External Stream Definition I18n Resource",
+      "paged": false,
+      "suffix": "/api/core/v3/extstreamDefs/{Definition ID}/i18n/{Language?}/{Country?}"
+    },
+    {
+      "name": "External Stream Definitions",
+      "paged": true,
+      "suffix": "/api/core/v3/extstreamDefs?filter={Filter?:name|addonUUID|state}&fields={Fields?}"
+    },
+    {
+      "name": "Prototype",
+      "paged": false,
+      "suffix": "/api/core/v3/extstreamDefs/{Definition ID}/prototype?fields={Fields?}"
+    },
+    {
+      "name": "External Stream Tile Category",
+      "paged": false,
+      "suffix": "/api/core/v3/extstreamDefs/category/{Tile Category ID}?fields={Fields?}"
+    },
+    {
+      "name": "Specified External Stream Instance",
+      "paged": false,
+      "suffix": "/api/core/v3/extstreams/{Definition ID}?fields={Fields?}"
+    },
+    {
+      "name": "Instance by External ID",
+      "paged": false,
+      "suffix": "/api/core/v3/extstreams/external/{Extension UUID}/{External ID}?fields={Fields?}"
+    },
+    {
+      "name": "External Stream Instances",
+      "paged": true,
+      "suffix": "/api/core/v3/extstreams?filter={Filter:tilePage}&fields={Fields?}"
+    },
+    {
+      "name": "External Stream Private Properties",
+      "paged": true,
+      "suffix": "/api/core/v3/extstreams/{Instance ID}/privateprops"
+    },
+    {
+      "name": "Content Votes",
+      "paged": true,
+      "suffix": "/api/core/v3/ideaVotes/{Content ID}?fields={Fields?}"
+    },
+    {
+      "name": "Content Images",
+      "paged": true,
+      "suffix": "/api/core/v3/images/contents/{Content ID}?fields={Fields?}"
+    },
+    {
+      "name": "Image",
+      "paged": false,
+      "suffix": "/api/core/v3/images/{Image ID}?width={Width?}&height={Height?}&preserveAspectRatio={Preserve?:false|true}&thumbnail={Thumbnail?}false|true"
+    },
+    {
+      "name": "Activity Inbox",
+      "paged": true,
+      "suffix": "/api/core/v3/inbox?filter={Filter?:author|notifications|type|unread|verb}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}&directive={Directive?:include_rtc|collapse|collapseSkip}"
+    },
+    {
+      "name": "Counts",
+      "paged": false,
+      "suffix": "/api/core/v3/inbox/counts?filter={Filter?}"
+    },
+    {
+      "name": "Invite",
+      "paged": false,
+      "suffix": "/api/core/v3/invites/{Invite ID}?fields={Fields?}"
+    },
+    {
+      "name": "Place Invites",
+      "paged": true,
+      "suffix": "/api/core/v3/invites/places/{Place ID}?fields={Fields?}&inviter={Inviter?}&invitee={Invitee?}"
+    },
+    {
+      "name": "All Invites",
+      "paged": true,
+      "suffix": "/api/core/v3/invites/event/all/{Event ID}"
+    },
+    {
+      "name": "Member",
+      "paged": false,
+      "suffix": "/api/core/v3/members/{Member ID}?fields={Fields?}"
+    },
+    {
+      "name": "Members by Group",
+      "paged": true,
+      "suffix": "/api/core/v3/members/places/{Place ID}?filter={Filter?:person}&fields={Fields?}&state={State?:banned|invited|member|owner|pending}"
+    },
+    {
+      "name": "Members by Person",
+      "paged": true,
+      "suffix": "/api/core/v3/members/people/{Person ID}?filter={Filter?:place}&fields={Fields?}&state={State?:banned|invited|member|owner|pending}"
+    },
+    {
+      "name": "Mention",
+      "paged": false,
+      "suffix": "/api/core/v3/mentions/{Mention ID}?fields={Fields?}"
+    },
+    {
+      "name": "Content Replies",
+      "paged": true,
+      "suffix": "/api/core/v3/messages/contents/{Content ID}?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}"
+    },
+    {
+      "name": "Editable Message",
+      "paged": false,
+      "suffix": "/api/core/v3/messages/{Message ID}/editable?fields={Fields?}"
+    },
+    {
+      "name": "Message Marked Helpful",
+      "paged": true,
+      "suffix": "/api/core/v3/messages/{Message ID}/helpful?fields={Fields?}"
+    },
+    {
+      "name": "Message Marked Unhelpful",
+      "paged": true,
+      "suffix": "/api/core/v3/messages/{Message ID}/unhelpful?fields={Fields?}"
+    },
+    {
+      "name": "Message",
+      "paged": false,
+      "suffix": "/api/core/v3/messages/{Message ID}?fields={Fields?}&abridged={Abridged?:false|true}"
+    },
+    {
+      "name": "Message Likes",
+      "paged": true,
+      "suffix": "/api/core/v3/messages/{Message ID}/likes?fields={Fields?}"
+    },
+    {
+      "name": "Message Outcomes",
+      "paged": true,
+      "suffix": "/api/core/v3/messages/{Message ID}/outcomes?fields={Fields?}"
+    },
+    {
+      "name": "Message Replies",
+      "paged": true,
+      "suffix": "/api/core/v3/messages/{Message ID}/messages?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}&messageTarget={Message Target?}"
+    },
+    {
+      "name": "Available Locale Metadata",
+      "paged": true,
+      "suffix": "/api/core/v3/metadata/locales/available"
+    },
+    {
+      "name": "Supported Locale Metadata",
+      "paged": true,
+      "suffix": "/api/core/v3/metadata/locales/supported"
+    },
+    {
+      "name": "All Object Metadata",
+      "paged": true,
+      "suffix": "/api/core/v3/metadata/objects/@all?fields={Fields?:@all}"
+    },
+    {
+      "name": "Field Metadata",
+      "paged": false,
+      "suffix": "/api/core/v3/metadata/objects/{Object Name}/{Field}"
+    },
+    {
+      "name": "Field Metadata Values",
+      "paged": true,
+      "suffix": "/api/core/v3/metadata/objects/{Object Name}/{Field}/values?filter={Filter?:search|fieldValues}&count={Count?}&includeCount={Include Count?:false|true}&objectValues={Object Values?:false|true}"
+    },
+    {
+      "name": "Object Metadata",
+      "paged": false,
+      "suffix": "/api/core/v3/metadata/objects/{Object Name}"
+    },
+    {
+      "name": "Object Metadata Values",
+      "paged": true,
+      "suffix": "/api/core/v3/metadata/objects/{Object Name}/values?filter={Filter?:search|fieldValues}&count={Count?}&includeCount={Include Count?:false|true}&fields={Fields?}"
+    },
+    {
+      "name": "Object Types",
+      "paged": true,
+      "suffix": "/api/core/v3/metadata/objects"
+    },
+    {
+      "name": "All Property Metadata",
+      "paged": true,
+      "suffix": "/api/core/v3/metadata/properties"
+    },
+    {
+      "name": "Property Metadata",
+      "paged": false,
+      "suffix": "/api/core/v3/metadata/properties/{Property Name}"
+    },
+    {
+      "name": "All Public Property Metadata",
+      "paged": true,
+      "suffix": "/api/core/v3/metadata/properties/public"
+    },
+    {
+      "name": "Public Property Metadata",
+      "paged": false,
+      "suffix": "/api/core/v3/metadata/properties/public/{Property Name}"
+    },
+    {
+      "name": "Field Resource Metadata",
+      "paged": false,
+      "suffix": "/api/core/v3/metadata/resources/{Object Name}/{Field}"
+    },
+    {
+      "name": "Object Resource Metadata",
+      "paged": false,
+      "suffix": "/api/core/v3/metadata/resources/{Object Name}"
+    },
+    {
+      "name": "Object Type Mappings",
+      "paged": true,
+      "suffix": "/api/core/v3/metadata/resources"
+    },
+    {
+      "name": "All Time Zone Metadata",
+      "paged": false,
+      "suffix": "/api/core/v3/metadata/timezones"
+    },
+    {
+      "name": "Time Zone Metadata",
+      "paged": false,
+      "suffix": "/api/core/v3/metadata/timezones/{First}/{Second}/{Third?}"
+    },
+    {
+      "name": "Moderation Counts",
+      "paged": false,
+      "suffix": "/api/core/v3/moderation/pending/counts?filter={Filter?}"
+    },
+    {
+      "name": "Moderation",
+      "paged": false,
+      "suffix": "/api/core/v3/moderation/{Moderation ID}?fields={Fields?}"
+    },
+    {
+      "name": "Pending Moderation",
+      "paged": false,
+      "suffix": "/api/core/v3/moderation/pending?filter={Filter?:objectType|place|author|moderationType}&fields={Fields?}"
+    },
+    {
+      "name": "Embed",
+      "paged": false,
+      "suffix": "/api/core/v3/oembed"
+    },
+    {
+      "name": "History",
+      "paged": false,
+      "suffix": "/api/core/v3/outcomes/{Outcome ID}/history"
+    },
+    {
+      "name": "Outcome",
+      "paged": false,
+      "suffix": "/api/core/v3/outcomes/{Outcome ID}?fields={Fields?}"
+    },
+    {
+      "name": "Outcomes",
+      "paged": false,
+      "suffix": "/api/core/v3/outcomes?fields={Fields?}&hidden={Hidden?:false|true}"
+    },
+    {
+      "name": "Page",
+      "paged": false,
+      "suffix": "/api/core/v3/pages/{Page ID}?fields={Fields?}"
+    },
+    {
+      "name": "Prototype Page",
+      "paged": false,
+      "suffix": "/api/core/v3/pages/prototype?placeTemplateID={PlaceTemplate ID}&placeURI={Place URI}&fields={Fields?}"
+    },
+    {
+      "name": "Activity Person",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/activities?filter={Filter?}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}"
+    },
+    {
+      "name": "All People",
+      "paged": true,
+      "suffix": "/api/core/v3/people/@all?filter={Filter?:include-disabled|include-external|visible-only}&fields={Fields?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Activity Person",
+            "Blog",
+            "Colleagues",
+            "Common Bidirectional Related People",
+            "Featured Content for Person",
+            "Followers",
+            "Following In",
+            "Following Person",
+            "Manager",
+            "News",
+            "Pages",
+            "Pages Prototype",
+            "Pending Expertise Tags",
+            "Person by ID",
+            "Private Properties for Person",
+            "Profile Field Privacy",
+            "Profile Images",
+            "Recognition",
+            "Reports",
+            "Person Roles",
+            "Security Groups for Person",
+            "Social Users",
+            "Streams",
+            "Tags on User",
+            "Tasks",
+            "Terms And Conditions",
+            "Top Expertise",
+            "Trending Content for Person",
+            "Trending Places for Person"
+          ],
+          "jsonPath": "$.list.*",
+          "key": "id",
+          "parameterName": "Person ID"
+        }
+      ]
+    },
+    {
+      "name": "Blog",
+      "paged": false,
+      "suffix": "/api/core/v3/people/{Person ID}/blog?fields={Fields?}"
+    },
+    {
+      "name": "Colleagues",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/@colleagues?fields={Fields?}"
+    },
+    {
+      "name": "Common Bidirectional Related People",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/@common?fields={Fields?}"
+    },
+    {
+      "name": "Featured Content for Person",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/@featuredContent?filter={Filter?:type}&fields={Fields?}&abridged={Abridged?:false|true}"
+    },
+    {
+      "name": "Filterable Fields",
+      "paged": true,
+      "suffix": "/api/core/v3/people/@filterableFields"
+    },
+    {
+      "name": "Followers",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/@followers?fields={Fields?}"
+    },
+    {
+      "name": "Following",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/@following?fields={Fields?}"
+    },
+    {
+      "name": "Following In",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/followingIn?fields={Fields?}"
+    },
+    {
+      "name": "Following Person",
+      "paged": false,
+      "suffix": "/api/core/v3/people/{Person ID}/@following/{Followed Person ID}?fields={Fields?}"
+    },
+    {
+      "name": "Manager",
+      "paged": false,
+      "suffix": "/api/core/v3/people/{Person ID}/@manager"
+    },
+    {
+      "name": "Metadata",
+      "paged": false,
+      "suffix": "/api/core/v3/people/@metadata"
+    },
+    {
+      "name": "News",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/@news?fields={Fields?}&maxPerStream={Max Number?}"
+    },
+    {
+      "name": "Pages",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/pages"
+    },
+    {
+      "name": "Pages Prototype",
+      "paged": false,
+      "suffix": "/api/core/v3/people/{Person ID}/pages/prototype?fields={Fields?}"
+    },
+    {
+      "name": "Pending Expertise Tags",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/expertise/pending"
+    },
+    {
+      "name": "People",
+      "paged": false,
+      "suffix": "/api/core/v3/people?ids={Person IDs?}&query={Query?}&fields={Fields?}&filter={Filter?}"
+    },
+    {
+      "name": "Person by ID",
+      "paged": false,
+      "suffix": "/api/core/v3/people/{Person ID}?fields={Fields?}"
+    },
+    {
+      "name": "Person by Email",
+      "paged": false,
+      "suffix": "/api/core/v3/people/email/{Email}?fields={Fields?}"
+    },
+    {
+      "name": "Person by External Identity",
+      "paged": false,
+      "suffix": "/api/core/v3/people/external/{Identity Type}/{Identity?}?fields={Fields?}"
+    },
+    {
+      "name": "Person by Username",
+      "paged": false,
+      "suffix": "/api/core/v3/people/username/{User Name}?fields={Fields?}"
+    },
+    {
+      "name": "Private Properties for Person",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/privateprops"
+    },
+    {
+      "name": "Profile Field Privacy",
+      "paged": false,
+      "suffix": "/api/core/v3/people/{Person ID}/profilePrivacy/{Field ID}?fields={Fields?}"
+    },
+    {
+      "name": "Profile Fields Privacy",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/profilePrivacy?fields={Fields?}"
+    },
+    {
+      "name": "Profile Image",
+      "paged": false,
+      "suffix": "/api/core/v3/people/{Person ID}/images/{Image Index}"
+    },
+    {
+      "name": "Profile Images",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/images?fields={Fields?}"
+    },
+    {
+      "name": "Recognition",
+      "paged": false,
+      "suffix": "/api/core/v3/people/{Person ID}/@recognition?maxOutcomes={Outcomes Number?}&fields={Fields?}"
+    },
+    {
+      "name": "Recommended People",
+      "paged": false,
+      "suffix": "/api/core/v3/people/recommended?fields={Fields?}"
+    },
+    {
+      "name": "Report",
+      "paged": false,
+      "suffix": "/api/core/v3/people/{Person ID}/@reports/{Report Person ID}?fields={Fields?}"
+    },
+    {
+      "name": "Reports",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/@reports?fields={Fields?}"
+    },
+    {
+      "name": "Person Resources",
+      "paged": true,
+      "suffix": "/api/core/v3/people/@resources"
+    },
+    {
+      "name": "Person Roles",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/roles"
+    },
+    {
+      "name": "Security Groups for Person",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/securityGroups?fields={Fields?}"
+    },
+    {
+      "name": "Social Users",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/@social?fields={Fields?}"
+    },
+    {
+      "name": "Streams",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/streams?fields={Fields?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Stream Activity",
+            "Stream Activity Count",
+            "Stream Associations",
+            "Stream"
+          ],
+          "jsonPath": "$.list.*",
+          "key": "id",
+          "parameterName": "Stream ID"
+        }
+      ]
+    },
+    {
+      "name": "Supported Fields",
+      "paged": true,
+      "suffix": "/api/core/v3/people/@supportedFields"
+    },
+    {
+      "name": "Tags on User",
+      "paged": false,
+      "suffix": "/api/core/v3/people/{Person ID}/expertise/endorse"
+    },
+    {
+      "name": "Tasks",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/tasks?filter={Filter?:completed}&fields={Fields?}"
+    },
+    {
+      "name": "Terms And Conditions",
+      "paged": false,
+      "suffix": "/api/core/v3/people/{Person ID}/termsAndConditions"
+    },
+    {
+      "name": "Top Expertise",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/expertise/top"
+    },
+    {
+      "name": "Trending Content for Person",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/@trendingContent?fields={Fields?}&abridged={Abridged?:false|true}&fallback={Fallback?:false|true}"
+    },
+    {
+      "name": "Trending People",
+      "paged": false,
+      "suffix": "/api/core/v3/people/trending?filter={Filter?:place}&fields={Fields?}"
+    },
+    {
+      "name": "Trending Places for Person",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/@trendingPlaces?fields={Fields?}&fallback={Fallback?:false|true}"
+    },
+    {
+      "name": "Users by Expertise",
+      "paged": true,
+      "suffix": "/api/core/v3/people/expertise/{Tag Name}?fields={Fields?}"
+    },
+    {
+      "name": "Who Endorsed",
+      "paged": true,
+      "suffix": "/api/core/v3/people/{Person ID}/expertise/endorsers/{Tag Name}?fields={Fields?}"
+    },
+    {
+      "name": "Place Activity",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/activities?filter={Filter?}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}"
+    },
+    {
+      "name": "Place Applied Entitlements",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/appliedEntitlements?fields={Fields?}"
+    },
+    {
+      "name": "Place Content",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/contents?filter={Filter?:type}&fields={Fields?}&abridged={Abridged?:false|true}"
+    },
+    {
+      "name": "Place Featured Content",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/contents/featured?filter={Filter?:type}&fields={Fields?}&abridged={Abridged?:false|true}"
+    },
+    {
+      "name": "Place",
+      "paged": false,
+      "suffix": "/api/core/v3/places/{Place ID}?fields={Fields?}"
+    },
+    {
+      "name": "Place Announcements",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/announcements?fields={Fields?}&activeOnly={Active Only?:false|true}"
+    },
+    {
+      "name": "Place Avatar",
+      "paged": false,
+      "suffix": "/api/core/v3/places/{Place ID}/avatar?size={Size?:large|medium|small}"
+    },
+    {
+      "name": "Place Categories",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/categories?fields={Fields?}"
+    },
+    {
+      "name": "Place Category",
+      "paged": false,
+      "suffix": "/api/core/v3/places/{Place ID}/categories/{Category ID}?fields={Fields?}"
+    },
+    {
+      "name": "Place Followers",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/followers?fields={Fields?}"
+    },
+    {
+      "name": "Place Following In",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/followingIn?fields={Fields?}"
+    },
+    {
+      "name": "Place Permissions",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/permissions"
+    },
+    {
+      "name": "Place Places",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/places?filter={Filter?:type|search|tag}&fields={Fields?}"
+    },
+    {
+      "name": "Places",
+      "paged": true,
+      "suffix": "/api/core/v3/places?filter={Filter?:type|search|tag|relationship|entityDescriptor}&fields={Fields?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Event Calendar",
+            "Place Invites",
+            "Members by Group",
+            "Place Activity",
+            "Place Applied Entitlements",
+            "Place Content",
+            "Place Featured Content",
+            "Place",
+            "Place Announcements",
+            "Place Avatar",
+            "Place Categories",
+            "Place Category",
+            "Place Followers",
+            "Place Following In",
+            "Place Permissions",
+            "Place Places",
+            "Place Settings",
+            "Place Statics",
+            "Place Suggested Places",
+            "Place Tasks"
+          ],
+          "jsonPath": "$.list.*",
+          "key": "placeId",
+          "parameterName": "Place ID"
+        }
+      ]
+    },
+    {
+      "name": "Place Settings",
+      "paged": false,
+      "suffix": "/api/core/v3/places/{Place ID}/settings"
+    },
+    {
+      "name": "Place Statics",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/statics?fields={Fields?}"
+    },
+    {
+      "name": "Place Suggested Places",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/suggested/{Content Type}?filter={Filter?:type}&fields={Fields?}"
+    },
+    {
+      "name": "Place Tasks",
+      "paged": true,
+      "suffix": "/api/core/v3/places/{Place ID}/tasks?fields={Fields?}"
+    },
+    {
+      "name": "Recommended Places",
+      "paged": true,
+      "suffix": "/api/core/v3/places/recommended?fields={Fields?}"
+    },
+    {
+      "name": "Root Space",
+      "paged": false,
+      "suffix": "/api/core/v3/places/root?fields={Fields?}"
+    },
+    {
+      "name": "Suggested Places",
+      "paged": true,
+      "suffix": "/api/core/v3/places/suggested/{Content Type}?filter={Filter?:type}&fields={Fields?}"
+    },
+    {
+      "name": "Trending Places",
+      "paged": true,
+      "suffix": "/api/core/v3/places/trending?fields={Fields?}"
+    },
+    {
+      "name": "Place Template Categories",
+      "paged": true,
+      "suffix": "/api/core/v3/placeTemplateCategories?filter={Filter?:templateState}&fields={Fields?}"
+    },
+    {
+      "name": "Place Template Category",
+      "paged": false,
+      "suffix": "/api/core/v3/placeTemplateCategories/{Category ID}"
+    },
+    {
+      "name": "Place Template",
+      "paged": false,
+      "suffix": "/api/core/v3/placeTemplates/{Place Template ID}?fields={Fields?}"
+    },
+    {
+      "name": "Place Templates",
+      "paged": true,
+      "suffix": "/api/core/v3/placeTemplates?filter={Filter?:author|name|displayName|global|state}&fields={Fields?}"
+    },
+    {
+      "name": "Place Topic",
+      "paged": false,
+      "suffix": "/api/core/v3/placeTopics/{Topic ID}?fields={Fields?}"
+    },
+    {
+      "name": "Place Topics",
+      "paged": true,
+      "suffix": "/api/core/v3/placeTopics"
+    },
+    {
+      "name": "Publication",
+      "paged": false,
+      "suffix": "/api/core/v3/publications/{Publication ID}?fields={Fields?}"
+    },
+    {
+      "name": "Publications",
+      "paged": true,
+      "suffix": "/api/core/v3/publications?fields={Fields?}"
+    },
+    {
+      "name": "Subscriber Users",
+      "paged": true,
+      "suffix": "/api/core/v3/publications/{Publication ID}/subscriptions/{Subscription ID}/subscribers?fields={Fields?}"
+    },
+    {
+      "name": "Have Same Questions",
+      "paged": true,
+      "suffix": "/api/core/v3/questions/{Content ID}/sameQuestion?fields={Fields?}"
+    },
+    {
+      "name": "RSVP Invitees",
+      "paged": true,
+      "suffix": "/api/core/v3/rsvp/{Event ID}/invitees"
+    },
+    {
+      "name": "RSVP Maybe Attendees",
+      "paged": true,
+      "suffix": "/api/core/v3/rsvp/{Event ID}/attendees/maybe"
+    },
+    {
+      "name": "RSVP No Attendees",
+      "paged": true,
+      "suffix": "/api/core/v3/rsvp/{Event ID}/attendees/no"
+    },
+    {
+      "name": "RSVP Events",
+      "paged": true,
+      "suffix": "/api/core/v3/rsvp/{Event ID}"
+    },
+    {
+      "name": "RSVP Yes Attendees",
+      "paged": true,
+      "suffix": "/api/core/v3/rsvp/{Event ID}/attendees/yes"
+    },
+    {
+      "name": "Search Contents",
+      "paged": true,
+      "suffix": "/api/core/v3/search/contents?filter={Filter?}&fields={Fields?}&directive={Directive?:include_rtc}&collapse={Collapse?:false|true}&highlight={Highlight?:false|true}&socialSearch={Social Search?:false|true}&returnScore={Score?:false|true}&origin={Origin?}&includeCategoryFacets={Include Facets?:false|true}"
+    },
+    {
+      "name": "Search People",
+      "paged": true,
+      "suffix": "/api/core/v3/search/people?filter={Filter?}&fields={Fields?}&origin={Origin?}&viewContentURI={URI?}"
+    },
+    {
+      "name": "Search Places",
+      "paged": true,
+      "suffix": "/api/core/v3/search/places?filter={Filter?:nameonly|search}&fields={Fields?}&collapse={Collapse?:false|true}&highlight={Highlight?:false|true}&socialSearch={Social Search?:false|true}&returnScore={Score?:false|true}&origin={Origin?}"
+    },
+    {
+      "name": "Search Tags",
+      "paged": true,
+      "suffix": "/api/core/v3/search/tags?filter={Filter?:search}&origin={Origin?}"
+    },
+    {
+      "name": "Section Avatar",
+      "paged": false,
+      "suffix": "/api/core/v3/sections/{Section ID}/avatar?size={Size?:large|medium|small}"
+    },
+    {
+      "name": "Section",
+      "paged": false,
+      "suffix": "/api/core/v3/sections/{Section ID}?fields={Fields?}"
+    },
+    {
+      "name": "Sections",
+      "paged": true,
+      "suffix": "/api/core/v3/sections?fields={Fields?}"
+    },
+    {
+      "name": "Group Administrators",
+      "paged": true,
+      "suffix": "/api/core/v3/securityGroups/{Group ID}/administrators?fields={Fields?}"
+    },
+    {
+      "name": "Group Member",
+      "paged": false,
+      "suffix": "/api/core/v3/securityGroups/{Group ID}/members/{Person ID}"
+    },
+    {
+      "name": "Group Members",
+      "paged": true,
+      "suffix": "/api/core/v3/securityGroups/{Group ID}/members?fields={Fields?}"
+    },
+    {
+      "name": "Security Group by Name",
+      "paged": false,
+      "suffix": "/api/core/v3/securityGroups/name/{Group Name}?fields={Fields?}"
+    },
+    {
+      "name": "Security Groups",
+      "paged": true,
+      "suffix": "/api/core/v3/securityGroups?filter={Filter?:updated}&fields={Fields?}"
+    },
+    {
+      "name": "Share",
+      "paged": false,
+      "suffix": "/api/core/v3/shares/{Share ID}?fields={Fields?}"
+    },
+    {
+      "name": "Slide",
+      "paged": false,
+      "suffix": "/api/core/v3/slides/{Slide ID}?fields={Fields?}"
+    },
+    {
+      "name": "Slides",
+      "paged": true,
+      "suffix": "/api/core/v3/slides"
+    },
+    {
+      "name": "Banner",
+      "paged": true,
+      "suffix": "/api/core/v3/solutions/supportCenter/banner?fields={Fields?}"
+    },
+    {
+      "name": "Channels",
+      "paged": true,
+      "suffix": "/api/core/v3/solutions/supportCenter/channels?fields={Fields?}"
+    },
+    {
+      "name": "Support Center Section",
+      "paged": false,
+      "suffix": "/api/core/v3/solutions/supportCenter/sections/{Section ID}?fields={Fields?}"
+    },
+    {
+      "name": "Support Center Sections",
+      "paged": true,
+      "suffix": "/api/core/v3/solutions/supportCenter/sections?fields={Fields?}"
+    },
+    {
+      "name": "Support Center Categories",
+      "paged": true,
+      "suffix": "/api/core/v3/solutions/supportCenter/categories"
+    },
+    {
+      "name": "Stage",
+      "paged": false,
+      "suffix": "/api/core/v3/stages/{Stage ID}?fields={Fields?}"
+    },
+    {
+      "name": "Stages",
+      "paged": true,
+      "suffix": "/api/core/v3/stages?fields={Fields?}"
+    },
+    {
+      "name": "Static",
+      "paged": false,
+      "suffix": "/api/core/v3/statics/{Static ID}?fields={Fields?}"
+    },
+    {
+      "name": "Statics",
+      "paged": true,
+      "suffix": "/api/core/v3/statics?filter={Filter?}&fields={Fields?}"
+    },
+    {
+      "name": "Stream Comments",
+      "paged": true,
+      "suffix": "/api/core/v3/streamEntries/{Entry ID}/comments?filter={Filter?}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}"
+    },
+    {
+      "name": "Stream Likes",
+      "paged": true,
+      "suffix": "/api/core/v3/streamEntries/{Entry ID}/likes?fields={Fields?}"
+    },
+    {
+      "name": "Stream Activity",
+      "paged": true,
+      "suffix": "/api/core/v3/streams/{Stream ID}/activities?filter={Filter?:author|notifications|object|type|unread|verb}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}&updateLastRead={Update Last Read?:false|true}"
+    },
+    {
+      "name": "Stream Activity Count",
+      "paged": false,
+      "suffix": "/api/core/v3/streams/{Stream ID}/activities/count?after={After?:yyyy-MM-ddTHH:mm:ssZ}&max={Max Number?}&exclude={Exclude?:false|true}"
+    },
+    {
+      "name": "Stream Association",
+      "paged": false,
+      "suffix": "/api/core/v3/streams/{Stream ID}/associations/{Object Type}/{Object ID}?fields={Fields?}"
+    },
+    {
+      "name": "Stream Associations",
+      "paged": true,
+      "suffix": "/api/core/v3/streams/{Stream ID}/associations?filter={Filter?:type}&fields={Fields?}"
+    },
+    {
+      "name": "Connections Activity",
+      "paged": true,
+      "suffix": "/api/core/v3/streams/connections/activities?filter={Filter?:author|notifications|object|type|unread|verb}&before={Before?:yyyy-MM-ddT'HH:mm:ssZ}&after={After?:yyyy-MM-dd'T'HH:mm:ssZ}&fields={Fields?}&collapse={Collapse?:false|true}&oldestUnread={Oldest Unread?:false|true}"
+    },
+    {
+      "name": "Stream",
+      "paged": false,
+      "suffix": "/api/core/v3/streams/{Stream ID}?fields={Fields?}"
+    },
+    {
+      "name": "Tag",
+      "paged": true,
+      "suffix": "/api/core/v3/tags/{Tag ID}?fields={Fields?}"
+    },
+    {
+      "name": "Tile Definition",
+      "paged": false,
+      "suffix": "/api/core/v3/tileDefs/{Tile ID}?fields={Fields?}"
+    },
+    {
+      "name": "Tile Definition I18n Resource",
+      "paged": false,
+      "suffix": "/api/core/v3/tileDefs/{Tile ID}/i18n/{Language?}/{Country?}"
+    },
+    {
+      "name": "Tile Definition Instances",
+      "paged": true,
+      "suffix": "/api/core/v3/tileDefs?filter={Filter?:name|addonUUID|state}&fields={Fields?}"
+    },
+    {
+      "name": "Tile Definition Prototype",
+      "paged": false,
+      "suffix": "/api/core/v3/tileDefs/{Tile ID}/prototype?fields={Fields?}"
+    },
+    {
+      "name": "Tile Definition Categories",
+      "paged": true,
+      "suffix": "/api/core/v3/tileDefs/categories?filter={Filter?:tileState}&fields={Fields?}"
+    },
+    {
+      "name": "Tile Definition Category",
+      "paged": false,
+      "suffix": "/api/core/v3/tileDefs/category/{Tile Category ID}?fields={Fields?}"
+    },
+    {
+      "name": "Tile Instance",
+      "paged": false,
+      "suffix": "/api/core/v3/tiles/{Instance ID}?fields={Fields?}"
+    },
+    {
+      "name": "Tile Instance by External ID",
+      "paged": false,
+      "suffix": "/api/core/v3/tiles/external/{Extension UUID}/{External ID}"
+    },
+    {
+      "name": "Tile Instance Data",
+      "paged": false,
+      "suffix": "/api/core/v3/tiles/{Instance ID}/data"
+    },
+    {
+      "name": "Tile Instances",
+      "paged": true,
+      "suffix": "/api/core/v3/tiles?filter={Filter?:tilePage}&fields={Fields?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Tile Instance",
+            "Tile Instance Data",
+            "Tile Private Properties"
+          ],
+          "jsonPath": "$.list.*",
+          "key": "id",
+          "parameterName": "Instance ID"
+        }
+      ]
+    },
+    {
+      "name": "Tile Private Properties",
+      "paged": true,
+      "suffix": "/api/core/v3/tiles/{Instance ID}/privateprops"
+    },
+    {
+      "name": "Tile Categories",
+      "paged": true,
+      "suffix": "/api/core/v3/tiles/categories?filter={Filter?:tilePage}&fields={Fields?}"
+    },
+    {
+      "name": "Tile Category",
+      "paged": false,
+      "suffix": "/api/core/v3/tiles/categories/{Tile Category ID}"
+    },
+    {
+      "name": "URL Comments",
+      "paged": true,
+      "suffix": "/api/core/v3/urls/{URL ID}/comments?filter={Filter?:type}&fields={Fields?}&anchor={Anchor?}&excludeReplies={Exclude Replies?:false|true}&hierarchical={Hierarchical?:true|false}"
+    },
+    {
+      "name": "Content External URLs",
+      "paged": true,
+      "suffix": "/api/core/v3/urls/contents/{Content ID}?fields={Fields?}"
+    },
+    {
+      "name": "External URL",
+      "paged": false,
+      "suffix": "/api/core/v3/urls/{URL ID}"
+    },
+    {
+      "name": "Version",
+      "paged": false,
+      "suffix": "/api/core/v3/versions/{Content ID}/{Version Number}"
+    },
+    {
+      "name": "Versions",
+      "paged": true,
+      "suffix": "/api/core/v3/versions/{Content ID}?fields={Fields?}"
+    },
+    {
+      "name": "Download Options",
+      "paged": false,
+      "suffix": "/api/core/v3/videos/downloadOptions/{Video ID}"
+    },
+    {
+      "name": "Vitals",
+      "paged": true,
+      "suffix": "/api/core/v3/vitals"
+    },
+    {
+      "name": "Votes",
+      "paged": true,
+      "suffix": "/api/core/v3/votes/{Content ID}"
+    }
+  ]
+}

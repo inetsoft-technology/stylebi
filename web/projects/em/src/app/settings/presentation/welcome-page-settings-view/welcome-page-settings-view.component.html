@@ -1,0 +1,62 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="!!model">
+  <mat-card appearance="outlined" class="em-card">
+    <mat-card-title>
+      _#(Welcome Page)
+    </mat-card-title>
+    <mat-card-content>
+      <form [formGroup]="form">
+        <mat-radio-group formControlName="type" (change)="changeType($event.value)" class="flex-col">
+          <mat-radio-button [value]="WelcomeType.NONE"
+                            class="margin-bottom-sm flex">_#(None)
+          </mat-radio-button>
+
+          <mat-radio-button [value]="WelcomeType.URI"
+                            class=" margin-bottom-sm flex flex-row">_#(URI)
+          </mat-radio-button>
+          <mat-form-field *ngIf="model.type === WelcomeType.URI"
+                          class="margin-left margin-bottom"
+                          appearance="outline" color="accent">
+            <mat-label>_#(URI)</mat-label>
+            <input matInput formControlName="source" (keyup)="updateSource($event.target.value)">
+            <mat-error *ngIf="form.controls['source'].errors && form.controls['source'].errors['required']">
+              _#(em.portalTheme.welcomePage.invalidURI)
+            </mat-error>
+          </mat-form-field>
+
+          <mat-radio-button [value]="WelcomeType.RESOURCE"
+                            class="margin-bottom-sm flex">_#(Resource)
+          </mat-radio-button>
+          <mat-form-field *ngIf="model.type == WelcomeType.RESOURCE" class="margin-left"
+                          appearance="outline" color="accent">
+            <mat-label>_#(Resource)</mat-label>
+            <input matInput formControlName="source" (input)="updateSource($event.target.value)">
+            <mat-error *ngIf="form.controls['source'].errors && form.controls['source'].errors['required']">
+              _#(em.portalTheme.welcomePage.invalidResource)
+            </mat-error>
+          </mat-form-field>
+
+        </mat-radio-group>
+      </form>
+
+    </mat-card-content>
+  </mat-card>
+</ng-container>

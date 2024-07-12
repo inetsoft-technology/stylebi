@@ -1,0 +1,72 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:071db8d0-ce09-4653-a8e7-70f837d3ba1d",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2023-04-18T20:28:58Z",
+    "tools": [
+      {
+        "vendor": "OWASP",
+        "name": "Dependency-Track",
+        "version": "4.7.1"
+      }
+    ],
+    "component": {
+      "name": "inetsoft-sharepoint-online",
+      "version": "13.7",
+      "type": "library",
+      "bom-ref": "0729b209-f624-477a-a030-4a5388e70a26"
+    }
+  },
+  "vulnerabilities": [
+    {
+      "bom-ref": "54c3045c-3635-4e32-bb67-da6f7db2c7ab",
+      "id": "CVE-2020-8908",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 2.1,
+          "severity": "low",
+          "method": "CVSSv2",
+          "vector": "(AV:L/AC:L/Au:N/C:P/I:N/A:N)"
+        },
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 3.3,
+          "severity": "low",
+          "method": "CVSSv3",
+          "vector": "CVSS:3.0/AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N"
+        }
+      ],
+      "cwes": [
+        732
+      ],
+      "description": "A temp directory creation vulnerability exists in all versions of Guava, allowing an attacker with access to the machine to potentially access data in a temporary directory created by the Guava API com.google.common.io.Files.createTempDir(). By default, on unix-like systems, the created directory is world-readable (readable by an attacker with access to the system). The method in question has been marked @Deprecated in versions 30.0 and later and should not be used. For Android developers, we recommend choosing a temporary directory API provided by Android, such as context.getCacheDir(). For other Java developers, we recommend migrating to the Java 7 API java.nio.file.Files.createTempDirectory() which explicitly configures permissions of 700, or configuring the Java runtime's java.io.tmpdir system property to point to a location whose permissions are appropriately configured.",
+      "published": "2020-12-10T23:15:00Z",
+      "updated": "2022-05-10T15:21:00Z",
+      "analysis": {
+        "state": "resolved",
+        "response": [
+          "workaround_available"
+        ],
+        "detail": "Set the java.io.tmpdir system property to a safe directory."
+      },
+      "affects": [
+        {
+          "ref": "0729b209-f624-477a-a030-4a5388e70a26"
+        }
+      ]
+    }
+  ]
+}

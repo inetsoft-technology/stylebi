@@ -1,0 +1,62 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<fieldset>
+  <legend>_#(Existing MVs):</legend>
+  <div class="form-row-float-label table-style">
+    <table class="table table-bordered table-sm w-100 mv-table">
+      <thead class="thead-light">
+        <tr>
+          <th class="table-header">
+            <input type="checkbox"
+                   [ngModel]="isModelAllSelected()" (ngModelChange)="selectionAll($event)">
+          </th>
+          <th class="table-header" *ngFor="let header of tableHeaders" sortColumn
+              [sortKey]="header.name" [data]="models" [sortType]="sortType"
+              (sortTypeChanged)="changeSortType($event)">{{header.label}}
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let model of models; let i = index">
+          <td><input type="checkbox" [ngModel]="isModelSelected(model)" (ngModelChange)="selectionChanged($event, model)"></td>
+          <td *ngFor="let header of tableHeaders">{{model[header.name]}}</td>
+        </tr>
+        <tr *ngIf="!models || models.length == 0">
+          <td class="text-center align-middle mv-empty-warning" colspan="12">
+            <span class="invalid-feedback">_#(viewer.viewsheet.materialization.noMVs)</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</fieldset>
+<fieldset *ngIf="isFullDataVisible() || securityEnabled">
+  <legend>_#(MV Analysis Options):</legend>
+  <div class="form-row-float-label" *ngIf="isFullDataVisible()">
+    <select class="form-control" [(ngModel)]="analyzeMVModel.fullData">
+      <option [ngValue]="true">
+        _#(em.mv.fullData)
+      </option>
+      <option [ngValue]="false">
+        _#(em.mv.minData)
+      </option>
+    </select>
+  </div>
+</fieldset>

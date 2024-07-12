@@ -1,0 +1,80 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="popup-editor__container">
+  <div class="popup-editor__button-group">
+    <button class="popup-editor__button btn" title="_#(Apply)"
+            (click)="onApply.emit(true)">
+      <i class="submit-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+  </div>
+  <button class="btn btn-default w-100" (click)="setDefault()">_#(Default)</button>
+  <div class="text-center">
+    <table class="binding-border-table">
+      <tr class="table-row-grid">
+        <td class="table-col-grid"></td>
+        <td class="table-col-grid">
+          <button class="toggle-btn border-top-icon" (click)="updateBorder('top')"
+                  [class.bg-selected]="selectedBorder.borderTop" data-test="border-top-button">
+          </button>
+        </td>
+        <td class="table-col-grid"></td>
+      </tr>
+      <tr class="table-row-grid">
+        <td class="table-col-grid">
+          <button class="toggle-btn border-left-icon" (click)="updateBorder('left')"
+                  [class.bg-selected]="selectedBorder.borderLeft" data-test="border-left-button">
+          </button>
+        </td>
+        <td class="table-col-grid">
+          <canvas #myCanvas (click)="selectAll()" data-test="select-all-canvas"></canvas>
+        </td>
+        <td class="table-col-grid">
+          <button class="toggle-btn border-right-icon" (click)="updateBorder('right')"
+                  [class.bg-selected]="selectedBorder.borderRight" data-test="border-right-button">
+          </button>
+        </td>
+      </tr>
+      <tr class="table-row-grid">
+        <td class="table-col-grid"></td>
+        <td>
+          <button class="toggle-btn border-bottom-icon" (click)="updateBorder('bottom')"
+                  [class.bg-selected]="selectedBorder.borderBottom" data-test="border-bottom-button">
+          </button>
+        </td>
+        <td class="table-col-grid"></td>
+      </tr>
+    </table>
+  </div>
+  <div class="form-row m-0 mt-1">
+    <div class="col" [class.composer-pane]="composerPane">
+      <border-style-pane class="w-100" [formatModel]="formatModel"
+                         [selectedBorder]="selectedBorder"
+                         [composerPane]="composerPane" (onClick)="selectBorderStyle($event)">
+      </border-style-pane>
+    </div>
+    <div class="col-auto">
+      <color-dropdown [color]="currentColor.colorString"
+                      [enabled]="!isNullSelectedBorder()" *ngIf="composerPane"
+                      [transEnabled]="false" (colorChange)="repaintBorder($event)"
+                      data-test="border-color-dropdown">
+      </color-dropdown>
+    </div>
+  </div>
+</div>

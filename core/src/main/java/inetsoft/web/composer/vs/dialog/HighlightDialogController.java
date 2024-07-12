@@ -1,0 +1,614 @@
+/*
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+package inetsoft.web.composer.vs.dialog;
+
+import inetsoft.analytic.composition.ViewsheetService;
+import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.graph.data.BoxDataSet;
+import inetsoft.report.TableDataPath;
+import inetsoft.report.TableLens;
+import inetsoft.report.composition.*;
+import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.report.composition.graph.GraphTypeUtil;
+import inetsoft.report.composition.graph.GraphUtil;
+import inetsoft.report.filter.Highlight;
+import inetsoft.report.filter.HighlightGroup;
+import inetsoft.report.internal.table.RuntimeCalcTableLens;
+import inetsoft.report.internal.table.TableHighlightAttr;
+import inetsoft.sree.security.ResourceAction;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.asset.SourceInfo;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.erm.DataRef;
+import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.Tool;
+import inetsoft.web.binding.drm.ColumnRefModel;
+import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.model.*;
+import inetsoft.web.binding.service.DataRefModelFactoryService;
+import inetsoft.web.composer.model.condition.ConditionUtil;
+import inetsoft.web.composer.model.vs.*;
+import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
+import inetsoft.web.composer.vs.objects.controller.VSTrapService;
+import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.service.HighlightService;
+import inetsoft.web.viewsheet.LoadingMask;
+import inetsoft.web.viewsheet.Undoable;
+import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
+import inetsoft.web.viewsheet.service.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.messaging.handler.annotation.*;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
+
+import java.security.Principal;
+import java.util.*;
+
+/**
+ * Controller that provides the endpoints for the highlight dialog.
+ *
+ * @since 12.3
+ */
+@Controller
+public class HighlightDialogController {
+   /**
+    * Creates a new instance of <tt>HighlightDialogController</tt>.
+    *
+    * @param runtimeViewsheetRef RuntimeViewsheetRef instance
+    */
+   @Autowired
+   public HighlightDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
+      PlaceholderService placeholderService,
+      DataRefModelFactoryService dataRefModelFactoryService,
+      HighlightService highlightService,
+      VSObjectPropertyService vsObjectPropertyService,
+      ViewsheetService viewsheetService,
+      VSTrapService vsTrapService)
+   {
+      this.runtimeViewsheetRef = runtimeViewsheetRef;
+      this.placeholderService = placeholderService;
+      this.dataRefModelFactoryService = dataRefModelFactoryService;
+      this.highlightService = highlightService;
+      this.vsObjectPropertyService = vsObjectPropertyService;
+      this.viewsheetService = viewsheetService;
+      this.vsTrapService = vsTrapService;
+   }
+
+   /**
+    * Gets the model for the hyperlink dialog.
+    *
+    * @param objectId  the object identifier.
+    * @param row       the row of the selected cell.
+    * @param col       the column of the selected cell.
+    * @param colName   the measure name of the selected region.
+    * @param runtimeId the runtime identifier of the viewsheet.
+    * @param principal the user information.
+    * @return the model.
+    */
+   @RequestMapping(
+      value = "/api/composer/vs/highlight-dialog-model",
+      method = RequestMethod.GET
+   )
+   @ResponseBody
+   public HighlightDialogModel getHighlightDialogModel(
+      @RequestParam("objectId") String objectId,
+      @RequestParam(value = "row", required = false) Integer row,
+      @RequestParam(value = "col", required = false) Integer col,
+      @RequestParam(value = "colName", required = false) String colName,
+      @RequestParam(value = "isAxis", required = false) boolean isAxis,
+      @RequestParam(value = "isText", required = false) boolean isText,
+      @RequestParam("runtimeId") String runtimeId, Principal principal)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Viewsheet viewsheet = rvs.getViewsheet();
+      VSAssembly assembly = viewsheet.getAssembly(objectId);
+      VSAssemblyInfo assemblyInfo = assembly.getVSAssemblyInfo();
+      HighlightDialogModel model = new HighlightDialogModel();
+      DataRefModel[] fields = null;
+      String tableName = null;
+      VSTableLens lens = null;
+      TableDataPath dataPath = null;
+
+      if(assemblyInfo instanceof TableDataVSAssemblyInfo) {
+         lens = box.getVSTableLens(objectId, false);
+         dataPath = lens.getTableDataPath(row, col);
+
+         if(assemblyInfo instanceof TableVSAssemblyInfo) {
+            model.setTableAssembly(true);
+            model.setShowRow(true);
+
+            if(((TableVSAssemblyInfo) assemblyInfo).isForm()) {
+               FormTableLens formLens = box.getFormTableLens(objectId);
+
+               model.setConfirmChanges(formLens != null &&
+                                       formLens.getRowCount() != lens.getRowHeights().length);
+            }
+         }
+      }
+
+      Worksheet ws = viewsheet.getBaseWorksheet();
+
+      if(ws != null && assembly instanceof TableVSAssembly) {
+         TableVSAssembly table = (TableVSAssembly) assembly;
+         Assembly assembly0 = ws.getAssembly(table.getTableName() + "_O");
+
+         if(assembly0 instanceof BoundTableAssembly) {
+            model.setShowRow(!((BoundTableAssembly) assembly0).isCrosstab());
+         }
+      }
+
+      if(assemblyInfo instanceof DataVSAssemblyInfo) {
+         SourceInfo sourceInfo = ((DataVSAssemblyInfo) assemblyInfo).getSourceInfo();
+         ColumnSelection cols = null;
+
+         if(sourceInfo != null && sourceInfo.getSource() != null) {
+            tableName = sourceInfo.getSource();
+            model.setTableName(tableName);
+         }
+
+         if(ws != null && VSEventUtil.checkBaseWSPermission(
+            viewsheet, principal, viewsheetService.getAssetRepository(), ResourceAction.READ))
+         {
+            List<DataRef> refs = this.placeholderService.getRefsForVSAssembly(
+               rvs, assembly, row == null ? 0 : row, col == null ? 0 : col,
+               dataPath, colName, true);
+
+            if(refs.size() > 0) {
+               cols = new ColumnSelection();
+               refs.forEach(cols::addAttribute);
+
+               if(assemblyInfo instanceof ChartVSAssemblyInfo) {
+                  ChartDescriptor desc = ((ChartVSAssemblyInfo) assemblyInfo).getChartDescriptor();
+                  ChartInfo cinfo = ((ChartVSAssemblyInfo) assemblyInfo).getVSChartInfo();
+
+                  if(isText) {
+                     HighlightService.processStackMeasures(desc, cinfo, cols, colName);
+                  }
+
+                  if(colName != null && colName.startsWith(BoxDataSet.MAX_PREFIX)) {
+                     HighlightService.processBoxplot(cinfo, cols);
+                  }
+               }
+
+               if(assembly instanceof CalcTableVSAssembly) {
+                  TableLens table = (TableLens) box.getData(assembly.getAbsoluteName());
+
+                  if(table instanceof RuntimeCalcTableLens) {
+                     List<String> nonSupportBrowseFields = this.placeholderService.
+                        getNamedGroupFields((RuntimeCalcTableLens) table, refs);
+                     model.setNonsupportBrowseFields(nonSupportBrowseFields);
+                  }
+               }
+            }
+
+            if(cols != null) {
+               fields = ConditionUtil
+                  .getDataRefModelsFromColumnSelection(cols, dataRefModelFactoryService, 0);
+
+               for(int i = 0; i < fields.length; i++) {
+                  DataRefModel column = fields[i];
+
+                  if(column instanceof ColumnRefModel) {
+                     DataRefModel ref = ((ColumnRefModel) column).getDataRefModel();
+
+                     if(ref instanceof DateRangeRefModel) {
+                        String originalType = ((DateRangeRefModel) ref).getOriginalType();
+                        int option = ((DateRangeRefModel) ref).getOption();
+
+                        if(XSchema.TIME.equals(originalType) || XSchema.DATE.equals(originalType)) {
+                           fields[i].setDataType(DateRangeRef.getDataType(option, originalType));
+                        }
+                        else {
+                           fields[i].setDataType(ref.getDataType());
+                        }
+                     }
+                  }
+               }
+
+               model.setFields(fields);
+            }
+         }
+      }
+
+      List<HighlightModel> highlightModelList = new ArrayList<>();
+
+      if(assemblyInfo instanceof TableDataVSAssemblyInfo) {
+         model.setRow(row);
+         model.setCol(col);
+         TableHighlightAttr tableHighlightAttr = ((TableDataVSAssemblyInfo) assemblyInfo)
+            .getHighlightAttr();
+
+         if(tableHighlightAttr != null) {
+            HighlightGroup cells = tableHighlightAttr.getHighlight(dataPath);
+
+            if(cells != null && !cells.isEmpty()) {
+               for(String name : cells.getNames()) {
+                  Highlight cellHighlight = cells.getHighlight(name);
+                  HighlightModel highlightModel =
+                     highlightService.convertHighlightToModel(cellHighlight);
+                  VSConditionDialogModel vsConditionDialogModel = highlightModel
+                     .getVsConditionDialogModel();
+                  vsConditionDialogModel.setTableName(tableName);
+                  vsConditionDialogModel.setFields(fields);
+                  highlightModelList.add(highlightModel);
+               }
+            }
+
+            if(assemblyInfo instanceof TableVSAssemblyInfo) {
+               highlightService.getRowHighlight(tableHighlightAttr, highlightModelList, model,
+                                                dataPath, tableName, fields);
+            }
+         }
+      }
+      else {
+         HighlightGroup highlightGroup = null;
+
+         if(assemblyInfo instanceof ChartVSAssemblyInfo) {
+            model.setChartAssembly(true);
+            model.setMeasure(colName);
+            model.setAxis(isAxis);
+            model.setText(isText);
+            model.setShowFont(isText);
+            VSChartInfo chartInfo = ((ChartVSAssemblyInfo) assemblyInfo).getVSChartInfo();
+            HighlightRef highlightRef = (HighlightRef)
+               HyperlinkDialogController.getMeasure(chartInfo, colName, true, isAxis, isText);
+            boolean wordCloud = GraphTypeUtil.isWordCloud(chartInfo);
+            boolean boxplot = colName.startsWith(BoxDataSet.MAX_PREFIX);
+            boolean geo = GraphTypes.isGeo(chartInfo.getChartType());
+
+            if(highlightRef instanceof VSChartDimensionRef ||
+               highlightRef instanceof VSChartAggregateRef &&
+               ((VSChartAggregateRef) highlightRef).isDiscrete())
+            {
+               model.setShowFont(true);
+            }
+
+            if(isText && highlightRef != null) {
+               highlightGroup = GraphUtil.getTextHighlightGroup(highlightRef, chartInfo);
+            }
+            else if(highlightRef == null ||
+               (chartInfo instanceof MergedVSChartInfo &&
+                  !GraphTypes.isRadarOne(chartInfo)) &&
+                  !GraphTypes.isGantt(chartInfo.getChartType()) &&
+                  (((ChartRef) highlightRef).isMeasure() || geo))
+            {
+               if(isText) {
+                  highlightGroup = chartInfo.getTextHighlightGroup();
+               }
+               else {
+                  highlightGroup = chartInfo.getHighlightGroup();
+               }
+            }
+            else {
+               highlightGroup = highlightRef.getHighlightGroup();
+            }
+
+            boolean refOnAxis = Arrays.stream(chartInfo.getRTAxisFields())
+               .anyMatch(a -> a.equals(highlightRef));
+
+            if(boxplot && model.getFields() != null) {
+               // boxplot fields already set (with max/min/q75/q25/mid), don't override. (63113)
+            }
+            else if(!wordCloud && (!GraphTypes.isTreemap(chartInfo.getChartType()) &&
+               !GraphTypes.isRelation(chartInfo.getChartType()) || refOnAxis))
+            {
+               if(highlightRef instanceof VSChartDimensionRef) {
+                  DataRef hColumnRef = placeholderService.getDimensionColumnRef(highlightRef);
+                  highlightService.fixColumnDataType(hColumnRef);
+                  List<DataRefModel> fieldList = new ArrayList<>();
+                  fieldList.add(dataRefModelFactoryService.createDataRefModel(hColumnRef));
+
+                  // if select chart axis, should only do highlight on axis columns, if select plot
+                  // area, can do highlight not only the drill Members columns.
+                  if(!isAxis && !GraphTypes.isRelation(chartInfo.getChartType())) {
+                     // For a field with a drillMembers script which turns into multiple fields at
+                     // runtime. Get all the matching field names
+                     for(DataRef ref : chartInfo.getRTFields()) {
+                        if(ref instanceof VSChartDimensionRef) {
+                           VSChartDimensionRef dim = (VSChartDimensionRef) ref;
+
+                           // Do not add the same dimension.
+                           if(dim.equalsContent0(highlightRef, true)) {
+                              continue;
+                           }
+
+                           if(listContainsCol(fieldList, ref)) {
+                              continue;
+                           }
+
+                           if(!Tool.equals(((VSChartDimensionRef) highlightRef).getGroupColumnValue(),
+                              dim.getGroupColumnValue()) ||
+                              !Tool.equals(((VSChartDimensionRef) highlightRef).getFullName(),
+                              dim.getFullName()))
+                           {
+                              fieldList.add(dataRefModelFactoryService.createDataRefModel(ref));
+                           }
+                        }
+                        else if(ref instanceof VSChartAggregateRef) {
+                           VSChartAggregateRef agg = (VSChartAggregateRef) ref;
+
+                           // Do not add the same dimension.
+                           if(agg.equals(highlightRef, true)) {
+                              continue;
+                           }
+
+                           fieldList.add(dataRefModelFactoryService.createDataRefModel(ref));
+                        }
+                     }
+                  }
+
+                  fields = fieldList.toArray(new DataRefModel[fieldList.size()]);
+                  model.setFields(fields);
+               }
+               else if(highlightRef instanceof VSChartAggregateRef &&
+                  ((VSChartAggregateRef) highlightRef).isDiscrete())
+               {
+                  DataRefModel refModel =
+                     dataRefModelFactoryService.createDataRefModel(highlightRef);
+                  fields = new DataRefModel[]{ refModel };
+                  model.setFields(fields);
+               }
+               else if(highlightRef instanceof VSChartAggregateRef && boxplot) {
+
+               }
+            }
+         }
+         else if(assemblyInfo instanceof OutputVSAssemblyInfo) {
+            if(!(assemblyInfo instanceof TextVSAssemblyInfo)) {
+               model.setImageObj(true);
+            }
+
+            ScalarBindingInfo bindingInfo = ((OutputVSAssemblyInfo) assemblyInfo)
+               .getScalarBindingInfo();
+            String dtype = bindingInfo != null ? bindingInfo
+               .getColumnType() : XSchema.STRING;
+            ColumnRef valueRef = new ColumnRef(new AttributeRef(null, "value"));
+            valueRef.setDataType(dtype);
+            fields = new DataRefModel[]{dataRefModelFactoryService.createDataRefModel(
+               valueRef)};
+            model.setFields(fields);
+            highlightGroup = ((OutputVSAssemblyInfo) assemblyInfo).getHighlightGroup();
+         }
+
+         if(highlightGroup != null && !highlightGroup.isEmpty()) {
+            String[] names = highlightGroup.getNames();
+
+            for(String name : names) {
+               Highlight highlight = highlightGroup.getHighlight(name);
+               HighlightModel highlightModel = highlightService.convertHighlightToModel(highlight);
+               VSConditionDialogModel vsConditionDialogModel = highlightModel
+                  .getVsConditionDialogModel();
+               vsConditionDialogModel.setFields(fields);
+               vsConditionDialogModel.setTableName(tableName);
+               highlightModelList.add(highlightModel);
+            }
+         }
+      }
+
+      model.setHighlights(highlightModelList.toArray(new HighlightModel[0]));
+      return model;
+   }
+
+   private boolean listContainsCol(List<DataRefModel> list, DataRef ref) {
+      for(int i = 0; i < list.size(); i++) {
+         DataRefModel refModel = list.get(i);
+
+         if(refModel instanceof BDimensionRefModel && ref instanceof VSChartDimensionRef) {
+            VSChartDimensionRef dim = (VSChartDimensionRef) ref;
+            BDimensionRefModel bdim = (BDimensionRefModel) refModel;
+
+            if(Tool.equals(bdim.getName(), dim.getName()) &&
+               Tool.equals(bdim.getFullName(), dim.getFullName()))
+            {
+               return true;
+            }
+         }
+         else if(refModel instanceof BAggregateRefModel && ref instanceof VSChartAggregateRef) {
+            VSChartAggregateRef agg = (VSChartAggregateRef) ref;
+            BAggregateRefModel bagg = (BAggregateRefModel) refModel;
+
+            if(Tool.equals(bagg.getName(), agg.getName()) &&
+               Tool.equals(bagg.getFullName(), agg.getFullName()))
+            {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
+   @Undoable
+   @LoadingMask
+   @MessageMapping("/composer/vs/highlight-dialog-model/{objectId}")
+   public void setHighlightDialogModel(@DestinationVariable("objectId") String objectId,
+      @Payload HighlightDialogModel model,
+      @LinkUri String linkUri,
+      Principal principal,
+      CommandDispatcher dispatcher)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService
+         .getViewsheet(this.runtimeViewsheetRef.getRuntimeId(),
+            principal);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      Viewsheet viewsheet = rvs.getViewsheet();
+      VSAssembly assembly = viewsheet.getAssembly(objectId);
+      VSAssemblyInfo oldAssemblyInfo = assembly.getVSAssemblyInfo();
+      VSAssemblyInfo assemblyInfo = updateHighlights(model, oldAssemblyInfo, box, principal);
+
+      this.vsObjectPropertyService.editObjectProperty(
+         rvs, assemblyInfo, objectId, objectId, linkUri, principal, dispatcher);
+   }
+
+   /**
+    * Check whether the conditions set for highlight cause a trap.
+    *
+    * @param model     the model containing the hyperlink model
+    * @param objectId  the object id
+    * @param runtimeId the runtime id
+    * @param principal the user principal
+    *
+    * @return the table trap model stating whether or not here is a trap.
+    */
+   @PostMapping("/api/composer/viewsheet/check-highlight-dialog-trap/{objectId}/**")
+   @ResponseBody
+   public VSTableTrapModel checkVSTableTrap(
+      @RequestBody() HighlightDialogModel model,
+      @PathVariable("objectId") String objectId,
+      @RemainingPath String runtimeId,
+      Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      Viewsheet vs = rvs.getViewsheet();
+      VSAssembly assembly = (VSAssembly) vs.getAssembly(objectId);
+      ViewsheetSandbox box = rvs.getViewsheetSandbox();
+
+      if(!(assembly instanceof TableVSAssembly)) {
+         return VSTableTrapModel.builder()
+            .showTrap(false)
+            .build();
+      }
+
+      TableVSAssemblyInfo oinfo = (TableVSAssemblyInfo) assembly.getInfo().clone();
+      VSAssemblyInfo ninfo = updateHighlights(model, oinfo, box, principal);
+      assembly.setVSAssemblyInfo(ninfo);
+
+      VSTableTrapModel result = vsTrapService.checkTrap(rvs, oinfo, ninfo);
+      assembly.setVSAssemblyInfo(oinfo);
+
+      return result;
+   }
+
+   private VSAssemblyInfo updateHighlights(HighlightDialogModel model,
+                                           VSAssemblyInfo oldAssemblyInfo,
+                                           ViewsheetSandbox box, Principal principal)
+      throws Exception
+   {
+      VSAssemblyInfo assemblyInfo = (VSAssemblyInfo) Tool.clone(oldAssemblyInfo);
+      HighlightModel[] highlights = model.getHighlights();
+
+      if(assemblyInfo instanceof TableDataVSAssemblyInfo) {
+         VSTableLens lens = box.getVSTableLens(oldAssemblyInfo.getAbsoluteName(), false);
+         TableDataPath dataPath = lens.getTableDataPath(model.getRow(), model.getCol());
+         TableHighlightAttr tableHighlightAttr = ((TableDataVSAssemblyInfo) assemblyInfo)
+            .getHighlightAttr();
+
+         if(tableHighlightAttr == null) {
+            tableHighlightAttr = new TableHighlightAttr();
+            ((TableDataVSAssemblyInfo) assemblyInfo).setHighlightAttr(tableHighlightAttr);
+         }
+
+         HighlightGroup cells = tableHighlightAttr.getHighlight(dataPath);
+         cells = cells == null ? new HighlightGroup() : cells;
+         cells.removeHighlights(HighlightGroup.DEFAULT_LEVEL);
+
+         for(HighlightModel highlightModel : highlights) {
+            if(!highlightModel.isApplyRow()) {
+               cells.addHighlight(highlightModel.getName(),
+                  highlightService.convertModelToHighlight(highlightModel, principal));
+            }
+         }
+
+         tableHighlightAttr.setHighlight(dataPath, cells);
+
+         if(assemblyInfo instanceof TableVSAssemblyInfo) {
+            highlightService.applyToRowHighlight(tableHighlightAttr,
+                                                 dataPath, highlights, principal);
+         }
+      }
+      else if(assemblyInfo instanceof ChartVSAssemblyInfo) {
+         VSChartInfo chartInfo = ((ChartVSAssemblyInfo) assemblyInfo).getVSChartInfo();
+         HighlightGroup highlightGroup = null;
+         HighlightRef highlightRef = (HighlightRef)
+            HyperlinkDialogController.getMeasure(chartInfo, model.getMeasure(), false,
+                                                 model.isAxis(), model.isText());
+         boolean geo = GraphTypes.isGeo(chartInfo.getChartType());
+         // true to use highlight in chartInfo.
+         boolean infoHL = highlightRef == null || (chartInfo instanceof MergedVSChartInfo &&
+            !GraphTypes.isRadarOne(chartInfo) &&
+            !GraphTypes.isGantt(chartInfo.getChartType())) &&
+            (((ChartRef) highlightRef).isMeasure() || geo);
+
+         if(model.isText() && highlightRef != null) {
+            highlightGroup = GraphUtil.getTextHighlightGroup(highlightRef, chartInfo);
+         }
+         else if(infoHL) {
+            highlightGroup = model.isText() ? chartInfo.getTextHighlightGroup()
+               : chartInfo.getHighlightGroup();
+         }
+         else {
+            highlightGroup = highlightRef.getHighlightGroup();
+         }
+
+         highlightGroup = highlightGroup == null ? new HighlightGroup() : highlightGroup;
+         highlightGroup.removeHighlights(HighlightGroup.DEFAULT_LEVEL);
+
+         for(HighlightModel highlightModel : highlights) {
+            highlightGroup.addHighlight(highlightModel.getName(),
+               highlightService.convertModelToHighlight(highlightModel, principal));
+         }
+
+         if(model.isText() && highlightRef != null) {
+            GraphUtil.setTextHighlightGroup(highlightRef, chartInfo, highlightGroup);
+         }
+         else if(infoHL) {
+            if(model.isText()) {
+               chartInfo.setTextHighlightGroup(highlightGroup);
+            }
+            else {
+               chartInfo.setHighlightGroup(highlightGroup);
+            }
+         }
+         else {
+            highlightRef.setHighlightGroup(highlightGroup);
+         }
+
+         chartInfo.clearRuntime();
+      }
+      else if(assemblyInfo instanceof OutputVSAssemblyInfo) {
+         HighlightGroup highlightGroup = ((OutputVSAssemblyInfo) assemblyInfo)
+            .getHighlightGroup();
+         highlightGroup = highlightGroup == null ? new HighlightGroup() : highlightGroup;
+         highlightGroup.removeHighlights(HighlightGroup.DEFAULT_LEVEL);
+
+         for(HighlightModel highlightModel : highlights) {
+            highlightGroup.addHighlight(highlightModel.getName(),
+               highlightService.convertModelToHighlight(highlightModel, principal));
+         }
+
+         ((OutputVSAssemblyInfo) assemblyInfo).setHighlightGroup(highlightGroup);
+      }
+
+      return assemblyInfo;
+   }
+
+   private final RuntimeViewsheetRef runtimeViewsheetRef;
+   private final PlaceholderService placeholderService;
+   private final DataRefModelFactoryService dataRefModelFactoryService;
+   private final HighlightService highlightService;
+   private final VSObjectPropertyService vsObjectPropertyService;
+   private final ViewsheetService viewsheetService;
+   private final VSTrapService vsTrapService;
+}

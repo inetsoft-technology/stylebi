@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" *ngIf="theme">
+  <mat-card-content>
+    <form [formGroup]="form">
+      <div class="flex-col">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Name)</mat-label>
+          <input matInput placeholder="_#(Name)" formControlName="name">
+          <mat-error *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']">
+            _#(viewer.nameValid)
+          </mat-error>
+          <mat-error *ngIf="form.controls['name'].errors && form.controls['name'].errors['duplicateName']">
+            _#(em.presentation.theme.duplicateName)
+          </mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Theme JAR File)</mat-label>
+          <em-file-chooser [hidden]="form.disabled" formControlName="jar" placeholder="_#(Theme JAR File)" accept=".jar"></em-file-chooser>
+          <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+          <mat-error *ngIf="form.controls.jar?.errors?.required">_#(em.laf.theme.jarRequired)</mat-error>
+        </mat-form-field>
+        <mat-checkbox class="mat-checkbox-field" formControlName="defaultTheme">
+          _#(Default)
+        </mat-checkbox>
+        <mat-checkbox class="mat-checkbox-field" formControlName="globalTheme">
+          _#(Global)
+        </mat-checkbox>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

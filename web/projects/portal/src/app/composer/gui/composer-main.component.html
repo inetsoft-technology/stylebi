@@ -1,0 +1,350 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="outer-scroll">
+   <div class="full-view-container" [class.format-painter-mode]="isFormatPainterMode"
+        [ngStyle]="{display: fullViewVisible() ? '' : 'none'}">
+     <div class="header composer-header">
+       <composer-toolbar #toolbar
+         [sheet]="focusedSheet" [focusedTab]="focusedTab"
+         [snapToGrid]="snapToGrid" [snapToObjects]="snapToObjects"
+         [showPaste]="showPaste" [deployed]="deployed"
+         [viewsheetPermission]="viewsheetPermission" [worksheetPermission]="worksheetPermission"
+         [scriptPermission]="scriptPermission" [tableStylePermission]="tableStylePermission"
+         [showHelpButton]="focusedViewsheet && !focusedViewsheet.preview"
+         (onCopy)="copySheet($event)" (onCut)="cutSheet($event)"
+         (onPaste)="pasteObjects($event)"
+         (onToggleSnapToGrid)="onToggleSnapToGrid()" (onToggleSnapToObjects)="onToggleSnapToObjects()"
+         (onNewWorksheet)="openNewWorksheet()"
+         (onOpenViewsheetWizard)="newViewsheet()"
+         (onSaveWorksheet)="saveWorksheet($event)" (onSaveWorksheetAs)="saveWorksheetAs($event)"
+         (onSaveAndCloseWorksheet)="saveWorksheet($event, true)"
+         (onSaveAsAndCloseWorksheet)="saveWorksheetAs($event, true)"
+         (onSaveViewsheet)="saveViewsheet($event)" (onSaveViewsheetAs)="saveViewsheetAs($event)"
+         (onSaveTableStyle)="saveTableStyle($event)" (onSaveTableStyleAs)="saveTableStyleAs($event)"
+         (onUpdateTableStylePreview)="updateTableStylePreview()"
+         (onSaveScript)="saveScript($event)" (onSaveScriptAs)="saveScriptAs($event)"
+         (onOpenViewsheetOptions)="openViewsheetOptionDialog($event)"
+         (onOpenImportDialog)="toggleImportDialog($event)"
+         (onPreviewViewsheet)="previewViewsheet($event)"
+         (onRefreshViewsheet)="refreshSelectViewsheet($event)"
+         (onNotification)="processNotification($event)"
+         (onOpenScriptOptions)="openScriptOptions()"
+         (closed)="closeComposer($event)">
+       </composer-toolbar>
+     </div>
+     <div class="composer-body"
+          [class.worksheet-in-view]="focusedSheet?.type == 'worksheet'"
+          [class.viewsheet-in-view]="focusedSheet?.type == 'viewsheet' && !focusedViewsheet?.linkview"
+          [class.library-in-view]="focusedTab?.asset.type == 'tableStyle' || focusedTab?.asset.type == 'script'"
+          [class.viewsheet-preview]="focusedSheetPreview"
+          [class.asset-pane-gutter]="selectedTab === (SidebarTab.ASSET_TREE || SidebarTab.SCRIPT) && !splitPaneCollapsed">
+       <split-pane class="split-pane" [displayed]="fullViewVisible()" [sizes]="[25, 75]" [minSize]="0"
+                   [snapOffset]="0" [gutterSize]="22" (onDragEnd)="onSplitDragEnd($event)">
+         <div #toolPane class="column-pane component-pane-container split">
+           <div class="composer-tab-content" [class.composer-nav-tab-hidden]="navTabHidden">
+             <div #tabContent class="composer-tab-content-body bg-white-inet" >
+               <asset-tree-pane
+                 [openedSheets]="sheets"
+                 [opendTabs]="openedTabs"
+                 [inactive]="selectedTab !== SidebarTab.ASSET_TREE"
+                 [deployed]="deployed"
+                 [viewsheetPermission]="viewsheetPermission"
+                 [focusedSheet]="focusedSheet"
+                 (onOpenSheet)="openSheet($event)"
+                 (onOpenLibraryAsset)="openLibraryAsset($event)"
+                 (onNewViewsheet)="openNewViewsheet($event)"
+                 (onNewQuery)="openNewQuery($event)"
+                 (onSheetClose)="onSheetClosed($event, true)"
+                 (onTabClose)="onTabClosed($event, true)"
+                 (onNewTableStyle)="onNewTableStyle()"
+                 (onNewScript)="openNewScriptAsset()">
+               </asset-tree-pane>
+               <composer-toolbox-pane [inactive]="selectedTab !== SidebarTab.TOOLBOX"
+                  [focusedViewsheet]="focusedViewsheet"
+                  [grayedOutFields]="grayedOutFields"
+                  [deployed]="deployed"
+                  [containerView]="tabContentEleToChild?.nativeElement">
+               </composer-toolbox-pane>
+               <script-tree-pane *ngIf="focusedTab?.type == 'script'" [inactive]="selectedTab !== SidebarTab.SCRIPT"
+                  [functionTree]="scriptTreePaneModel?.functionTree">
+               </script-tree-pane>
+               <components-pane *ngIf="focusedSheet" #componentsPane
+                 [inactive]="selectedTab !== SidebarTab.COMPONENTS"
+                 [sheet]="focusedSheet"
+                 [currentLayout]="layout"
+                 [tree]="focusedSheet.objectTree"
+                 (onCut)="cutAssembly($event)" (onCopy)="copyAssembly($event)"
+                 (onRemove)="removeAssembly($event)"
+                 (onBringToFront)="bringAssemblyToFront($event)" (onSendToBack)="sendAssemblyToBack($event)"
+                 (onClearFocusedObjects)="clearFocusedObjects()">
+               </components-pane>
+               <style-tree-pane *ngIf="focusedTab?.type == 'tableStyle'" [inactive]="selectedTab !== SidebarTab.REGIONS"
+                                [tableStyle]="asTableStyle(focusedTab)" (onOpenCustomEdit)="onOpenCustomEdit($event)"
+                                (onRemoveCustom)="updateTableStylePreview()">
+               </style-tree-pane>
+               <div *ngIf="!formatPaneDisabled && !!focusedSheet" [hidden]="selectedTab !== SidebarTab.FORMAT">
+                 <vs-formats-pane #vsFormatsPane [inactive]="selectedTab !== SidebarTab.FORMAT"
+                               [format]="layout ? layout.currentFormat : focusedViewsheet.currentFormat"
+                               [focusedAssemblies]="layout ? layoutFormatObjects : focusedSheet.focusedAssemblies | async"
+                               [variableValues]="layout ? [] : focusedViewsheet.variableNames"
+                               [vsId]="layout ? layout.runtimeID : focusedSheet.runtimeId"
+                               [layout]="!!layout"
+                               [layoutRegion]="layout ? layout.currentPrintSection : 0"
+                               (onPresenterPropertiesChange)="updatePresenterProperties($event[0], $event[1])"
+                               (onChangeFormat)="updateFormat($event)">
+                 </vs-formats-pane>
+               </div>
+               <ws-composite-table-sidebar-pane *ngIf="selectedTab === SidebarTab.WORKSHEET_COMPOSITE_TABLE_SIDEBAR && !!focusedSheetAsWorksheet"
+                                                class="d-block h-100 unhighlightable"
+                                                [worksheet]="focusedSheetAsWorksheet"
+                                                [compositeTable]="focusedSheetAsWorksheet.selectedCompositeTable"
+               ></ws-composite-table-sidebar-pane>
+             </div>
+             <ul [hidden]="navTabHidden" class="nav nav-inline nav-tabs tabs-bottom composer-bottom-tabs tabs-bottom-split">
+               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.ASSET_TREE"
+                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.ASSET_TREE"
+                   [class.bt-highlight-primary]="selectedTab === SidebarTab.ASSET_TREE">
+                 <a class="nav-link" (click)="onTabClick(SidebarTab.ASSET_TREE)">_#(Assets)</a>
+               </li>
+               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.TOOLBOX" [class.nav-disabled]="toolboxDisabled"
+                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.TOOLBOX"
+                   [class.bt-highlight-primary]="selectedTab === SidebarTab.TOOLBOX">
+                 <a class="nav-link" (click)="onTabClick(SidebarTab.TOOLBOX)">_#(Toolbox)</a>
+               </li>
+               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.SCRIPT" [class.nav-disabled]="scriptDisabled"
+                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.SCRIPT"
+                   [class.bt-highlight-primary]="selectedTab === SidebarTab.SCRIPT">
+                 <a class="nav-link" (click)="onTabClick(SidebarTab.SCRIPT)">_#(Script)</a>
+               </li>
+               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.REGIONS" [class.nav-disabled]="regionsDisabled"
+                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.REGIONS"
+                   [class.bt-highlight-primary]="selectedTab === SidebarTab.REGIONS">
+                 <a class="nav-link" (click)="onTabClick(SidebarTab.REGIONS)">_#(Regions)</a>
+               </li>
+               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.COMPONENTS" [class.nav-disabled]="componentsPaneDisabled"
+                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.COMPONENTS"
+                   [class.bt-highlight-primary]="selectedTab === SidebarTab.COMPONENTS">
+                 <a class="nav-link" (click)="onTabClick(SidebarTab.COMPONENTS)">_#(Components)</a>
+               </li>
+               <li class="nav-item hover-bg-secondary" [class.active]="selectedTab === SidebarTab.FORMAT" [class.nav-disabled]="formatPaneDisabled"
+                   [class.bt-highlight-filler]="selectedTab !== SidebarTab.FORMAT"
+                   [class.bt-highlight-primary]="selectedTab === SidebarTab.FORMAT">
+                 <a class="nav-link" (click)="onTabClick(SidebarTab.FORMAT)">_#(Format)</a>
+               </li>
+             </ul>
+           </div>
+           <span class="collapse-pane-button icon-size-small" aria-hidden="true" (click)="toggleSplitPane()">
+             <i aria-hidden="true" [class.chevron-circle-arrow-left-icon]="!splitPaneCollapsed"
+                [class.chevron-circle-arrow-right-icon]="splitPaneCollapsed"></i>
+           </span>
+         </div>
+         <div #editorPane class="column-pane editor-pane-container split">
+           <div class="composer-tab-content">
+             <ng-template ngFor let-_tab [ngForOf]="openedTabs" let-i="index" [ngForTrackBy]="trackByFn">
+               <ws-pane
+                 *ngIf="_tab.type === 'worksheet'"
+                 [ngStyle]="{'display': isActive(_tab) ? '' : 'none'}"
+                 [worksheet]="asWorksheet(_tab)" [pasteEnabled]="showPaste"
+                 [active]="isActive(_tab)"
+                 (onCopy)="copySheet($event)" (onCut)="cutSheet($event)"
+                 (onPaste)="pasteObjects($event[0], $event[1])"
+                 (onPasteWithCutFinish)="pasteWithCutFinish($event[0], $event[1])"
+                 (onUpdateWorksheet)="updateSheet($event)"
+                 (onRemoveWSAssembly)="checkRemovedAssembly($event)"
+                 (onRenameWSAssembly)="checkRenamedAssembly($event)"
+                 (onWorksheetCompositionChanged)="worksheetCompositionChanged($event)"
+                 (onEditJoin)="editJoin($event)"
+                 (onWorksheetCancel)="worksheetCancel($event)"
+                 (onSheetClose)="onSheetClosed($event, true)"
+                 (onSaveWorksheet)="onSaveWorksheet($event)"
+                 (onTransformFinished)="onTransformFinished($event)"
+                 (onSheetReload)="onSheetReload($event, true)"
+                 (onSaveWorksheetFinish)="onSaveWorksheetFinish($event)">
+               </ws-pane>
+               <viewsheet-pane
+                 *ngIf="_tab.type === 'viewsheet' && !asViewsheet(_tab).preview && !asViewsheet(_tab).linkview"
+                 [vs]="asViewsheet(_tab)" [containerView]="tabContentEleToChild?.nativeElement"
+                 [ngStyle]="{'display': isActive(_tab) ? '' : 'none'}" [touchDevice]="touchDevice"
+                 [snapToGrid]="snapToGrid" [snapToObjects]="snapToObjects" [vsScroll]="vsScroll"
+                 [showPaste]="showPaste" [lastClick]="lastClick"
+                 [active]="isActive(_tab)" [deployed]="deployed"
+                 [worksheetPermission]="worksheetPermission"
+                 (onPreviewViewsheet)="previewViewsheet($event)"
+                 (onOpenViewsheetOptions)="openViewsheetOptionDialog($event)"
+                 (onCut)="cutAssembly($event)" (onCopy)="copyAssembly($event)"
+                 (onPaste)="pasteObjects($event[0], $event[1])" (onRemove)="removeAssembly($event)"
+                 (onBringToFront)="bringAssemblyToFront($event)"
+                 (onBringForward)="bringAssemblyForward($event)"
+                 (onSendToBack)="sendAssemblyToBack($event)"
+                 (onSendBackward)="sendAssemblyBackward($event)"
+                 (onSheetChange)="onSheetUpdated($event)"
+                 (onSheetClose)="onSheetClosed($event, true)"
+                 (onSheetReload)="onSheetReload($event, true)"
+                 (onSaveViewsheet)="onSaveViewsheet($event)"
+                 (onTransformFinished)="onTransformFinished($event)"
+                 (onDependencyChanged)="dependencyChange($event[0], $event[1])"
+                 (onOpenEmbeddedViewsheet)="openViewsheet($event, true)"
+                 (onLayoutObjectChange)="onLayoutObjectChange()"
+                 (onOpenEditPane)="goToEditor($event)"
+                 (onOpenWizardPane)="goToWizardPane($event)"
+                 (closeEditPane)="closeBindingPane()"
+                 (onRefreshViewsheet)="refreshSelectViewsheet($event)"
+                 (onOpenSheet)="openSheet($event)"
+                 (onOpenScript)="openScript($event)"
+                 (onGrayedOutFields)="setGrayedOutFields($event)"
+                 (onOpenFormatPane)="openFormatPane($event)" (onOpenVSOnPortal)="openVSOnPortal($event)">
+               </viewsheet-pane>
+               <viewer-app
+                 *ngIf="_tab.type === 'viewsheet' && (asViewsheet(_tab).preview || asViewsheet(_tab).linkview)"
+                 [preview]="asViewsheet(_tab).preview"
+                 [linkView]="asViewsheet(_tab).linkview"
+                 [layoutName]="layoutName"
+                 [touchDevice]="touchDevice"
+                 [guideType]="layoutGuide"
+                 [id]="asViewsheet(_tab).id"
+                 [assetId]="asViewsheet(_tab).id"
+                 [(runtimeId)]="asViewsheet(_tab).runtimeId"
+                 [queryParameters]="queryParameters"
+                 [active]="isActive(_tab)"
+                 [ngStyle]="{'display': isActive(_tab) ? '' : 'none'}"
+                 [annotationChanged]="asViewsheet(_tab).annotationChanged"
+                 [vsObjects]="asViewsheet(_tab).vsObjects"
+                 [clientId]="getParentSocketConnection(asViewsheet(_tab))?.clientId"
+                 [principal]="principal"
+                 [securityEnabled]="securityEnabled"
+                 [designLastModified]="getParentSocketConnection(asViewsheet(_tab))?.lastModified"
+                 [designSaved]="designSaved"
+                 [isIframe]="isIframe()"
+                 (closeClicked)="closePreview(i, $event)"
+                 (onAnnotationChanged)="asViewsheet(_tab).annotationChanged = $event"
+                 (socket)="asViewsheet(_tab).socketConnection = $event"
+                 (onOpenViewsheet)="openViewsheet($event)"
+                 (onMessageCommand)="processPreviewMessageCommand($event, asViewsheet(_tab))"
+                 (onOpenViewsheetOptionDialog)="openViewsheetOptionDialog(focusedViewsheet, $event)">
+               </viewer-app>
+               <script-edit-pane #scriptEditPaneComponent
+                       *ngIf="_tab.type === 'script'"
+                       [ngStyle]="{'display': isActive(_tab) ? '' : 'none'}"
+                       [model]="asScript(_tab)"
+                       [scriptTreePaneModel]="scriptTreePaneModel"
+                       [originalText]="originalText"
+                       [scriptFontSize]="scriptFontSize"
+                       [viewChecked]="viewChecked">
+               </script-edit-pane>
+               <style-pane #stylePaneComponent
+                       *ngIf="_tab.type === 'tableStyle'"
+                       [ngStyle]="{'display': isActive(_tab) ? '' : 'none'}"
+                       [tableStyle]="asTableStyle(_tab)"
+                       (onUpdateTableStyle)="updateTableStyle()">
+               </style-pane>
+             </ng-template>
+             <composer-empty-editor
+               (onOpenSheet)="openSheet($event)" (onOpenLibraryAsset)="openLibraryAsset($event)"
+               *ngIf="openedTabs?.length === 0">
+             </composer-empty-editor>
+           </div>
+           <div class="sheet-tab-selector-container" id="sheet-tabs">
+             <sheet-tab-selector
+               [tabs]="openedTabs" (onTabSelected)="onTabSelected($event)"
+               (onTabClosed)="onTabClosed($event)">
+             </sheet-tab-selector>
+           </div>
+         </div>
+       </split-pane>
+     </div>
+   </div>
+   <vs-binding-pane *ngIf="focusedViewsheet?.bindingEditMode && !wizardEditMode"
+      [runtimeId]="bindingPaneModel.runtimeId"
+      [assemblyName]="bindingPaneModel.absoluteName"
+      [temporarySheet]="focusedSheet.newSheet"
+      [objectType]="bindingPaneModel.objectType"
+      [wizardOriginalInfo]="bindingPaneModel.wizardOriginalInfo"
+      [variableValues]="getVariables(bindingPaneModel.absoluteName, bindingPaneModel.objectType)"
+      [linkUri]="focusedViewsheet?.linkUri"
+      [isCube]="!!!focusedViewsheet?.baseEntry"
+      (onOpenWizardPane)="switchBindingToWizard($event)"
+      (onCloseBindingPane)="closeBindingPane()"
+      (onAssemblyChanged)="refreshChangedAssembly($event)"
+      (onRenamed)="changeBindingAssemblyName($event)">
+   </vs-binding-pane>
+   <vs-wizard *ngIf="wizardEditMode"
+      [model]="wizardModel"
+      (onCommit)="closeWizardPane($event)"
+      (onCancel)="closeWizardPane()"
+      (onFullEditor)="goToFullEditor($event)">
+   </vs-wizard>
+</div>
+
+<notifications #notifications class="notifications-composer" [timeout]="5000"></notifications>
+
+<ng-template #saveViewsheetDialog let-close="close" let-dismiss="dismiss">
+  <save-viewsheet-dialog (onCommit)="close($event)"
+                         (onCancel)="dismiss($event)"
+                         [model]="saveViewsheetModel"
+                         [runtimeId]="focusedSheet?.runtimeId"
+                         [defaultFolder]="defaultSaveToFolder">
+  </save-viewsheet-dialog>
+</ng-template>
+<ng-template #saveTableStyleDialog let-close="close" let-dismiss="dismiss">
+  <save-table-style-dialog (onCancel)="dismiss($event)"
+                           (onCommit)="close($event)"
+                           [defaultFolder]="defaultSaveToFolder"
+                           [model]="saveTableStyleModel">
+  </save-table-style-dialog>
+</ng-template>
+<ng-template #saveWorksheetDialog let-close="close" let-dismiss="dismiss">
+  <save-worksheet-dialog
+    [worksheet]="focusedSheetAsWorksheet"
+    [socket]="focusedSheet?.socketConnection"
+    [showReportRepository]="false"
+    [defaultFolder]="defaultSaveToFolder"
+    [readOnly]="false"
+    (onCommit)="close($event)"
+    (onCancel)="dismiss($event)"></save-worksheet-dialog>
+</ng-template>
+<ng-template #saveScriptDialog let-close="close" let-dismiss="dismiss">
+  <save-script-dialog
+     [model]="saveScriptModel"
+     [defaultFolder]="defaultSaveToFolder"
+     (onCommit)="close($event)"
+     (onCancel)="dismiss($event)">
+  </save-script-dialog>
+</ng-template>
+<ng-template #saveScriptDialog let-close="close" let-dismiss="dismiss">
+  <script-property-dialog
+          [fontSize]="scriptFontSize"
+          (onCommit)="close($event)"
+          (onCancel)="dismiss($event)">
+  </script-property-dialog>
+</ng-template>
+<ng-template #editCustomPatternDialog let-close="close" let-dismiss="dismiss">
+  <edit-custom-patterns-dialog
+     [specModel]="spec"
+     (onCommit)="close($event)"
+     (onCancel)="dismiss($event)">
+  </edit-custom-patterns-dialog>
+</ng-template>
+<ng-template #viewsheetPropertyDialog let-close="close" let-dismiss="dismiss">
+  <viewsheet-property-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                             [resizeable]="true" [openToScript]="openToScript"
+                             [model]="viewsheetPropertyModel" [scriptTreeModel]="scriptTreeModel"
+                             [viewsheet]="focusedViewsheet" [isPrintLayout]="isPrintLayout()">
+  </viewsheet-property-dialog>
+</ng-template>

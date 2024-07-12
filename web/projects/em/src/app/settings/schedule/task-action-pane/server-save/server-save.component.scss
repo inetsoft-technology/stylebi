@@ -1,0 +1,140 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  .mat-mdc-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+
+    .mat-mdc-card-header {
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+
+    .mat-mdc-card-content {
+      flex-grow: 1;
+      flex-shrink: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      margin-bottom: 0px;
+
+      .csv-config-container {
+        align-self: end;
+        width: 100%;
+        padding-top: 1.34375em;
+      }
+
+      table {
+        flex-grow: 1;
+        flex-shrink: 1;
+        width: 100%;
+
+        .checkbox-column {
+          width: 100px;
+          flex-grow: 0;
+          flex-shrink: 0;
+        }
+
+        .path-column {
+          flex-grow: 0;
+          flex-shrink: 0;
+          width: 55%;
+        }
+
+        tr{
+          display: flex;
+        }
+
+        th {
+          display: flex;
+          align-items: center;
+          flex-grow: 1;
+          flex-shrink: 1;
+        }
+
+        td {
+          padding-left: 0px;
+          padding-top: 10px;
+          flex-grow: 1;
+          flex-shrink: 1;
+        }
+
+        td.delete-container {
+          padding-top: 0px;
+          padding-left: 0px;
+        }
+
+        mat-form-field {
+          width: 50px;
+        }
+
+        th:last-of-type, td:last-of-type {
+          width: 50px;
+          flex-grow: 0;
+          flex-shrink: 0;
+        }
+
+        .format-container {
+          .mat-mdc-form-field {
+            width: calc(100% - 6px);
+          }
+        }
+      }
+
+      .mat-mdc-table .mdc-data-table__row {
+        height: 62px;
+      }
+
+      .left-padding {
+        padding-left: 24px;
+      }
+
+      .match-massage {
+         margin-top: 1em;
+      }
+
+      .mat-mdc-mini-fab {
+        flex-grow: 0;
+        flex-shrink: 0;
+        margin-top: 0;
+      }
+
+      .mat-mdc-form-field-error {
+        width: 100%;
+        overflow: hidden;
+      }
+    }
+  }
+
+  .path-container {
+    display: flex;
+    flex-direction: row;
+
+    .mat-mdc-form-field {
+      flex-grow: 1;
+      flex-shrink: 1;
+      padding: 0 6px;
+    }
+  }
+
+  .checkbox-container {
+    display: flex;
+    justify-content: center;
+  }
+}

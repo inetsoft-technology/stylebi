@@ -1,0 +1,122 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.editor-container {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  padding: 1rem;
+
+  input:not([type="checkbox"]) {
+    height: 100%;
+  }
+
+  .flex-fixed-container {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    overflow: hidden;
+
+    .flex-fixed-content {
+      flex-grow: 1;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+  }
+}
+
+.pool-property-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  > .pool-property-table {
+    flex-grow: 1;
+    flex-shrink: 1;
+    overflow-y: auto;
+    position: relative;
+
+    .table {
+      width: 100%;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      word-break: break-all;
+      max-height: calc(100% - 16px);
+      border-top: 0;
+      margin: 0;
+
+      > thead {
+        display: table;
+        width: 100%;
+        border-top: 0;
+      }
+
+      > tbody {
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+      }
+
+      > tbody tr {
+        display: table;
+        width: 100%;
+      }
+
+      .pool-property-container {
+        width: 50% !important;
+      }
+
+      .pool-property-row {
+        margin: 0;
+      }
+    }
+  }
+}
+
+.file-upload-label {
+  padding-top: 1px;
+}
+
+:host ::ng-deep .help-link {
+  text-decoration: underline;
+}
+
+.addition-label {
+  font-size: 85%;
+  font-weight: 700;
+}
+
+.additional-datasource {
+  height: 165px;
+  margin-top: 3px;
+}
+
+.testDiv {
+  padding-bottom: 20px;
+}
+
+.buttonSize {
+  width: 120px;
+}
+
+.buttonMargin{
+  margin-left: 20px;
+}

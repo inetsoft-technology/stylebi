@@ -1,0 +1,54 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  .shape-line-container {
+    align-self: center;
+  }
+
+  .shape-line-dash {
+    background-image: linear-gradient(to right,
+            var(--inet-icon-color) 2px,
+            rgba(255, 255, 255, 0) 2px 4px,
+            var(--inet-icon-color) 4px 7px,
+            rgba(255, 255, 255, 0) 7px 10px,
+            var(--inet-icon-color) 10px 14px,
+            rgba(255, 255, 255, 0) 14px 18px,
+            var(--inet-icon-color) 18px 23px,
+            rgba(255, 255, 255, 0) 23px 28px,
+            var(--inet-icon-color) 28px 34px,
+            rgba(255, 255, 255, 0) 34px 41px,
+            var(--inet-icon-color) 41px 48px,
+            rgba(255, 255, 255, 0) 48px 55px,
+            var(--inet-icon-color) 55px 63px,
+            rgba(255, 255, 255, 0) 63px 72px,
+            var(--inet-icon-color) 72px 81px,
+            rgba(255, 255, 255, 0) 81px 91px,
+            var(--inet-icon-color) 91px 101px,
+            rgba(255, 255, 255, 0) 101px 112px,
+            var(--inet-icon-color) 112px 124px,
+            rgba(255, 255, 255, 0) 124px 135px,
+            var(--inet-icon-color) 135px 148px,
+            rgba(255, 255, 255, 0) 148px 162px,
+            var(--inet-icon-color) 162px 177px
+    );
+    background-size: 177px 1px;
+    background-repeat: no-repeat;
+    width: 177px;
+    height: 1px;
+  }
+}

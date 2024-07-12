@@ -1,0 +1,91 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 0px;
+
+  > .condition-edit-view {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+
+    > ul.nav {
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+
+    > .card {
+      flex-grow: 1;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    > .form-group {
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+
+    > ul li span.selected {
+      background-color: var(--inet-selected-item-bg-color);
+      color: var(--inet-selected-item-text-color);
+    }
+  }
+
+  > .condition-list-view {
+    position: relative;
+    overflow: hidden;
+    min-height: 0px;
+    min-width: 0px;
+    flex: 1 1 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.server-time-zone {
+  position: absolute;
+  left: 570px;
+  top: 6.5px;
+}
+
+@media (max-width: 780px) {
+  .server-time-zone {
+    position: static;
+  }
+}
+
+.time-label {
+  overflow: hidden;
+  width: 85px;
+  white-space: nowrap;
+  text-overflow: clip;
+}
+
+.scheduler-form {
+  width: 260px;
+  max-width: 100%;
+}
+
+.sm-dropdown {
+  width: 100px;
+}

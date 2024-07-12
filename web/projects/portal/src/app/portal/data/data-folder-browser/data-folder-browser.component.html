@@ -1,0 +1,146 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="browser-container g-0 h-100 d-flex flex-row justify-content-start">
+  <div class="d-flex flex-column align-items-stretch p-0 h-100"
+       [class.col-12]="!selectedFile"
+       [ngClass]="{'col-6 col-sm-8 col-md-9' : !!selectedFile}">
+    <div class="btn-toolbar folder-action-toolbar bb-gray bg-white2 justify-content-end flex-grow-0 flex-shrink-0" role="toolbar">
+      <div class="d-flex align-items-center">
+        <div [hidden]="!searchVisible">
+          <input type="text" #searchInput
+                 [(ngModel)]="searchQuery"
+                 [placeholder]="'_#(data.datasets.searchWithinFolder)'"
+                 [ngbTypeahead]="searchFunc"
+                 [focusFirst]="false"
+                 (keyup.enter)="search()"
+                 (selectItem)="search($event.item)"/>
+        </div>
+        <div class="btn-group" role="group" ngbDropdown placement="bottom-right">
+          <i role="button" class="btn py-1 search-icon"
+             title="_#(data.datasets.searchWithinFolder)"
+             (click)="toggleSearch($event)">
+          </i>
+          <span class="d-none d-sm-inline-block">
+            <i role="button" class="btn py-1 new-worksheet-icon"
+               *ngIf="!selectionOn"
+               title="_#(New Worksheet)"
+               [class.disabled]="!isFolderEditable || !worksheetAccess"
+               (click)="newWorksheet()">
+            </i>
+            <i role="button" class="btn py-1 folder-plus-icon"
+               *ngIf="!selectionOn"
+               title="_#(New Folder)"
+               [class.disabled]="!isFolderEditable"
+               (click)="addFolder()">
+            </i>
+            <i role="button" class="btn py-1 folder-move-icon"
+               *ngIf="selectionOn"
+               [class.disabled]="moveDisable"
+               (click)="moveSelected()"
+               title="_#(data.datasets.moveSelected)">
+            </i>
+            <i role="button" class="btn py-1 trash-icon"
+               *ngIf="selectionOn"
+               [class.disabled]="selectedItems.length === 0 || !isSelectionDeletable()"
+               (click)="deleteSelected()"
+               title="_#(data.datasets.deleteSelected)">
+            </i>
+            <i role="button" class="btn py-1"
+               [class.selected-icon]="selectionOn"
+               [class.select-empty-icon]="!selectionOn"
+               [title]="toggleSelectTooltip"
+               (click)="toggleSelectionState()">
+            </i>
+          </span>
+          <span class="d-sm-none">
+            <i role="button" class="btn py-1 menu-sandwich-icon no-caret"
+               title="_#(data.datasets.folderActions)"
+               ngbDropdownToggle>
+              <span class="visually-hidden">_#(data.datasets.folderActions)</span>
+            </i>
+            <div class="dropdown-menu" ngbDropdownMenu>
+              <button *ngIf="!selectionOn" class="dropdown-item"
+                      title="_#(New Worksheet)"
+                      [disabled]="!isFolderEditable || !worksheetAccess"
+                      (click)="newWorksheet()">_#(New Worksheet)
+              </button>
+              <button *ngIf="!selectionOn" class="dropdown-item"
+                      title="_#(New Folder)"
+                      [disabled]="!isFolderEditable"
+                      (click)="addFolder()">_#(New Folder)
+              </button>
+              <button *ngIf="selectionOn" class="dropdown-item"
+                      title="_#(data.datasets.moveSelected)"
+                      (click)="moveSelected()">_#(Move)
+              </button>
+              <button *ngIf="selectionOn" class="dropdown-item"
+                      title="_#(data.datasets.deleteSelected)"
+                      (click)="deleteSelected()">_#(Delete)
+              </button>
+              <button class="dropdown-item"
+                      [title]="selectionOn ? '_#(data.datasets.selectOff)' : '_#(data.datasets.selectOn)'"
+                      [disabled]="!isFolderEditable"
+                      (click)="toggleSelectionState()">
+                      {{selectionOn ? '_#(data.datasets.selectOff)' : '_#(data.datasets.selectOn)'}}
+              </button>
+            </div>
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="d-flex flex-column align-items-stretch flex-grow-1 flex-shrink-1 overflow-hidden">
+      <div class="d-flex align-items-center ps-1 py-1" *ngIf="searchView">
+        <i class="close-circle-icon icon-size-small action-style me-1" (click)="clearSearch()"></i>
+        <span>
+          <b>_#(data.datasets.searchResults):</b> {{currentSearchQuery}} <b>_#(data.datasets.searchIn)</b> {{searchDestination || '/'}}
+        </span>
+      </div>
+      <data-folder-list-view [assets]="viewAssets"
+                             [searchView]="searchView"
+                             [selectedItems]="selectedItems"
+                             [selectionOn]="selectionOn"
+                             [selectAllChecked]="selectAllChecked"
+                             [sortOptions]="searchView ? searchSortOptions : sortOptions"
+                             [selectedFile]="selectedFile"
+                             [folderPathLength]="currentFolderPath.length"
+                             [foldersInView]="folders.length"
+                             (sortChanged)="sortView()"
+                             (openAsset)="openFolder($event)"
+                             (renameAsset)="renameAsset($event)"
+                             (moveAsset)="moveAsset($event)"
+                             (deleteAsset)="deleteAsset($event)"
+                             (editWorksheet)="editWorksheet($event)"
+                             (showDetails)="selectFile($event)"
+                             (materializeAsset)="materializeAsset($event)"
+                             (selectAllChanged)="selectAllChanged($event)"
+                             (selectChanged)="selectChanged($event)"
+                             (dragAssets)="dragAssets($event)"
+                             (assetsDroped)="assetsDroped($event)">
+      </data-folder-list-view>
+    </div>
+  </div>
+  <div class="flex h-100 col-6 col-sm-4 col-md-3 p-0" *ngIf="!!selectedFile">
+    <asset-description [selectedFile]="selectedFile"
+                       [isWorksheet]="true"
+                       (onClose)="selectFile(null)">
+    </asset-description>
+  </div>
+</div>
+<data-notifications #dataNotifications></data-notifications>

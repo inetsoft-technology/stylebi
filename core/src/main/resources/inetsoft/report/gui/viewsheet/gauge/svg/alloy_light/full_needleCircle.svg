@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="201px" height="201px" viewBox="0 0 201 201" enable-background="new 0 0 201 201" xml:space="preserve">
+<circle fill="#636363" cx="99.593" cy="100.912" r="17.16"/>
+<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="86.3164" y1="87.4395" x2="110.5838" y2="111.7069">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.0836" style="stop-color:#D2D2D4"/>
+	<stop  offset="0.1802" style="stop-color:#A4A5A9"/>
+	<stop  offset="0.273" style="stop-color:#808287"/>
+	<stop  offset="0.3596" style="stop-color:#67696F"/>
+	<stop  offset="0.4377" style="stop-color:#575960"/>
+	<stop  offset="0.5" style="stop-color:#52545B"/>
+	<stop  offset="0.5573" style="stop-color:#595B62"/>
+	<stop  offset="0.6405" style="stop-color:#6C6E74"/>
+	<stop  offset="0.7397" style="stop-color:#8C8E92"/>
+	<stop  offset="0.8511" style="stop-color:#B8B9BC"/>
+	<stop  offset="0.9713" style="stop-color:#F1F1F1"/>
+	<stop  offset="1" style="stop-color:#FFFFFF"/>
+</linearGradient>
+<circle fill="url(#SVGID_1_)" cx="98.45" cy="99.573" r="17.16"/>
+</svg>

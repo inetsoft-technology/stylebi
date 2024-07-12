@@ -1,0 +1,64 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="action-color physical-model-table-tree-node {{node.cssClass}}" *ngIf="showRoot"
+     [style.padding-left.px]="indentLevel * INDENT_SIZE">
+  <div class="truncate-parent justify-content-between w-100">
+    <div class="truncate-text align-items-center w-100 cursor-pointer hover-bg-primary"
+         [class.bg-selected]="isSelected()"
+         [class.disabled]="disabled"
+         [class.form-check]="node.leaf"
+         (click)="selectNode()"
+         (dblclick)="hasChildren() ? toggleNode() : null">
+      <span *ngIf="hasChildren()"
+            [class.disabled]="disabled"
+            class="{{getToggleIcon()}} tree-node-toggle cursor-pointer truncate-addon"
+            (click)="toggleNode(); $event.stopPropagation()"
+            (dblclick)="$event.stopPropagation()">
+      </span>
+      <input *ngIf="node.leaf" #nodeCheckbox
+             class="form-check-input form-check-top"
+             type="checkbox" [disabled]="disabled || node.data.baseTable"
+             (click)="$event.stopPropagation();"
+             [(ngModel)]="node.data.selected"
+             (ngModelChange)="nodeCheckbox.blur(); checkboxToggledNode()"/>
+      <span class="truncate-text px-1"
+            [class.disabled]="disabled"
+            [class.form-check-label]="node.leaf"
+            [attr.title]="node.label">
+        {{node ? node.label : ""}}
+      </span>
+    </div>
+    <span *ngIf="node?.leaf" class="menu-horizontal-icon tree-node-toggle truncate-addon cursor-pointer"
+         [attr.title]="'_#(Actions)'" (click)="this.onNodeContextMenu.emit({node: node, event: $event})"></span>
+  </div>
+</div>
+<div [class.tree-children]="showRoot" *ngIf="node && node.expanded && node.children">
+  <ng-container *ngFor="let _node of (keepAllChildren ? node.children : (node.children | search:searchStr:true))">
+    <physical-model-table-tree-node  *ngIf="isTableVisible(_node)"
+                                     [node]="_node"
+                                     [tree]="tree"
+                                     [searchStr]="searchStr"
+                                     [disabled]="disabled"
+                                     [showOnlySelectedTables]="showOnlySelectedTables"
+                                     [indentLevel]="!showRoot ? indentLevel : indentLevel + 1"
+                                     (onNodeContextMenu)="onNodeContextMenu.emit($event)">
+    </physical-model-table-tree-node>
+  </ng-container>
+</div>

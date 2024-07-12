@@ -1,0 +1,112 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!-- add an edge to prevent new-object from showing too close to obj.
+     new-object has z-index of 999 (normal) or 9999 (raised). wizard-object
+     has z-index 1000 and up. -->
+<div class="outer-area"
+     [style.left.px]="vsObject.objectFormat.left - 9"
+     [style.top.px]="vsObject.objectFormat.top - 9"
+     [style.width.px]="vsObject.objectFormat.width + 18"
+     [style.height.px]="vsObject.objectFormat.height + 18"
+     [style.z-index]="vsObject.objectFormat.zIndex + 1000"
+     (onMouseover)="onMouseover($event)"></div>
+
+<div class="wizard-object-container object-editor wizard-object-editor"
+     [id]="vsObject.absoluteName"
+     [class.follow-object]="willFollow"
+     [style.left.px]="vsObject.objectFormat.left"
+     [style.top.px]="vsObject.objectFormat.top"
+     [style.z-index]="selected ? 9919 : vsObject.objectFormat.zIndex + 1000"
+     [class.prevent-drag]="vsObject.interactionDisabled"
+     [class.active]="selected"
+     [attr.data-name]="vsObject.absoluteName"
+     data-is-element-editor="true"
+     wInteractable
+     [interactableResizable]="interactionResizable"
+     [interactableDraggable]="interactionResizable && !vsObject?.interactionDisabled"
+     interactableIgnoreFrom=".prevent-drag"
+     [resizableMargin]="5"
+     [resizableTopEdge]="'.top'" [resizableBottomEdge]="'.bottom'"
+     [resizableLeftEdge]="'.left'" [resizableRightEdge]="'.right'"
+     [resizableRestriction]="'.wizard-pane-content'"
+     (onResizableStart)="onResizeStart($event)"
+     (onResizableEnd)="onResizeEnd()"
+     (onResizableMove)="onResizeMove($event)"
+     (onDraggableStart)="onDragStart($event)"
+     (onDraggableMove)="onDragMove($event)"
+     (onDraggableEnd)="onDragEnd($event)"
+     (mousedown)="select($event)"
+     (dblclick)="toEditMode()"
+     (onMouseover)="onMouseover($event)"
+     outOfZone>
+  <ng-container *ngIf="interactionDraggable">
+    <div class="handle move bd-gray" [class.move-only]="true"
+         [style.top.px]="vsObject.objectFormat.top < 16 ? vsObject.objectFormat.height : -16"
+         [style.left.px]="vsObject.objectFormat.left < 16 ? vsObject.objectFormat.width : -16">
+      <i class="move-icon icon-size1" (click)="select($event)"></i>
+    </div>
+  </ng-container>
+  <ng-container *ngIf="interactionResizable && !vsObject?.interactionDisabled">
+    <div class="container-gutter right" *ngIf="selected"></div>
+    <div class="container-gutter bottom" *ngIf="selected"></div>
+    <div class="handle left top bg-primary" [class.active]="selected"></div>
+    <div class="handle left middle bg-primary" [class.active]="selected"></div>
+    <div class="handle left bottom bg-primary" [class.active]="selected"></div>
+    <div class="handle top middle bg-primary" [class.active]="selected"></div>
+    <div class="handle top right bg-primary" [class.active]="selected"></div>
+    <div class="handle right middle bg-primary" [class.active]="selected"></div>
+    <div class="handle bottom middle bg-primary" [class.active]="selected"></div>
+    <div class="handle bottom right bg-primary" [class.active]="selected"></div>
+  </ng-container>
+  <div class="object-border"
+       [class.selected-bd]="selected"
+       [class.def-bd]="vsObject.objectType == 'VSText' || vsObject.objectType == 'VSSelectionList' || vsObject.objectType == 'VSSelectionTree'"
+       [style.width.px]="vsObject.objectFormat.width"
+       [style.height.px]="vsObject.objectFormat.height">
+    <vs-calendar *ngIf="vsObject.objectType == 'VSCalendar'" #objectComponent
+                 [vsInfo]="viewsheet" [model]="vsObject" [selected]="selected"></vs-calendar>
+    <vs-chart *ngIf="vsObject.objectType == 'VSChart'" #objectComponent
+              [vsInfo]="viewsheet" [model]="vsObject"
+              [selected]="selected"></vs-chart>
+    <vs-crosstab *ngIf="vsObject.objectType == 'VSCrosstab'" #objectComponent
+                 [vsInfo]="viewsheet" [model]="vsObject" [selected]="selected"></vs-crosstab>
+    <vs-gauge *ngIf="vsObject.objectType == 'VSGauge'" #objectComponent
+              [vsInfo]="viewsheet" [model]="vsObject" [selected]="selected"></vs-gauge>
+    <vs-image *ngIf="vsObject.objectType == 'VSImage'" #objectComponent
+              [vsInfo]="viewsheet" [model]="vsObject" [selected]="selected"></vs-image>
+    <vs-range-slider *ngIf="vsObject.objectType == 'VSRangeSlider'" #objectComponent
+                     [vsInfo]="viewsheet" [model]="vsObject" [selected]="selected"
+                     [viewsheetScale]="viewsheet.scale"></vs-range-slider>
+    <vs-selection *ngIf="vsObject.objectType == 'VSSelectionList'" #objectComponent
+                  [vsInfo]="viewsheet" [model]="vsObject" [selected]="selected"></vs-selection>
+    <vs-selection *ngIf="vsObject.objectType == 'VSSelectionTree'" #objectComponent
+                  [vsInfo]="viewsheet" [model]="vsObject" [selected]="selected"></vs-selection>
+    <vs-table *ngIf="vsObject.objectType == 'VSTable'" #objectComponent
+              [vsInfo]="viewsheet" [model]="vsObject" [selected]="selected"></vs-table>
+    <vs-text *ngIf="vsObject.objectType == 'VSText'" #objectComponent
+             [vsInfo]="viewsheet" [model]="vsObject" [selected]="selected"></vs-text>
+  </div>
+</div>
+<ng-container *ngIf="isVSWizardObject()">
+  <mini-toolbar [miniToolbarActions]="miniToolbarActions" [forceAbove]="true"
+                [top]="vsObject.objectFormat.top" [left]="vsObject.objectFormat.left"
+                [width]="vsObject.objectFormat.width">
+  </mini-toolbar>
+</ng-container>

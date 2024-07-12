@@ -1,0 +1,97 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="isCandle()" class="aesthetic-pane m-1">
+  <div class="field-row mt-1">
+    <div class="aesthetic-row-label">_#(High)</div>
+    <field-pane class="fill-width" [field]="bindingModel.highField" [fieldType]="'high'"
+                [isPrimaryField]="true" dropHighlight
+                [displayLabel]="'_#(Measure)'" [binding]="bindingModel"
+                [grayedOutValues]="grayedOutValues"></field-pane>
+  </div>
+  <div class="field-row mt-1">
+    <div class="aesthetic-row-label">_#(Close)</div>
+    <field-pane class="fill-width" [field]="bindingModel.closeField" [fieldType]="'close'"
+                [isPrimaryField]="true" dropHighlight
+                [displayLabel]="'_#(Measure)'" [binding]="bindingModel"
+                [grayedOutValues]="grayedOutValues"></field-pane>
+  </div>
+  <div class="field-row mt-1">
+    <div class="aesthetic-row-label">_#(Open)</div>
+    <field-pane class="fill-width" [field]="bindingModel.openField" [fieldType]="'open'"
+                [isPrimaryField]="true" dropHighlight
+                [displayLabel]="'_#(Measure)'" [binding]="bindingModel"
+                [grayedOutValues]="grayedOutValues"></field-pane>
+  </div>
+  <div class="field-row mt-1">
+    <div class="aesthetic-row-label">_#(Low)</div>
+    <field-pane class="fill-width" [field]="bindingModel.lowField" [fieldType]="'low'"
+                [isPrimaryField]="true" dropHighlight
+                [displayLabel]="'_#(Measure)'" [binding]="bindingModel"
+                [grayedOutValues]="grayedOutValues"></field-pane>
+  </div>
+</div>
+<div *ngIf="isPath()" class="aesthetic-pane m-1">
+  <div class="field-row mt-1">
+    <div class="aesthetic-row-label">_#(Path)</div>
+    <field-pane class="fill-width" [field]="bindingModel.pathField" [fieldType]="'path'"
+                [isPrimaryField]="false" dropHighlight
+                [displayLabel]="'_#(Path)'" [binding]="bindingModel"
+                [grayedOutValues]="grayedOutValues"></field-pane>
+  </div>
+</div>
+<div *ngIf="isRelation()" class="aesthetic-pane m-1">
+  <div class="field-row mt-1">
+    <div class="aesthetic-row-label">_#(Source)</div>
+    <field-pane class="fill-width" [field]="bindingModel.sourceField" [fieldType]="'source'"
+                [isPrimaryField]="true" dropHighlight
+                [displayLabel]="'_#(Dimension)'" [binding]="bindingModel"
+                [grayedOutValues]="grayedOutValues"></field-pane>
+  </div>
+  <div class="field-row mt-1">
+    <div class="aesthetic-row-label">_#(Target)</div>
+    <field-pane class="fill-width" [field]="bindingModel.targetField" [fieldType]="'target'"
+                [isPrimaryField]="true" dropHighlight
+                [displayLabel]="'_#(Dimension)'" [binding]="bindingModel"
+                [grayedOutValues]="grayedOutValues"></field-pane>
+  </div>
+</div>
+<div *ngIf="isGantt()" class="aesthetic-pane m-1">
+  <div class="field-row mt-1">
+    <div class="aesthetic-row-label">_#(Start)</div>
+    <field-pane class="fill-width" [field]="bindingModel.startField" [fieldType]="'start'"
+                [isPrimaryField]="true" dropHighlight
+                [displayLabel]="'_#(Date Measure)'" [binding]="bindingModel"
+                [grayedOutValues]="grayedOutValues"></field-pane>
+  </div>
+  <div class="field-row mt-1">
+    <div class="aesthetic-row-label">_#(End)</div>
+    <field-pane class="fill-width" [field]="bindingModel.endField" [fieldType]="'end'"
+                [isPrimaryField]="true" dropHighlight
+                [displayLabel]="'_#(Date Measure)'" [binding]="bindingModel"
+                [grayedOutValues]="grayedOutValues"></field-pane>
+  </div>
+  <div class="field-row mt-1">
+    <div class="aesthetic-row-label">_#(Milestone)</div>
+    <field-pane class="fill-width" [field]="bindingModel.milestoneField" [fieldType]="'milestone'"
+                [isPrimaryField]="true" dropHighlight
+                [displayLabel]="'_#(Date Measure)'" [binding]="bindingModel"
+                [grayedOutValues]="grayedOutValues"></field-pane>
+  </div>
+</div>

@@ -1,0 +1,109 @@
+{
+  "permissions": [
+    {
+      "type": "ADHOC_WIZARD",
+      "resource": "Chart Wizard",
+      "grants": {
+        "READ": {
+          "groups": [ "Paid Customers" ]
+        }
+      }
+    },
+    {
+      "type": "ADHOC_WIZARD",
+      "resource": "Crosstab Wizard",
+      "grants": {
+        "READ": {
+          "groups": [ "Paid Customers" ]
+        }
+      }
+    },
+    {
+      "type": "ADHOC_WIZARD",
+      "resource": "Section Wizard",
+      "grants": {
+        "READ": {
+          "groups": [ "Paid Customers" ]
+        }
+      }
+    },
+    {
+      "type": "ADHOC_WIZARD",
+      "resource": "Table Wizard",
+      "grants": {
+        "READ": {
+          "groups": [ "Paid Customers" ]
+        }
+      }
+    },
+    {
+      "type": "COMPOSER",
+      "resource": "*",
+      "grants": {
+        "ACCESS": {
+          "groups": [ "Paid Customers" ]
+        }
+      }
+    },
+    {
+      "type": "DASHBOARD",
+      "resource": "*",
+      "grants": {
+        "READ": {
+          "groups": [ "Paid Customers" ]
+        }
+      }
+    },
+    {
+      "type": "MY_REPORTS",
+      "resource": "*",
+      "grants": {
+        "READ": {
+          "groups": [ "Paid Customers" ]
+        },
+        "WRITE": {
+          "groups": [ "Paid Customers" ]
+        },
+        "DELETE": {
+          "groups": [ "Paid Customers" ]
+        }
+      }
+    },
+    {
+      "type": "REPORT",
+      "resource": "/",
+      "grants": {
+        "READ": {
+          "roles": [ "Everyone" ]
+        }
+      }
+    },
+    {
+      "type": "SCHEDULER",
+      "resource": "*",
+      "grants": {
+        "ACCESS": {
+          "groups": [ "Paid Customers" ]
+        }
+      }
+    },
+    {
+      "type": "VIEWSHEET",
+      "resource": "*",
+      "grants": {
+        "ACCESS": {
+          "groups": [ "Paid Customers" ]
+        }
+      }
+    },
+    {
+      "type": "WORKSHEET",
+      "resource": "*",
+      "grants": {
+        "ACCESS": {
+          "groups": [ "Paid Customers" ]
+        }
+      }
+    }
+  ]
+}

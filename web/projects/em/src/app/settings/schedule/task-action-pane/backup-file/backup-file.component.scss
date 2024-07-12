@@ -1,0 +1,84 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  .mat-mdc-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+
+    .mat-mdc-card-header {
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+
+    .mat-mdc-card-content {
+      flex-grow: 1;
+      flex-shrink: 1;
+      display: flex;
+      flex-direction: column;
+
+      table {
+        flex-grow: 1;
+        flex-shrink: 1;
+        width: 100%;
+
+        td {
+          padding-bottom: 10px;
+        }
+
+        th:last-of-type, td:last-of-type {
+          width: 40px;
+        }
+
+        .mat-mdc-form-field {
+          width: calc(100% - 6px);
+        }
+      }
+
+      .mat-mdc-mini-fab {
+        flex-grow: 0;
+        flex-shrink: 0;
+        margin-top: 1em;
+        margin-bottom: 1em;
+      }
+    }
+  }
+  /*TODO(mdc-migration): The following rule targets internal classes of list that may no longer apply for the MDC version.
+ */
+  mat-list-item.selected {
+    background: rgba(0, 0, 0, 0.04);
+  }
+
+  .list-container {
+    height: 50vh;
+    overflow: auto;
+  }
+}
+
+.button-col {
+  min-width: 50px;
+  align-items: center;
+  overflow: auto;
+  justify-content: space-around;
+  margin: 5px;
+  flex-wrap: nowrap;
+}
+
+.mat-card-content-padding {
+  padding: 0;
+}

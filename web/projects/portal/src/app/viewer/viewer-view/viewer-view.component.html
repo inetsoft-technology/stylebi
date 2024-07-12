@@ -1,0 +1,53 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="tabs.length > 0">
+   <div class="viewer-view-container">
+      <div class="page-tab-content">
+         <!-- use a for loop to ensure that the viewer-app gets re-created when the asset ID changes -->
+         <viewer-app *ngFor="let tab of tabs" #viewerApp
+                     [class.viewer-app--active]="isActiveTab(tab)"
+                     [active]="isActiveTab(tab)"
+                     [assetId]="tab.id"
+                     [runtimeId]="tab.runtimeId"
+                     [queryParameters]="tab.queryParameters"
+                     [principal]="principal"
+                     [securityEnabled]="securityEnabled"
+                     [toolbarPermissions]="toolbarPermissions"
+                     [(fullScreen)]="fullScreen"
+                     [dashboardName]="dashboardName"
+                     [inPortal]="inPortal"
+                     [inDashboard]="inDashboard"
+                     [tabsHeight]="tabBarHeight"
+                     [isIframe]="isIframe()"
+                     (onEditTable)="onEditTable($event)"
+                     (onEditChart)="onEditChart($event)"
+                     (closeCurrentTab)="closeCurrentTab()"
+                     (closeClicked)="onViewsheetClosed()"
+                     (onAnnotationChanged)="modified = $event"
+                     (onOpenViewsheet)="openViewsheet($event)">
+         </viewer-app>
+      </div>
+
+      <div class="page-tab-bar" #pageTabBar
+           [class.page-tab-fullscreen]="fullScreen" *ngIf="tabs.length > 1">
+         <page-tab></page-tab>
+      </div>
+   </div>
+</ng-container>

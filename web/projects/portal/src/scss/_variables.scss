@@ -1,0 +1,329 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/***
+ * Theming override section begin
+ */
+
+// if themed, need to ensure font available on server
+$inet-font-name: Roboto, -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif !default;
+
+// inet orange based light palette.
+$inet-orange: #ed711c;
+$inet-red: #ffc1cf;
+$inet-blue: #cdf7f6;
+$inet-yellow: #f2f3ae;
+$inet-green: #dbf4ad;
+
+// inet extended palette - shades for base colors. Not all in actual use yet
+$inet-orange-light: #ffb17c;
+$inet-orange-dark: #d25f11;
+$inet-red-light: #ffd7e0;
+$inet-red-dark: #fe688b;
+$inet-blue-light: #f2fefe;
+$inet-blue-dark: #105e5a;
+$inet-yellow-light: #feffd2;
+$inet-yellow-dark: #656616;
+$inet-green-light:#e7f9c7;
+$inet-green-dark: #aacc6d;
+
+// white/gray/black colors for toolbar/panel background & border
+$inet-offwhite1: #fcfcfc;
+$inet-offwhite2: #f9f9f9;
+$inet-offwhite3: #f5f5f5;
+$inet-offwhite4: #f0f0f0;
+$inet-gray1: #e0e0e0;
+$inet-gray2: #bdbdbd;
+$inet-gray3: #757575;
+$inet-gray4: #424242;
+
+// text/icon fg colors
+$inet-default-icon-color: #6d6d6d;
+$inet-text-dark: #202020;
+$inet-text-light: #fff;
+
+$inet-drop-highlight: #66DD66;
+
+/***
+ * Theming override section end
+ */
+
+/***
+ * Color variables with semantic meaning.
+ *
+ * create & use variable in this section when a color is used for same meaning or consistent look in more than 1 component.
+ * otherwise, use color from theming section palette directly is ok.
+ *
+ * All bootstrap override variables in next section are also considered semantic meaning colors
+ */
+$third-color: $inet-yellow;           // any color coding necessary but doesn't fit with primary oranges and secondary blues
+$third-color-light: $inet-yellow-light;
+$fourth-color: $inet-green;           // last color coding option if third-color is already in use
+$fourth-color-light: $inet-green-light;
+
+$inet-gray-border: $inet-gray1;
+$selected-item-bg-color:  $inet-blue;
+$selected-item-color: $inet-text-dark;
+$hover-bg-blue: $inet-blue-light;
+
+$top-bar-black: $inet-gray4;
+$top-bar-hover-gray: $inet-gray3;
+
+
+/***
+ * Override Bootstrap variables to coordinate with inet theme
+ */
+$font-family-sans-serif: $inet-font-name;
+$font-size-base: .75rem !default;
+$font-size-lg:   1rem !default;
+$font-size-sm:   .66rem !default;
+$font-size-xs:   .56rem !default;
+$modal-lg:        850px !default;
+
+$primary: $inet-orange;  // use for primary function in the current working area. Also for current focused element in current working area
+$primary-light: $inet-orange-light;
+$primary-dark: $inet-orange-dark;
+$secondary: $inet-blue-dark;  // actionable button/icons background to distinguish from info/status buttons/icons
+$secondary-light: $inet-blue;
+$secondary-dark: #0a3d3b;
+$success: $inet-green;
+$warning: $inet-yellow;
+$danger: $inet-red-dark;
+$light: $inet-offwhite1;
+$link-color: $inet-yellow-dark;
+
+$component-active-color: $inet-text-dark;
+$table-hover-bg: $hover-bg-blue;
+$table-active-bg: $selected-item-bg-color;
+$input-btn-focus-width: 1px;
+$input-btn-focus-color: $primary;
+$input-disabled-bg: $inet-gray1;
+$input-border-color: $inet-gray1;
+$dropdown-link-hover-bg: $hover-bg-blue;
+$btn-disabled-opacity: 0.3;
+$action-color: $inet-default-icon-color;
+$action-hover-color: $inet-gray4;
+$form-floating-label-opacity: 1;
+$form-floating-padding-y: .375rem;
+$form-floating-input-padding-t: $form-floating-padding-y;
+$form-floating-input-padding-b: $form-floating-padding-y;
+$form-floating-label-y: $form-floating-padding-y + .125rem;
+$form-check-input-checked-color: white;
+$form-check-input-checked-bg-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' width='16' height='16' fill='none' stroke='#{$form-check-input-checked-color}' stroke-width='3'%3E%3Cpath d='M3 8 l3 3 L13 3' fill='none'/%3E%3C/svg%3E");
+$form-check-radio-checked-bg-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' width='16' height='16' fill='none'%3E%3Ccircle cx='8' cy='8' r='7' stroke='#{$form-check-input-checked-color}' stroke-width='3' /%3E%3C/svg%3E");
+
+/* follow bootstrap customization for internal variables */
+
+/***
+ *  define custom variables here
+ */
+$asset-path: 'assets';
+$roboto-font-path: 'assets';
+$sqrt2: 1.41421356;
+
+// css variables
+:root {
+  // font
+  --inet-font-size-base: 13px;
+  --inet-font-family: #{inspect($inet-font-name)};
+  --inet-text-color: #212529;
+  --inet-icon-color: #{$inet-default-icon-color};
+
+  // general colors
+  --inet-light-color: #{$inet-text-light};
+  --inet-dark-color: #{$inet-text-dark};
+  --inet-primary-color: #{$inet-orange};
+  --inet-secondary-color: #{$secondary};
+  --inet-third-color: #{$third-color};
+  --inet-fourth-color: #{$fourth-color};
+  --inet-success-color: #{$success};
+  --inet-danger-color: #{$danger};
+  --inet-warning-color: #{$warning};
+  --inet-info-color: #17a2b8;
+
+  // panels
+  --inet-main-panel-bg-color: white;
+  //--inet-side-panel-bg-color // not set by default to get different side panel colors in portal/composer in the default theme
+  //--inet-panel-border // not set by default, used to create borders between panels
+  //--inet-panel-border-zero // needs to be set to 0 when panel border is set
+
+  --inet-portal-main-panel-bg-color: var(--inet-main-panel-bg-color);
+  --inet-portal-side-panel-bg-color: var(--inet-side-panel-bg-color, #{$inet-offwhite2});
+
+  --inet-composer-main-panel-bg-color: var(--inet-main-panel-bg-color);
+  --inet-composer-side-panel-bg-color: var(--inet-side-panel-bg-color, white);
+
+  // hover
+  --inet-hover-primary-bg-color: #{$hover-bg-blue};
+  --inet-hover-secondary-bg-color: #{$inet_gray1};
+  --inet-hover-text-color: #{$inet-gray4};
+
+  // selected items
+  --inet-selected-item-bg-color: #{$selected-item-bg-color};
+  --inet-selected-item-text-color: #{$selected-item-color};
+
+  // navbar/ navigation tabs
+  --inet-navbar-text-color: #{$inet-text-light};
+  --inet-navbar-bg-color: #{$top-bar-black};
+  --inet-navbar-selected-border-color: var(--inet-primary-color);
+  --inet-navbar-logo-color: var(--inet-primary-color);
+  --inet-navbar-home-icon-color: var(--inet-navbar-text-color);
+  --inet-navbar-home-bg-color: var(--inet-primary-color);
+  //--inet-navbar-hover-text-color; // not set by default
+  //--inet-navbar-hover-bg-color; // not set by default
+
+  --inet-portal-navbar-text-color: var(--inet-navbar-text-color);
+  --inet-portal-navbar-bg-color: var(--inet-navbar-bg-color);
+  --inet-portal-navbar-hover-text-color: var(--inet-navbar-hover-text-color, var(--inet-portal-navbar-text-color));
+  --inet-portal-navbar-hover-bg-color: var(--inet-navbar-hover-bg-color, rgba(255, 255, 255, 0.2));
+
+  --inet-composer-navbar-text-color: var(--inet-navbar-text-color);
+  --inet-composer-navbar-bg-color: var(--inet-navbar-bg-color);
+  --inet-composer-navbar-hover-text-color: var(--inet-navbar-hover-text-color, var(--inet-composer-navbar-text-color));
+  --inet-composer-navbar-hover-bg-color: var(--inet-navbar-hover-bg-color, var(--inet-secondary-color));
+
+  --inet-nav-tabs-text-color: var(--inet-text-color);
+  --inet-nav-tabs-bg-color: #{$inet-offwhite4};
+  --inet-nav-tabs-selected-border-color: var(--inet-primary-color);
+
+  // toolbars
+  --inet-toolbar-bg-color: #{$inet-offwhite1};
+  --inet-vs-toolbar-bg-color: var(--inet-toolbar-bg-color);
+  --inet-repository-tree-toolbar-bg-color: var(--inet-toolbar-bg-color);
+
+  // worksheet
+  --inet-graph-assembly-bg-color: #{$inet-offwhite1};
+  --inet-graph-assembly-text-color: var(--inet-text-color);
+  --inet-graph-assembly-header-text-color: var(--inet-text-color);
+  --inet-graph-assembly-header-selected-text-color: var(--inet-selected-item-text-color);
+  --inet-graph-assembly-header-selected-bg-color: var(--inet-selected-item-bg-color);
+  --inet-graph-assembly-error-text-color: red;
+  --inet-graph-connection-color: #{$inet-gray4};
+  --inet-graph-connection-warning-color: #{$primary-light};
+  --inet-schema-connection-color: #{$inet-gray2};
+  --inet-schema-column-connected-bg-color: var(--inet-fourth-color);
+  --inet-schema-column-compatible-bg-color: var(--inet-secondary-color-light);
+  --inet-schema-column-incompatible-bg-color: #{$primary-light};
+  --inet-ws-header-primary-bg-color: var(--inet-third-color);
+  --inet-ws-header-secondary-bg-color: var(--inet-third-color-light);
+  --inet-ws-table-odd-row-bg-color: #fff;
+  --inet-ws-table-even-row-bg-color: #f2f2f2;
+
+  // other
+  --inet-default-border-color: #{$inet-gray-border};
+  --inet-drag-drop-highlight-color: #{$inet-drop-highlight};
+  --inet-link-color: #{$link-color};
+  --inet-link-hover-color: #272708;
+  --inet-ruler-text-color: #{$inet-gray4};
+  --inet-ruler-bg-color: #{$inet-offwhite1};
+  --inet-ruler-border-color: #{$inet-gray3};
+
+  // bootstrap components
+  // -> dialogs/slide outs
+  --inet-dialog-bg-color: var(--inet-main-panel-bg-color);
+  --inet-dialog-title-text-transform: none;
+  --inet-dialog-title-font-size: 1.3125rem;
+
+  // -> inputs
+  --inet-input-bg-color: transparent;
+  --inet-input-text-color: #495057;
+  --inet-input-border-color: #{$inet-gray-border};
+  --inet-input-focus-text-color: var(--inet-input-text-color);
+  //--inet-input-focus-bg-color // not set by default
+  --inet-input-disabled-bg-color: #{$inet-gray1};
+  --inet-input-disabled-opacity: 0.5;
+
+  // -> poppups/dropdowns
+  --inet-dropdown-bg-color: white;
+  --inet-dropdown-toggle-color: black;
+
+  // -> cards
+  --inet-card-bg-color: white;
+
+  // -> tables
+  --inet-table-text-color: var(--inet-text-color);
+  --inet-table-border-color: var(--inet-default-border-color);
+  --inet-table-heading-text-color: #495057;
+  //--inet-table-heading-bg-color // not set by default
+
+  // -> buttons
+  // --> primary
+  --inet-button-primary-bg-color: var(--inet-primary-color);
+  --inet-button-primary-text-color: white;
+  --inet-button-primary-border-color: var(--inet-primary-color);
+  --inet-button-primary-hover-bg-color: var(--inet-primary-color-dark);
+  --inet-button-primary-hover-text-color: white;
+  --inet-button-primary-hover-border-color: var(--inet-primary-color-dark);
+
+  // --> secondary
+  --inet-button-secondary-bg-color: var(--inet-secondary-color);
+  --inet-button-secondary-text-color: white;
+  --inet-button-secondary-border-color: var(--inet-secondary-color);
+  --inet-button-secondary-hover-bg-color: var(--inet-secondary-color-dark);
+  --inet-button-secondary-hover-text-color: white;
+  --inet-button-secondary-hover-border-color: var(--inet-secondary-color-dark);
+
+  // --> default
+  --inet-button-default-bg-color: transparent;
+  --inet-button-default-text-color: var(--inet-secondary-color);
+  --inet-button-default-border-color: var(--inet-secondary-color);
+  --inet-button-default-hover-bg-color: var(--inet-secondary-color);
+  --inet-button-default-hover-text-color: var(--inet-secondary-color-light);
+  --inet-button-default-hover-border-color: var(--inet-secondary-color);
+
+  // --> light
+  --inet-button-light-bg-color: var(--inet-light-color);
+  --inet-button-light-text-color: var(--inet-text-color);
+  --inet-button-light-border-color: var(--inet-light-color);
+  --inet-button-light-hover-bg-color: #e3e3e3;
+  --inet-button-light-hover-text-color: var(--inet-text-color);
+  --inet-button-light-hover-border-color: #dcdcdc;
+
+  // auto generated colors
+  --inet-light-color-light: #{lighten($inet-text-light, 10%)};
+  --inet-light-color-dark: #{darken($inet-text-light, 10%)};
+
+  --inet-dark-color-light: #{lighten($inet-text-dark, 10%)};
+  --inet-dark-color-dark: #{darken($inet-text-dark, 10%)};
+
+  --inet-primary-color-light: #{$primary-light};
+  --inet-primary-color-dark: #{$primary-dark};
+
+  --inet-secondary-color-light: #{$secondary-light};
+  --inet-secondary-color-dark: #{$secondary-dark};
+
+  --inet-third-color-light: #{$third-color-light};
+  --inet-third-color-dark: #{darken($third-color, 10%)};
+
+  --inet-fourth-color-light: #{lighten($fourth-color, 10%)};
+  --inet-fourth-color-dark: #{darken($fourth-color, 10%)};
+
+  --inet-success-color-light: #f8fdef;
+  --inet-success-color-dark: #727f5a;
+
+  --inet-danger-color-light: #fff3f5;
+  --inet-danger-color-dark: #85646c;
+
+  --inet-warning-color-light: #fcfdef;
+  --inet-warning-color-dark: #7e7e5a;
+
+  --inet-info-color-light: #d1ecf1;
+  --inet-info-color-dark: #0c5460;
+
+  // float label default color - not configurable by user - is set to whatever pane it's in
+  --inet-float-label-bg-color: var(--inet-main-panel-bg-color);
+}

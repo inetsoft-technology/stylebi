@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg  xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="79.409" height="165" viewBox="0 0 79.409 165" overflow="visible" enable-background="new 0 0 79.409 165"
+	 xml:space="preserve">
+		<g id="Layer_2">
+		</g>
+		<g id="Layer_1">
+		</g>
+		<g id="Layer_3">
+			<g>
+				<path fill="#FFFFFF" d="M78.369,148.841c-3.345-6.391-19.464-11.238-38.86-11.238s-35.516,4.849-38.86,11.238H0v3.113h0.048
+					C1.03,159.216,18.32,165,39.509,165c21.188,0,38.478-5.784,39.46-13.046h0.048v-3.113H78.369z"/>
+				<ellipse fill="#FFFFFF" cx="39.509" cy="148.516" rx="39.509" ry="13.698"/> 
+				<ellipse fill="#FFFFFF" enable-background="new    " cx="39.901" cy="148.443" rx="39.508" ry="13.698"/> 
+				<path fill="#FFFFFF" enable-background="new    " d="M10.951,5.473v55.257v26.066v56.188h0.026
+					c-0.012,0.105-0.026,0.212-0.026,0.318c0,4.985,12.786,9.026,28.558,9.026c15.772,0,28.557-4.041,28.557-9.026
+					c0-0.106-0.014-0.213-0.025-0.318h0.025V86.796V60.729V5.473H10.951z"/>
+				<ellipse fill="#FFFFFF" cx="39.509" cy="5.19" rx="28.557" ry="5.19"/> 
+			</g>
+		</g>
+	</svg>

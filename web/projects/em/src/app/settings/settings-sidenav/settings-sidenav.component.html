@@ -1,0 +1,51 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="settings-sidenav-root" [class.settings-sidenav-mobile]="isScreenSmall()">
+  <em-page-header (toggleSidenav)="sidenav.toggle()"></em-page-header>
+  <mat-sidenav-container class="settings-sidenav-container">
+    <mat-sidenav #sidenav [mode]="isScreenSmall() ? 'over' : 'side'" [opened]="!isScreenSmall()"
+                 [fixedInViewport]="true" [fixedTopGap]="92" class="mat-elevation-z2">
+      <mat-form-field>
+        <mat-label>_#(Search)</mat-label>
+        <input matInput type="text" [(ngModel)]="searchText" (keyup.enter)="search()"/>
+        <button matSuffix mat-icon-button aria-label="_#(Search)" (click)="search()">
+          <mat-icon fontSet="ineticons" fontIcon="search-icon"></mat-icon>
+        </button>
+        <button mat-icon-button matSuffix title="_#(Clear)" aria-label="_#(Clear)"
+                (click)="searchText = ''" [disabled]="!searchText">
+          <mat-icon fontSet="ineticons" fontIcon="close-circle-icon"></mat-icon>
+        </button>
+      </mat-form-field>
+      <mat-nav-list>
+        <a *ngIf="generalVisible" mat-list-item routerLink="/settings/general" routerLinkActive="active">_#(General)</a>
+        <a *ngIf="securityVisible" mat-list-item routerLink="/settings/security" routerLinkActive="active">_#(Security)</a>
+        <a *ngIf="contentVisible" mat-list-item routerLink="/settings/content" routerLinkActive="active">_#(Content)</a>
+        <a *ngIf="scheduleVisible" mat-list-item routerLink="/settings/schedule" routerLinkActive="active">_#(Schedule)</a>
+        <a *ngIf="presentationVisible" mat-list-item routerLink="/settings/presentation" routerLinkActive="active">_#(Presentation)</a>
+        <a *ngIf="loggingVisible" mat-list-item routerLink="/settings/logging" routerLinkActive="active">_#(Logging)</a>
+        <a *ngIf="propertiesVisible" mat-list-item routerLink="/settings/properties" routerLinkActive="active">_#(All Properties)</a>
+      </mat-nav-list>
+    </mat-sidenav>
+
+    <mat-sidenav-content class="settings-sidenav-content mat-elevation-z0" cdkScrollable emTopScroll>
+      <router-outlet></router-outlet>
+    </mat-sidenav-content>
+  </mat-sidenav-container>
+</div>

@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div blockMouse>
+  <div class="modal-header">
+     <h3 class="modal-title">{{title}}</h3>
+  </div>
+  <div class="modal-body">
+    <div class="container-fluid">
+      <div class="form-row">
+        <div class="col-auto" *ngIf="title == 'Trap'">
+          <img [src]='errorSource()'>
+        </div>
+        <div class="col">
+          <p class="text-info" [wExpandString]="expandValues" [innerHTML]="message"></p>
+        </div>
+      </div>
+      <div class="form-row" *ngIf="showProgress">
+        <div class="col">
+          <ngb-progressbar type="info" [value]="100" [striped]="true" [animated]="true"
+                           height="1rem">
+          </ngb-progressbar>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button *ngFor="let option of options; let first = first" type="button" class="btn"
+            [class.btn-primary]="first"  [class.btn-default]="!first" #btn
+            [attr.autofocus]="first ? '' : null"
+            (click)="clickButton(option.symbol)">{{option.label}}</button>
+  </div>
+</div>

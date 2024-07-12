@@ -1,0 +1,14 @@
+pluginDirectory: "/var/lib/inetsoft/plugins"
+keyValue:
+  type: "mapdb"
+  mapdb:
+    directory: "/var/lib/inetsoft/kv"
+blob:
+  type: "filesystem"
+  cacheDirectory: "/var/lib/inetsoft/blob-cache"
+  filesystem:
+    directory: "/var/lib/inetsoft/blob"
+externalStorage:
+  type: "filesystem"
+  filesystem:
+    directory: "/var/lib/inetsoft/files"

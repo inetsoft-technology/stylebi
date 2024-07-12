@@ -1,0 +1,187 @@
+{
+  "endpoints": [
+    {
+      "name": "Modules",
+      "paged": false,
+      "suffix": "/crm/v2/settings/modules",
+      "lookups": [
+        {
+          "endpoints": ["Fields", "Layouts", "Related Lists", "Custom Views", "Records", "Deleted Records", "Tags"],
+          "jsonPath": "$.modules.[*]",
+          "key": "api_name",
+          "parameterName": "Module API Name"
+        }
+      ]
+    },
+    {
+      "name": "Organization",
+      "paged": false,
+      "suffix": "/crm/v2/org"
+    },
+    {
+      "name": "Users",
+      "paged": true,
+      "suffix": "/crm/v2/users?type={Type?:AllUsers|ActiveUsers|...}"
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/crm/v2/users/{User ID}"
+    },
+    {
+      "name": "Roles",
+      "paged": false,
+      "suffix": "/crm/v2/settings/roles"
+    },
+    {
+      "name": "Role",
+      "paged": false,
+      "suffix": "/crm/v2/settings/roles/{Role ID}"
+    },
+    {
+      "name": "Profiles",
+      "paged": false,
+      "suffix": "/crm/v2/settings/profiles"
+    },
+    {
+      "name": "Profile",
+      "paged": false,
+      "suffix": "/crm/v2/settings/profiles/{Profile ID}"
+    },
+    {
+      "name": "Territories",
+      "paged": false,
+      "suffix": "/crm/v2/settings/territories"
+    },
+    {
+      "name": "Module",
+      "paged": false,
+      "suffix": "/crm/v2/settings/modules/{Module API Name}"
+    },
+    {
+      "name": "Fields",
+      "paged": false,
+      "suffix": "/crm/v2/settings/fields?module={Module API Name}"
+    },
+    {
+      "name": "Layouts",
+      "paged": false,
+      "suffix": "/crm/v2/settings/layouts?module={Module API Name}"
+    },
+    {
+      "name": "Layout",
+      "paged": false,
+      "suffix": "/crm/v2/settings/layouts/{Layout ID}?module={Module API Name}"
+    },
+    {
+      "name": "Related Lists",
+      "paged": false,
+      "suffix": "/crm/v2/settings/related_lists?module={Module API Name}"
+    },
+    {
+      "name": "Custom Views",
+      "paged": true,
+      "suffix": "/crm/v2/settings/custom_views?module={Module API Name}"
+    },
+    {
+      "name": "Custom View",
+      "paged": false,
+      "suffix": "/crm/v2/settings/custom_views/{Custom View ID}?module={Module API Name}"
+    },
+    {
+      "name": "Records",
+      "paged": true,
+      "suffix": "/crm/v2/{Module API Name}?fields={Fields?:value1,value2,...}&converted={Converted?:true|false|both}&approved={Approved?:true|false|both}&cvid={Custom View ID?}&territory_id={Territory ID?}&include_child={Include Children?:true|false}"
+    },
+    {
+      "name": "Record",
+      "paged": false,
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}"
+    },
+    {
+      "name": "Deleted Records",
+      "paged": true,
+      "suffix": "/crm/v2/{Module API Name}/deleted?module={Module API Name}&type={Type?:All|Recycle|Permanent}"
+    },
+    {
+      "name": "Record Search",
+      "paged": true,
+      "suffix": "/crm/v2/{Module API Name}/search?criteria={Criteria}&email={Email?}&phone={Phone?}&word={Word?}&converted={Converted?:true|false|both}&approved={Approved?:true|false|both}"
+    },
+    {
+      "name": "Related Records",
+      "paged": true,
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}/{Related List API Name}"
+    },
+    {
+      "name": "Variables",
+      "paged": false,
+      "suffix": "/crm/v2/settings/variables"
+    },
+    {
+      "name": "Variable",
+      "paged": false,
+      "suffix": "/crm/v2/settings/variables/{Variable ID}?group={Variable Group ID}"
+    },
+    {
+      "name": "Variable Group",
+      "paged": false,
+      "suffix": "/crm/v2/settings/Variable Groups/{Variable Group ID}"
+    },
+    {
+      "name": "Blueprint",
+      "paged": false,
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}/actions/blueprint"
+    },
+    {
+      "name": "Tags",
+      "paged": false,
+      "suffix": "/crm/v2/settings/tags?module={Module API Name}&my_tags={My Tags?:true|false}"
+    },
+    {
+      "name": "Tag Record Count",
+      "paged": false,
+      "suffix": "/crm/v2/settings/tags/{Tag ID}/actions/records_count?module={Module API Name}"
+    },
+    {
+      "name": "Notes",
+      "paged": true,
+      "suffix": "/crm/v2/Notes"
+    },
+    {
+      "name": "Record Notes",
+      "paged": true,
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}/Notes"
+    },
+    {
+      "name": "Attachments",
+      "paged": false,
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}/Attachments"
+    },
+    {
+      "name": "Mass Update Status",
+      "paged": false,
+      "suffix": "/crm/v2/{Module API Name}/actions/mass_update?job_id={Job ID}"
+    },
+    {
+      "name": "Currencies",
+      "paged": false,
+      "suffix": "/crm/v2/org/currencies"
+    },
+    {
+      "name": "Currency",
+      "paged": false,
+      "suffix": "/crm/v2/org/currencies/{Currency ID}"
+    },
+    {
+      "name": "Shared Record",
+      "paged": false,
+      "suffix": "/crm/v2/{Module API Name}/{Record ID}/actions/share?sharedTo={Shared To?}&view={View?:summary|manage}"
+    },
+    {
+      "name": "Notifications",
+      "paged": true,
+      "suffix": "/crm/v2/actions/watch?channel_id={Channel ID}&module={Module API Name?}"
+    }
+  ]
+}

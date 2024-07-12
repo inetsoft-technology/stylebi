@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="139.0493 485.3848" i:rulerOrigin="0 0" i:pageBounds="0 792 612 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="200" height="87.495" viewBox="0 0 200 87.495" overflow="visible" enable-background="new 0 0 200 87.495"
+	 xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_2" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+				</g>
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<path fill="#CCCCCC" stroke="#E16F00" d="M197.072,79.197c0,2.762-2.239,5-5,5h-184c-2.761,0-5-2.238-5-5V8.264
+						c0-2.761,2.239-5,5-5h184c2.761,0,5,2.239,5,5V79.197z"/>
+					<linearGradient id="XMLID_3_" gradientUnits="userSpaceOnUse" x1="199.9995" y1="43.7476" x2="4.882813e-004" y2="43.7476">
+						<stop  offset="0.0056" style="stop-color:#B0B0B0"/>
+						<stop  offset="0.1862" style="stop-color:#C2C2C2"/>
+						<stop  offset="0.499" style="stop-color:#DCDCDC"/>
+						<stop  offset="0.78" style="stop-color:#ECECEC"/>
+						<stop  offset="1" style="stop-color:#F2F2F2"/>
+						<a:midPointStop  offset="0.0056" style="stop-color:#B0B0B0"/>
+						<a:midPointStop  offset="0.3446" style="stop-color:#B0B0B0"/>
+						<a:midPointStop  offset="1" style="stop-color:#F2F2F2"/>
+					</linearGradient>
+					<rect i:knockout="Off" opacity="0" fill="url(#XMLID_3_)" width="200" height="87.495"/> 
+					<rect x="10.49" y="9.497" fill="#FFC73C" width="179.02" height="56.168"/> 
+					<linearGradient id="XMLID_4_" gradientUnits="userSpaceOnUse" x1="100" y1="25.4277" x2="100" y2="49.7354">
+						<stop  offset="0.6292" style="stop-color:#FFFFFF"/>
+						<stop  offset="0.7495" style="stop-color:#FFFFFF"/>
+						<stop  offset="0.7697" style="stop-color:#FFFFFF"/>
+						<a:midPointStop  offset="0.6292" style="stop-color:#FFFFFF"/>
+						<a:midPointStop  offset="0.8636" style="stop-color:#FFFFFF"/>
+						<a:midPointStop  offset="0.7697" style="stop-color:#FFFFFF"/>
+					</linearGradient>
+					
+						<rect x="22.004" y="25.428" i:knockout="Off" fill="url(#XMLID_4_)" stroke="#828282" stroke-width="0.1933" width="155.991" height="24.308"/> 
+				</g>
+			</g>
+		</switch>
+	</svg>

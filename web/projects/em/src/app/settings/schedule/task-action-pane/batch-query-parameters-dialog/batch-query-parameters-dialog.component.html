@@ -1,0 +1,79 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [title]="'_#(Query Parameters)'">
+</em-modal-header>
+<div mat-dialog-content>
+  <div class="flex-col">
+    <mat-form-field class="query-select-form-field" floatLabel="always">
+      <mat-label>_#(Query)</mat-label>
+      <mat-select [(value)]="queryEntry" (valueChange)="selectedEntryChanged()" [compareWith]="queryEqual">
+        <mat-option class="padded" [value]="null">_#(None)</mat-option>
+        <mat-tree *ngIf="treeDataSource" [dataSource]="treeDataSource" [treeControl]="treeControl">
+          <mat-tree-node *matTreeNodeDef="let node" matTreeNodeToggle matTreeNodePadding
+                         [class.mat-active]="queryEntry?.identifier === node.entry?.identifier">
+            <button mat-icon-button disabled></button>
+            <mat-option [value]="node.entry" *ngIf="isSelectable(node.entry); else notSelectable">
+              <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="getIcon(node)"></mat-icon>
+              {{node.name}}
+            </mat-option>
+            <ng-template #notSelectable>
+              <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="getIcon(node)"></mat-icon>
+              {{node.name}}
+            </ng-template>
+          </mat-tree-node>
+          <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding
+                         [class.mat-active]="queryEntry?.identifier === node.entry?.identifier">
+            <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'toggle ' + node.name">
+              <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="treeControl.isExpanded(node) ? 'downward-icon' : 'forward-icon'">
+              </mat-icon>
+            </button>
+            <mat-option [value]="node.entry" *ngIf="isSelectable(node.entry); else notSelectable">
+              <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="getIcon(node)"></mat-icon>
+              {{node.name}}
+            </mat-option>
+            <ng-template #notSelectable>
+              <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="getIcon(node)"></mat-icon>
+              {{node.name}}
+            </ng-template>
+          </mat-tree-node>
+        </mat-tree>
+      </mat-select>
+    </mat-form-field>
+
+    <div class="flex-col">
+      <mat-label>
+        <h2>_#(Parameters)</h2>
+      </mat-label>
+      <mat-form-field *ngFor="let param of parameterNames" floatLabel="always">
+        <mat-label>{{param}}</mat-label>
+        <mat-select [value]="getParamValue(param)" (valueChange)="setParamValue(param, $event)">
+          <mat-option [value]="null">_#(None)</mat-option>
+          <mat-option *ngFor="let column of queryColumns?.columns, let i = index;" [value]="column">{{queryColumns?.columnLabels[i]}}</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+  </div>
+</div>
+
+<mat-dialog-actions>
+  <button mat-raised-button color="primary" (click)="ok()" [disabled]="!isValid()">_#(OK)</button>
+  <button mat-button (click)="clearAll()">_#(Clear All)</button>
+  <button mat-button (click)="cancel()">_#(Cancel)</button>
+</mat-dialog-actions>

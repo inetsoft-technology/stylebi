@@ -1,0 +1,44 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-editor-panel
+  *ngIf="model"
+  contentClass="tabbed-editor-panel-content"
+  applyLabel="_#(Restore)"
+  [resetVisible]="smallDevice"
+  [applyDisabled]="!reports || reports.length === 0"
+  (applyClicked)="restoreReports()"
+  (resetClicked)="cancel.emit()"
+  (unsavedChanges)="unsavedChanges.emit($event)">
+  <mat-tab-group color="accent">
+    <mat-tab label="_#(Recycle Bin): _#(Repository)">
+      <ng-template matTabContent>
+        <mat-card class="mat-elevation-z0" [formGroup]="form">
+          <mat-checkbox formControlName="overwrite">_#(Overwrite Existing Files)</mat-checkbox>
+        </mat-card>
+        <em-table-view [dataSource]="model" [tableInfo]="reportsTableInfo" [flatCard]="true" [trackByProp]="'path'"
+                       (selectionChanged)="reports=$event.selected">
+        </em-table-view>
+      </ng-template>
+    </mat-tab>
+  </mat-tab-group>
+  <ng-container em-editor-panel-actions>
+    <button mat-button (click)="removeReports()" [disabled]="!reports || !reports.length">_#(Remove)</button>
+  </ng-container>
+</em-editor-panel>

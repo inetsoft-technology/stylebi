@@ -1,0 +1,106 @@
+/**
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+html, body, div, span, applet, object, iframe, h1, h2, h3, h4, h5, h6, p, blockquote, pre, a, abbr, acronym, address, big, cite, code, del, dfn, em, img, ins, kbd, q, s, samp, small, strike, strong, sub, sup, tt, var, b, u, i, center, dl, dt, dd, ol, ul, li, fieldset, form, label, legend, table, caption, tbody, tfoot, thead, tr, th, td, article, aside, canvas, details, embed, figure, figcaption, footer, header, hgroup, menu, nav, output, ruby, section, summary, time, mark, audio, video, select{margin:0;padding:0;border:0;font-size:100%;font:inherit;vertical-align:baseline;}
+article, aside, details, figcaption, figure, footer, header, hgroup, menu, nav, section{display:block;}
+body{line-height:1;}
+ol, ul{list-style:none;}
+blockquote, q{quotes:none;}
+blockquote:before, blockquote:after,
+q:before, q:after{content:'';content:none;}
+table{border-collapse:collapse;border-spacing:0;}
+body{background:#fff;font-family:'Lato', sans-serif;font-size:16px;line-height:22px;color:#292929;overflow-x:hidden;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;}
+html{height:100%;}
+h1, h2, h3, h4, h5, h6{color:#4f4f4f;font-family:'Montserrat', sans-serif;}
+h1 a, h2 a, h3 a, h4 a, h5 a, h6 a{font-weight:inherit;}
+h1{font-size:42px;line-height:46px;text-transform:uppercase;}
+h2{font-size:38px;line-height:42px;}
+h3{font-size:34px;line-height:38px;}
+h4{font-size:30px;line-height:34px;}
+h5{font-size:26px;line-height:30px;}
+h6{font-size:22px;line-height:26px;text-transform:capitalize;}
+.subheader{color:#292929;}
+.subheader-background{width:100%;position:relative;margin:0 auto;background:#a3a3a3;margin-bottom:50px;margin-top:20px;-webkit-box-shadow:0 9px 9px -7px rgba(0,0,0,.3);-moz-box-shadow:0 9px 9px -7px rgba(0,0,0,.3);box-shadow:0 9px 9px -7px rgba(0,0,0,.3);}
+.subheader{padding-top:10px;padding-bottom:10px;}
+.subheader p{font-size:20px;line-height:26px;text-align:center;font-weight:normal;padding-left:20px;padding-right:20px;}
+.subheader span:first-child{color:#e74c3c;}
+.subheader span:last-child{border-bottom:1px dotted #e74c3c;}
+.icon_arrow_sub{left:50%;margin-left:-100px;width:0;height:0;position:absolute;top:-13px;border-left:100px solid transparent;border-right:100px solid transparent;border-bottom:16px solid #a3a3a3;-webkit-transition:all .35s ease-in-out;-moz-transition:all .35s ease-in-out;-ms-transition:all .35s ease-in-out;-o-transition:all .35s ease-in-out;transition:all .35s ease-in-out;}
+.subheader-background:hover .icon_arrow_sub{top:100%;border-top:16px solid #a3a3a3;border-bottom:none;}
+p{}
+p img{margin:0;}
+p.lead{font-size:21px;line-height:27px;color:#777;}
+em{font-style:italic;}
+strong{font-weight:400;}
+small{font-size:80%;}
+.dropcap{float:left;font-weight:bold;line-height:0.95;font-size:420%;margin-right:10px;color:#292929;}
+.dropcap-red{float:left;font-weight:bold;line-height:0.95;font-size:400%;margin-right:10px;color:#EB767E;}
+.dropcap-orange-circle{float:left;font-weight:800;line-height:66px;font-size:44px;border-radius:50%;background:#292929;height:66px;width:66px;text-align:center;margin-right:10px;color:#e74c3c;}
+.line-sep{border-bottom:1px solid rgba(81,81,81,.1);padding-top:30px;margin-bottom:30px;position:relative;}
+.line-sep1{border-bottom:1px solid rgba(81,81,81,.1);padding-top:70px;margin-bottom:30px;position:relative;}
+blockquote, blockquote p{font-size:17px;line-height:24px;color:#777;}
+blockquote{margin:0 0 20px;padding:9px 20px 0 19px;}
+blockquote cite{display:block;font-size:12px;color:#555;}
+blockquote cite:before{content:"\2014 \0020";}
+blockquote cite a, blockquote cite a:visited, blockquote cite a:visited{color:#555;}
+hr{border:solid #323a3d;border-width:1px 0 0;clear:both;margin:0 10px 0 10px;height:0;position:relative;}
+a, a:visited{text-decoration:none;}
+a:hover, a:focus{color:#e74c3c;}
+p a, p a:visited{line-height:inherit;text-decoration:none;}
+ul, ol{}
+ul{list-style:none outside;}
+ol{list-style:decimal;}
+ol, ul.square, ul.circle, ul.disc{margin-left:30px;}
+ul.square{list-style:square outside;}
+ul.circle{list-style:circle outside;}
+ul.disc{list-style:disc outside;}
+ul ul, ul ol,
+ol ol, ol ul{font-size:90%;}
+ul ul li, ul ol li,
+ol ol li, ol ul li{}
+li{line-height:18px;}
+ul.large li{line-height:21px;}
+li p{line-height:21px;}
+.button,
+button,
+input[type="submit"],
+input[type="reset"],
+input[type="button"]{background:#363636;margin-top:10px;border:none;color:#dfdfdf;display:inline-block;font-size:16px;cursor:pointer;line-height:normal;padding:15px 25px;-webkit-transition:all 0.3s ease-out;-moz-transition:all 0.3s ease-out;-o-transition:all 0.3s ease-out;transition:all 0.3s ease-out;width:100%}
+.button:hover,
+button:hover,
+input[type="submit"]:hover,
+input[type="reset"]:hover,
+input[type="button"]:hover{color:#e74c3c;background:#292929;}
+.button:active,
+button:active,
+input[type="submit"]:active,
+input[type="reset"]:active,
+input[type="button"]:active{color:#e74c3c;}
+.button.full-width,
+button.full-width,
+input[type="submit"].full-width,
+input[type="reset"].full-width,
+input[type="button"].full-width{width:100%;padding-left:0 !important;padding-right:0 !important;text-align:center;}
+button::-moz-focus-inner,
+input::-moz-focus-inner{border:0;padding:0;}
+img.scale-with-grid{max-width:100%;height:auto;}
+.remove-bottom{margin-bottom:0 !important;}
+.half-bottom{margin-bottom:10px !important;}
+.add-bottom{margin-bottom:20px !important;}
+.clear{clear:both;display:block;overflow:hidden;visibility:hidden;width:0;height:0;}
+::selection{background:rgba(0,0,0,.7);}
+::-moz-selection{background:rgba(0,0,0,.7);}

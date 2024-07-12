@@ -1,0 +1,36 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<split-pane [sizes]="hiddenCollapsed ? [0, 100] : [INIT_TREE_PANE_SIZE, 100 - INIT_TREE_PANE_SIZE]"
+            class="split-pane" [minSize]="0" [snapOffset]="0" [dragEnable]="!hiddenCollapsed"
+            [gutterSize]="hiddenCollapsed ? 0 : 22" (onDragEnd)="splitPaneDragEnd()"
+            [fullWidth]="true">
+  <div class="pane data-tree-pane" [hidden]="hiddenCollapsed">
+    <p-data-sources-tree-view >
+    </p-data-sources-tree-view>
+    <span class="collapse-pane-button icon-size-small" aria-hidden="true"
+          (click)="toggleDataTreePane()">
+          <i aria-hidden="true" [class.chevron-circle-arrow-left-icon]="!treePaneCollapsed"
+             [class.chevron-circle-arrow-right-icon]="treePaneCollapsed"></i>
+        </span>
+  </div>
+  <div class="pane data-pane bg-white1">
+    <router-outlet></router-outlet>
+  </div>
+</split-pane>

@@ -1,0 +1,94 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.editor-tool-bar {
+  width:100%;
+  height: 52px;
+  max-height: 52px;
+
+  .btn-toolbar-pull-right {
+    right: 50px;
+  }
+}
+
+.editor-breadcrumb-placement {
+   height: 52px;
+}
+
+.editor-breadcrumb {
+    @extend .editor-breadcrumb-placement;
+    min-width: 60px;
+    max-width: 65px;
+    padding-top: 13px;
+    padding-left: 16px;
+    font-size: 28px;
+ }
+
+.editor-breadcrumb-1 {
+    @extend .editor-breadcrumb-placement;
+    min-width: 42px;
+    max-width: 45px;
+    padding-top: 16px;
+    padding-left: 10px;
+}
+
+.title-bar {
+  display: flex;
+  justify-content: space-between;
+  border-radius: 0px;
+  margin: 0px;
+  padding: 0px !important;
+
+  .title {
+    display: inline-flex;
+    align-items: center;
+
+    h4, h5 {
+      margin: 0;
+      padding-left: 5px;
+    }
+  }
+
+  .btn-group {
+    min-width: calc(100% / 6);
+
+    button {
+      flex-grow: 1;
+      border-radius: 0px;
+    }
+  }
+
+  .btn-group-title-bar {
+    @extend .btn-group;
+    padding: 9px;
+  }
+
+  button.btn.button-gap {
+    margin-right: 2px;
+  }
+
+  button.btn.close-button {
+    background-color: transparent;
+    flex-grow: 0;
+  }
+
+  button.btn.help-button {
+    background-color: transparent;
+    padding: 0;
+    flex-grow: 0;
+  }
+}

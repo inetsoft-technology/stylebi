@@ -1,0 +1,98 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div>
+   <div class="modal-header">
+      <h3 class="modal-title">_#(Delete Bookmarks)</h3>
+      <button type="button" class="btn-close" aria-label="Close" [attr.title]="'_#(Delete Bookmarks)'"
+              (click)="cancelChanges()">
+      </button>
+   </div>
+
+   <div class="modal-body">
+      <form [formGroup]="form">
+         <div class="row gx-2">
+           <div class="col-4">
+             <div #dropdownInput class="input-group span-as-dropdown">
+               <div draggable="true"
+                    class="display-style bd-gray form-control"
+                    [fixedDropdown]="dropdownMenu" [zIndex]="999903"
+                    dropdownPlacement="bottom">
+                  {{selectedFilterOptionLabel}}
+               </div>
+               <ng-template #dropdownMenu>
+                  <div class="dropdown-container dropdown-menu show" role="menu" [style.width.px]="dropdownWidth">
+                     <div placement="bottom">
+                        <a>
+                           <div class="dropdown-item dropdown-item-label"
+                                [class.selected]="isSelectedOption(AnnotationFilterOption.OLDER_THAN)"
+                                (mousedown)="selectOption(AnnotationFilterOption.OLDER_THAN)"
+                                [attr.title]="'_#(Older than)'">
+                              <label>
+                                 {{getFilterOptionLabel(AnnotationFilterOption.OLDER_THAN)}}
+                              </label>
+                           </div>
+                        </a>
+                        <a>
+                           <div class="dropdown-item dropdown-item-label"
+                                [class.selected]="isSelectedOption(AnnotationFilterOption.NOT_ACCESSED)"
+                                (mousedown)="selectOption(AnnotationFilterOption.NOT_ACCESSED)"
+                                [attr.title]="'_#(Not Accessed For)'">
+                              <label>
+                                 {{getFilterOptionLabel(AnnotationFilterOption.NOT_ACCESSED)}}
+                              </label>
+                           </div>
+                        </a>
+                     </div>
+                  </div>
+               </ng-template>
+             </div>
+           </div>
+            <div class="col-8">
+               <div class="date-container">
+                  <div class="datemc input-group">
+                     <div class="col-auto input-group">
+                        <input formControlName="filterDate" draggable="true"
+                               class="display-style bd-gray form-control"
+                               dropdownPlacement="bottom">
+                        <button class="calendar-button btn input-group-btn-addon"
+                                title="_#(Select a Date)"
+                                [fixedDropdown]="dateDropdown"
+                                [zIndex]="999903"
+                                dropdownPlacement="bottom">
+                           <i class="icon-size-medium calendar-icon"></i>
+                        </button>
+                     </div>
+                  </div>
+                  <ng-template #dateDropdown>
+                     <div class="dropdown-pane">
+                        <date-picker [dateTime]="dateTime" (onCommit)="setFilterDate($event)">
+                        </date-picker>
+                     </div>
+                  </ng-template>
+               </div>
+            </div>
+         </div>
+      </form>
+   </div>
+   <div class="modal-footer">
+      <button type="button" class="btn btn-primary" (click)="commitChanges()" [disabled]="form.invalid">_#(OK)</button>
+      <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+   </div>
+</div>

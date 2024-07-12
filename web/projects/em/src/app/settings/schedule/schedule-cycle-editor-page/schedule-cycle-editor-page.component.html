@@ -1,0 +1,95 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-editor-panel
+  contentClass="tabbed-editor-panel-content"
+  applyLabel="_#(Save)"
+  [applyDisabled]="!valid"
+  resetLabel="_#(Close)"
+  (applyClicked)="save()"
+  (resetClicked)="close()"
+>
+  <ng-container *ngIf="model">
+    <mat-form-field floatLabel="always" appearance="outline" color="accent">
+      <mat-label>_#(Name)</mat-label>
+      <input matInput placeholder="_#(Name)" [formControl]="name">
+      <mat-error *ngIf="name.errors && name.errors['required']">_#(binding.nameInput.isEmpty)</mat-error>
+      <mat-error *ngIf="name.errors && name.errors['containsSpecialCharsForName']">_#(designer.property.anyCharErrorPrefix)</mat-error>
+    </mat-form-field>
+    <mat-tab-group>
+      <mat-tab label="_#(Conditions)">
+        <div class="editor">
+          <div class="nav-pane">
+            <mat-card appearance="outlined">
+              <mat-card-content>
+                <mat-nav-list dense>
+                  <mat-list-item *ngFor="let condition of conditionItems; let i = index" [class.mat-active]="selectedConditionIndex === i">
+                    <a class="list-label" [class.mat-error]="!condition.valid"
+                       [matTooltip]="condition.label" [matTooltipClass]="'tooltip-custom-css'"
+                       (click)="selectCondition(i)">
+                      {{ condition.label }}
+                    </a>
+                  </mat-list-item>
+                </mat-nav-list>
+              </mat-card-content>
+              <mat-card-actions>
+                <button mat-stroked-button (click)="addCondition()">_#(Add)</button>
+                <button mat-button (click)="deleteConditions()" [disabled]="!canDeleteConditions">_#(Delete)</button>
+              </mat-card-actions>
+            </mat-card>
+          </div>
+          <div class="content-pane">
+            <em-task-condition-pane
+              *ngIf="condition"
+              [model]="model?.conditionPaneModel"
+              [condition]="condition"
+              [originalTaskName]="model?.name"
+              [timeZone]="model?.timeZone"
+              [timeZoneOptions]="model?.timeZoneOptions"
+              [taskDefaultTime]="model?.taskDefaultTime"
+              [startTimeEnabled]="model?.startTimeEnabled"
+              [timeRangeEnabled]="false"
+              [cycle]="true"
+              (modelChanged)="onConditionChanged($event)">
+
+            </em-task-condition-pane>
+            <mat-card appearance="outlined" *ngIf="!condition">
+              <mat-card-content>
+                <p>_#(em.schedule.selectCondition)</p>
+              </mat-card-content>
+            </mat-card>
+          </div>
+        </div>
+      </mat-tab>
+      <mat-tab label="_#(Options)">
+        <em-schedule-cycle-options-pane
+        [info]="model.cycleInfo"
+        (infoChange)="onOptionsChanged($event)">
+        </em-schedule-cycle-options-pane>
+      </mat-tab>
+      <mat-tab label="_#(Security)">
+        <div class="editor">
+          <div class="content-pane">
+            <em-resource-permission [model]="model.permissionModel" (permissionChanged)="taskChanged = true"></em-resource-permission>
+          </div>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  </ng-container>
+</em-editor-panel>

@@ -1,0 +1,105 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.hidden-column-container {
+  display: flex;
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-direction: column;
+  height: 100%;
+
+  > .tab-content {
+    display: flex;
+    flex-grow: 1;
+    flex-shrink: 1;
+
+    > .tab-pane {
+      flex-grow: 1;
+      flex-shrink: 1;
+      display: flex;
+    }
+  }
+
+  .flex-container {
+    display: flex;
+    flex-direction: column;
+
+    .auto-size-flex-item {
+      flex: 1;
+    }
+  }
+
+  .flex-auto-item {
+    flex-grow: 1;
+    flex-shrink: 1;
+    display: flex;
+    flex-direction: column;
+
+    .shuffle-title {
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+
+    .shuffle-list-pane {
+      flex-grow: 1;
+      flex-shrink: 1;
+      flex-basis: 0;
+      overflow: auto;
+    }
+  }
+
+  .shuffle-list {
+    align-items: stretch;
+    flex-wrap: nowrap;
+    padding-left: 15px;
+    padding-right: 15px;
+
+    > .shuffle-left, > .shuffle-right {
+      display: flex;
+      flex-direction: column;
+      max-width: 48%;
+    }
+
+    > .shuffle-buttons {
+      display: flex;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      justify-content: center;
+      align-items: stretch;
+    }
+
+    > .shuffle-bottom-right {
+      margin-top: 19px;
+    }
+  }
+}
+
+.search-pane {
+  padding: 10px;
+  width: 450px;
+  display: flex;
+  flex-grow: 0;
+  flex-wrap: nowrap;
+  flex-direction: row;
+}
+
+.search-clear-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}

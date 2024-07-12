@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="-184.8667 -331.9648" i:rulerOrigin="309 716" i:pageBounds="-309 76 303 -716"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/" width="200" height="200"
+	 viewBox="0 0 200 200" overflow="visible" enable-background="new 0 0 200 200" xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_3" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+				</g>
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<rect i:knockout="Off" opacity="0" fill="#E16F00" width="200" height="200"/> 
+					<g>
+						<circle i:knockout="Off" fill="#FFFFFF" cx="100" cy="100" r="100"/> 
+						<g>
+							<g>
+								<g>
+									<circle i:knockout="Off" fill="#E16F00" cx="100" cy="100" r="96.012"/> 
+								</g>
+								<g>
+									<path i:knockout="Off" fill="#CCCCCC" d="M195.024,100c0,52.397-42.627,95.025-95.024,95.025
+										c-52.396,0-95.023-42.628-95.023-95.025C4.976,47.604,47.604,4.977,100,4.977C152.397,4.977,195.024,47.604,195.024,100z
+										 M100,3C46.514,3,3,46.514,3,100s43.514,97.001,97,97.001C153.485,197.001,197,153.486,197,100S153.485,3,100,3z"/>
+								</g>
+							</g>
+							<g>
+								<circle fill="#E16F00" cx="100" cy="100" r="87.559"/> 
+								<circle fill="none" stroke="#CCCCCC" stroke-width="1.9759" cx="100" cy="100" r="87.559"/> 
+							</g>
+							<linearGradient id="XMLID_2_" gradientUnits="userSpaceOnUse" x1="100" y1="50.0732" x2="100" y2="149.9277">
+								<stop  offset="0.0169" style="stop-color:#EBEBEB"/>
+								<stop  offset="0.0444" style="stop-color:#F6F6F6"/>
+								<stop  offset="0.0832" style="stop-color:#FDFDFD"/>
+								<stop  offset="0.191" style="stop-color:#FFFFFF"/>
+								<stop  offset="0.3482" style="stop-color:#F3F3F3"/>
+								<stop  offset="0.7584" style="stop-color:#D9D9D9"/>
+								<stop  offset="0.9405" style="stop-color:#D7D7D7"/>
+								<stop  offset="1" style="stop-color:#D1D1D1"/>
+								<a:midPointStop  offset="0.0169" style="stop-color:#EBEBEB"/>
+								<a:midPointStop  offset="0.13" style="stop-color:#EBEBEB"/>
+								<a:midPointStop  offset="0.191" style="stop-color:#FFFFFF"/>
+								<a:midPointStop  offset="0.4653" style="stop-color:#FFFFFF"/>
+								<a:midPointStop  offset="0.7584" style="stop-color:#D9D9D9"/>
+								<a:midPointStop  offset="0.87" style="stop-color:#D9D9D9"/>
+								<a:midPointStop  offset="1" style="stop-color:#D1D1D1"/>
+							</linearGradient>
+							
+								<circle i:knockout="Off" opacity="0.5" fill="url(#XMLID_2_)"  a:adobe-blending-mode="overlay" cx="100" cy="100.001" r="49.927"/> 
+							<g>
+								<circle fill="#DDDDDD" cx="100" cy="100.001" r="49.927"/> 
+							</g>
+							<g>
+								<path fill="#CCCCCC" d="M53.896,135.223c-7.472-9.768-11.916-21.975-11.916-35.222c0-32.043,25.976-58.02,58.019-58.02
+									c32.044,0,58.021,25.977,58.021,58.02c0,13.248-4.443,25.456-11.916,35.223l6.043,4.615
+									c8.453-11.047,13.477-24.854,13.477-39.838c0-36.243-29.379-65.625-65.624-65.625c-36.242,0-65.624,29.382-65.624,65.625
+									c0,14.983,5.026,28.79,13.478,39.836L53.896,135.223z"/>
+								<path fill="none" stroke="#CCCCCC" stroke-width="4" d="M53.896,135.223c-7.472-9.768-11.916-21.975-11.916-35.222
+									c0-32.043,25.976-58.02,58.019-58.02c32.044,0,58.021,25.977,58.021,58.02c0,13.248-4.443,25.456-11.916,35.223l6.043,4.615
+									c8.453-11.047,13.477-24.854,13.477-39.838c0-36.243-29.379-65.625-65.624-65.625c-36.242,0-65.624,29.382-65.624,65.625
+									c0,14.983,5.026,28.79,13.478,39.836L53.896,135.223z"/>
+							</g>
+						</g>
+					</g>
+				</g>
+			</g>
+		</switch>
+	</svg>

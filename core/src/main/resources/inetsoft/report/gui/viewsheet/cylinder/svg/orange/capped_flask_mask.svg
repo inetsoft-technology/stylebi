@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="169.3408 1071.4175" i:rulerOrigin="0 0" i:pageBounds="0 1190.5508 841.8896 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="79.409" height="10" viewBox="0 0 79.409 10" overflow="visible" enable-background="new 0 0 79.409 10"
+	 xml:space="preserve">
+	<metadata>
+		<variableSets  xmlns="&ns_vars;">
+			<variableSet  varSetName="binding1" locked="none">
+				<variables></variables>
+				<v:sampleDataSets  xmlns="&ns_custom;" xmlns:v="&ns_vars;"></v:sampleDataSets>
+			</variableSet>
+		</variableSets>
+		<sfw  xmlns="&ns_sfw;">
+			<slices></slices>
+			<sliceSourceBounds  y="866.552" x="-7770" width="16383" height="204.866" bottomLeftOrigin="true"></sliceSourceBounds>
+		</sfw>
+<?xpacket begin='?' id='W5M0MpCehiHzreSzNTczkc9d'?><x:xmpmeta xmlns:x='adobe:ns:meta/' x:xmptk='XMP toolkit 3.0-29, framework 1.6'>
+<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#' xmlns:iX='http://ns.adobe.com/iX/1.0/'>
+
+ <rdf:Description rdf:about='uuid:0caaddd6-c1a1-4831-b395-e9573b29f0b1'
+  xmlns:pdf='http://ns.adobe.com/pdf/1.3/'>
+  <pdf:Producer>Adobe PDF library 6.66</pdf:Producer>
+ </rdf:Description>
+
+ <rdf:Description rdf:about='uuid:0caaddd6-c1a1-4831-b395-e9573b29f0b1'
+  xmlns:tiff='http://ns.adobe.com/tiff/1.0/'>
+ </rdf:Description>
+
+ <rdf:Description rdf:about='uuid:0caaddd6-c1a1-4831-b395-e9573b29f0b1'
+  xmlns:xap='http://ns.adobe.com/xap/1.0/'
+  xmlns:xapGImg='http://ns.adobe.com/xap/1.0/g/img/'>
+  <xap:CreateDate>2006-07-11T11:56:43+08:00</xap:CreateDate>
+  <xap:ModifyDate>2006-07-17T09:04:13Z</xap:ModifyDate>
+  <xap:CreatorTool>Illustrator</xap:CreatorTool>
+  <xap:MetadataDate>2006-07-11T11:56:43+08:00</xap:MetadataDate>
+  <xap:Thumbnails>
+   <rdf:Alt>
+    <rdf:li rdf:parseType='Resource'>
+     <xapGImg:format>JPEG</xapGImg:format>
+     <xapGImg:width>256</xapGImg:width>
+     <xapGImg:height>32</xapGImg:height>
+     <xapGImg:image>/9j/4AAQSkZJRgABAgEASABIAAD/7QAsUGhvdG9zaG9wIDMuMAA4QklNA+0AAAAAABAASAAAAAEA&#xA;AQBIAAAAAQAB/+4ADkFkb2JlAGTAAAAAAf/bAIQABgQEBAUEBgUFBgkGBQYJCwgGBggLDAoKCwoK&#xA;DBAMDAwMDAwQDA4PEA8ODBMTFBQTExwbGxscHx8fHx8fHx8fHwEHBwcNDA0YEBAYGhURFRofHx8f&#xA;Hx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f/8AAEQgAIAEAAwER&#xA;AAIRAQMRAf/EAaIAAAAHAQEBAQEAAAAAAAAAAAQFAwIGAQAHCAkKCwEAAgIDAQEBAQEAAAAAAAAA&#xA;AQACAwQFBgcICQoLEAACAQMDAgQCBgcDBAIGAnMBAgMRBAAFIRIxQVEGE2EicYEUMpGhBxWxQiPB&#xA;UtHhMxZi8CRygvElQzRTkqKyY3PCNUQnk6OzNhdUZHTD0uIIJoMJChgZhJRFRqS0VtNVKBry4/PE&#xA;1OT0ZXWFlaW1xdXl9WZ2hpamtsbW5vY3R1dnd4eXp7fH1+f3OEhYaHiImKi4yNjo+Ck5SVlpeYmZ&#xA;qbnJ2en5KjpKWmp6ipqqusra6voRAAICAQIDBQUEBQYECAMDbQEAAhEDBCESMUEFURNhIgZxgZEy&#xA;obHwFMHR4SNCFVJicvEzJDRDghaSUyWiY7LCB3PSNeJEgxdUkwgJChgZJjZFGidkdFU38qOzwygp&#xA;0+PzhJSktMTU5PRldYWVpbXF1eX1RlZmdoaWprbG1ub2R1dnd4eXp7fH1+f3OEhYaHiImKi4yNjo&#xA;+DlJWWl5iZmpucnZ6fkqOkpaanqKmqq6ytrq+v/aAAwDAQACEQMRAD8A9U4q7FXYq7FXYq8Y85f8&#xA;phqP+uv/ACbXPNu2f8bn7x9wep0P9xH8dWrLtmJBtkn1l2zKg48kyP2ctLWFF8gWwKD5AtoUHyst&#xA;gQ75WWwKD5AtoUGyDYFJsISpNkkqTZJkpNkglSbCEqTZIJU2ySVFsklTbJMlJskEqTZIJT78vf8A&#xA;lM9M/wBd/wDk22bDsz/GI/jo4Hav+LT/AB1e9Z2rwrsVdirsVdirsVdirsVdirsVeMecv+Uw1H/X&#xA;X/k2uebds/43P3j7g9Tof7iP46tWXbMSDbJPrLtmVBx5Jkfs5aWsKL5AtgUHyBbQoPlZbAh3ystg&#xA;UHyBbQoNkGwKTYQlSbJJUmyTJSbJBKk2EJUmyQSptkkqLZJKm2SZKTZIJUmyQSn35e/8pnpn+u//&#xA;ACbbNh2Z/jEfx0cDtX/Fp/jq96ztXhXYq7FXYq7FXYq7FXYq7FXYq8Y85f8AKYaj/rr/AMm1zzbt&#xA;n/G5+8fcHqdD/cR/HVqy7ZiQbZJ9ZdsyoOPJMj9nLS1hRfIFsCg+QLaFB8rLYEO+VlsCg+QLaFBs&#xA;g2BSbCEqTZJKk2SZKTZIJUmwhKk2SCVNsklRbJJU2yTJSbJBKk2SCU+/L3/lM9M/13/5Ntmw7M/x&#xA;iP46OB2r/i0/x1e9Z2rwrsVdirsVdirsVdirsVdirsVeMecv+Uw1H/XX/k2uebds/wCNz94+4PU6&#xA;H+4j+OrVl2zEg2yT6y7ZlQceSZH7OWlrCi+QLYFB8gW0KD5WWwId8rLYFB8gW0KDZBsCk2EJUmyS&#xA;VJskyUmyQSpNhCVJskEqbZJKi2SSptkmSk2SCVJskEp9+Xv/ACmemf67/wDJts2HZn+MR/HRwO1f&#xA;8Wn+Or3rO1eFdirsVdirsVf/2Q==</xapGImg:image>
+    </rdf:li>
+   </rdf:Alt>
+  </xap:Thumbnails>
+ </rdf:Description>
+
+ <rdf:Description rdf:about='uuid:0caaddd6-c1a1-4831-b395-e9573b29f0b1'
+  xmlns:xapMM='http://ns.adobe.com/xap/1.0/mm/'>
+  <xapMM:DocumentID>uuid:f31965f7-7909-42d0-a0da-8a18066af329</xapMM:DocumentID>
+ </rdf:Description>
+
+ <rdf:Description rdf:about='uuid:0caaddd6-c1a1-4831-b395-e9573b29f0b1'
+  xmlns:dc='http://purl.org/dc/elements/1.1/'>
+  <dc:format>image/svg+xml</dc:format>
+ </rdf:Description>
+
+</rdf:RDF>
+</x:xmpmeta>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                <?xpacket end='w'?>
+			</metadata>
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+				</g>
+				<g id="Layer_3" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+					<linearGradient id="XMLID_3_" gradientUnits="userSpaceOnUse" x1="13.0044" y1="5" x2="66.4043" y2="5">
+						<stop  offset="0" style="stop-color:#D99000"/>
+						<stop  offset="0.1348" style="stop-color:#FFD76F"/>
+						<stop  offset="0.427" style="stop-color:#FFAB2A"/>
+						<stop  offset="1" style="stop-color:#E36D20"/>
+						<a:midPointStop  offset="0" style="stop-color:#D99000"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#D99000"/>
+						<a:midPointStop  offset="0.1348" style="stop-color:#FFD76F"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#FFD76F"/>
+						<a:midPointStop  offset="0.427" style="stop-color:#FFAB2A"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#FFAB2A"/>
+						<a:midPointStop  offset="1" style="stop-color:#E36D20"/>
+					</linearGradient>
+					<path i:knockout="Off" fill="url(#XMLID_3_)" d="M66.404,10c0-0.021-0.013-0.043-0.024-0.064h0.024V0h-53.4v9.936h0.024
+						C13.018,9.957,13.004,9.979,13.004,10"/>
+					<linearGradient id="XMLID_4_" gradientUnits="userSpaceOnUse" x1="0" y1="5" x2="79.4092" y2="5">
+						<stop  offset="0" style="stop-color:#D99000"/>
+						<stop  offset="0.1348" style="stop-color:#FFD76F"/>
+						<stop  offset="0.427" style="stop-color:#FFAB2A"/>
+						<stop  offset="1" style="stop-color:#E36D20"/>
+						<a:midPointStop  offset="0" style="stop-color:#D99000"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#D99000"/>
+						<a:midPointStop  offset="0.1348" style="stop-color:#FFD76F"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#FFD76F"/>
+						<a:midPointStop  offset="0.427" style="stop-color:#FFAB2A"/>
+						<a:midPointStop  offset="0.5" style="stop-color:#FFAB2A"/>
+						<a:midPointStop  offset="1" style="stop-color:#E36D20"/>
+					</linearGradient>
+					<rect i:knockout="Off" opacity="0" fill="url(#XMLID_4_)" width="79.409" height="10"/> 
+				</g>
+			</g>
+		</switch>
+	</svg>

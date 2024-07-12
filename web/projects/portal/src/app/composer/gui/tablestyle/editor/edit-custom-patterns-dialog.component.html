@@ -1,0 +1,154 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Row/Column Patterns)'" (onCancel)="cancel()"
+              [cshid]="'SavingTableStyle'">
+</modal-header>
+<div class="modal-body">
+   <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="defaultTab()">
+      <ng-container [ngbNavItem]="rowColTab">
+         <a ngbNavLink>_#(Row/Column)</a>
+         <ng-template ngbNavContent>
+            <fieldset>
+               <div class="row form-row-float-label">
+                  <div class="col">
+                     <div class="form-check">
+                        <input type="radio" name="rowColumn" class="form-check-input"
+                               [(ngModel)]="specModel.customType" [value]="TableStyleUtil.ROW">
+                        <label class="form-check-label">
+                           _#(Row)
+                        </label>
+                     </div>
+                  </div>
+                  <div class="col">
+                     <div class="form-check">
+                        <input type="radio" name="rowColumn" class="form-check-input"
+                               [(ngModel)]="specModel.customType" [value]="TableStyleUtil.COLUMN">
+                        <label class="form-check-label">
+                           _#(Column)
+                        </label>
+                     </div>
+                  </div>
+               </div>
+               <div class="row form-row-float-label">
+                  <div class="col form-floating">
+                     <input class="form-control" type="text" [ngModel]="startValue"
+                            (change)="setStartValue($event.target.value)"
+                            [class.is-invalid]="isInvalid(specModel.start)"
+                            [disabled]="disableRowTab()">
+                     <label>{{startLabel()}}</label>
+                  </div>
+                  <div class="col">
+                     <div class="form-check">
+                        <input class="form-check-input no-default" type="checkbox" id="nodefault"
+                               [(ngModel)]="specModel.repeat" [disabled]="disableRowTab()">
+                        <label class="form-check-label" for="nodefault">{{repeatLabel()}}</label>
+                     </div>
+                  </div>
+               </div>
+               <div class="form-row-float-label row">
+                  <legend>{{rangeLabel()}}:</legend>
+                  <div class="col form-floating">
+                     <input class="form-control defaultvalue" type="text"
+                            [ngModel]="fromValue" (change)="setFromValue($event.target.value)"
+                            [disabled]="specModel.all || disableRowTab()"
+                            [class.is-invalid]="isInvalid(specModel.from)">
+                     <label>_#(From)</label>
+                  </div>
+                  <div class="col form-floating">
+                     <input class="form-control defaultvalue" type="text"
+                            [ngModel]="toValue" (change)="setToValue($event.target.value)"
+                            [disabled]="specModel.all || disableRowTab()"
+                            [class.is-invalid]="isInvalid(specModel.to)">
+                     <label>_#(to)</label>
+                  </div>
+                  <div class="col">
+                     <div class="form-check">
+                        <input class="form-check-input no-default" type="checkbox" id="All"
+                               [(ngModel)]="specModel.all" [disabled]="disableRowTab()">
+                        <label class="form-check-label" for="nodefault">
+                           _#(All)
+                        </label>
+                     </div>
+                  </div>
+               </div>
+               <div *ngIf="isInvalid(specModel.start)" class="alert alert-danger">
+                  _#(custom.pattern.start.integer)
+               </div>
+               <div *ngIf="isInvalid(specModel.to) || isInvalid(specModel.from)"
+                  class="alert alert-danger">
+                  _#(custom.pattern.range.integer)
+               </div>
+            </fieldset>
+         </ng-template>
+      </ng-container>
+      <ng-container [ngbNavItem]="groupingTab">
+         <a ngbNavLink>_#(Grouping)</a>
+         <ng-template ngbNavContent>
+            <fieldset>
+               <div class="row form-row-float-label">
+                  <div class="col">
+                     <div class="form-check">
+                        <input type="radio" name="grouping" class="form-check-input"
+                               id="header" [(ngModel)]="specModel.customType"
+                               [value]="TableStyleUtil.ROW_GROUP_TOTAL">
+                        <label class="form-check-label" for="header">
+                           _#(Row Group Total)
+                        </label>
+                     </div>
+                  </div>
+                  <div class="col">
+                     <div class="form-check">
+                        <input type="radio" name="grouping" class="form-check-input"
+                               id="footer" [(ngModel)]="specModel.customType"
+                               [value]="TableStyleUtil.COLUMN_GROUP_TOTAL">
+                        <label class="form-check-label" for="footer">
+                           _#(Column Group Total)
+                        </label>
+                     </div>
+                  </div>
+               </div>
+               <div class="row form-row-float-label">
+                  <div class="col">
+                     <div class="col form-floating">
+                        <select class="form-control defaultvalue" id="defaultvalue"
+                                [(ngModel)]="specModel.level"
+                                [disabled]="disableGroupTab()">
+                           <ng-container>
+                              <option [value]="level.value" *ngFor="let level of groupLevels">{{level.label}}</option>
+                           </ng-container>
+                        </select>
+                        <label>_#(Group Level)</label>
+                     </div>
+                  </div>
+               </div>
+            </fieldset>
+         </ng-template>
+      </ng-container>
+   </ul>
+   <div [ngbNavOutlet]="nav"></div>
+</div>
+<div class="modal-footer">
+   <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="disabledOk()">
+      _#(OK)
+   </button>
+   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">
+      _#(Cancel)
+   </button>
+</div>

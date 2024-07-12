@@ -1,0 +1,162 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Profile Dialog)'" (onCancel)="cancel()" [cshid]="'profile'">
+</modal-header>
+<div class="modal-body">
+  <div class="profile-content">
+    <div *ngIf="tableData">
+      <div class="form-row-float-label row">
+        <div class="col-5" *ngIf="!showDetails">
+          <div class="form-group form-floating">
+            <select class="form-control" [ngModelOptions]="{standalone: true}" [(ngModel)]="groupBy" placeholder="_#(Group By)">
+              <option *ngFor="let field of groupByFields" [value]="field.value">{{ field.label }}</option>
+            </select>
+            <label>_#(Group By)</label>
+          </div>
+        </div>
+
+        <div [class.col-8]="showDetails" [class.col-1]="!showDetails"></div>
+
+        <div class="col-2 form-check" *ngIf="!showDetails">
+          <input class="form-check-input" type="checkbox" id="showValue" [(ngModel)]="showValue">
+          <label class="form-check-label" for="showValue">
+            <span>_#(Show Value)</span>
+          </label>
+        </div>
+
+        <div class="col-3 form-check">
+          <input class="form-check-input" type="checkbox" id="showDetails" [(ngModel)]="showDetails">
+          <label class="form-check-label" for="showDetails">
+            <span>_#(Show Detail Records)</span>
+          </label>
+        </div>
+
+        <div class="col-1 btn-toolbar">
+          <div class="btn-group">
+            <i role="button" class="btn export-icon" title="_#(Export)" (click)="exportTable()"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row-float-label row" *ngIf="!showDetails">
+        <div class="col-12">
+          <div class="profile-banner bg-darken1">_#(Breakdown Chart)</div>
+        </div>
+      </div>
+
+      <div class="form-row-float-label row" *ngIf="!showDetails">
+        <div class="col-12 profiling-chart">
+          <img [src]="chartUri" >
+        </div>
+      </div>
+
+      <ng-container *ngIf="showDetails">
+        <div class="form-row-float-label row">
+          <div class="col-12 profiling-table">
+            <div class="preview-table" [class.mobile]="mobileDevice" [style.maxWidth.px]="tableWidth + 16">
+              <div #previewContainer class="preview-table-container" (scroll)="horizontalScroll()">
+                <table #table class="table-layout-fixed table-sm"
+                       [style.width.px]="tableWidth">
+                  <thead *ngIf="tableData[0]">
+                  <tr [style.height.px]="cellHeight">
+                    <th *ngFor="let _cell of tableData[0]; let i = index"
+                        [style.border-top]="_cell.vsFormatModel?.border.top"
+                        [style.border-left]="_cell.vsFormatModel?.border.left"
+                        [style.border-bottom]="_cell.vsFormatModel?.border.bottom"
+                        [style.border-right]="_cell.vsFormatModel?.border.right"
+                        [style.color]="_cell.vsFormatModel?.foreground"
+                        [style.background]="_cell.vsFormatModel?.background"
+                        [style.font]="_cell.vsFormatModel?.font"
+                        [class.background-clip-padding-box]="isFirefox">
+                      <div [title]="_cell.cellLabel">
+                        {{_cell.cellLabel}}
+                        <span class="preview-header-cell-button">
+                        <i *ngIf="sortEnabled"
+                           class="float-right btn-icon bg-white3 icon-size-small {{getSortLabel(i)}}-icon"
+                           title="_#(Sort)" (click)="sortClicked(i)"></i>
+                      </span>
+                      </div>
+                    </th>
+                  </tr>
+                  </thead>
+                </table>
+                <div #tableContainer  *ngIf="tableData.length > 0" class="preview-table-body-container"
+                     (wheel)="wheelScrollHandler($event)">
+                  <table #table class="table-layout-fixed table-sm preview-table-body" touchScroll
+                         [style.width.px]="tableWidth" (vScroll)="touchVScroll($event)" (hScroll)="touchHScroll($event)"
+                         [style.top.px]="-scrollY">
+                    <tbody>
+                    <tr *ngFor="let _row of tableData; let _first = first; let i = index"
+                        [style.height.px]="!_first ? cellHeight : 0">
+                      <ng-container *ngIf="!_first">
+                        <td *ngFor="let _cell of _row"
+                            [title]="_cell.cellLabel"
+                            [style.border-top]="_cell.vsFormatModel?.border.top"
+                            [style.border-left]="_cell.vsFormatModel?.border.left"
+                            [style.border-bottom]="_cell.vsFormatModel?.border.bottom"
+                            [style.border-right]="_cell.vsFormatModel?.border.right"
+                            [style.color]="_cell.vsFormatModel?.foreground"
+                            [style.background]="_cell.vsFormatModel?.background"
+                            [style.text-decoration]="_cell.vsFormatModel?.decoration"
+                            [style.font]="_cell.vsFormatModel?.font"
+                            [style.text-align]="_cell.vsFormatModel?.hAlign"
+                            [class.background-clip-padding-box]="isFirefox">
+                          <ng-container *ngIf="!_cell.hyperlinks">
+                            {{_cell.cellLabel}}
+                          </ng-container>
+                        </td>
+                      </ng-container>
+                    </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="vertical-scroll-wrapper"
+                   [style.top.px]="headerHeight"
+                   [style.height]="'calc(100% - ' + headerHeight + 'px)'"
+                   [style.width.px]="scrollbarWidth"
+                   (scroll)="verticalScrollHandler($event)"
+                   ngbTooltip="0"
+                   placement="right"
+                   container="body"
+                   outOfZone
+                   (onMouseenter)="updateVerticalScrollTooltip(true)"
+                   (onMouseleave)="verticalScrollTooltip.close()"
+                   #verticalScrollTooltip="ngbTooltip"
+                   #verticalScrollWrapper>
+                <div [style.height.px]="tableHeight">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div *ngIf="!tableData" class="form-row-float-label row">
+          <span>_#(no records)</span>
+        </div>
+      </ng-container>
+    </div>
+  </div>
+</div>
+
+<div class="modal-footer">
+  <button defaultFocus type="button" class="btn btn-primary" (click)="cancel()">_#(OK)</button>
+</div>

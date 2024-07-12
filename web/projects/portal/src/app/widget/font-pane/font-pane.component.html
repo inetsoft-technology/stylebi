@@ -1,0 +1,74 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="popup-editor__container">
+  <div class="popup-editor__button-group">
+    <button class="popup-editor__button btn" title="_#(Apply)"
+            (click)="onApply.emit(true)">
+      <i class="submit-icon icon-size-small" aria-hidden="true"></i>
+    </button>
+  </div>
+  <ul class="fontList form-control" #scrollBar>
+    <li class="font-option" [title]="defaultFont" [class.selected]="'Default' == font_family"
+        (click)="changeFontFamily('Default')">Default ({{defaultFont}})</li>
+    <li *ngFor="let font of fonts" class="font-option" title="{{font}}"
+        [class.selected]="font === font_family"
+        (click)="changeFontFamily(font)">{{font}}</li>
+  </ul>
+  <div class="row">
+    <div class="col">
+      <div class="input-group">
+        <input [(ngModel)]="font_size" (ngModelChange)="changeFontSize()" type="number"
+               min="1" class="form-control font-size"/>
+        <div class="input-group-text">_#(px)</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="input-group">
+        <span class="input-group-btn">
+          <button class="form-control btn"
+                  [class.selected]="_font?.fontWeight === 'bold'"
+                  (click)="toggleWeight()" title="_#(Bold)">
+            <B>B</B>
+          </button>
+        </span>
+        <span class="input-group-btn">
+          <button class="form-control btn"  [class.selected]="_font?.fontStyle === 'italic'"
+                  (click)="toggleStyle()" title="_#(Italic)">
+            <I>I</I>
+          </button>
+        </span>
+        <span class="input-group-btn">
+          <button class="form-control btn"
+                  [class.selected]="_font?.fontUnderline === 'underline'"
+                  (click)="toggleUnderline()" title="_#(Underline)">
+            <U>U</U>
+          </button>
+        </span>
+        <span class="input-group-btn">
+          <button class="form-control btn"
+                  [class.selected]="_font?.fontStrikethrough === 'strikethrough'"
+                  (click)="toggleStrikethrough()" title="_#(Strikethrough)">
+            <S>S</S>
+          </button>
+        </span>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,57 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container group" *ngIf="format">
+  <div class="row form-row-checkbox">
+    <div class="col-auto">
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" id="suppressZero"
+               (ngModelChange)="updateFormatOption()"
+             [(ngModel)]="format.suppressIfZero">
+        <label class="form-check-label" for="suppressZero">
+         _#(Suppress If Zero)
+        </label>
+      </div>
+    </div>
+  </div>
+  <div class="row form-row-checkbox">
+    <div class="col-auto">
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" id="suppressDup"
+               (ngModelChange)="updateFormatOption()"
+             [(ngModel)]="format.suppressIfDuplicate">
+        <label class="form-check-label" for="suppressDup">
+          _#(Suppress If Duplicate)
+        </label>
+      </div>
+    </div>
+  </div>
+  <div class="row form-row-checkbox">
+    <div class="col-auto">
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" id="wrap"
+               (ngModelChange)="updateFormatOption()"
+             [(ngModel)]="format.lineWrap">
+        <label class="form-check-label" for="wrap">
+          _#(Line Wrap)
+        </label>
+      </div>
+    </div>
+  </div>
+</div>

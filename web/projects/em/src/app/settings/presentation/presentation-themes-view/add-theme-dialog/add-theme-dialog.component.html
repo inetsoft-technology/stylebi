@@ -1,0 +1,39 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMThemes'" [title]="'_#(Web Theme)'">
+</em-modal-header>
+<mat-dialog-content [formGroup]="form" class="mat-typography">
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(Name)</mat-label>
+    <input matInput formControlName="name" placeholder="_#(Name)"/>
+    <mat-error *ngIf="form.controls.name?.errors?.required">_#(em.laf.theme.nameRequired)</mat-error>
+    <mat-error *ngIf="form.controls.name?.errors?.duplicateName">_#(em.laf.theme.duplicateName)</mat-error>
+  </mat-form-field>
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(Theme JAR File)</mat-label>
+    <em-file-chooser formControlName="jar" placeholder="_#(Theme JAR File)" accept=".jar"></em-file-chooser>
+    <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+    <mat-error *ngIf="form.controls.jar?.errors?.required">_#(em.laf.theme.jarRequired)</mat-error>
+  </mat-form-field>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-raised-button (click)="commit()" color="primary" [disabled]="form.invalid">_#(OK)</button>
+  <button mat-button mat-dialog-close>_#(Cancel)</button>
+</mat-dialog-actions>

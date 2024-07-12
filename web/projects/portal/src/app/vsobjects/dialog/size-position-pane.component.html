@@ -1,0 +1,100 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form" class="container-fluid">
+  <fieldset>
+    <legend>_#(Layout)</legend>
+    <div class="row form-row-float-label">
+      <div class="col">
+        <div class="form-floating">
+          <input type="number" class="form-control" formControlName="top" [(ngModel)]="model.top"
+                 placeholder="_#(Top)" [disabled]="!layoutEnabled || model.locked">
+          <label>_#(Top)</label>
+        </div>
+      </div>
+      <div class="col layout-col-offset">
+        <div class="form-floating">
+          <input type="number" class="form-control" formControlName="left" [(ngModel)]="model.left"
+                 placeholder="_#(Left)" [disabled]="!layoutEnabled || model.locked">
+          <label>_#(Left)</label>
+        </div>
+      </div>
+      <div class="col layout-col-offset">
+        <div class="form-floating" *ngIf="!isGroup && !isViewsheet">
+          <input type="number" class="form-control" formControlName="width" [(ngModel)]="model.width"
+                 placeholder="_#(Width)" [disabled]="!layoutEnabled || model.locked">
+          <label>_#(Width)</label>
+        </div>
+      </div>
+      <div class="col layout-col-offset">
+        <div class="form-floating" *ngIf="!isGroup && !isViewsheet">
+          <input type="number" class="form-control" formControlName="height" [(ngModel)]="model.height"
+                 placeholder="_#(Height)" [disabled]="!layoutEnabled || model.locked">
+          <label>_#(Height)</label>
+        </div>
+      </div>
+      <div class="col layout-col-offset" *ngIf="showTitleHeight">
+        <div class="form-floating">
+          <input type="number" class="form-control" formControlName="titleHeight" [(ngModel)]="model.titleHeight"
+                 placeholder="_#(Title Height)">
+          <label>_#(Title Height)</label>
+        </div>
+      </div>
+      <div class="col layout-col-offset" *ngIf="showCellHeight">
+        <div class="form-floating">
+          <input type="number" class="form-control" formControlName="cellHeight" [(ngModel)]="model.cellHeight"
+                 placeholder="_#(Cell Height)">
+          <label>_#(Cell Height)</label>
+        </div>
+      </div>
+    </div>
+    <div class="row form-row-float-label" *ngIf="showScaleVertical">
+      <div class="col-auto">
+        <div class="checkbox">
+          <div class="form-check">
+            <input id="scaleV" type="checkbox" class="form-check-input" id="scaleV"
+                   formControlName="scaleVertical"
+                   [(ngModel)]="model.scaleVertical" [disabled]="!layoutEnabled || model.locked"/>
+            <label class="form-check-label" for="scaleV">
+              _#(Scale vertically when scaling to screen)
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+  <div class="alert alert-danger" *ngIf="layoutEnabled && form.controls['top'].errors">
+    _#(viewer.viewsheet.layout.topValid)
+  </div>
+  <div class="alert alert-danger" *ngIf="layoutEnabled && form.controls['left'].errors">
+    _#(viewer.viewsheet.layout.leftValid)
+  </div>
+  <div class="alert alert-danger" *ngIf="layoutEnabled && form.controls['width'].errors">
+    _#(viewer.viewsheet.layout.widthValid)
+  </div>
+  <div class="alert alert-danger" *ngIf="layoutEnabled && form.controls['height'].errors">
+    _#(viewer.viewsheet.layout.heightValid)
+  </div>
+  <div class="alert alert-danger" *ngIf="showTitleHeight && form.controls['titleHeight'].errors">
+    _#(viewer.viewsheet.layout.titleHeightValid)
+  </div>
+  <div class="alert alert-danger" *ngIf="showCellHeight && form.controls['cellHeight'].errors">
+    _#(viewer.viewsheet.layout.cellHeightValid0)
+  </div>
+</form>

@@ -1,0 +1,153 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form" class="container-fluid">
+  <fieldset>
+    <legend>_#(Options)</legend>
+    <div class="form-row-checkbox row">
+      <ng-container *ngIf="!linear">
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="ignoreNull"
+                   [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.ignoreNull">
+            <label class="form-check-label ps-0" for="ignoreNull">
+              _#(Ignore Null)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input truncate_long_label_id"
+                   [ngModelOptions]="{standalone: true}" id="truncateLong"
+                 [(ngModel)]="model.truncate">
+            <label class="form-check-label ps-0" for="truncateLong">
+              _#(Truncate Long Labels)
+            </label>
+          </div>
+        </div>
+      </ng-container>
+      <ng-container *ngIf="linear">
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="log"
+                   [disabled]="model.fakeScale"
+                   [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.logarithmicScale" (ngModelChange)="logarithmicScaleChanged()">
+            <label class="form-check-label ps-0" for="log">
+              _#(Logarithmic Scale)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="reverse"
+                   [disabled]="model.fakeScale"
+                   [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.reverse">
+            <label class="form-check-label ps-0" for="reverse">
+              _#(Reverse)
+            </label>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="sharedRange"
+                   [disabled]="model.fakeScale"
+                   [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.shared">
+            <label class="form-check-label ps-0" for="sharedRange">
+              _#(Shared Range)
+            </label>
+          </div>
+        </div>
+      </ng-container>
+      <div class="col-auto show_axis_line_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="showAxisLine"
+                 [disabled]="!model.showAxisLineEnabled"
+               [ngModelOptions]="{standalone: true}" [(ngModel)]="model.showAxisLine">
+          <label class="form-check-label ps-0" for="showAxisLine">
+            _#(Show Axis Line)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto show_ticks_id">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" [disabled]="outer"
+               [ngModelOptions]="{standalone: true}" id="showTicks"
+               [(ngModel)]="model.showTicks">
+          <label class="form-check-label ps-0" for="showTicks">
+            _#(Show Ticks)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+  <fieldset [disabled]="!model.lineColorEnabled || !model.showAxisLine && !model.showTicks">
+    <div class="form-row-float-label row">
+      <div class="col-auto">
+        <color-editor [(color)]="model.lineColor" label="_#(viewsheet.axisProdlg)(P)" data-test="axis-line-color"></color-editor>
+      </div>
+    </div>
+  </fieldset>
+  <fieldset *ngIf="linear || timeSeries && !outer">
+    <legend>_#(Scale)</legend>
+    <div class="form-row-float-label row max-min-fields">
+      <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['minimum'].valid}"
+           *ngIf="linear">
+        <input id="minimum" type="number" class="form-control scale-input"
+               formControlName="minimum"
+               placeholder="_#(Minimum)" [(ngModel)]="model.minimum">
+        <label><span>_#(Minimum)</span></label>
+        <div *ngIf="this.form.controls['minimum']?.errors && this.form.controls['minimum'].errors['lessThanEqualToZero']" class="alert alert-danger">_#(min.greater.zero)</div>
+        <div *ngIf="form.controls['minimum'].errors && form.controls['minimum'].errors['integerInRange']" class="alert alert-danger">_#(component.out.range)</div>
+      </div>
+      <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['maximum'].valid}"
+           *ngIf="linear">
+        <input id="maximum" type="number" class="form-control scale-input"
+               formControlName="maximum"
+               placeholder="_#(Maximum)" [(ngModel)]="model.maximum">
+        <label><span>_#(Maximum)</span></label>
+        <div *ngIf="this.form.controls['maximum']?.errors && this.form.controls['maximum'].errors['lessThanEqualToZero']" class="alert alert-danger">_#(max.greater.zero)</div>
+        <div *ngIf="!!this.model.maximum && !this.minmaxValid" class="alert alert-danger">_#(viewer.viewsheet.numberRange.maxMinWarning)</div>
+        <div *ngIf="this.form.controls['maximum']?.errors && this.form.controls['maximum'].errors['integerInRange']"
+             class="alert alert-danger">_#(component.out.range)</div>
+      </div>
+      <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['majorIncrement'].valid}"
+           *ngIf="linear || timeSeries && !outer">
+        <input id="majorIncrement" type="number" class="form-control scale-input"
+               placeholder="_#(Major Increment)"
+               formControlName="majorIncrement" [(ngModel)]="model.increment">
+        <label><span>_#(Major Increment)</span></label>
+        <div *ngIf="this.form.controls['majorIncrement']?.errors && this.form.controls['majorIncrement'].errors['lessThanEqualToZero']"
+             class="alert alert-danger">_#(viewer.viewsheet.numberRange.notzeroWarning)</div>
+        <div *ngIf="!!this.model.increment && !this.incrementValid" class="alert alert-danger">_#(viewer.viewsheet.numberRange.incrementWarning)</div>
+      </div>
+      <div class="col-auto mb-1 form-floating" [ngClass]="{ 'has-error' : !form.controls['minorIncrement'].valid}"
+           *ngIf="linear">
+        <input id="minorIncrement" type="number" class="form-control scale-input"
+               placeholder="_#(Minor Increment)"
+               formControlName="minorIncrement" [(ngModel)]="model.minorIncrement">
+        <label><span>_#(Minor Increment)</span></label>
+        <div *ngIf="form.controls['minorIncrement'].errors && form.controls['minorIncrement'].errors['lessThanEqualToZero']" class="alert alert-danger">_#(viewer.viewsheet.numberRange.notzeroWarning)</div>
+      </div>
+    </div>
+  </fieldset>
+</form>

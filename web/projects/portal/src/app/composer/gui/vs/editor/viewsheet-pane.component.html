@@ -1,0 +1,206 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="vs-pane-container"
+     outOfZone (onDragover)="dragover($event)"
+     (onDocKeydown)="onKeydown($event)"
+     (onMousedown)="mousedown()"
+     [style.background-color]="viewsheetBackground">
+  <mobile-toolbar
+    *ngIf="mobileToolbarVisible"
+    [model]="vs.currentFocusedAssemblies[0]" [viewsheet]="vs"
+    (onAssemblyActionEvent)="onAssemblyActionEvent($event)">
+  </mobile-toolbar>
+  <w-rulers *ngIf="rulersVisible"
+            [top]="mobileToolbarVisible ? 20 : 0" [bottom]="layoutToolbarVisible ? 38 : 0"
+            [scrollTop]="rulerTop" [scrollLeft]="rulerLeft"
+            [showGuides]="rulerGuidesVisible" [guideTop]="rulerGuideTop" [guideLeft]="rulerGuideLeft"
+            [guideWidth]="rulerGuideWidth" [guideHeight]="rulerGuideHeight" [scale]="vs.scale">
+  </w-rulers>
+  <div #vsPane id="vsPane" *ngIf="vs" class="vs-pane"
+       [class.with-mobile-toolbar]="mobileToolbarVisible"
+       selectionBox selectionBoxBannedSelector="[data-is-object-editor].active, .line.handle"
+       [selectOnMouseMove]="true"
+       (onSelectionBox)="onSelectionBox($event)"
+       (scroll)="updateRulerPosition()"
+       actionsContextmenuAnchor [actions]="menuActions" [position]="menuPosition">
+    <div *ngIf="vs && templateEnabled && !isSnapshot()" [hidden]="vs.currentLayout"
+         class="viewsheet-target-layout" [style.width.px]="getTemplateWidth()"
+         [style.height.px]="getTemplateHeight()" [style.border-color]="guideLineColor"></div>
+    <div *ngIf="vs && vs.vsObjects.length === 0" class="intro" [hidden]="vs.currentLayout">
+      <div class="intro-content text-muted">
+        _#(composer.vs.addDashboard)
+        <ul>
+          <li>_#(composer.vs.dragVisual) <i class="folder-toolbox-icon"></i></li>
+          <li>_#(composer.vs.dragData) <i class="{{getDataSourceCSSIcon()}}"></i></li>
+        </ul>
+      </div>
+    </div>
+    <div class="scale-container"
+         [class.snap-to-grid]="snapToGrid" [ngStyle]="getSnapGridStyle()"
+         wInteractContainer
+         [snapToGrid]="snapToGrid"
+         [snapGridSize]="vs.snapGrid"
+         [draggableRestriction]="draggableRestriction"
+         [snapToGuides]="snapToObjects"
+         [snapHorizontalGuides]="draggableSnapGuides.horizontal"
+         [snapVerticalGuides]="draggableSnapGuides.vertical"
+         [snapGuideRange]="10"
+         [snapGuideOffset]="snapOffset"
+         (onSnap)="onSnap($event)"
+         [style.transform]="vs.scale && vs.scale != 1 ? 'scale(' + vs.scale + ')' : null">
+
+      <div [hidden]="vs.currentLayout">
+        <div class="bt-selected" *ngIf="currentSnapGuides?.y != null"
+             [style.top.px]="currentSnapGuides?.y"
+             [style.left.px]="rulerLeft"
+             [style.right.px]="-rulerLeft"></div>
+        <div class="bl-selected" *ngIf="currentSnapGuides?.x != null"
+             [style.left.px]="currentSnapGuides?.x"
+             [style.top.px]="rulerTop"
+             [style.bottom.px]="-rulerTop"></div>
+
+        <ng-container *ngFor="let vsObject of vs.vsObjects; trackBy: trackByFn;">
+          <editable-object-container #container
+                                     [class.max-mode-view]="vsObject.absoluteName == maxModeAssembly"
+                                     [vsPaneRef]="vsPane"
+                                     [containerBounds]="vsPaneBounds"
+                                     [viewsheet]="vs" [vsObjectModel]="vsObject" [touchDevice]="touchDevice"
+                                     [deployed]="deployed" [selectionBorderOffset]="selectionBorderOffset"
+                                     (objectChanged)="detectChanges($event)"
+                                     (onAssemblyActionEvent)="onAssemblyActionEvent($event)"
+                                     (onOpenEmbeddedViewsheet)="openEmbeddedViewsheet($event)"
+                                     (onMove)="assemblyMoved($event?.event, $event?.model)"
+                                     (onResize)="assemblyResized($event?.event, $event?.model)"
+                                     (onOpenEditPane)="openEditPane($event)"
+                                     (onOpenWizardPane)="openWizardPane($event)"
+                                     (onRefreshFormat)="updateFormats($event, vsObject)"
+                                     (onPopupNotifications)="popupNotifications($event)"
+                                     (maxModeChange)="onMaxModeChange($event)"
+                                     (onOpenFormatPane)="openFormatPane($event)">
+          </editable-object-container>
+
+          <composer-selection-container-children
+            *ngIf="vsObject.objectType == 'VSSelectionContainer' && (vsObject.outerSelections || vsObject.childObjects)"
+            [viewsheet]="vs" [vsObject]="vsObject" [containerRef]="vsPane"
+            [selectionContainerRef]="container"
+            [placeholderDragElementModel]="placeholderDragElementModel"
+            [touchDevice]="touchDevice"
+            [actions]="container.actions"
+            [childObjects]="vsObject.childObjects"
+            (objectChanged)="detectChanges($event)"
+            (onAssemblyActionEvent)="onAssemblyActionEvent($event)"
+            (onMove)="assemblyMoved($event?.event, $event?.model)"
+            (onResize)="assemblyResized($event?.event, $event?.model)"
+            (onRefreshFormat)="updateFormats($event.event, $event.vsobject)"
+            (onOpenFormatPane)="onOpenFormatPane.emit($event)"
+            [style.display]="isVisible(vsObject) ? null : 'none'">
+          </composer-selection-container-children>
+        </ng-container>
+      </div>
+
+      <ng-container *ngIf="!!vs.currentLayout">
+        <layout-pane [model]="vs.currentLayout"
+                     [snapToGrid]="snapToGrid"
+                     [snapToObjects]="snapToObjects"
+                     [layoutChange]="vs.layoutChange"
+                     [runtimeId]="vs.runtimeId"
+                     [vsPaneBounds]="vsPaneBounds"
+                     [linkUri]="vs.linkUri"
+                     [vs]="vs" [snapOffset]="snapOffset"
+                     [guideLineColor]="guideLineColor"
+                     (onLayoutObjectChange)="onLayoutObjectChange.emit($event)"
+                     (onLayoutObjectMove)="updateRulerGuides()"
+                     (onUpdateLayoutUndoState)="processUpdateLayoutUndoStateCommand($event)">
+        </layout-pane>
+      </ng-container>
+
+      <placeholder-drag-element [model]="displayPlaceholderDragElementModel" #placeholderDragElement></placeholder-drag-element>
+    </div>
+  </div>
+
+  <status-bar [status]="getStatusForStatusBar()" [status2]="getStatus2ForStatusBar()"
+              [editWorksheetPermission]="worksheetPermission">
+    <div class="d-flex align-items-center status-bar-component" status-bar-component>
+      <ng-container *ngIf="!isSearchMode()">
+        <i class="javascript-icon me-1" *ngIf="hasScript" (click)="onOpenScript.emit(vs)"></i>
+        <button type="button" class="btn btn-sm btn-primary me-1 text-nowrap" (click)="openConsoleDialog()">
+          _#(Console) <span class="badge text-bg-light">{{consoleMessages ? consoleMessages.length : 0}}</span>
+        </button>
+        <form class="form-inline layout-dropdown-group" *ngIf="layoutToolbarVisible">
+          <label class="me-sm-2" for="layoutDropdown">_#(Layout):</label>
+          <select id="layoutDropdown" class="layout-dropdown form-control form-control-sm"
+                  [ngModel]="layoutName" [ngModelOptions]="{standalone: true}" (change)="layoutChanged($event.target.value)">
+            <option *ngFor="let layout of vs.layouts">{{layout}}</option>
+          </select>
+        </form>
+        <button type="button" class="btn btn-outline-light p-0 ms-auto" (click)="changeSearchMode()" title="_#(Search)">
+          <i class="search-icon icon-size-medium icon-color-default d-flex" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Search)</span>
+        </button>
+      </ng-container>
+      <div *ngIf="isSearchMode()" class="d-flex me-auto flex-grow-1 flex-nowrap align-items-center">
+        <div class="p-1 d-flex align-items-center flex-grow-1">
+          <input class="form-control form-control-sm search-input" type="text" placeholder="_#(Search)" [title]="getSearchString()"
+                 (input)="search($event.target.value)" (keyup)="searchInputKeyUp($event)">
+          <span class="search-result-label"> {{getSearchResultLabel()}} </span>
+        </div>
+        <div class="p-1 d-flex">
+          <button (click)="previousFocus()"
+                  class="btn btn-outline-light p-0"
+                  title="_#(Previous)"
+                  [disabled]="searchResultCount == 0">
+            <i class="upward-icon icon-color-default cursor-pointer hover-bg-primary d-flex" aria-hidden="true"></i>
+          </button>
+          <button (click)="nextFocus()"
+                  title="_#(Next)"
+                  class="btn btn-outline-light p-0"
+                  [disabled]="searchResultCount == 0">
+            <i class="downward-icon icon-color-default cursor-pointer hover-bg-primary d-flex" aria-hidden="true"></i>
+          </button>
+          <button (click)="changeSearchMode()"
+                  class="btn btn-outline-light p-0"
+                  title="_#(Clear)">
+            <i class="close-circle-icon icon-color-default cursor-pointer hover-bg-primary d-flex" aria-hidden="true"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </status-bar>
+  <vs-loading-display *ngIf="vs.loading"
+                      [preparingData]="preparingData"
+                      [runtimeId]="vs.runtimeId"
+                      (cancelLoading)="cancelViewsheetLoading()">
+  </vs-loading-display>
+</div>
+
+<notifications #notifications class="notifications-viewsheet-pane" [timeout]="5000"></notifications>
+
+<ng-template #variableInputDialog let-close="close" let-dismiss="dismiss">
+  <variable-input-dialog [model]="variableInputDialogModel" [enterParameters]="initialParametersCollect"
+                         (onCommit)="close($event)" (onCancel)="dismiss($event)"></variable-input-dialog>
+</ng-template>
+
+<ng-template #consoleDialog let-close="close" let-dismiss="dismiss">
+  <console-dialog [runtimeId]="vs?.runtimeId"
+                  [messageLevels]="vs.messageLevels"
+                  [(messages)]="consoleMessages"
+                  (onClose)="dismiss($event)" (onCommit)="close($event)">
+  </console-dialog>
+</ng-template>

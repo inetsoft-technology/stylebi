@@ -1,0 +1,66 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container-fluid dropdown-pane gop-div">
+  <div class="row form-row-float-label" *ngIf="mapVisible">
+    <div class="col form-floating">
+      <select class="form-control" [(ngModel)]="mapType" placeholder="_#(Map)"
+              (change)="mapChange($event.target.value)">
+        <option *ngFor="let type of typeModel" [value]="type.data">{{type.label}}</option>
+      </select>
+      <label><span>_#(Map)</span></label>
+    </div>
+  </div>
+  <div class="row form-row-float-label" *ngIf="layerVisible">
+    <div class="col form-floating">
+      <select class="form-control" *ngIf="chartGeoModel"
+              [(ngModel)]="chartGeoModel.option.layerValue"
+              (change)="layerChange($event.target.value)" placeholder="_#(Layer)">
+        <option *ngFor="let layer of layerMode" [value]="layer.data">
+          {{layer.label}}
+        </option>
+      </select>
+      <label><span>_#(Layer)</span></label>
+    </div>
+  </div>
+  <div class="row form-row-float-label" *ngIf="mappingVisible">
+    <div class="col pe-0 form-floating">
+      <select class="form-control" *ngIf="chartGeoModel"
+              [ngModel]="chartGeoModel.option.mapping" placeholder="_#(Mapping)"
+              (ngModelChange)="mappingChange($event)">
+        <option *ngFor="let mapping of mappingMode" [ngValue]="mapping.data">
+          {{mapping.label}}
+        </option>
+      </select>
+      <label><span>_#(Mapping)</span></label>
+    </div>
+    <div class="col-auto ms-2">
+      <i class="icon-size-medium icon-color-default geo-mapping-icon"
+         [class.geo-not-mapped-icon]="!allMapping"
+         [class.geo-mapped-icon]="allMapping"
+         aria-hidden="true" (click)="showGeoMappingDialog()" title="_#(Edit Mapping)"></i>
+    </div>
+  </div>
+  <div *ngIf="loading" class="loading-container">
+    <div class="loading-content">
+      <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i>
+      <span class="visually-hidden" data-th-text="_#(Loading)">Loading</span>
+    </div>
+  </div>
+</div>

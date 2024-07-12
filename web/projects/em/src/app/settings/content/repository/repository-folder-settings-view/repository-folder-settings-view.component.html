@@ -1,0 +1,85 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-editor-panel
+  *ngIf="model"
+  contentClass="tabbed-editor-panel-content"
+  [applyDisabled]="disabled"
+  [resetDisabled]="form.invalid || isUsersReportsFolder || isMyReportsFolder || isMyDashboardsFolder"
+  (applyClicked)="apply()"
+  (resetClicked)="reset()"
+  (unsavedChanges)="unsavedChanges.emit($event)">
+  <mat-tab-group color="accent" [selectedIndex]="selectedTab"
+  (selectedTabChange)="onTabChange($event)">
+    <mat-tab label="_#(Property)">
+      <ng-template matTabContent>
+        <mat-card appearance="outlined">
+          <mat-card-content>
+            <form [formGroup]="form">
+              <div class="flex-col">
+                <mat-form-field appearance="outline" color="accent">
+                  <mat-label>_#(Folder Name)</mat-label>
+                  <input matInput placeholder="_#(Folder Name)" formControlName="folderName">
+                  <mat-error *ngIf="form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['required']">
+                    _#(viewer.nameValid)
+                  </mat-error>
+                  <mat-error *ngIf="form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['assetEntryBannedCharacters']">
+                    _#(composer.sheet.checkSpeChar)
+                  </mat-error>
+                  <mat-error *ngIf="form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['assetNameStartWithCharDigit']">
+                    _#(asset.tree.checkStart)
+                  </mat-error>
+                  <mat-error *ngIf="!alert && form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['assetNameMyReports']">
+                    _#(viewer.viewsheet.nameReserved) _#(and) _#(em.common.folders.nameAlert)
+                  </mat-error>
+                  <mat-error *ngIf="alert && form.controls['folderName'] && form.controls['folderName'].errors && form.controls['folderName'].errors['duplicateName']">
+                    _#(em.common.folder.nameDuplicate) _#(and) _#(em.repletFolderName.existAlert2)
+                  </mat-error>
+                </mat-form-field>
+                <mat-form-field *ngIf="!isWSFolder" appearance="outline" color="accent">
+                  <mat-label>_#(Alias)</mat-label>
+                  <input matInput placeholder="_#(Alias)" formControlName="alias">
+                </mat-form-field>
+                <mat-form-field *ngIf="!(isRoot || isUsersReportsFolder || isMyReportsFolder)" appearance="outline" color="accent">
+                  <mat-label>_#(Parent Folder)</mat-label>
+                  <input matInput placeholder="_#(Parent Folder)" formControlName="parentFolder">
+                </mat-form-field>
+                <mat-form-field appearance="outline" color="accent">
+                  <mat-label>_#(Description)</mat-label>
+                  <input matInput placeholder="_#(Description)" formControlName="description">
+                </mat-form-field>
+              </div>
+            </form>
+            <div *ngIf="model?.folderMeta">
+              <span *ngFor="let metaItem of model.folderMeta.metaItems" class="badge">
+                {{metaItem.assetTypeLabel}}: {{metaItem.assetCount}}
+              </span>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </ng-template>
+    </mat-tab>
+    <mat-tab *ngIf="model.permissionTableModel" label="_#(Security)">
+      <ng-template matTabContent>
+        <em-resource-permission [model]="model.permissionTableModel" (permissionChanged)="folderChanged = true">
+        </em-resource-permission>
+      </ng-template>
+    </mat-tab>
+  </mat-tab-group>
+</em-editor-panel>

@@ -1,0 +1,92 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="mobile-toolbar btn-toolbar viewer-left-toolbar h-100" role="toolbar"
+     aria-label="Component Toolbar">
+  <div *ngIf="!actions || actions.toolbarActions.length == 0" class="title left px-2">
+    _#(viewer.mobile.hint)</div>
+  <ng-template [ngIf]="!!showingActions">
+    <ng-template ngFor let-group [ngForOf]="showingActions">
+      <div class="btn-group" role="group" *ngIf="group.visible">
+        <ng-template ngFor let-action [ngForOf]="group.actions">
+          <button *ngIf="action.visible()" type="button" class="btn btn-sm toolbar-button"
+                  [disabled]="!action.enabled()" (click)="action.action()">
+            <i [class]="action.icon()" aria-hidden="true"></i>
+            <span class="visually-hidden" [innerHTML]="action.label()"></span>
+          </button>
+        </ng-template>
+      </div>
+    </ng-template>
+  </ng-template>
+  <ng-container *ngIf="!!moreActions">
+    <ng-container  *ngFor="let group of moreActions; let i = index">
+      <div class="drop-down-pane">
+        <button *ngIf="group.visible" class="btn btn-sm dropdown-toggle no-caret toolbar-button"
+                [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom">
+          <i class="menu-horizontal-icon" aria-hidden="true"></i>
+          <span class="visually-hidden" [innerHTML]="group.label()"></span>
+        </button>
+      </div>
+      <ng-template #dropdownMenu>
+        <div class="dropdown-pane mobile-dropdown py-2" *ngIf="group">
+          <ng-container *ngFor="let action of group.actions">
+            <a *ngIf="action.visible()"
+               class="dropdown-item"
+               (click)="action.action()">
+              <div class="d-flex align-contents-center align-items-center">
+                <i [class]="action.icon()" aria-hidden="true"></i>
+                <span class="px-2" [innerHTML]="action.label()"></span>
+              </div>
+            </a>
+          </ng-container>
+        </div>
+      </ng-template>
+    </ng-container>
+  </ng-container>
+
+  <ng-template [ngIf]="hasMenuAction">
+    <button #mobileSandwichButton class="btn btn-sm toolbar-button"
+            (click)="showMobileSandwichDropdown(mobileSandwichDropdown)">
+      <i class="menu-sandwich-icon align-middle"></i>
+      <span class="visually-hidden">_#(Show Menu)</span>
+    </button>
+    <ng-template #mobileSandwichDropdown>
+      <div class="dropdown-menu show" role="menu">
+        <ng-template ngFor let-group [ngForOf]="actions.menuActions">
+          <ng-template ngIf="group.visible">
+            <div class="dropdown-divider"
+                 *ngIf="actions.requiresMenuSeparator(group) && group.visible"></div>
+            <ng-template ngFor let-action [ngForOf]="group.actions">
+              <a role="menuitem" class="dropdown-item" *ngIf="action.visible()"
+                 [class.disable-link]="!action.enabled()"
+                 (click)="action.action($event); mobileSandwichRef.close(); sandwichMenuOpen=false"
+                 [innerHTML]="action.label()"></a>
+            </ng-template>
+          </ng-template>
+        </ng-template>
+      </div>
+    </ng-template>
+  </ng-template>
+  <button *ngIf="hasMenuAction || hasToolbarActions" #closeButton #menuActions type="button"
+          class="btn btn-sm toolbar-button"
+          (click)="closeMobileToolbar.emit()" aria-label="Close">
+    <i class="close-icon" aria-hidden="true"></i>
+    <span class="visually-hidden">_#(Close)</span>
+  </button>
+</div>

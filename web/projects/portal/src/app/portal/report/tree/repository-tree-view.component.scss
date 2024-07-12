@@ -1,0 +1,120 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@import '../variables';
+
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+
+  .repository-tree-toolbar {
+    display: flex;
+    width: 100%;
+    overflow: hidden;
+    flex-shrink: 0;
+    height: $repository-tree-toolbar-height;
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+    }
+
+    .nav-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .nav-link {
+      cursor: pointer;
+    }
+
+    &::after {
+      content: " ";
+      display: block;
+      position: absolute;
+      height: $repository-tree-toolbar-height;
+      width: calc(#{$report-tab-gutter-margin} + #{$report-tab-gutter-width});
+      right: calc((#{-$report-tab-gutter-margin} + #{-$report-tab-gutter-width}));
+      z-index: 7;
+    }
+  }
+
+  .repository-tree {
+    height: 100%;
+    display: block;
+    overflow: hidden;
+
+    &:hover {
+      overflow: auto;
+    }
+
+    &.mobile-tree {
+      overflow: auto;
+    }
+
+    .tree-div {
+      height: 100%;
+      width: 100%;
+    }
+  }
+
+  .search-container {
+    display: flex;
+    position: relative;
+    flex-wrap: nowrap;
+    flex-direction: row;
+    width: 100%;
+
+    .close-icon {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      opacity: 0.4;
+      cursor: pointer;
+
+      &:hover {
+        opacity: 1;
+      }
+    }
+
+    .search-icon-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      &:not(.icon-disabled) {
+        cursor: pointer;
+      }
+
+    }
+  }
+}
+
+input[type=text]::-ms-clear{
+  display: none;
+}
+
+.tree-loading-icon {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+}

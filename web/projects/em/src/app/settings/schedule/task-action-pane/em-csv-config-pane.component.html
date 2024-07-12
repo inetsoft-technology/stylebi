@@ -1,0 +1,56 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="em-csv-config-container" [style.padding-bottom]="showSelectedAssemblies ? 0 : '1.34375em'">
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(Delimiter)</mat-label>
+    <input type="text" matInput placeholder="_#(Delimiter)" [disabled]="csvConfigModel.tabDelimited"
+           [(ngModel)]="csvConfigModel.delimiter" (ngModelChange)="fireConfigChange()">
+  </mat-form-field>
+  <mat-checkbox class="mat-checkbox-field" [(ngModel)]="csvConfigModel.tabDelimited"
+                (ngModelChange)="fireConfigChange()">_#(Tab Delimited)</mat-checkbox>
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(Quote)</mat-label>
+    <input type="text" matInput [(ngModel)]="csvConfigModel.quote" placeholder="_#(Quote)"
+           (ngModelChange)="fireConfigChange()">
+  </mat-form-field>
+  <mat-checkbox class="mat-checkbox-field" [(ngModel)]="csvConfigModel.keepHeader"
+                (ngModelChange)="fireConfigChange()">_#(Keep Header)</mat-checkbox>
+</div>
+<mat-card appearance="outlined" *ngIf="showSelectedAssemblies" class="assemblies-list">
+  <mat-card-content>
+    <mat-checkbox class="mat-checkbox-field" [ngModel]="isSelectedAllTables()"
+                  (ngModelChange)="selectAllChanged($event)">_#(Export All Tables)</mat-checkbox>
+    <ng-container *ngIf="!isSelectedAllTables()">
+      <h4 matLine>_#(Assemblies)</h4>
+      <mat-list dense role="list">
+        <ng-container *ngFor="let item of tableDataAssemblies">
+          <mat-list-item role="listitem">
+            <mat-checkbox class="mat-checkbox-field" [ngModel]="isSelectedTable(item)"
+                          (ngModelChange)="selectedItemChanged(item, $event)">{{item}}</mat-checkbox>
+          </mat-list-item>
+          <mat-divider></mat-divider>
+        </ng-container>
+      </mat-list>
+      <mat-error *ngIf="csvConfigModel?.selectedAssemblies && !csvConfigModel?.selectedAssemblies.length">
+        _#(vs.export.csv.AssemblyRequired)
+      </mat-error>
+    </ng-container>
+  </mat-card-content>
+</mat-card>

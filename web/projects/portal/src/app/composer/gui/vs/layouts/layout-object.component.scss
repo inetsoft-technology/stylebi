@@ -1,0 +1,97 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.layout-object {
+  position: absolute;
+}
+
+.object-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.object {
+  position: relative;
+  overflow: visible;
+  border: 2px solid transparent;
+}
+
+.object.child-object {
+  border: 0;
+  position: absolute;
+}
+
+.selection-children {
+  pointer-events: none;
+}
+
+span.wrapper {
+  display: inline-block;
+  vertical-align: middle;
+  line-height: normal;
+}
+
+.txt-primary .object  {
+  border: 2px dotted;
+}
+
+.horizontal-line {
+  .resize-handle.middle, .resize-handle.bottom, .container-gutter {
+    display: none;
+  }
+
+  .resize-handle {
+    cursor: ew-resize;
+  }
+}
+
+.vertical-line {
+  .resize-handle.middle, .resize-handle.right, .container-gutter {
+    display: none;
+  }
+
+  .resize-handle {
+    cursor: ns-resize;
+  }
+}
+
+.horizontal-line, .vertical-line {
+  .object-container {
+    overflow: visible;
+
+    .object {
+      border: none;
+    }
+  }
+}
+
+.layout-overlay {
+  z-index: 9999;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.search-result {
+  border: 2px solid;
+}
+
+.search-no-match {
+  opacity: 0.2 !important;
+}

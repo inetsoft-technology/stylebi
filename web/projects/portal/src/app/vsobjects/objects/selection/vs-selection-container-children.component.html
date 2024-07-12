@@ -1,0 +1,105 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="vsObject && vsObject.visible"
+     [class.mobile]="mobileDevice"
+     [style.position]="'absolute'"
+     [style.top.px]="getBodyTop()"
+     [style.left.px]="getBodyLeft()"
+     [style.width.px]="getBodyWidth()"
+     [style.height.px]="getBodyHeight()"
+     [style.z-index]="vsObject.objectFormat.zIndex"
+     [style.border-bottom]="vsObject.objectFormat.border.bottom"
+     [style.border-left]="vsObject.objectFormat.border.left"
+     [style.border-right]="vsObject.objectFormat.border.right"
+     [style.color]="vsObject.objectFormat.foreground"
+     [style.background-color]="vsObject.objectFormat.background"
+     [style.font]="vsObject.objectFormat.font"
+     [class.disable-actions-fade]="!vsObject.enabled"
+     class="selection-container-children"
+     outOfZone (onDragover)="onDragOverContainer($event)"
+     (drop)="onDrop($event)">
+  <div #containerBody class="scrollbar-container"
+       [style.width.px]="getBodyWidth() + scrollbarWidth">
+    <div class="scrollbar-container-inner" [style.width.px]="getInnerWidth()">
+      <current-selection *ngFor="let outer of vsObject.outerSelections; let i = index;"
+                         [selection]="outer"
+                         [model]="vsObject"
+                         [titleHeight]="vsObject.dataRowHeight"
+                         [titleFormat]="vsObject.objectFormat"
+                         [titleRatio]="vsObject.titleRatio"
+                         [actions]="currentSelectionActions[i]"
+                         [draggable]="true"
+                         (dragstart)="onDragStart($event, i, true)"
+                         (drag)="onDrag($event)"
+                         (dragend)="onDragEnd($event)"
+                         outOfZone (onDragover)="onDragOver($event, i, true)"
+                         (drop)="onDrop($event)"
+                         class="d-block" tabindex="-1"
+                         [class.bt-highlight-med]="isDropChildTop(i, true)"
+                         [class.bb-highlight-med]="isDropChildBottom(i, true)">
+      </current-selection>
+
+      <ng-template ngFor let-childObject let-i="index" [ngForOf]="vsObject.childObjects"
+                   [ngForTrackBy]="trackByName">
+        <vs-range-slider *ngIf="childObject.objectType === 'VSRangeSlider'"
+                         cRangeSliderActionHandler
+                         [style.height.px]="childObject.objectFormat.height"
+                         [style.width.px]="childObject.objectFormat.width"
+                         [actions]="childActions[i]"
+                         [model]="childObject"
+                         [vsInfo]="vsInfo"
+                         (contextmenu)="showContextMenu($event, childActions[i])"
+                         (removeChild)="onRemoveChild(i)"
+                         [draggable]="true"
+                         (dragstart)="onDragStart($event, i, false)"
+                         (drag)="onDrag($event)"
+                         (dragend)="onDragEnd($event)"
+                         outOfZone (onDragover)="onDragOver($event, i, false)"
+                         (drop)="onDrop($event)"
+                         [keyNavigation]="innerKeyNavigation"
+                         class="d-block" tabindex="-1"
+                         [class.bt-highlight-med]="isDropChildTop(i, false)"
+                         [class.bb-highlight-med]="isDropChildBottom(i, false)">
+        </vs-range-slider>
+
+        <vs-selection *ngIf="childObject.objectType === 'VSSelectionList'"
+                      cSelectionListActionHandler
+                      [style.height.px]="childObject.dropdown ? childObject.titleFormat.height : childObject.objectFormat.height"
+                      [style.width.px]="childObject.objectFormat.width"
+                      [actions]="childActions[i]"
+                      [model]="childObject"
+                      [vsInfo]="vsInfo"
+                      [draggable]="true"
+                      (contextmenu)="showContextMenu($event, childActions[i])"
+                      (removeChild)="onRemoveChild(i)"
+                      (dragstart)="onDragStart($event, i, false)"
+                      (drag)="onDrag($event)"
+                      (dragend)="onDragEnd($event)"
+                      outOfZone (onDragover)="onDragOver($event, i, false)"
+                      (drop)="onDrop($event)"
+                      [keyNavigation]="innerKeyNavigation"
+                      class="d-block" tabindex="-1"
+                      [class.bt-highlight-med]="isDropChildTop(i, false)"
+                      [class.bb-highlight-med]="isDropChildBottom(i, false)">
+        </vs-selection>
+      </ng-template>
+    </div>
+  </div>
+</div>

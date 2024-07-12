@@ -1,0 +1,96 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="preview-table" [class.mobile]="mobileDevice" [style.maxWidth.px]="tableWidth + 16">
+  <div #previewContainer class="preview-table-container" (scroll)="horizontalScroll()">
+    <table #table class="table-layout-fixed table-sm"
+           [style.width.px]="tableWidth">
+      <thead *ngIf="tableData[0]">
+      <tr [style.height.px]="cellHeight">
+        <th *ngFor="let _cell of tableData[0]; let i = index"
+            [style.border-top]="_cell.vsFormatModel?.border.top"
+            [style.border-left]="_cell.vsFormatModel?.border.left"
+            [style.border-bottom]="_cell.vsFormatModel?.border.bottom"
+            [style.border-right]="_cell.vsFormatModel?.border.right"
+            [style.color]="_cell.vsFormatModel?.foreground"
+            [style.background]="_cell.vsFormatModel?.background"
+            [style.font]="_cell.vsFormatModel?.font"
+            [class.background-clip-padding-box]="isFirefox">
+          <div [title]="_cell.cellLabel">
+            {{_cell.cellLabel}}
+            <span class="preview-header-cell-button">
+              <i *ngIf="sortEnabled"
+                 class="float-end btn-icon bg-white3 icon-size-small {{getSortLabel(i)}}-icon"
+                 title="_#(Sort)" (click)="sortClicked(i)">
+              </i>
+            </span>
+          </div>
+        </th>
+      </tr>
+      </thead>
+    </table>
+    <div #tableContainer  *ngIf="tableData.length > 0" class="preview-table-body-container"
+         (wheel)="wheelScrollHandler($event)">
+      <table #table class="table-layout-fixed table-sm preview-table-body" touchScroll
+             [style.width.px]="tableWidth" (vScroll)="touchVScroll($event)" (hScroll)="touchHScroll($event)"
+             [style.top.px]="-scrollY">
+        <tbody>
+        <tr *ngFor="let _row of tableData; let _first = first; let i = index"
+            [style.height.px]="!_first ? cellHeight : 0">
+          <ng-container *ngIf="!_first">
+            <td *ngFor="let _cell of _row"
+                [title]="_cell.cellLabel"
+                [style.border-top]="_cell.vsFormatModel?.border.top"
+                [style.border-left]="_cell.vsFormatModel?.border.left"
+                [style.border-bottom]="_cell.vsFormatModel?.border.bottom"
+                [style.border-right]="_cell.vsFormatModel?.border.right"
+                [style.color]="_cell.vsFormatModel?.foreground"
+                [style.background]="_cell.vsFormatModel?.background"
+                [style.text-decoration]="_cell.vsFormatModel?.decoration"
+                [style.font]="_cell.vsFormatModel?.font"
+                [style.text-align]="_cell.vsFormatModel?.hAlign"
+                [class.background-clip-padding-box]="isFirefox">
+              <ng-container *ngIf="!_cell.hyperlinks">
+                {{_cell.cellLabel}}
+              </ng-container>
+            </td>
+          </ng-container>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="vertical-scroll-wrapper"
+       [style.top.px]="headerHeight"
+       [style.height]="'calc(100% - ' + headerHeight + 'px)'"
+       [style.width.px]="scrollbarWidth"
+       (scroll)="verticalScrollHandler($event)"
+       ngbTooltip="0"
+       placement="right"
+       container="body"
+       outOfZone
+       (onMouseenter)="updateVerticalScrollTooltip(true)"
+       (onMouseleave)="verticalScrollTooltip.close()"
+       #verticalScrollTooltip="ngbTooltip"
+       #verticalScrollWrapper>
+    <div [style.height.px]="tableHeight">
+    </div>
+  </div>
+</div>

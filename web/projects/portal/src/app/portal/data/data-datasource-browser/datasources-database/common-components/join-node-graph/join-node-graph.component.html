@@ -1,0 +1,48 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="node-graph-container" [class.bd-selected-cell]="selected"
+     [class.physical-graph-node-selected]="selected" (mousedown)="selectNode($event)">
+  <div class="graph-label-content jsplumb-draggable-handle"
+       [class.ws-header-secondary-bg-color]="!isAutoAliasNode() && graph.alias"
+       [class.ws-header-primary-bg-color]="isAutoAliasNode()"
+       (mouseup)="showEndpoint($event)">
+
+    <i aria-hidden="true" class="file-sql-icon" *ngIf="graph.sql"></i>
+
+    <div class="unselectable-canvas graph-label-text text-overflow"
+      [title]="graph.node.tooltip" [class.font-weight-bold]="graph.showColumns"
+      >{{graph.node.label}}</div>
+
+    <i aria-hidden="true" class="down-arrow-button cursor-pointer"
+       [ngClass]="graph.showColumns ? 'upward-icon' : 'down-arrow-button downward-icon'"
+       [attr.title]="graph.showColumns ? '_#(Hide Columns)' : '_#(Show Columns)'"
+       (mouseup)="stopPropagation($event)"
+       (mousedown)="selectNodeByIcon($event)"></i>
+  </div>
+
+  <ng-container *ngIf="graph.showColumns">
+    <div class="graph-cols-content">
+      <div *ngFor="let col of graph.cols; let i = index" class="physical-graph-column-label"
+        [ngClass]="i % 2 == 0 ? 'graph-even-column' : 'graph-odd-column'">
+        {{col.name}}
+      </div>
+    </div>
+  </ng-container>
+</div>

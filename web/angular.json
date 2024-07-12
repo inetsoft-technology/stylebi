@@ -1,0 +1,332 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "cli": {
+    "schematicCollections": [
+      "@angular-eslint/schematics"
+    ],
+    "analytics": false
+  },
+  "projects": {
+    "portal": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "scss"
+        }
+      },
+      "root": "projects/portal",
+      "sourceRoot": "projects/portal/src",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:browser",
+          "options": {
+            "outputPath": "target/generated-resources/ng/inetsoft/web/resources/app",
+            "index": "projects/portal/src/index.html",
+            "main": "projects/portal/src/main.ts",
+            "allowedCommonJsDependencies": [
+              "codemirror",
+              "lodash",
+              "dayjs"
+            ],
+            "polyfills": [
+              "zone.js",
+              "projects/portal/src/polyfills.ts"
+            ],
+            "tsConfig": "projects/portal/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              "projects/portal/src/favicon.ico",
+              "projects/portal/src/assets"
+            ],
+            "styles": [
+              "projects/portal/src/styles.scss"
+            ],
+            "scripts": [
+              "node_modules/stompjs/lib/stomp.js",
+              "node_modules/acorn/dist/acorn.js",
+              "node_modules/acorn-loose/dist/acorn-loose.js",
+              "node_modules/acorn-walk/dist/walk.js",
+              "node_modules/tern/lib/signal.js",
+              "node_modules/tern/lib/tern.js",
+              "node_modules/tern/lib/def.js",
+              "node_modules/tern/lib/comment.js",
+              "node_modules/tern/lib/infer.js"
+            ]
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning" : "6kb"
+                }
+              ],
+              "optimization": true,
+              "outputHashing": "bundles",
+              "sourceMap": false,
+              "namedChunks" : false,
+              "vendorChunk" : false
+            },
+            "development": {
+              "buildOptimizer": false,
+              "optimization": false,
+              "vendorChunk": true,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "namedChunks": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "configurations": {
+            "production": {
+              "browserTarget": "portal:build:production"
+            },
+            "development": {
+              "browserTarget": "portal:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "extract-i18n": {
+          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "options": {
+            "browserTarget": "portal:build"
+          }
+        },
+        "test": {
+          "builder": "@angular-builders/jest:run",
+          "options": {
+            "ci": true,
+            "maxWorkers": 4,
+            "silent": true,
+            "reporters": [
+              "default",
+              "jest-junit"
+            ]
+          }
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": [
+              "projects/portal/**/*.ts",
+              "projects/portal/**/*.html",
+              "projects/shared/**/*.ts",
+              "projects/shared/**/*.html"
+            ]
+          }
+        }
+      }
+    },
+    "em": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "scss"
+        }
+      },
+      "root": "projects/em",
+      "sourceRoot": "projects/em/src",
+      "prefix": "em",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:browser",
+          "options": {
+            "outputPath": "target/generated-resources/ng/inetsoft/web/resources/em",
+            "index": "projects/em/src/index.html",
+            "main": "projects/em/src/main.ts",
+            "allowedCommonJsDependencies": [
+              "codemirror",
+              "lodash",
+              "dayjs"
+            ],
+            "polyfills": [
+              "zone.js",
+              "projects/em/src/polyfills.ts"
+            ],
+            "tsConfig": "projects/em/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              "projects/em/src/favicon.ico",
+              "projects/em/src/assets"
+            ],
+            "styles": [
+              "projects/em/src/styles.scss"
+            ],
+            "scripts": [
+              "node_modules/stompjs/lib/stomp.js",
+              "node_modules/acorn/dist/acorn.js",
+              "node_modules/acorn-loose/dist/acorn-loose.js",
+              "node_modules/acorn-walk/dist/walk.js",
+              "node_modules/tern/lib/signal.js",
+              "node_modules/tern/lib/tern.js",
+              "node_modules/tern/lib/def.js",
+              "node_modules/tern/lib/comment.js",
+              "node_modules/tern/lib/infer.js"
+            ]
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning" : "6kb"
+                }
+              ],
+              "optimization": true,
+              "outputHashing": "bundles",
+              "sourceMap": false,
+              "namedChunks" : false,
+              "vendorChunk" : false
+            },
+            "development": {
+              "buildOptimizer": false,
+              "optimization": false,
+              "vendorChunk": true,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "namedChunks": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "configurations": {
+            "production": {
+              "browserTarget": "em:build:production"
+            },
+            "development": {
+              "browserTarget": "em:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "extract-i18n": {
+          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "options": {
+            "browserTarget": "em:build"
+          }
+        },
+        "test": {
+          "builder": "@angular-builders/jest:run",
+          "options": {
+            "ci": true,
+            "maxWorkers": 4,
+            "silent": true,
+            "reporters": [
+              "default",
+              "jest-junit"
+            ]
+          }
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": [
+              "projects/em/**/*.ts",
+              "projects/em/**/*.html"
+            ]
+          }
+        }
+      }
+    },
+    "elements": {
+      "projectType": "application",
+      "schematics": {
+        "@schematics/angular:component": {
+          "style": "scss"
+        }
+      },
+      "root": "projects/portal",
+      "sourceRoot": "projects/portal/src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:browser",
+          "options": {
+            "outputPath": "target/generated-resources/ng/inetsoft/web/resources/elements",
+            "index": "projects/portal/src/index.html",
+            "main": "projects/portal/src/main-elements.ts",
+            "allowedCommonJsDependencies": [
+              "codemirror",
+              "lodash",
+              "dayjs"
+            ],
+            "polyfills": [
+              "zone.js",
+              "projects/portal/src/polyfills.ts"
+            ],
+            "tsConfig": "projects/portal/tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "assets": [
+              "projects/portal/src/favicon.ico",
+              "projects/portal/src/assets"
+            ],
+            "styles": [
+              "projects/portal/src/styles.scss"
+            ],
+            "scripts": [
+              "node_modules/stompjs/lib/stomp.js",
+              "node_modules/acorn/dist/acorn.js",
+              "node_modules/acorn-loose/dist/acorn-loose.js",
+              "node_modules/acorn-walk/dist/walk.js",
+              "node_modules/tern/lib/signal.js",
+              "node_modules/tern/lib/tern.js",
+              "node_modules/tern/lib/def.js",
+              "node_modules/tern/lib/comment.js",
+              "node_modules/tern/lib/infer.js"
+            ]
+          },
+          "configurations": {
+            "production": {
+              "budgets": [
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning" : "6kb"
+                }
+              ],
+              "optimization": true,
+              "outputHashing": "bundles",
+              "sourceMap": false,
+              "namedChunks" : false,
+              "vendorChunk" : false
+            },
+            "development": {
+              "buildOptimizer": false,
+              "optimization": false,
+              "vendorChunk": true,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "namedChunks": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server",
+          "configurations": {
+            "production": {
+              "browserTarget": "elements:build:production"
+            },
+            "development": {
+              "browserTarget": "elements:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "extract-i18n": {
+          "builder": "@angular-devkit/build-angular:extract-i18n",
+          "options": {
+            "browserTarget": "elements:build"
+          }
+        }
+      }
+    }
+  }
+}

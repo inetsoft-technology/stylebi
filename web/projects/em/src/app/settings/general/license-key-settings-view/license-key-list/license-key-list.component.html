@@ -1,0 +1,66 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="em-card">
+  <mat-card-title class="flex-col">{{ title }}</mat-card-title>
+  <mat-card-content class="flex-col">
+    <table mat-table [dataSource]="dataSource">
+      <ng-container matColumnDef="select">
+        <th mat-header-cell *matHeaderCellDef class="select">
+          <mat-checkbox
+            (change)="$event ? masterToggle() : null"
+            [checked]="selection.hasValue() && isAllSelected()"
+            [indeterminate]="selection.hasValue() && !isAllSelected()"
+            [disabled]="!keys.length">
+          </mat-checkbox>
+        </th>
+        <td mat-cell *matCellDef="let row" class="select">
+          <mat-checkbox
+            (click)="selection.toggle(row)"
+            (change)="$event ? selection.toggle(row) : null"
+            [checked]="selection.isSelected(row)"
+          >
+          </mat-checkbox>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="server">
+        <th mat-header-cell *matHeaderCellDef>_#(Server)</th>
+        <td mat-cell *matCellDef="let key">{{ key.server }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="key">
+        <th mat-header-cell *matHeaderCellDef>_#(License Key)</th>
+        <td mat-cell *matCellDef="let key">
+          <div class="mat-subtitle-2">{{ key.key }}</div>
+          <div class="mat-body-2">{{ key.type }}</div>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns" (click)="selection.toggle(row)"></tr>
+    </table>
+    <mat-paginator [pageSizeOptions]="[5, 10, 20]" [showFirstLastButtons]="true"></mat-paginator>
+  </mat-card-content>
+  <mat-card-actions>
+    <button mat-stroked-button (click)="addKey()">_#(Add)</button>
+    <button mat-stroked-button [disabled]="!selection.hasValue() || selection.selected.length > 1" (click)="editKey()">_#(Edit)</button>
+    <button mat-stroked-button [disabled]="!selection.hasValue()" (click)="deleteKey()">_#(Delete)</button>
+  </mat-card-actions>
+</mat-card>

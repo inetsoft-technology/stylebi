@@ -1,0 +1,46 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Reorder Tables)'"
+   (onCancel)="cancel()"
+   [cshid]="'ChangingtheConcatenationType'">
+</modal-header>
+
+<div class="modal-body" enterSubmit (onEnter)="ok()">
+  <form class="form-horizontal">
+    <w-large-form-field>
+      <div class="bordered-box bd-gray bordered-box-md" largeFieldElement>
+        <div *ngFor="let _name of localTableNames; let _i = index;"
+             class="reorder-subtable" [class.selected]="_i === selectedIndex"
+             (click)="selectedIndex = _i">{{_name}}</div>
+      </div>
+      <ng-container largeFieldButtons>
+        <button type="button" class="btn btn-default upward-fast-icon icon-size-medium icon-color-default" (click)="moveTableToTop()" [disabled]="upDisabled()"></button>
+        <button type="button" class="btn btn-default upward-icon icon-size-medium icon-color-default" (click)="moveTableUp()" [disabled]="upDisabled()"></button>
+        <button type="button" class="btn btn-default downward-icon icon-size-medium icon-color-default" (click)="moveTableDown()" [disabled]="downDisabled()"></button>
+        <button type="button" class="btn btn-default downward-fast-icon icon-size-medium icon-color-default" (click)="moveTableToBottom()" [disabled]="downDisabled()"></button>
+      </ng-container>
+    </w-large-form-field>
+  </form>
+</div>
+
+<div class="modal-footer">
+  <button type="submit" class="btn btn-primary" (click)="ok()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" (click)="cancel()">_#(Cancel)</button>
+</div>

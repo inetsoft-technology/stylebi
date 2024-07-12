@@ -1,0 +1,51 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(em.propertyEditor.title)'"
+              (onCancel)="cancelChanges()"
+              [cshid]="'DefiningPropertyClass'">
+</modal-header>
+
+<div class="modal-body" [enterSubmit]="form.valid" (onEnter)="saveChanges()" *ngIf="form">
+  <form [formGroup]="form" class="container-fluid">
+    <div class="form-group mt-2 form-floating">
+      <input #input type="text" formControlName="name" class="form-control"
+             [class.is-invalid]="form.controls['name'].errors && form.controls['name'].errors['required']">
+      <label><span>_#(Name)</span></label>
+      <span class="invalid-feedback" *ngIf="form.controls['name'].errors && form.controls['name'].errors['required']">
+        _#(data.databases.enterPropertyName)
+      </span>
+    </div>
+    <div class="form-group mt-2 form-floating">
+      <input #input type="text" formControlName="value" class="form-control"
+             [class.is-invalid]="form.controls['value'].errors && form.controls['value'].errors['required']">
+      <label><span>_#(Value)</span></label>
+      <span class="invalid-feedback" *ngIf="form.controls['value'].errors && form.controls['value'].errors['required']">
+        _#(data.databases.enterPropertyValue)
+      </span>
+    </div>
+  </form>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="saveChanges()" [disabled]="!form.valid">
+    _#(OK)
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">_#(Cancel)</button>
+</div>

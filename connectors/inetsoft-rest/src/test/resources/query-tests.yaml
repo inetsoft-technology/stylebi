@@ -1,0 +1,131 @@
+#
+# inetsoft-rest - StyleBI is a business intelligence web application.
+# Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+
+airtable:
+  datasource:
+    apiToken: ${env.AIRTABLE_API_TOKEN}
+appfigures:
+  datasource:
+    clientKey: ${env.APPFIGURES_CLIENT_KEY}
+    user: ${env.APPFIGURES_USER}
+    password: ${env.APPFIGURES_PASSWORD}
+asana:
+  datasource:
+    accessToken: ${env.ASANA_ACCESS_TOKEN}
+chargify:
+  datasource:
+    subdomain: ${env.CHARGIFY_SUBDOMAIN}
+    apiKey: ${env.CHARGIFY_API_KEY}
+clockify:
+  datasource:
+    apiKey: ${env.CLOCKIFY_API_KEY}
+constantcontact:
+  datasource:
+    clientId: ${env.CONSTANTCONTACT_CLIENT_ID}
+    clientSecret: ${env.CONSTANTCONTACT_CLIENT_SECRET}
+datadotworld:
+  datasource:
+    apiToken: ${env.DATADOTWORLD_API_TOKEN}
+firebase:
+  datasource:
+    tokenExpiration: 0
+freshservice:
+  datasource:
+    domain: ${env.FRESHSERVICE_DOMAIN}
+    apiKey: ${env.FRESHSERVICE_API_KEY}
+googlecal:
+  datasource:
+    tokenExpiration: 0
+gosquared:
+  datasource:
+    apiKey: ${env.GOSQUARED_API_KEY}
+    siteToken: ${env.GOSQUARED_SITE_TOKEN}
+helpscoutdocs:
+  datasource:
+    apiKey: ${env.HELPSCOUTDOCS_API_KEY}
+hubspot:
+  datasource:
+    apiKey: ${env.HUBSPOT_API_KEY}
+influxdb:
+  datasource:
+    user: ${env.INFLUXDB_USER}
+    password: ${env.INFLUXDB_PASSWORD}
+jive:
+  datasource:
+    URL: ${env.JIVE_URL}
+    user: ${env.JIVE_USER}
+    password: ${env.JIVE_PASSWORD}
+lighthouse:
+  datasource:
+    domain: ${env.LIGHTHOUSE_DOMAIN}
+    apiToken: ${env.LIGHTHOUSE_API_TOKEN}
+linkedin:
+  datasource:
+    tokenExpiration: 0
+mixpanel:
+  datasource:
+    apiSecret: ${env.MIXPANEL_API_SECRET}
+nicereply:
+  datasource:
+    apiKey: ${env.NICEREPLY_API_KEY}
+remedyforce:
+  datasource:
+    user: ${env.REMEDYFORCE_USER}
+    password: ${env.REMEDYFORCE_PASSWORD}
+    securityToken: ${env.REMEDYFORCE_SECURITY_TOKEN}
+sfreports:
+  datasource:
+    user: ${env.SFREPORTS_USER}
+    password: ${env.SFREPORTS_PASSWORD}
+    securityToken: ${env.SFREPORTS_SECURITY_TOKEN}
+square:
+  datasource:
+    sandbox: true
+    accessToken: ${env.SQUARE_ACCESS_TOKEN}
+surveymonkey:
+  datasource:
+    tokenExpiration: 0
+teamdesk:
+  datasource:
+    domain: ${env.TEAMDESK_DOMAIN}
+    applicationId: ${env.TEAMDESK_APPLICATION_ID}
+    authorizationToken: ${env.TEAMDESK_AUTHORIZATION_TOKEN}
+twilio:
+  datasource:
+    user: ${env.TWILIO_USER}
+    password: ${env.TWILIO_PASSWORD}
+wordpress:
+  datasource:
+    clientId: ${env.WORDPRESS_CLIENT_ID}
+    clientSecret: ${env.WORDPRESS_CLIENT_SECRET}
+xero:
+  datasource:
+    tokenExpiration: 0
+zohocrm:
+  datasource:
+    clientId: ${env.ZOHOCRM_CLIENT_ID}
+    clientSecret: ${env.ZOHOCRM_CLIENT_SECRET}
+    accountDomain: ${env.ZOHOCRM_ACCOUNT_DOMAIN}
+zuora:
+  datasource:
+    user: ${env.ZUORA_USER}
+    password: ${env.ZUORA_PASSWORD}
+default:
+  datasource:
+    user: ${env.DEFAULT_REST_DATASOURCE_USER}
+    password: ${env.DEFAULT_REST_DATASOURCE_PASSWORD}

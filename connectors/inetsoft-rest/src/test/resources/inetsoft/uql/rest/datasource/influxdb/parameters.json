@@ -1,0 +1,29 @@
+{
+  "tests": [
+    {
+      "endpoint": "Requests",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Seconds": "30"
+      }
+    },
+    {
+      "endpoint": "Statistics",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Query",
+      "jsonPath": "$.results[0].series",
+      "expandArrays": false,
+      "parameters": {
+        "Database Name": "inetsoftdb1",
+        "Query Statement": "Select * from cpu",
+        "Chunked": "true",
+        "Epoch": "ms"
+      }
+    }
+  ]
+}

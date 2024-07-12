@@ -1,0 +1,153 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="simple-query-pane-container w-100 h-100" *ngIf="model">
+  <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="defaultTab" (navChange)="updateQueryTab($event)">
+    <ng-container [ngbNavItem]="editTab">
+      <a ngbNavLink>_#(Edit)</a>
+      <ng-template ngbNavContent>
+        <div class="tab-content">
+          <div class="row">
+            <div class="col-4 pe-0 tree-container">
+              <div class="bordered-box tree-body bd-gray">
+                <tree *ngIf="dataSourceTreeRoot" #tree class="unhighlightable h-100"
+                      [root]="dataSourceTreeRoot" [showRoot]="false" [iconFunction]="iconFunction"
+                      [selectOnClick]="true" [draggable]="true" [multiSelect]="true"
+                      (nodeExpanded)="nodeExpanded($event)" (nodeClicked)="nodeClicked($event)"></tree>
+                <ng-template *ngIf="loading">
+                  <div class="loading-icon-container">
+                    <span class="loading-icon--spin icon-size-xlarge loading-icon" aria-hidden="true"></span>
+                  </div>
+                </ng-template>
+              </div>
+            </div>
+            <div class="col container list-container" *ngIf="!model.sqlEdited">
+              <div class="row mb-2">
+                <div class="col-12 pe-0">
+                  <div class="form-floating">
+                    <sql-query-dialog-list [items]="model.columns" reorderName="column"
+                                           [dragNames]="allowedColumnDropNames" [showDelete]="true"
+                                           [labelFunction]="columnToString"
+                                           (itemDeleted)="deleteColumn($event)"
+                                           (itemsChange)="columnsChange($event)"
+                                           (itemsDropped)="droppedIntoColumnList($event)"
+                                           class="form-control-plaintext p-0 h-100"></sql-query-dialog-list>
+                    <label><span>_#(Columns)</span></label>
+                  </div>
+                </div>
+              </div>
+              <div class="row mb-2">
+                <div class="col-12 pe-0">
+                  <div class="form-floating">
+                    <sql-query-dialog-list class="form-control-plaintext p-0 h-100" [items]="model.joins"
+                                           [showEdit]="true" [showDelete]="true"
+                                           [labelFunction]="joinToString"
+                                           (itemsChange)="joinsChange($event)"
+                                           (itemDeleted)="deleteJoin($event)"
+                                           (itemEdited)="editJoin($event)"></sql-query-dialog-list>
+                    <label><span>_#(Joins)</span></label>
+                  </div>
+                </div>
+                <div class="col-12 btn-container-vertical pe-0">
+                  <button type="button" class="btn btn-default" (click)="newJoin()"
+                          [disabled]="numTables == 0">_#(New)</button>
+                </div>
+              </div>
+              <div class="row mb-2">
+                <div class="col-12 pe-0">
+                  <div class="form-floating">
+                    <div class="bordered-box bd-gray col">
+                      <div *ngFor="let item of model.conditionList; let even = even; let i = index;"
+                           class="unhighlightable"  [class.selected]="selectedConditionIndex === i"
+                           (click)="selectedConditionIndex = i">
+                        <div *ngIf="even">
+                          {{item | clauseToString}}
+                        </div>
+                        <div *ngIf="!even">
+                          {{item | conjunctionToString}}
+                        </div>
+                      </div>
+                    </div>
+                    <label><span>_#(Conditions)</span></label>
+                  </div>
+                </div>
+                <div class="col-12 btn-container-vertical pe-0">
+                  <button type="button" class="btn btn-default" (click)="editConditions()"
+                          [disabled]="numTables == 0">_#(Edit)</button>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-12 pe-0">
+                  <div class="form-floating">
+                        <textarea class="form-control" rows="7" [ngModel]="model.sqlString" readonly>
+                        </textarea>
+                    <label><span>_#(SQL)</span></label>
+                  </div>
+                </div>
+                <div class="col-12 btn-container-vertical pe-0">
+                  <button type="button" class="btn btn-default" (click)="editSQLDirectly()" [disabled]="!freeFormSqlEnabled">_#(Edit)</button>
+                </div>
+              </div>
+            </div>
+            <div class="col-8">
+              <div class="form-floating" *ngIf="model.sqlEdited && freeFormSqlEnabled">
+                    <textarea #sqlTextArea class="form-control h-100" rows="30" [(ngModel)]="model.sqlString" (ngModelChange)="textChanged()"
+                              (drop)="$event.preventDefault()" placeholder="_#(SQL)">
+                    </textarea>
+                <label><span>_#(SQL)</span></label>
+                <div class="pt-2 btn-container-vertical">
+                  <button type="button" class="btn btn-default" (click)="getSqlParseResult()" >_#(Parse Now)</button>
+                </div>
+                <span class="d-flex pt-3" [class.txt-danger]="isParseFailed()">
+                      <i class="info-icon cursor-pointer" title="_#(designer.qb.parseToolTipDetails)" [helpLink]="'userhelpVPMParse'"></i>
+                      Status: {{model.sqlParseResult}}
+                    </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-template>
+    </ng-container>
+    <ng-container *ngIf="supportPreview" [ngbNavItem]="previewTab">
+      <a ngbNavLink>_#(Preview)</a>
+      <ng-template ngbNavContent>
+        <sql-query-preview-pane class="preview-tab-container"
+                                [runtimeId]="runtimeId"
+                                [sqlString]="model?.sqlString"
+                                [tableCount]="tableCount"
+                                [sqlEdited]="model.sqlEdited">
+        </sql-query-preview-pane>
+      </ng-template>
+    </ng-container>
+  </ul>
+  <div [ngbNavOutlet]="nav"></div>
+</div>
+<ng-template #joinDialog let-close="close" let-dismiss="dismiss">
+  <sql-query-join-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                         [join]="selectedJoin" [joins]="model.joins"
+                         [supportsFullOuterJoin]="supportsFullOuterJoin"
+                         [tables]="model.tables"
+                         [columnCache]="columnCache"></sql-query-join-dialog>
+</ng-template>
+<ng-template #conditionDialog let-close="close" let-dismiss="dismiss">
+  <vpm-condition-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                        [model]="conditionDialogModel" [runtimeId]="runtimeId"
+                        [isWSQuery]="true" [subQuery]="controller.subQuery">
+  </vpm-condition-dialog>
+</ng-template>

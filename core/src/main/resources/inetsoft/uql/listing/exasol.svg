@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="layer" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="90px" height="30px" viewBox="0 0 90 30" enable-background="new 0 0 90 30" xml:space="preserve">
+<g>
+	<polygon fill="#002C40" points="17.629,8.463 25.329,8.463 25.329,10.47 19.963,10.47 19.963,13.837 24.297,13.837 24.297,15.853 
+		19.963,15.853 19.963,19.312 25.622,19.312 25.622,21.317 17.629,21.317 	"/>
+	<g>
+		<path fill="#002C40" d="M42.007,19.558c1.487,0,2.819-1.041,2.819-2.838c0-1.807-1.452-2.783-2.819-2.783
+			c-1.523,0-2.8,1.095-2.8,2.783C39.207,18.397,40.475,19.558,42.007,19.558 M44.845,20.004c-0.61,1.004-1.943,1.506-3.074,1.506
+			c-2.464,0-4.645-1.862-4.645-4.781s2.171-4.762,4.645-4.762c1.093,0,2.444,0.447,3.074,1.486v-1.295h1.998V21.3h-1.998V20.004z"/>
+		<path fill="#002C40" d="M49.689,18.563c0,0,1.013,1.012,2.519,1.012c0.647,0,1.213-0.292,1.213-0.829
+			c0-1.378-4.487-1.195-4.487-4.17c0-1.725,1.54-2.72,3.529-2.72c2.08,0,3.093,1.049,3.093,1.049l-0.85,1.707
+			c0,0-0.849-0.794-2.261-0.794c-0.603,0-1.179,0.254-1.179,0.829c0,1.306,4.489,1.142,4.489,4.115c0,1.543-1.341,2.775-3.529,2.775
+			c-2.3,0-3.586-1.36-3.586-1.36L49.689,18.563z"/>
+		<path fill="#002C40" d="M62.006,19.584c1.488,0,2.737-1.159,2.737-2.883c0-1.707-1.249-2.883-2.737-2.883
+			c-1.506,0-2.755,1.176-2.755,2.883C59.261,18.416,60.51,19.584,62.006,19.584 M61.987,11.866c2.828,0,5.092,2.008,5.092,4.836
+			c0,2.847-2.263,4.835-5.073,4.835c-2.827,0-5.092-1.988-5.092-4.835C56.925,13.872,59.188,11.866,61.987,11.866"/>
+		<path fill="#002C40" d="M68.804,8.463h2.28v9.634c0,1.012,0.348,1.267,0.94,1.267c0.183,0,0.348-0.018,0.348-0.018v2.008
+			c0,0-0.348,0.055-0.723,0.055c-1.268,0-2.846-0.329-2.846-2.975V8.463L68.804,8.463z"/>
+	</g>
+	<polygon fill="#45B035" points="26.853,21.317 30.366,16.729 26.862,12.167 29.572,12.167 33.075,16.729 29.553,21.317 	"/>
+	<polygon fill="#002C40" points="32.2,14.458 33.549,16.218 36.642,12.158 33.941,12.158 	"/>
+	<polygon fill="#002C40" points="32.2,19.02 33.549,17.258 36.642,21.317 33.941,21.317 	"/>
+</g>
+</svg>

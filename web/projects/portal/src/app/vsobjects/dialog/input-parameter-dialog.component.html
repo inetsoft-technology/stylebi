@@ -1,0 +1,152 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Parameter)'"
+   (onCancel)="close()"
+   [cshid]="'Hyperlinks'">
+</modal-header>
+
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model && form">
+  <form [ngSwitch]="model.valueSource" [formGroup]="form">
+    <fieldset>
+      <div class="form-row-float-label row">
+        <div class="col" #nameDropdown="ngbDropdown" ngbDropdown>
+           <div class="form-floating">
+              <input autocomplete="off" type="text" name="name" formControlName="name" trim
+                     [class.is-invalid]="form.controls['name'].invalid"
+                     class="form-control" placeholder="_#(Parameter Name)" ngbDropdownToggle>
+              <div ngbDropdownMenu *ngIf="viewsheetParameters && viewsheetParameters.length > 0"
+                   class="form-control viewsheet-parameters-dropdown-menu">
+                <li *ngFor="let parameter of viewsheetParameters">
+                  <a class="dropdown-item"
+                     (mousedown)="changeName(parameter); nameDropdown.close()"
+                     [class.selected]="model.name == parameter">{{parameter}}</a>
+                </li>
+              </div>
+              <label>_#(Parameter Name)</label>
+              <span class="invalid-feedback" *ngIf="form && form.controls['name'].errors && form.controls['name'].errors['required']">_#(parameter.name.emptyValid)</span>
+              <span class="invalid-feedback" *ngIf="form && form.controls['name'].errors && (form.controls['name'].errors['containsSpecialCharsForName']
+              || form.controls['name'].errors['doesNotStartWithNumber'])">_#(parameter.name.characterValid)
+              </span>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>_#(Source of Value)</legend>
+      <div class="form-row-checkbox row">
+        <div class="col">
+          <div class="form-check">
+            <input type="radio" name="source" class="form-check-input field_id" id="field"
+                 (click)="changeValueSource('field')"
+                 [checked]="model.valueSource === 'field'">
+            <label class="form-check-label" for="field">
+              _#(Field)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check">
+            <input type="radio" name="source" class="form-check-input constant_id" id="constant"
+                 (click)="changeValueSource('constant')"
+                 [checked]="model.valueSource === 'constant'">
+            <label class="form-check-label" for="constant">
+              _#(Constant)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div *ngSwitchCase="'field'">
+        <div class="form-row-float-label row">
+          <div class="col">
+            <div class="form-floating">
+                  <select class="form-control" formControlName="alphaNumericValue"
+                          placeholder="_#(Value for Parameter)">
+                    <option *ngIf="model.value == ''" [value]=""></option>
+                    <option *ngFor="let field of fields" [attr.title]="field.description"
+                      [value]="field.name">
+                      {{field.name}}
+                    </option>
+                  </select>
+                  <label>_#(Value for Parameter)</label>
+              </div>
+          </div>
+        </div>
+      </div>
+      <div *ngSwitchCase="'constant'">
+        <div class="form-row-float-label form-row">
+          <div class="col-auto form-floating">
+              <select class="form-control" formControlName="type" placeholder="_#(Type)">
+                <option *ngFor="let type of dataTypeList" [value]="type.data"
+                        [selected]="model.type == type.data">{{type.label}}</option>
+              </select>
+              <label>_#(Type)</label>
+          </div>
+          <div class="col"
+               *ngIf="model.type === XSchema.DATE || model.type === XSchema.TIME_INSTANT">
+            <div class="form-floating">
+              <div class="input-group">
+                <input class="form-control" placeholder="yyyy-mm-dd"
+                     formControlName="dateValue"
+                     ngbDatepicker #datePicker="ngbDatepicker"/>
+                <button class="input-group-addon" (click)="datePicker.toggle()" type="button">
+                  <i class="calendar-icon"></i>
+                </button>
+              </div>
+              <label>_#(Value for Parameter)</label>
+            </div>
+          </div>
+          <div class="col" *ngIf="model.type === XSchema.TIME || model.type === XSchema.TIME_INSTANT">
+             <div class="form-floating">
+                <input type="time" class="form-control" step="1" placeholder="hh:mm:ss"
+                       formControlName="timeValue" (blur)="updateTime($event.target.value)"/>
+            </div>
+          </div>
+          <div class="col" *ngIf="model.type !== XSchema.DATE && model.type !== XSchema.TIME && model.type !== XSchema.TIME_INSTANT">
+            <div class="form-floating">
+                <select class="form-control"
+                        placeholder="_#(Value for Parameter)"
+                        formControlName="alphaNumericValue"
+                        *ngIf="model.type == XSchema.BOOLEAN">
+                  <option [value]="true">_#(True)</option>
+                  <option [value]="false">_#(False)</option>
+                </select>
+
+                <input type="number" class="form-control"
+                       placeholder="_#(Value for Parameter)" formControlName="alphaNumericValue"
+                       *ngIf="XSchema.isNumericType(model.type)">
+                <input type="text" class="form-control"
+                       placeholder="_#(Value for Parameter)"
+                       formControlName="alphaNumericValue"
+                       *ngIf="model.type == XSchema.STRING || model.type == XSchema.CHARACTER">
+                <label>_#(Value for Parameter)</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="alert alert-danger" *ngIf="isInvalid()">
+        _#(viewer.viewsheet.validValueRequired)</div>
+    </fieldset>
+  </form>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="isFormInvalid()" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+</div>

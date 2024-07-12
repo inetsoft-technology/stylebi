@@ -1,0 +1,125 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="emailForm" class="container-fluid">
+  <div class="form-row-float-label row">
+    <div class="col">
+      <w-shuffle-list>
+        <div shuffleLeft>
+          <div class="input-group">
+            <input type="text" class="form-control" [ngModelOptions]="{standalone: true}"
+                   [ngModel]="searchText" (ngModelChange)="updateSearchText($event)"
+                   placeholder="_#(Search)" title="_#(Search)" />
+            <button class="btn input-group-btn-addon"
+                    (click)="searchUsers(searchText)" aria-label="_#(Search)">
+              <i class="search-icon" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="bordered-box bd-gray bordered-box-lg mt-1">
+            <identity-tree #identityTree [hidden]="searchMode" [root]="model.rootTree"
+                           [showRoot]="showRoot" [searchMode]="searchMode"
+                           [isBurst]="!embeddedOnly"
+                           [selectedNodes]="selectedNodes"
+                           (nodesSelected)="nodeSelected($event)"></identity-tree>
+            <identity-tree #searchIdentityTree [hidden]="!searchMode" [root]="searchTree"
+                           [showRoot]="showRoot" [searchMode]="searchMode" [searchText]="searchText"
+                           [isBurst]="!embeddedOnly"
+                           [selectedNodes]="selectedNodes"
+                           (nodesSelected)="nodeSelected($event)"></identity-tree>
+          </div>
+        </div>
+        <ng-container shuffleButtons>
+          <button type="button" class="btn btn-light-no-bg icon-hover-bg add_btn_id"
+                  [class.button-inline-padding]="mobile"
+                  (click)="addIdentities()" [disabled]="addDisable()"
+                  aria-label="_#(Add)">
+            <i class="forward-icon icon-size-large" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-light-no-bg icon-hover-bg remove_btn_id"
+                  [class.button-inline-padding]="mobile"
+                  (click)="removeIdentities()" [disabled]="selectedAddedIdentities.length == 0"
+                  aria-label="_#(Remove)">
+            <i class="backward-icon icon-size-large" aria-hidden="true"></i>
+          </button>
+        </ng-container>
+        <div shuffleRight *ngIf="embeddedOnly">
+          <div class="input-group">
+            <input type="text" class="form-control" [ngModelOptions]="{standalone: true}"
+                   [ngModel]="searchIdentityText" (ngModelChange)="updateSearchIdentityText($event)"
+                   placeholder="_#(Search)" title="_#(Search)" />
+            <button class="btn input-group-btn-addon"
+                    (click)="onSearchIdentity(searchIdentityText)" aria-label="_#(Search)">
+              <i class="search-icon" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="bordered-box bd-gray bordered-box-lg mt-1"
+               tabindex="0" role="list" aria-label="_#(Users)" (keyup)="focus($event)">
+            <ng-container *ngFor="let _identity of searchAllIdentities()">
+              <div class="unhighlightable d-flex align-items-center force-focus-highlight"
+                   (click)="select(_identity, $event)"
+                   [class.selected]="isSelectedIdentity(_identity)"
+                   role="listitem" [attr.aria-label]="_identity.alias || _identity.identityID" tabindex="-1" enterClick [hasKeys]="true"
+                   (keyup)="moveFocus($event)">
+                <i class="icon-size-medium me-2" aria-hidden="true"
+                   [ngClass]="getIdentityIcon(_identity.type)"></i>
+                {{_identity.alias || _identity.identityID?.name}}
+              </div>
+            </ng-container>
+          </div>
+          <div class="form-floating mt-1">
+            <input type="text" class="form-control" formControlName="otherEmail"
+                   placeholder="_#(Others)"
+                   [class.is-invalid]="!emailForm.controls['otherEmail'].valid"
+                   [title]="otherEmail"/>
+            <label>_#(Others)</label>
+            <span class="invalid-feedback" *ngIf="emailForm.controls['otherEmail'].errors
+             && emailForm.controls['otherEmail'].errors['email']">
+            _#(viewer.mailto.invalidToEmail)
+          </span>
+            <span class="invalid-feedback"
+                  *ngIf="emailForm && !!emailForm.controls['otherEmail'] && emailForm.controls['otherEmail'].errors
+              && !emailForm.controls['otherEmail']?.errors['email']
+              && emailForm.controls['otherEmail']?.errors['duplicateTokens']">
+            _#(viewer.schedule.action.email.duplicateEmail)
+          </span>
+          </div>
+        </div>
+        <div shuffleRight *ngIf="!embeddedOnly">
+          <table class="table table-sm table-bordered user-email-table" wScrollableTable>
+            <thead class="thead-default">
+              <tr>
+                <th>_#(User)</th>
+                <th>_#(Email)</th>
+              </tr>
+            </thead>
+            <tbody class="user-email-table-content">
+              <tr *ngFor="let identity of addedIdentities; let i = index; trackBy:trackByIndex"
+                  (click)="select(identity, $event)"
+                  [class.selected]="isSelectedIdentity(identity)">
+                <td>{{ identity.alias || identity.identityID }}</td>
+                <td><input class="form-control form-control-sm" type="text" [ngModel]="addedEmails[i]"
+                           (ngModelChange)="changeEmail(i, $event)" [ngModelOptions]="{standalone: true}"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </w-shuffle-list>
+    </div>
+  </div>
+</form>

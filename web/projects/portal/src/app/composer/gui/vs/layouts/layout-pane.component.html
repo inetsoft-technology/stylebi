@@ -1,0 +1,68 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="layout-pane-wrapper" outOfZone (onDocKeydown)="moveObject($event)">
+  <div #layoutPane class="layout-pane" (drop)="drop($event)" (resized)="onLayoutResize()"
+       wInteractContainer
+       [class.snap-to-grid]="snapToGrid" [ngStyle]="getSnapGridStyle()"
+       [snapToGrid]="snapToGrid" [snapGridSize]="vs.snapGrid"
+       (onSnap)="onSnap($event)"
+       [draggableRestriction]="draggableRestriction"
+       [snapToGuides]="snapToObjects"
+       [snapHorizontalGuides]="draggableSnapGuides.horizontal"
+       [snapVerticalGuides]="draggableSnapGuides.vertical"
+       [snapGuideRange]="10"
+       [snapGuideOffset]="snapOffset"
+       selectionBox selectionBoxBannedSelector="[data-is-object-editor].active, .line.handle"
+       outOfZone (onDragover)="$event.preventDefault()"
+       (onScroll)="scrolled($event)"
+       (onSelectionBox)="onSelectionBox($event)"
+       actionsContextmenuAnchor [actions]="menuActions">
+    <ng-container *ngIf="sizeGuidesVisible">
+      <div *ngFor="let page of pages"
+           class="layout-guides"
+           [style.width.px]="guideSize.width"
+           [style.height.px]="guideSize.height"
+           [style.top.px]="page * guideSize.height"
+           [style.border-color]="guideLineColor">
+      </div>
+    </ng-container>
+    <div *ngIf="currentSnapGuides != null"
+         class="layout-pane__horizontal-snap-guide bt-selected"
+         [style.left.px]="layoutScrollLeft"
+         [style.top.px]="currentSnapGuides.y">
+    </div>
+    <div *ngIf="currentSnapGuides != null"
+         class="layout-pane__vertical-snap-guide bl-selected"
+         [style.top.px]="layoutScrollTop"
+         [style.left.px]="currentSnapGuides.x">
+    </div>
+    <layout-object *ngFor="let object of getLayoutObjects(); trackBy: trackByFn;"
+                   [model]="object" [layout]="vsLayout"
+                   [viewsheetScale]="vs.scale"
+                   [guideSize]="_guideSize"
+                   [runtimeId]="runtimeId" [linkUri]="linkUri"
+                   [snapToGrid]="snapToGrid"
+                   [containerRef]="layoutPane"
+                   (onResize)="assemblyResized($event?.event, $event?.model)"
+                   (onRemoveSelected)="removeSelectedAssemblies()"
+                   (onLayoutObjectMove)="onLayoutObjectMove.emit()">
+    </layout-object>
+  </div>
+</div>

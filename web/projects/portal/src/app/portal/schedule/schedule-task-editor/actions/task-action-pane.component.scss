@@ -1,0 +1,100 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 0px;
+
+  > .container-fluid {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+
+    .scheduler-form {
+      width: 600px;
+      max-width: 100%;
+    }
+
+    > ul.nav {
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+
+    > ul li span.selected {
+      background-color: var(--inet-selected-item-bg-color);
+      color: var(--inet-selected-item-text-color);
+    }
+
+    > .task-action-form {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+
+      > .form-row-float-label.row {
+        flex-grow: 0;
+        flex-shrink: 0;
+      }
+
+      > .schedule-action-accordion {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      > .user-action-properties {
+        flex-grow: 1;
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+    }
+
+    > .task-action-buttons {
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+  }
+
+  > .action-list-view {
+    position: relative;
+    overflow: hidden;
+    min-height: 0px;
+    min-width: 0px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 100%;
+  }
+
+  > .notifications-task-action-pane {
+    width: 400px;
+    position: fixed;
+    top: 60px;
+    right: 20px;
+  }
+}
+
+span.disabled {
+  pointer-events: none;
+  background-color: unset;
+  opacity: 0.5;
+}

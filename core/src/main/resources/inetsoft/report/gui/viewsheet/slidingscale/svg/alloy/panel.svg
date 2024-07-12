@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg  xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="200" height="70.777" viewBox="0 0 200 70.777" overflow="visible" enable-background="new 0 0 200 70.777"
+	 xml:space="preserve">
+		<g id="Layer_1">
+			<rect opacity="0" fill="#727272" width="200" height="70.777"/> 
+			<g>
+				<path fill="#727272" d="M194.641,60.378c0,2.779-2.262,5.041-5.041,5.041H10.399c-2.78,0-5.041-2.262-5.041-5.041V10.399
+					c0-2.779,2.261-5.041,5.041-5.041H189.6c2.779,0,5.041,2.262,5.041,5.041V60.378z M197,10.399C197,6.32,193.68,3,189.6,3H10.399
+					C6.319,3,3,6.32,3,10.399v49.979c0,4.08,3.319,7.399,7.399,7.399H189.6c4.08,0,7.4-3.319,7.4-7.399V10.399z"/>
+			</g>
+			<rect x="22.953" y="20.635" fill="none" stroke="#777777" stroke-width="0.5897" width="154.093" height="22.432"/> 
+			<rect x="24.852" y="14.476" fill="#898989" stroke="#636263" stroke-width="0.1723" width="150.188" height="1.858"/> 
+		</g>
+	</svg>

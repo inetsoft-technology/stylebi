@@ -1,0 +1,178 @@
+{
+  "endpoints": [
+    {
+      "name": "Account Email Addresses",
+      "paged": false,
+      "suffix": "/v3/account/emails?confirm_status={Confirm Status?:CONFIRMED|UNCONFIRMED}&role_code={Role Code?:CONTACT|BILLING|JOURNALING|REPLY_TO|OTHER}&email_address={Email Address?}"
+    },
+    {
+      "name": "Account Details",
+      "paged": false,
+      "suffix": "/v3/account/summary?extra_fields={Extra Fields?:value1,value2,...}"
+    },
+    {
+      "name": "Account Physical Address",
+      "paged": false,
+      "suffix": "/v3/account/summary/physical_address"
+    },
+    {
+      "name": "User Privileges",
+      "paged": false,
+      "suffix": "/v3/account/user/privileges"
+    },
+    {
+      "name": "Activity Statuses",
+      "paged": true,
+      "suffix": "/v3/activities?state={State?:processing|completed|cancelled|failed|timed_out}"
+    },
+    {
+      "name": "Activity Status",
+      "paged": false,
+      "suffix": "/v3/activities/{Activity ID}"
+    },
+    {
+      "name": "Contacts",
+      "paged": true,
+      "suffix": "/v3/contacts?status={Status?:value1,value2,...}&email={Search Email Address?}&lists={Contacts List?}&updated_after={Updated After?:yyyy-MM-dd}&include={Include?:custom_fields|list_memberships|phone_numbers|street_addresses}&include_count={Include Count?:true|false}"
+    },
+    {
+      "name": "Contact",
+      "paged": false,
+      "suffix": "/v3/contacts/{Contact ID}?include={Include?:value1,value2,...}"
+    },
+    {
+      "name": "Contact Lists",
+      "paged": true,
+      "suffix": "/v3/contact_lists?include_count={Include Count?:true|false}"
+    },
+    {
+      "name": "Contact List",
+      "paged": false,
+      "suffix": "/v3/contact_lists/{List ID}"
+    },
+    {
+      "name": "Contact Activity Details",
+      "paged": true,
+      "suffix": "/v3/reports/contact_reports/{Contact ID}/activity_details?tracking_activities_list={Tracking Activities List:em_sends|em_opens|em_clicks|em_bounces|em_optouts|em_forwards}"
+    },
+    {
+      "name": "Contact Action Summary",
+      "paged": true,
+      "suffix": "/v3/reports/contact_reports/{Contact ID}/activity_summary?start={Start:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}&end={End:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "name": "Average Open and Click Rates",
+      "paged": true,
+      "suffix": "/v3/reports/contact_reports/{Contact ID}/open_and_click_rates?start={Start:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}&end={End:yyyy-MM-dd|yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "name": "Custom Fields",
+      "paged": true,
+      "suffix": "/v3/contact_custom_fields"
+    },
+    {
+      "name": "Custom Field",
+      "paged": false,
+      "suffix": "/v3/contact_custom_fields/{Custom Field ID}"
+    },
+    {
+      "name": "Email Campaigns",
+      "paged": true,
+      "suffix": "/v3/emails",
+      "lookups": [
+        {
+          "endpoint": "Email Campaign",
+          "jsonPath": "$.campaigns[*]",
+          "key": "campaign_id",
+          "parameterName": "Campaign ID"
+        }
+      ]
+    },
+    {
+      "name": "Email Campaign Activity",
+      "paged": false,
+      "suffix": "/v3/emails/activities/{Campaign Activity ID}?include={Include?:physical_address_in_footer|permalink_url|html_content|document_properties}"
+    },
+    {
+      "name": "Email Campaign",
+      "paged": false,
+      "suffix": "/v3/emails/{Campaign ID}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Email Campaign Activity",
+            "Email Links",
+            "Email Bounces",
+            "Email Clicks",
+            "Email Did Not Opens",
+            "Email Forwards",
+            "Email Opens",
+            "Email Opt-outs",
+            "Email Sends",
+            "Email Unique Opens",
+            "Email Campaign Activity Schedule",
+            "Email Campaign Activity Send History"
+          ],
+          "jsonPath": "$.campaign_activities[*]",
+          "key": "campaign_activity_id",
+          "parameterName": "Campaign Activity ID"
+        }
+      ]
+    },
+    {
+      "name": "Email Links",
+      "paged": false,
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/links"
+    },
+    {
+      "name": "Email Bounces",
+      "paged": true,
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/bounces?bounce_code={Bounce Code?}"
+    },
+    {
+      "name": "Email Clicks",
+      "paged": true,
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/clicks?url_id={URL ID?}"
+    },
+    {
+      "name": "Email Did Not Opens",
+      "paged": true,
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/didnotopens"
+    },
+    {
+      "name": "Email Forwards",
+      "paged": true,
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/forwards"
+    },
+    {
+      "name": "Email Opens",
+      "paged": true,
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/opens"
+    },
+    {
+      "name": "Email Opt-outs",
+      "paged": true,
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/optouts"
+    },
+    {
+      "name": "Email Sends",
+      "paged": true,
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/sends"
+    },
+    {
+      "name": "Email Unique Opens",
+      "paged": true,
+      "suffix": "/v3/reports/email_reports/{Campaign Activity ID}/tracking/unique_opens"
+    },
+    {
+      "name": "Email Campaign Activity Schedule",
+      "paged": false,
+      "suffix": "/v3/emails/activities/{Campaign Activity ID}/schedules"
+    },
+    {
+      "name": "Email Campaign Activity Send History",
+      "paged": false,
+      "suffix": "/v3/emails/activities/{Campaign Activity ID}/send_history"
+    }
+  ]
+}

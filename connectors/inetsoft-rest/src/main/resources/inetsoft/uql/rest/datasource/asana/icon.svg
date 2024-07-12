@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="30px" height="30px" viewBox="0 0 30 30" enable-background="new 0 0 30 30" xml:space="preserve">
+<rect x="-380" y="-285" fill="none" width="790" height="600"/>
+<g>
+	<defs>
+		<path id="SVGID_1_" d="M2.119,21.304c0,3.095,2.508,5.603,5.603,5.603s5.603-2.508,5.603-5.603s-2.508-5.603-5.603-5.603
+			S2.119,18.209,2.119,21.304 M16.676,21.304c0,3.095,2.508,5.603,5.604,5.603c3.094,0,5.602-2.508,5.602-5.603
+			s-2.508-5.603-5.602-5.603C19.184,15.701,16.676,18.209,16.676,21.304 M9.397,8.697c0,3.095,2.509,5.604,5.603,5.604
+			c3.094,0,5.604-2.509,5.604-5.604c0-3.094-2.51-5.604-5.604-5.604C11.906,3.093,9.397,5.603,9.397,8.697"/>
+	</defs>
+	<clipPath id="SVGID_2_">
+		<use xlink:href="#SVGID_1_"  overflow="visible"/>
+	</clipPath>
+	
+		<radialGradient id="SVGID_3_" cx="-376.6992" cy="315.1035" r="0.2495" gradientTransform="matrix(56.4237 0 0 -56.4237 21269.8008 17796.2617)" gradientUnits="userSpaceOnUse">
+		<stop  offset="0" style="stop-color:#FEBE10"/>
+		<stop  offset="0.6" style="stop-color:#F16D91"/>
+		<stop  offset="0.9991" style="stop-color:#F16464"/>
+		<stop  offset="1" style="stop-color:#F16464"/>
+	</radialGradient>
+	<rect x="2.119" y="3.093" clip-path="url(#SVGID_2_)" fill="url(#SVGID_3_)" width="25.762" height="23.813"/>
+</g>
+</svg>

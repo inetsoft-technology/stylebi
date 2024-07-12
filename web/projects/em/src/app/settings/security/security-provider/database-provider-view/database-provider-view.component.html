@@ -1,0 +1,133 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container [formGroup]="dbForm">
+  <mat-card appearance="outlined">
+    <mat-card-content>
+      <mat-card appearance="outlined">
+        <mat-card-content>
+          <div class="flex-row">
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(Driver)</mat-label>
+              <input matInput placeholder="_#(Driver)" formControlName="driver" required>
+              <mat-hint>_#(em.security.database.driverDesc)</mat-hint>
+              <mat-error *ngIf="dbForm.controls['driver']?.errors?.required">
+                _#(em.security.database.driverRequired)
+              </mat-error>
+            </mat-form-field>
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(URL)</mat-label>
+              <input matInput placeholder="_#(URL)" formControlName="url" required>
+              <mat-hint>_#(em.security.database.urlDesc)</mat-hint>
+              <mat-error *ngIf="dbForm.controls['url']?.errors?.required">
+                _#(em.security.database.urlRequired)
+              </mat-error>
+            </mat-form-field>
+          </div>
+          <div class="flex-row">
+            <mat-checkbox class="mat-checkbox-field salt-checkbox" formControlName="requiresLogin">
+              _#(Requires Login)
+            </mat-checkbox>
+          </div>
+          <div class="flex" *ngIf="dbForm.get('requiresLogin').value">
+            <div class="flex-row">
+              <mat-form-field appearance="outline" color="accent">
+                <mat-label>_#(User)</mat-label>
+                <input matInput placeholder="_#(User)" formControlName="user" required>
+                <mat-hint>_#(em.security.database.userDesc)</mat-hint>
+                <mat-error *ngIf="dbForm.controls['user']?.errors?.required">
+                  _#(em.security.database.userRequired)
+                </mat-error>
+              </mat-form-field>
+              <mat-form-field appearance="outline" color="accent">
+                <mat-label>_#(Password)</mat-label>
+                <input matInput type="password" placeholder="_#(Password)" formControlName="password" required>
+                <mat-hint>_#(em.security.database.passwordDesc)</mat-hint>
+                <mat-error *ngIf="dbForm.controls['password']?.errors?.required">
+                  _#(em.security.database.passwordRequired)
+                </mat-error>
+              </mat-form-field>
+            </div>
+          </div>
+          <div class="flex-row">
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(Hash Algorithm)</mat-label>
+              <input matInput placeholder="_#(Hash Algorithm)"
+                     formControlName="hashAlgorithm"
+                     [matAutocomplete]="auto"
+                     required
+              />
+              <mat-autocomplete #auto="matAutocomplete">
+                <mat-option *ngFor="let algo of filteredAlgorithms | async" [value]="algo">
+                  {{algo}}
+                </mat-option>
+              </mat-autocomplete>
+              <mat-error *ngIf="dbForm.controls.hashAlgorithm.errors && dbForm.controls.hashAlgorithm.errors.unsupported">
+                _#(em.security.database.hashAlgorithmUnsupported)
+              </mat-error>
+            </mat-form-field>
+            <mat-checkbox class="mat-checkbox-field salt-checkbox" formControlName="appendSalt">_#(Append Salt)</mat-checkbox>
+          </div>
+          <section class="test-connection-section">
+            <button mat-stroked-button
+                    [disabled]="!canTestConnection"
+                    (click)="testConnection()">_#(Test Connection)
+            </button>
+            <span class="form-spacing">{{connectionStatus}}</span>
+          </section>
+        </mat-card-content>
+      </mat-card>
+
+      <div class="flex-row">
+
+        <ng-container *ngFor="let item of dbFormItems">
+          <em-query-item-view *ngIf="!item.requiresMultiTenant || isMultiTenant"
+            [form]="dbForm"
+            [label]="item.label"
+            [formName]="item.formControlName"
+            [hint]="item.hint"
+            [btnLabel]="item.btnLabel"
+            [validators]="item.validators"
+            [callback]="item.callback"
+          ></em-query-item-view>
+        </ng-container>
+
+      </div>
+
+      <div class="flex-row">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(System Administrator Roles)</mat-label>
+          <input matInput placeholder="_#(System Administrator Roles)" formControlName="sysAdminRoles" readonly>
+          <button mat-icon-button matSuffix  (click)="editRoles(true)">
+            <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+          </button>
+        </mat-form-field>
+      </div>
+      <div class="flex-row" *ngIf="isMultiTenant" >
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Organization Administrator Roles)</mat-label>
+          <input matInput placeholder="_#(Organization Administrator Roles)" formControlName="orgAdminRoles" readonly>
+          <button mat-icon-button matSuffix  (click)="editRoles(false)">
+            <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+          </button>
+        </mat-form-field>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</ng-container>

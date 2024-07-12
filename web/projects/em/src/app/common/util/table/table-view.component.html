@@ -1,0 +1,92 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card *ngIf="matTableDataSource && !collapsible && tableInfo" class="table-container"
+          [class.mat-elevation-z0]="flatCard" [class.fill-container]="fillContainer"
+          [class.fit-content]="fitContent"
+          [class.fill-flex-container]="fillFlexContainer">
+  <mat-card-title class="table-title" *ngIf="tableInfo.title">{{tableInfo.title}}</mat-card-title>
+  <mat-card-content [class.fill-container]="fillContainer">
+    <ng-container *ngIf="expandableRow; else regularTable">
+      <ng-container [ngTemplateOutlet]="expandableRowTable"></ng-container>
+    </ng-container>
+    <mat-error *ngIf="emptyErrorVisible" class="empty-error-message">{{emptyError}}</mat-error>
+  </mat-card-content>
+  <mat-card-actions *ngIf="tableInfo.selectionEnabled && hasButtons()" class="button-row">
+    <button mat-stroked-button *ngIf="tableInfo.actions && tableInfo.actions.includes(TableAction.ADD)"
+            (click)="add.emit()">_#(Add)
+    </button>
+    <button mat-button *ngIf="tableInfo.actions && tableInfo.actions.includes(TableAction.EDIT)"
+            [disabled]="!isSingleSelection()"
+            (click)="editSelected.emit(selection.selected[0])">_#(Edit)
+    </button>
+    <button mat-button [disabled]="!hasSelection()"
+            *ngIf="!tableInfo.actions || tableInfo.actions.includes(TableAction.DELETE)"
+            (click)="removeSelection.emit(selection.selected)">_#(Remove)
+    </button>
+    <ng-content></ng-content>
+  </mat-card-actions>
+</mat-card>
+
+<mat-expansion-panel *ngIf="matTableDataSource && collapsible && tableInfo" class="table-container"
+                     [expanded]="expanded">
+  <mat-expansion-panel-header class="light-gray-bg table-cell-padding-sm m-0" *ngIf="tableInfo.title">
+    <mat-panel-title>{{tableInfo.title}}</mat-panel-title>
+  </mat-expansion-panel-header>
+  <mat-card appearance="outlined" class="mat-elevation-z0">
+    <mat-card-content>
+      <ng-container *ngIf="expandableRow; else regularTable">
+        <ng-container [ngTemplateOutlet]="expandableRowTable"></ng-container>
+      </ng-container>
+      <mat-error *ngIf="emptyErrorVisible" class="empty-error-message">{{emptyError}}</mat-error>
+    </mat-card-content>
+    <mat-card-actions *ngIf="tableInfo.selectionEnabled" class="button-row">
+      <button mat-flat-button color="accent" *ngIf="tableInfo.actions && tableInfo.actions.includes(TableAction.ADD)"
+              (click)="add.emit()">_#(Add)
+      </button>
+      <button mat-stroked-button *ngIf="tableInfo.actions && tableInfo.actions.includes(TableAction.EDIT)"
+              [disabled]="!isSingleSelection()"
+              (click)="editSelected.emit(selection.selected[0])">_#(Edit)
+      </button>
+      <button mat-stroked-button [disabled]="!hasSelection()"
+              *ngIf="!tableInfo.actions || tableInfo.actions.includes(TableAction.DELETE)"
+              (click)="removeSelection.emit(selection.selected)">_#(Remove)
+      </button>
+      <ng-content select="[name=coll-table-child]"></ng-content>
+    </mat-card-actions>
+  </mat-card>
+</mat-expansion-panel>
+
+<ng-template #regularTable>
+  <em-regular-table [matTableDataSource]="matTableDataSource" [maxHeight]="maxHeight" [selection]="selection"
+                    [tableInfo]="tableInfo" [displayColumns]="displayColumns" [linkFields]="linkFields"
+                    (selectionChanged)="selectionChanged.emit($event)"
+                    (clickCell)="clickCell.emit($event)">
+  </em-regular-table>
+</ng-template>
+
+<ng-template #expandableRowTable>
+  <em-expandable-row-table [matTableDataSource]="matTableDataSource" [maxHeight]="maxHeight" [selection]="selection"
+                           [tableInfo]="tableInfo" [displayColumns]="displayColumns" [linkFields]="linkFields"
+                           [fillContainer]="fillContainer"
+                           (selectionChanged)="selectionChanged.emit($event)"
+                           (clickCell)="clickCell.emit($event)"
+                           (deviceTypeChanged)="deviceTypeChanged.emit($event)">
+  </em-expandable-row-table>
+</ng-template>

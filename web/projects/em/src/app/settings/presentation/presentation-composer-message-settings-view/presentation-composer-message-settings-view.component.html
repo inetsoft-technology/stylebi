@@ -1,0 +1,42 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" *ngIf="model" class="em-card em-presentation-share-settings-view">
+  <mat-card-title>_#(Composer Messages)</mat-card-title>
+  <mat-card-content>
+    <form *ngIf="form" [formGroup]="form" class="flex-col">
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Dashboard Create Message)</mat-label>
+        <textarea matInput formControlName="viewsheetCreateMessage" placeholder="_#(Dashboard Create Message)" type="text"></textarea>
+      </mat-form-field>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Dashboard Edit Message)</mat-label>
+        <textarea matInput formControlName="viewsheetEditMessage" placeholder="_#(Dashboard Edit Message)" type="text"></textarea>
+      </mat-form-field>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Data Worksheet Create Message)</mat-label>
+        <textarea matInput formControlName="worksheetCreateMessage" placeholder="_#(Data Worksheet Create Message)" type="url"></textarea>
+      </mat-form-field>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Data Worksheet Edit Message)</mat-label>
+        <textarea matInput formControlName="worksheetEditMessage" placeholder="_#(Data Worksheet Edit Message)" type="url"></textarea>
+      </mat-form-field>
+    </form>
+  </mat-card-content>
+</mat-card>

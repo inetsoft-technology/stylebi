@@ -1,0 +1,234 @@
+{
+  "tests": [
+    {
+      "endpoint": "Actions",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Filter": "entryState(awaiting_action)",
+        "Before": "2020-02-13T08:52:04Z"
+      }
+    },
+    {
+      "endpoint": "Activities",
+      "jsonPath": "$.list",
+      "expandArrays": true,
+      "parameters": {
+        "Filter": "object(document)",
+        "After": "2020-02-13T08:52:04Z",
+        "Fields": "@summary",
+        "Collapse": "true",
+        "Oldest Unread": "true"
+      }
+    },
+    {
+      "endpoint": "Attachments",
+      "jsonPath": "$.list",
+      "expandArrays": false,
+      "parameters": {
+        "Content ID": "994395",
+        "Fields": "@summary"
+      }
+    },
+    {
+      "endpoint": "Contents",
+      "jsonPath": "$.list",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Contents",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Filter": "type(document,discussion)",
+        "Fields": "@summary",
+        "Abridged": "true",
+        "Include Blogs": "true"
+      }
+    },
+    {
+      "endpoint": "Popular Content",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Recommended Content",
+      "jsonPath": "$.list",
+      "expandArrays": true,
+      "parameters": {
+        "Fields": "@summary",
+        "Abridged": "true"
+      }
+    },
+    {
+      "endpoint": "Activity Inbox",
+      "jsonPath": "$.list",
+      "expandArrays": false,
+      "parameters": {
+        "Filter": "type(document,discussion)",
+        "After": "2020-02-13T08:52:04Z",
+        "Fields": "@summary",
+        "Collapse": "true",
+        "Oldest Unread": "true",
+        "Directive": "collapse"
+      }
+    },
+    {
+      "endpoint": "Members by Person",
+      "jsonPath": "$.list",
+      "expandArrays": false,
+      "parameters": {
+        "Person ID": "93114",
+        "Fields": "@summary",
+        "State": "member"
+      }
+    },
+    {
+      "endpoint": "Message",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Message ID": "1670951",
+        "Fields": "@summary",
+        "Abridged": "true"
+      }
+    },
+    {
+      "endpoint": "Message Replies",
+      "jsonPath": "$.list",
+      "expandArrays": true,
+      "parameters": {
+        "Message ID": "1670951",
+        "Filter": "type(document,discussion)",
+        "Fields": "@summary",
+        "Exclude Replies": "true",
+        "Hierarchical": "true"
+      }
+    },
+    {
+      "endpoint": "Supported Locale Metadata",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Field Metadata",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Object Name": "page",
+        "Field": "displayOrder"
+      }
+    },
+    {
+      "endpoint": "Property Metadata",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Property Name": "feature.rtc.enabled"
+      }
+    },
+    {
+      "endpoint": "Outcome",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Outcome ID": "40418",
+        "Fields": "@summary"
+      }
+    },
+    {
+      "endpoint": "Blog",
+      "jsonPath": "$.resources",
+      "expandArrays": true,
+      "parameters": {
+        "Person ID": "93114",
+        "Fields": "@summary"
+      }
+    },
+    {
+      "endpoint": "Followers",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Person ID": "93114",
+        "Fields": "@summary"
+      }
+    },
+    {
+      "endpoint": "Pages Prototype",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Person ID": "191261"
+      }
+    },
+    {
+      "endpoint": "Trending Content",
+      "jsonPath": "$.list",
+      "expandArrays": true,
+      "parameters": {
+        "Filter": "@summary",
+        "Fields": "true",
+        "Abridged": "true"
+      }
+    },
+    {
+      "endpoint": "Place Content",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Place ID": "153001",
+        "Filter": "type(document,discussion)",
+        "Fields": "@summary",
+        "Abridged": "true"
+      }
+    },
+    {
+      "endpoint": "Have Same Questions",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Content ID": "994395"
+      }
+    },
+    {
+      "endpoint": "Search People",
+      "jsonPath": "$.list",
+      "expandArrays": false,
+      "parameters": {
+        "Filter": "search(test,report),subjectonly(false)",
+        "Fields": "@all"
+      }
+    },
+    {
+      "endpoint": "Stream",
+      "jsonPath": "$.resources",
+      "expandArrays": false,
+      "parameters": {
+        "Stream ID": "335857",
+        "Fields": "@all"
+      }
+    },
+    {
+      "endpoint": "Stream Associations",
+      "jsonPath": "$.list",
+      "expandArrays": false,
+      "parameters": {
+        "Stream ID": "335857",
+        "Filter": "type(document,group,blog)",
+        "Fields": "@all"
+      }
+    },
+    {
+      "endpoint": "Tile Category",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Tile Category ID": "1000"
+      }
+    }
+  ]
+}

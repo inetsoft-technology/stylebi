@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="60px" height="30px" viewBox="30 15 60 30" enable-background="new 30 15 60 30" xml:space="preserve">
+<g>
+	<path fill="#293E40" d="M33.769,36.893V23.096h3.543v1.11c1.089-0.905,2.463-1.398,3.881-1.392
+		c1.837-0.005,3.582,0.808,4.766,2.218c0.899,1.083,1.419,2.475,1.419,4.837v7.023h-3.683v-7.312c0-1.347-0.313-2.074-0.815-2.586
+		c-0.562-0.519-1.306-0.794-2.07-0.768c-1.314,0.04-2.542,0.667-3.346,1.707v8.981L33.769,36.893z"/>
+	<path fill="#81B5A1" d="M56.857,22.813c-4.465,0.01-8.075,3.639-8.065,8.103c0.006,2.198,0.905,4.299,2.492,5.819
+		c0.568,0.542,1.442,0.588,2.069,0.106c2.042-1.514,4.834-1.514,6.876,0c0.627,0.499,1.527,0.452,2.101-0.106
+		c3.226-3.089,3.335-8.207,0.246-11.431C61.08,23.741,59.021,22.844,56.857,22.813 M56.812,34.907
+		c-1.078,0.034-2.122-0.378-2.887-1.136c-0.766-0.76-1.184-1.802-1.156-2.879c-0.073-2.219,1.667-4.077,3.886-4.151
+		c0.764-0.025,1.521,0.168,2.179,0.559c1.264,0.749,2.018,2.125,1.968,3.592c0.029,1.071-0.385,2.111-1.143,2.871
+		c-0.759,0.76-1.798,1.172-2.871,1.144"/>
+	<path fill="#293E40" d="M75.076,29.038l-2.946,7.855h-2.745l-5.476-13.796h3.684l2.995,7.886l2.948-7.886h3.076l2.915,7.886
+		l3.026-7.886h3.679l-5.469,13.796h-2.745L75.076,29.038z"/>
+</g>
+</svg>

@@ -1,0 +1,62 @@
+<!--
+
+    inetsoft-docker-images - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.inetsoft.stylebi</groupId>
+    <artifactId>inetsoft-stylebi</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>inetsoft-docker-images</artifactId>
+  <packaging>pom</packaging>
+
+  <properties>
+    <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
+    <docker.build.version>${maven.build.timestamp}</docker.build.version>
+    <inetsoft.docker.repository>ghcr.io/inetsoft-technology</inetsoft.docker.repository>
+  </properties>
+
+  <profiles>
+    <profile>
+      <id>community</id>
+      <activation>
+        <activeByDefault>true</activeByDefault>
+      </activation>
+      <modules>
+        <module>community</module>
+      </modules>
+    </profile>
+    <profile>
+      <id>enterprise</id>
+      <properties>
+        <inetsoft.docker.repository>636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft</inetsoft.docker.repository>
+      </properties>
+      <modules>
+        <module>community</module>
+        <module>enterprise</module>
+      </modules>
+    </profile>
+  </profiles>
+
+</project>

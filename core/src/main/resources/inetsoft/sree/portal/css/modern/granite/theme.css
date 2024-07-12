@@ -1,0 +1,297 @@
+/**
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/**
+ * BACKGROUND COLORS
+ */
+body, .emIndexBody, .portalIndexBody, div#IEBackgroundDiv, .rightIframeDiv {
+   background: none;
+   background-color: #FFFFFF;
+}
+
+.repositoryList {
+    border-style: solid;
+    border-width: 1px 2px 1px 1px;
+    border-color: #e6e6e6;
+    background-color: #FFFFFF;
+}
+
+#toolbarWrapperTbl, div#indexLogoDiv, #explorerToolbar {
+   background-color: #E9E9E9;
+}
+
+.portalBody, .emBody, #parent {
+   background-color: #f5f5ff;
+}
+
+.rowselected, .rowselected td {
+   background-color: #e4e7ed;
+}
+
+/**
+ * BORDER COLORS
+ */
+.rightIframeDiv {
+   border-color: #e6e6e6;
+}
+
+.isii_JSTabbedPanel_contents_top, .isii_JSTabbedPanel_contents_bottom, .isii_JSTabbedPanel_li {
+   border-color: #c0c0c0;
+}
+
+.tabsLine_top {
+   clear: none;   /* to enforce a height of 0px */
+   height: 0;
+}
+
+#isii_JSTabbedPanel_id.mainTabs .tabsLine_top {
+   background-color: #768cb8;
+   clear: both;
+   height: 2px;
+}
+
+#noshapTD hr {
+   border-top-color: #768cb8;
+}
+
+.tabSelectedArrow {
+   border-bottom-color: #768cb8;
+}
+
+/**
+ * TEXT COLORS
+ */
+#isii_JSTabbedPanel_id.mainTabs .isii_JSTabbedPanel_span,
+div.dialog_titleInner, #buttonDiv a, #buttonDiv div, #logout a, .designButton {
+   color: #40394c;
+}
+
+#buttonDiv a:hover, #logout a:hover,
+#isii_JSTabbedPanel_id.mainTabs .isii_JSTabbedPanel_tabs span:hover {
+   color: #627499;
+}
+
+/** Extra selector for IE **/
+div#IEBackgroundDiv {
+   margin: 0;
+   padding: 0;
+}
+
+#isii_JSTabbedPanel_id.mainTabs div.tabsLine_top {
+   height: 2px;
+}
+
+#noshapTD hr {
+   border-top-width: 1px;
+   border-top-style: solid
+}
+
+.commandButton {
+   text-decoration: none;
+   font-weight: bold;
+   color: #262626;
+}
+
+.commandButton:disabled {
+   text-decoration: none;
+   font-weight: normal;
+   color: #AAAAAA;
+}
+
+/* Hide welcome (user) message */
+tr#userRow {
+   display: none;
+}
+
+/* Div for image in index.html and all login pages. */
+div#indexLogoDiv {
+   width: 100%;
+   padding: 10px 0 10px 0;
+}
+
+.portalIndexBody > .tabsLine_top {
+   clear: both;
+}
+
+.rightIframeDiv {
+   border-top-width: 1px;
+   border-top-style: solid;
+}
+
+#topTable img#logo {
+   padding-top: 3px;
+}
+
+.isii_JSTabbedPanel {
+   overflow: visible;
+}
+
+/**
+ * isii_JSTabbedPanel css
+ */
+.cspan_top, .span_top, .cspan_bottom, .span_bottom{
+   background: none;
+}
+
+.isii_JSTabbedPanel_li {
+   background: #f0f0f0;
+   border-style: solid;
+   border-width: 1px 1px 1px 1px;
+   margin-bottom: -1px;
+   padding: 0 0 0 0;
+}
+
+.isii_JSTabbedPanel_li .tab_back {
+   float: left;
+   background: none;
+   display: block;
+   padding: 3px 8px 3px 8px;
+}
+
+.isii_JSTabbedPanel_non_first_tab {
+   margin-left: -1px;
+}
+
+.li_top, .li_bottom {
+   font-weight: normal;
+}
+
+.cli_top .tab_back {
+   font-weight: bold;
+   background: #FFFFFF;
+   border-bottom: 1px solid #FFFFFF;
+   margin-bottom: -1px;
+}
+
+.cli_bottom .tab_back {
+   font-weight: bold;
+   background: #FFFFFF;
+   border-top: 1px solid #FFFFFF;
+   margin-top: -1px;
+}
+
+.isii_JSTabbedPanel_span {
+   background: none;
+   padding: 0;
+   float: none;
+}
+
+/* iframe container div */
+.isii_JSTabbedPanel_contents_top, .isii_JSTabbedPanel_contents_bottom {
+   border-width: 1px;
+   border-style: solid;
+   clear: both;
+}
+
+/**
+ * isii_JSTabbedPanel Main Navigation tabs
+ */
+#isii_JSTabbedPanel_id span {
+   cursor: pointer;
+}
+#isii_JSTabbedPanel_id.mainTabs .isii_JSTabbedPanel_tabs ul {
+   margin:0;
+   padding:0;
+   list-style:none;
+}
+
+#isii_JSTabbedPanel_id.mainTabs .isii_JSTabbedPanel_contents_top,
+#isii_JSTabbedPanel_id.mainTabs .isii_JSTabbedPanel_contents_bottom {
+   clear:both;
+   border: 0;
+}
+
+#isii_JSTabbedPanel_id.mainTabs .isii_JSTabbedPanel_li {
+   background: none;
+   font-size: 16px;
+   margin: 0;
+   padding: 0 0 4px 0;
+   border: 0;
+}
+
+/* selected tab bottom arrow */
+#isii_JSTabbedPanel_id.mainTabs > div > ul > li > div.tabSelectedArrow {
+   border-left: 5px inset transparent;
+   border-right: 5px inset transparent;
+   border-bottom-width: 5px;
+   border-bottom-style: solid;
+}
+
+/* Tab text */
+#isii_JSTabbedPanel_id.mainTabs .isii_JSTabbedPanel_span {
+   float:left;
+   display:block;
+   padding:2px 2px 2px 2px;
+   background-color: transparent;
+   background: none;
+}
+
+/* Selected tab text */
+#isii_JSTabbedPanel_id.mainTabs .cspan_top{
+   background-color: transparent;
+   background: none;
+}
+
+#isii_JSTabbedPanel_id.mainTabs .isii_JSTabbedPanel_tabs span:hover {
+   text-decoration: none;
+}
+
+#buttonDiv #searchText {
+   margin-left: 5px;
+}
+/**
+ * #buttonDiv is the div around Portal Navigation Buttons (Help, Pref, Logout)
+ * #logout is the div around EM Navigation Buttons (Help, Change Pass, Logout)
+ */
+#buttonDiv a, #buttonDiv div, #buttonDiv a:hover, #logout a {
+   text-decoration: none;
+}
+
+#buttonDiv img, #logout img {
+   display:none;
+}
+
+#optionBar {
+   background-color: #F5F5F5;
+}
+
+/**
+ * css for isii_JSGrid
+ */
+.dialog_titleBar{
+   background: transparent url("$(SERVLET_PREF)op=resource&name=%2Finetsoft%2Fsree%2Fportal%2Fimages%2Fmodern%2Fgranite%2Fdialog_right_corner%2egif") no-repeat right top;
+}
+
+.dialog_titleImage_middle {
+   background: url("$(SERVLET_PREF)op=resource&name=%2Finetsoft%2Fsree%2Fportal%2Fimages%2Fmodern%2Fgranite%2Fdialog_middle%2egif") repeat-x top;
+}
+
+.dialog_titleImage_left{
+   background:transparent url("$(SERVLET_PREF)op=resource&name=%2Finetsoft%2Fsree%2Fportal%2Fimages%2Fmodern%2Fgranite%2Fdialog_left_corner%2egif") no-repeat left top;
+}
+
+.toggleCollapse {
+   background-image :url('$(SERVLET_PREF)op=resource&type=portal&style=true&theme=true&name=bg_collapse%2epng');
+}
+
+.toggleExpand {
+   background-image :url('$(SERVLET_PREF)op=resource&type=portal&style=true&theme=true&name=bg_expand%2epng');
+}
+
+.loginPortalBody, .loginEMBody {
+   background: none;
+}

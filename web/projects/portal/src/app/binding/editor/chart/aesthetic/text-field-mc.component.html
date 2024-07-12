@@ -1,0 +1,53 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div dropHighlight (drop)="drop($event)" [disabled]="!_isEnabled"
+     outOfZone (onDragover)="dragOver($event)">
+   <div class="field-pane bd-gray" [class.disabled-grayout]="!_isEnabled">
+      <div class="field-container" data-test="text-field-container">
+         <!--pencil edit icon-->
+         <div class="visual-edit-icon">
+            <i class="format-icon btn-icon icon-size-large field-icon hover-bg-secondary"
+               aria-hidden="true"
+               [class.icon-disabled]="!_isEditEnabled"
+               (click)="openTextFormatPane()" title="_#(Edit Text)">
+            </i>
+         </div>
+
+         <!--aesthetic field mc-->
+         <div class="visual-field" *ngIf="!isMeasureRollerEnabled()">
+            <chart-aesthetic-mc class="w-100" [field]="field"
+               [fieldType]="getFieldType()" [isMixed]="_isMixed"
+               [isEnabled]="_isEnabled" [isEditEnabled]="_isEditEnabled"
+               [dragComplete]="dragFieldMCComplete" [currentAggr]="aggr"
+               [grayedOutValues]="grayedOutValues"
+               (onChangeAesthetic)="doSubmit(false)"
+               (onConvert)="convert($event)">
+            </chart-aesthetic-mc>
+         </div>
+         <div class="measure-roller" *ngIf="isMeasureRollerEnabled() && measures.length > 1">
+           <span class="chevron-circle-arrow-left-icon icon-size-small icon-color-default"
+                 (click)="prev()"></span>
+           <span class="measure-label" tooltipIf>{{currentMeasure}}</span>
+           <span class="chevron-circle-arrow-right-icon icon-size-small icon-color-default"
+                 (click)="next()"></span>
+         </div>
+      </div>
+   </div>
+</div>

@@ -1,0 +1,48 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<w-standard-dialog [title]="'_#(MV Analysis Exceptions)'" (onClose)="closeDialog()"
+                   [submitOnEnter]="submitOnEnter"
+                   [cshid]="'PortalMaterialization'"
+                   (onSubmit)="okClicked()">
+  <ng-template wDialogContent>
+    <table class="table table-bordered table-sm w-100" wScrollableFlexTable>
+      <thead class="thead-default">
+      <tr>
+        <th>_#(Asset)</th>
+        <th>_#(Reasons)</th>
+      </tr>
+      </thead>
+      <tbody>
+      <tr *ngFor="let exception of exceptions; let i = index">
+        <td>{{ exception.viewsheet }}</td>
+        <td>{{ exception.reasons }}</td>
+      </tr>
+      <tr *ngIf="!exceptions || exceptions.length == 0">
+        <td class="text-center align-middle" colspan="4">_#(Empty)</td>
+      </tr>
+      </tbody>
+    </table>
+  </ng-template>
+  <ng-template wDialogButtons>
+    <button type="button" class="btn btn-primary" (click)="okClicked()">_#(Proceed)</button>
+    <button type="button" class="btn btn-default" (click)="closeDialog()">_#(Cancel)</button>
+  </ng-template>
+</w-standard-dialog>
+

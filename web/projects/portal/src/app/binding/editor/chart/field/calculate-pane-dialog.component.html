@@ -1,0 +1,261 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Calculation)'"
+   (onCancel)="cancel($event)" [cshid]="'ChartCalculation'">
+</modal-header>
+<div class="modal-body" *ngIf="calculator" blockMouse>
+   <div class="container form-container">
+      <div class="row form-row-float-label">
+         <div class="col">
+           <div class="form-floating">
+             <select class="form-control" id="calculateClassType"
+                     [ngModel]="calculator.classType" placeholder="_#(Calculate)"
+                     (ngModelChange)="calcTypeChange($event)">
+               <option [value]="calc.data" *ngFor="let calc of calcDatas">
+                 {{calc.label}}
+               </option>
+             </select>
+             <label for="calculateClassType"><span>_#(Calculate)</span></label>
+           </div>
+         </div>
+         <div class="col-auto" *ngIf="calculator.classType === 'CHANGE'">
+            <div class="form-check">
+               <input type="checkbox" class="form-check-input" id="percent"
+                   [(ngModel)]="changeCalculator.asPercent"/>
+               <label class="form-check-label" for="percent">
+                 _#(As percent)
+               </label>
+            </div>
+         </div>
+      </div>
+
+      <!--Percent-->
+      <div *ngIf="calculator.classType === 'PERCENT'">
+         <div class="row form-row-float-label">
+           <div class="col">
+             <div class="form-floating">
+               <select class="form-control" [(ngModel)]="percOfValue" placeholder="_#(calculationOf)" id="percOfValue">
+                 <option [value]="perc.data" [attr.title]="perc.description"
+                         *ngFor="let perc of percDims">
+                   {{perc.label}}
+                 </option>
+               </select>
+               <label for="percOfValue"><span>_#(calculationOf)</span></label>
+             </div>
+           </div>
+         </div>
+         <div *ngIf="supportPercentageDirection" class="row form-row-float-label">
+           <div class="col">
+             <div class="form-floating">
+               <dynamic-combo-box [valueOnly]="!isVs"
+                                  [values]="percents" [(value)]="percentageDirection"
+                                  [vsId]="runtimeId" [variables]="variables"
+                                  [assemblyName]="assemblyName"
+                                  [label]="getPercentOfLabel()">
+               </dynamic-combo-box>
+               <label>_#(By)</label>
+             </div>
+           </div>
+         </div>
+      </div>
+
+      <!--Change Calculation-->
+      <div *ngIf="calculator.classType === 'CHANGE'">
+         <div class="row form-row-float-label">
+            <div class="col">
+              <div class="form-floating">
+                <select class="form-control" [(ngModel)]="changeColumn" id="changeColumn"
+                        placeholder="_#(Value of)">
+                  <option [value]="value.data" [attr.title]="value.description"
+                          *ngFor="let value of valueOfDatas">
+                    {{value.label}}
+                  </option>
+                </select>
+                <label for="changeColumn"><span>_#(Value of)</span></label>
+              </div>
+            </div>
+         </div>
+         <div class="row form-row-float-label">
+           <div class="col">
+             <div class="form-floating">
+               <select class="form-control" [(ngModel)]="changeCalculator.from"
+                       placeholder="_#(From)" id="calculatorFrom">
+                 <option [value]="from.data" *ngFor="let from of fromDatas">
+                   {{from.label}}
+                 </option>
+               </select>
+               <label for="calculatorFrom"><span>_#(From)</span></label>
+             </div>
+           </div>
+         </div>
+      </div>
+
+      <!--Running total-->
+      <div *ngIf="hasAggregate">
+         <div  class="row form-row-float-label">
+           <div class="col">
+             <div class="form-floating">
+               <select class="form-control" [(ngModel)]="aggregateCalculator.aggregate"
+                       placeholder="_#(Aggregate)">
+                 <option [value]="aggr.formulaName" *ngFor="let aggr of aggregateDatas">
+                   {{aggr.label}}
+                 </option>
+               </select>
+               <label><span>_#(Aggregate)</span></label>
+             </div>
+           </div>
+         </div>
+
+         <div  class="row form-row-float-label" *ngIf="npVisible">
+           <div class="col">
+             <div class="form-floating">
+               <input type="number" min="1" class="form-control" [(ngModel)]="n"
+                      placeholder="{{npLabel}}" required>
+               <label><span>{{npLabel}}</span></label>
+             </div>
+           </div>
+         </div>
+      </div>
+
+      <!--Value of Calculation-->
+      <div *ngIf="calculator.classType === 'VALUE'">
+         <div class="row form-row-float-label">
+           <div class="col">
+             <div class="form-floating">
+               <select class="form-control" [(ngModel)]="valueOfColumn"
+                       placeholder="_#(Value of)">
+                 <option [value]="value.data" [attr.title]="value.description"
+                         *ngFor="let value of valueOfDatas">
+                   {{value.label}}
+                 </option>
+               </select>
+               <label><span>_#(Value of)</span></label>
+             </div>
+           </div>
+         </div>
+         <div class="row form-row-float-label">
+           <div class="col">
+             <div class="form-floating">
+               <select class="form-control" [(ngModel)]="valueOfCalculator.from"
+                       placeholder="_#(From)">
+                 <option [value]="from.data" *ngFor="let from of fromDatas">
+                   {{from.label}}
+                 </option>
+               </select>
+               <label><span>_#(From)</span></label>
+             </div>
+           </div>
+         </div>
+      </div>
+
+      <div *ngIf="npVisible && !isNValid()" class="col alert alert-danger">
+         _#(table.formula.parameterError)
+      </div>
+
+      <div *ngIf="calculator.classType === 'RUNNINGTOTAL' || calculator.classType === 'COMPOUNDGROWTH'"
+           class="row form-row-float-label">
+         <div class="col">
+           <div class="form-floating">
+             <select class="form-control" [(ngModel)]="breakBy" placeholder="_#(Break By)">
+               <option [value]="dim.data" *ngFor="let dim of breakByDims">
+                 {{dim.label}}
+               </option>
+             </select>
+             <label><span>_#(Break By)</span></label>
+           </div>
+         </div>
+      </div>
+
+      <div *ngIf="(calculator.classType === 'RUNNINGTOTAL' || calculator.classType === 'COMPOUNDGROWTH') && !!resetOptsData"
+         class="row form-row-float-label">
+        <div class="col">
+          <div class="form-floating">
+            <select class="form-control" [(ngModel)]="runningTotalCalculator.resetLevel"
+                    placeholder="_#(Reset at)">
+              <option [value]="reset.data" *ngFor="let reset of resetOptsData">
+                {{reset.label}}
+              </option>
+            </select>
+            <label><span>_#(Reset at)</span></label>
+          </div>
+        </div>
+      </div>
+
+      <!--Moving-->
+      <ng-container *ngIf="calculator.classType === 'MOVING'">
+         <div *ngIf="crosstab" class="row form-row-float-label">
+           <div class="col">
+             <div class="form-floating">
+               <select class="form-control" [(ngModel)]="movingCalculator.innerDim"
+                       placeholder="_#(Moving Of)">
+                 <option [value]="dim.data" *ngFor="let dim of movingDims">
+                   {{dim.label}}
+                 </option>
+               </select>
+               <label><span>_#(calculationOf)</span></label>
+             </div>
+           </div>
+         </div>
+         <div class="row form-row-float-label">
+           <div class="col">
+             <div class="form-floating">
+               <input type="number" [(ngModel)]="movingCalculator.previous"
+                      class="form-control" placeholder="_#(Previous)"
+                      onkeyup="value=value.replace(/[^0-9]/g,'')"/>
+               <label><span>_#(Previous)</span></label>
+             </div>
+           </div>
+            <div class="col">
+              <div class="form-floating">
+                <input type="number" class="form-control" [(ngModel)]="movingCalculator.next"
+                       placeholder="_#(Next)"
+                       onkeyup="value=value.replace(/[^0-9]/g,'')"/>
+                <label><span>_#(Next)</span></label>
+              </div>
+            </div>
+         </div>
+         <div class="row form-row-float-label">
+            <div class="col">
+               <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="currentValue"
+                      [(ngModel)]="movingCalculator.includeCurrentValue"/>
+                  <label class="form-check-label" for="currentValue">
+                     _#(Include current value)
+                  </label>
+               </div>
+            </div>
+            <div class="col">
+               <div class="form-check">
+                  <input type="checkbox" class="form-check-input" id="null"
+                      [(ngModel)]="movingCalculator.nullIfNoEnoughValue"/>
+                  <label class="form-check-label" for="null">
+                    _#(Null if not enough value)
+                  </label>
+               </div>
+            </div>
+         </div>
+      </ng-container>
+   </div>
+</div>
+<div class="modal-footer" blockMouse>
+   <button class="btn btn-primary" (click)="ok($event)"
+      [disabled]="okDisabled()">_#(OK)</button>
+   <button class="btn btn-default" (click)="cancel($event)">_#(Cancel)</button>
+</div>

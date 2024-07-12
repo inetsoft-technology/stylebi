@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-drawer-container class="data-space-pane" autosize>
+  <mat-drawer [class.data-space-tree]="!isScreenSmall() "
+              mode="side" disableClose [opened]="!isScreenSmall() || !editing">
+    <em-data-space-tree-view [dataSource]="dataSource"
+                             (nodesSelected)="handleNodeSelected($event)"
+                             [smallDevice]="isScreenSmall()"
+                             (editNode)="editing = true"
+                             (deleteSelectedNodes)="deleteSelectedNodes()"
+                             emMultiSelectTree
+                             [tree]="dataSource"
+                             [selectedNodes]="selectedNodes"
+                             [currentSelection]="selectedNodes">
+    </em-data-space-tree-view>
+  </mat-drawer>
+  <mat-drawer-content [class.data-space-editor]="!isScreenSmall()">
+    <em-data-space-editor-page [data]="currentNode?.data"
+                               [(newFile)]="newFile"
+                               [(newFolder)]="newFolder"
+                               [smallDevice]="isScreenSmall()"
+                               (newFileClicked)="handleNewFile()"
+                               (newFolderClicked)="handleNewFolder()"
+                               (uploadFilesClicked)="handleUploadFiles()"
+                               (newFolderChange)="editing = false"
+                               (deleteNodeChange)="handleNodeDeleted($event)"
+                               (folderFileAdded)="handleFolderFileAdded($event)"
+                               (folderFileEdited)="handleFolderFileEdited($event)"
+                               (cancel)="editing = false">
+    </em-data-space-editor-page>
+  </mat-drawer-content>
+</mat-drawer-container>

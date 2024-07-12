@@ -1,0 +1,57 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Add Attributes)'"
+              [cshid]="'AddAttributes'"
+              (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body">
+  <form [formGroup]="form">
+    <div class="form-group form-floating">
+      <select #selectFocus class="form-control"
+              formControlName="parent"
+              [class.is-invalid]="!!parentControl.errors"
+              (ngModelChange)="entityChange($event)">
+        <option *ngFor="let entity of entities; let i = index" [value]="i">{{ entity.name }}</option>
+      </select>
+      <label><span>_#(data.logicalmodel.parentEntity)</span></label>
+      <span class="invalid-feedback" *ngIf="parentControl.getError('required')">
+        _#(data.logicalmodel.parentEntityRequired)
+      </span>
+    </div>
+    <div class="form-group">
+      <div class="form-floating">
+        <div class="card">
+          <div class="physical-table-tree p-2">
+            <physical-table-tree #physicalTree *ngIf="!!tablesRoot"
+                                 [root]="tablesRoot" (nodesSelected)="select($event)">
+            </physical-table-tree>
+          </div>
+        </div>
+        <label>_#(Select Columns)</label>
+      </div>
+    </div>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!!form.errors" >_#(OK)
+  </button>
+  <button type="button" class="btn btn-secondary" data-dismiss="modal" (click)="cancel()">_#(Cancel)
+  </button>
+</div>

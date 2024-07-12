@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="683.668 -404.5664" i:rulerOrigin="309 716" i:pageBounds="-309 76 303 -716"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/" width="200" height="200"
+	 viewBox="0 0 200 200" overflow="visible" enable-background="new 0 0 200 200" xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_3" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+				</g>
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+					<rect i:knockout="Off" opacity="0" fill="#FFFFFF" width="200" height="200"/> 
+					
+						<switch id="XMLID_2_" i:objectNS="&ns_imrep;" i:objectType="replaceable-image" transform="matrix(0.24 0 0 0.24 69.7178 154.6816)"  a:adobe-opacity-share="1">
+						<foreignObject overflow="visible" requiredExtensions="&ns_imrep;" x="0" y="0" width="250" height="84">
+							
+								<imageReplacement  xmlns="&ns_imrep;" x="0" y="0" width="250" height="84" placementMethod="ratio" align="center" valign="middle" refWidth="250" refHeight="84">
+							</imageReplacement>
+							<x:targetRef  xlink:href="#XMLID_1_" />
+						</foreignObject>
+						
+							<image width="250" height="84" id="XMLID_1_" xlink:href="data:;base64,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" i:alphaIsShape="yes" i:knockout="Off"/>
+					</switch>
+				</g>
+			</g>
+		</switch>
+	</svg>

@@ -1,0 +1,107 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form class="container-fluid mb-2">
+  <fieldset>
+    <legend>_#(date.comparison.interval)</legend>
+    <div class="form-row-float-label row g-0" *ngIf="!isCustomPeriod">
+      <div class="col-6">
+        <dynamic-combo-box [values]="getIntervalLevels()" [value]="visibleIntervalLevel"
+                           [variables]="variableValues" [disable]="disable" [isCondition]="true"
+                           [columnTreeRoot]="columnTreeRoot"
+                           [functionTreeRoot]="functionTreeRoot"
+                           [operatorTreeRoot]="operatorTreeRoot"
+                           [scriptDefinitions]="scriptDefinitions"
+                           (valueChange)="updateVisibleLevel($event)"
+                           (typeChange)="updateLevelType($event)">
+        </dynamic-combo-box>
+      </div>
+      <span *ngIf="showEndDate()" class="col-1 text-center">_#(date.comparison.context)</span>
+      <div *ngIf="showEndDate()" class="col-4">
+        <dynamic-combo-box [values]="getContextLevels()" [value]="contextLevelValue"
+                           [variables]="variableValues" [disable]="disable" [isCondition]="true"
+                           [columnTreeRoot]="columnTreeRoot"
+                           [functionTreeRoot]="functionTreeRoot"
+                           [operatorTreeRoot]="operatorTreeRoot"
+                           [scriptDefinitions]="scriptDefinitions"
+                           (valueChange)="updateContextLevel($event)"
+                           (typeChange)="updateContextLevelType($event)">
+        </dynamic-combo-box>
+      </div>
+    </div>
+    <div class="form-row-float-label row g-0">
+      <div class="col-6">
+        <div class="form-floating">
+          <dynamic-combo-box [values]="getGranularities()" [value]="visibleGranularity"
+                             [variables]="variableValues" [disable]="disable" [isCondition]="true"
+                             [columnTreeRoot]="columnTreeRoot"
+                             [functionTreeRoot]="functionTreeRoot"
+                             [operatorTreeRoot]="operatorTreeRoot"
+                             [scriptDefinitions]="scriptDefinitions"
+                             (valueChange)="updateVisibleGranularity($event)"
+                             (typeChange)="updateGranularityType($event)">
+          </dynamic-combo-box>
+          <label>_#(Granularity)</label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row g-0" *ngIf="showEndDate()">
+      <div class="col to-date-label"><b *ngIf="toDateLabel">{{toDateLabel}}</b></div>
+    </div>
+    <div class="form-row-float-label row g-0 x-to-d" *ngIf="showEndDate()">
+      <div class="col to-date-label">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="intervalToday"
+                 [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="intervalPaneModel.endDayAsToDate" [disabled]="disable">
+          <label class="form-check-label" for="intervalToday">
+            _#(date.comparison.interval.endDate)
+          </label>
+        </div>
+        <dynamic-value-editor [valueModel]="intervalPaneModel.intervalEndDate"
+                              [disable]="isEndDateDisable"
+                              [isInterval]="true"
+                              [variableValues]="variableValues"
+                              [columnTreeRoot]="columnTreeRoot"
+                              [functionTreeRoot]="functionTreeRoot"
+                              [operatorTreeRoot]="operatorTreeRoot"
+                              [scriptDefinitions]="scriptDefinitions"
+                              [defaultValue]="periodEndDay.value"
+                              [forceToDefault]="intervalPaneModel.endDayAsToDate"
+                              [label]="getToDateLabel()">
+        </dynamic-value-editor>
+        <div *ngIf="showInclusive()" class="form-check">
+          <input type="checkbox" class="form-check-input" id="inclusion"
+                 [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="intervalPaneModel.inclusive" [disabled]="disable">
+          <label class="form-check-label" for="inclusion">
+            _#(Inclusive)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row g-0" *ngIf="!isValidInterval() && !disable">
+      <div class="col offset-2">
+        <div class="alert alert-danger mb-0">
+          _#(date.common.dateValid)
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>

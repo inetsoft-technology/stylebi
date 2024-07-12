@@ -1,0 +1,133 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="w-100 h-100 physical-pane-container" *ngIf="!!physicalGraph">
+
+  <div class="physical-fullscreen-btn physical-graph-toolbar w-100 px-2 py-1 bb-gray">
+    <ng-container *ngIf="!physicalGraph.joinEdit">
+      <button class="btn btn-light-no-bg btn-sm" [fixedDropdown]="dropdownMenu"
+              title="_#(viewer.help.report.zoom)" [dropdownPlacement]="'bottom'">
+        <i class="zoom-in-icon icon-size-small"></i>
+      </button>
+
+      <button class="btn btn-light-no-bg btn-sm" title="_#(Auto Layout)"
+              [fixedDropdown]="autoLayoutDropdownMenu" [dropdownPlacement]="'bottom'">
+        <i class="layout-icon icon-size-small"></i>
+      </button>
+
+      <button class="btn btn-light-no-bg btn-sm"
+              [title]="fullScreenTooltip"
+              (click)="toggleFullScreen()">
+        <i class="icon-size-small"
+           [class.maximize-icon]="!fullScreenView"
+           [class.collapse-icon]="fullScreenView">
+        </i>
+      </button>
+
+      <ng-template #autoLayoutDropdownMenu class="dropdown-menu-left">
+        <div class="physical-view-layout">
+          <button class="dropdown-item" (click)="autoLayout(true)"
+                  [class.selected]="isAutoLayoutSelected('horizontal')">
+            _#(Horizontal Layout)
+          </button>
+        </div>
+
+        <div class="physical-view-layout">
+          <button class="dropdown-item" (click)="autoLayout()"
+                  [class.selected]="isAutoLayoutSelected('vertical')">
+            _#(Vertical Layout)
+          </button>
+        </div>
+      </ng-template>
+
+      <ng-template #dropdownMenu class="dropdown-menu-left">
+        <div class="physical-view-zoom">
+          <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_IN)"
+                  [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_IN)"
+                  [disabled]="!zoomInEnabled()">
+            _#(Zoom In)
+          </button>
+          <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_OUT)"
+                  [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_OUT)"
+                  [disabled]="!zoomOutEnabled()">
+            _#(Zoom Out)
+          </button>
+
+          <div class="dropdown-divider"></div>
+
+          <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_40)"
+                  [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_40)">
+            40%
+          </button>
+          <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_60)"
+                  [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_60)">
+            60%
+          </button>
+          <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_100)"
+                  [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_100)">
+            100%
+          </button>
+          <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_140)"
+                  [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_140)">
+            140%
+          </button>
+          <button class="dropdown-item" (click)="zoomLayout(ZoomOptions.ZOOM_160)"
+                  [class.selected]="isZoomItemSelected(ZoomOptions.ZOOM_160)">
+            160%
+          </button>
+        </div>
+      </ng-template>
+    </ng-container>
+
+    <ng-container *ngIf="physicalGraph.joinEdit">
+      <div class="join-edit-button-container">
+        <button type="button" class="btn btn-primary btn-sm" (click)="closeJoinEditPane(false)">
+          _#(Cancel)
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" (click)="closeJoinEditPane(true)">
+          _#(Done)
+        </button>
+      </div>
+    </ng-container>
+  </div>
+
+  <div class="physical-graph-container w-100" #graphContainer>
+    <physical-model-network-graph *ngIf="!!!physicalGraph.joinEdit"
+                                  [graphViewModel]="physicalGraph.graphViewModel"
+                                  [runtimeId]="runtimeId"
+                                  [scale]="scale"
+                                  [highlightConnections]="highlightConnections"
+                                  [scrollPoint]="scrollPoint"
+                                  [selectedGraphNode]="selectedGraphNode"
+                                  (onCreateAutoAlias)="onCreateAutoAlias.emit($event)"
+                                  (onEditInlineView)="onEditInlineView.emit($event)"
+                                  (onModified)="onModified.emit($event)"
+                                  (onRefreshPhysicalGraph)="refreshPhysicalGraphModel($event)"
+                                  (onNodeSelected)="onNodeSelected.emit($event)"
+                                  (onRemoveTable)="onRemoveTable.emit($event)"
+    ></physical-model-network-graph>
+
+    <physical-join-edit-pane *ngIf="physicalGraph.joinEdit"
+                             [model]="physicalGraph.joinEditPaneModel"
+                             (onRefreshPhysicalGraph)="refreshPhysicalGraphModel($event)"
+    ></physical-join-edit-pane>
+    <loading-indicator-pane [show]="loadingGraphPane && !modelInitializing">
+    </loading-indicator-pane>
+  </div>
+</div>

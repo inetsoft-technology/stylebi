@@ -1,0 +1,42 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form">
+  <div class="form-group content-spacing form-floating">
+    <input #nameInput type="text" class="form-control" formControlName="name"
+           [class.is-invalid]="nameControl && nameControl.invalid">
+    <label>_#(Entity Name)</label>
+    <span class="invalid-feedback" *ngIf="nameControl?.getError('required')">
+      _#(data.logicalmodel.entityNameRequired)
+    </span>
+    <span class="invalid-feedback" *ngIf="!nameControl?.getError('required') && nameControl?.hasError('exists')">
+      _#(data.logicalmodel.entityNameDuplicate)
+    </span>
+  </div>
+  <div class="form-group form-floating">
+    <textarea type="text" class="form-control" formControlName="description"></textarea>
+    <label>_#(Description)</label>
+  </div>
+  <div *ngIf="logicalModelParent" class="checkbox col-3">
+    <label class="control-label">
+      <input type="checkbox" [(ngModel)]="entity.visible" [ngModelOptions]="{standalone: true}"/>
+      <span>_#(Visible)</span>
+    </label>
+  </div>
+</form>

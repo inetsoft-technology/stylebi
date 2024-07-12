@@ -1,0 +1,202 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Date Range Option)'"
+   (onCancel)="close()"
+   [cshid]="'DateRangeOption'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
+  <form [formGroup]="form" *ngIf="form">
+    <div *ngIf="form.get('newName')" class="container-fluid">
+      <div class="row form-row-float-label">
+        <div class="col form-floating">
+          <input class="form-control" formControlName="newName" trim placeholder="_#(Name)"
+                 title="_#(Column): {{baseColumn}}">
+          <label><span>_#(Name)</span></label>
+          <div *ngIf="form.get('newName').errors">
+            <div *ngIf="form.get('newName').errors['required']" class="alert alert-danger">_#(viewer.nameValid)</div>
+            <div *ngIf="form.get('newName').errors['notWhiteSpace']" class="alert alert-danger">_#(viewer.notWhiteSpace)</div>
+            <div *ngIf="form.get('newName').errors['calcSpecialCharacters']" class="alert alert-danger">_#(formula.editor.charValid)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <fieldset class="container-fluid">
+      <legend>_#(Date Part)</legend>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.QUARTER_OF_YEAR_PART)">
+            <input id="quarterOfYear" type="radio" class="form-check-input"
+                 formControlName="option" [value]="DateEnum.QUARTER_OF_YEAR_PART"
+                 data-translate="Quarter of Year">
+            <label class="form-check-label" for="quarterOfYear">
+              _#(Quarter of Year)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.MONTH_OF_YEAR_PART)">
+            <input id="monthOfYear" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.MONTH_OF_YEAR_PART" data-translate="Month of Year">
+            <label class="form-check-label" for="monthOfYear">
+              _#(Month of Year)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.WEEK_OF_YEAR_PART)">
+            <input id="weekOfYear" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.WEEK_OF_YEAR_PART" data-translate="Week of Year">
+            <label class="form-check-label" for="weekOfYear">
+              _#(Week of Year)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.DAY_OF_MONTH_PART)">
+            <input id="dayOfMonth" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.DAY_OF_MONTH_PART" data-translate="Day of Month">
+            <label class="form-check-label" for="dayOfMonth">
+              _#(Day of Month)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.DAY_OF_WEEK_PART)">
+            <input id="dayOfWeek" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.DAY_OF_WEEK_PART" data-translate="Day of Week">
+            <label class="form-check-label" for="dayOfWeek">
+              _#(Day of Week)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.HOUR_OF_DAY_PART)">
+            <input id="hourOfDay" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.HOUR_OF_DAY_PART" data-translate="Hour of Day">
+            <label class="form-check-label" for="hourOfDay">
+              _#(Hour of Day)
+            </label>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset class="container-fluid">
+      <legend>_#(Date Range)</legend>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.YEAR_INTERVAL)">
+            <input id="year" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.YEAR_INTERVAL" data-translate="Year">
+            <label class="form-check-label" for="year">
+              _#(Year)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.QUARTER_INTERVAL)">
+            <input id="quarter" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.QUARTER_INTERVAL" data-translate="Quarter">
+            <label class="form-check-label" for="quarter">
+             _#(Quarter)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.MONTH_INTERVAL)">
+            <input id="month" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.MONTH_INTERVAL" data-translate="Month">
+            <label class="form-check-label" for="month">
+              _#(Month)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.WEEK_INTERVAL)">
+            <input id="week" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.WEEK_INTERVAL" data-translate="Week">
+            <label class="form-check-label" for="week">
+              _#(Week)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.DAY_INTERVAL)">
+            <input id="day" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.DAY_INTERVAL" data-translate="Day">
+            <label class="form-check-label" for="day">
+              _#(Day)
+            </label>
+          </div>
+        </div>
+        <div class="col" >
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.HOUR_INTERVAL)">
+            <input id="hour" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.HOUR_INTERVAL" data-translate="Hour">
+            <label class="form-check-label" for="hour">
+              _#(Hour)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.MINUTE_INTERVAL)">
+            <input id="minute" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.MINUTE_INTERVAL" data-translate="Minute">
+            <label class="form-check-label" for="minute">
+              _#(Minute)
+            </label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check" [title]="getDateLevelExample(DateEnum.SECOND_INTERVAL)">
+            <input id="second" type="radio" class="form-check-input"
+                 formControlName="option"
+                 [value]="DateEnum.SECOND_INTERVAL" data-translate="Second">
+            <label class="form-check-label" for="second">
+              _#(Second)
+            </label>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+    <div *ngIf="form.get('option').errors" class="alert alert-danger">_#(enter.date)</div>
+  </form>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!form?.valid" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+</div>

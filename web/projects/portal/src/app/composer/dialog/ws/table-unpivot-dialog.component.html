@@ -1,0 +1,41 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Unpivot Data)'"
+   [cshid]="'UnpivotingTable'"
+   (onCancel)="close()">
+</modal-header>
+<div *ngIf="form" [enterSubmit]="formValid" (onEnter)="ok()" class="modal-body">
+  <form [formGroup]="form" class="form-horizontal">
+    <div class="form-row-float-label row">
+      <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['level'].valid}">
+        <input type="number" class="form-control" formControlName="level"
+               placeholder="_#(common.worksheet.unpivot)">
+        <label><span>_#(common.worksheet.unpivot)</span></label>
+      </div>
+    </div>
+    <div *ngIf="form.controls['level'].errors && form.controls['level'].errors['positiveIntegerInRange']" class="alert alert-danger">_#(common.worksheet.unpivot.valueCheck)</div>
+    <div *ngIf="form.controls['level'].errors && form.controls['level'].errors['required']" class="alert alert-danger">_#(Level is required)</div>
+  </form>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!form?.valid" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="close()">_#(Cancel)</button>
+</div>

@@ -1,0 +1,111 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="model" [formGroup]="form">
+  <mat-card appearance="outlined" class="em-card">
+    <mat-card-title>
+      _#(Look and Feel)
+    </mat-card-title>
+    <mat-card-content>
+      <mat-form-field *ngIf="isSysAdmin" appearance="outline" color="accent">
+        <mat-label>_#(Sort Repository Tree)</mat-label>
+        <mat-select formControlName="ascending">
+          <mat-option [value]="true">_#(Ascending)</mat-option>
+          <mat-option [value]="false">_#(Descending)</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-checkbox formControlName="expand" *ngIf="form.controls.repositoryTree?.value">
+        _#(Expand All Nodes)</mat-checkbox>
+
+      <div *ngIf="isSysAdmin" class="linked-fields" [class.linked-fields-expanded]="!form.controls.defaultLogo?.value">
+      <mat-checkbox formControlName="defaultLogo" *ngIf="model.customLogoEnabled">_#(Default Logo)</mat-checkbox>
+      <mat-form-field *ngIf="!form.controls.defaultLogo?.value" appearance="outline" color="accent">
+        <mat-label>_#(Custom Logo File)</mat-label>
+        <em-file-chooser
+          formControlName="logoFile"
+          placeholder="_#(Custom Logo File)"
+          accept="image/jpg, image/jpeg, image/png, image/bmp"
+          [errorStateMatcher]="logoErrorMatcher"
+        >
+        </em-file-chooser>
+        <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+        <mat-error *ngIf="form.errors?.logoFileRequired">_#(em.laf.logoFileRequired)</mat-error>
+        <mat-error *ngIf="form.errors?.logoFileType">_#(em.laf.logoFileType)</mat-error>
+      </mat-form-field>
+      </div>
+
+      <div *ngIf="isSysAdmin" class="linked-fields" [class.linked-fields-expanded]="!form.controls.defaultFavicon?.value">
+        <mat-checkbox formControlName="defaultFavicon" *ngIf="model.customLogoEnabled">_#(Default Favicon)</mat-checkbox>
+        <mat-form-field *ngIf="!form.controls.defaultFavicon?.value" appearance="outline" color="accent">
+          <mat-label>_#(Custom Favicon File)</mat-label>
+          <em-file-chooser
+            formControlName="faviconFile"
+            placeholder="_#(Custom Favicon File)"
+            accept="image/jpg, image/jpeg, image/png, image/bmp"
+            [errorStateMatcher]="faviconErrorMatcher"
+          >
+          </em-file-chooser>
+          <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+          <mat-error *ngIf="form.errors?.faviconFileRequired">_#(em.laf.faviconFileRequired)</mat-error>
+          <mat-error *ngIf="form.errors?.faviconFileType">_#(em.laf.faviconFileType)</mat-error>
+        </mat-form-field>
+      </div>
+
+      <div class="linked-fields" [class.linked-fields-expanded]="model.vsEnabled && !form.controls.defaultViewsheet?.value">
+        <mat-checkbox *ngIf="model.vsEnabled" formControlName="defaultViewsheet">_#(Default Viewsheet CSS)</mat-checkbox>
+        <ng-container *ngIf="model.vsEnabled && !form.controls.defaultViewsheet?.value">
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Custom Viewsheet CSS File)</mat-label>
+            <em-file-chooser
+              formControlName="viewsheetFile"
+              placeholder="_#(Custom Viewsheet CSS File)"
+              accept=".css"
+              [errorStateMatcher]="viewsheetErrorMatcher"
+            >
+            </em-file-chooser>
+            <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+            <mat-error *ngIf="form.errors?.viewsheetFileRequired">_#(em.laf.viewsheetFileRequired)</mat-error>
+          </mat-form-field>
+        </ng-container>
+      </div>
+      <div *ngIf="isSysAdmin"  class="linked-fields" [class.linked-fields-expanded]="!form.controls?.defaultFonts.value">
+        <mat-checkbox formControlName="defaultFonts">_#(Default Fonts)</mat-checkbox>
+        <button
+          *ngIf="!form.controls?.defaultFonts.value"
+          mat-raised-button
+          (click)="editUserFonts()"
+        >
+          _#(Edit Fonts)
+        </button>
+      </div>
+      <em-file-chooser
+              #fileChooser
+              [hidden]="true"
+              formControlName="userformatFile"
+              accept=".xml"
+      >
+      </em-file-chooser>
+      <div class="linked-fields-button">
+          <button mat-stroked-button title="_#(em.settings.presentation.addShapes)" (click)="addShapes()">_#(Add Shapes)</button>
+          <button *ngIf="isSysAdmin"  mat-stroked-button title="_#(em.settings.presentation.userFormat)" (click)="fileChooser.browse()">_#(User Format)</button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</ng-container>

@@ -1,0 +1,1278 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<registry>
+  <query name="o90" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <sql><![CDATA[select to_char(to_char(SCOTT.EMP.HIREDATE)) from SCOTT.EMP]]></sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test29" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[((f_integer + 2) = 1232)].f_integer]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test28" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[(((f_integer * 2) - 10) = 236)].f_integer]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test27" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[((f_integer * 2) = 246)].f_integer]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="m4" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select products.product_id as "product" to string,products.product_name as "product" to string,products.description to string,products.instock to string]]></select>
+        <table>products</table>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test26" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[((f_integer / 10) = 12.3)].f_double]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test9" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[company match 'I.*']]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="m3" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <sql>
+        <![CDATA[select orderdetails.orderno,orderdetails.product_id,orderdetails.quantity,orders.customer_id,orders.discount,orders.orderdate from orderdetails,orders where (orderdetails.orderno <> orders.orderno)]]></sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test25" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[exists query('IntList',value=f_integer)].f_integer]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test8" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[company like 'I%']]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="m2" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <uniform_sql>
+        <table>
+          <alias><![CDATA[dsfd]]></alias>
+          <name><![CDATA[select customers.city from customers     ]]></name>
+        </table>
+        <table>
+          <alias><![CDATA[customers]]></alias>
+          <name><![CDATA[customers]]></name>
+        </table>
+        <column>
+          <![CDATA[dsfd.city]]>
+          <alias><![CDATA[]]></alias>
+          <type><![CDATA[string]]></type>
+        </column>
+        <column>
+          <![CDATA[customers.customer_id]]>
+          <alias><![CDATA[]]></alias>
+          <type><![CDATA[integer]]></type>
+        </column>
+        <column>
+          <![CDATA[customers.contact]]>
+          <alias><![CDATA[]]></alias>
+          <type><![CDATA[string]]></type>
+        </column>
+        <column>
+          <![CDATA[customers.company]]>
+          <alias><![CDATA[]]></alias>
+          <type><![CDATA[string]]></type>
+        </column>
+        <where>
+          <XJoin isnot="false" clause="">
+            <expression1>
+              <expression type="Field">
+                <![CDATA[customers.city]]>
+              </expression>
+            </expression1>
+            <expression2>
+              <expression type="Field">
+                <![CDATA[dsfd.city]]>
+              </expression>
+            </expression2>
+            <op><![CDATA[=]]></op>
+          </XJoin>
+        </where>
+        <sortby></sortby>
+        <groupby></groupby>
+        <having>
+        </having>
+        <sqlstring>
+          <![CDATA[select dsfd.city, customers.customer_id, customers.contact, customers.company from (select customers.city from customers) dsfd, customers where customers.city = dsfd.city]]></sqlstring>
+      </uniform_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test24" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[(f_integer < ANY query("AllInt"))].f_integer]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test7" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[(company <= 'InetSoft')]]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="m1" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <uniform_sql>
+        <table>
+          <alias><![CDATA[orders]]></alias>
+          <name><![CDATA[orders]]></name>
+        </table>
+        <column>
+          <![CDATA[orders.orderno]]>
+          <alias><![CDATA[]]></alias>
+          <type><![CDATA[integer]]></type>
+        </column>
+        <column>
+          <![CDATA[orders.customer_id]]>
+          <alias><![CDATA[]]></alias>
+          <type><![CDATA[integer]]></type>
+        </column>
+        <column>
+          <![CDATA[orders.discount]]>
+          <alias><![CDATA[]]></alias>
+          <type><![CDATA[double]]></type>
+        </column>
+        <column>
+          <![CDATA[orders.orderdate]]>
+          <alias><![CDATA[]]></alias>
+          <type><![CDATA[timeInstant]]></type>
+        </column>
+        <where>
+        </where>
+        <sortby>
+          <field order="desc">orders.orderdate</field>
+        </sortby>
+        <groupby></groupby>
+        <having>
+        </having>
+        <sqlstring>
+          <![CDATA[select orders.orderno, orders.customer_id, orders.discount, orders.orderdate from orders    order by orders.orderdate desc]]></sqlstring>
+      </uniform_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test23" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[(f_integer >= ALL query("AllInt"))].f_integer]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test6" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[(company >= 'InetSoft')]]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test22" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[company in ('IBM','Tristone')]]]></path>
+      <select><![CDATA[select name,company,phone,address,city,state,zip,email]]></select>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test5" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[(company < 'InetSoft')]]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="s4" type="jdbc" datasource="sqlserver">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[CustOrdersDetail]]></name>
+        <return>4</return>
+        <return_name>int</return_name>
+        <select>
+          <![CDATA[select ProductName to string('40'),UnitPrice to double,Quantity to integer,Discount to integer,ExtendedPrice to double]]></select>
+        <result_column name="ProductName" type="string" length="40"/>
+        <result_column name="UnitPrice" type="double" length="21"/>
+        <result_column name="Quantity" type="integer" length="6"/>
+        <result_column name="Discount" type="integer" length="11"/>
+        <result_column name="ExtendedPrice" type="double" length="21"/>
+        <parameters>
+          <parameter_definition name="OrderID" type="integer" inout="1" typename="int" sqltype="4"/>
+        </parameters>
+        <inputParameter>
+          <OrderID type="integer" null="true"></OrderID>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="OrderID" type="user" prompt="true" label="OrderID" source="s4"
+                xtype="integer">
+        <node type="integer" null="true"></node>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test21" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[f_integer between 1 and 200].f_integer]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test4" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[(company > 'InetSoft')]]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="s3" type="jdbc" datasource="sybase">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[master.dbo.sp_configure]]></name>
+        <return>4</return>
+        <return_name>int</return_name>
+        <select>
+          <![CDATA[select "Parameter Name",Default to string('11'),"Memory Used","Config Value","Run Value"]]></select>
+        <result_column name="Parameter Name" type="string" length="30"/>
+        <result_column name="Default" type="string" length="11"/>
+        <result_column name="Memory Used" type="string" length="11"/>
+        <result_column name="Config Value" type="string" length="11"/>
+        <result_column name="Run Value" type="string" length="11"/>
+        <parameters>
+          <parameter_definition name="configname" type="string" inout="1" typename="varchar"
+                                sqltype="12"/>
+          <parameter_definition name="configvalue" type="integer" inout="1" typename="int"
+                                sqltype="4"/>
+          <parameter_definition name="configvalue2" type="string" inout="1" typename="varchar"
+                                sqltype="12"/>
+          <parameter_definition name="configvalue3" type="string" inout="1" typename="varchar"
+                                sqltype="12"/>
+        </parameters>
+        <inputParameter>
+          <configname type="string" null="true"></configname>
+          <configvalue type="integer" null="true"></configvalue>
+          <configvalue2 type="string" null="true"></configvalue2>
+          <configvalue3 type="string" null="true"></configvalue3>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="configname" type="user" prompt="true" label="configname" source="s3"
+                xtype="string">
+        <node type="string" null="true"></node>
+      </variable>
+      <variable name="configvalue3" type="user" prompt="true" label="configvalue3" source="s3"
+                xtype="string">
+        <node type="string" null="true"></node>
+      </variable>
+      <variable name="configvalue" type="user" prompt="true" label="configvalue" source="s3"
+                xtype="integer">
+        <node type="integer" null="true"></node>
+      </variable>
+      <variable name="configvalue2" type="user" prompt="true" label="configvalue2" source="s3"
+                xtype="string">
+        <node type="string" null="true"></node>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test20" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[((company = 'IBM') or not email is null)]]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="s2" type="jdbc" datasource="sybase">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[master.dbo.sp_configure]]></name>
+        <return>4</return>
+        <return_name>int</return_name>
+        <select>
+          <![CDATA[select "Parameter Name",Default to string('11'),"Memory Used","Config Value","Run Value"]]></select>
+        <result_column name="Parameter Name" type="string" length="30"/>
+        <result_column name="Default" type="string" length="11"/>
+        <result_column name="Memory Used" type="string" length="11"/>
+        <result_column name="Config Value" type="string" length="11"/>
+        <result_column name="Run Value" type="string" length="11"/>
+        <parameters>
+          <parameter_definition name="configname" type="string" inout="1" typename="varchar"
+                                sqltype="12"/>
+          <parameter_definition name="configvalue" type="integer" inout="1" typename="int"
+                                sqltype="4"/>
+          <parameter_definition name="configvalue2" type="string" inout="1" typename="varchar"
+                                sqltype="12"/>
+          <parameter_definition name="configvalue3" type="string" inout="1" typename="varchar"
+                                sqltype="12"/>
+        </parameters>
+        <inputParameter>
+          <configname type="string" null="true"></configname>
+          <configvalue type="integer" null="true"></configvalue>
+          <configvalue2 type="string" null="true"></configvalue2>
+          <configvalue3 type="string" null="true"></configvalue3>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="configname" type="user" prompt="true" label="configname" source="s2"
+                xtype="string">
+        <node type="string" null="true"></node>
+      </variable>
+      <variable name="configvalue3" type="user" prompt="true" label="configvalue3" source="s2"
+                xtype="string">
+        <node type="string" null="true"></node>
+      </variable>
+      <variable name="configvalue" type="user" prompt="true" label="configvalue" source="s2"
+                xtype="integer">
+        <node type="integer" null="true"></node>
+      </variable>
+      <variable name="configvalue2" type="user" prompt="true" label="configvalue2" source="s2"
+                xtype="string">
+        <node type="string" null="true"></node>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="s1" type="jdbc" datasource="sybase">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[master.dbo.sp_configure]]></name>
+        <return>4</return>
+        <return_name>int</return_name>
+        <select>
+          <![CDATA[select "Parameter Name" as "ab",Default as "ac" to string('11'),"Memory Used","Config Value","Run Value"]]></select>
+        <result_column name="Parameter Name" type="string" length="30"/>
+        <result_column name="Default" type="string" length="11"/>
+        <result_column name="Memory Used" type="string" length="11"/>
+        <result_column name="Config Value" type="string" length="11"/>
+        <result_column name="Run Value" type="string" length="11"/>
+        <parameters>
+          <parameter_definition name="configname" type="string" inout="1" typename="varchar"
+                                sqltype="12"/>
+          <parameter_definition name="configvalue" type="integer" inout="1" typename="int"
+                                sqltype="4"/>
+          <parameter_definition name="configvalue2" type="string" inout="1" typename="varchar"
+                                sqltype="12"/>
+          <parameter_definition name="configvalue3" type="string" inout="1" typename="varchar"
+                                sqltype="12"/>
+        </parameters>
+        <inputParameter>
+          <configname type="string" null="true"></configname>
+          <configvalue type="integer" null="true"></configvalue>
+          <configvalue2 type="string" null="true"></configvalue2>
+          <configvalue3 type="string" null="true"></configvalue3>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="configname" type="user" prompt="true" label="configname" source="s1"
+                xtype="string">
+        <node type="string" null="true"></node>
+      </variable>
+      <variable name="configvalue3" type="user" prompt="true" label="configvalue3" source="s1"
+                xtype="string">
+        <node type="string" null="true"></node>
+      </variable>
+      <variable name="configvalue" type="user" prompt="true" label="configvalue" source="s1"
+                xtype="integer">
+        <node type="integer" null="true"></node>
+      </variable>
+      <variable name="configvalue2" type="user" prompt="true" label="configvalue2" source="s1"
+                xtype="string">
+        <node type="string" null="true"></node>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test2" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[(company = 'InetSoft')]]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test1" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test19" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[((company = 'InetSoft') and email is null)]]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test18" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[(f_date = to_date('2001-1-2'))].f_date]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test17" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[(f_integer = 123.0)].f_double]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test16" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[(f_integer = 123)].f_integer]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test15" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[company in (query('I-names'))]]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test14" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[(company = $(company))]]]></path>
+      <variable name="company" type="user" prompt="true" label="company" source="test14"
+                xtype="string">
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test13" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[(company = $(company))]]]></path>
+      <variable name="company" type="user" prompt="true" label="company" source="test13"
+                xtype="string">
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test12" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[(company = $(company))]]]></path>
+      <variable name="company" type="user" prompt="true" label="company" source="test12"
+                xtype="string">
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test11" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[not phone is null]]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test10" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[phone is null]]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="InetSoftQ" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[(company = 'InetSoft')].company]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="ss6" type="jdbc" datasource="sqlserver">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[CustOrdersDetail]]></name>
+        <return>4</return>
+        <return_name>int</return_name>
+        <select>
+          <![CDATA[select ProductName to string('40'),UnitPrice to double,Quantity to integer,Discount to integer,ExtendedPrice to double]]></select>
+        <result_column name="ProductName" type="string" length="40"/>
+        <result_column name="UnitPrice" type="double" length="21"/>
+        <result_column name="Quantity" type="integer" length="6"/>
+        <result_column name="Discount" type="integer" length="11"/>
+        <result_column name="ExtendedPrice" type="double" length="21"/>
+        <parameters>
+          <parameter_definition name="OrderID" type="integer" inout="1" typename="int" sqltype="4"/>
+        </parameters>
+        <inputParameter>
+          <OrderID type="integer" null="true"></OrderID>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="OrderID" type="user" prompt="true" label="OrderID" source="ss6"
+                xtype="integer">
+        <node type="integer" null="true"></node>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="ss5" type="jdbc" datasource="sqlserver">
+    <query_jdbc>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="I-names" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer[company like 'I%'].company]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test52" type="xml" datasource="xml1">
+    <query_xml collapse="true">
+      <path><![CDATA[customers.customer]]></path>
+      <select><![CDATA[select expanded name,company,phone,address,city,state,zip,email]]></select>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test51" type="xml" datasource="xml1">
+    <query_xml>
+      <path><![CDATA[types.record[(f_integer = $(minvalue))]]]></path>
+      <variable name="minvalue" type="user" prompt="true" label="minvalue" source="test51"
+                xtype="string">
+      </variable>
+      <description>aggregate in query variable</description>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test50" type="xml" datasource="xml1">
+    <query_xml>
+      <path><![CDATA[types.record[(f_integer = min(filter('record.f_integer')))]]]></path>
+      <select>
+        <![CDATA[select f_integer,f_long,f_float,f_double,f_boolean,f_string,f_date,f_timeInstant,f_time]]></select>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="sql5" type="jdbc" datasource="sqlserver">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[CustOrdersDetail]]></name>
+        <return>4</return>
+        <return_name>int</return_name>
+        <select><![CDATA[select ]]></select>
+        <parameters>
+          <parameter_definition name="OrderID" type="integer" inout="1" typename="int" sqltype="4"/>
+        </parameters>
+        <inputParameter>
+          <OrderID type="integer" null="false"><![CDATA[10248]]></OrderID>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="OrderID" type="user" prompt="false" label="OrderID" source="sql5"
+                xtype="integer">
+        <OrderID type="integer" null="false"><![CDATA[10248]]></OrderID>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="sql4" type="jdbc" datasource="sqlserver">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[CustOrderHist]]></name>
+        <select><![CDATA[select ]]></select>
+        <parameters>
+          <parameter_definition name="CustomerID" type="string" inout="1" typename="null"
+                                sqltype="0"/>
+        </parameters>
+        <inputParameter>
+          <CustomerID type="string" null="false"><![CDATA[ANATR]]></CustomerID>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="CustomerID" type="user" prompt="false" label="CustomerID" source="sql4"
+                xtype="string">
+        <CustomerID type="string" null="false"><![CDATA[ANATR]]></CustomerID>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="sql3" type="jdbc" datasource="sqlserver">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[SalesByCategory]]></name>
+        <select><![CDATA[select TotalPurchase]]></select>
+        <parameters>
+          <parameter_definition name="CategoryName" type="string" inout="1" typename="null"
+                                sqltype="0"/>
+          <parameter_definition name="OrdYear" type="string" inout="1" typename="null" sqltype="0"/>
+        </parameters>
+        <inputParameter>
+          <CategoryName type="string" null="false"><![CDATA[Seafood]]></CategoryName>
+          <OrdYear type="string" null="false"><![CDATA[1998]]></OrdYear>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="CategoryName" type="user" prompt="false" label="CategoryName" source="sql3"
+                xtype="string">
+        <CategoryName type="string" null="false"><![CDATA[Seafood]]></CategoryName>
+      </variable>
+      <variable name="OrdYear" type="user" prompt="false" label="OrdYear" source="sql3"
+                xtype="string">
+        <OrdYear type="string" null="false"><![CDATA[1998]]></OrdYear>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="sql2" type="jdbc" datasource="sqlserver">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[SalesByCategory]]></name>
+        <select><![CDATA[select TotalPurchase]]></select>
+        <parameters>
+          <parameter_definition name="CategoryName" type="string" inout="1" typename="null"
+                                sqltype="0"/>
+          <parameter_definition name="OrdYear" type="string" inout="1" typename="null" sqltype="0"/>
+        </parameters>
+        <inputParameter>
+          <CategoryName type="string" null="false"><![CDATA[Seafood]]></CategoryName>
+          <OrdYear type="string" null="false"><![CDATA[1998]]></OrdYear>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="CategoryName" type="user" prompt="false" label="CategoryName" source="sql2"
+                xtype="string">
+        <CategoryName type="string" null="false"><![CDATA[Seafood]]></CategoryName>
+      </variable>
+      <variable name="OrdYear" type="user" prompt="false" label="OrdYear" source="sql2"
+                xtype="string">
+        <OrdYear type="string" null="false"><![CDATA[1998]]></OrdYear>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="sql1" type="jdbc" datasource="sqlserver">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[Ten Most Expensive Products]]></name>
+        <select><![CDATA[select ]]></select>
+        <parameters>
+        </parameters>
+        <inputParameter>
+        </inputParameter>
+      </procedure_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test49" type="xml" datasource="xml1">
+    <query_xml>
+      <path><![CDATA[customers.customer[company like 'eCost%']]]></path>
+      <description>pcdata name element</description>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="i1" type="jdbc" datasource="informix">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select sysutils:syscolumns.colname to string('128'),sysutils:syscolumns.tabid,sysutils:syscolumns.colno,sysutils:syscolumns.coltype,sysutils:syscolumns.collength,sysutils:syscolumns.colmin,sysutils:syscolumns.colmax,sysutils:syscolumns.extended_id]]></select>
+        <table>sysutils:syscolumns</table>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="fff" type="derived" datasource="mdb1">
+    <query_derived base="m1">
+      <path><![CDATA[table]]></path>
+      <select>
+        <![CDATA[select orderno to string,customer_id to string,discount to string,orderdate to string]]></select>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_derived>
+  </query>
+  <query name="IntList" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[(f_integer = $(value))].f_integer]]></path>
+      <variable name="value" type="user" prompt="true" label="value" source="IntList"
+                xtype="string">
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="test47" type="derived" datasource="Text1">
+    <query_derived base="test35">
+      <path><![CDATA[table.Integer]]></path>
+      <description>derived from test35</description>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_derived>
+  </query>
+  <query name="test46" type="derived" datasource="mdb1">
+    <query_derived base="test45">
+      <path><![CDATA[table]]></path>
+      <select><![CDATA[select customers.company]]></select>
+      <description>derived from test45</description>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_derived>
+  </query>
+  <query name="test45" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select customers.customer_id,customers.contact,customers.company,customers.address,customers.city,customers.state,customers.zip,customers.reseller]]></select>
+        <table>customers</table>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test44" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select customers.customer_id,customers.contact,customers.company,customers.address,customers.city,customers.state,customers.zip,customers.reseller]]></select>
+        <table>customers</table>
+        <sort name="customers.contact" order="asc"/>
+        <sort name="customers.customer_id" order="asc"/>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test43" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select customers.customer_id,customers.contact,customers.company,customers.address,customers.city,customers.state,customers.zip,customers.reseller]]></select>
+        <table>customers</table>
+        <sort name="customers.customer_id" order="asc"/>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="o1" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <sql><![CDATA[SELECT M.SUBFACILITY_ID, M.APP_RECEIVED_DATE,
+(SELECT M.SUBMITTED_TO_CO_DATE 
+FROM METRICS M, FACILITY F, SUBFACILITY S 
+WHERE F.LOAN_FACILITY_ID = S.LOAN_FACILITY_ID 
+AND S.SUBFACILITY_ID = M.SUBFACILITY_ID 
+AND S.SEQUENCE_NO =1 
+AND F.LOAN_FACILITY_ID = '1') AS SUBMITTED_TO_CO_DATE 
+FROM METRICS M, FACILITY F, SUBFACILITY S 
+WHERE F.LOAN_FACILITY_ID = S.LOAN_FACILITY_ID 
+AND S.SUBFACILITY_ID = M.SUBFACILITY_ID 
+AND F.LOAN_FACILITY_ID = '1']]></sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test42" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <sql><![CDATA[select * from customers]]></sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test41" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select customers.customer_id as "Customer ID",customers.contact as "Contact",customers.company as "Company",customers.address as "Address",customers.city as "City",customers.state as "State",customers.zip as "Zip Code"]]></select>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test40" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select customers.customer_id,customers.contact,customers.company,customers.address,customers.city,customers.state,customers.zip,customers.reseller,orderdetails.orderno,orderdetails.product_id,orderdetails.quantity,orders.orderno,orders.customer_id,orders.discount,orders.orderdate]]></select>
+        <table>customers</table>
+        <table>orderdetails</table>
+        <table>orders</table>
+        <join table1="orders" column1="orderno" table2="orderdetails" column2="orderno" op="="/>
+        <join table1="orders" column1="customer_id" table2="customers" column2="customer_id"
+              op="="/>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="orap06" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[SCOTT.TESTCASE_PKG.EMP_INFO3]]></name>
+        <select>
+          <![CDATA[select EMPNO,ENAME to string('10'),JOB to string('9'),MGR,HIREDATE,SAL,COMM,DEPTNO]]></select>
+        <result_column name="EMPNO" type="double" length="22"/>
+        <result_column name="ENAME" type="string" length="10"/>
+        <result_column name="JOB" type="string" length="9"/>
+        <result_column name="MGR" type="double" length="22"/>
+        <result_column name="HIREDATE" type="timeInstant" length="0"/>
+        <result_column name="SAL" type="double" length="22"/>
+        <result_column name="COMM" type="double" length="22"/>
+        <result_column name="DEPTNO" type="double" length="22"/>
+        <parameters>
+          <parameter_definition name="DEPT_NUM" type="double" inout="1" typename="NUMBER"
+                                sqltype="3"/>
+          <parameter_definition name="CUR1" type="string" inout="4" typename="REF CURSOR"
+                                sqltype="1111"/>
+        </parameters>
+        <inputParameter>
+          <DEPT_NUM type="double" null="false"><![CDATA[20.0]]></DEPT_NUM>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="DEPT_NUM" type="user" prompt="false" label="DEPT_NUM" source="orap06"
+                xtype="double">
+        <DEPT_NUM type="double" null="false"><![CDATA[20.0]]></DEPT_NUM>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="orap05" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[SCOTT.TESTCASE_PKG.EMP_DEPT_SAL]]></name>
+        <select><![CDATA[select ]]></select>
+        <parameters>
+          <parameter_definition name="CUR1" type="string" inout="2" typename="REF CURSOR"
+                                sqltype="1111"/>
+        </parameters>
+        <inputParameter>
+        </inputParameter>
+      </procedure_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="orap04" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[SCOTT.TESTCASE_PKG.EMP_DEPT]]></name>
+        <select><![CDATA[select ]]></select>
+        <parameters>
+          <parameter_definition name="CUR1" type="string" inout="2" typename="REF CURSOR"
+                                sqltype="1111"/>
+        </parameters>
+        <inputParameter>
+        </inputParameter>
+      </procedure_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="orap03" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[SCOTT.TESTCASE_PKG.EMP_INFO2]]></name>
+        <return>1111</return>
+        <return_name>REF CURSOR</return_name>
+        <select>
+          <![CDATA[select EMPNO,ENAME to string('10'),JOB to string('9'),MGR,HIREDATE,SAL,COMM,DEPTNO]]></select>
+        <result_column name="EMPNO" type="double" length="22"/>
+        <result_column name="ENAME" type="string" length="10"/>
+        <result_column name="JOB" type="string" length="9"/>
+        <result_column name="MGR" type="double" length="22"/>
+        <result_column name="HIREDATE" type="timeInstant" length="0"/>
+        <result_column name="SAL" type="double" length="22"/>
+        <result_column name="COMM" type="double" length="22"/>
+        <result_column name="DEPTNO" type="double" length="22"/>
+        <parameters>
+          <parameter_definition name="DEPT_NUM" type="double" inout="1" typename="NUMBER"
+                                sqltype="3"/>
+        </parameters>
+        <inputParameter>
+          <DEPT_NUM type="double" null="false"><![CDATA[20.0]]></DEPT_NUM>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="DEPT_NUM" type="user" prompt="false" label="DEPT_NUM" source="orap03"
+                xtype="double">
+        <DEPT_NUM type="double" null="false"><![CDATA[20.0]]></DEPT_NUM>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="orap02" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[SCOTT.TESTCASE_PKG.EMP_INFO1]]></name>
+        <select><![CDATA[select ]]></select>
+        <parameters>
+          <parameter_definition name="DEPT_NUM" type="double" inout="1" typename="NUMBER"
+                                sqltype="3"/>
+          <parameter_definition name="CUR1" type="string" inout="2" typename="REF CURSOR"
+                                sqltype="1111"/>
+        </parameters>
+        <inputParameter>
+          <DEPT_NUM type="double" null="false"><![CDATA[20.0]]></DEPT_NUM>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="DEPT_NUM" type="user" prompt="false" label="DEPT_NUM" source="orap02"
+                xtype="double">
+        <DEPT_NUM type="double" null="false"><![CDATA[20.0]]></DEPT_NUM>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="orap01" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <procedure_sql>
+        <name><![CDATA[SCOTT.TESTCASE_PKG.EMP_INFO]]></name>
+        <select>
+          <![CDATA[select EMPNO,ENAME to string('10'),JOB to string('9'),MGR,HIREDATE,SAL,COMM,DEPTNO]]></select>
+        <result_column name="EMPNO" type="double" length="22"/>
+        <result_column name="ENAME" type="string" length="10"/>
+        <result_column name="JOB" type="string" length="9"/>
+        <result_column name="MGR" type="double" length="22"/>
+        <result_column name="HIREDATE" type="timeInstant" length="0"/>
+        <result_column name="SAL" type="double" length="22"/>
+        <result_column name="COMM" type="double" length="22"/>
+        <result_column name="DEPTNO" type="double" length="22"/>
+        <parameters>
+          <parameter_definition name="DEPT_NUM" type="double" inout="1" typename="NUMBER"
+                                sqltype="3"/>
+          <parameter_definition name="CUR1" type="string" inout="2" typename="REF CURSOR"
+                                sqltype="1111"/>
+        </parameters>
+        <inputParameter>
+          <DEPT_NUM type="double" null="false"><![CDATA[20.0]]></DEPT_NUM>
+        </inputParameter>
+      </procedure_sql>
+      <variable name="DEPT_NUM" type="user" prompt="false" label="DEPT_NUM" source="orap01"
+                xtype="double">
+        <DEPT_NUM type="double" null="false"><![CDATA[20.0]]></DEPT_NUM>
+      </variable>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="ora10" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <sql><![CDATA[select * from SCOTT.EMP where NOT (JOB='CLERK' OR JOB='SALESMAN')]]></sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test39" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select orders.orderno,orders.customer_id,orders.discount,orders.orderdate,customers.customer_id,customers.contact,customers.company,customers.address,customers.city,customers.state,customers.zip,customers.reseller]]></select>
+        <table>orders</table>
+        <table>customers</table>
+        <join table1="orders" column1="customer_id" table2="customers" column2="customer_id"
+              op="="/>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test38" type="jdbc" datasource="mdb1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select datatypes.f_integer,datatypes.f_string,datatypes.f_date,datatypes.f_double]]></select>
+        <table>datatypes</table>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="test37" type="text" datasource="Text1">
+    <query_text header="true">
+      <delimiter> <![CDATA[tab]]> </delimiter>
+      <request><![CDATA[tabs]]></request>
+      <output>select column0 as "4",column1 as "4",column2 as "4",column3 as "4"</output>
+      <column>0</column>
+      <column>1</column>
+      <column>2</column>
+      <column>3</column>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_text>
+  </query>
+  <query name="test36" type="xml" datasource="xml1">
+    <query_xml attributes="true" children="true" collapse="false">
+      <path><![CDATA[catalog.product]]></path>
+      <select><![CDATA[select os,@sku as 'SKU',@name,@category,@price to double]]></select>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[product]]></request>
+    </query_xml>
+  </query>
+  <query name="test35" type="text" datasource="Text1">
+    <query_text header="true">
+      <delimiter> <![CDATA[44]]> </delimiter>
+      <request><![CDATA[types]]></request>
+      <output>select column0 as "Time" to date('yyyy-MM-dd'),column1 as "Time" to
+        date('yyyy-MM-dd'),column2 as "Time" to date('yyyy-MM-dd'),column3 as "Time" to
+        date('yyyy-MM-dd')
+      </output>
+      <column>0</column>
+      <column>1</column>
+      <column>2</column>
+      <column>3</column>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_text>
+  </query>
+  <query name="test34" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer]]></path>
+      <select><![CDATA[select company as 'Company',phone as 'Phone#',email as 'E-mail']]></select>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test33" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="true">
+      <path><![CDATA[customers.customer]]></path>
+      <select><![CDATA[select company,phone,email,name.fname,name.lname]]></select>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test32" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[customers.customer]]></path>
+      <select><![CDATA[select name,company,phone,address,city,state,zip,email]]></select>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[customer]]></request>
+    </query_xml>
+  </query>
+  <query name="test31" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[catalog.product[(@category = 'Java IDE')]]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[product]]></request>
+    </query_xml>
+  </query>
+  <query name="test30" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record[(-f_integer = -123)].f_integer]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="ora09" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <sql><![CDATA[select * from SCOTT.EMP]]></sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="AllInt" type="xml" datasource="xml1">
+    <query_xml attributes="false" children="true" collapse="false">
+      <path><![CDATA[types.record.f_integer]]></path>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+      <request><![CDATA[datatypes]]></request>
+    </query_xml>
+  </query>
+  <query name="ora08" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select SCOTT.EMP.EMPNO,SCOTT.EMP.ENAME,SCOTT.EMP.JOB,SCOTT.EMP.MGR,SCOTT.EMP.HIREDATE,SCOTT.EMP.SAL,SCOTT.EMP.COMM,SCOTT.EMP.DEPTNO]]></select>
+        <condition column="SCOTT.EMP.MGR"><![CDATA[this=7698]]></condition>
+        <table>SCOTT.EMP</table>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="ora07" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select SCOTT.EMP.EMPNO,SCOTT.EMP.ENAME,SCOTT.EMP.JOB,SCOTT.EMP.MGR,SCOTT.EMP.HIREDATE,SCOTT.EMP.SAL,SCOTT.EMP.COMM,SCOTT.EMP.DEPTNO]]></select>
+        <table>SCOTT.EMP</table>
+        <sort name="SCOTT.EMP.HIREDATE" order="desc"/>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="ora06" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select SCOTT.EMP.EMPNO,SCOTT.EMP.ENAME,SCOTT.EMP.JOB,SCOTT.EMP.MGR,SCOTT.EMP.HIREDATE,SCOTT.EMP.SAL,SCOTT.EMP.COMM,SCOTT.EMP.DEPTNO]]></select>
+        <table>SCOTT.EMP</table>
+        <sort name="SCOTT.EMP.JOB" order="asc"/>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="ora05" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select SCOTT.EMP.EMPNO,SCOTT.EMP.ENAME,SCOTT.EMP.JOB,SCOTT.EMP.HIREDATE,SCOTT.EMP.SAL]]></select>
+        <table>SCOTT.EMP</table>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="ora04" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select SCOTT.ACCOUNT.BALANCE as "Balance",SCOTT.ACCOUNT.ACCOUNTNO as "Account No."]]></select>
+        <table>SCOTT.ACCOUNT</table>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="ora03" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select SCOTT.DEPT.DEPTNO,SCOTT.DEPT.DNAME,SCOTT.DEPT.LOC,SCOTT.EMP.EMPNO,SCOTT.EMP.ENAME,SCOTT.EMP.JOB,SCOTT.EMP.MGR,SCOTT.EMP.HIREDATE,SCOTT.EMP.SAL,SCOTT.EMP.COMM,SCOTT.SALGRADE.GRADE,SCOTT.SALGRADE.LOSAL,SCOTT.SALGRADE.HISAL]]></select>
+        <table>SCOTT.DEPT</table>
+        <table>SCOTT.EMP</table>
+        <table>SCOTT.SALGRADE</table>
+        <join table1="SCOTT.DEPT" column1="DEPTNO" table2="SCOTT.EMP" column2="DEPTNO" op="="/>
+        <join table1="SCOTT.SALGRADE" column1="HISAL" table2="SCOTT.EMP" column2="SAL" op=">="/>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="o99" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <sql><![CDATA[select to_char(SCOTT.EMP.HIREDATE) from SCOTT.EMP]]></sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="ora02" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select SCOTT.DEPT.DEPTNO,SCOTT.DEPT.DNAME,SCOTT.DEPT.LOC,SCOTT.EMP.EMPNO,SCOTT.EMP.ENAME,SCOTT.EMP.JOB,SCOTT.EMP.MGR,SCOTT.EMP.HIREDATE,SCOTT.EMP.SAL,SCOTT.EMP.COMM,SCOTT.EMP.DEPTNO]]></select>
+        <table>SCOTT.EMP</table>
+        <table>SCOTT.DEPT</table>
+        <join table1="SCOTT.DEPT" column1="DEPTNO" table2="SCOTT.EMP" column2="DEPTNO" op="="/>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+  <query name="ora01" type="jdbc" datasource="oracle1">
+    <query_jdbc>
+      <structured_sql>
+        <select>
+          <![CDATA[select SCOTT.EMP.EMPNO,SCOTT.EMP.ENAME,SCOTT.EMP.JOB,SCOTT.EMP.MGR,SCOTT.EMP.HIREDATE,SCOTT.EMP.SAL,SCOTT.EMP.COMM,SCOTT.EMP.DEPTNO]]></select>
+        <table>SCOTT.EMP</table>
+      </structured_sql>
+      <maxrows>0</maxrows>
+      <timeout>0</timeout>
+    </query_jdbc>
+  </query>
+</registry>

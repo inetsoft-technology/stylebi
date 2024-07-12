@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.1, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg version="1.0" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px" width="200px"
+	 height="200px" viewBox="0 0 200 200" enable-background="new 0 0 200 200" xml:space="preserve">
+<g id="图层_1">
+	<g id="Layer_3">
+	</g>
+	<g id="Layer_1">
+		<rect fill="#BEEAA4" fill-opacity="0" width="200" height="200"/>
+		<circle fill="#FFFFFF" cx="100" cy="100" r="100"/>
+		<g>
+			<g>
+				<circle fill="#BEEAA4" cx="100" cy="100" r="96.012"/>
+			</g>
+			<g>
+				<path fill="#74CF78" d="M195.023,100c0,52.396-42.627,95.025-95.025,95.025c-52.395,0-95.023-42.629-95.023-95.025
+					c0-52.396,42.629-95.023,95.023-95.023C152.396,4.977,195.023,47.604,195.023,100z M99.998,3C46.514,3,3,46.514,3,100
+					c0,53.486,43.514,97.001,96.998,97.001C153.484,197.001,197,153.486,197,100C197,46.514,153.484,3,99.998,3z"/>
+			</g>
+		</g>
+		<g>
+			<circle fill="#FFFFFF" cx="100" cy="100" r="87.559"/>
+			<circle fill="none" stroke="#74CF78" stroke-width="1.9759" cx="100" cy="100" r="87.559"/>
+		</g>
+		
+			<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="-23.2261" y1="24.8188" x2="-23.2261" y2="-75.0352" gradientTransform="matrix(1 0 0 -1 123.2246 74.8926)">
+			<stop  offset="0.0169" style="stop-color:#EBEBEB"/>
+			<stop  offset="0.0444" style="stop-color:#F6F6F6"/>
+			<stop  offset="0.0832" style="stop-color:#FDFDFD"/>
+			<stop  offset="0.191" style="stop-color:#FFFFFF"/>
+			<stop  offset="0.3482" style="stop-color:#F3F3F3"/>
+			<stop  offset="0.7584" style="stop-color:#D9D9D9"/>
+			<stop  offset="0.9405" style="stop-color:#D7D7D7"/>
+			<stop  offset="1" style="stop-color:#D1D1D1"/>
+		</linearGradient>
+		<circle opacity="0.5" fill="url(#SVGID_1_)" enable-background="new    " cx="99.999" cy="100.001" r="49.927"/>
+		<circle opacity="0.5" fill="#CCCCCC" enable-background="new    " cx="99.999" cy="100.001" r="49.927"/>
+		<path display="none" fill="#B0FF9F" d="M167.605,99.704c0-37.315-30.25-67.566-67.564-67.566
+			c-37.316,0-67.566,30.251-67.566,67.566c0,18.464,7.414,35.188,19.418,47.387l0.086-0.085c1.061,1.249,2.64,2.044,4.406,2.044
+			c3.191,0,5.779-2.587,5.779-5.778c0-2.035-1.055-3.82-2.644-4.851c-9.622-10.063-15.547-23.694-15.547-38.717
+			c0-30.965,25.103-56.066,56.066-56.066s56.066,25.101,56.066,56.066c0,15.344-6.17,29.241-16.156,39.364
+			c-1.279,1.062-2.096,2.66-2.096,4.451c0,3.192,2.588,5.779,5.779,5.779c1.811,0,3.426-0.833,4.484-2.136
+			C160.164,134.962,167.605,118.205,167.605,99.704z"/>
+		<g>
+			<path display="none" fill="#B0FF9F" d="M167.605,99.704c0-37.315-30.25-67.566-67.564-67.566
+				c-37.316,0-67.566,30.251-67.566,67.566c0,16.156,5.676,30.979,15.137,42.605l8.761-6.35
+				c-8.193-9.854-13.123-22.518-13.123-36.335c0-31.412,25.463-56.875,56.875-56.875C131.537,42.75,157,68.213,157,99.625
+				c0,13.884-4.98,26.6-13.243,36.474l8.327,6.681C161.776,131.087,167.605,116.079,167.605,99.704z"/>
+		</g>
+		<path display="none" fill="#B0FF9F" d="M152.084,142.779c9.692-11.692,15.521-26.7,15.521-43.075
+			c0-37.315-30.25-67.566-67.564-67.566c-37.316,0-67.566,30.251-67.566,67.566c0,16.156,5.676,30.979,15.137,42.605l9.337-6.768
+			c-8.096-9.716-12.976-22.204-12.976-35.838c0-30.965,25.103-56.066,56.066-56.066s56.066,25.101,56.066,56.066
+			c0,13.65-4.884,26.157-12.993,35.878L152.084,142.779z"/>
+	</g>
+	<path fill="#B0FF9F" d="M167.605,99.704c0-37.315-30.25-67.566-67.564-67.566c-37.316,0-67.566,30.251-67.566,67.566
+		c0,16.156,5.676,30.979,15.137,42.605l0.009-0.007c0.943,1.612,2.688,2.697,4.691,2.697c3.003,0,5.438-2.434,5.438-5.438
+		c0-1.405-0.537-2.681-1.412-3.646c-8.171-9.849-13.088-22.494-13.088-36.292c0-31.412,25.463-56.875,56.875-56.875
+		C131.537,42.75,157,68.213,157,99.625c0,13.852-4.959,26.539-13.187,36.403c-1.185,0.997-1.938,2.489-1.938,4.159
+		c0,3.004,2.435,5.438,5.438,5.438c2.077,0,3.881-1.165,4.797-2.877C161.786,131.06,167.605,116.064,167.605,99.704z"/>
+	<circle display="none" fill="#B0FF9F" cx="52.313" cy="139.563" r="5.438"/>
+	<circle display="none" fill="#B0FF9F" cx="147.313" cy="140.188" r="5.438"/>
+</g>
+<g id="图层_2" display="none">
+	<g id="图层_2_1_" display="inline">
+		<g>
+			<line fill="none" stroke="#000000" x1="99.949" y1="107.182" x2="277.241" y2="244.089"/>
+			<line fill="none" stroke="#000000" x1="99.949" y1="107.182" x2="-78.179" y2="242.998"/>
+		</g>
+	</g>
+</g>
+</svg>

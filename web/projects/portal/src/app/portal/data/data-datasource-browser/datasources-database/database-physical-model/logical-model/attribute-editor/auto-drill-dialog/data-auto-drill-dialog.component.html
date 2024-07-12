@@ -1,0 +1,232 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Auto Drill)'" [cshid]="'AutoDrillPortal'" (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body">
+  <div class="row">
+    <div class="col-4 px-1">
+      <div class="card min-height">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="truncate-text">_#(Auto Drills)</span>
+          <div class="toolbar-button-group">
+            <button #btnFocus type="button" class="btn btn-sm btn-light-no-bg add-icon"
+                    [attr.title]="'_#(Add Drill)'"
+                    (click)="addDrill()"></button>
+            <button type="button" class="btn btn-sm btn-light-no-bg trash-icon"
+                    [disabled]="autoDrillModel?.paths?.length <= 0 || editIndex < 0 || editIndex >= autoDrillModel.paths.length"
+                    [attr.title]="'_#(Remove Drills)'"
+                    (click)="deleteDrill(true)"></button>
+          </div>
+        </div>
+        <ul class="list-group list-group-flush auto-overflow">
+          <li *ngFor="let drill of autoDrillModel.paths; let i = index"
+              (click)="selectDrill($event, i)"
+              [style.background-color]="selectedDrills.indexOf(i) != -1 ? '#cdf7f6' : '#ffffff'"
+              class="list-group-item d-flex justify-content-between align-items-center no-shrink">
+            <span>{{ drill.name }}</span>
+            <div class="toolbar-button-group">
+              <button type="button" class="btn btn-sm btn-light-no-bg chevron-circle-arrow-up-icon"
+                      [attr.title]="'_#(Move Up)'"
+                      [disabled]="autoDrillModel?.paths?.length <= 1 || i <= 0"
+                      (click)="moveDrillUp(i)"></button>
+              <button type="button" class="btn btn-sm btn-light-no-bg chevron-circle-arrow-down-icon"
+                      [attr.title]="'_#(Move Down)'"
+                      [disabled]="autoDrillModel?.paths?.length <= 1 || i == autoDrillModel.paths.length - 1"
+                      (click)="moveDrillDown(i)"></button>
+              <button type="button" class="btn btn-sm btn-light-no-bg trash-icon"
+                      [disabled]="autoDrillModel?.paths?.length <= 0 || i < 0 || editIndex >= autoDrillModel.paths.length"
+                      [attr.title]="'_#(Remove Drill)'"
+                      (click)="deleteDrill()"></button>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="col-8 px-1">
+      <div class="card min-height">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="truncate-text">_#(Auto Drill Info)</span>
+        </div>
+        <div class="card-body">
+          <form [formGroup]="form" *ngIf="!!editDrill">
+            <div class="form-group form-floating">
+              <input type="text" class="form-control" formControlName="name"
+                     [class.is-invalid]="!nameControl.valid">
+              <label><span>_#(Name)</span></label>
+              <span class="invalid-feedback" *ngIf="!nameControl.valid">
+                {{getFirstErrorMessage(nameControl)}}
+              </span>
+            </div>
+            <div class="form-group form-floating">
+              <input type="text"
+                     class="form-control"
+                     [(ngModel)]="editDrill.tip"
+                     [ngModelOptions]="{standalone: true}">
+              <label><span>_#(Tooltip)</span></label>
+            </div>
+            <div class="form-group">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" id="assetLink"
+                       [ngModel]="editDrill.linkType"
+                       (click)="editDrill.linkType = LinkType.VIEWSHEET_LINK; changeLinkType()"
+                       [value]="LinkType.VIEWSHEET_LINK"
+                       [ngModelOptions]="{standalone: true}">
+                <label class="form-check-label" for="assetLink">_#(Asset Link)</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" id="webLink"
+                       [(ngModel)]="editDrill.linkType"
+                       (ngModelChange)="changeLinkType()"
+                       [value]="LinkType.WEB_LINK"
+                       [ngModelOptions]="{standalone: true}">
+                <label class="form-check-label" for="webLink">_#(Web Link)</label>
+              </div>
+            </div>
+            <div *ngIf="editDrill.linkType == LinkType.WEB_LINK" class="form-group form-floating">
+              <input type="text"
+                     class="form-control"
+                     formControlName="link"
+                     [class.is-invalid]="!linkControl.valid">
+              <label>_#(Link)</label>
+              <span class="invalid-feedback" *ngIf="linkControl.getError('required')">
+                _#(data.logicalmodel.drillLinkRequired)
+              </span>
+            </div>
+            <div *ngIf="editDrill.linkType !== LinkType.WEB_LINK" class="form-group">
+              <div #dropdown="ngbDropdown" ngbDropdown [autoClose]="'outside'">
+                <div class="form-floating">
+                  <input ngbDropdownToggle type="text" readonly
+                         class="form-control" [value]="drillLabel"
+                         [class.is-invalid]="!editDrill.link">
+                  <label>_#(Link)</label>
+                  <span class="invalid-feedback" *ngIf="!editDrill.link">
+                    _#(data.logicalmodel.drillLinkRequired)
+                  </span>
+                </div>
+                <div class="drill-dropdown-arrow icon-size-small"></div>
+                <div ngbDropdownMenu class="drill-tree-dropdown-menu">
+                  <repository-tree #repositoryTree
+                                   [root]="assetTreeRoot"
+                                   [autoExpandToSelectedNode]="true"
+                                   [selectedNode]="selectedAssetNode"
+                                   [checkDetailType]="false"
+                                   [isPortalData]="true"
+                                   (nodeSelected)="selectNode($event, dropdown)">
+                  </repository-tree>
+                </div>
+              </div>
+            </div>
+            <div class="form-group form-floating">
+              <div class="input-group">
+                <input type="text" class="form-control"
+                       [disabled]="targetSelf"
+                       [(ngModel)]="editDrill.targetFrame"
+                       [ngModelOptions]="{standalone: true}">
+                <div class="input-group-text">
+                  <input class="form-check-input me-1" type="checkbox" [(ngModel)]="targetSelf"
+                         (ngModelChange)="changeLinkTarget($event)"
+                         [ngModelOptions]="{standalone: true}"/>
+                  <span>_#(Self)</span>
+                </div>
+              </div>
+              <label><span>_#(Target Frame)</span></label>
+            </div>
+            <div class="form-group">
+              <div class="input-group">
+                <div class="form-floating">
+                  <input type="text" class="form-control" [ngModel]="getDrillWorksheet()"
+                         [ngModelOptions]="{standalone: true}" disabled/>
+                  <label><span>_#(Worksheet)</span></label>
+                </div>
+                <button class="btn btn-secondary" type="button" [attr.title]="'_#(Query Selection)'"
+                        (click)="openSelectWorksheetDialog()">
+                  ...
+                </button>
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input"
+                       [(ngModel)]="editDrill.passParams"
+                       [ngModelOptions]="{standalone: true}">
+                <label class="form-check-label">
+                  _#(Send viewsheet parameters)
+                </label>
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input"
+                       [(ngModel)]="editDrill.disablePrompting"
+                       [ngModelOptions]="{standalone: true}">
+                <label class="form-check-label">
+                  _#(data.logicalmodel.drillDisablePrompt)
+                </label>
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="card parameter-list">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <span>_#(Parameters)</span>
+                  <span>
+                    <button type="button"
+                            (click)="addParameter()"
+                            class="btn btn-light-no-bg add-icon"
+                            [attr.title]="'_#(Add Parameter)'">
+                    </button>
+                    <button type="button"
+                            (click)="removeAllParameters()"
+                            [disabled]="!editDrill.params || editDrill.params.length == 0"
+                            class="btn btn-light-no-bg trash-icon"
+                            [attr.title]="'_#(data.logicalmodel.drillCleanParameters)'">
+                    </button>
+                  </span>
+                </div>
+                <ul class="list-group list-group-flush param-card-body auto-overflow">
+                  <li *ngFor="let param of editDrill.params; let i = index"
+                      class="list-group-item d-flex justify-content-between align-items-center">
+                    <span class="parameter-label">{{ getDisplayParam(param) }}</span>
+                    <span class="btn-group">
+                      <button type="button" (click)="editParameter(i)"
+                              [attr.title]="'_#(Edit Parameter)'"
+                              class="btn btn-light-no-bg edit-icon"></button>
+                      <button type="button" (click)="removeParameter(i)"
+                              [attr.title]="'_#(data.logicalmodel.drillDeleteParameter)'"
+                              class="btn btn-light-no-bg trash-icon"></button>
+                    </span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary"
+          (click)="ok()" [disabled]="!form.valid">_#(OK)
+  </button>
+  <button type="button" class="btn btn-secondary"
+          data-dismiss="modal"
+          (click)="cancel()">_#(Cancel)
+  </button>
+</div>

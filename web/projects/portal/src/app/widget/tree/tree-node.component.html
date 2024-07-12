@@ -1,0 +1,113 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="inViewport">
+<div *ngIf="node && node.loading && !parentLoading" class="loading-container"
+     (contextmenu)="$event.stopPropagation(); $event.preventDefault();">
+  <div class="loading-content">
+    <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i>
+    <span class="visually-hidden" data-th-text="_#(Loading)">Loading</span>
+  </div>
+</div>
+<div #nodeElement *ngIf="showRoot"
+     class="tree-node force-focus-highlight" [ngClass]="node?.cssClass"
+     [draggable]="isDraggable"
+     (dragstart)="dragStarted($event)"
+     outOfZone (onDragover)="dragOver($event)"
+     [class.disable-actions-fade]="node.disabled"
+     [class.cursor-pointer]="draggable"
+     [class.bg-node-selected]="(isSelected() || isHighLight()) && !(isRepositoryTree || isPortalDataSourcesTree)"
+     [class.bg-portal-node-selected]="(isSelected() || isHighLight()) && (isRepositoryTree || isPortalDataSourcesTree)"
+     [class.hover-bg-primary]="!isRepositoryTree && !isPortalDataSourcesTree"
+     [class.tree-node-hover]="isRepositoryTree || isPortalDataSourcesTree"
+     [class.repository-tree]="isRepositoryTree"
+     [class.checkbox-enabled]="checkboxEnable"
+     [class.inherit-background]="isHighLight()"
+     [class.portal-data-source-tree]="isPortalDataSourcesTree"
+     [class.bl-highlight-filler]="(isRepositoryTree|| isPortalDataSourcesTree) && !isSelected()"
+     [class.bl-highlight-primary]="isSelected() && (isRepositoryTree || isPortalDataSourcesTree)"
+     [class.txt-primary]="isSelected() && (isRepositoryTree || isPortalDataSourcesTree)"
+     [class.selected]="isSelected() && checkboxEnable"
+     [attr.data-tree-node-data]="node.dataLabel"
+     [wTooltip]="showTooltip ? tooltip : ''"
+     [style.padding-left.px]="indentLevel * INDENT_SIZE"
+     (dblclick)="doubleClickNode($event)"
+     (click)="clickSelectNode($event)"
+     (mousedown)="mousedownSelectNode($event)"
+     tabindex="-1" enterClick [hasKeys]="true"
+     [attr.aria-label]="node ? node.baseLabel ? node.baseLabel : node.label : ''"
+     role="treeitem" [attr.aria-selected]="isSelected()"
+     [attr.aria-expanded]="node.expanded">
+  <span #toggleElement class="tree-node-toggle"
+        [ngClass]="getToggleIcon()"
+        [class.hideToggleIcon]="!hasChildren() || notExpandableType()"
+        [class.txt-primary]="isSelected() && (isRepositoryTree || isPortalDataSourcesTree)"
+        role="button" aria-label="_#(Toggle Folder)"
+        [attr.aria-expanded]="node.expanded"
+        (click)="toggleNode()"></span>
+  <span class="tree-node-label-container" [class.ellipsis-node-container]="ellipsisOverflowText">
+    <ng-container *ngIf="checkboxEnable && node.leaf">
+      <input type="checkbox" [checked]="isSelected()">
+    </ng-container>
+    <span class="tree-node-icon"
+          [ngClass]="getIcon()"
+          [class.txt-primary]="isSelected() && (isRepositoryTree || isPortalDataSourcesTree)"
+          [class.selected]="isSelected() && checkboxEnable"
+    ></span>
+    <label class="tree-node-label" [class.grayed-out-field]="isGrayedOut()"
+           [class.ellipsis-node-label]="ellipsisOverflowText" [class.cursor-pointer]="draggable"
+           [class.has-font-weight]="isSelected()"
+           [class.cursor-pointer]="draggable"
+           role="link" [attr.aria-selected]="isSelected()">
+      {{nodeLabel}}
+    </label>
+
+    <ng-container *ngIf="favoritesUser">
+      <span class="tree-node-icon"
+            [ngClass]="favoriteIcon"
+            [class.txt-primary]="isSelected() && (isRepositoryTree || isPortalDataSourcesTree)"
+            [class.selected]="isSelected() && checkboxEnable"
+      ></span>
+    </ng-container>
+  </span>
+  <i [attr.data-test]="nodeLabel + ' actions'"
+     *ngIf="hasMenu()" class="menu-horizontal-icon menu-trigger icon-size-small"
+     title="_#(Actions)"
+     (click)="contextmenuListener($event)"></i>
+</div>
+</ng-container>
+<div *ngIf="node && node.expanded && node.children">
+  <tree-node
+    *ngFor="let _node of tree?.useVirtualScroll ? getVirtualScrollShowChildren() :
+    (keepAllChildren ? getSort(node.children) :(node.children | search:searchStr:false:searchEndNode)); last as isLast"
+    [node]="_node" [class.tree-node-last]="isLast" [draggable]="draggable"
+    [tree]="tree" [multiSelect]="multiSelect" [nodeSelectable]="nodeSelectable"
+    [droppable]="droppable" [iconFunction]="iconFunction" [isRepositoryTree]="isRepositoryTree"
+    [isPortalDataSourcesTree]="isPortalDataSourcesTree" [checkboxEnable]="checkboxEnable"
+    [selectOnClick]="selectOnClick" [isSelectedNode]="isSelectedNode"
+    [showIcon]="showIcon" [contextmenu]="contextmenu" [searchStr]="searchStr"
+    [forceMatch]="keepAllChildren" [showTooltip]="showTooltip" [showFavoriteIcon]="showFavoriteIcon"
+    [indentLevel]="!showRoot ? indentLevel : indentLevel + 1"
+    [ellipsisOverflowText]="ellipsisOverflowText"
+    [showOriginalName]="showOriginalName"
+    [dataSource]="dataSource" [useVirtualScroll]="useVirtualScroll"
+    [parentLoading]="node.loading || parentLoading" [searchEndNode]="searchEndNode"
+    (onContextmenu)="onContextmenu.emit($event)">
+  </tree-node>
+</div>

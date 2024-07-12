@@ -1,0 +1,364 @@
+{
+  "tests": [
+    {
+      "endpoint": "Attachments",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Endpoint": "Invoices",
+        "GUID": "20ff01b8-c2d8-49bb-8abf-a9486c9ea665"
+      }
+    },
+    {
+      "endpoint": "Accounts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Bank Transactions",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Bank Transfers",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Batch Payments",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Branding Themes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Contacts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Contact Groups",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Credit Notes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Currencies",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Employees",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Expense Claims",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "History and Notes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Endpoint": "Invoices",
+        "GUID": "20ff01b8-c2d8-49bb-8abf-a9486c9ea665"
+      }
+    },
+    {
+      "endpoint": "Invoices",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Invoice Reminders",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Journals",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Linked Transactions (Billable Expenses)",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Manual Journals",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Organisation",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Overpayments",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Payments",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Prepayments",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Purchase Orders",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Quotes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Receipts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Repeating Invoices",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "1099 Report",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Aged Payables By Contact",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Contact ID": "c313aeb9-6fd1-4ead-9e0a-4b7e8bff0d1a"
+      }
+    },
+    {
+      "endpoint": "Balance Sheet",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Bank Summary",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "BAS Report",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Budget Summary",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Executive Summary",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "GST Report",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Profit And Loss",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Trial Balance",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Tax Rates",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Tracking Categories",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Users",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Assets",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Status": "DRAFT"
+      }
+    },
+    {
+      "endpoint": "A Asset",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Asset ID": "61610736-12b7-4795-a13e-14faabd275e2"
+      }
+    },
+    {
+      "endpoint": "Asset Types",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Assets Settings",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Files",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Folders",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Projects",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "A Project",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Project ID": "d1cf6eca-e20b-4c07-b6f1-4eaa25264492"
+      }
+    },
+    {
+      "endpoint": "Projects Users",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Tasks",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Project ID": "d1cf6eca-e20b-4c07-b6f1-4eaa25264492"
+      }
+    },
+    {
+      "endpoint": "Time",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Project ID": "d1cf6eca-e20b-4c07-b6f1-4eaa25264492"
+      }
+    }
+  ]
+}

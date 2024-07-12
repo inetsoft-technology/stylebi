@@ -1,0 +1,146 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form">
+  <div class="container-fluid">
+    <div class="form-row-float-label row mt-2">
+      <div class="col">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" [(ngModel)]="_model.enabled" id="enabled"
+                 [ngModelOptions]="{standalone: true}">
+          <label class="form-check-label" for="enabled">
+            _#(Enabled)
+          </label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="deleteIf"
+                 [(ngModel)]="_model.deleteIfNotScheduledToRun"
+                 [ngModelOptions]="{standalone: true}">
+          <label class="form-check-label" for="deleteIf">
+            _#(schedule.task.options.isDelete)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row form-group">
+      <div class="col">
+        <div class="form-floating">
+          <div class="input-group">
+            <input class="form-control date-picker-input" readOnly placeholder="yyyy-mm-dd"
+                   name="startDate"
+                   ngbDatepicker #startDatePicker="ngbDatepicker" placement="bottom-right"
+                   container="body" [formControl]="form.get('start')">
+            <button class="input-group-btn-addon btn btn-icon form-control"
+                    (click)="startDatePicker.toggle(); endDatePicker.close()" type="button">
+              <span class="calendar-icon icon-size-medium align-middle"></span>
+            </button>
+            <button type="button" class="input-group-button btn btn-default"
+                    (click)="clearStartDate()">
+              _#(Clear)
+            </button>
+          </div>
+          <label>_#(Start From)</label>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row form-group">
+      <div class="col">
+        <div class="form-floating">
+          <div class="input-group">
+            <input class="form-control date-picker-input" readOnly placeholder="yyyy-mm-dd"
+                   name="endDate"
+                   ngbDatepicker #endDatePicker="ngbDatepicker" placement="bottom-right"
+                   container="body" [formControl]="form.get('stop')"
+                   [class.is-invalid]="!form.valid && form.dirty">
+            <button class="input-group-btn-addon btn btn-icon form-control"
+                    (click)="endDatePicker.toggle(); startDatePicker.close()" type="button">
+              <span class="calendar-icon icon-size-medium align-middle"></span>
+            </button>
+            <button type="button" class="input-group-button btn btn-default"
+                  (click)="clearEndDate()">
+            _#(Clear)
+            </button>
+          </div>
+          <label>_#(Stop On)</label>
+          <span class="invalid-feedback" *ngIf="form.getError('dateGreaterThan')">
+              _#(stop.after.start.date)
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="form-row-float-label row form-group">
+      <div class="col form-floating">
+          <div class="input-group btn-group">
+            <select class="form-control w-auto" [disabled]="disableExecuteAs()" [(ngModel)]="executeAsType" [ngModelOptions]="{standalone: true}">
+              <option [value]="type.value" *ngFor="let type of executeAsTypes">{{type.label}}</option>
+            </select>
+            <input type="text" class="form-control w-75" id="inputAddress2" [ngModelOptions]="{standalone: true}"
+                   [ngModel]="executeAsName" [disabled]="disableExecuteAs()">
+            <div class="execute-as-buttons">
+              <div *ngIf="loadingUsers" class="loading-icon-container">
+                <i class="loading-icon--spin icon-size-large loading-icon" aria-hidden="true"></i>
+              </div>
+            </div>
+            <button type="button" class="input-group-button btn btn-default"
+                    (click)="clearUser()" [disabled]="disableExecuteAs()">_#(Clear)</button>
+            <button type="button" class="input-group-button btn btn-default"
+                    [disabled]="disableExecuteAs()" (click)="openExecuteAsDialog()">_#(Select)</button>
+          </div>
+          <label>_#(Execute As)</label>
+      </div>
+    </div>
+    <div class="form-row-float-label row form-group">
+      <div class="col form-floating">
+          <select class="form-control" [(ngModel)]="locale" [ngModelOptions]="{standalone: true}">
+            <option [value]="'Default'">_#(Default)</option>
+            <option [value]="locale" *ngFor="let locale of _model.locales">{{locale}}</option>
+          </select>
+          <label>_#(Locale)</label>
+      </div>
+    </div>
+    <div class="form-row-float-label row form-group" [style.display]="_model.securityEnabled ? null : 'none'">
+      <div class="col form-floating">
+          <input class="form-control" [(ngModel)]="_model.ownerAlias ? _model.ownerAlias : _model.owner"
+                 [disabled]="true" [ngModelOptions]="{standalone: true}">
+          <label>_#(Owner)</label>
+      </div>
+    </div>
+    <div class="form-row-float-label row form-group">
+      <div class="col form-floating">
+          <input type="text" class="form-control" [(ngModel)]="_model.description"
+                 [ngModelOptions]="{standalone: true}">
+          <label>_#(Description)</label>
+      </div>
+    </div>
+    <div class="form-group">
+      <button type="button" class="btn btn-primary" (click)="save()"
+              [disabled]="!form.valid || !parentForm.valid">
+        _#(Save)
+      </button>
+      <button type="button" class="btn btn-default ms-2" (click)="closeEditor.emit(_model)">
+        _#(Close)
+      </button>
+      <button *ngIf="newTask" type="button" class="btn btn-default ms-2" (click)="cancelTask.emit()">
+        _#(Cancel)
+      </button>
+    </div>
+  </div>
+</form>

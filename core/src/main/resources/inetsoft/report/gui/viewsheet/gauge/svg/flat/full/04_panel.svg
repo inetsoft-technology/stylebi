@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="200px" height="200px" viewBox="0 0 200 200" enable-background="new 0 0 200 200" xml:space="preserve">
+<path fill="#42BCF4" d="M58.678,124.632c-4.314-7.211-6.802-15.635-6.802-24.632c0-26.536,21.588-48.124,48.124-48.124
+	c26.536,0,48.124,21.588,48.124,48.124c0,8.981-2.479,17.391-6.78,24.594l1.731,0.999c4.471-7.497,7.049-16.248,7.049-25.593
+	c0-27.639-22.485-50.124-50.124-50.124S49.876,72.361,49.876,100c0,9.36,2.586,18.126,7.071,25.631L58.678,124.632z"/>
+<path opacity="0.75" fill="#B8DFF4" enable-background="new    " d="M55.309,126.577C50.673,118.798,48,109.713,48,100
+	c0-28.719,23.281-52,52-52c28.719,0,52,23.281,52,52c0,9.697-2.664,18.769-7.286,26.539l41.574,24.003
+	C194.996,135.71,200,118.442,200,100C200,44.771,155.229,0,100,0C44.771,0,0,44.771,0,100c0,18.458,5.014,35.739,13.734,50.58
+	L55.309,126.577z"/>
+<g>
+	<path fill="#42BCF4" d="M100,1c54.589,0,99,44.411,99,99s-44.411,99-99,99S1,154.589,1,100S45.411,1,100,1 M100,0
+		C44.771,0,0,44.771,0,100c0,55.229,44.771,100,100,100c55.229,0,100-44.771,100-100C200,44.771,155.229,0,100,0L100,0z"/>
+</g>
+</svg>

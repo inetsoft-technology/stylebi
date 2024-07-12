@@ -1,0 +1,271 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="chart-container" *ngIf="chartContainerVisible"
+     [style.z-index]="zIndex"
+     [style.top.px]="chartContainerTop"
+     [style.left.px]="chartContainerLeft"
+     [style.width.px]="chartContainerWidth"
+     [style.height.px]="chartContainerHeight">
+  <div *ngIf="model && (noData || paintNoDataChart())" class="error-chart bg-white4 txt-danger"
+       [ngStyle]="getPlotErrorStyle()">
+    <span class="error-label" *ngIf="vsChartModel.empty || paintNoDataChart()">
+      _#(data.query.columnResultEmpty)</span>
+    <span class="error-label txt-primary"
+          *ngIf="!vsChartModel.empty && !paintNoDataChart()">_#(Loading data)...
+    </span>
+  </div>
+  <div *ngIf="model && model.invalid" class="error-chart bg-white4 txt-danger"
+       [ngStyle]="getPlotErrorStyle()">
+    <span class="error-label">_#(graph.gen.failed)</span>
+  </div>
+  <div *ngIf="!(model && model.invalid) && imageError && !emptyChart && !paintNoDataChart()"
+       class="error-chart bg-white4 txt-danger" [ngStyle]="getPlotErrorStyle()">
+    <span class="error-label">_#(vs.chart.timeout)</span>
+  </div>
+  <div *ngIf="model && emptyChart && !previewMode && (!viewerMode || isBinding)"
+       class="empty-chart bg-white1 bd-gray"
+       #emptyChartTemplate
+       [style.height.px]="chartContainerHeight">
+    <div class="x-axis-placeholder bg-white2 bd-gray" [class.bd-selected]="!!xAxisHover"
+         (dragenter)="onAxisEnter(true)" (dragleave)="onAxisLeave(true)"
+         (drop)="onAxisDrop($event, true)"
+         outOfZone (onDragover)="$event.preventDefault()">
+      <span class="label txt-primary">_#(X)</span>
+    </div>
+    <div class="y-axis-placeholder bg-white2 bd-gray" [class.bd-selected]="!!yAxisHover"
+         (dragenter)="onAxisEnter(false)" (dragleave)="onAxisLeave(false)"
+         (drop)="onAxisDrop($event, false)"
+         outOfZone (onDragover)="$event.preventDefault()">
+      <span class="label txt-primary">_#(Y)</span>
+    </div>
+  </div>
+</div>
+<div *ngIf="model && !model.invalid && !emptyChart && !noData && !paintNoDataChart()"
+     #chartContainer
+     class="chart-container unhighlightable"
+     [style.cursor]="currentCursor"
+     [style.z-index]="zIndex"
+     [style.top.px]="chartContainerTop"
+     [style.left.px]="chartContainerLeft"
+     [style.width.px]="chartContainerWidth"
+     [style.height.px]="chartContainerHeight"
+     (touchstart)="touchStart($event)"
+     (touchmove)="touchMove($event)"
+     (touchend)="touchEnd($event)"
+     mouseEvent
+     (leftMouseDown)="onDown($event)"
+     outOfZone
+     (onMousemove)="onMove($event)" (onDragover)="dragOver($event)"
+     (dragleave)="dragLeave($event)" (drop)="onDrop($event)">
+  <div class="chart-area__background" [style.background]="backgroundColor"
+       [style.border-radius.px]="vsChartModel.objectFormat.roundCorner">
+    <div class="chart-border">
+      <canvas #dropRegionCanvas class="drop-region-canvas" title=""></canvas>
+      <div class="chart-content">
+        <ng-container *ngIf="model.plot">
+          <div class="horizontal-scroll-wrapper"
+             *ngIf="model.plot.bounds.width > plotRegion.width"
+             [style.height.px]="scrollbarWidth"
+             [style.width.px]="plotRegion.width"
+             [style.left.px]="plotRegion.x"
+             [scrollLeft]="scrollLeft"
+             [scrollTop]="scrollTop"
+             (scroll)="onWrapperScroll($event, true)">
+            <div [style.width.px]="model.plot.bounds.width"></div>
+          </div>
+          <div *ngIf="model.plot.bounds.height > plotRegion.height"
+               [style.width.px]="scrollbarWidth" class="vertical-scrollbar-wrapper-container">
+            <div class="vertical-scroll-wrapper vertical-scrollbar-offset"
+                 [style.width.px]="scrollbarWidth + 1"
+                 [style.height.px]="plotRegion.height"
+                 [style.top.px]="plotRegion.y"
+                 [scrollLeft]="scrollLeft"
+                 [scrollTop]="scrollTop"
+                 (scroll)="onWrapperScroll($event, false)">
+              <div [style.height.px]="model.plot.bounds.height">
+              </div>
+            </div>
+          </div>
+        </ng-container>
+        <chart-facet-area *ngFor="let facet of model.facets; trackBy: trackByFn"
+                          [model]="model"
+                        [chartSelection]="model.chartSelection"
+                        [chartObject]="facet"
+                        [maxMode]="model.maxMode"
+                        [isDataTip]="isDataTip"
+                        [genTime]="model.genTime"
+                        [urlPrefix]="urlPrefix"
+                        [container]="container">
+        </chart-facet-area>
+        <chart-axis-area *ngFor="let axis of model.axes; trackBy: trackByFn"
+                       [wTooltip]="tooltipString"
+                       [followCursor]="true"
+                       [waitTime]="0"
+                       [disableTooltipOnMousedown]="false"
+                       [chartSelection]="model.chartSelection"
+                       [model]="model"
+                       [id]="axis.areaName"
+                       [chartObject]="axis"
+                       [maxMode]="model.maxMode"
+                       [isDataTip]="isDataTip"
+                       [genTime]="model.genTime"
+                       [urlPrefix]="urlPrefix"
+                       [scrollLeft]="scrollLeft"
+                       [scrollTop]="scrollTop"
+                       [scrollbarWidth]="scrollbarWidth"
+                       [hideSortIcon]="hideSortIcon"
+                       [dateComparisonDefined]="dateComparisonDefined"
+                       [links]="links" [onTitle]="onTitle"
+                       [flyover]="model.hasFlyovers"
+                       [flyOnClick]="model.flyOnClick"
+                       [dataTip]="vsChartModel.dataTip"
+                       (selectRegion)="selectRegion($event)"
+                       (changeCursor)="changeCursor($event)"
+                       (showTooltip)="showTooltip($event)"
+                       (showHyperlink)="showHyperlink($event)"
+                       (startAxisResize)="startAxisResize($event)"
+                       (drill)="drill($event)"
+                       (sortAxis)="sortAxis(axis)"
+                       (brushChart)="onBrushChart.emit()"
+                       (scrollAxis)="onScrollAxis($event, axis)"
+                       (sendFlyover)="sendFlyover($event)"
+                       (showDataTip)="showDataTip($event)"
+                       (onLoad)="plotLoaded($event)"
+                       [supportHyperlink]="supportHyperlink"
+                       [container]="container"
+                       [resizeEnable]="!isResizeVisible || isResizeVisible('AxisResize')">
+        </chart-axis-area>
+        <chart-plot-area *ngIf="model.plot"
+                       #chartPlotArea
+                       [viewerMode]="viewerMode"
+                       [previewMode]="previewMode"
+                       [wTooltip]="tooltipString"
+                       [followCursor]="true"
+                       [selected]="selected"
+                       [waitTime]="0"
+                       [disableTooltipOnMousedown]="false"
+                       [model]="model"
+                       [chartSelection]="model.chartSelection"
+                       [id]="model.plot.areaName"
+                       [scrollLeft]="scrollLeft"
+                       [scrollTop]="scrollTop"
+                       [chartObject]="model.plot"
+                       [maxMode]="model.maxMode"
+                       [isDataTip]="isDataTip"
+                       [genTime]="model.genTime"
+                       [dataTip]="vsChartModel.dataTip"
+                       [flyover]="model.hasFlyovers"
+                       [flyOnClick]="model.flyOnClick"
+                       [urlPrefix]="urlPrefix"
+                       [scrollbarWidth]="scrollbarWidth"
+                       [plotScaleInfo]="plotScaleInfo"
+                       [selectionBoxWithTouch]="vsChartModel.multiSelect"
+                       [links]="links"
+                       [panMode]="panMode"
+                       (onPanMap)="onPanMap.emit($event)"
+                       (sendFlyover)="sendFlyover($event)"
+                       (showDataTip)="showDataTip($event)"
+                       (selectRegion)="selectRegion($event)"
+                       (showHyperlink)="showHyperlink($event)"
+                       (showTooltip)="showTooltip($event)"
+                       (brushChart)="onBrushChart.emit()"
+                       (scrollArea)="onScrollArea($event)"
+                       (onLoad)="plotLoaded($event)"
+                       (onLoading)="onLoading.emit($event)"
+                       (changeCursor)="changeCursor($event)"
+                       [container]="container">
+        </chart-plot-area>
+        <chart-title-area *ngFor="let title of model.titles; trackBy: trackByFn"
+                        [chartSelection]="model.chartSelection"
+                        [model]="model"
+                        [id]="title.areaName"
+                        [chartObject]="title"
+                        [maxMode]="model.maxMode"
+                        [isDataTip]="isDataTip"
+                        [genTime]="model.genTime"
+                        [urlPrefix]="urlPrefix"
+                        (selectRegion)="selectRegion($event)"
+                        (enterTitle)="onTitle=true" (leaveTitle)="onTitle=false"
+                        [container]="container">
+        </chart-title-area>
+        <div *ngIf="model.legendsBounds"
+           class="chart-legends-container"
+           [style.top.px]="model.legendsBounds.y"
+           [style.left.px]="model.legendsBounds.x"
+           [style.width.px]="model.legendsBounds.width"
+           [style.height.px]="model.legendsBounds.height"
+           (click)="selectLegendBackground($event)">
+        </div>
+        <chart-legend-container *ngFor="let legend of model.legends; trackBy: trackByFn"
+                              class="chart-legend-container"
+                              [chartContainer]="chartContainer"
+                              [plotRegion]="plotRegion"
+                              [legend]="legend"
+                              [legendOption]="model.legendOption"
+                              [mouseoverLegendRegion]="mouseoverLegendRegion"
+                              (onLegendMove)="endLegendMove($event, legend)"
+                              (onLegendResizeStart)="startLegendResize($event)"
+                              (detectChanges)="detectChanges()"
+                              [resizeEnable]="!isResizeVisible || isResizeVisible('LegendResize')"
+                              [moveEnable]="!isResizeVisible || isResizeVisible('LegendMove')"
+                              [attr.data-test]="legend?.field">
+          <chart-legend-area *ngFor="let legendObject of legend.legendObjects; trackBy: trackByFn"
+                           [chartSelection]="model.chartSelection"
+                           [chartObject]="legendObject"
+                           [genTime]="model.genTime"
+                           [model]="model"
+                           [maxMode]="model.maxMode"
+                           [isDataTip]="isDataTip"
+                           [objectIndex]="legend.legendIndex"
+                           [urlPrefix]="urlPrefix"
+                           [maxHeight]="getLegendContentHeight(legend, legendObject)"
+                           [wTooltip]="tooltipString"
+                           [followCursor]="true"
+                           [waitTime]="0"
+                           [disableTooltipOnMousedown]="false"
+                           (selectRegion)="selectRegion($event)"
+                           (showTooltip)="showTooltip($event)"
+                           (brushChart)="onBrushChart.emit()"
+                           (mouseoverLegendRegion)="onMouseoverLegendRegion($event)"
+                           [container]="container">
+          </chart-legend-area>
+        </chart-legend-container>
+        <div *ngIf="areaResizeInfo"
+           class="chart__area-resizer"
+           [class.resizer-vertical]="resizeVertical"
+           (window:mousemove)="onResizeMove($event)"
+           (window:mouseup)="endAreaResize($event)"
+           [style.top.px]="resizeVertical ?  0 : resizeLineTop"
+           [style.left.px]="resizeVertical ? resizeLineLeft : 0">
+        </div>
+        <ng-content></ng-content>
+      </div>
+    </div>
+  </div>
+  <chart-nav-bar *ngIf="isNavMap()" (zoomIn)="onZoomIn.emit($event)"
+     (zoomOut)="onZoomOut.emit($event)" (clear)="onClearPanZoom.emit($event)"
+     (panMode)="panMode = !panMode">
+  </chart-nav-bar>
+</div>
+<div class="position-absolute"
+     [style.top.px]="-scrollTop"
+     [style.left.px]="-scrollLeft">
+  <ng-content select="vs-annotation"></ng-content>
+</div>

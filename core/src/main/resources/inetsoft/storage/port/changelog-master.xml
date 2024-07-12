@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
+
+  <!--
+    +────────+───────────────────────+────────────────────────+
+    |        | Max TableName Length  | Max ColumnName Length  |
+    +────────+───────────────────────+────────────────────────+
+    | Mysql  | 64                    | 64                     |
+    | Oracle | 30                    | 30                     |
+    | DB2    | 128                   | 128                    |
+    | Access | 64                    | 64                     |
+    | MSSql  | 128                   | 128                    |
+    +────────+───────────────────────+────────────────────────+
+   -->
+
+  <include file="inetsoft/storage/port/changelog-12.0.xml"/>
+  <include file="inetsoft/storage/port/changelog-12.1.xml"/>
+  <include file="inetsoft/storage/port/changelog-13.1.xml"/>
+  <include file="inetsoft/storage/port/changelog-13.2.xml"/>
+
+</databaseChangeLog>

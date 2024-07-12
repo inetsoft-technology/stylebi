@@ -1,0 +1,66 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div [ngSwitch]="frameType">
+  <div *ngSwitchCase="'StaticColorModel'">
+    <div *ngIf="!isMixed" class="visual-cell hover-bg-secondary" [class.bd-gray]="!colors[0]"
+         [style.background-color]="colors[0]">
+    </div>
+  </div>
+  <div *ngSwitchCase="'SaturationColorModel'" class="svg-container">
+    <svg [attr.width]="cellWidth" [attr.height]="cellHeight">
+      <defs>
+        <linearGradient y2="1" x2="1" y1="1" x1="0" [id]="getStyleId('hsl_svg')">
+          <stop [attr.stop-color]="colors[0]" offset="0"/>
+          <stop [attr.stop-color]="colors[1]" offset="1"/>
+        </linearGradient>
+      </defs>
+      <rect y="0" x="0" [attr.width]="cellWidth" [attr.height]="cellHeight"
+        [ngStyle]="{'fill': getSvgUrl('hsl_svg')}"/>
+    </svg>
+  </div>
+  <div *ngSwitchCase="'GradientColorModel'" class="svg-container">
+    <svg [attr.width]="cellWidth" [attr.height]="cellHeight">
+      <defs>
+        <linearGradient y2="1" x2="1" y1="1" x1="0" [id]="getStyleId('gradient_svg')">
+          <stop [attr.stop-color]="colors[0]" offset="0"/>
+          <stop [attr.stop-color]="colors[1]" offset="1"/>
+        </linearGradient>
+      </defs>
+      <rect y="0" x="0" [attr.width]="cellWidth" [attr.height]="cellHeight"
+        [ngStyle]="{'fill': getSvgUrl('gradient_svg')}"/>
+    </svg>
+  </div>
+  <div *ngSwitchCase="'BrightnessColorModel'" class="svg-container">
+    <svg [attr.width]="cellWidth" [attr.height]="cellHeight">
+      <defs>
+        <linearGradient y2="1" x2="1" y1="1" x1="0" [id]="getStyleId('brightness_svg')">
+          <stop [attr.stop-color]="colors[0]" offset="0"/>
+          <stop [attr.stop-color]="colors[1]" offset="0.5"/>
+          <stop [attr.stop-color]="colors[2]" offset="1"/>
+        </linearGradient>
+      </defs>
+      <rect y="0" x="0" [attr.width]="cellWidth" [attr.height]="cellHeight"
+        [ngStyle]="{'fill': getSvgUrl('brightness_svg')}"/>
+    </svg>
+  </div>
+  <div *ngSwitchDefault>
+    <img *ngIf="imageSrc" [src]="imageSrc">
+  </div>
+</div>

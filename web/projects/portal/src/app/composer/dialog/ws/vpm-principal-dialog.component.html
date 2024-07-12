@@ -1,0 +1,64 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="modal-header">
+  <h3 class="modal-title">_#(VPM User)</h3>
+  <button type="button" class="btn-close" aria-label="Close" (click)="cancel()"></button>
+</div>
+<div class="modal-body" enterSubmit (onEnter)="ok()">
+  <form *ngIf="form" [formGroup]="form" class="form-horizontal">
+    <div class="form-group">
+      <div class="form-check">
+        <input class="form-check-input" id="vpmEnabled" type="checkbox" formControlName="vpmEnabled">
+        <label class="form-check-label" for="vpmEnabled">_#(config.dialog.enableVPMThis)</label>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="col">
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" id="userInput" type="radio" formControlName="sessionType" value="user">
+          <label class="form-check-label" for="userInput">_#(User)</label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-check form-check-inline">
+          <input class="form-check-input" id="roleInput" type="radio" formControlName="sessionType" value="role">
+          <label class="form-check-label" for="roleInput">_#(Role)</label>
+        </div>
+      </div>
+    </div>
+    <div class="form-group">
+      <select class="form-control" id="sessionId" formControlName="sessionId">
+        <option *ngFor="let _id of sessionIds" [ngValue]="_id">{{_id}}</option>
+      </select>
+    </div>
+  </form>
+  <div *ngIf="model != null && !model.vpmSelectable">
+    _#(config.dialog.checkVPM)
+  </div>
+</div>
+
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="model == null" #okButton>
+    _#(OK)
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">
+    _#(Cancel)
+  </button>
+</div>

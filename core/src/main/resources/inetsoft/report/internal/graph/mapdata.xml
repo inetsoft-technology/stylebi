@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<mapdata>
+
+<nametable name="Countries" file="/inetsoft/graph/geo/data/countries.names.csv"
+ labels="0"/>
+<nametable name="States" file="/inetsoft/graph/geo/data/states.names.csv"
+ labels="0,4"/>
+<nametable name="Cities" file="/inetsoft/graph/geo/data/cities.names.csv"
+ labels="0,1,2" capital="4"/>
+
+<!-- layer id for point layer must have >= 1000 -->
+<layer name="Country" id="1" nametable="Countries" />
+<layer name="State" id="2" nametable="States" />
+<layer name="Province" id="2" nametable="States" />
+<layer name="City" id="1001" nametable="Cities" />
+<layer name="Zip" id="1002" />
+
+<matching layers="1" columns="0,1,2,3,4"/>
+<matching layers="2" columns="0,1,2,3"/>
+<matching layers="1001" columns="0"/>
+<matching layers="1002" columns="0"/>
+<matching layers="1,2" columns="4,5,6,7,8"/>
+<matching layers="2,1001" columns="1,5"/>
+<matching layers="1,1001" columns="2,3,6"/>
+
+<map type="World">
+  <shapedata data="WORLD" layer="Country">
+    <sampledata>United States</sampledata>
+    <sampledata>Canada</sampledata>
+  </shapedata>
+  <pointdata data="WORLD" layer="City">
+    <sampledata>Washington</sampledata>
+    <sampledata>Ottawa</sampledata>
+    <sampledata>New York City</sampledata>
+    <sampledata>Toronto</sampledata>
+    <sampledata>Los Angeles</sampledata>
+    <sampledata>Quebec</sampledata>
+  </pointdata>
+</map>
+
+<map type="U.S.">
+  <shapedata data="US" layer="State">
+    <sampledata>California</sampledata>
+    <sampledata>New York</sampledata>
+  </shapedata>
+  <pointdata data="US" layer="City">
+    <sampledata>Los Angeles</sampledata>
+    <sampledata>New York City</sampledata>
+    <sampledata>San Francisco</sampledata>
+    <sampledata>Syracuse</sampledata>
+    <sampledata>Sacramento</sampledata>
+    <sampledata>Rochester</sampledata>
+  </pointdata>
+  <pointdata data="ZIP" layer="Zip">
+    <sampledata>10004</sampledata>
+    <sampledata>94027</sampledata>
+    <sampledata>98039</sampledata>
+    <sampledata>33480</sampledata>
+    <sampledata>06830</sampledata>
+    <sampledata>19035</sampledata>
+  </pointdata>
+</map>
+
+<map type="Canada">
+  <shapedata data="CANADA" layer="Province">
+    <sampledata>Ontario</sampledata>
+    <sampledata>British Columbia</sampledata>
+  </shapedata>
+  <pointdata data="CANADA" layer="City">
+    <sampledata>Ottawa</sampledata>
+    <sampledata>Victoria</sampledata>
+    <sampledata>Toronto</sampledata>
+    <sampledata>Quebec</sampledata>
+    <sampledata>Edmonton</sampledata>
+    <sampledata>Whitehorse</sampledata>
+  </pointdata>
+</map>
+
+<map type="Mexico">
+  <shapedata data="MEXICO" layer="Province">
+    <sampledata>Mexico State</sampledata>
+    <sampledata>Jalisco</sampledata>
+  </shapedata>
+  <pointdata data="MEXICO" layer="City">
+    <sampledata>Mexico City</sampledata>
+    <sampledata>Guadalajara</sampledata>
+    <sampledata>Oaxaca</sampledata>
+    <sampledata>Puebla</sampledata>
+    <sampledata>Cuernavaca</sampledata>
+    <sampledata>Chilpancingo</sampledata>
+  </pointdata>
+</map>
+
+<map type="Asia">
+  <shapedata data="ASIA" layer="Country">
+    <sampledata>China</sampledata>
+    <sampledata>Japan</sampledata>
+  </shapedata>
+  <pointdata data="ASIA" layer="City">
+    <sampledata>Beijing</sampledata>
+    <sampledata>Tokyo</sampledata>
+    <sampledata>Shanghai</sampledata>
+    <sampledata>Osaka</sampledata>
+    <sampledata>Nanjing</sampledata>
+    <sampledata>Sapporo</sampledata>
+  </pointdata>
+</map>
+
+<map type="Europe">
+  <shapedata data="EUROPE" layer="Country">
+    <sampledata>Germany</sampledata>
+    <sampledata>France</sampledata>
+  </shapedata>
+  <pointdata data="EUROPE" layer="City">
+    <sampledata>Berlin</sampledata>
+    <sampledata>Paris</sampledata>
+    <sampledata>Hamburg</sampledata>
+    <sampledata>Lyon</sampledata>
+    <sampledata>Muenchen</sampledata>
+    <sampledata>Marseille</sampledata>
+  </pointdata>
+</map>
+
+</mapdata>

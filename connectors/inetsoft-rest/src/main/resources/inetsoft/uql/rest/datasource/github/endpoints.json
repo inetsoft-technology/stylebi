@@ -1,0 +1,1221 @@
+{
+  "endpoints": [
+    {
+      "paged": "true",
+      "name": "Public Events",
+      "suffix": "/events"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Events",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/events"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Issue Events",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/events",
+      "lookups": [
+        {
+          "endpoint": "Issue Event",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Event ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Public Events for Repository Network",
+      "suffix": "/networks/{Repository Owner}/{Repository Name}/events"
+    },
+    {
+      "paged": "true",
+      "name": "Public Events for Organization",
+      "suffix": "/orgs/{Organization Name}/events"
+    },
+    {
+      "paged": "true",
+      "name": "Events Received by User",
+      "suffix": "/users/{User Name}/received_events"
+    },
+    {
+      "paged": "true",
+      "name": "Public Events Received by User",
+      "suffix": "/users/{User Name}/received_events/public"
+    },
+    {
+      "paged": "true",
+      "name": "Events Performed by User",
+      "suffix": "/users/{User Name}/events"
+    },
+    {
+      "paged": "true",
+      "name": "Public Events Performed by User",
+      "suffix": "/users/{User Name}/events/public"
+    },
+    {
+      "paged": "true",
+      "name": "Events for Organization by User",
+      "suffix": "/users/{User Name}/events/orgs/{Organization Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Feeds",
+      "suffix": "/feeds"
+    },
+    {
+      "paged": "true",
+      "name": "Notifications",
+      "suffix": "/notifications?all={Include Read?:true|false}&participating={Only Participating?:true|false}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}&before={Before?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "paged": "true",
+      "name": "Notifications in Repository",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/notifications?all={Include Read?:true|false}&participating={Only Participating?:true|false}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}&before={Before?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "paged": "false",
+      "name": "Notification Thread",
+      "suffix": "/notifications/threads/{Thread ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Thread Subscription",
+      "suffix": "/notifications/threads/{Thread ID}/subscription"
+    },
+    {
+      "paged": "true",
+      "name": "Stargazers",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stargazers"
+    },
+    {
+      "paged": "true",
+      "name": "Starred Repositories",
+      "suffix": "/users/{User Name}/starred"
+    },
+    {
+      "paged": "false",
+      "name": "Starred Repository",
+      "suffix": "/user/starred/{Repository Owner}/{Repository Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Watchers",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/subscribers"
+    },
+    {
+      "paged": "true",
+      "name": "Watched Repositories",
+      "suffix": "/users/{User Name}/subscriptions"
+    },
+    {
+      "paged": "false",
+      "name": "Repository Subscription",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/subscription"
+    },
+    {
+      "paged": "true",
+      "name": "Gists",
+      "suffix": "/users/{User Name}/gists?since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Gist Revision",
+            "Gist Commits",
+            "Gist Forks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Gist ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Public Gists",
+      "suffix": "/gists/public?since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Gist Revision",
+            "Gist Commits",
+            "Gist Forks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Gist ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Starred Gists",
+      "suffix": "/gists/starred?since={Since?:yyyy-MM-ddTHH:mm:ssZ}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Gist Revision",
+            "Gist Commits",
+            "Gist Forks"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Gist ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Gist",
+      "suffix": "/gists/{Gist ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Gist Revision",
+      "suffix": "/gists/{Gist ID}/{Revision Hash}"
+    },
+    {
+      "paged": "true",
+      "name": "Gist Commits",
+      "suffix": "/gists/{Gist ID}/commits"
+    },
+    {
+      "paged": "true",
+      "name": "Gist Forks",
+      "suffix": "/gists/{Gist ID}/forks"
+    },
+    {
+      "paged": "true",
+      "name": "Workflow Run Artifacts",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/runs/{Run ID}/artifacts"
+    },
+    {
+      "paged": "false",
+      "name": "Workflow Run Artifact",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/artifacts/{Artifact ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Repository Public Key",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/secrets/public-key"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Secrets",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/secrets"
+    },
+    {
+      "paged": "false",
+      "name": "Repository Secret",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/secret/{Secret Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Self-hosted Runner Downloads",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runners/downloads"
+    },
+    {
+      "paged": "true",
+      "name": "Self-hosted Runners",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runners"
+    },
+    {
+      "paged": "false",
+      "name": "Self-hosted Runner",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runners/{Runner ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Workflows",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/workflows",
+      "lookups": [
+        {
+          "endpoint": "Workflow Runs",
+          "jsonPath": "$.workflows[*]",
+          "key": "id",
+          "parameterName": "Workflow ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Workflow",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/workflows/{Workflow ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Workflow Run Jobs",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}/jobs"
+    },
+    {
+      "paged": "false",
+      "name": "Workflow Job",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/jobs/{Job ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Workflow Job Logs",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/jobs/{Job ID}/logs"
+    },
+    {
+      "paged": "true",
+      "name": "Workflow Runs",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/workflows/{Workflow ID}/runs?actor={Actor?}&branch={Branch?}&event={Event?:push|pull_request|issue|...}&status={Status?:success|completed|...}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Workflow Run Artifacts",
+            "Workflow Run Jobs"
+          ],
+          "jsonPath": "$.workflow_runs[*]",
+          "key": "id",
+          "parameterName": "Run ID"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Repository Workflow Runs",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs?actor={Actor?}&branch={Branch?}&event={Event?:push|pull_request|issue|...}&status={Status?:success|completed|...}"
+    },
+    {
+      "paged": "false",
+      "name": "Workflow Run",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Workflow Run Logs",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/actions/runs/{Run ID}/logs"
+    },
+    {
+      "paged": "true",
+      "name": "Issues",
+      "suffix": "/issues?filter={Filter?:assigned|created|mentioned|subscribed|all}&state={State?:open|closed|all}&labels={Labels?:bug,ui.@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "paged": "true",
+      "name": "Owned and Member Repository Issues",
+      "suffix": "/user/issues?filter={Filter?:assigned|created|mentioned|subscribed|all}&state={State?:open|closed|all}&labels={Labels?:bug,ui.@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Issues",
+      "suffix": "/orgs/{Organization Name}/issues?filter={Filter?:assigned|created|mentioned|subscribed|all}&state={State?:open|closed|all}&labels={Labels?:bug,ui.@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Issues",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues?milestone={Milestone?}&state={State?:open|closed|all}&assignee={Assignee?:User name}&creator={Creator?:User name}&mentioned={Mentioned?:User name}&labels={Labels?:bug,ui,@high,...}&since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "paged": "false",
+      "name": "Issue",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/{Issue Number}"
+    },
+    {
+      "paged": "true",
+      "name": "Issue Assignees",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/assignees"
+    },
+    {
+      "paged": "true",
+      "name": "Issue Comments",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/{Issue Number}/comments?since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Issue Comments",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/comments?since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "paged": "false",
+      "name": "Issue Comment",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/comments/{Comment ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Issue Events",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/{Issue Number}/events",
+      "lookups": [
+        {
+          "endpoint": "Issue Event",
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Event ID"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Issue Event",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/events/{Event ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Labels",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/labels"
+    },
+    {
+      "paged": "false",
+      "name": "Repository Label",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/labels/{Label Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Issue Labels",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/issues/{Issue Number}/labels"
+    },
+    {
+      "paged": "true",
+      "name": "Milestone Issue Labels",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/milestones/{Milestone Number}/labels"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Migrations",
+      "suffix": "/orgs/{Organization Name}/migrations"
+    },
+    {
+      "paged": "false",
+      "name": "Organization Migration Status",
+      "suffix": "/orgs/{Organization Name}/migrations/{Migration ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Migration Repositories",
+      "suffix": "/orgs/{Organization Name}/migrations/{Migration ID}/repositories"
+    },
+    {
+      "paged": "false",
+      "name": "Source Import Progress",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/import"
+    },
+    {
+      "paged": "true",
+      "name": "Source Import Authors",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/import/authors?since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "paged": "true",
+      "name": "Source Import Large Files",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/import/large_files"
+    },
+    {
+      "paged": "true",
+      "name": "User Migrations",
+      "suffix": "/user/migrations"
+    },
+    {
+      "paged": "false",
+      "name": "User Migration",
+      "suffix": "/user/migrations/{Migration ID}"
+    },
+    {
+      "paged": "true",
+      "name": "User Migration Repositories",
+      "suffix": "/user/migrations/{Migration ID}/repositories"
+    },
+    {
+      "paged": "true",
+      "name": "Gitignore Templates",
+      "suffix": "/gitignore/templates"
+    },
+    {
+      "paged": "false",
+      "name": "Gitignore Template",
+      "suffix": "/gitignore/templates/{Template Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Licenses",
+      "suffix": "/licenses"
+    },
+    {
+      "paged": "false",
+      "name": "License",
+      "suffix": "/licenses/{License Key}"
+    },
+    {
+      "paged": "false",
+      "name": "Repository License",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/license"
+    },
+    {
+      "paged": "true",
+      "name": "User Organizations",
+      "suffix": "/users/{User Name}/orgs"
+    },
+    {
+      "paged": "true",
+      "name": "Organizations",
+      "suffix": "/organizations",
+      "lookups": [
+        {
+          "endpoints": [
+            "Organization",
+            "Organization App Installations",
+            "Organization Credential Authorizations",
+            "Organization Blocked Users",
+            "Organization Members",
+            "Public Organization Members",
+            "Organization Invitations",
+            "User Organization Membership",
+            "Organization Outside Collaborators",
+            "Organization Webhooks",
+            "Organization Migrations",
+            "Organization Issues",
+            "Public Events for Organization",
+            "Teams",
+            "Organization IdP Groups"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "login",
+          "parameterName": "Organization Name"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Organization App Installations",
+      "suffix": "/orgs/{Organization Name}/installations"
+    },
+    {
+      "paged": "false",
+      "name": "Organization",
+      "suffix": "/orgs/{Organization Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Credential Authorizations",
+      "suffix": "/orgs/{Organization Name}/credential-authorizations"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Blocked Users",
+      "suffix": "/orgs/{Organization Name}/blocks",
+      "lookups": [
+        {
+          "endpoints": [
+            "Events Received by User",
+            "Public Events Received by User",
+            "Events Performed by User",
+            "Public Events Performed by User",
+            "Starred Repositories",
+            "Watched Repositories",
+            "Gists",
+            "User Organizations",
+            "User Repositories",
+            "User Contextual Info",
+            "Followers",
+            "Following",
+            "User Public Keys",
+            "User GPG Keys"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "login",
+          "parameterName": "User Name"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Organization Members",
+      "suffix": "/orgs/{Organization Name}/members?filter={Filter?:2fa_disabled|all}&role={Role?:all|admin|member}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Events Received by User",
+            "Public Events Received by User",
+            "Events Performed by User",
+            "Public Events Performed by User",
+            "Starred Repositories",
+            "Watched Repositories",
+            "Gists",
+            "User Organizations",
+            "User Repositories",
+            "User Contextual Info",
+            "Followers",
+            "Following",
+            "User Public Keys",
+            "User GPG Keys"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "login",
+          "parameterName": "User Name"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Public Organization Members",
+      "suffix": "/orgs/{Organization Name}/public_members",
+      "lookups": [
+        {
+          "endpoints": [
+            "Events Received by User",
+            "Public Events Received by User",
+            "Events Performed by User",
+            "Public Events Performed by User",
+            "Starred Repositories",
+            "Watched Repositories",
+            "Gists",
+            "User Organizations",
+            "User Repositories",
+            "User Contextual Info",
+            "Followers",
+            "Following",
+            "User Public Keys",
+            "User GPG Keys"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "login",
+          "parameterName": "User Name"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Organization Member",
+      "suffix": "/orgs/{Organization Name}/memberships/{User Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Invitation Teams",
+      "suffix": "/orgs/{Organization Name}/invitations/{Invitation ID}/teams"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Invitations",
+      "suffix": "/orgs/{Organization Name}/invitations"
+    },
+    {
+      "paged": "true",
+      "name": "User Organization Memberships",
+      "suffix": "/user/memberships/orgs?state={State?:active|pending}"
+    },
+    {
+      "paged": "false",
+      "name": "User Organization Membership",
+      "suffix": "/user/memberships/orgs/{Organization Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Outside Collaborators",
+      "suffix": "/orgs/{Organization Name}/outside_collaborators?filter={Filter?:2fa_disabled|all}"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Webhooks",
+      "suffix": "/orgs/{Organization Name}/hooks"
+    },
+    {
+      "paged": "false",
+      "name": "Organization Webhook",
+      "suffix": "/orgs/{Organization Name}/hooks/{Hook ID}"
+    },
+    {
+      "paged": "true",
+      "name": "User Repositories",
+      "suffix": "/users/{User Name}/repos?type={Type?:all|owner|member}"
+    },
+    {
+      "paged": "true",
+      "name": "Organization Repositories",
+      "suffix": "/orgs/{Organization Name}/repos?type={Type?:all|public|private|forks|sources|member|internal}"
+    },
+    {
+      "paged": "true",
+      "name": "Public Repositories",
+      "suffix": "/repositories?since={Since?:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "paged": "false",
+      "name": "Repository",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Contributors",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/contributors?anon={Include Anonymous?:true|false}"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Languages",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/languages"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Teams",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/teams"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Tags",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/tags"
+    },
+    {
+      "paged": "true",
+      "name": "Branches",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches?protected={Protected Only?:true|false}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Branch",
+            "Branch Protection",
+            "Branch Required Status Checks",
+            "Branch Status Check Contexts",
+            "Branch Required Pull Request Reviews",
+            "Branch Required Signatures",
+            "Branch Admin Enforcement",
+            "Branch Restrictions",
+            "Protected Branch Teams",
+            "Protected Branch Users",
+            "Protected Branch Apps"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "name",
+          "parameterName": "Branch Name"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Branch",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}"
+    },
+    {
+      "paged": "false",
+      "name": "Branch Protection",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection"
+    },
+    {
+      "paged": "false",
+      "name": "Branch Required Status Checks",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_status_checks"
+    },
+    {
+      "paged": "true",
+      "name": "Branch Status Check Contexts",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_status_checks/contexts"
+    },
+    {
+      "paged": "true",
+      "name": "Branch Required Pull Request Reviews",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_pull_request_reviews"
+    },
+    {
+      "paged": "true",
+      "name": "Branch Required Signatures",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/required_signatures"
+    },
+    {
+      "paged": "false",
+      "name": "Branch Admin Enforcement",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/enforce_admins"
+    },
+    {
+      "paged": "true",
+      "name": "Branch Restrictions",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/restrictions"
+    },
+    {
+      "paged": "true",
+      "name": "Protected Branch Teams",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/restrictions/teams"
+    },
+    {
+      "paged": "true",
+      "name": "Protected Branch Users",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/restrictions/users",
+      "lookups": [
+        {
+          "endpoints": [
+            "Events Received by User",
+            "Public Events Received by User",
+            "Events Performed by User",
+            "Public Events Performed by User",
+            "Starred Repositories",
+            "Watched Repositories",
+            "Gists",
+            "User Organizations",
+            "User Repositories",
+            "User Contextual Info",
+            "Followers",
+            "Following",
+            "User Public Keys",
+            "User GPG Keys"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "login",
+          "parameterName": "User Name"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Protected Branch Apps",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/branches/{Branch Name}/protection/restrictions/apps"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Collaborators",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/collaborators?affiliation={Affiliation?:outside|direct|all}"
+    },
+    {
+      "paged": "false",
+      "name": "Repository Collaborator Permission",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/collaborators/{User Name}/permission"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Comments",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/comments"
+    },
+    {
+      "paged": "true",
+      "name": "Commit Comments",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Commit Hash}/comments"
+    },
+    {
+      "paged": "false",
+      "name": "Commit Comment",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/comments/{Comment ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Commits",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits?sha={Hash or Branch?}&path={File Path?}&author={User Name or Email?}&since={Since?:yyyy-MM-ddTHH:mm:ssZ'}&until={Until?:yyyy-MM-ddTHH:mm:ssZ}",
+      "lookups": [
+        {
+          "endpoint": "Commit Comments",
+          "jsonPath": "$.[*]",
+          "key": "sha",
+          "parameterName": "Commit Hash"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Repository Commit",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Reference:branch|tag|hash}"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Deploy Keys",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/keys"
+    },
+    {
+      "paged": "false",
+      "name": "Repository Deploy Key",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/keys/{Key ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Deployments",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments?sha={Hash?}&ref={Reference?:branch|tag|hash}&task={Task?:deploy|deploy:migrations|none|...}&environment={Environment?:staging|production|none|...}"
+    },
+    {
+      "paged": "false",
+      "name": "Deployment",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments/{Deployment ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Deployment Statuses",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments/{Deployment ID}/statuses"
+    },
+    {
+      "paged": "false",
+      "name": "Deployment Status",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/deployments/{Deployment ID}/statuses/{Status ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Forks",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/forks"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Invitations",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/invitations"
+    },
+    {
+      "paged": "true",
+      "name": "User Invitations",
+      "suffix": "/user/repository_invitations"
+    },
+    {
+      "paged": "true",
+      "name": "Pages",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages"
+    },
+    {
+      "paged": "true",
+      "name": "Pages Builds",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages/builds"
+    },
+    {
+      "paged": "false",
+      "name": "Latest Pages Build",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages/builds/latest"
+    },
+    {
+      "paged": "false",
+      "name": "Pages Build",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/pages/builds/{Build ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Releases",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases"
+    },
+    {
+      "paged": "false",
+      "name": "Release",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/{Release ID}"
+    },
+    {
+      "paged": "false",
+      "name": "Latest Release",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/latest"
+    },
+    {
+      "paged": "false",
+      "name": "Release by Tag Name",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/tags/{Tag Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Release Assets",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/{Release ID}/assets"
+    },
+    {
+      "paged": "false",
+      "name": "Release Asset",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/releases/{Release ID}/assets/{Asset ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Contributor Statistics",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/contributors"
+    },
+    {
+      "paged": "false",
+      "name": "Commit Activity Statistics",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/commit_activity"
+    },
+    {
+      "paged": "true",
+      "name": "Code Frequency Statistics",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/code_frequency"
+    },
+    {
+      "paged": "true",
+      "name": "Participation Statistics",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/participation"
+    },
+    {
+      "paged": "true",
+      "name": "Punch Card Statistics",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/stats/punch_card"
+    },
+    {
+      "paged": "true",
+      "name": "Reference Statuses",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Reference:branch|tag|hash}/statuses"
+    },
+    {
+      "paged": "true",
+      "name": "Reference Combined Status",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/commits/{Reference:branch|tag|hash}/status"
+    },
+    {
+      "paged": "true",
+      "name": "Referrers",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/popular/referrers"
+    },
+    {
+      "paged": "true",
+      "name": "Popular Paths",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/popular/paths"
+    },
+    {
+      "paged": "true",
+      "name": "View Counts",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/views?per={Breakdown By?:day|week}"
+    },
+    {
+      "paged": "true",
+      "name": "Clone Counts",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/traffic/clones?per={Breakdown By?:day|week}"
+    },
+    {
+      "paged": "true",
+      "name": "Repository Webhooks",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/hooks"
+    },
+    {
+      "paged": "false",
+      "name": "Repository Webhook",
+      "suffix": "/repos/{Repository Owner}/{Repository Name}/hooks/{Hook ID}"
+    },
+    {
+      "paged": "true",
+      "name": "Search Repositories",
+      "suffix": "/search/repositories?q={Query String}"
+    },
+    {
+      "paged": "true",
+      "name": "Search Commits",
+      "suffix": "/search/commits?q={Query String}"
+    },
+    {
+      "paged": "true",
+      "name": "Search Code",
+      "suffix": "/search/code?q={Query String}"
+    },
+    {
+      "paged": "true",
+      "name": "Search Issues",
+      "suffix": "/search/issues?q={Query String}"
+    },
+    {
+      "paged": "true",
+      "name": "Search Users",
+      "suffix": "/search/users?q={Query String}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Events Received by User",
+            "Public Events Received by User",
+            "Events Performed by User",
+            "Public Events Performed by User",
+            "Starred Repositories",
+            "Watched Repositories",
+            "Gists",
+            "User Organizations",
+            "User Repositories",
+            "User Contextual Info",
+            "Followers",
+            "Following",
+            "User Public Keys",
+            "User GPG Keys"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "login",
+          "parameterName": "User Name"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Search Labels",
+      "suffix": "/search/labels?repository_id={Repository ID}&q={Query String}"
+    },
+    {
+      "paged": "true",
+      "name": "Teams",
+      "suffix": "/orgs/{Organization Name}/teams",
+      "lookups": [
+        {
+          "endpoints": [
+            "Child Teams",
+            "Team Repositories",
+            "Team Discussions",
+            "Team Members",
+            "Pending Team Invitations",
+            "Team IdP Groups"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "slug",
+          "parameterName": "Team Slug"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Team",
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}"
+    },
+    {
+      "paged": "true",
+      "name": "Child Teams",
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/teams"
+    },
+    {
+      "paged": "true",
+      "name": "Team Repositories",
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/repos"
+    },
+    {
+      "paged": "true",
+      "name": "User Teams",
+      "suffix": "/user/teams"
+    },
+    {
+      "paged": "true",
+      "name": "Team Discussions",
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions"
+    },
+    {
+      "paged": "false",
+      "name": "Team Discussion",
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions/{Discussion Number}"
+    },
+    {
+      "paged": "true",
+      "name": "Team Discussion Comments",
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions/{Discussion Number}/comments"
+    },
+    {
+      "paged": "false",
+      "name": "Team Discussion Comment",
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/discussions/{Discussion Number}/comments/{Comment Number}"
+    },
+    {
+      "paged": "true",
+      "name": "Team Members",
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/members?role={Role?:member|maintainer|all}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Events Received by User",
+            "Public Events Received by User",
+            "Events Performed by User",
+            "Public Events Performed by User",
+            "Starred Repositories",
+            "Watched Repositories",
+            "Gists",
+            "User Organizations",
+            "User Repositories",
+            "User Contextual Info",
+            "Followers",
+            "Following",
+            "User Public Keys",
+            "User GPG Keys"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "login",
+          "parameterName": "User Name"
+        }
+      ]
+    },
+    {
+      "paged": "false",
+      "name": "Team Membership",
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/memberships/{User Name}"
+    },
+    {
+      "paged": "true",
+      "name": "Pending Team Invitations",
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/invitations"
+    },
+    {
+      "paged": "true",
+      "name": "Organization IdP Groups",
+      "suffix": "/orgs/{Organization Name}/team-sync/groups"
+    },
+    {
+      "paged": "true",
+      "name": "Team IdP Groups",
+      "suffix": "/orgs/{Organization Name}/teams/{Team Slug:team-name}/team-sync/group-mappings"
+    },
+    {
+      "paged": "false",
+      "name": "User",
+      "suffix": "/users/{User Name}"
+    },
+    {
+      "paged": "false",
+      "name": "User Contextual Info",
+      "suffix": "/users/{User Name}/hovercard?subject_type={Subject Type?:organization|repository|issue|pull_request}&subject_id={Subject ID?}"
+    },
+    {
+      "paged": "true",
+      "name": "Users",
+      "suffix": "/users",
+      "lookups": [
+        {
+          "endpoints": [
+            "Events Received by User",
+            "Public Events Received by User",
+            "Events Performed by User",
+            "Public Events Performed by User",
+            "Starred Repositories",
+            "Watched Repositories",
+            "Gists",
+            "User Organizations",
+            "User Repositories",
+            "User Contextual Info",
+            "Followers",
+            "Following",
+            "User Public Keys",
+            "User GPG Keys"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "login",
+          "parameterName": "User Name"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Blocked Users",
+      "suffix": "/user/blocks",
+      "lookups": [
+        {
+          "endpoints": [
+            "Events Received by User",
+            "Public Events Received by User",
+            "Events Performed by User",
+            "Public Events Performed by User",
+            "Starred Repositories",
+            "Watched Repositories",
+            "Gists",
+            "User Organizations",
+            "User Repositories",
+            "User Contextual Info",
+            "Followers",
+            "Following",
+            "User Public Keys",
+            "User GPG Keys"
+          ],
+          "jsonPath": "$.[*]",
+          "key": "login",
+          "parameterName": "User Name"
+        }
+      ]
+    },
+    {
+      "paged": "true",
+      "name": "Email Addresses",
+      "suffix": "/user/emails"
+    },
+    {
+      "paged": "true",
+      "name": "Public Email Addresses",
+      "suffix": "/user/public_emails"
+    },
+    {
+      "paged": "true",
+      "name": "Followers",
+      "suffix": "/users/{User Name}/followers"
+    },
+    {
+      "paged": "true",
+      "name": "Following",
+      "suffix": "/users/{User Name}/following"
+    },
+    {
+      "paged": "true",
+      "name": "User Public Keys",
+      "suffix": "/users/{User Name}/keys"
+    },
+    {
+      "paged": "true",
+      "name": "User GPG Keys",
+      "suffix": "/users/{User Name}/gpg_keys"
+    }
+  ]
+}

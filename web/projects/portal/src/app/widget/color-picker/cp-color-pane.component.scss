@@ -1,0 +1,106 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.color-picker-palette {
+  padding: 0.5rem !important;
+  margin: 2px;
+  box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.transparent-swatch {
+  background-image: linear-gradient(45deg, #c0c0c0 25%, transparent 25%), linear-gradient(-45deg, #c0c0c0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #c0c0c0 75%), linear-gradient(-45deg, transparent 75%, #c0c0c0 75%) !important;
+  background-size: 10px 10px !important;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0px !important;
+}
+
+.color-picker-palette .color-picker-swatch {
+  width: 19px;
+  height: 19px;
+  margin: 0px;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+}
+
+.color-picker-toolbar {
+  display: flex;
+  align-items: center;
+}
+
+.color-picker-toolbar > * {
+  margin-left: 2px;
+  margin-right: 2px;
+}
+
+.color-picker-toolbar input {
+  width: 90px;
+  flex-grow: 10;
+}
+
+.color-picker-palette > button > span {
+  -webkit-filter: none;
+}
+
+.current-color-swatch {
+  display: inline-block;
+  float: left;
+  box-shadow: none;
+}
+
+.color-picker-palette form {
+  width: 100%;
+}
+
+.color-picker-palette form > .form-group:first-of-type {
+  width: 100%;
+  margin-left: 5px;
+  padding-right: 20px;
+}
+
+.color-picker-palette .input-group {
+  width: 100%;
+}
+
+.color-picker-palette .input-group .form-control {
+  width: auto;
+}
+
+.color-picker-palette .color-picker-palette-row {
+  text-align: center;
+  margin-bottom: 0;
+}
+
+.color-picker-palette-row > table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  padding: 0;
+  margin: 0 auto;
+}
+
+.color-picker-palette-row > table tr {
+  margin: 0;
+  padding: 0;
+}
+
+.color-picker-palette-row > table tr td {
+  margin: 0;
+  padding: 2px;
+}
+
+.color-picker-selected {
+  box-shadow: none;
+}

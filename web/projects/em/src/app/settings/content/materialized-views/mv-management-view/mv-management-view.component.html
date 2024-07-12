@@ -1,0 +1,102 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-editor-panel contentClass="editor-panel-content-column"
+                 [applyDisabled]="true" [resetDisabled]="true"
+                 [applyVisible]="false" [resetVisible]="false">
+  <section class="flex-row filter-container">
+    <mat-form-field class="margin-right flex" color="accent">
+      <mat-label>_#(Status)</mat-label>
+      <mat-select [(value)]="selectedStatus" (selectionChange)="filterList()">
+        <mat-option *ngFor="let status of showStatus" [value]="status">{{ status }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field class="margin-right flex" color="accent">
+      <mat-label>_#(Cycle)</mat-label>
+      <mat-select [(value)]="selectedCycle" (selectionChange)="filterList()">
+        <div class="cycle-name-sort-icon" (click)="updateCycleSort()" >
+          <i class="action-color icon-size-small"
+             [class.sort-descending-icon]="cycleNameSort === SortTypes.DESCENDING"
+             [class.sort-ascending-icon]="cycleNameSort === SortTypes.ASCENDING"></i>
+        </div>
+        <mat-option *ngFor="let cycle of showCycle" [value]="cycle">{{ cycle }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field class="margin-right flex" color="accent">
+      <mat-label>_#(Users)</mat-label>
+      <mat-select [(value)]="selectedUser" (selectionChange)="filterList()">
+        <mat-option *ngFor="let user of showUser" [value]="user" [title]="user">{{ user }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field class="flex" color="accent">
+      <mat-label>_#(Select Columns)</mat-label>
+      <mat-select [value]="selectedHeaders" (selectionChange)="filterHeaders($event.source.value)" multiple>
+        <mat-option *ngFor="let col of headers" [value]="col">{{ col }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </section>
+
+  <div class="table-container">
+    <em-table-view [dataSource]="dataSource"
+                   [expandableRow]="true"
+                   [fillContainer]="true"
+                   [trackByProp]="'table'"
+                   [tableInfo]="tableInfo"
+                   [sortingDataAccessor]="sortingDataAccessor"
+                   (selectionChanged)="selectionChanged($event)"
+                   (deviceTypeChanged)="deviceTypeChanged($event)">
+    </em-table-view>
+  </div>
+
+  <ng-container em-editor-panel-actions>
+    <div class="flex-row normal-align">
+      <div class="flex-col">
+        <mat-checkbox class="mat-checkbox-field" [(ngModel)]="showDateAsAges" (change)="setShowDate()">_#(Show Dates as Ages)</mat-checkbox>
+        <mat-checkbox class="mat-checkbox-field" [disabled]="selection.selected.length == 0" [(ngModel)]="runInBackground">_#(em.mv.background)</mat-checkbox>
+      </div>
+
+      <div class="flex-col padding-left flex-grow-1">
+        <mat-form-field *ngIf="selection.selected.length" appearance="outline" color="accent">
+          <mat-label>_#(Set Cycle)</mat-label>
+          <mat-select [(value)]="selectedSetCycle" (selectionChange)="setDataCycle($event.value)">
+            <div class="cycle-name-sort-icon" (click)="updateSetCycleSort()" >
+              <i class="action-color icon-size-small"
+                 [class.sort-descending-icon]="setCycleNameSort === SortTypes.DESCENDING"
+                 [class.sort-ascending-icon]="setCycleNameSort === SortTypes.ASCENDING"></i>
+            </div>
+            <mat-option value="">_#(None)</mat-option>
+            <mat-option *ngFor="let cyc of setCycle" [value]="cyc.name">{{ cyc.label }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+      </div>
+    </div>
+    <button mat-stroked-button
+            [disabled]="!selection.selected.length"
+            (click)="deleteSelected()">_#(Delete)
+    </button>
+    <button mat-stroked-button
+            [disabled]="!selection.selected.length"
+            (click)="validate()">_#(Validate)
+    </button>
+    <button mat-raised-button color="primary" [disabled]="selection.selected.length == 0" (click)="apply()">
+      _#(Update)
+    </button>
+  </ng-container>
+</em-editor-panel>
+<em-loading-spinner [loading]="loading"></em-loading-spinner>

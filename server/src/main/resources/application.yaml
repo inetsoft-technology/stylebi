@@ -1,0 +1,94 @@
+#
+# inetsoft-server - StyleBI is a business intelligence web application.
+# Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+
+spring:
+  liquibase:
+    enabled: false
+  main:
+    banner-mode: off
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
+  groovy:
+    template:
+      check-template-location: false
+  thymeleaf:
+    check-template-location: false
+management:
+  metrics:
+    mongo:
+      command:
+        enabled: false
+      connectionpool:
+        enabled: false
+  endpoints:
+    enabled-by-default: false
+    web:
+      base-path: /
+      exposure:
+        include:
+          - health
+          - metrics
+          - prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true
+    health:
+      enabled: true
+      probes:
+        enabled: true
+      group:
+        inetsoft:
+          include:
+            - outOfMemory
+            - deadlock
+            - cacheSwap
+            - reportFailure
+        liveness:
+          include:
+            - livenessState
+            - outOfMemory
+            - deadlock
+            - cacheSwap
+            - reportFailure
+      show-details: always
+      show-components: always
+  health:
+    defaults:
+      enabled: false
+    diskspace:
+      enabled: true
+    ping:
+      enabled: true
+    outOfMemory:
+      enabled: true
+    deadlock:
+      enabled: true
+    cacheSwap:
+      enabled: true
+    reportFailure:
+      enabled: true
+  server:
+    port: 8081
+server:
+  shutdown: graceful
+  servlet:
+    register-default-servlet: true

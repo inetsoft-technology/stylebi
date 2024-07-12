@@ -1,0 +1,85 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div dropHighlight (drop)="drop($event)" [disabled]="!_isEnabled"
+     outOfZone (onDragover)="dragOver($event)">
+  <div class="field-pane bd-gray" [class.disabled-grayout]="!_isEnabled" >
+    <div class="field-container" data-test="size-field-container">
+      <div [fixedDropdown]="dropdownMenu" [autoClose]="false" [zIndex]="10000"
+           [disabled]="!isFrameEditEnabled()"
+           class="field-icon hover-bg-secondary" (openChange)="openChanged($event)">
+        <!--size cells-->
+        <div *ngIf="isFrameEditEnabled()" class="visual-cell-container">
+          <div class="visual-cell no-caret"
+               [style.margin-left.px]="i > 0 ? 2 : 0"
+               *ngFor="let frame of frames; index as i" title="_#(Edit Size)">
+            <size-cell [frameModel]="frame" [isMixed]="_isMixed"></size-cell>
+          </div>
+        </div>
+
+        <!--pencil edit icon-->
+        <div class="visual-edit-icon no-caret" *ngIf="!isFrameEditEnabled()">
+          <i class="chart-size-icon btn-icon icon-size-large" aria-hidden="true"
+             [class.icon-disabled]="!isFrameEditEnabled()"
+             title="_#(Edit Size)">
+          </i>
+        </div>
+
+        <!--fake cell to keep align with textfield-->
+        <div class="visual-cell" *ngIf="frames.length == 0 && isFrameEditEnabled()">
+          <div class="fake-visual-cell"></div>
+        </div>
+      </div>
+
+      <!--aesthetic field mc-->
+      <div class="visual-field">
+        <chart-aesthetic-mc class="w-100" [field]="field"
+                            [isEnabled]="_isEnabled" [isEditEnabled]="_isEditEnabled"
+                            [fieldType]="getFieldType()" [isMixed]="_isMixed"
+                            [dragComplete]="dragFieldMCComplete" [currentAggr]="aggr"
+                            [grayedOutValues]="grayedOutValues" [hint]="getHint()"
+                            [targetField]="targetField"
+                            (onChangeAesthetic)="doSubmit(false)"
+                            (onConvert)="convert($event)" data-test="size-field-aesthetic">
+        </chart-aesthetic-mc>
+      </div>
+    </div>
+  </div>
+</div>
+<ng-template #dropdownMenu>
+  <div *ngIf="editPaneId" class="dropdown-pane">
+    <div *ngIf="frames" [ngSwitch]="editPaneId">
+      <div *ngSwitchCase="'StaticSize'">
+        <static-size-pane [frameModel]="frames[0]" [aggr]="aggr"
+                          [autoOnly]="isTreemap()"
+                          (sizeChanged)="submitIfChanged()"
+                          (apply)="openChanged(false)">
+        </static-size-pane>
+      </div>
+      <div *ngSwitchCase="'BindingSize'">
+        <binding-size-pane [frameModel]="frames[0]" (apply)="openChanged($event)"
+                           [singleValue]="isInterval()"></binding-size-pane>
+      </div>
+      <div *ngSwitchCase="'CombinedSize'">
+        <combined-size-pane [chartRefs]="chartRefs" (apply)="openChanged($event)"
+                            (sizeChanged)="submitIfChanged()"></combined-size-pane>
+      </div>
+    </div>
+  </div>
+</ng-template>

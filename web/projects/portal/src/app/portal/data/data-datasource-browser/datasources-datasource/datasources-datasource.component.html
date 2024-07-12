@@ -1,0 +1,75 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="editor-container">
+  <div class="h-100 container-fluid flex-fixed-container">
+    <div class="row flex-fixed-content">
+      <div class="col-10 col-sm-8">
+        <datasources-datasource-editor
+          [datasource]="datasource"
+          (datasourceChanged)="datasourceChanged($event)"
+          (datasourceValid)="updateDatasourceValid($event)"
+          (onWarning)="dataNotifications.notifications.danger($event)"
+          ></datasources-datasource-editor>
+        <ng-container *ngIf="datasource.tabularView">
+          <div class="row">
+            <div class="col">
+              <label class="addition-label">_#(Additional Connections) :</label>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-10 additional-datasource">
+              <div class="bordered-box bd-gray h-100">
+                <div *ngFor="let additional of additionalList; let i = index;"
+                     class="unhighlightable" [class.selected]="additionalSelected(i)"
+                     [title]="additional.tooltip"
+                     (click)="selectAdditional($event, i)">
+                  <div>{{additional?.name}}</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-2 btn-container-vertical">
+              <button type="button" class="btn btn-default" (click)="newAdditional()">_#(New)</button>
+              <button type="button" class="btn btn-default"
+                      [disabled]="selectedAdditionalIndex.length == 0"
+                      (click)="deleteAdditional()">_#(Delete)</button>
+              <button type="button" class="btn btn-default"
+                      [disabled]="selectedAdditionalIndex.length != 1"
+                      (click)="editAdditional()">_#(Edit)</button>
+              <button type="button" class="btn btn-default"
+                      [disabled]="selectedAdditionalIndex.length != 1"
+                      (click)="renameAdditional()">_#(Rename)</button>
+            </div>
+          </div>
+        </ng-container>
+        <div class="form-group text-right bottom-button-container">
+          <button type="button" class="btn btn-primary me-2"
+                  [disabled]="!datasourceValid"
+                  (click)="ok()">
+            _#(OK)
+          </button>
+          <button type="button" class="btn btn-secondary" (click)="close()">
+            _#(Cancel)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <data-notifications #dataNotifications></data-notifications>
+</div>

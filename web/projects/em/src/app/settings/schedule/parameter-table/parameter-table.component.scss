@@ -1,0 +1,71 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  .mat-mdc-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+
+    .mat-mdc-card-header, .mat-mdc-card-actions {
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+
+    .mat-mdc-card-content {
+      flex-grow: 1;
+      flex-shrink: 1;
+      display: flex;
+      flex-direction: column;
+
+      .parameter-table {
+        width: 100%;
+        table-layout: fixed;
+
+        th:last-of-type {
+          width: 96px;
+        }
+
+        td:last-of-type {
+          width: 96px;
+          padding: 0px;
+        }
+
+        tr {
+          overflow: hidden;
+        }
+
+        td {
+          white-space: nowrap;
+          overflow: hidden;
+          -ms-text-overflow: ellipsis;
+          text-overflow: ellipsis;
+          min-width: 0;
+          max-width: 25vw;
+          padding-right: 24px;
+        }
+      }
+
+      .mat-mdc-form-field-error {
+        font-size: 75%;
+        width: 100%;
+        overflow: hidden;
+        color: inherit;
+      }
+    }
+  }
+}

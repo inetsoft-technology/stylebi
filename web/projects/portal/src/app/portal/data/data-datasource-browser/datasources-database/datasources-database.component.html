@@ -1,0 +1,446 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="database" [style.position]="additionalVisible ? 'absolute' : 'relative'"
+     class="editor-container">
+  <div class="container-fluid h-100 flex-fixed-container">
+    <div class="row flex-fixed-content content-spacing">
+      <div [ngClass]="additionalVisible ? 'col-10' : 'col-12'">
+        <form #databaseForm="ngForm">
+          <div class="form-group mt-2 form-floating">
+            <input #input type="text" #nameCtrl="ngModel"
+                   name="name"
+                   class="form-control"
+                   [class.is-invalid]="nameCtrl.invalid"
+                   [(ngModel)]="database.name"
+                   [pattern]="namePattern"
+                   [disabled]="!database.deletable"
+                   required>
+            <label><span>_#(Name)</span></label>
+            <span class="invalid-feedback" *ngIf="nameCtrl.hasError('required')">
+              _#(data.databases.enterDatabaseName)
+            </span>
+            <span class="invalid-feedback" *ngIf="nameCtrl.hasError('pattern')">
+              _#(data.databases.enterValidName)
+            </span>
+          </div>
+
+          <div class="form-group form-floating">
+            <textarea class="form-control" [(ngModel)]="database.description"
+                      [ngModelOptions]="{standalone: true}"></textarea>
+            <label><span>_#(Description)</span></label>
+          </div>
+
+          <div class="form-group form-floating">
+            <select name="serverType" #databaseTypeCtrl="ngModel"
+                    [class.is-invalid]="databaseTypeCtrl.invalid"
+                    class="form-control"
+                    [(ngModel)]="database.type"
+                    (ngModelChange)="typeChanged($event)"
+                    required>
+              <option *ngFor="let option of databaseOptions" [value]="option.value">
+                {{option.label}}
+              </option>
+            </select>
+            <label><span>_#(data.databases.databaseType)</span></label>
+            <span class="invalid-feedback" *ngIf="databaseTypeCtrl.invalid">
+              _#(data.databases.selectDatabaseType)
+            </span>
+          </div>
+          <ng-container *ngIf="!!database.network && !databaseInfo.customEditMode">
+            <fieldset [hidden]="!driverAvailable">
+              <div class="form-group form-floating">
+                <input type="text" #hostNameCtrl="ngModel"
+                       name="hostName"
+                       class="form-control"
+                       [class.is-invalid]="hostNameCtrl.invalid"
+                       [(ngModel)]="database.network.hostName"
+                       [required]="!isCustom(database.type)">
+                <label><span>_#(Host Name)</span></label>
+                <span class="invalid-feedback" *ngIf="hostNameCtrl.invalid">
+                  _#(data.databases.enterHostname)
+                </span>
+              </div>
+              <div class="form-group form-floating">
+                <input type="number" #portCtrl="ngModel"
+                       name="port"
+                       class="form-control"
+                       [class.is-invalid]="portCtrl.invalid"
+                       [(ngModel)]="database.network.portNumber"
+                       [required]="!isCustom(database.type)">
+                <label><span>_#(Port)</span></label>
+                <span class="invalid-feedback" *ngIf="portCtrl.invalid">
+                  _#(data.databases.enterPort)
+                </span>
+              </div>
+            </fieldset>
+          </ng-container>
+          <ng-container *ngIf="isCustom(database.type)">
+              <div class="form-group form-floating">
+                <input type="text" #driverClassCtrl="ngModel"
+                       name="driverClass"
+                       class="form-control"
+                       [class.is-invalid]="driverClassCtrl.invalid || !driverAvailable"
+                       [(ngModel)]="customInfo.driverClass"
+                       (ngModelChange)="refreshDefaultTestQuery()"
+                       [ngbTypeahead]="searchFunc"
+                       required>
+                <label><span>_#(data.databases.driverClass)</span></label>
+                <span class="invalid-feedback" *ngIf="driverClassCtrl.invalid">_#(data.databases.selectDriver)</span>
+                <span class="invalid-feedback" *ngIf="driverClassCtrl.valid && !driverAvailable">_#(data.databases.invalidDriver)</span>
+              </div>
+          </ng-container>
+          <div class="form-group form-floating" *ngIf="databaseInfo.customEditMode">
+            <input type="text" name="customUrl" class="form-control"
+                   [(ngModel)]="databaseInfo.customUrl">
+            <label><span>_#(URL)</span></label>
+          </div>
+          <div class="form-group form-floating" *ngIf="isFilePathEnabled(database.type) && !databaseInfo.customEditMode">
+            <input type="text" #filePathCtrl="ngModel"
+                   name="filePath"
+                   class="form-control"
+                   [class.is-invalid]="filePathCtrl.invalid"
+                   [(ngModel)]="accessInfo.dataSourceName"
+                   required>
+            <label><span>_#(File Path)</span></label>
+            <span class="invalid-feedback" *ngIf="filePathCtrl.invalid">_#(designer.qb.common.fileEmpty)
+            </span>
+          </div>
+          <div class="form-group form-floating" *ngIf="testQueryEnabled(database.type)">
+            <input type="text"
+                   name="testQuery"
+                   class="form-control"
+                   (ngModelChange)="setTestQuery($event)"
+                   [ngModel]="testQuery">
+            <label><span>_#(data.databases.testQuery)</span></label>
+            <div class="alert alert-info p-2" *ngIf="!customInfo.testQuery">
+              _#(data.databases.customTestQueryMessage)
+            </div>
+          </div>
+          <ng-container *ngIf="database.type === DatasourceDatabaseType.SQLSERVER && !databaseInfo.customEditMode">
+            <fieldset [hidden]="!driverAvailable">
+              <div class="form-group form-floating">
+                <input type="text"
+                       name="instanceName"
+                       class="form-control"
+                       [(ngModel)]="sqlServerInfo.instanceName">
+                <label><span>_#(data.databases.instanceName)</span></label>
+              </div>
+            </fieldset>
+          </ng-container>
+          <ng-container *ngIf="databaseNameRequired && !databaseInfo.customEditMode">
+            <fieldset [hidden]="!driverAvailable">
+              <div class="form-group form-floating">
+                <input type="text" #databaseNameCtrl="ngModel"
+                       name="databaseName"
+                       class="form-control"
+                       [class.is-invalid]="databaseNameCtrl.invalid"
+                       [(ngModel)]="databaseNameInfo.databaseName"
+                       [required]="this.database.type !== DatasourceDatabaseType.SYBASE && this.database.type !== DatasourceDatabaseType.SQLSERVER">
+                <label><span>_#(Database Name)</span></label>
+                <span class="invalid-feedback" *ngIf="databaseNameCtrl.invalid">_#(data.databases.enterDatabaseName)</span>
+              </div>
+            </fieldset>
+          </ng-container>
+          <ng-container *ngIf="database.type === DatasourceDatabaseType.INFORMIX && !databaseInfo.customEditMode">
+            <fieldset [hidden]="!driverAvailable">
+              <div class="form-group form-floating">
+                <input type="text" #serverNameCtrl="ngModel"
+                       name="serverName"
+                       class="form-control"
+                       [class.is-invalid]="serverNameCtrl.invalid"
+                       [(ngModel)]="informixInfo.serverName"
+                       [required]="this.database.type == DatasourceDatabaseType.INFORMIX">
+                <label><span>_#(Server Name)</span></label>
+                <span class="invalid-feedback" *ngIf="serverNameCtrl.invalid">_#(data.databases.enterServerName)</span>
+              </div>
+            </fieldset>
+            <fieldset [hidden]="!driverAvailable && !databaseInfo.customEditMode">
+              <div class="form-group form-floating">
+                <input type="text"
+                       name="databaseLocale"
+                       class="form-control"
+                       [(ngModel)]="informixInfo.databaseLocale">
+                <label><span>_#(data.databases.db_locale)</span></label>
+              </div>
+            </fieldset>
+          </ng-container>
+          <ng-container *ngIf="database.type === DatasourceDatabaseType.ODBC">
+            <fieldset [hidden]="!driverAvailable">
+              <div class="form-group form-floating">
+                <select name="odbcDataSourceName" #odbcDataSourceNameCtrl="ngModel"
+                        [class.is-invalid]="odbcDataSourceNameCtrl.invalid"
+                        class="form-control"
+                        [(ngModel)]="odbcInfo.dataSourceName"
+                        required>
+                  <ng-container *ngIf="!!driverAvailability && !!driverAvailability.odbcDataSources">
+                    <option *ngFor="let dataSource of driverAvailability.odbcDataSources">
+                      {{dataSource}}
+                    </option>
+                  </ng-container>
+                </select>
+                <label><span>_#(Data Source)</span></label>
+                <span class="invalid-feedback" *ngIf="odbcDataSourceNameCtrl.invalid">_#(data.databases.selectDataSource)</span>
+              </div>
+              <div class="form-group form-floating">
+                <input type="text"
+                       name="testQuery"
+                       class="form-control"
+                       (ngModelChange)="setTestQuery($event)"
+                       [ngModel]="testQuery">
+                <label><span>_#(data.databases.testQuery)</span></label>
+                <div class="alert alert-info p-2" *ngIf="!odbcInfo.testQuery">
+                  _#(data.databases.customTestQueryMessage)
+                </div>
+              </div>
+            </fieldset>
+          </ng-container>
+          <ng-container *ngIf="database.type === DatasourceDatabaseType.ORACLE && !databaseInfo.customEditMode">
+            <fieldset [hidden]="!driverAvailable">
+              <div class="form-group form-floating">
+                <input type="text" #sidCtrl="ngModel"
+                       name="sid"
+                       class="form-control"
+                       [class.is-invalid]="sidCtrl.invalid"
+                       [(ngModel)]="oracleInfo.sid"
+                       required>
+                <label><span>_#(data.databases.sid)</span></label>
+                <span class="invalid-feedback" *ngIf="sidCtrl.invalid">_#(data.databases.enterSID)</span>
+              </div>
+            </fieldset>
+          </ng-container>
+          <fieldset *ngIf="driverAvailable && !databaseInfo.customEditMode">
+            <div class="form-group form-floating">
+              <input type="text" name="properties" class="form-control"
+                     [(ngModel)]="databaseNameInfo.properties">
+              <label><span>_#(Properties)</span></label>
+            </div>
+          </fieldset>
+          <fieldset *ngIf="driverAvailable && database.type != DatasourceDatabaseType.CUSTOM">
+            <div class="form-check form-group">
+              <label class="form-check-label">
+                <input type="checkbox"
+                       name="customEditMode"
+                       class="form-check-input"
+                       [ngModel]="databaseInfo.customEditMode"
+                       (ngModelChange)="changeCustomEditMode($event)"/>
+                _#(Custom URL)
+              </label>
+            </div>
+          </fieldset>
+          <ng-container *ngIf="isCustom(database.type) || driverAvailable">
+            <div class="form-check form-group">
+              <label class="form-check-label">
+                <input type="checkbox"
+                       name="required"
+                       class="form-check-input"
+                       [(ngModel)]="database.authentication.required"/>_#(data.databases.authenticationRequired)
+              </label>
+            </div>
+            <fieldset [disabled]="!database.authentication.required">
+              <div class="form-group form-floating">
+                <input type="text" #userNameCtrl="ngModel"
+                       name="userName"
+                       class="form-control"
+                       [class.is-invalid]="userNameCtrl.invalid"
+                       [(ngModel)]="database.authentication.userName">
+                <label><span>_#(Username)</span></label>
+                <span class="invalid-feedback" *ngIf="userNameCtrl.invalid">_#(data.databases.enterUsername)</span>
+              </div>
+              <div class="form-group form-floating">
+                <input type="password" #passwordCtrl="ngModel"
+                       name="password"
+                       class="form-control"
+                       [class.is-invalid]="passwordCtrl.invalid"
+                       [(ngModel)]="database.authentication.password">
+                <label><span>_#(Password)</span></label>
+              </div>
+            </fieldset>
+          </ng-container>
+          <ng-container *ngIf="!driverAvailable">
+            <label class="font-weight-bold" *ngIf="!uploadEnabled">_#(data.databases.driverAdminInstall)</label>
+            <ng-container *ngIf="uploadEnabled">
+              <label *ngIf="uploadEnabled" class="font-weight-bold"
+                     [innerHTML]="'_#(data.databases.driverAdminUpload)'">
+              </label>
+              <div class="mb-2">
+                <button type="button" class="btn btn-default buttonSize" (click)="createDriver()">
+                  _#(em.data.databases.createDriver)
+                </button>
+              </div>
+            </ng-container>
+          </ng-container>
+          <ng-container>
+            <div class="testDiv">
+              <button class="btn btn-default buttonSize" type="button"
+                      (click)="testDatabase()">_#(Test Connection)
+              </button>
+               <button class="btn btn-default buttonMargin" type="button"
+                      (click)="refreshMetadata()">_#(Refresh Metadata)
+               </button>
+            </div>
+          </ng-container>
+          <div class="row">
+            <div class="col">
+              <label class="addition-label">_#(Option) :</label>
+            </div>
+          </div>
+          <div class="row form-check form-group">
+            <div class="col-auto">
+              <label class="form-check-label">
+                <input type="checkbox"
+                       name="changeDefaultDB"
+                       class="form-check-input"
+                       [(ngModel)]="database.changeDefaultDB"
+                />
+                _#(Change Default DB)
+              </label>
+            </div>
+            <div class="col form-floating">
+              <input type="text" name="editDefaultDB" class="form-control"
+                     [disabled]="!database.changeDefaultDB"
+                     [(ngModel)]="database.defaultDatabase">
+              <label><span>_#(Edit Default DB)</span></label>
+            </div>
+          </div>
+          <div class="form-check form-group">
+            <label class="form-check-label">
+              <input type="checkbox"
+                     name="ansiJoin"
+                     class="form-check-input"
+                     [(ngModel)]="database.ansiJoin"/>_#(ANSI Join Syntax)
+            </label>
+          </div>
+          <div class="form-group form-floating" *ngIf="additionalVisible">
+            <select name="isolation"
+                    class="form-control"
+                    [(ngModel)]="database.transactionIsolation">
+              <option *ngFor="let opt of isolation" [value]="opt.value">
+                {{opt.label}}
+              </option>
+            </select>
+            <label><span>_#(Transaction Isolation)</span></label>
+          </div>
+          <div class="form-group form-floating" *ngIf="additionalVisible">
+            <select name="tableOption"
+                    class="form-control"
+                    [(ngModel)]="database.tableNameOption"
+                    required>
+              <option *ngFor="let option of tableOptions" [value]="option.value">
+                {{option.label}}
+              </option>
+            </select>
+            <label><span>_#(Table Name)</span></label>
+          </div>
+          <ng-container *ngIf="additionalVisible">
+            <div class="row">
+              <div class="col">
+                <label class="addition-label">_#(Additional Connections) :</label>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-10 additional-datasource">
+                <div class="bordered-box bd-gray h-100">
+                  <div *ngFor="let additional of additionalList; let i = index;"
+                       class="unhighlightable" [class.selected]="additionalSelected(i)"
+                       (click)="selectAdditional($event, i)">
+                    <div [title]="additional.tooltip || ''"
+                      >{{additional.name}}:({{additional.url}})</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-2 btn-container-vertical">
+                <button type="button" class="btn btn-default" (click)="newAdditional()">_#(New)</button>
+                <button type="button" class="btn btn-default"
+                        [disabled]="selectedAdditionalIndex.length == 0"
+                        (click)="deleteAdditional()">_#(Delete)</button>
+                <button type="button" class="btn btn-default"
+                        [disabled]="selectedAdditionalIndex.length != 1"
+                        (click)="editAdditional()">_#(Edit)</button>
+                <button type="button" class="btn btn-default"
+                        [disabled]="selectedAdditionalIndex.length != 1"
+                        (click)="renameAdditional()">_#(Rename)</button>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col">
+                <div class="form-check form-group">
+                  <label class="form-check-label pt-2">
+                    <input type="checkbox"
+                           name="unasgn"
+                           class="form-check-input"
+                           [(ngModel)]="database.unasgn"/>_#(Disable Default Connection)
+                  </label>
+                </div>
+              </div>
+            </div>
+          </ng-container>
+          <div class="row">
+            <div class="col">
+              <label class="addition-label">_#(Connection Pool Properties) :</label>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-10 additional-datasource">
+              <div class="pool-property-content">
+                <div class="pool-property-table">
+                  <table class="table table-bordered table-sm" wScrollableFlexTable [wScrollableSetBodyWidths]="true">
+                    <thead class="thead-light">
+                      <tr class="pool-property-row">
+                        <th class="pool-property-container">_#(Property)</th>
+                        <th class="pool-property-container">_#(Value)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="pool-property-row row" *ngFor="let properties of database.info.poolProperties | keyvalue"
+                          (mousedown)="selectProperty($event, properties)"
+                          [class.selected]="isSelectedProperty(properties)">
+                        <td class="pool-property-container">{{ properties.key }}</td>
+                        <td class="pool-property-container">{{ properties.value }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="col-2 btn-container-vertical">
+              <button type="button" class="btn btn-default" (click)="newProperty()">_#(New)</button>
+              <button type="button" class="btn btn-default"
+                      [disabled]="selectedProperty.length == 0"
+                      (click)="deleteProperty()">_#(Delete)</button>
+              <button type="button" class="btn btn-default"
+                      [disabled]="selectedProperty.length != 1"
+                      (click)="editProperty()">_#(Edit)</button>
+            </div>
+          </div>
+          <div *ngIf="additionalVisible" class="form-group text-right">
+            <button type="button" class="btn btn-primary me-2"
+                    [disabled]="databaseForm.invalid"
+                    (click)="saveDatabase()">_#(OK)
+            </button>
+            <button type="button" class="btn btn-secondary"
+                    (click)="close()">_#(Cancel)
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <data-notifications #dataNotifications></data-notifications>
+</div>

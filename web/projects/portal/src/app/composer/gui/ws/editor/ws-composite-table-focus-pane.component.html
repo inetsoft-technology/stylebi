@@ -1,0 +1,53 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="ws-composite-table-breadcrumb-container bg-white4 text-overflow">
+<ws-composite-table-breadcrumb [worksheet]="worksheet"
+                               [breadcrumbs]="worksheet.compositeViewInfo.breadcrumbs"
+                               [selectedBreadcrumb]="worksheet.compositeViewInfo.selectedBreadcrumb"
+                               (onSelectBreadcrumb)="selectBreadcrumb($event)"
+                               (onClose)="unfocusCompositeTable()"
+                               (onCancel)="cancelCompositeTable()">
+</ws-composite-table-breadcrumb>
+</div>
+
+<div class="composite-table-focus-pane-container" [ngSwitch]="worksheet.selectedCompositeTable?.tableClassType">
+  <ws-relational-join-editor-pane
+    *ngSwitchCase="'RelationalJoinTableAssembly'"
+    [worksheet]="worksheet"
+    [joinTable]="worksheet.selectedCompositeTable"
+    (onSelectSubtables)="selectSubtables($event)"
+    (onNotification)="notify($event)"
+    (onFocusCompositeTable)="focusCompositeTable($event)" (onCrossJoinsChanged)="crossJoins = $event">
+  </ws-relational-join-editor-pane>
+  <ws-merge-join-editor-pane #mergeJoinPane
+    *ngSwitchCase="'MergeJoinTableAssembly'"
+    [worksheet]="worksheet"
+    [mergeTable]="worksheet.selectedCompositeTable"
+    (onSelectSubtables)="selectSubtables($event)"
+    (onFocusCompositeTable)="focusCompositeTable($event)">
+  </ws-merge-join-editor-pane>
+  <ws-concatenation-editor-pane
+    *ngSwitchCase="'ConcatenatedTableAssembly'"
+    [worksheet]="worksheet"
+    [concatTable]="worksheet.selectedCompositeTable"
+    (onSelectSubtables)="selectSubtables($event)"
+    (onFocusCompositeTable)="focusCompositeTable($event)">
+  </ws-concatenation-editor-pane>
+</div>

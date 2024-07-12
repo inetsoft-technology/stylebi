@@ -1,0 +1,583 @@
+<!--
+
+    inetsoft-server - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.inetsoft.stylebi</groupId>
+    <artifactId>inetsoft-stylebi</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>inetsoft-server</artifactId>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <inetsoft.storage.type>mapdb</inetsoft.storage.type>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>3.3.0</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-core</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-web</artifactId>
+      <version>${project.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-xml-formats</artifactId>
+      <version>${project.version}</version>
+      <classifier>shaded</classifier>
+      <scope>runtime</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-ssl-helpers</artifactId>
+      <version>${project.version}</version>
+      <classifier>shaded</classifier>
+      <scope>runtime</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-integration-mapdb</artifactId>
+      <version>${project.version}</version>
+      <classifier>shaded</classifier>
+      <scope>runtime</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-datagov</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-googledoc</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-hive</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-mongodb</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-odata</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-onedrive</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-r</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-rest</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-serverfile</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-sharepoint-online</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-access</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-derby</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-h2</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-mysql</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-oracle</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-postgresql</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-snowflake</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-sqlserver</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.hamcrest</groupId>
+      <artifactId>hamcrest-library</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-core</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+      <classifier>tests</classifier>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.12.1</version>
+        <configuration>
+          <useIncrementalCompilation>false</useIncrementalCompilation>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>3.2.3</version>
+        <configuration>
+          <workingDirectory>${project.build.directory}/server</workingDirectory>
+          <mainClass>inetsoft.web.InetsoftApplication</mainClass>
+          <arguments>
+            <argument>--sree.home=${project.build.directory}/server/config</argument>
+            <argument>--server.servlet.context-path=/sree</argument>
+            <argument>--spring.resources.chain.strategy.content.enabled=false</argument>
+          </arguments>
+          <systemPropertyVariables>
+            <java.awt.headless>true</java.awt.headless>
+            <java.io.tmpdir>${project.build.directory}/server/temp</java.io.tmpdir>
+            <java.net.preferIPv4Stack>true</java.net.preferIPv4Stack>
+            <inetsoftClusterDir>${project.build.directory}/server/cluster</inetsoftClusterDir>
+          </systemPropertyVariables>
+          <jvmArguments>
+            -Xmx2g -XX:ReservedCodeCacheSize=100m -XX:+UseCodeCacheFlushing
+            -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005
+            --add-opens=java.base/jdk.internal.access=ALL-UNNAMED
+            --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED
+            --add-opens=java.base/sun.nio.ch=ALL-UNNAMED
+            --add-opens=java.base/sun.util.calendar=ALL-UNNAMED
+            --add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED
+            --add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED
+            --add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED
+            --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED
+            --add-opens=java.base/java.io=ALL-UNNAMED
+            --add-opens=java.base/java.nio=ALL-UNNAMED
+            --add-opens=java.base/java.net=ALL-UNNAMED
+            --add-opens=java.base/java.util=ALL-UNNAMED
+            --add-opens=java.base/java.util.concurrent=ALL-UNNAMED
+            --add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED
+            --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED
+            --add-opens=java.base/java.lang=ALL-UNNAMED
+            --add-opens=java.base/java.lang.invoke=ALL-UNNAMED
+            --add-opens=java.base/java.math=ALL-UNNAMED
+            --add-opens=java.sql/java.sql=ALL-UNNAMED
+            --add-opens=java.base/java.lang.reflect=ALL-UNNAMED
+            --add-opens=java.base/java.time=ALL-UNNAMED
+            --add-opens=java.base/java.text=ALL-UNNAMED
+            --add-opens=java.management/sun.management=ALL-UNNAMED
+          </jvmArguments>
+          <additionalClasspathElements>
+            <element>${basedir}/../core/target/classes</element>
+            <element>${basedir}/../enterprise/target/classes</element>
+            <element>${basedir}/../web/target/generated-resources/gulp</element>
+            <element>${basedir}/../web/target/generated-resources/ng</element>
+            <element>${basedir}/src/test/config/orders.jar</element>
+          </additionalClasspathElements>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+        <configuration>
+          <excludedGroups>integration,slow</excludedGroups>
+          <workingDirectory>${project.build.directory}/test-workdir</workingDirectory>
+          <argLine>-Xmx2g --add-opens=java.base/jdk.internal.access=ALL-UNNAMED --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED --add-opens=java.base/sun.nio.ch=ALL-UNNAMED --add-opens=java.base/sun.util.calendar=ALL-UNNAMED --add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED --add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED --add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED --add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED --add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.math=ALL-UNNAMED --add-opens=java.sql/java.sql=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.time=ALL-UNNAMED --add-opens=java.base/java.text=ALL-UNNAMED --add-opens=java.management/sun.management=ALL-UNNAMED</argLine>
+          <systemPropertyVariables>
+            <disable.updateAssetDependencies>true</disable.updateAssetDependencies>
+            <kryo.unsafe>false</kryo.unsafe>
+            <show.license.exception>true</show.license.exception>
+            <inetsoft.sree.internal.cluster.implementation>inetsoft.test.TestCluster</inetsoft.sree.internal.cluster.implementation>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <profile>
+      <id>development</id>
+      <activation>
+        <property>
+          <name>env.CI</name>
+          <value>!true</value>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>com.inetsoft.stylebi.build</groupId>
+            <artifactId>inetsoft-runner-maven-plugin</artifactId>
+            <version>${project.version}</version>
+            <executions>
+              <execution>
+                <id>configure-server</id>
+                <phase>generate-test-resources</phase>
+                <goals>
+                  <goal>configure</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <configFile>${basedir}/src/test/config/${inetsoft.storage.type}/inetsoft.yaml</configFile>
+              <backupFile>${basedir}/src/test/config/storage.zip</backupFile>
+              <configDirectory>${project.build.directory}/server/config</configDirectory>
+              <properties>
+                <license.key>${inetsoft.license.key}</license.key>
+                <log.level.org.apache.ignite>WARN</log.level.org.apache.ignite>
+                <security.login.orgLocation>domain</security.login.orgLocation>
+              </properties>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>enterprise</id>
+      <dependencies>
+        <dependency>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-enterprise</artifactId>
+          <version>${project.version}</version>
+          <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-shell</artifactId>
+          <version>${project.version}</version>
+          <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-aws</artifactId>
+          <version>${project.version}</version>
+          <classifier>shaded</classifier>
+          <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-azure</artifactId>
+          <version>${project.version}</version>
+          <classifier>shaded</classifier>
+          <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-google</artifactId>
+          <version>${project.version}</version>
+          <classifier>shaded</classifier>
+          <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-mongo</artifactId>
+          <version>${project.version}</version>
+          <classifier>shaded</classifier>
+          <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-kubernetes</artifactId>
+          <version>${project.version}</version>
+          <classifier>shaded</classifier>
+          <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-docker</artifactId>
+          <version>${project.version}</version>
+          <classifier>shaded</classifier>
+          <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi.connectors</groupId>
+          <artifactId>inetsoft-facebook-insights</artifactId>
+          <version>${project.version}</version>
+          <type>zip</type>
+          <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi.connectors</groupId>
+          <artifactId>inetsoft-google-analytics-ga4</artifactId>
+          <version>${project.version}</version>
+          <type>zip</type>
+          <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi.connectors</groupId>
+          <artifactId>inetsoft-google-analytics</artifactId>
+          <version>${project.version}</version>
+          <type>zip</type>
+          <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi.connectors</groupId>
+          <artifactId>inetsoft-salesforce</artifactId>
+          <version>${project.version}</version>
+          <type>zip</type>
+          <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi.connectors</groupId>
+          <artifactId>inetsoft-sap</artifactId>
+          <version>${project.version}</version>
+          <type>zip</type>
+          <scope>provided</scope>
+        </dependency>
+      </dependencies>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>com.inetsoft.stylebi.build</groupId>
+            <artifactId>keygen-maven-plugin</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+            <configuration>
+              <type>SESSION</type>
+              <standalone>true</standalone>
+              <days>30</days>
+              <version>13.2</version>
+              <count>10</count>
+              <components>
+                <component>REPORT</component>
+                <component>DASHBOARD</component>
+                <component>WORKSHEET</component>
+                <component>ADHOC</component>
+                <component>FORM</component>
+              </components>
+            </configuration>
+            <executions>
+              <execution>
+                <id>keygen</id>
+                <goals>
+                  <goal>keygen</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>awsStorage</id>
+      <properties>
+        <inetsoft.storage.type>aws</inetsoft.storage.type>
+      </properties>
+    </profile>
+    <profile>
+      <id>googleStorage</id>
+      <properties>
+        <inetsoft.storage.type>google</inetsoft.storage.type>
+      </properties>
+    </profile>
+    <profile>
+      <id>mongoStorage</id>
+      <properties>
+        <inetsoft.storage.type>mongo</inetsoft.storage.type>
+      </properties>
+    </profile>
+    <profile>
+      <id>azureStorage</id>
+      <properties>
+        <inetsoft.storage.type>azure</inetsoft.storage.type>
+      </properties>
+    </profile>
+  </profiles>
+
+</project>

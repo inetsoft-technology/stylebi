@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="30px" height="30px" viewBox="0 0 30 30" enable-background="new 0 0 30 30" xml:space="preserve">
+<title>Cloud SQL</title>
+<g>
+	<path fill="#4285F4" d="M28.742,13.703L22.956,3.641c-0.442-0.784-1.269-1.276-2.17-1.294H9.212c-0.9,0.018-1.727,0.51-2.169,1.294
+		L1.257,13.677c-0.449,0.777-0.449,1.738,0,2.517l5.784,10.12c0.438,0.796,1.261,1.306,2.169,1.34h11.576
+		c0.906-0.029,1.731-0.536,2.17-1.332l5.787-10.063C29.192,15.464,29.192,14.496,28.742,13.703z"/>
+	<path opacity="0.07" enable-background="new    " d="M19.398,11.011l-4.252-1.459l-4.502,3.401l2.814,2.813l-2.822,0.275
+		l2.641,2.639l-2.68,0.332l8.642,8.634h1.539c0.907-0.029,1.731-0.537,2.171-1.333l4.286-7.451L19.398,11.011z"/>
+	<g>
+		<path fill="#FFFFFF" d="M14.998,8.448l-4.4,2.541v1.965l4.4,2.538l4.399-2.538v-1.965L14.998,8.448z M17.628,11.941L17.628,11.941
+			l-2.629,1.515l-2.627-1.515l0,0l2.627-1.519l2.626,1.517l0,0L17.628,11.941z"/>
+		<polygon fill="#FFFFFF" points="10.597,14.063 10.597,16.027 14.998,18.567 19.398,16.027 19.398,14.063 14.998,16.604 		"/>
+		<polygon fill="#FFFFFF" points="10.597,17.042 10.597,19.007 14.998,21.546 19.398,19.007 19.398,17.042 14.998,19.583 		"/>
+	</g>
+</g>
+</svg>

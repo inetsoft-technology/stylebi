@@ -1,0 +1,60 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="log-viewer-container container-fluid flex-fixed-container">
+  <div>
+    <div class="flex-row">
+      <mat-form-field class="log-file-name">
+        <mat-label>_#(Log File)</mat-label>
+        <mat-select [(value)]="model.selectedLog"  [compareWith]="compareLogFileModel" (selectionChange)="refreshLog.emit()">
+          <mat-option *ngFor="let log of model.logFiles" [value]="log">{{log.logFile}}</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field class="log-number-of-lines">
+        <mat-label>_#(Number of Lines)</mat-label>
+        <input type="number" matInput [disabled]="model.allLines" (keypress)="handleKeypress($event)"
+               [value]="model.lines" (change)="onLinesChange($event)">
+      </mat-form-field>
+    </div>
+    <div class="flex-row">
+      <mat-checkbox (click)="$event.stopPropagation()"
+                    (change)="onAllLinesChange($event.checked)"
+                    [checked]="model.allLines" class="log-option mat-checkbox-field">
+        _#(All)
+      </mat-checkbox>
+      <mat-checkbox (click)="$event.stopPropagation()"
+                    (change)="onAutoRefreshChange($event)"
+                    [checked]="model.autoRefresh"
+                    class=" log-option mat-checkbox-field">
+        _#(Enable Auto-refresh)
+      </mat-checkbox>
+    </div>
+  </div>
+
+  <div class="log-buttons-container">
+    <button mat-stroked-button (click)="downloadLog.emit()">_#(Download)</button>
+    <button mat-stroked-button (click)="refreshLog.emit(false)">_#(Refresh)</button>
+    <button mat-stroked-button [disabled]="rotateDisabled" (click)="rotateLogs.emit()">_#(Rotate)</button>
+  </div>
+  <mat-divider></mat-divider>
+
+  <div class="log-contents-container" #scrollViewport>
+    <div class="log-contents">{{allLines}}</div>
+  </div>
+</div>

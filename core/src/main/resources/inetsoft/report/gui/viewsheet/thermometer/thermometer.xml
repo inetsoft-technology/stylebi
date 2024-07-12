@@ -1,0 +1,1115 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<VSThermometer>
+
+   <face id="11" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/blue/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="12" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/green/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="13" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/alloy/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="14" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/orange/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="15" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/vista/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="16" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/alloy/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="21" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/blue/vertical_aqua.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="22" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/green/vertical_aqua.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="23" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/alloy/vertical_alloy.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="24" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/orange/vertical_aqua.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="25" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/vista/vertical_aqua.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="26" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="73.3">svg/alloy/vertical_alloy.svg</panel>
+      </image>
+      <majorTick centerX="36.6" height ="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="44" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="30" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="154.6"/>
+   </face>
+
+   <face id="31" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="89">svg/blue/vertical_style3.svg</panel>
+      </image>
+      <majorTick centerX="44.8" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="51" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="35" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="148"/>
+   </face>
+
+   <face id="32" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="89">svg/green/vertical_style3.svg</panel>
+      </image>
+      <majorTick centerX="44.8" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="51" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="35" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="148"/>
+   </face>
+
+   <face id="33" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="89">svg/alloy/vertical_style3.svg</panel>
+      </image>
+      <majorTick centerX="44.8" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="51" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="35" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="148"/>
+   </face>
+
+   <face id="34" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="89">svg/orange/vertical_style3.svg</panel>
+      </image>
+      <majorTick centerX="44.8" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="51" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="35" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="148"/>
+   </face>
+
+   <face id="35" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="89">svg/vista/vertical_style3.svg</panel>
+      </image>
+      <majorTick centerX="44.8" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="51" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="35" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="148"/>
+   </face>
+
+   <face id="36" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="89">svg/alloy/vertical_style3.svg</panel>
+      </image>
+      <majorTick centerX="44.8" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="51" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="35" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="148"/>
+   </face>
+
+   <face id="41" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="61.5">svg/blue/vertical_style4.svg</panel>
+      </image>
+      <majorTick centerX="30.3" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="37" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="24" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="141.2"/>
+   </face>
+
+   <face id="42" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="61.5">svg/green/vertical_style4.svg</panel>
+      </image>
+      <majorTick centerX="30.3" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="37" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="24" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="141.2"/>
+   </face>
+
+   <face id="43" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="61.5">svg/alloy/vertical_style4.svg</panel>
+      </image>
+      <majorTick centerX="30.3" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="37" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="24" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="141.2"/>
+   </face>
+
+   <face id="44" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="61.5">svg/orange/vertical_style4.svg</panel>
+      </image>
+      <majorTick centerX="30.8" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="37" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="24" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="141.2"/>
+   </face>
+
+   <face id="45" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="61.5">svg/vista/vertical_style4.svg</panel>
+      </image>
+      <majorTick centerX="30.8" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="37" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="24" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="141.2"/>
+   </face>
+
+   <face id="46" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="61.5">svg/alloy/vertical_style4.svg</panel>
+      </image>
+      <majorTick centerX="30.3" height="80" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="37" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="24" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="141.2"/>
+   </face>
+
+   <face id="51" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="71">svg/blue/vertical_style5.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="41" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="27" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="157.5"/>
+   </face>
+
+   <face id="52" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="71">svg/green/vertical_style5.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="42" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="27" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="157.5"/>
+   </face>
+
+   <face id="53" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="71">svg/alloy/vertical_style5.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="42.5" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="27" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="157.5"/>
+   </face>
+
+   <face id="54" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="71">svg/orange/vertical_style5.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="43" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="27" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="157.5"/>
+   </face>
+
+   <face id="55" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="71">svg/vista/vertical_style5.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="43" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="27" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="157.5"/>
+   </face>
+
+   <face id="56" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="71">svg/alloy/vertical_style5.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="42.5" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="27" width="5"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="157.5"/>
+   </face>
+
+   <face id="61" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="70">svg/blue/vertical_style6.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="41" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="25" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="153.5"/>
+   </face>
+
+   <face id="62" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="70">svg/green/vertical_style6.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="42" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="25" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="153.5"/>
+   </face>
+
+   <face id="63" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="70">svg/alloy/vertical_style6.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="42.5" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="25" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="153.5"/>
+   </face>
+
+   <face id="64" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="70">svg/orange/vertical_style6.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="43" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="25" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="153.5"/>
+   </face>
+
+   <face id="65" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="70">svg/vista/vertical_style6.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="43" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="25" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="153.5"/>
+   </face>
+
+   <face id="66" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="70">svg/alloy/vertical_style6.svg</panel>
+      </image>
+      <majorTick centerX="35.5" height="100" lineLength="6" lineWidth="1.5" color="255,30,30,30" startYAdjustment="10"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startX="42.5" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startX="25" width="4"/>
+      <valueRec leftColor="255,246,160,141" rightColor="255,249,15,19" width="3.62" startY="153.5"/>
+   </face>
+
+   <face id="71" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/alloy_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="23" height ="142" lineLength="5" lineWidth="1.5" color="255,88,88,88" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="255,88,88,88"/>
+      <value startX="35" color="255,88,88,88">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="168"/>
+   </face>
+
+   <face id="72" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/alloy_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="23" height ="142" lineLength="5" lineWidth="1.5" color="255,88,88,88" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="255,88,88,88"/>
+      <value startX="35" color="255,88,88,88">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="168"/>
+   </face>
+
+   <face id="73" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/alloy_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="23" height ="142" lineLength="5" lineWidth="1.5" color="255,88,88,88" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="255,88,88,88"/>
+      <value startX="35" color="255,88,88,88">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="168"/>
+   </face>
+
+   <face id="74" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/alloy_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="23" height ="142" lineLength="5" lineWidth="1.5" color="255,88,88,88" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="255,88,88,88"/>
+      <value startX="35" color="255,88,88,88">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="168"/>
+   </face>
+
+   <face id="75" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/alloy_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="23" height ="142" lineLength="5" lineWidth="1.5" color="255,88,88,88" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="255,88,88,88"/>
+      <value startX="35" color="255,88,88,88">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="168"/>
+   </face>
+
+   <face id="76" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/alloy_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="23" height ="142" lineLength="5" lineWidth="1.5" color="255,88,88,88" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="255,88,88,88"/>
+      <value startX="35" color="255,88,88,88">
+         <font><![CDATA[Default-regular-11]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="168"/>
+   </face>
+
+   <face id="81" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/black/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="138" lineLength="5" lineWidth="1.5" color="200,255,255,255" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startX="37" color="200,255,255,255">
+         <font><![CDATA[Default-regular-7]]></font>
+      </value>
+      <range startX="17" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="167"/>
+   </face>
+
+   <face id="82" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/black/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="138" lineLength="5" lineWidth="1.5" color="200,255,255,255" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startX="37" color="200,255,255,255">
+         <font><![CDATA[Default-regular-7]]></font>
+      </value>
+      <range startX="17" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="167"/>
+   </face>
+
+   <face id="83" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/black/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="138" lineLength="5" lineWidth="1.5" color="200,255,255,255" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startX="37" color="200,255,255,255">
+         <font><![CDATA[Default-regular-7]]></font>
+      </value>
+      <range startX="17" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="167"/>
+   </face>
+
+   <face id="84" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/black/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="138" lineLength="5" lineWidth="1.5" color="200,255,255,255" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startX="37" color="200,255,255,255">
+         <font><![CDATA[Default-regular-7]]></font>
+      </value>
+      <range startX="17" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="167"/>
+   </face>
+
+   <face id="85" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/black/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="138" lineLength="5" lineWidth="1.5" color="200,255,255,255" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startX="37" color="200,255,255,255">
+         <font><![CDATA[Default-regular-7]]></font>
+      </value>
+      <range startX="17" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="167"/>
+   </face>
+
+   <face id="86" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/black/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="138" lineLength="5" lineWidth="1.5" color="200,255,255,255" startYAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startX="37" color="200,255,255,255">
+         <font><![CDATA[Default-regular-7]]></font>
+      </value>
+      <range startX="17" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="167"/>
+   </face>
+
+   <face id="91" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/blue_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="161" lineLength="1" lineWidth="3" color="200,255,255,255" startYAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startX="34" color="200,4,10,71">
+         <font><![CDATA[Default-regular-9]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="182"/>
+   </face>
+
+   <face id="92" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/blue_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="161" lineLength="1" lineWidth="3" color="200,255,255,255" startYAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startX="34" color="200,4,10,71">
+         <font><![CDATA[Default-regular-9]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="182"/>
+   </face>
+
+   <face id="93" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/blue_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="161" lineLength="1" lineWidth="3" color="200,255,255,255" startYAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startX="34" color="200,4,10,71">
+         <font><![CDATA[Default-regular-9]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="182"/>
+   </face>
+
+   <face id="94" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/blue_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="161" lineLength="1" lineWidth="3" color="200,255,255,255" startYAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startX="34" color="200,4,10,71">
+         <font><![CDATA[Default-regular-9]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="182"/>
+   </face>
+
+   <face id="95" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/blue_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="161" lineLength="1" lineWidth="3" color="200,255,255,255" startYAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startX="34" color="200,4,10,71">
+         <font><![CDATA[Default-regular-9]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="182"/>
+   </face>
+
+   <face id="96" classname="inetsoft.report.gui.viewsheet.thermometer.VSVerticalThermometer">
+      <image>
+         <panel height="200" width="60.7">svg/blue_new/vertical_simple.svg</panel>
+      </image>
+      <majorTick centerX="24" height ="161" lineLength="1" lineWidth="3" color="200,255,255,255" startYAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startX="34" color="200,4,10,71">
+         <font><![CDATA[Default-regular-9]]></font>
+      </value>
+      <range startX="16" width="4"/>
+      <valueRec leftColor="255,214,2,2" rightColor="255,163,4,4" width="8" startY="182"/>
+   </face>
+
+   <face id="111" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="87" width="200">svg/blue/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="22" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22.5" width="8"/>
+   </face>
+
+   <face id="112" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="87" width="200">svg/green/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="22" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22.5" width="8"/>
+   </face>
+
+   <face id="113" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="87" width="200">svg/alloy/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="22" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22.5" width="8"/>
+   </face>
+
+   <face id="114" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="87" width="200">svg/orange/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="22" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22" width="8"/>
+   </face>
+
+   <face id="115" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="87" width="200">svg/vista/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="22" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22" width="8"/>
+   </face>
+
+   <face id="116" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="87" width="200">svg/alloy/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="22" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22.5" width="8"/>
+   </face>
+
+   <face id="121" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="87" width="200">svg/blue/horizontal_aqua.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="21" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22.5" width="8"/>
+   </face>
+
+   <face id="122" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="87" width="200">svg/green/horizontal_aqua.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="21" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22.5" width="8"/>
+   </face>
+
+   <face id="123" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+          <panel height="87" width="200">svg/alloy/horizontal_alloy.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+          <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="21" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22.5" width="8"/>
+   </face>
+
+   <face id="124" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+          <panel height="87" width="200">svg/orange/horizontal_aqua.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+          <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="21" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22" width="8"/>
+   </face>
+
+   <face id="125" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+          <panel height="87" width="200">svg/vista/horizontal_aqua.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+          <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="21" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22" width="8"/>
+   </face>
+
+   <face id="126" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+          <panel height="87" width="200">svg/alloy/horizontal_alloy.svg</panel>
+       </image>
+      <majorTick startY="55" length ="155" lineLength="6" lineWidth="1.5" color="255,30,30,30" startXAdjustment="0"/>
+      <minorTick lineLength="3.34" lineWidth="1" color="255,30,30,30"/>
+      <value startY="65" color="255,30,30,30">
+          <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="21" width="6"/>
+      <valueRec centerY="37.5" topColor="255,246,160,141" bottomColor="255,249,15,19" startX="22.5" width="8"/>
+   </face>
+
+   <face id="131" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/alloy_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="23" length ="142" lineLength="5" lineWidth="1.5" color="200,255,255,255" startXAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startY="36" color="200,60,60,60">
+         <font><![CDATA[Default-BOLD-9]]></font>
+      </value>
+      <range startY="17" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="8"/>
+   </face>
+
+   <face id="132" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/alloy_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="23" length ="142" lineLength="5" lineWidth="1.5" color="200,255,255,255" startXAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startY="36" color="200,60,60,60">
+         <font><![CDATA[Default-BOLD-9]]></font>
+      </value>
+      <range startY="17" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="8"/>
+   </face>
+
+   <face id="133" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/alloy_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="23" length ="142" lineLength="5" lineWidth="1.5" color="200,255,255,255" startXAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startY="36" color="200,60,60,60">
+         <font><![CDATA[Default-BOLD-9]]></font>
+      </value>
+      <range startY="17" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="8"/>
+   </face>
+
+   <face id="134" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/alloy_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="23" length ="142" lineLength="5" lineWidth="1.5" color="200,255,255,255" startXAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startY="36" color="200,60,60,60">
+         <font><![CDATA[Default-BOLD-9]]></font>
+      </value>
+      <range startY="17" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="8"/>
+   </face>
+
+   <face id="135" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/alloy_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="23" length ="142" lineLength="5" lineWidth="1.5" color="200,255,255,255" startXAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startY="36" color="200,60,60,60">
+         <font><![CDATA[Default-BOLD-9]]></font>
+      </value>
+      <range startY="17" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="8"/>
+   </face>
+
+   <face id="136" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/alloy_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="23" length ="142" lineLength="5" lineWidth="1.5" color="200,255,255,255" startXAdjustment="8"/>
+      <minorTick lineLength="3" lineWidth="1" color="200,255,255,255"/>
+      <value startY="36" color="200,60,60,60">
+         <font><![CDATA[Default-BOLD-9]]></font>
+      </value>
+      <range startY="17" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="8"/>
+   </face>
+
+   <face id="141" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/black/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="22" length ="138" lineLength="10" lineWidth="1.5" color="200,255,255,255" startXAdjustment="6"/>
+      <minorTick lineLength="6" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="255,255,255,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="20" width="5"/>
+      <valueRec centerY="27" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="5"/>
+   </face>
+
+   <face id="142" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/black/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="22" length ="138" lineLength="10" lineWidth="1.5" color="200,255,255,255" startXAdjustment="6"/>
+      <minorTick lineLength="6" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="255,255,255,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="20" width="5"/>
+      <valueRec centerY="27" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="5"/>
+   </face>
+
+   <face id="143" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/black/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="22" length ="138" lineLength="10" lineWidth="1.5" color="200,255,255,255" startXAdjustment="6"/>
+      <minorTick lineLength="6" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="255,255,255,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="20" width="5"/>
+      <valueRec centerY="27" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="5"/>
+   </face>
+
+   <face id="144" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/black/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="22" length ="138" lineLength="10" lineWidth="1.5" color="200,255,255,255" startXAdjustment="6"/>
+      <minorTick lineLength="6" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="255,255,255,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="20" width="5"/>
+      <valueRec centerY="27" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="5"/>
+   </face>
+
+   <face id="145" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/black/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="22" length ="138" lineLength="10" lineWidth="1.5" color="200,255,255,255" startXAdjustment="6"/>
+      <minorTick lineLength="6" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="255,255,255,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="20" width="5"/>
+      <valueRec centerY="27" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="5"/>
+   </face>
+
+   <face id="146" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/black/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="22" length ="138" lineLength="10" lineWidth="1.5" color="200,255,255,255" startXAdjustment="6"/>
+      <minorTick lineLength="6" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="255,255,255,255">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="20" width="5"/>
+      <valueRec centerY="27" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="33" width="5"/>
+   </face>
+
+   <face id="151" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/blue_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="25" length ="160" lineLength="1" lineWidth="3" color="200,255,255,255" startXAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="200,4,10,71">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="18" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="20" width="8"/>
+   </face>
+
+   <face id="152" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/blue_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="25" length ="160" lineLength="1" lineWidth="3" color="200,255,255,255" startXAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="200,4,10,71">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="18" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="20" width="8"/>
+   </face>
+
+   <face id="153" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/blue_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="25" length ="160" lineLength="1" lineWidth="3" color="200,255,255,255" startXAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="200,4,10,71">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="18" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="20" width="8"/>
+   </face>
+
+   <face id="154" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/blue_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="25" length ="160" lineLength="1" lineWidth="3" color="200,255,255,255" startXAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="200,4,10,71">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="18" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="20" width="8"/>
+   </face>
+
+   <face id="155" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/blue_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="25" length ="160" lineLength="1" lineWidth="3" color="200,255,255,255" startXAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="200,4,10,71">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="18" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="20" width="8"/>
+   </face>
+
+   <face id="156" classname="inetsoft.report.gui.viewsheet.thermometer.VSHorizontalThermometer">
+       <image>
+         <panel height="60.7" width="200">svg/blue_new/horizontal_simple.svg</panel>
+       </image>
+      <majorTick startY="25" length ="160" lineLength="1" lineWidth="3" color="200,255,255,255" startXAdjustment="0"/>
+      <minorTick lineLength="2" lineWidth="1" color="200,255,255,255"/>
+      <value startY="35" color="200,4,10,71">
+         <font><![CDATA[Default-BOLD-11]]></font>
+      </value>
+      <range startY="18" width="5"/>
+      <valueRec centerY="26" topColor="255,255,0,0" bottomColor="255,66,9,9" startX="20" width="8"/>
+   </face>
+</VSThermometer>

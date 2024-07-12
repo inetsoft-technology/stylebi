@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="104.1968 616.1831" i:rulerOrigin="0 0" i:pageBounds="0 792 612 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/" width="200" height="200"
+	 viewBox="0 0 200 200" overflow="visible" enable-background="new 0 0 200 200" xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_2" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#FFFF4F004F00">
+				</g>
+				<g id="Layer_6" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#FFFF4F00FFFF">
+				</g>
+				<g id="Layer_1" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+				</g>
+				<g id="Layer_5" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#FFFFFFFF4F00">
+				</g>
+				<g id="Layer_4" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F004F00FFFF">
+				</g>
+				<g id="Layer_3" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+					
+						<linearGradient id="XMLID_5_" gradientUnits="userSpaceOnUse" x1="9.4424" y1="207.9233" x2="190.5583" y2="-7.9222" gradientTransform="matrix(-1 0 0 -1 200 200)">
+						<stop  offset="0.0112" style="stop-color:#C7C7C7"/>
+						<stop  offset="0.0124" style="stop-color:#C8C8C8"/>
+						<stop  offset="0.0339" style="stop-color:#D9D9D9"/>
+						<stop  offset="0.0605" style="stop-color:#E4E4E4"/>
+						<stop  offset="0.0981" style="stop-color:#EBEBEB"/>
+						<stop  offset="0.2022" style="stop-color:#EDEDED"/>
+						<stop  offset="0.2441" style="stop-color:#E2E2E2"/>
+						<stop  offset="0.4094" style="stop-color:#B8B8B8"/>
+						<stop  offset="0.4944" style="stop-color:#A8A8A8"/>
+						<stop  offset="0.6117" style="stop-color:#ABABAB"/>
+						<stop  offset="0.6953" style="stop-color:#B4B4B4"/>
+						<stop  offset="0.7683" style="stop-color:#C4C4C4"/>
+						<stop  offset="0.8034" style="stop-color:#CFCFCF"/>
+						<stop  offset="0.8863" style="stop-color:#CDCDCD"/>
+						<stop  offset="0.9162" style="stop-color:#C6C6C6"/>
+						<stop  offset="0.9375" style="stop-color:#BABABA"/>
+						<stop  offset="0.9547" style="stop-color:#A9A9A9"/>
+						<stop  offset="0.9694" style="stop-color:#939393"/>
+						<stop  offset="0.9825" style="stop-color:#787878"/>
+						<stop  offset="0.994" style="stop-color:#595959"/>
+						<stop  offset="1" style="stop-color:#454545"/>
+						<a:midPointStop  offset="0.0112" style="stop-color:#C7C7C7"/>
+						<a:midPointStop  offset="0.13" style="stop-color:#C7C7C7"/>
+						<a:midPointStop  offset="0.2022" style="stop-color:#EDEDED"/>
+						<a:midPointStop  offset="0.4423" style="stop-color:#EDEDED"/>
+						<a:midPointStop  offset="0.4944" style="stop-color:#A8A8A8"/>
+						<a:midPointStop  offset="0.7714" style="stop-color:#A8A8A8"/>
+						<a:midPointStop  offset="0.8034" style="stop-color:#CFCFCF"/>
+						<a:midPointStop  offset="0.87" style="stop-color:#CFCFCF"/>
+						<a:midPointStop  offset="1" style="stop-color:#454545"/>
+					</linearGradient>
+					<rect i:knockout="Off" opacity="0" fill="url(#XMLID_5_)" width="200" height="200"/> 
+					<g i:knockout="Off">
+						
+							<linearGradient id="XMLID_6_" gradientUnits="userSpaceOnUse" x1="-171.6338" y1="50.6245" x2="-171.6338" y2="-2.3994" gradientTransform="matrix(-0.9406 -0.0042 0.0041 -0.9225 -2.5561 65.6918)">
+							<stop  offset="0" style="stop-color:#BABABA"/>
+							<stop  offset="0.009" style="stop-color:#C3C3C3"/>
+							<stop  offset="0.0327" style="stop-color:#D6D6D6"/>
+							<stop  offset="0.0608" style="stop-color:#E3E3E3"/>
+							<stop  offset="0.0967" style="stop-color:#EBEBEB"/>
+							<stop  offset="0.1685" style="stop-color:#EDEDED"/>
+							<stop  offset="0.427" style="stop-color:#C9C9C9"/>
+							<stop  offset="0.6742" style="stop-color:#DEDEDE"/>
+							<stop  offset="0.7122" style="stop-color:#D9D9D9"/>
+							<stop  offset="0.7593" style="stop-color:#C9C9C9"/>
+							<stop  offset="0.8112" style="stop-color:#B0B0B0"/>
+							<stop  offset="0.8665" style="stop-color:#8D8D8D"/>
+							<stop  offset="0.9245" style="stop-color:#606060"/>
+							<stop  offset="0.984" style="stop-color:#292929"/>
+							<stop  offset="1" style="stop-color:#1A1A1A"/>
+							<a:midPointStop  offset="0" style="stop-color:#BABABA"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#BABABA"/>
+							<a:midPointStop  offset="0.009" style="stop-color:#C3C3C3"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#C3C3C3"/>
+							<a:midPointStop  offset="0.0327" style="stop-color:#D6D6D6"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#D6D6D6"/>
+							<a:midPointStop  offset="0.0608" style="stop-color:#E3E3E3"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#E3E3E3"/>
+							<a:midPointStop  offset="0.0967" style="stop-color:#EBEBEB"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#EBEBEB"/>
+							<a:midPointStop  offset="0.1685" style="stop-color:#EDEDED"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#EDEDED"/>
+							<a:midPointStop  offset="0.427" style="stop-color:#C9C9C9"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#C9C9C9"/>
+							<a:midPointStop  offset="0.6742" style="stop-color:#DEDEDE"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#DEDEDE"/>
+							<a:midPointStop  offset="0.7122" style="stop-color:#D9D9D9"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#D9D9D9"/>
+							<a:midPointStop  offset="0.7593" style="stop-color:#C9C9C9"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#C9C9C9"/>
+							<a:midPointStop  offset="0.8112" style="stop-color:#B0B0B0"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#B0B0B0"/>
+							<a:midPointStop  offset="0.8665" style="stop-color:#8D8D8D"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#8D8D8D"/>
+							<a:midPointStop  offset="0.9245" style="stop-color:#606060"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#606060"/>
+							<a:midPointStop  offset="0.984" style="stop-color:#292929"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#292929"/>
+							<a:midPointStop  offset="1" style="stop-color:#1A1A1A"/>
+						</linearGradient>
+						<circle fill="url(#XMLID_6_)" cx="158.983" cy="44.171" r="23.619"/> 
+						
+							<radialGradient id="XMLID_7_" cx="157.6851" cy="-363.4004" r="49.5684" fx="157.6851" fy="-363.4004" gradientTransform="matrix(-0.4765 -0.0021 0.0022 -0.4934 234.9186 -134.7996)" gradientUnits="userSpaceOnUse">
+							<stop  offset="0.1685" style="stop-color:#EDEDED"/>
+							<stop  offset="0.5899" style="stop-color:#D1D1D1"/>
+							<stop  offset="0.6805" style="stop-color:#9F9F9F"/>
+							<stop  offset="0.8356" style="stop-color:#505050"/>
+							<stop  offset="0.9458" style="stop-color:#1E1E1E"/>
+							<stop  offset="1" style="stop-color:#0A0A0A"/>
+							<a:midPointStop  offset="0.1685" style="stop-color:#EDEDED"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#EDEDED"/>
+							<a:midPointStop  offset="0.5899" style="stop-color:#D1D1D1"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#D1D1D1"/>
+							<a:midPointStop  offset="0.6805" style="stop-color:#9F9F9F"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#9F9F9F"/>
+							<a:midPointStop  offset="0.8356" style="stop-color:#505050"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#505050"/>
+							<a:midPointStop  offset="0.9458" style="stop-color:#1E1E1E"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#1E1E1E"/>
+							<a:midPointStop  offset="1" style="stop-color:#0A0A0A"/>
+						</radialGradient>
+						
+							<circle i:isolated="yes" i:knockout="Off" fill="url(#XMLID_7_)"  a:adobe-blending-mode="screen" enable-background="new    " cx="158.983" cy="44.171" r="23.619"/> 
+						
+							<linearGradient id="XMLID_8_" gradientUnits="userSpaceOnUse" x1="-171.6338" y1="50.6245" x2="-171.6338" y2="-2.3994" gradientTransform="matrix(-0.9406 -0.0042 0.0041 -0.9225 -2.5561 65.6918)">
+							<stop  offset="0.0112" style="stop-color:#DEDEDE"/>
+							<stop  offset="0.0196" style="stop-color:#EBEBEB"/>
+							<stop  offset="0.0325" style="stop-color:#F6F6F6"/>
+							<stop  offset="0.0507" style="stop-color:#FDFDFD"/>
+							<stop  offset="0.1011" style="stop-color:#FFFFFF"/>
+							<stop  offset="0.1576" style="stop-color:#EEEEEE"/>
+							<stop  offset="0.3132" style="stop-color:#C5C5C5"/>
+							<stop  offset="0.3933" style="stop-color:#B5B5B5"/>
+							<stop  offset="0.6185" style="stop-color:#B8B8B8"/>
+							<stop  offset="0.7789" style="stop-color:#C1C1C1"/>
+							<stop  offset="0.7865" style="stop-color:#C2C2C2"/>
+							<stop  offset="0.9986" style="stop-color:#C0C0C0"/>
+							<stop  offset="1" style="stop-color:#C0C0C0"/>
+							<a:midPointStop  offset="0.0112" style="stop-color:#DEDEDE"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#DEDEDE"/>
+							<a:midPointStop  offset="0.0196" style="stop-color:#EBEBEB"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#EBEBEB"/>
+							<a:midPointStop  offset="0.0325" style="stop-color:#F6F6F6"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#F6F6F6"/>
+							<a:midPointStop  offset="0.0507" style="stop-color:#FDFDFD"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#FDFDFD"/>
+							<a:midPointStop  offset="0.1011" style="stop-color:#FFFFFF"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#FFFFFF"/>
+							<a:midPointStop  offset="0.1576" style="stop-color:#EEEEEE"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#EEEEEE"/>
+							<a:midPointStop  offset="0.3132" style="stop-color:#C5C5C5"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#C5C5C5"/>
+							<a:midPointStop  offset="0.3933" style="stop-color:#B5B5B5"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#B5B5B5"/>
+							<a:midPointStop  offset="0.6185" style="stop-color:#B8B8B8"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#B8B8B8"/>
+							<a:midPointStop  offset="0.7789" style="stop-color:#C1C1C1"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#C1C1C1"/>
+							<a:midPointStop  offset="0.7865" style="stop-color:#C2C2C2"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#C2C2C2"/>
+							<a:midPointStop  offset="0.9986" style="stop-color:#C0C0C0"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#C0C0C0"/>
+							<a:midPointStop  offset="1" style="stop-color:#C0C0C0"/>
+						</linearGradient>
+						
+							<circle i:isolated="yes" i:knockout="Off" fill="url(#XMLID_8_)" stroke="#A5A5A5" stroke-width="0.9326"  a:adobe-blending-mode="multiply" enable-background="new    " cx="158.983" cy="44.171" r="23.619"/> 
+					</g>
+				</g>
+			</g>
+		</switch>
+	</svg>

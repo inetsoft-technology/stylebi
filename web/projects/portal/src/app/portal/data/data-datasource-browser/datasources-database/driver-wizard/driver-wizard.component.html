@@ -1,0 +1,146 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header title="_#(em.data.databases.createDriver)" [cshid]="'AllDataSourcesPortal'"
+  (onCancel)="cancel()">
+</modal-header>
+<div class="modal-body" blockMouse>
+  <loading-indicator-pane [show]="loading"></loading-indicator-pane>
+  <div *ngIf="step === 'upload'" class="container-fluid" [formGroup]="uploadForm">
+    <div class="container">
+      <div class="row mb-1">
+        <div class="col">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" name="uploadType" value="upload" formControlName="uploadType" id="uploadTypeUpload" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">
+            <label class="form-check-label" for="uploadTypeUpload">_#(Upload)</label>
+          </div>
+        </div>
+      </div>
+      <div class="row mb-1">
+        <div class="col-10 upload-files">
+          <div class="list-group">
+            <a class="list-group-item unhighlightable"
+               *ngFor="let file of uploadForm.controls['uploadFiles']?.value; let i = index"
+               [class.selected]="selectedDriverFiles.indexOf(i) >= 0"
+               (click)="selectDriverFile($event, i)">
+              {{ file. name }}
+            </a>
+          </div>
+        </div>
+        <div class="col-2 btn-container-vertical">
+          <input #uploadFileInput type="file" accept="application/java-archive" hidden multiple (change)="addDriverFiles($event)">
+          <button type="button" class="btn btn-default" (click)="uploadFileInput.value = null; uploadFileInput.click()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload'">_#(Add)</button>
+          <button type="button" class="btn btn-default" (click)="removeDriverFiles()" [disabled]="uploadForm.controls['uploadType']?.value !== 'upload' || selectedDriverFiles.length === 0">_#(Remove)</button>
+        </div>
+      </div>
+      <div class="row mb-1" *ngIf="uploadForm.errors?.uploadFilesRequired">
+        <div class="col">
+          <span class="is-invalid"></span>
+          <span class="invalid-feedback">_#(em.data.databases.driver.uploadFilesRequired)</span>
+        </div>
+      </div>
+      <div class="row mt-1 mb-1">
+        <div class="col">
+          <div class="form-check">
+            <input type="radio" class="form-check-input" name="uploadType" value="maven" formControlName="uploadType" id="uploadTypeMaven">
+            <label class="form-check-label" for="uploadTypeMaven">_#(Maven)</label>
+          </div>
+        </div>
+      </div>
+      <div class="row form-row-float-label field-row mb-1">
+        <div class="col form-floating">
+            <input class="form-control" type="text" formControlName="mavenCoord"
+                   [class.is-invalid]="uploadForm.controls['mavenCoord'].invalid"
+                   placeholder="_#(em.data.databases.driver.mavenCoord)"
+                   [ngbTypeahead]="mavenSearch">
+            <label>_#(em.data.databases.driver.mavenCoord)</label>
+            <span *ngIf="uploadForm.controls['mavenCoord']?.errors?.required" class="invalid-feedback">_#(em.data.databases.driver.mavenCoordRequired)</span>
+            <span *ngIf="uploadForm.controls['mavenCoord']?.errors?.pattern" class="invalid-feedback">_#(em.data.databases.driver.mavenCoordInvalid)</span>
+            <span *ngIf="!uploadForm.controls['mavenCoord']?.errors?.required || uploadForm.controls['mavenCoord']?.pristine" class="helper-text">_#(em.data.databases.driver.mavenCoordHint)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="step === 'drivers'" class="container-fluid">
+    <div class="container">
+      <div class="row mb-1">
+        <div class="col">
+          <div class="list-group">
+            <div class="list-group-item" *ngFor="let driver of drivers; let i = index; trackBy: trackByIdx">
+              <input type="checkbox" class="checkbox" [(ngModel)]="selectedDrivers[i]" (ngModelChange)="selectDriver(i)">
+              <span>{{ driver }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row" *ngIf="driverForm.controls['drivers'].errors?.required">
+        <div class="col">
+          <span class="is-invalid"></span>
+          <span class="invalid-feedback">_#(em.data.databases.driver.driversRequired)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div *ngIf="step === 'plugin'" class="container-fluid" [formGroup]="pluginForm">
+    <div class="container">
+      <div class="row plugin-settings">
+        <div class="col">_#(em.data.databases.driver.pluginSettingsHelp)</div>
+      </div>
+      <div class="row form-row-float-label field-row plugin-settings">
+        <div class="col form-floating">
+            <input class="form-control" type="text" formControlName="pluginId"
+                   [class.is-invalid]="pluginForm.controls['pluginId'].invalid"
+                   placeholder="_#(em.data.databases.driver.pluginId)">
+            <label>_#(em.data.databases.driver.pluginId)</label>
+            <span *ngIf="pluginForm.controls['pluginId']?.errors?.required" class="invalid-feedback">_#(em.data.databases.driver.pluginIdRequired)</span>
+            <span *ngIf="pluginForm.controls['pluginId']?.errors?.pluginExists" class="invalid-feedback">_#(em.data.databases.driver.pluginIdExists)</span>
+          <span class="plugin-settings-hint">_#(em.data.databases.driver.pluginIdHint)</span>
+        </div>
+      </div>
+      <div class="row form-row-float-label field-row plugin-settings">
+        <div class="col form-floating">
+            <input class="form-control" type="text" formControlName="pluginName"
+                   [class.is-invalid]="pluginForm.controls['pluginName'].invalid"
+                   placeholder="_#(em.data.databases.driver.pluginName)">
+            <label>_#(em.data.databases.driver.pluginName)</label>
+            <span *ngIf="pluginForm.controls['pluginName']?.errors?.required" class="invalid-feedback">_#(em.data.databases.driver.pluginNameRequired)</span>
+          <span class="plugin-settings-hint">_#(em.data.databases.driver.pluginNameHint)</span>
+        </div>
+      </div>
+      <div class="row form-row-float-label field-row plugin-settings">
+        <div class="col form-floating">
+            <input class="form-control" type="text" formControlName="pluginVersion"
+                   [class.is-invalid]="pluginForm.controls['pluginVersion'].invalid"
+                   placeholder="_#(em.data.databases.driver.pluginVersion)">
+            <label>_#(em.data.databases.driver.pluginVersion)</label>
+            <span *ngIf="pluginForm.controls['pluginVersion']?.errors?.required" class="invalid-feedback">_#(em.data.databases.driver.pluginVersionRequired)</span>
+            <span *ngIf="pluginForm.controls['pluginVersion']?.errors?.pattern" class="invalid-feedback">_#(em.data.databases.driver.pluginVersionInvalid)</span>
+          <span class="plugin-settings-hint" [innerHTML]="'_#(em.data.databases.driver.pluginVersionHint)'"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <data-notifications #dataNotifications></data-notifications>
+</div>
+<div class="modal-footer" blockMouse>
+  <button type="button" class="btn btn-primary" (click)="next()" [disabled]="isNextDisabled()">
+    {{ step === 'plugin' ? '_#(Finish)' : '_#(Next)' }}
+  </button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>

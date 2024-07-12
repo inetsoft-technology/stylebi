@@ -1,0 +1,110 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div enterSubmit (onEnter)="onCommit.emit()" *ngIf="model">
+  <form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+    <fieldset class="mb-1">
+      <legend>_#(Highlights)</legend>
+      <w-large-form-field>
+        <div class="bordered-box bd-gray border-box-md" largeFieldElement>
+          <div *ngFor="let highlight of model.highlights"
+               [class.selected]="highlight == selectedHighlight"
+               (click)="selectHighlight(highlight)">
+            {{highlight.name}}
+          </div>
+        </div>
+        <ng-container largeFieldButtons>
+          <button type="button" class="btn btn-default"
+                  (click)="showAddHighlightDialog()">_#(Add)</button>
+          <button type="button" class="btn btn-default"
+                  (click)="deleteHighlight()" [disabled]="!selectedHighlight">_#(Delete)</button>
+          <button type="button" class="btn btn-default"
+                  (click)="showAddHighlightDialog(true)" [disabled]="!selectedHighlight">
+            _#(Rename)</button>
+          <button type="button" class="btn btn-default" (click)="up()"
+                  [disabled]="!isUpEnable()">_#(Up)</button>
+          <button type="button" class="btn btn-default" (click)="down()"
+                  [disabled]="!isDownEnable()">_#(Down)</button>
+        </ng-container>
+      </w-large-form-field>
+    </fieldset>
+    <fieldset [disabled]="!selectedHighlight">
+      <legend>_#(Attributes)</legend>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <color-editor data-test="highlightColorEditor"
+                        [(color)]="foreground"
+                        [enabled]="!!selectedHighlight"
+                        [label]="model.chartAssembly ? '_#(Color)' : '_#(Foreground)'"></color-editor>
+        </div>
+        <div class="col" *ngIf="!model.chartAssembly">
+          <color-editor [(color)]="background"  [enabled]="!!selectedHighlight"
+                        label="_#(Background)"></color-editor>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col" *ngIf="!model.chartAssembly || model.showFont">
+          <div class="form-floating w-100">
+            <dropdown-view #fontDropdown [label]="getFontText()" [disabled]="!selectedHighlight || model.imageObj">
+              <font-pane [fontModel]="font" (onApply)="fontDropdown.close()">
+              </font-pane>
+            </dropdown-view>
+            <label>_#(Font)</label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row" *ngIf="model.showRow">
+        <div class="checkbox col-auto">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" [(ngModel)]="applyRow" id="apply">
+            <label class="form-check-label" for="apply">
+              _#(Apply to Row)
+            </label>
+          </div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>_#(Conditions)</legend>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="bordered-box bd-gray">
+            <div *ngIf="selectedHighlight">
+              <div *ngFor="let item of selectedHighlight.vsConditionDialogModel.conditionList; let even = even; let i = index;" class="unhighlightable">
+                <div *ngIf="even">
+                  {{item | conditionToString}}
+                </div>
+                <div *ngIf="!even">
+                  {{item | junctionOperatorToString}}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col-auto">
+          <button type="button" class="btn btn-default" (click)="onEditCondition.emit()"
+                  [disabled]="!selectedHighlight">_#(Edit)</button>
+        </div>
+      </div>
+    </fieldset>
+  </form>
+</div>

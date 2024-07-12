@@ -1,0 +1,39 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="rows <= 1">
+  <input *ngIf="!password" type="text" class="form-control" [(ngModel)]="value"
+         [formControl]="valueControl" [placeholder]="placeholder" (blur)="valueChanged()"/>
+  <div *ngIf="password" class="input-group">
+    <input [type]="passwordVisible ? 'text' : 'password'" class="form-control"
+           [(ngModel)]="value" [formControl]="valueControl" (blur)="valueChanged()"/>
+    <button class="input-group-btn-addon btn btn-icon form-control"
+            (click)="passwordVisible = !passwordVisible" aria-label="_#(Show/Hide)">
+      <i [class.eye-off-icon]="!passwordVisible" [class.eye-icon]="passwordVisible"
+         class="btn-icon-color align-middle" aria-hidden="true"></i>
+    </button>
+  </div>
+</div>
+<div *ngIf="rows > 1">
+  <textarea class="form-control" rows="{{rows}}" cols="{{columns}}" [(ngModel)]="value"
+            [formControl]="valueControl" (ngModelChange)="valueChanged()"></textarea>
+</div>
+<span class="form-floating" *ngIf="valueControl.getError('required')">
+  <span class="invalid-feedback">_#(enter.value)</span>
+</span>

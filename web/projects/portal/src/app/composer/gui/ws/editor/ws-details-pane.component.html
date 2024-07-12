@@ -1,0 +1,160 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="table" class="ws-table-bar bg-white1 bb-gray">
+  <div class="ws-details-table-info" [attr.title]="table.name + getTableStatus()">
+    <div class="ws-table-image" [ngClass]="iconCss"></div>
+    <span class="ws-details-table-name">{{table.name}}</span>
+    <span>{{getTableStatus()}}</span>
+  </div>
+  <div class="ws-table-buttons me-3">
+    <button type="button" class="btn btn-sm btn-primary me-1" (click)="openConsoleDialog()">
+      Console <span class="badge text-bg-light">{{consoleMessages ? consoleMessages.length : 0}}</span>
+    </button>
+    <ng-template ngFor let-_button [ngForOf]="tableButtons">
+      <button *ngIf="isTableButtonVisible(_button)"
+              class="ws-details-table-button hover-bg-primary bg-white1"
+              [ngClass]="'ws-details-table-button--' + _button.label"
+              [attr.title]="_button.viewText"
+              [class.bg-button-toggled]="isTableButtonToggled(_button)"
+              [disabled]="!!_button.disabledFunc ? _button.disabledFunc() : false"
+              (click)="_button.clickFunction ? _button.clickFunction() : null"
+              [attr.data-button-id]="_button.id"></button>
+    </ng-template>
+    <button class="ws-details-table-button hover-bg-primary bg-white1"
+            [class.ws-details-table-button--default]="table.mode === 'default'"
+            [class.ws-details-table-button--edit]="table.mode === 'edit'"
+            [class.ws-details-table-button--live]="table.mode === 'live'"
+            [class.ws-details-table-button--full]="table.mode === 'full'"
+            [class.ws-details-table-button--detail]="table.mode === 'detail'"
+            [fixedDropdown]="availableTableModes" dropdownPlacement="bottom"
+            title="_#(Change View)"
+            data-button-id="ws-table-mode"></button>
+    <button class="ws-details-table-button hover-bg-primary bg-white1"
+            [class.data-full-icon]="table.isRuntime()"
+            [class.data-partial-icon]="!table.isRuntime()"
+            [fixedDropdown]="availablePreviewModes" dropdownPlacement="bottom"
+            [autoClose]="false"
+            title="_#(Change Data Mode)"
+            data-button-id="ws-table-mode">
+    </button>
+    <ng-template #availableTableModes>
+      <div class="dropdown-menu show table-modes-dropdown">
+        <ng-container *ngFor="let _mode of table.modes">
+           <div class="dropdown-item"
+                (click)="getTableModeButton(_mode)?.clickFunction()">
+
+             <i class="ws-details-dropdown-button table-mode-dropdown-icon"
+                [ngClass]="'ws-details-table-button--' + _mode"></i>
+             <span>{{getTableModeButton(_mode).viewText}}</span>
+           </div>
+        </ng-container>
+      </div>
+    </ng-template>
+    <ng-template #availablePreviewModes>
+      <div class="dropdown-menu show table-modes-dropdown">
+        <div class="dropdown-item">
+          <input type="checkbox" class="form-check-input" id="rowLimit"
+                 [attr.disabled]="dataModeEnabled() ? null : ''"
+                 [ngModel]="!table.isRuntime()"
+                 (ngModelChange)="setRuntime(!$event)">
+          <label class="form-check-label" for="rowLimit">
+            _#(Enable Display Row Limit)
+          </label>
+        </div>
+        <div class="dropdown-item">
+          <input type="checkbox" class="form-check-input" id="showName"
+                 [ngModel]="showName"
+                 (ngModelChange)="setShowName($event)">
+          <label class="form-check-label" for="showName"
+                 title="_#(composer.ws.detailsPane.showColumnName)">
+            _#(Show Column Name)
+          </label>
+        </div>
+      </div>
+    </ng-template>
+  </div>
+  <div class="ws-table-column-search bd-gray" *ngIf="searchBarEnabled">
+    <span class="d-flex align-items-center">
+      <input #searchBar class="form-control" placeholder="_#(Search)"
+             [(ngModel)]="searchQuery" (keydown)="checkEnterKey($event)">
+      <span class="search-result-count"> {{searchResultCount}} </span>
+    </span>
+    <button class="ws-details-table-button hover-bg-primary bg-white1 ws-details-table-button--clear-search"
+            title="_#(Clear)"
+            (click)="clearSearch()"
+            [disabled]="!searchQuery">
+    </button>
+    <button class="ws-details-table-button hover-bg-primary bg-white1 ws-details-table-button--search-previous"
+            title="_#(Previous)"
+            (click)="searchPrevious()"
+            [disabled]="!searchQuery">
+    </button>
+    <button class="ws-details-table-button hover-bg-primary bg-white1 ws-details-table-button--search-next"
+            title="_#(Next)"
+            (click)="searchNext()"
+            [disabled]="!searchQuery">
+    </button>
+  </div>
+</div>
+<div class="ws-table-container" *ngIf="table">
+  <ws-details-table-data [table]="table" [worksheet]="worksheet"
+                         [selectingColumnSource]="selectingColumnSource"
+                         [showName]="showName"
+                         [searchQuery]="searchQuery" [searchIndex]="searchIndex"
+                         [wrapColumnHeaders]="isWrapColumnHeadersEnabled()"
+                         (onEditFormulaColumn)="openFormulaEditorDialog($event)"
+                         (onEditAggregateColumn)="openAggregateDialog()"
+                         (onEditGroupColumn)="openAggregateDialog()"
+                         (onEditDateColumn)="openDateRangeOptionDialog($event[0], $event[1])"
+                         (onEditNumericColumn)="openNumericRangeOptionDialog($event[0], $event[1])"
+                         (onChangeColumnType)="openChangeColumnTypeDialog($event)"
+                         (onChangeColumnDescription)="openChangeColumnDesDialog($event)"
+                         (onInsertColumns)="onInsertColumns.emit($event)"
+                         (onReplaceColumns)="onReplaceColumns.emit($event)"
+                         (onRowRangeChange)="updateRowRange($event)"
+                         (onSelectColumnSource)="selectColumnSource($event)"
+                         (onOozColumnMouseEvent)="oozColumnMouseEvent($event)"
+                         (onSearchResultUpdate)="onSearchResultUpdate($event[0], $event[1])"></ws-details-table-data>
+</div>
+<div *ngIf="!table">
+  <span>_#(composer.ws.detailsPane.checkTable)</span>
+</div>
+
+<ng-template #importCsvDialog let-close="close" let-dismiss="dismiss">
+  <import-csv-dialog [worksheet]="worksheet" [tableName]="table.name"
+                     (onCommit)="close($event)" (onCancel)="dismiss($event)"></import-csv-dialog>
+</ng-template>
+<ng-template #columnTypeDialog let-close="close" let-dismiss="dismiss">
+  <column-type-dialog [colInfo]="dialogData" [submitCallback]="submitColumnTypeCallback"
+                      [formatAll]="formatAll"
+                      (onCommit)="close($event)" (onCancel)="dismiss($event)"></column-type-dialog>
+</ng-template>
+<ng-template #columnDescriptionDialog let-close="close" let-dismiss="dismiss">
+  <column-description-dialog [description]="columnDescription"
+    (onCommit)="close($event)" (onCancel)="dismiss($event)">
+  </column-description-dialog>
+</ng-template>
+<ng-template #consoleDialog let-close="close" let-dismiss="dismiss">
+  <console-dialog [runtimeId]="worksheet?.runtimeId"
+                  [messageLevels]="worksheet?.messageLevels"
+                  [(messages)]="consoleMessages"
+                  (onClose)="dismiss($event)" (onCommit)="close($event)">
+  </console-dialog>
+</ng-template>

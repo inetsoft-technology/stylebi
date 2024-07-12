@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.1, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg version="1.0" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="200px" height="200px" viewBox="0 0 200 200" enable-background="new 0 0 200 200" xml:space="preserve">
+<g id="Layer_1">
+	<rect fill="#FFFFFF" fill-opacity="0" width="200" height="200"/>
+	<g>
+		<g>
+			<path fill="#FFFFFF" d="M150.202,48.506C104.766,3.065,41.666-5.752,20.834,15.084c-9.475,9.476-14.191,27.598-8.23,46.812
+				l-0.002,73.137c-5.119,6.383-8.189,14.48-8.189,23.302c0,20.587,16.687,37.276,37.27,37.276c9.008,0,17.27-3.196,23.712-8.518
+				h78.675c14.303,3.84,41.255,7.264,49.025-14.791C201.251,149.165,190.012,88.322,150.202,48.506z"/>
+		</g>
+		<g>
+			<path fill="#2B5BA0" d="M151.177,47.53c-21.12-21.122-47.61-36.016-74.59-41.938c-24.758-5.433-45.965-2.25-56.729,8.515
+				c-8.937,8.937-15.053,27.306-8.572,48.197l-0.062-0.409l-0.002,73.136l0.304-0.863c-5.556,6.928-8.493,15.284-8.493,24.166
+				c0,21.314,17.338,38.654,38.65,38.654c8.961,0,17.695-3.135,24.59-8.832l-0.878,0.314h77.675l-0.356-0.047
+				c12.406,3.331,43.179,8.475,51.683-15.662C203.109,148.041,190.605,86.964,151.177,47.53z M191.795,171.848
+				c-7.738,21.959-36.702,17.047-48.365,13.914l-0.177-0.047h-0.183H65.395h-0.496l-0.382,0.314
+				c-6.403,5.289-14.512,8.201-22.834,8.201c-19.79,0-35.891-16.104-35.891-35.896c0-8.248,2.727-16.007,7.885-22.438l0.304-0.379
+				v-0.483l0.002-73.137v-0.209l-0.062-0.2c-6.139-19.792-0.462-37.077,7.888-45.428C42.964-5.1,105.916,6.167,149.227,49.481
+				C187.904,88.165,200.271,147.792,191.795,171.848z"/>
+		</g>
+	</g>
+	<g display="none">
+		<path display="inline" fill="#8BD2E4" d="M146.773,170.021c-5.521-0.213-10.051-5.623-10.051-11.902
+			c0-54.566-41.004-93.129-93.017-96.475c-6.263-0.423-11.668-4.585-11.854-10.109l0,0c-0.197-5.505,6.095-10.368,13.788-9.866
+			c61.787,3.976,111.061,51.445,111.061,114.61C156.702,163.986,152.279,170.244,146.773,170.021L146.773,170.021z"/>
+		<path display="inline" fill="none" stroke="#0C52BA" stroke-width="0.9198" d="M146.773,170.021
+			c-5.521-0.213-10.051-5.623-10.051-11.902c0-54.566-41.004-93.129-93.017-96.475c-6.263-0.423-11.668-4.585-11.854-10.109l0,0
+			c-0.197-5.505,6.095-10.368,13.788-9.866c61.787,3.976,111.061,51.445,111.061,114.61
+			C156.702,163.986,152.279,170.244,146.773,170.021L146.773,170.021z"/>
+	</g>
+</g>
+<path fill="#8BD2E4" stroke="#0C52BA" stroke-width="0.9184" d="M156.545,150.271C153.016,91.684,109.342,49.11,52.184,42.275
+	c-1.059-0.181-6.284-0.796-7.288-0.817c-5.427-0.114-10.167,4.552-10.167,10.167c0,5.615,4.552,10.167,10.167,10.167
+	c0.512,0,1.963,0.1,2.513,0.149l0,0c49.38,5.295,86.966,40.929,89.149,90.029c-0.008,0.156,0.134,2.109,0.137,2.223l0,0
+	c0.832,4.756,4.971,8.373,9.964,8.373c4.819,0,9.091-3.221,9.866-7.881C156.525,154.684,156.625,151.281,156.545,150.271z"/>
+</svg>

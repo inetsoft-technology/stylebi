@@ -1,0 +1,54 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="concatenation-focus-pane-container" (mousedown)="focusConcatTable($event)">
+  <ng-template ngFor let-_table [ngForOf]="tables" let-_i="index" let-_first="first" let-_last="last">
+    <concat-relation-connector [first]="_first" [last]="_last"
+                               [tableError]="subtableProblemColumns.get(_table.name).size > 0"></concat-relation-connector>
+    <concat-relation-descriptor *ngIf="!_last" [operation]="getOperation(tables[_i].name, tables[_i + 1].name)"
+                                (onSelect)="showConcatenationTypeDialog(tables[_i].name, tables[_i + 1].name)"></concat-relation-descriptor>
+  </ng-template>
+  <div class="concat-tables-container">
+    <ng-template ngFor let-_table [ngForOf]="tables" let-_i="index" let-_last="last">
+      <concatenated-table-thumbnail [ngClass]="{'ws-selected-concat-table': worksheet.selectedSubtables.indexOf(_table) !== -1}"
+                                    [table]="_table" [colWidth]="colWidth"
+                                    [maxBoundNumCols]="maxBoundNumCols"
+                                    [subtableProblemColumns]="subtableProblemColumns.get(_table.name)"
+                                    [actions]="createActions(_table)"
+                                    (onSelectTable)="selectTableInView($event)"
+                                    (contextmenu)="showSubtableContextmenu($event, _table)"
+                                    (dblclick)="focusCompositeTable(_table)"
+                                    (dragstart)="dragSubtable($event, _table)"></concatenated-table-thumbnail>
+      <div *ngIf="!_last" class="concat-table-separator" [style.height.px]="connectorHeight"></div>
+      <table class="concat-column-error-table" [style.height.px]="errorTableHeight">
+        <tbody>
+          <tr>
+            <td *ngFor="let _i of maxBoundNumCols | numberToArray"
+                [class.bg-error-light]="allProblemColumns.has(_i)"
+                [style.min-width.px]="colWidth" [style.max-width.px]="colWidth"></td>
+          </tr>
+        </tbody>
+      </table>
+    </ng-template>
+  </div>
+  <concatenation-pane-drop-target *ngIf="draggingTable | async" class="concat-drag-target"
+                                  [numTables]="tables.length" [tableHeight]="tableHeight" [colWidth]="colWidth"
+                                  [connectorHeight]="connectorHeight" [maxNumCols]="maxBoundNumCols"
+                                  (onDrop)="dropTable($event)"></concatenation-pane-drop-target>
+</div>

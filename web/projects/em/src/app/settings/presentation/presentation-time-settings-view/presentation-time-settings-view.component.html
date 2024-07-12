@@ -1,0 +1,39 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" *ngIf="model" class="em-card em-presentation-time-settings-view">
+  <mat-card-title>_#(Time Settings)</mat-card-title>
+  <mat-card-content>
+    <section class="flex-row">
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Week Start Day)</mat-label>
+        <input matInput [(ngModel)]="model.weekStart" (input)="emitModel()">
+      </mat-form-field>
+    </section>
+    <section class="flex-row">
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Local Timezone)</mat-label>
+        <input matInput [(ngModel)]="model.localTimezone" (input)="emitModel()">
+      </mat-form-field>
+    </section>
+    <section>
+      <mat-checkbox [(ngModel)]="model.scheduleTime12Hours" (change)="emitModel()">_#(Schedule Time 12 Hours)</mat-checkbox>
+    </section>
+  </mat-card-content>
+</mat-card>

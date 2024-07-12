@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+Plugin-Id: com.inetsoft.jdbc.oracle
+Plugin-Provider: InetSoft Technology
+Plugin-Version: 14.0.${plugin.build.number}
+Plugin-Name: Oracle Thin Driver
+Plugin-Classloader-First: true
+Plugin-Merge-Into-Required: false

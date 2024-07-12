@@ -1,0 +1,55 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="data-model-edit-pane">
+  <div class="d-flex data-model-toolbar">
+    <div class="data-model-title">
+      <i class="logical-model-icon"></i>
+      <span class="data-model-name" [attr.title]="displayTitle">
+          {{displayTitle}}
+        </span>
+    </div>
+    <div class="btn-group btn-group-sm px-2 py-1">
+      <button type="button" class="btn btn-light-no-bg" [attr.title]="'_#(Save)'"
+              [disabled]="!isModified || form.invalid" (click)="save()">
+        <i class="save-icon"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="logical-model-content" [style.height]="lmContentHeight">
+    <ng-container>
+      <logical-model-property-pane
+         [logicalModel]="logicalModel"
+         [databaseName]="databaseName"
+         [physicalModelName]="physicalModelName"
+         [additional]="logicalModel?.connection"
+         [originalName]="originalName"
+         [editing]="editing"
+         [parent]="parent"
+         [loading]="loading"
+         [form]="form"
+         [notifications]="notifications"
+         (checkModify)="checkModified()">
+      </logical-model-property-pane>
+    </ng-container>
+  </div>
+</div>
+
+<notifications #notifications class="notifications-data-model" [timeout]="5000"></notifications>

@@ -1,0 +1,478 @@
+{
+    "endpoints": [
+        {
+            "name": "Collaboration Whitelist",
+            "paged": true,
+            "suffix": "/2.0/collaboration_whitelist_entries?marker={Marker?}"
+        },
+        {
+            "name": "Collaboration Whitelist Entry",
+            "paged": false,
+            "suffix": "/2.0/collaboration_whitelist_entries/{Collaboration ID}"
+        },
+        {
+            "name": "Collaboration Whitelist Exempt Targets",
+            "paged": true,
+            "suffix": "/2.0/collaboration_whitelist_exempt_targets?marker={Marker?}"
+        },
+        {
+            "name": "Collaboration Whitelist Exempt Target",
+            "paged": false,
+            "suffix": "/2.0/collaboration_whitelist_exempt_targets/{Collaboration Exempt ID}"
+        },
+        {
+            "name": "Collaboration",
+            "paged": false,
+            "suffix": "/2.0/collaborations/{Collaboration ID}?fields={Fields?}"
+        },
+        {
+            "name": "File Collaborations",
+            "paged": true,
+            "suffix": "/2.0/files/{File ID}/collaborations?fields={Fields?}&marker={Marker?}"
+        },
+        {
+            "name": "Folder Collaborations",
+            "paged": true,
+            "suffix": "/2.0/folders/{Folder ID}/collaborations?fields={Fields?}"
+        },
+        {
+            "name": "Pending Collaborations",
+            "paged": true,
+            "suffix": "/2.0/collaborations?status=pending&fields={Fields?}"
+        },
+        {
+            "name": "Group Collaborations",
+            "paged": true,
+            "suffix": "/2.0/groups/{Group ID}/collaborations"
+        },
+        {
+            "name": "Collections",
+            "paged": true,
+            "suffix": "/2.0/collections?fields={Fields?}",
+            "lookups": [
+              {
+                "endpoint": "Collection Items",
+                "jsonPath": "$.entries[*]",
+                "key": "id",
+                "parameterName": "Collection ID"
+              }
+            ]
+        },
+        {
+            "name": "Collection Items",
+            "paged": true,
+            "suffix": "/2.0/collections/{Collection ID}/items?fields={Fields?}"
+        },
+        {
+            "name": "File Comments",
+            "paged": true,
+            "suffix": "/2.0/files/{File ID}/comments?fields={Fields?}"
+        },
+        {
+            "name": "Comment",
+            "paged": false,
+            "suffix": "/2.0/comments/{Comment ID}?fields={Fields?}"
+        },
+        {
+            "name": "Device Pin",
+            "paged": false,
+            "suffix": "/2.0/device_pinners/{Device Pinner ID}"
+        },
+        {
+            "name": "Enterprise Device Pins",
+            "paged": true,
+            "suffix": "/2.0/enterprises/{Enterprise ID}/device_pinners?marker={Marker?}"
+        },
+        {
+            "name": "Download File",
+            "paged": false,
+            "suffix": "/2.0/files/{File ID}/content?version={Version?}"
+        },
+        {
+            "name": "User's Email Aliases",
+            "paged": true,
+            "suffix": "/2.0/users/{User ID}/email_aliases"
+        },
+        {
+            "name": "User and Enterprise Events",
+            "paged": true,
+            "suffix": "/2.0/events?created_after={Created After?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&created_before={Created Before?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&event_type={Event Type?:ACCESS_GRANTED|ACCESS_REVOKED|ADD_DEVICE_ASSOCIATION}&stream_position={Stream Position?}&stream_type={Stream Type?:all|changes|sync|admin_logs}"
+        },
+        {
+            "name": "File Version Legal Hold",
+            "paged": false,
+            "suffix": "/2.0/file_version_legal_holds/{File Version Legal ID}"
+        },
+        {
+            "name": "File Version Legal Holds",
+            "paged": true,
+            "suffix": "/2.0/file_version_legal_holds?marker={Marker?}&policy_id={Policy ID?}"
+        },
+        {
+            "name": "Retention on File",
+            "paged": false,
+            "suffix": "/2.0/file_version_retentions/{File Version Retention ID}"
+        },
+        {
+            "name": "File Version Retentions",
+            "paged": true,
+            "suffix": "/2.0/file_version_retentions?disposition_action={Disposition Action?:permanently_delete|remove_retention}&disposition_after={Disposition After?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&disposition_before={Disposition Before?:yyyy-MM-dd\u2019T\u2019HH:mm:ssZ}&file_id={File ID?}&file_version_id={File Version ID?}&marker={Marker?}&policy_id={Policy ID?}"
+        },
+        {
+            "name": "File Versions",
+            "paged": true,
+            "suffix": "/2.0/files/{File ID}/versions?fields={Fields?}"
+        },
+        {
+            "name": "File Version",
+            "paged": false,
+            "suffix": "/2.0/files/{File ID}/versions/{File Version ID}?fields={Fields?}"
+        },
+        {
+            "name": "File Information",
+            "paged": true,
+            "suffix": "/2.0/files/{File ID}?fields={Fields?}"
+        },
+        {
+            "name": "Folder Information",
+            "paged": true,
+            "suffix": "/2.0/folders/{Folder ID}?fields={Fields?}"
+        },
+        {
+            "name": "Folder Items",
+            "paged": true,
+            "suffix": "/2.0/folders/{Folder ID}/items?fields={Fields?}"
+        },
+        {
+            "name": "User's Groups",
+            "paged": true,
+            "suffix": "/2.0/users/{User ID}/memberships",
+            "lookups": [
+              {
+                "endpoint": "Group Members",
+                "jsonPath": "$.entries[*]",
+                "key": "id",
+                "parameterName": "Group ID"
+              },
+              {
+                "endpoint": "Group Collaborations",
+                "jsonPath": "$.entries[*]",
+                "key": "id",
+                "parameterName": "Group ID"
+              }
+            ]
+        },
+        {
+            "name": "Group Members",
+            "paged": true,
+            "suffix": "/2.0/groups/{Group ID}/memberships"
+        },
+        {
+            "name": "Group Membership",
+            "paged": false,
+            "suffix": "/2.0/group_memberships/{Group Membership ID}?fields={Fields?}"
+        },
+        {
+            "name": "Enterprise Groups",
+            "paged": true,
+            "suffix": "/2.0/groups?fields={Fields?}",
+            "lookups": [
+              {
+                "endpoint": "Group",
+                "jsonPath": "$.entries[*]",
+                "key": "id",
+                "parameterName": "Group ID"
+              },
+              {
+                "endpoint": "Group Members",
+                "jsonPath": "$.entries[*]",
+                "key": "id",
+                "parameterName": "Group ID"
+              },
+              {
+                "endpoint": "Group Collaborations",
+                "jsonPath": "$.entries[*]",
+                "key": "id",
+                "parameterName": "Group ID"
+              }
+            ]
+        },
+        {
+            "name": "Group",
+            "paged": false,
+            "suffix": "/2.0/groups/{Group ID}?fields={Fields?}"
+        },
+        {
+            "name": "User Invite Status",
+            "paged": false,
+            "suffix": "/2.0/invites/{Invite ID}?fields={Fields?}"
+        },
+        {
+            "name": "Legal Hold Policies",
+            "paged": true,
+            "suffix": "/2.0/legal_hold_policies?fields={Fields?}&marker={Marker?}&policy_name={Policy Name?}"
+        },
+        {
+            "name": "Legal Hold Policy",
+            "paged": false,
+            "suffix": "/2.0/legal_hold_policies/{Legal Hold Policy ID}"
+        },
+        {
+            "name": "Legal Hold Policy Assignments",
+            "paged": true,
+            "suffix": "/2.0/legal_hold_policy_assignments?policy_id={Policy ID}&assign_to_id={Assign To ID?}&assign_to_type={Assign To Type?:file|file_version|folder|user}&marker={Marker?}",
+            "lookups": [
+              {
+                "endpoint": "Legal Hold Policy Assignment",
+                "jsonPath": "$.entries[*]",
+                "key": "id",
+                "parameterName": "Legal Hold Policy Assignment ID"
+              }
+            ]
+        },
+        {
+            "name": "Legal Hold Policy Assignment",
+            "paged": false,
+            "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}"
+        },
+        {
+            "name": "Current File Versions",
+            "paged": true,
+            "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}/files_on_hold?fields={Fields?}&marker={Marker?}"
+        },
+        {
+            "name": "Previous File Versions",
+            "paged": true,
+            "suffix": "/2.0/legal_hold_policy_assignments/{Legal Hold Policy Assignment ID}/file_versions_on_hold?fields={Fields?}&marker={Marker?}"
+        },
+        {
+            "name": "Metadata Cascade Policies",
+            "paged": true,
+            "suffix": "/2.0/metadata_cascade_policies?folder_id={Folder_id}&marker={Marker?}&owner_enterprise_id={Owner Enterprise ID}"
+        },
+        {
+            "name": "Metadata Cascade Policy",
+            "paged": false,
+            "suffix": "/2.0/metadata_cascade_policies/{Metadata Cascade Policy ID}"
+        },
+        {
+            "name": "File Metadata Instances",
+            "paged": true,
+            "suffix": "/2.0/files/{File ID}/metadata"
+        },
+        {
+            "name": "File Metadata Instance",
+            "paged": false,
+            "suffix": "/2.0/files/{File ID}/metadata/{Scope:global|enterprise}/{Template Key}"
+        },
+        {
+            "name": "Folder Metadata Instances",
+            "paged": true,
+            "suffix": "/2.0/folders/{Folder ID}/metadata"
+        },
+        {
+            "name": "Folder Metadata Instance",
+            "paged": false,
+            "suffix": "/2.0/folders/{Folder ID}/metadata/{Scope:global|enterprise}/{Template Key}"
+        },
+        {
+            "name": "Metadata Template by Instance ID",
+            "paged": false,
+            "suffix": "/2.0/metadata_templates?metadata_instance_id={Metadata Instance ID}"
+        },
+        {
+            "name": "Metadata Template by Name",
+            "paged": false,
+            "suffix": "/2.0/metadata_templates/{Scope}/{Template Key}/schema"
+        },
+        {
+            "name": "Metadata Template by ID",
+            "paged": false,
+            "suffix": "/2.0/metadata_templates/{Template ID}"
+        },
+        {
+            "name": "Global Templates",
+            "paged": true,
+            "suffix": "/2.0/metadata_templates/global"
+        },
+        {
+            "name": "Enterprise Templates",
+            "paged": true,
+            "suffix": "/2.0/metadata_templates/enterprise?marker={Marker?}"
+        },
+        {
+            "name": "Recently Accessed Items",
+            "paged": true,
+            "suffix": "/2.0/recent_items?fields={Fields?}&marker={Marker?}"
+        },
+        {
+            "name": "Retention Policies",
+            "paged": true,
+            "suffix": "/2.0/retention_policies?created_by_user_id={Created By User ID?}&policy_name={Policy Name?}&policy_type={Policy Type?:finite|indefinite}"
+        },
+        {
+            "name": "Retention Policy",
+            "paged": false,
+            "suffix": "/2.0/retention_policies/{Retention Policy ID}"
+        },
+        {
+            "name": "Retention Policy Assignments",
+            "paged": true,
+            "suffix": "/2.0/retention_policies/{Retention Policy ID}/assignments?marker={Marker?}&type={Type?:folder|enterprise}"
+        },
+        {
+            "name": "Retention Policy Assignment",
+            "paged": false,
+            "suffix": "/2.0/retention_policy_assignments/{Retention Policy Assignment ID}"
+        },
+        {
+            "name": "Search for Content",
+            "paged": true,
+            "suffix": "/2.0/search?query={Query}&ancestor_folder_ids={Ancestor Folder IDs?}&content_types={Content Types?name|description|file_content|comments|tag}&created_at_range={Created At Range?}&fields={Fields?}&file_extensions={File Extensions?}"
+        },
+        {
+            "name": "Find Item for Shared Link",
+            "paged": true,
+            "suffix": "/2.0/shared_items?fields={Fields?}"
+        },
+        {
+            "name": "Storage Policies",
+            "paged": true,
+            "suffix": "/2.0/storage_policies?fields={Fields?}&marker={Marker?}"
+        },
+        {
+            "name": "Storage Policy",
+            "paged": false,
+            "suffix": "/2.0/storage_policies/{Storage Policy ID}"
+        },
+        {
+            "name": "Storage Policy Assignments",
+            "paged": true,
+            "suffix": "/2.0/storage_policy_assignments?resolved_for_id={Resolved For ID}&resolved_for_type={Resolved For Type:user|enterprise}&marker={Marker?}"
+        },
+        {
+            "name": "Storage Policy Assignment",
+            "paged": false,
+            "suffix": "/2.0/storage_policy_assignments/{Storage Policy Assignment ID}"
+        },
+        {
+            "name": "Task Assignments",
+            "paged": true,
+            "suffix": "/2.0/tasks/{Task ID}/assignments"
+        },
+        {
+            "name": "Task Assignment",
+            "paged": false,
+            "suffix": "/2.0/task_assignments/{Task Assignment ID}"
+        },
+        {
+            "name": "Tasks on File",
+            "paged": true,
+            "suffix": "/2.0/files/{File ID}/tasks"
+        },
+        {
+            "name": "Task",
+            "paged": false,
+            "suffix": "/2.0/tasks/{Task ID}"
+        },
+        {
+            "name": "Terms of Services",
+            "paged": true,
+            "suffix": "/2.0/terms_of_services?tos_type={Terms of Service Type?:external|managed}"
+        },
+        {
+            "name": "Terms of Service",
+            "paged": false,
+            "suffix": "/2.0/terms_of_services/{Terms Of Service ID}"
+        },
+        {
+            "name": "Terms of Service User Statuses",
+            "paged": true,
+            "suffix": "/2.0/terms_of_service_user_statuses?tos_id={Terms of Service ID}&user_id={User ID?}"
+        },
+        {
+            "name": "Trashed File",
+            "paged": false,
+            "suffix": "/2.0/folders/{Folder ID}/trash?fields={Fields?}"
+        },
+        {
+            "name": "Trashed Folder",
+            "paged": false,
+            "suffix": "/2.0/folders/{Folder ID}/trash?fields={Fields?}"
+        },
+        {
+            "name": "Trashed Items",
+            "paged": true,
+            "suffix": "/2.0/folders/trash/items?fields={Fields?}&marker={Marker?}&usemarker={Use Marker?false|true}"
+        },
+        {
+            "name": "Trashed Web Link",
+            "paged": false,
+            "suffix": "/2.0/web_links/{Web Link ID}/trash?fields={Fields?}"
+        },
+        {
+            "name": "Upload Session",
+            "paged": false,
+            "suffix": "/2.0/files/upload_sessions/{Upload Session ID}"
+        },
+        {
+            "name": "Upload Session Parts",
+            "paged": true,
+            "suffix": "/2.0/files/upload_sessions/{Upload Session ID}/parts"
+        },
+        {
+            "name": "Enterprise Users",
+            "paged": true,
+            "suffix": "/2.0/users?fields={Fields?}&filter_term={Filter Term?}&marker={Marker?}&usemarker={Usemarker?:false|true}&user_type={User Type?:all|managed|external}",
+            "lookups": [
+              {
+                "endpoint": "User's Email Aliases",
+                "jsonPath": "$.entries[*]",
+                "key": "id",
+                "parameterName": "User ID"
+              },
+              {
+                "endpoint": "User's Groups",
+                "jsonPath": "$.entries[*]",
+                "key": "id",
+                "parameterName": "User ID"
+              }
+            ]
+        },
+        {
+            "name": "Current User",
+            "paged": true,
+            "suffix": "/2.0/users/me?fields={Fields?}"
+        },
+        {
+            "name": "User",
+            "paged": false,
+            "suffix": "/2.0/users/{User ID}?fields={Fields?}"
+        },
+        {
+            "name": "File Watermark",
+            "paged": false,
+            "suffix": "/2.0/files/{File ID}/watermark"
+        },
+        {
+            "name": "Folder Watermark",
+            "paged": false,
+            "suffix": "/2.0/folders/{Folder ID}/watermark"
+        },
+        {
+            "name": "Web Link",
+            "paged": true,
+            "suffix": "/2.0/web_links/{Web Link ID}"
+        },
+        {
+            "name": "Webhooks",
+            "paged": true,
+            "suffix": "/2.0/webhooks?marker={Marker?}"
+        },
+        {
+            "name": "Webhook",
+            "paged": false,
+            "suffix": "/2.0/webhooks/{Webhook ID}"
+        }
+    ]
+}

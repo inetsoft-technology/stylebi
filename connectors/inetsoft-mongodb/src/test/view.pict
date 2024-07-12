@@ -1,0 +1,21 @@
+vertical: true, false
+view1-type: label, editor, component, panel
+view1-text: yes, no
+view1-value: yes, no
+view1-row: yes, no
+view1-col: yes, no
+view1-rowspan: yes, no
+view1-colspan: yes, no
+view1-align: auto, left, center, right
+view1-verticalAlign: auto, top, middle, bottom
+view1-paddingLeft: yes|no
+view1-paddingRight: yes|no
+view1-paddingTop: yes|no
+view1-paddingBottom: yes|no
+view1-elements: yes, no
+view1-vertical: true, false, no
+
+if [view1-type] = "editor" then [view1-text] = "no";
+if [view1-type] = "panel" then [view1-text] = "no";
+if [view1-type] <> "panel" then [view1-elements] = "no";
+if [view1-type] <> "panel" then [view1-vertical] = "no";

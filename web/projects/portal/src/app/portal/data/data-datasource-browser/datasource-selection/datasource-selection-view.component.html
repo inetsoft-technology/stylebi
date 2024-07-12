@@ -1,0 +1,53 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="datasource-selection__title">
+  <div class="font-weight-bold p-2">
+    _#(Select a Data Source)
+  </div>
+  <a *ngIf="model == null" class="font-weight-bold p-2"
+    href="https://www.inetsoft.com/support/drivers.jsp"
+     target="_blank">
+    _#(data.datasources.moreTypes)
+  </a>
+</div>
+<div class="bd-gray"></div>
+<div class="datasource-selection__container">
+  <div *ngIf="model != null; else _loading" class="datasource-selection__pane">
+    <div class="datasource-selection__filter-pane p-1">
+      <datasource-search class="mb-1"
+                         [(searchString)]="searchString"></datasource-search>
+      <datasource-category-pane [categories]="model.categories"
+                                [(selectedCategory)]="selectedCategory"></datasource-category-pane>
+    </div>
+    <div class="bd-gray"></div>
+    <datasource-listing-pane class="p-1"
+                             [listings]="getListings()"
+                             (submitted)="create($event)"
+                             [(selectedListingName)]="selectedListingName"></datasource-listing-pane>
+  </div>
+  <ng-template #_loading>
+    <h2>_#(data.sources.loading)...</h2>
+  </ng-template>
+  <div class="bd-gray"></div>
+  <div class="text-center p-1">
+    <button class="btn btn-primary m-1" [disabled]="isCreateDisabled()" (click)="create(selectedListingName)">_#(Create)</button>
+    <button class="btn btn-default m-1" (click)="cancel()">_#(Cancel)</button>
+  </div>
+</div>

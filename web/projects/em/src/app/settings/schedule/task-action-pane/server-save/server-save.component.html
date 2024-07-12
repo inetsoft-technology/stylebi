@@ -1,0 +1,139 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <mat-card-title>
+      <mat-checkbox [(ngModel)]="enabled" (change)="fireServerSaveChanged()"></mat-checkbox>
+      <label>_#(Save to Disk)</label>
+    </mat-card-title>
+  </mat-card-header>
+  <mat-card-content *ngIf="enabled">
+    <table mat-table [dataSource]="dataSource">
+      <ng-container matColumnDef="format">
+        <th mat-header-cell *matHeaderCellDef> _#(Format) </th>
+        <td mat-cell *matCellDef="let element">
+            <div class="format-container">
+              <mat-form-field appearance="outline" color="accent">
+                <mat-select [(value)]="element.format" placeholder="#(Select Format)" (valueChange)="fireServerSaveChanged()" [required]="true">
+                  <mat-option *ngFor="let format of formats" [value]="format.type">{{format.label}}</mat-option>
+                </mat-select>
+                <mat-error *ngIf="!element.format">_#(em.schedule.action.formatRequired)</mat-error>
+              </mat-form-field>
+            </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="ftp">
+        <th mat-header-cell class="checkbox-column" *matHeaderCellDef> _#(FTP/SFTP) </th>
+        <td mat-cell class="checkbox-column" *matCellDef="let element">
+          <div class="checkbox-container">
+            <mat-checkbox [(ngModel)]="element.ftp"></mat-checkbox>
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="path">
+        <th mat-header-cell *matHeaderCellDef class="path-column" > _#(Path) </th>
+
+        <form *ngIf="filesForm" [formGroup]="filesForm">
+          <td mat-cell class="path-column" *matCellDef="let element; let i = index" >
+            <div class="path-container">
+              <ng-container formArrayName="paths">
+                <mat-form-field *ngIf="hasLocations" floatLabel="never" appearance="outline" color="accent">
+                  <mat-select [(value)]="element.locationPath" (valueChange)="fireServerSaveChanged()" placeholder="_#(Location)" [required]="true">
+                    <mat-option *ngFor="let location of locations" [value]="location.path">{{location.label}}</mat-option>
+                  </mat-select>
+                  <mat-error *ngIf="!element.locationPath">#(em.schedule.action.serverLocationRequired)</mat-error>
+                </mat-form-field>
+                <mat-form-field appearance="outline" color="accent">
+                  <input type="text" matInput [formControlName]="i" (change)="updatePathForm(i)" placeholder="_#(Path)" [required]="true"/>
+                  <mat-error *ngIf="!element.filePath">
+                    _#(em.schedule.action.pathRequired)</mat-error>
+                  <mat-error *ngIf="!!element.filePath && getPathErrors(i)['relativePath']">
+                    _#(em.schedule.action.pathMustBeRelative)</mat-error>
+                  <mat-error *ngIf="!!element.filePath && getPathErrors(i)['directoryPath']">
+                    _#(em.schedule.action.pathIsDirectory)</mat-error>
+                </mat-form-field>
+              </ng-container>
+              <ng-container formArrayName="usernames" *ngIf="!hasLocations && element.ftp">
+                <mat-form-field floatLabel="always" appearance="outline" color="accent">
+                  <mat-label>_#(Username)</mat-label>
+                  <input type="text" matInput [formControlName]="i" (change)="updateUserForm(i)" placeholder="_#(Username)"
+                         [required]="false"/>
+                </mat-form-field>
+              </ng-container>
+              <ng-container formArrayName="passwords" *ngIf="!hasLocations && element.ftp">
+                <mat-form-field floatLabel="always" appearance="outline" color="accent">
+                  <mat-label>_#(Password)</mat-label>
+                  <input type="password" matInput [formControlName]="i" (change)="updatePasswordForm(i)" placeholder="_#(Password)"
+                         [required]="false"/>
+                </mat-form-field>
+              </ng-container>
+            </div>
+          </td>
+        </form>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let element" class="delete-container">
+          <button mat-icon-button aria-label="_#(Remove File)"
+                  title="_#(schedule.delete.path.tooltip)"
+                  (click)="removeFile(element)">
+            <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+          </button>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="columnsToDisplay"></tr>
+      <tr mat-row *matRowDef="let element; columns: columnsToDisplay;"></tr>
+    </table>
+    <mat-error *ngIf="!files || !files.length">_#(em.schedule.action.filesRequired)</mat-error>
+    <mat-error *ngIf="findDuplicate">_#(em.scheduler.actions.diskFileDuplicate)</mat-error>
+    <mat-error *ngIf="findDuplicateFormat">_#(em.schedule.task.action.duplicateFormat)</mat-error>
+    <button mat-mini-fab color="accent" [disabled]="!this.formats || this.formats.length == 0" (click)="addFile()" title="_#(schedule.add.server.save.tooltip)" aria-label="_#(Add File)">
+      <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
+    </button>
+    <div class="full-width" *ngIf="showMatchAndExpand">
+      <mat-radio-group [(ngModel)]="matchLayout" class="flex-col left-padding" (change)="fireServerSaveChanged()">
+        <mat-radio-button class="margin-bottom" [value]="true">_#(Match Layout)</mat-radio-button>
+        <mat-radio-button [value]="false" [disabled]="!expandEnabled">_#(Expand Components)</mat-radio-button>
+      </mat-radio-group>
+      <mat-checkbox class="left-padding" [(ngModel)]="expandSelections" [disabled]="matchLayout || saveOnlyDataComponents" (change)="fireServerSaveChanged()">
+        _#(Expand Selection List/Tree)</mat-checkbox>
+      <mat-checkbox class="left-padding" *ngIf="hasExcelFormat" [(ngModel)]="saveOnlyDataComponents" [disabled]="matchLayout" (change)="fireServerSaveChanged()">
+        _#(Only Data Elements)</mat-checkbox>
+      <div class="flex-col">
+        <mat-checkbox class="left-padding" *ngIf="hasExcelFormat" [(ngModel)]="saveExportAllTabbedTables" (change)="fireServerSaveChanged()">
+          _#(Export All Tabbed Tables)</mat-checkbox>
+      </div>
+      <div *ngIf="showHtmlMatchMessage" class="left-padding match-massage">
+         <span>_#(schedule.task.action.htmlFileFormat.doNotApplyMatch)<br>_#(schedule.task.action.excelFileFormat.justApplyTabbedTable)</span>
+      </div>
+    </div>
+    <div class="csv-config-container left-padding top-padding" *ngIf="hasCSVFormat && enabled">
+      <em-csv-config-pane *ngIf="hasCSVFormat && enabled" [tableDataAssemblies]="tableDataAssemblies"
+                          [csvConfigModel]="csvSaveModel"
+                          [showSelectedAssemblies]="isDashboard"
+                          (csvConfigChanged)="fireServerSaveChanged()" [showTitle]="true">
+      </em-csv-config-pane>
+    </div>
+  </mat-card-content>
+</mat-card>

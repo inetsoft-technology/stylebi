@@ -1,0 +1,66 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="em-card">
+  <mat-card-title>_#(Performance)</mat-card-title>
+  <mat-card-content>
+    <form *ngIf="form" [formGroup]="form">
+      <div class="flex-col">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Query Runtime Timeout)</mat-label>
+          <input matInput type="number" placeholder="_#(Query Runtime Timeout)" formControlName="queryTimeout">
+          <mat-error>_#(em.schedule.action.nonNegative)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Query Runtime Maximum Row Count)</mat-label>
+          <input matInput type="number" placeholder="_#(Query Runtime Maximum Row Count)" formControlName="maxQueryRowCount">
+          <mat-error>_#(em.schedule.action.nonNegative)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Query Design Time Timeout)</mat-label>
+          <input matInput type="number" placeholder="_#(Query Design Time Timeout)" formControlName="queryPreviewTimeout">
+          <mat-error>_#(em.schedule.action.nonNegative)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Query Design Time Maximum Row Count)</mat-label>
+          <input matInput type="number" placeholder="_#(Query Design Time Maximum Row Count)" formControlName="maxQueryPreviewRowCount">
+          <mat-error>_#(em.schedule.action.nonNegative)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Table Maximum Row Count)</mat-label>
+          <input matInput type="number" placeholder="_#(Table Maximum Row Count)" formControlName="maxTableRowCount">
+          <mat-error>_#(em.schedule.action.nonNegative)</mat-error>
+        </mat-form-field>
+        <mat-checkbox class="mat-checkbox-field" formControlName="dataSetCaching">
+          _#(Dataset Caching)
+        </mat-checkbox>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Data Cache Size)</mat-label>
+          <input matInput type="number" placeholder="_#(Data Cache Size)" formControlName="dataCacheSize">
+          <mat-error>_#(em.schedule.action.nonNegative)</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Data cache timeout)</mat-label>
+          <input matInput type="number" placeholder="_#(Data cache timeout)" formControlName="dataCacheTimeout">
+          <mat-error>_#(em.schedule.action.nonNegative)</mat-error>
+        </mat-form-field>
+      </div>
+    </form>
+  </mat-card-content>
+</mat-card>

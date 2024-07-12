@@ -1,0 +1,242 @@
+Global
+	addParameter(name, value, type, alias, hidden)	addParameter()  ENV_REPORT
+	alert(object, level)	alert()
+	confirm(string)	confirm()
+	decodeURI(encodedURI)	decodeURI()
+	decodeURIComponent(encodedURIComponent)	decodeURIComponent()
+	encodeURI(uri)	encodeURI()
+	encodeURIComponent(uriComponent)	encodeURIComponent()
+	eval(x)	eval()
+	formatNumber(number, format_spec[, round_option])	formatNumber()
+	getImage(imageResource)	getImage()
+	importClass(string)	importClass()
+	importPackage(string)	importPackage()
+	indexOf(array, object)	indexOf()
+	isCancelled()	isCancelled()
+	isFinite(number)	isFinite()
+	isNaN(number)	isNaN()
+	isNull(object)	isNull()
+	isNumber(object)	isNumber()
+	log(message)	log()
+	ltrim(string)	ltrim()
+	newInstance(classname)	newInstance()
+	parseFloat(string)	parseFloat()
+	parseInt(string, radix)	parseInt()
+	refreshData()	refreshData()
+	rtrim(string)	rtrim()
+	runQuery(query_name, parameters)	runQuery()
+	setupGoogleMapsPlot(graph, urlPrefix, data, latitudeColumnName, longitudeColumnName, maxWidthPx, maxHeightPx, widthPx, heightPx)	setupGoogleMapsPlot()
+	trim(string)	trim()
+Array	DOT
+	concat([item1[,item2[...]]])	concat()
+	join(separator)	join()
+	pop()	pop()
+	push([item1[,item2[...]]])	push()
+	reverse()	reverse()
+	shift()	shift()
+	slice(start,end)	slice()
+	sort(comparefn)	sort()
+	splice(start,deleteCount[,item1[,item2[...]]])	splice()
+	unshift([item1[,item2[...]]])	unshift()
+String	DOT
+	charAt(pos)	charAt()
+	charCodeAt(pos)	charCodeAt()
+	concat([string1[,string2[...]]])	concat()
+	indexOf(searchString,pos)	indexOf()
+	lastIndexOf(searchString,pos)	lastIndexOf()
+	localeCompare(that)	localeCompare()
+	match(regexp)	match()
+	replace(searchValue,replaceValue)	replace()
+	search(regexp)	search()
+	slice(start,end)	slice()
+	split(separator,limit)	split()
+	substring(start,end)	substring()
+	toLowerCase()	toLowerCase()
+	toLocaleLowerCase()	toLocaleLowerCase()
+	toUpperCase()	toUpperCase()
+	toLocaleUpperCase()	toLocaleUpperCase()
+Number	DOT
+	toExponential(fractionDigits)	toExponential()
+	toFixed(fractionDigits)	toFixed()
+	toLocaleString()	toLocaleString()
+	toPrecision(precision)	toPrecision()
+	toString()	toString()
+	toString(radix)	toString()
+	valueOf()	valueOf()
+Math
+	abs(x)	Math.abs()
+	acos(x)	Math.acos()
+	asin(x)	Math.asin()
+	atan(x)	Math.atan()
+	atan2(y,x)	Math.atan2()
+	ceil(x)	Math.ceil()
+	cos(x)	Math.cos()
+	exp(x)	Math.exp()
+	floor(x)	Math.floor()
+	log(x)	Math.log()
+	max([value1[,value2[...]]]);	Math.max()
+	min([value1[,value2[...]]]);	Math.min()
+	pow(x,y)	Math.pow()
+	random()	Math.random()
+	round(x)	Math.round()
+	sin(x)	Math.sin()
+	sqrt(x)	Math.sqrt()
+	tan(x)	Math.tan()
+Date (Global)
+	dateAdd(interval, amount, date)	dateAdd()
+	dateDiff(interval, date1, date2)	dateDiff()
+	datePart(interval, date)	datePart()
+	formatDate(date, format_spec)	formatDate()
+	isDate(object)	isDate()
+	parseDate(string)	parseDate()
+Date (Object)
+	new Date()	new Date()
+	new Date(value)	new Date()
+	new Date(year,month[,date[,hours[,minutes[,seconds[,ms]]]]])	new Date()
+	Date.parse(string)	Date.parse()
+	Date.UTC(year,month[,date[,hours[,minutes[,seconds[,ms]]]]])	Date.UTC()
+	toString()	toString()	DOT
+	toDateString()	toDateString()	DOT
+	toTimeString()	toTimeString()	DOT
+	toLocaleString()	toLocaleString()	DOT
+	toLocaleDateString()	toLocaleDateString()	DOT
+	toLocaleTimeString()	toLocaleTimeString()	DOT
+	valueOf()	valueOf()	DOT
+	getTime()	getTime()	DOT
+	getFullYear()	getFullYear()	DOT
+	getUTCFullYear()	getUTCFullYear()	DOT
+	getMonth()	getMonth()	DOT
+	getUTCMonth()	getUTCMonth()	DOT
+	getDate()	getDate()	DOT
+	getUTCDate()	getUTCDate()	DOT
+	getDay()	getDay()	DOT
+	getUTCDay()	getUTCDay()	DOT
+	getHours()	getHours()	DOT
+	getUTCHours()	getUTCHours()	DOT
+	getMinutes()	getMinutes()	DOT
+	getUTCMinutes()	getUTCMinutes()	DOT
+	getSeconds()	getSeconds()	DOT
+	getUTCSeconds()	getUTCSeconds()	DOT
+	getMilliseconds()	getMilliseconds()	DOT
+	getUTCMilliseconds()	getUTCMilliseconds()	DOT
+	getTimezoneOffset()	getTimezoneOffset()	DOT
+	setTime(time)	setTime()	DOT
+	setMilliseconds(ms)	setMilliseconds()	DOT
+	setUTCMilliseconds(ms)	setUTCMilliseconds()	DOT
+	setSeconds(sec[,ms])	setSeconds()	DOT
+	setUTCSeconds(sec[,ms])	setUTCSeconds()	DOT
+	setMinutes(min[,sec[,ms]])	setMinutes()	DOT
+	setUTCMinutes(min[,sec[,ms]])	setUTCMinutes()	DOT
+	setHours(hour[,min[,sec[,ms]]])	setHours()	DOT
+	setUTCHours(hour[,min[,sec[,ms]]])	setUTCHours()	DOT
+	setDate(date)	setDate()	DOT
+	setUTCDate(date)	setUTCDate()	DOT
+	setMonth(month[,date])	setMonth()	DOT
+	setUTCMonth(month[,date])	setUTCMonth()	DOT
+	setFullYear(year[,month[,date]]);	setFullYear()	DOT
+	setUTCFullYear(year[,month[,date]]);	setUTCFullYear()	DOT
+	toUTCString()	toUTCString()	DOT
+RegExp
+	new RegExp(pattern,flags)	new RegExp()
+	exec(string)	exec()	DOT
+	test(string)	test()	DOT
+	toString()	toString()	DOT
+Aggregate (in section and table)        ENV_REPORT
+	average(column[,groupColumn[,condition]])	average()       ENV_REPORT
+	correlation(column, column2[,groupColumn[,condition]])	correlation()   ENV_REPORT
+	concat(column[,groupColumn[,condition]])	concat()                ENV_REPORT
+	count(column[,groupColumn[,condition]])	count() ENV_REPORT
+	countDistinct(column[,groupColumn[,condition]])	countDistinct() ENV_REPORT
+	covariance(column, column2[,groupColumn[,condition]])	covariance()    ENV_REPORT
+	max(column[,groupColumn[,condition]])	max()           ENV_REPORT
+	median(column[,groupColumn[,condition]])	median()        ENV_REPORT
+	min(column[,groupColumn[,condition]])	min()   ENV_REPORT
+	mode(column[,groupColumn[,condition]])	mode()  ENV_REPORT
+	nthLargest(n, column[,groupColumn[,condition]])	nthLargest()    ENV_REPORT
+	nthMostFrequent(n, column[,groupColumn[,condition]])	nthMostFrequent()       ENV_REPORT
+	nthSmallest(n, column[,groupColumn[,condition]])	nthSmallest()           ENV_REPORT
+	populationStandardDeviation(column[,groupColumn[,condition]])	populationStandardDeviation()   ENV_REPORT
+	populationVariance(column[,groupColumn[,condition]])	populationVariance()                    ENV_REPORT
+	product(column[,groupColumn[,condition]])	product()                                       ENV_REPORT
+	pthPercentile(p, column[,groupColumn[,condition]])	pthPercentile()                         ENV_REPORT
+	standardDeviation(column[,groupColumn[,condition]])	standardDeviation()                     ENV_REPORT
+	sum(column[,groupColumn[,condition]])	sum()           ENV_REPORT
+	variance(column[,groupColumn[,condition]])	variance()      ENV_REPORT
+	weightedAverage(column, column2[,groupColumn[,condition]])	weightedAverage()       ENV_REPORT
+Aggregate (in freehand table)   ENV_REPORT
+	average(cellRange)	average()       ENV_REPORT
+	concat(cellRange)	concat()        ENV_REPORT
+	count(cellRange)	count()         ENV_REPORT
+	countDistinct(cellRange)	countDistinct() ENV_REPORT
+	max(cellRange)	max()           ENV_REPORT
+	median(cellRange)	median()        ENV_REPORT
+	min(cellRange)	min()   ENV_REPORT
+	mode(cellRange)	mode()  ENV_REPORT
+	nthLargest(n, cellRange)	nthLargest()    ENV_REPORT
+	nthMostFrequent(n, cellRange)	nthMostFrequent()       ENV_REPORT
+	nthSmallest(n, cellRange)	nthSmallest()           ENV_REPORT
+	populationStandardDeviation(cellRange)	populationStandardDeviation()   ENV_REPORT
+	populationVariance(cellRange)	populationVariance()                    ENV_REPORT
+	product(cellRange)	product()                                       ENV_REPORT
+	pthPercentile(p, cellRange)	pthPercentile()                         ENV_REPORT
+	standardDeviation(cellRange)	standardDeviation()                     ENV_REPORT
+	sum(cellRange)	sum()           ENV_REPORT
+	variance(cellRange)	variance()      ENV_REPORT
+Aggregate (Global)
+	average(tableLens, column[,condition])	average()
+	correlation(tableLens, column, column2[,condition])	correlation()
+	concat(tableLens, column[,condition])	concat()
+	count(tableLens, column[,condition])	count()
+	countDistinct(tableLens, column[,condition])	countDistinct()
+	covariance(tableLens, column, column2[,condition])	covariance()
+	first(tableLens, column, column2[,condition])	first()
+	last(tableLens, column, column2[,condition])	last()
+	max(tableLens, column[,condition])	max()
+	median(tableLens, column[,condition])	median()
+	min(tableLens, column[,condition])	min()
+	mode(tableLens, column[,condition])	mode()
+	nthLargest(tableLens, n, column[,condition])	nthLargest()
+	nthMostFrequent(tableLens, n, column[,condition])	nthMostFrequent()
+	nthSmallest(tableLens, n, column[,condition])	nthSmallest()
+	populationStandardDeviation(tableLens, column[,condition])	populationStandardDeviation()
+	populationVariance(tableLens, column[,condition])	populationVariance()
+	product(tableLens, column[,condition])	product()
+	pthPercentile(tableLens, p, column[,condition])	pthPercentile()
+	standardDeviation(tableLens, column[,condition])	standardDeviation()
+	sum(tableLens, column[,condition])	sum()
+	variance(tableLens, column[,condition])	variance()
+	weightedAverage(tableLens, column, column2[,condition])	weightedAverage()
+Formula Table
+	inArray(arr, obj)	inArray()
+	toList(array, options)	toList()
+	mapList(array, obj, options)	mapList()
+	rowList(tableLens, range, options)	rowList()
+	toArray(obj)	toArray()
+TableElement                ENV_REPORT
+	setHyperlink(row, col, hyperlink)	setHyperlink()  ENV_REPORT
+	setAlignment(datapath, alignment)	setAlignment()  ENV_REPORT
+	setBackground(datapath, color)	setBackground()         ENV_REPORT
+	setBottomBorder(datapath, border)	setBottomBorder()       ENV_REPORT
+	setBottomBorderColor(datapath, color)	setBottomBorderColor()  ENV_REPORT
+	setFont(datapath, font)	setFont()       ENV_REPORT
+	setForeground(datapath, color)	setForeground() ENV_REPORT
+	setFormat(datapath, format)	setFormat()     ENV_REPORT
+	setLeftBorder(datapath, border)	setLeftBorder() ENV_REPORT
+	setLeftBorderColor(datapath, color)	setLeftBorderColor()    ENV_REPORT
+	setLineWrap(datapath, linewrap)	setLineWrap()                   ENV_REPORT
+	setPageAfter(datapath_or_cellname, pageAfter)	setPageAfter()  ENV_REPORT
+	setPageBefore(datapath, pageBefore)	setPageBefore()         ENV_REPORT
+	setPresenter(datapath, presenter)	setPresenter()          ENV_REPORT
+	setRightBorder(datapath, border)	setRightBorder()        ENV_REPORT
+	setRightBorderColor(datapath, color)	setRightBorderColor()   ENV_REPORT
+	setSuppressIfDuplicate(datapath, suppressIfDuplicate)	setSuppressIfDuplicate()        ENV_REPORT
+	setSuppressIfZero(datapath, suppressIfZero)	setSuppressIfZero()                     ENV_REPORT
+	setTopBorder(datapath, border)	setTopBorder()  ENV_REPORT
+	setTopBorderColor(datapath, color)	setTopBorderColor()     ENV_REPORT
+	getCellDataPath(row, col)	getCellDataPath()               ENV_REPORT
+	getColDataPath(col)	getColDataPath()                        ENV_REPORT
+	getRowDataPath(row)	getRowDataPath()                        ENV_REPORT
+SectionBand                     ENV_REPORT
+	setPresenter(id, Presenter)	setPresenter()  ENV_REPORT
+	getValue(field)	getValue()      ENV_REPORT
+	setValue(field, value)	setValue()      ENV_REPORT

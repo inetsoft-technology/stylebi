@@ -1,0 +1,97 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form *ngIf="form" [formGroup]="form" class="flex-col">
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>
+        <mat-checkbox formControlName="startNotify" (change)="updateForm()">
+          _#(schedule.notification.cycle.start)
+        </mat-checkbox>
+      </mat-card-title>
+    </mat-card-header>
+    <mat-card-content *ngIf="info.startNotify">
+      <em-email-picker formControlName="startEmail" [required]="true"
+                       [users]="emailUsers"
+                       [groups]="groups"
+                       (ngModelChange)="onInfoChanged()">
+      </em-email-picker>
+    </mat-card-content>
+  </mat-card>
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>
+        <mat-checkbox formControlName="endNotify" (change)="updateForm()">
+          _#(schedule.notification.cycle.completion)
+        </mat-checkbox>
+      </mat-card-title>
+    </mat-card-header>
+    <mat-card-content *ngIf="info.endNotify">
+      <em-email-picker formControlName="endEmail" [required]="true"
+                       [users]="emailUsers"
+                       [groups]="groups"
+                       (ngModelChange)="onInfoChanged()">
+      </em-email-picker>
+    </mat-card-content>
+  </mat-card>
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>
+        <mat-checkbox formControlName="failureNotify" (change)="updateForm()">
+          _#(schedule.notification.cycle.failure)
+        </mat-checkbox>
+      </mat-card-title>
+    </mat-card-header>
+    <mat-card-content *ngIf="info.failureNotify">
+      <em-email-picker formControlName="failureEmail" [required]="true"
+                       [users]="emailUsers"
+                       [groups]="groups"
+                       (ngModelChange)="onInfoChanged()">
+      </em-email-picker>
+    </mat-card-content>
+  </mat-card>
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>
+        <mat-checkbox formControlName="exceedNotify" (change)="updateForm()">
+          _#(schedule.notification.cycle.exceeds.Threshold)
+        </mat-checkbox>
+      </mat-card-title>
+    </mat-card-header>
+    <mat-card-content *ngIf="info.exceedNotify">
+      <mat-form-field appearance="outline" color="accent" subscriptSizing="dynamic">
+        <mat-label>_#(Threshold)</mat-label>
+        <input type="number" matInput placeholder="_#(Threshold)"
+               formControlName="threshold" min="0" (ngModelChange)="onInfoChanged()">
+        <mat-error *ngIf="form.controls['threshold'] && form.controls['threshold'].errors && form.controls['threshold'].errors['required']">
+          _#(em.scheduler.cycle.thresholdEmpty)
+        </mat-error>
+        <mat-error *ngIf="form.controls['threshold'] && form.controls['threshold'].errors && !form.controls['threshold'].errors['required'] &&
+                         (form.controls['threshold'].errors['lessThanEqualToZero'] || form.controls['threshold'].errors['isInteger'])">
+          _#(em.scheduler.cycle.thresholdPositive)
+        </mat-error>
+      </mat-form-field>
+      <em-email-picker formControlName="exceedEmail" [required]="true"
+                       [users]="emailUsers"
+                       [groups]="groups"
+                       (ngModelChange)="onInfoChanged()">
+      </em-email-picker>
+    </mat-card-content>
+  </mat-card>
+</form>

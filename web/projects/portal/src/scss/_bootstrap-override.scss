@@ -1,0 +1,959 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@mixin invalid-feedback-text($position, $marginTop) {
+  position: $position;
+  width: auto;
+  line-height: 1;
+  float: left;
+  left: 1em;
+  margin-right: 2em;
+  margin-top: $marginTop;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  color: var(--inet-danger-color);
+  background-size: 55% 55%;
+  z-index: 6;
+  font-weight: 700;
+}
+
+@mixin invalid-feedback-bg {
+  content: "";
+  display: block;
+  position: absolute;
+  top: 0;
+  left: -0.2em;
+  right: -0.2em;
+  height: 100%;
+  background-color: var(--inet-float-label-bg-color);
+  border-radius: var(--bs-border-radius);
+  z-index: -1;
+}
+
+/* patch in classes removed in bootstrap 5 */
+
+/* this is ubiquitous to add space between the vertical height of some form fields */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+/*
+form-inline is no longer a thing in bootstrap 5
+*/
+
+.form-inline {
+  display: flex;
+  flex-flow: row wrap;
+}
+
+.form-inline .form-control {
+  display: inline-block;
+  width: auto;
+  vertical-align: middle;
+}
+
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  margin-right: -5px;
+  margin-left: -5px;
+}
+
+.form-row > .col {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+
+/*
+Best not to mess with something so generic
+There is probably another class that fits
+label {
+  margin-bottom: 0.5rem;
+}
+*/
+
+/* overwrite bootstrap-float-label */
+.form-floating {
+  .form-control:placeholder-shown:not(:focus) + label {
+    top: $form-floating-padding-y;
+    opacity: 1;
+    background: none;
+    font-weight: normal;
+  }
+
+  .form-control:not(textarea) {
+    height: calc(1.5em + .75rem + 2px);
+  }
+
+  textarea.form-control {
+    height: auto;
+  }
+
+  .form-control {
+    min-height: calc(1rem + var(--bs-border-width)*2);
+    &:disabled {
+      label {
+        background: none !important;
+      }
+      label::after {
+        background: none !important;
+      }
+    }
+  }
+
+  .form-control-sm:placeholder-shown:not(:focus) + * {
+    top: .5em;
+  }
+
+  .form-control:placeholder-shown:not(:focus) + button {
+    top: 0;
+  }
+
+  .form-control.is-invalid {
+    border-color: var(--inet-danger-color);
+  }
+
+  > span.invalid-feedback {
+    @include invalid-feedback-text(relative, -.8em);
+  }
+
+  > .form-control.is-invalid + span::after,
+  > span.invalid-feedback::after {
+    @include invalid-feedback-bg;
+  }
+
+  > span.helper-text {
+    top: auto;
+    bottom: -1em;
+  }
+
+  > .form-control.is-invalid ~ span.helper-text {
+    display: none;
+  }
+
+  .form-control.date-picker-input + .dropdown-menu,
+  .dropdown-menu {
+    opacity: 1 !important;
+  }
+
+  > span , label:not(.no-float-label) {
+    width: auto;
+    font-weight: bold;
+    margin-top: -$form-floating-label-y; // moves the float label to the border
+  }
+
+  span::after {
+    background: none;
+  }
+
+  .form-control[readonly] {
+    opacity: 1;
+    background: var(--inet-input-bg-color);
+  }
+
+  > *:not(:placeholder-shown) ~ label, > .condition-field-combo-toggle.disabled:focus ~ label,
+  > .condition-field-combo-toggle.disabled:not(:placeholder-shown) ~ label,
+  > .form-control-plaintext ~ label, > .form-control:focus ~ label,
+  > .form-control:not(:placeholder-shown) ~ label, > .form-select ~ label
+  {
+    color: var(--inet-text-color);
+    transform: scale(.85) translateY(-.5rem) translateX(.75rem);
+    z-index: 6;
+
+    &:after {
+      position: absolute;
+      inset: $form-floating-label-y .375rem;
+      z-index: -1;
+      height: 1.25em;
+      content: "";
+      background-color: var(--inet-float-label-bg-color);
+      border-radius: var(--bs-border-radius);
+    }
+  }
+
+  label.no-float-label {
+    position: static;
+    cursor: default;
+    font-size: 100%;
+    opacity: 1;
+    -webkit-transition: none;
+    transition: none;
+    z-index: 0;
+    line-height: 1;
+    padding: 0;
+  }
+}
+
+.row {
+  > .form-floating {
+    > label {
+      margin-left: 0.75rem;
+    }
+  }
+}
+
+/* comparable to when invalid feedback is not using an input-group */
+.input-group ~ span.invalid-feedback {
+   display: block;
+   color: var(--inet-danger-color);
+}
+
+/* override boostrap input-group */
+.input-group {
+  > span.invalid-feedback {
+    @include invalid-feedback-text(absolute, 0);
+    top: calc(100% - 0.8em);
+
+    &::after {
+      @include invalid-feedback-bg;
+    }
+  }
+}
+
+/* fieldset related */
+.container-fluid > fieldset > legend {
+  margin-left: -($grid-gutter-width * 0.5);
+}
+
+:not(.modal-body) > fieldset:first-child {
+  margin-top: .5rem;
+}
+
+fieldset legend {
+  font-size: 1em;
+  font-weight: bold;
+}
+
+fieldset.float-title {
+  border-radius: 3px;
+  padding-bottom: 0.5em;
+
+  legend {
+    font-size: 85%;
+    font-weight: bold;
+    margin-bottom: 0;
+    margin-left: 1em;
+    width: auto;
+    width: unset;
+    float: none;
+  }
+}
+
+// override bootstrap form-check layout for better alignment
+.form-check .form-check-label, .form-check-label {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.form-check .form-check-input, .form-check-input {
+  position: static;
+  margin-top: 0;
+  margin-left: 0;
+  margin-right: 0.5rem;
+  --bs-form-check-bg: white; // needs to match $form-check-input-checked-color
+  --bs-border-color: var(--inet-input-text-color);
+
+  &:checked {
+    background-color: var(--inet-primary-color);
+    border-color: var(--inet-primary-color);
+  }
+
+  &:focus {
+    border-color: var(--inet-primary-color);
+    box-shadow: none;
+  }
+}
+
+.form-check {
+  padding-left: 0;
+  display: flex;
+  align-items: center;
+}
+
+.form-check-inline {
+  display: inline-flex;
+}
+
+.form-inline {
+  @include media-breakpoint-up(sm) {
+    .form-check-label {
+      padding-left: 0;
+    }
+  }
+}
+
+.form-inline > [class*="col-"] > * {
+  margin: 3px 5px 0 0;
+}
+
+/* Enhance bootstrap dropdown */
+.dropdown-item {
+  &.disabled, &:disabled {
+    pointer-events: none;
+    background-color: unset;
+    opacity: 0.5;
+  }
+}
+
+.table-cell-padding-sm {
+  padding: $table-cell-padding-y-sm;
+}
+
+/**
+@TODO review to make sure all are bootstrap override/enhancement
+*/
+
+.dropdown-item {
+  cursor: default;
+}
+
+.full-view-container:not(.format-painter-mode) .non-editable-text:not(.cursor-pointer) {
+  cursor: default;
+}
+
+.btn-xs {
+  /* ~half size of bootstraps btn-sm*/
+  padding: 0 0.25rem !important;
+  font-size: 0.875rem;
+  border-radius: 0.2rem;
+}
+
+.btn-close {
+  padding: 0.05rem;
+}
+
+.alert-dismissible {
+  .btn-close {
+    padding: 0.05rem;
+    margin: 1.1rem;
+  }
+}
+.modal-header {
+  .btn-close {
+    padding: 0.05rem;
+    margin-left: 0.4rem;
+    margin-right: 0.1rem;
+    --bs-btn-close-opacity: 0.85;
+  }
+}
+
+.btn-close {
+  --bs-btn-close-focus-shadow: 0 0 0 0.25rem rgba(0, 0, 0, 0);
+  background: linear-gradient(45deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 43%, var(--inet-icon-color) 45%, var(--inet-icon-color) 55%, rgba(0, 0, 0, 0) 57%, rgba(0, 0, 0, 0) 100%),
+  linear-gradient(135deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 43%, var(--inet-icon-color) 45%, var(--inet-icon-color) 55%, rgba(0, 0, 0, 0) 57%, rgba(0, 0, 0, 0) 100%);
+
+  &, &:hover {
+    --bs-btn-close-color: var(--inet-icon-color);
+  }
+}
+
+.dropdown-toggle.no-caret::after {
+  display: none;
+}
+
+// make it consistent with icon size
+.dropdown-toggle::after {
+  border-top:0.5em solid var(--inet-dropdown-toggle-color);
+  border-right: 0.4em solid transparent;
+  border-left: 0.4em solid transparent;
+}
+
+.dropdown-toggle.white-toggle::after {
+  border-top:0.5em solid white;
+  border-right: 0.4em solid transparent;
+  border-left: 0.4em solid transparent;
+}
+
+.dropdown-caret {
+  color: var(--inet-dropdown-toggle-color);
+}
+
+// override ngb-tp-meridian color
+.ngb-tp-meridian button {
+  color: $secondary;
+  border-color: $secondary;
+}
+
+// override and fix ngb-datepicker layout issue on month/year dropdown
+ngb-datepicker-navigation-select.d-block {
+  display: flex !important;
+}
+
+ngb-datepicker {
+  background: var(--inet-dropdown-bg-color) !important;
+}
+
+// override bootstrap input-group
+//  1. get rid of icon gray background
+//  2. input-group should not wrap
+.input-group {
+  flex-wrap: nowrap;
+
+  >.btn-icon {
+    flex: 0 1 4em;
+  }
+
+  .input-group-btn-addon {
+    padding: 5px 12px;
+    border: 1px solid $input-group-addon-border-color;
+    &:enabled:hover {
+      background-color: var(--inet-hover-primary-bg-color);
+    }
+  }
+
+  .input-group-btn-addon-no-padding {
+    @extend .input-group-btn-addon;
+    padding: 0px !important;
+  }
+}
+
+.input-group select.form-control:not([size]):not([multiple]) {
+  height: unset;
+}
+
+//bootstrap related
+.col-xs-12 > textarea, .col-xs-12 > * > textarea {
+  height: 100%;
+  width: 100%;
+}
+
+//enhance/override .modal from bootstrap. seems to only be used in app-error-message.component
+div.modal.fade.first-child.in {
+  overflow: visible;
+}
+
+.modal {
+  overflow: auto;
+  display: block;
+  z-index: 10500;
+}
+
+.compact-p p {
+  margin: 0;
+}
+
+.default-p p {
+  margin-bottom: 1em;
+}
+
+a:not([href]) {
+  &,
+  &:hover {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+.modal-header, .modal-footer, .modal-body, .modal-content {
+  background-color: var(--inet-dialog-bg-color);
+  border-color: var(--inet-default-border-color);
+  --inet-float-label-bg-color: var(--inet-dialog-bg-color);
+}
+
+.form-control, .form-control[readonly], .form-control.input-group-btn-addon,
+.input-group > .input-group-btn-addon
+{
+  color: var(--inet-input-text-color);
+  background-color: var(--inet-input-bg-color);
+  border-color: var(--inet-input-border-color);
+  --bs-btn-disabled-border-color: var(--inet-input-border-color);
+  --bs-btn-disabled-bg: var(--inet-input-disabled-bg-color);
+  --bs-btn-disabled-opacity: var(--inet-input-disabled-opacity);
+
+  &.selected {
+    background-color: var(--inet-selected-item-bg-color);
+  }
+
+  &.disabled, &:disabled {
+    background-color: var(--inet-input-disabled-bg-color);
+    opacity: var(--inet-input-disabled-opacity);
+  }
+
+  &:focus {
+    color: var(--inet-input-focus-text-color);
+    background-color: var(--inet-input-focus-bg-color, var(--inet-input-bg-color));
+    border-color: var(--inet-primary-color-light);
+    box-shadow: 0 0 0 1px var(--inet-primary-color);
+  }
+}
+
+.input-group-text {
+  color: var(--inet-input-text-color);
+  background-color: var(--inet-input-disabled-bg-color);
+  border-color: var(--inet-input-border-color);
+}
+
+.condition-field-combo-toggle.disabled:disabled,
+.form-control:disabled, .form-control[readonly],
+[readonly].condition-field-combo-toggle.disabled
+{
+  background-color: var(--inet-input-disabled-bg-color);
+}
+
+.dropdown-pane, .dropdown-menu, .list-group-item {
+  color: var(--inet-text-color);
+
+  &:not(.selected) {
+    background-color: var(--inet-dropdown-bg-color);
+    --inet-float-label-bg-color: var(--inet-dropdown-bg-color);
+  }
+
+  .dropdown-item {
+    color: var(--inet-text-color);
+
+    &:hover, &:focus {
+      color: var(--inet-text-color);
+      background-color: var(--inet-hover-primary-bg-color);
+    }
+  }
+
+  .dropdown-divider {
+    border-color: var(--inet-default-border-color);
+  }
+}
+
+.dropdown-item {
+  color: var(--inet-text-color);
+
+  &:hover, &:focus {
+    color: var(--inet-text-color);
+    background-color: var(--inet-hover-primary-bg-color);
+  }
+}
+
+.card {
+  background-color: var(--inet-card-bg-color);
+  --inet-float-label-bg-color: var(--inet-card-bg-color);
+  --bs-card-cap-padding-y: 0.75rem;
+}
+
+.btn {
+  --bs-btn-hover-color: var(--inet-text-color);
+  --bs-btn-hover-bg: var(--inet-hover-primary-bg-color);
+  --bs-btn-hover-border-color: var(--inet-default-border-color);
+  --bs-btn-active-color: var(--inet-text-color);
+  --bs-btn-active-bg: var(--inet-hover-primary-bg-color);
+  --bs-btn-active-border-color: var(--inet-primary-color);
+  color: var(--inet-text-color);
+
+  &:hover {
+    color: var(--inet-text-color);
+  }
+}
+
+.table {
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--inet-table-text-color);
+  color: var(--inet-table-text-color);
+
+  th {
+    color: var(--inet-table-heading-text-color);
+    background-color: var(--inet-table-heading-bg-color, transparent);
+  }
+
+  .thead-light th {
+    color: var(--inet-table-heading-text-color);
+    background-color: var(--inet-table-heading-bg-color, #e9ecef);
+    border-color: var(--inet-table-border-color);
+  }
+
+  td, th {
+    border-color: var(--inet-table-border-color);
+  }
+}
+
+.table-bordered {
+  border: $table-border-width solid var(--inet-table-border-color);
+
+  th,
+  td {
+    border: $table-border-width solid var(--inet-table-border-color);
+  }
+
+  thead {
+    th,
+    td {
+      border-bottom-width: calc(2 * $table-border-width);
+    }
+  }
+}
+
+.table-sm>:not(caption)>*>* {
+  padding: 0.3rem;
+}
+
+.btn.btn-primary {
+  color: var(--inet-button-primary-text-color);
+  background-color: var(--inet-button-primary-bg-color);
+  border: 1px solid var(--inet-button-primary-border-color);
+
+  &:hover:not(:disabled), &:active:not(:disabled),
+  &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
+  &.focus, &:focus
+  {
+    color: var(--inet-button-primary-hover-text-color);
+    background-color: var(--inet-button-primary-hover-bg-color);
+    border: 1px solid var(--inet-button-primary-hover-border-color);
+  }
+}
+
+.btn.btn-secondary {
+  color: var(--inet-button-secondary-text-color);
+  background-color: var(--inet-button-secondary-bg-color);
+  border: 1px solid var(--inet-button-secondary-border-color);
+
+  &:hover:not(:disabled), &:active:not(:disabled),
+  &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
+  &.focus, &:focus
+  {
+    color: var(--inet-button-secondary-hover-text-color);
+    background-color: var(--inet-button-secondary-hover-bg-color);
+    border: 1px solid var(--inet-button-secondary-hover-border-color);
+  }
+}
+
+.btn.btn-default {
+  color: var(--inet-button-default-text-color);
+  background-color: var(--inet-button-default-bg-color);
+  border: 1px solid var(--inet-button-default-border-color);
+
+  &:hover:not(:disabled), &:active:not(:disabled),
+  &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
+  &.focus, &:focus
+  {
+    color: var(--inet-button-default-hover-text-color);
+    background-color: var(--inet-button-default-hover-bg-color);
+    border: 1px solid var(--inet-button-default-hover-border-color);
+  }
+}
+
+.show > .btn-default.dropdown-toggle {
+  color: var(--inet-button-default-hover-text-color);
+  background-color: var(--inet-button-default-hover-bg-color);
+  border: 1px solid var(--inet-button-default-hover-border-color);
+}
+
+
+.btn-light, .btn.btn-light {
+  --bs-btn-color: var(--inet-button-light-text-color);
+  --bs-btn-bg: var(--inet-button-light-bg-color);
+  --bs-btn-border-color: var(--inet-button-light-border-color);
+
+  &, &:disabled {
+    color: var(--inet-button-light-text-color);
+    background-color: var(--inet-button-light-bg-color);
+    border: 1px solid var(--inet-button-light-border-color);
+  }
+
+  &:hover:not(:disabled), &:active:not(:disabled),
+  &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
+  &:not(:disabled):focus,
+  &.focus, &:focus
+  {
+    color: var(--inet-button-light-hover-text-color);
+    background-color: var(--inet-button-light-hover-bg-color);
+    border: 1px solid var(--inet-button-light-hover-border-color);
+  }
+}
+
+.btn.btn-light-no-bg {
+  @extend .btn-light;
+  background-color: transparent;
+  border-color: transparent;
+
+  &:disabled {
+    background-color: transparent;
+    border-color: transparent;
+    opacity: 0.5;
+  }
+
+  &:hover:not(:disabled), &:active:not(:disabled),
+  &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
+  &:not(:disabled):focus
+  {
+    color: var(--inet-button-light-hover-text-color);
+    background-color: var(--inet-button-light-hover-bg-color);
+    border: 1px solid var(--inet-button-light-hover-border-color);
+  }
+}
+
+.btn.btn-danger {
+  color: var(--inet-danger-color-dark);
+  background-color: var(--inet-danger-color-light);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+
+  &:hover:not(:disabled), &:active:not(:disabled),
+  &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active,
+  &.focus, &:focus
+  {
+    color: var(--inet-danger-color-dark);
+    background-color: var(--inet-danger-color);
+    border: 1px solid var(--inet-danger-color);
+  }
+}
+
+.btn.btn-primary, .btn.btn-secondary, .btn.btn-default, .btn-light, .btn.btn-light,
+.btn.btn-danger
+{
+  // on click
+  &:not(:disabled):not(.disabled):not(.condition-field-combo-toggle.disabled):active:focus {
+    box-shadow: 0 0 0 1px rgb(0 0 0 / 20%);
+    filter: brightness(0.9);
+  }
+}
+
+.btn.btn-block {
+  display: block;
+}
+
+.list-group-item {
+  &.active {
+    color: var(--inet-selected-item-text-color);
+    background-color: var(--inet-selected-item-bg-color);
+    border-color: var(--inet-selected-item-bg-color);
+
+    i {
+      color: var(--inet-selected-item-text-color);
+    }
+  }
+
+  &:hover:not(.not-selectable) {
+    color: var(--inet-hover-text-color);
+    background-color: var(--inet-hover-primary-bg-color);
+
+    i {
+      color: var(--inet-hover-text-color);
+    }
+  }
+}
+
+.close, .close:hover {
+  color: var(--inet-text-color);
+}
+
+.table-hover tbody tr:hover {
+  color: var(--inet-text-color);
+  background-color: var(--inet-hover-primary-bg-color);
+}
+
+.breadcrumb {
+  background-color: var(--inet-toolbar-bg-color);
+  --bs-breadcrumb-padding-x: 1rem;
+  --bs-breadcrumb-padding-y: .75rem;
+
+  .breadcrumb-item {
+    color: var(--inet-text-color);
+
+    &.active {
+      color: var(--inet-selected-item-text-color);
+    }
+
+    &::before {
+      color: var(--inet-text-color);
+    }
+  }
+}
+
+// dialog tabs
+.nav-tabs {
+  border-bottom: 1px solid var(--inet-default-border-color);
+}
+
+.nav-link {
+  --bs-nav-link-color: var(--inet-link-color);
+  --bs-nav-link-hover-color: var(--inet-link-hover-color);
+}
+
+.nav-tabs .nav-item.show .nav-link, .nav-tabs .nav-link.active {
+  color: var(--inet-selected-item-text-color);
+  background-color: var(--inet-dialog-bg-color);
+  border-color: var(--inet-default-border-color) var(--inet-default-border-color) var(--inet-dialog-bg-color);
+}
+
+.nav-tabs .nav-link:hover {
+  border-color: var(--inet-default-border-color) var(--inet-default-border-color) var(--inet-default-border-color);
+}
+
+a, .btn-link {
+  color: var(--inet-link-color);
+
+  &:hover {
+    color: var(--inet-link-hover-color);
+  }
+}
+
+// backgrounds
+.bg-primary {
+  background-color: var(--inet-primary-color) !important;
+}
+
+.bg-secondary {
+  background-color: var(--inet-secondary-color) !important;
+}
+
+.bg-success {
+  background-color: var(--inet-success-color) !important;
+}
+
+.bg-danger {
+  background-color: var(--inet-danger-color) !important;
+}
+
+.bg-warning {
+  background-color: var(--inet-warning-color) !important;
+}
+
+.bg-info {
+  background-color: var(--inet-info-color) !important;
+}
+
+// alerts
+%alert-style {
+  border-color: rgba(0, 0, 0, 0.05);
+}
+
+.alert-primary {
+  @extend %alert-style;
+  color: var(--inet-primary-color-dark);
+  background-color: var(--inet-primary-color-light);
+}
+
+.alert-secondary {
+  @extend %alert-style;
+  color: var(--inet-secondary-color-dark);
+  background-color: var(--inet-secondary-color-light);
+}
+
+.alert-success {
+  @extend %alert-style;
+  color: var(--inet-success-color-dark);
+  background-color: var(--inet-success-color-light);
+}
+
+.alert-danger {
+  @extend %alert-style;
+  color: var(--inet-danger-color-dark);
+  background-color: var(--inet-danger-color-light);
+}
+
+.alert-warning {
+  @extend %alert-style;
+  color: var(--inet-warning-color-dark);
+  background-color: var(--inet-warning-color-light);
+}
+
+.alert-info {
+  @extend %alert-style;
+  color: var(--inet-info-color-dark);
+  background-color: var(--inet-info-color-light);
+}
+
+// borders
+.border-primary {
+  border-color: var(--inet-primary-color) !important;
+}
+
+.border-secondary {
+  border-color: var(--inet-secondary-color) !important;
+}
+
+.border-success {
+  border-color: var(--inet-success-color) !important;
+}
+
+.border-danger {
+  border-color: var(--inet-danger-color) !important;
+}
+
+.border-warning {
+  border-color: var(--inet-warning-color) !important;
+}
+
+.border-info {
+  border-color: var(--inet-info-color) !important;
+}
+
+// calendar ng bootstrap
+.ngb-dp-weekday {
+  color: var(--inet-text-color) !important;
+}
+
+.ngb-dp-weekdays, .ngb-dp-header {
+  background-color: var(--inet-toolbar-bg-color) !important;
+}
+
+.ngb-dp-content {
+  background-color: var(--inet-dropdown-bg-color);
+}
+
+.ngb-dp-day {
+  div.btn-light {
+    border-color: transparent;
+  }
+}
+
+.custom-select {
+  transition: none;
+  color: var(--inet-input-text-color);
+  background-color: var(--inet-input-bg-color);
+  border-color: var(--inet-input-border-color);
+
+  &:focus {
+    border-color: var(--inet-primary-color-light);
+    box-shadow: 0 0 0 1px var(--inet-primary-color);
+  }
+}
+
+.text-primary {
+  color: var(--inet-primary-color) !important;
+}
+
+.text-secondary {
+  color: var(--inet-secondary-color) !important;;
+}
+
+.text-info {
+  color: var(--inet-info-color) !important;
+}
+
+.text-danger {
+  color: var(--inet-danger-color) !important;
+}
+
+.layout-divider {
+  border-color: var(--inet-default-border-color);
+}
+
+:root {
+  // bootstrap
+  // from bootstrap 4 for backwards compatibility, navbar nav-link items had horizontal padding
+  --bs-navbar-nav-link-padding-x: 0.5rem;
+  --bs-dropdown-item-padding-y: 0.25rem;
+  --bs-dropdown-item-padding-x: 1.5rem;
+  --bs-body-font-family: var(--inet-font-family);
+  --bs-body-font-size: var(--inet-font-size-base);
+  --bs-body-color: var(--inet-text-color);
+  --bs-body-bg: var(--inet-main-panel-bg-color);
+  --bs-border-radius: .25rem;
+  --bs-border-color: var(--inet-default-border-color);
+  --bs-list-group-border-width: 1px;
+  --bs-list-group-border-color: var(--inet-default-border-color);
+  --bs-list-group-item-padding-y: .75rem;
+  --bs-list-group-item-padding-x: 1.25rem;
+}

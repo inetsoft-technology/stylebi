@@ -1,0 +1,77 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.bordered-box {
+  height: 40em;
+}
+
+.bordered-box-right-top {
+  padding: 0.25em;
+  overflow: auto;
+  height: 28em;
+}
+
+.bordered-box-right-bottom {
+  margin-top: 1.5em;
+}
+
+.fields-button {
+  width: unset;
+  margin: .5rem;
+  line-height: 1rem;
+}
+
+.field-icon {
+  line-height: 1em;
+  flex-grow: 0;
+  flex-shrink: 0;
+  flex-basis: auto;
+}
+
+.query-toolbar-btn i {
+  cursor: pointer;
+}
+
+.form-row-float-label {
+  align-items: flex-start;
+}
+
+.btn-container-vertical {
+  margin-top: 6em;
+}
+
+.description-area {
+  resize: none;
+  height: 5em !important;
+}
+
+.field-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.field-item {
+  display: flex;
+}
+
+.field-label {
+  margin-left: 10px;
+  max-width: calc(100% - 50px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}

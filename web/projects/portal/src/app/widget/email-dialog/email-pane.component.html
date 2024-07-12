@@ -1,0 +1,159 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form class="container-fluid" [formGroup]="form" *ngIf="!!model">
+  <fieldset>
+    <div class="row form-row-float-label">
+      <div class="col form-floating" [class.pr-0]="securityEnabled">
+          <input type="text" class="form-control border-primary" formControlName="toAddress"
+                 placeholder="_#(To)" [class.is-invalid]="!form.controls['toAddress'].valid"
+                 [ngbTypeahead]="addressSearch"
+                 defaultFocus [autoSelect]="false"/>
+          <label>_#(To)</label>
+          <span class="invalid-feedback" *ngIf="form.controls['toAddress'].errors
+             && form.controls['toAddress'].errors['required']">
+             _#(viewer.mailto.invalidToAddress)
+          </span>
+          <span class="invalid-feedback" *ngIf="form.controls['toAddress'].errors
+             && !form.controls['toAddress'].errors['required']
+             && form.controls['toAddress'].errors['email']">
+            _#(viewer.mailto.invalidToEmail)
+          </span>
+          <span class="invalid-feedback"
+              *ngIf="form && !!form.controls['toAddr'] && form.controls['toAddress'].errors
+              && !form.controls['toAddress'].errors['required']
+              && !form.controls['toAddress'].errors['email']
+              && form.controls['toAddress'].errors['duplicateTokens']">
+            _#(viewer.schedule.action.email.duplicateEmail)
+          </span>
+      </div>
+      <div class="col-auto ps-1" *ngIf="securityEnabled">
+        <button type="button" class="btn btn-default cursor-pointer"
+                aria-label="_#(Email Browser)" title="_#(Email Browser)"
+                (click)="selectEmails('to')"
+                [disabled]="!model.userDialogEnabled">...</button>
+      </div>
+    </div>
+    <div class="row form-row-float-label" *ngIf="!hideCC">
+      <div class="col form-floating" [class.pr-0]="securityEnabled">
+          <input type="text" class="form-control" formControlName="ccAddress"
+                 placeholder="_#(CC)" [class.is-invalid]="!form.controls['ccAddress'].valid"
+                 [ngbTypeahead]="addressSearch"/>
+          <label>_#(CC)</label>
+          <span class="invalid-feedback" *ngIf="form.controls['ccAddress'].errors
+             && form.controls['ccAddress'].errors['email']">
+            _#(viewer.schedule.action.emailFormat)
+          </span>
+          <span class="invalid-feedback"
+                *ngIf="form && !!form.controls['ccAddr'] && form.controls['ccAddress'].errors
+              && !form.controls['ccAddress'].errors['email']
+              && form.controls['ccAddress'].errors['duplicateTokens']">
+            _#(viewer.schedule.action.email.duplicateEmail)
+          </span>
+      </div>
+      <div class="col-auto ps-1" *ngIf="securityEnabled">
+        <button type="button" class="btn btn-default cursor-pointer"
+           aria-label="_#(Email Browser)" title="_#(Email Browser)"
+           (click)="selectEmails('cc')"
+           [disabled]="!model.userDialogEnabled">...</button>
+      </div>
+    </div>
+    <div class="row form-row-float-label" *ngIf="!hideBCC">
+      <div class="col form-floating" [class.pr-0]="securityEnabled">
+            <input type="text" class="form-control"
+                   formControlName="bccAddress" [class.is-invalid]="!form.controls['bccAddress'].valid"
+                   placeholder="_#(BCC)" [ngbTypeahead]="addressSearch"/>
+            <label>_#(BCC)</label>
+            <span class="invalid-feedback" *ngIf="form.controls['bccAddress'].errors
+               && form.controls['bccAddress'].errors['email']">
+             _#(viewer.schedule.action.emailFormat)
+           </span>
+           <span class="invalid-feedback"
+                 *ngIf="form && !!form.controls['bccAddress'] && form.controls['bccAddress'].errors
+                    && !form.controls['bccAddress'].errors['email']
+                    && form.controls['bccAddress'].errors['duplicateTokens']">
+            _#(viewer.schedule.action.email.duplicateEmail)
+          </span>
+      </div>
+      <div class="col-auto ps-1" *ngIf="securityEnabled">
+         <button type="button" class="btn btn-default cursor-pointer"
+                aria-label="_#(Email Browser)" title="_#(Email Browser)"
+                (click)="selectEmails('bcc')"
+                [disabled]="!model.userDialogEnabled">...</button>
+      </div>
+    </div>
+    <div class="row form-row-float-label">
+      <div class="col form-floating">
+          <input type="text" class="form-control" formControlName="fromAddr"
+                 [class.is-invalid]="!form.controls['fromAddr'].valid && model.fromAddressEnabled"
+                 placeholder="_#(From)"/>
+          <label>_#(From)</label>
+          <span class="invalid-feedback" *ngIf="form.controls['fromAddr'].errors
+             && form.controls['fromAddr'].errors['required']">
+             _#(viewer.mailto.invalidFromAddress)
+          </span>
+          <span class="invalid-feedback" *ngIf="form.controls['fromAddr'].errors
+             && !form.controls['fromAddr'].errors['required']
+             && (form.controls['fromAddr'].errors['emailSpecialCharacters']
+                || form.controls['fromAddr'].errors['email'])">
+             _#(viewer.mailto.invalidFormat).
+          </span>
+          <span class="invalid-feedback"
+             *ngIf="form && !!form.controls['fromAddr'] && form.controls['fromAddr'].errors
+                && !form.controls['fromAddr'].errors['required']
+                && !form.controls['fromAddr'].errors['emailSpecialCharacters']
+                && !form.controls['fromAddr'].errors['email']
+                && form.controls['fromAddr'].errors['duplicateTokens']">
+            _#(viewer.schedule.action.email.duplicateEmail)
+          </span>
+      </div>
+    </div>
+    <div class="row form-row-float-label">
+      <div class="col form-floating">
+          <input type="text" class="form-control" [ngModelOptions]="{standalone: true}"
+                 placeholder="_#(Subject)" [(ngModel)]="model.subject"/>
+          <label>_#(Subject)</label>
+      </div>
+    </div>
+    <div class="row form-row-float-label">
+      <div class="col">
+        <div class="form-floating">
+          <!-- don't wrap editor in label, it messes up it's mouse and focus handling -->
+          <ng-container *ngIf="!isIE else plainTextArea">
+            <ckeditor
+              [editor]="Editor"
+              [config]="messageConfig"
+              [(ngModel)]="message"
+              [ngModelOptions]="{standalone: true}"
+            ></ckeditor>
+          </ng-container>
+          <ng-template #plainTextArea>
+            <textarea class="form-control" formControlName="message"></textarea>
+          </ng-template>
+          <label>_#(Message)</label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>
+<ng-template #emailAddrDialog let-close="close" let-dismiss="dismiss">
+  <email-addr-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                     [model]="model.emailAddrDialogModel" [addresses]="initialAddresses">
+  </email-addr-dialog>
+</ng-template>

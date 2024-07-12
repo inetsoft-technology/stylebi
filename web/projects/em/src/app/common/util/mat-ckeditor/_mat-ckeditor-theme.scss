@@ -1,0 +1,41 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@import '../../../../../../../node_modules/@angular/material/theming';
+@import '../../../../styles/constants';
+
+@mixin mat-ckeditor-theme($theme) {
+  $is-dark: map-get($theme, is-dark);
+  $primary: map-get($theme, primary);
+  $accent: map-get($theme, accent);
+  $warn: map-get($theme, warn);
+  $background: map-get($theme, background);
+  $foreground: map-get($theme, foreground);
+
+  :root {
+    --ck-color-base-foreground: #{mat-color($background, background)} !important;
+    --ck-color-base-background: #{mat-color($background, card)} !important;
+    --ck-color-button-default-hover-background: #{mat-color($background, hover, 0.12)} !important;
+    --ck-color-button-on-background: #{mat-color($background, hover, 0.12)} !important;
+    --ck-color-base-text: #{mat-color($foreground, base)} !important;
+    --ck-color-base-active: #{mat-color($background, hover, 0.12)} !important;
+    --ck-color-base-active-focus: #{mat-color($accent)} !important;
+    --ck-color-focus-border: #{mat-color($accent)} !important;
+    --ck-color-list-button-on-text: #{mat-color($foreground, base)} !important;
+    --ck-color-focus-outer-shadow: #{mat-color($accent, 300)} !important;
+  }
+}

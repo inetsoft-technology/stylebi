@@ -1,0 +1,482 @@
+/**
+ * inetsoft-core - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+/**
+ * Base EM CSS for isii_JSTree
+ */
+
+.isii_JSTree{
+   border: 1px solid #bbb;
+   padding: 5px;
+   overflow: auto;
+   width: 100%;
+   position: relative;
+}
+
+.isii_JSTree a{
+   text-decoration: none;
+   color:black;
+   cursor: default;
+}
+
+.JSTreeTableDiv{
+   height: 16px;
+}
+
+.JSTreeRow{
+}
+
+.JSTreeTable{
+   table-layout:fixed;
+   overflow: auto;
+   border-collapse: separate;
+}
+
+.JSTreeTR:hover {
+   background-color: #f5f5f5;
+}
+
+.selected {
+   white-space: nowrap;
+   background-color: #ebebeb;
+}
+
+.JSTreeLabel_active {
+   font-size: 11px;
+   white-space: nowrap;
+   color: black;
+}
+
+.JSTreeLabel_disabled {
+   font-size: 11px;
+   white-space: nowrap;
+   color: grey;
+}
+
+.JSTreeLabel_drag {
+   font-size: 11px;
+   color: #eb6100;
+   white-space: nowrap;
+}
+
+.JSTreeLabel {
+   font-size: 11px;
+   color: black;
+   white-space: nowrap;
+}
+
+.JSTreeIndent {
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreeIcon {
+   background : no-repeat;
+   padding: 0;
+	width: 16px;
+   height: 16px;
+}
+
+.JSTreeLineI{
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_lineI%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+	width: 16px;
+   height: 16px;
+}
+
+.JSTreeLineL{
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_lineL%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreeLineT{
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_lineT%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreeRootPlus{
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_rootplus%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreePlusL-end {
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_plusL-end%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreePlusL-start {
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_plusL-start%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreePlusT {
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_plusT%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreeRootMinus {
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_rootminus%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreeMinusL-end {
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_minusL-end%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreeMinusL-start {
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_minusL-start%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreeMinusT {
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_minusT%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.JSTreeBlankLine {
+   background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_blank%2egif");
+   background-repeat: no-repeat;
+   padding: 0;
+   width: 16px;
+   height: 16px;
+}
+
+.filecomp-open {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilecomp-open%2egif");
+}
+
+.filecomp {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilecomp%2egif");
+}
+
+.filecsv {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilecsv%2egif");
+}
+
+.filehtml {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilehtml%2egif");
+}
+
+.filepage {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilepage%2egif");
+}
+
+.filepdf {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilepdf%2egif");
+}
+
+.fileppt {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffileppt%2egif");
+}
+
+.filereport {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilereport%2egif");
+}
+
+.filertf {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilertf%2egif");
+}
+
+.filesvg {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilesvg%2egif");
+}
+
+.filetxt {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffiletxt%2egif");
+}
+
+.filexgm {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilexgm%2egif");
+}
+
+.filexml {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilexml%2egif");
+}
+
+.filexls {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2ffilexls%2egif");
+}
+
+.param_only_replet {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2fparam_only_replet%2egif");
+}
+
+.preplet {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2fpreplet%2egif");
+}
+
+.replet {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2freplet%2egif");
+}
+
+.reportfile {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2freportfile%2egif");
+}
+
+.snapshot {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2fsnapshot%2egif");
+}
+
+.viewsheet {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2fviewsheet%2egif");
+}
+
+.vista {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2fvista%2egif");
+}
+
+.worksheet {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2fworksheet%2egif");
+}
+
+.tree_close {
+	background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_close%2egif");
+}
+
+.tree_open {
+	background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_open%2egif");
+}
+
+.tree_leaf {
+	background-image: url("$(SERVLET_PREF)op=resource&type=portal&name=tree_leaf%2egif");
+}
+
+.user {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2fuser%2egif");
+}
+
+.role {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2frole%2egif");
+}
+
+.group {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fweb%2fimages%2fgroup%2egif");
+}
+
+.physicaltable {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fphysicaltable%2egif");
+}
+
+.schedule {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fschedule%2egif");
+}
+
+.adhoc {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fadhoc%2egif");
+}
+
+.bookmark {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fbookmark%2egif");
+}
+
+.exploreview {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fexploreview%2egif");
+}
+
+.my_reports {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fmy_reports%2egif");
+}
+
+.dashboard {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fdashboard%2egif");
+}
+
+.folder {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2ffolder%2egif");
+}
+
+.query {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2fquery%2egif");
+}
+
+.datasource {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2fquery%2egif");
+}
+
+.jdbc {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2fjdbc%2egif");
+}
+
+.tabular {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2ftabular%2egif");
+}
+
+.xml {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2fxml%2egif");
+}
+
+.corba {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2fcorba%2egif");
+}
+
+.ejb {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2fejb%2egif");
+}
+
+.text {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2ftext%2egif");
+}
+
+.soap {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2fsoap%2egif");
+}
+
+.object {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2fobject%2egif");
+}
+
+.xmla {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2fxmla%2egif");
+}
+
+.sap {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2fsap%2egif");
+}
+
+.logical {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2flogical%2egif");
+}
+
+.logical_formula {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fuql%2fgui%2fimages%2flogical_formula%2egif");
+}
+
+.global {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2fglobal%2egif");
+}
+
+.user {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2fuser%2egif");
+}
+
+.report {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2freport%2egif");
+}
+
+.ws-condition {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2fws-condition%2egif");
+}
+
+.ws-named-group {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2fws-named-group%2egif");
+}
+
+.ws-variable {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2fws-variable%2egif");
+}
+
+.ws-table {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2fws-table%2egif");
+}
+
+.ws-table_formula {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2fws-table_formula%2egif");
+}
+
+.ws-date-range {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2fws-date-range%2egif");
+}
+
+.asset {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2freport%2fgui%2fcomposition%2fimages%2fasset%2egif");
+}
+
+.adhoc_wizard {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fadhoc_wizard%2epng");
+}
+
+.enterprisemanager {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fenterprisemanager%2epng");
+}
+
+.exporttoolbar {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fexporttoolbar%2epng");
+}
+
+.tab2 {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2ftab2%2egif");
+}
+
+.schedulertoolbar {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fschedulertoolbar%2epng");
+}
+
+.reporttoolbar {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2freporttoolbar%2epng");
+}
+
+.viewsheettoolbar {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fviewsheettoolbar%2epng");
+}
+
+.action {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2faction%2egif");
+}
+
+/* Partial Deployment Handler, entries.js */
+.bean {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fbean%2egif");
+}
+
+.meta_report {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fmeta_report%2egif");
+}
+
+.parameter_sheet {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fparameter_sheet%2egif");
+}
+
+.script {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2fscript%2egif");
+}
+
+.table_style {
+	background-image: url("$(SERVLET_PREF)op=resource&name=%2finetsoft%2fsree%2fadm%2fmarkup%2fimages%2ftable_style%2egif");
+}

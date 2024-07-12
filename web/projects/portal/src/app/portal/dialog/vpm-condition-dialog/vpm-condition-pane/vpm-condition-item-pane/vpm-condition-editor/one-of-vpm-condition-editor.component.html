@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="form-inline">
+  <div class="form-group-column">
+    <vpm-condition-editor [value]="editingModel" [values]="values"
+                      [operation]="operation" [fields]="fields"
+                      [valueTypes]="valueTypes"
+                      [enableBrowseData]="enableBrowseData" [type]="valueType"
+                      [dataFunction]="dataFunction"
+                      [primaryValue]="primaryValue" [varShowDate]="varShowDate"
+                      [datasource]="datasource" [isWSQuery]="isWSQuery"
+                      (valueChanges)="selectValues($event)"
+                      (valueChange)="updateValue($event)">
+    </vpm-condition-editor>
+    <div *ngIf="isValueListVisible()" class="value-list-container">
+      <div class="sm-selectable-list value-list">
+        <div *ngFor="let val of values; let i = index;" class="unhighlightable"
+             [class.selected]="isSelected(val)" (click)="selectValue(i, val)">
+          {{val}}
+        </div>
+      </div>
+      <div class="btn-container-vertical form-group-column">
+        <button type="button" class="btn btn-default" (click)="add()"
+                [disabled]="isEmpty()">_#(Add)</button>
+        <button type="button" class="btn btn-default delete_id" (click)="remove()"
+                [disabled]="selectedIndex < 0 || selectedIndex >= values.length">_#(Delete)</button>
+        <button type="button" class="btn btn-default delete_id" (click)="modify()"
+                [disabled]="selectedIndex < 0 || selectedIndex >= values.length">_#(Modify)</button>
+      </div>
+    </div>
+  </div>
+</div>

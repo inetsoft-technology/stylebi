@@ -1,0 +1,289 @@
+{
+  "endpoints": [
+    {
+      "paged": "false", 
+      "name": "Ticket", 
+      "suffix": "/v2/tickets/{Ticket ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Tickets", 
+      "suffix": "/v2/tickets?query={Query?:(status:1 OR tag:'tag')}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Ticket Fields", 
+      "suffix": "/v2/ticket_fields?type={Type?}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Ticket Conversations", 
+      "suffix": "/v2/tickets/{Ticket ID}/conversations"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Ticket Time Entries", 
+      "suffix": "/v2/tickets/{Ticket ID}/time_entries"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Ticket Satisfaction Ratings", 
+      "suffix": "/v2/tickets/{Ticket ID}/satisfaction_ratings"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Contact", 
+      "suffix": "/v2/contacts/{Contact ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contacts", 
+      "suffix": "/v2/contacts?query={Query?:(active:true AND tag:'tag')}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contact Fields", 
+      "suffix": "/v2/contact_fields"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Contact Imports", 
+      "suffix": "/v2/contacts/imports?status={Status?:in_progress|completed|cancelled|failed}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Contact Import",
+      "suffix": "/v2/contacts/imports/{Import ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Agent", 
+      "suffix": "/v2/agents/{Agent ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Agents", 
+      "suffix": "/v2/agents?email={Email Address?}&mobile={Mobile Phone?}&phone={Phone?}&state={State?:fulltime|occasional}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Current Agent", 
+      "suffix": "/v2/agents/me"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Skill", 
+      "suffix": "/v2/skills/{Skill ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Skills", 
+      "suffix": "/v2/skills"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Role", 
+      "suffix": "/v2/roles/{Role ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Roles", 
+      "suffix": "/v2/roles"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Group", 
+      "suffix": "/v2/groups/{Group ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Groups", 
+      "suffix": "/v2/groups"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Company", 
+      "suffix": "/v2/companies/{Company ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Companies", 
+      "suffix": "/v2/companies?query={Query?:(domain:inetsoft.com AND created_at:2020-01-15)}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Company Search", 
+      "suffix": "/v2/companies/autocomplete?name={Name}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Company Fields", 
+      "suffix": "/v2/company_fields"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Company Imports", 
+      "suffix": "/v2/companies/imports?status={Status?:in_progress|completed|cancelled|failed}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Company Import",
+      "suffix": "/v2/companies/imports/{Import ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Canned Response Folders", 
+      "suffix": "/v2/canned_response_folders"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Canned Responses", 
+      "suffix": "/v2/canned_response_folders/{Folder ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Detailed Canned Responses", 
+      "suffix": "/v2/canned_response_folders/{Folder ID}/responses"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Forum Category", 
+      "suffix": "/v2/discussions/categories/{Category ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Forum Categories", 
+      "suffix": "/v2/discussions/categories"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Forums in Category", 
+      "suffix": "/v2/discussions/categories/{Category ID}/forums"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Forum", 
+      "suffix": "/v2/discussions/forums/{Forum ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Forum Topics", 
+      "suffix": "/v2/discussions/forums/{Forum ID}/topics"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Forum Topic", 
+      "suffix": "/v2/discussions/topics/{Topic ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Forum Topic Comments", 
+      "suffix": "/v2/discussions/topics/{Topic ID}/comments"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Monitored Topics", 
+      "suffix": "/v2/discussions/topics/followed_by?user_id={User ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Participated Topics", 
+      "suffix": "/v2/discussions/topics/participated_by?user_id={User ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Solution Category", 
+      "suffix": "/v2/solutions/categories/{Category ID}/{Language Code?}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Solutions Categories", 
+      "suffix": "/v2/solutions/categories/{Language Code?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Solution Folder", 
+      "suffix": "/v2/solutions/folders/{Folder ID}/{Language Code?}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Solution Folders in Category", 
+      "suffix": "/v2/solutions/categories/{Category ID}/folders/{Language Code?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Solution Article", 
+      "suffix": "/v2/solutions/articles/{Article ID}/{Language Code?}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Solution Articles in Folder", 
+      "suffix": "/v2/solutions/folders/{Folder ID}/articles/{Language Code?}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Solution Article Search", 
+      "suffix": "/v2/search/solutions?term={Keyword}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Surveys", 
+      "suffix": "/v2/surveys"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Satisfaction Ratings", 
+      "suffix": "/v2/surveys/satisfaction_ratings?created_since={Created Since?:yyyy-MM-ddTHH:mm:ssZ}&userId={User ID?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Email Mailbox", 
+      "suffix": "/v2/email/mailboxes/{Mailbox ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Email Mailboxes", 
+      "suffix": "/v2/email/mailboxes?support_email={Support Email?}&forward_email={Forward Email?}&product_id={Product ID?}&group_id={Group ID?}&active={Active?:true|false}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Mailbox Settings", 
+      "suffix": "/v2/email/settings"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Automatic Bcc Emails", 
+      "suffix": "/v2/notifications/email/bcc"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Product", 
+      "suffix": "/v2/products/{Product ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Products", 
+      "suffix": "/v2/products"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Business Hour", 
+      "suffix": "/v2/business_hours/{Business Hour ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Business Hours", 
+      "suffix": "/v2/business_hours"
+    }, 
+    {
+      "paged": "true", 
+      "name": "SLA Policies", 
+      "suffix": "/v2/sla_policies"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Helpdesk Settings", 
+      "suffix": "/v2/settings/helpdesk"
+    }
+  ]
+}

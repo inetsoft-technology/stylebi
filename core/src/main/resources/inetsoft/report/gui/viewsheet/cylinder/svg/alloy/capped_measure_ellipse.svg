@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.1, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg version="1.0" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="99.652px" height="21.857px" viewBox="0 0 99.652 21.857" enable-background="new 0 0 99.652 21.857" xml:space="preserve">
+<g id="图层_1_副本_3">
+	<g>
+		
+			<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="-307.5149" y1="563.5349" x2="-325.3003" y2="512.9152" gradientTransform="matrix(1 0 0 1 366.2334 -527.2979)">
+			<stop  offset="0.0056" style="stop-color:#2862D9"/>
+			<stop  offset="0.3315" style="stop-color:#D4E3FF"/>
+			<stop  offset="0.5899" style="stop-color:#5B7EE6"/>
+			<stop  offset="1" style="stop-color:#2862D9"/>
+		</linearGradient>
+		<rect x="0" y="0" fill="url(#SVGID_1_)" fill-opacity="0" width="99.652" height="21.856"/>
+	</g>
+	
+		<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="75.9451" y1="-388.8865" x2="53.6488" y2="-325.4278" gradientTransform="matrix(1 0 0 -1 -14.1958 -344.0239)">
+		<stop  offset="0.0056" style="stop-color:#2F2E30"/>
+		<stop  offset="0.3371" style="stop-color:#B8B9B9"/>
+		<stop  offset="0.3898" style="stop-color:#B1B1B2"/>
+		<stop  offset="0.4685" style="stop-color:#ABAAAA"/>
+		<stop  offset="0.5361" style="stop-color:#919192"/>
+		<stop  offset="0.5843" style="stop-color:#8D8D8E"/>
+		<stop  offset="0.9607" style="stop-color:#2A282A"/>
+	</linearGradient>
+	<ellipse fill="url(#SVGID_2_)" cx="49.826" cy="10.928" rx="46.188" ry="10.93"/>
+	
+		<linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="17.8352" y1="-354.9519" x2="110.2087" y2="-354.9519" gradientTransform="matrix(1 0 0 -1 -14.1958 -344.0239)">
+		<stop  offset="0.0056" style="stop-color:#3F3F41"/>
+		<stop  offset="0.3315" style="stop-color:#C9C9CA"/>
+		<stop  offset="0.6629" style="stop-color:#5F5F60"/>
+		<stop  offset="1" style="stop-color:#323132"/>
+	</linearGradient>
+	<ellipse opacity="0.7" fill="url(#SVGID_3_)" enable-background="new    " cx="49.826" cy="10.928" rx="46.188" ry="10.93"/>
+</g>
+<g id="Layer_1">
+</g>
+</svg>

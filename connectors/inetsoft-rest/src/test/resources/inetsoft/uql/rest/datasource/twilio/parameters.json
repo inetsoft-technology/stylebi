@@ -1,0 +1,108 @@
+{
+  "tests": [
+    {
+      "endpoint": "Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Account ID": "${env.TWILIO_ACCOUNT_ID}"
+      }
+    },
+    {
+      "endpoint": "Accounts",
+      "jsonPath": "$.accounts",
+      "expandArrays": false,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Address",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Account ID": "${env.TWILIO_ACCOUNT_ID}",
+        "Address ID": "${env.TWILIO_ADDRESS_ID}"
+      }
+    },
+    {
+      "endpoint": "Addresses",
+      "jsonPath": "$.addresses",
+      "expandArrays": false,
+      "parameters": {
+        "Account ID": "${env.TWILIO_ACCOUNT_ID}"
+      }
+    },
+    {
+      "endpoint": "Application",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Account ID": "${env.TWILIO_ACCOUNT_ID}",
+        "Application ID": "${env.TWILIO_APPLICATION_ID}"
+      }
+    },
+    {
+      "endpoint": "Applications",
+      "jsonPath": "$.applications",
+      "expandArrays": false,
+      "parameters": {
+        "Account ID": "${env.TWILIO_ACCOUNT_ID}"
+      }
+    },
+    {
+      "endpoint": "Key",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Account ID": "${env.TWILIO_ACCOUNT_ID}",
+        "Key ID": "${env.TWILIO_KEY_ID}"
+      }
+    },
+    {
+      "endpoint": "Keys",
+      "jsonPath": "$.keys",
+      "expandArrays": false,
+      "parameters": {
+        "Account ID": "${env.TWILIO_ACCOUNT_ID}"
+      }
+    },
+    {
+      "endpoint": "Usage Records",
+      "jsonPath": "$.usage_records",
+      "expandArrays": false,
+      "parameters": {
+        "Account ID": "${env.TWILIO_ACCOUNT_ID}"
+      }
+    },
+    {
+      "endpoint": "Usage Trigger",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Account ID": "${env.TWILIO_ACCOUNT_ID}",
+        "Trigger ID": "${env.TWILIO_TRIGGER_ID}"
+      }
+    },
+    {
+      "endpoint": "Usage Triggers",
+      "jsonPath": "$.usage_triggers",
+      "expandArrays": false,
+      "parameters": {
+        "Account ID": "${env.TWILIO_ACCOUNT_ID}"
+      }
+    },
+    {
+      "endpoint": "Event",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Event ID": "${env.TWILIO_EVENT_ID}"
+      }
+    },
+    {
+      "endpoint": "Events",
+      "jsonPath": "$.events",
+      "expandArrays": false,
+      "parameters": {}
+    }
+  ]
+}

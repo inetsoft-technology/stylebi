@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="200px" height="60.741px" viewBox="0 0 200 60.741" enable-background="new 0 0 200 60.741" xml:space="preserve">
+<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="-60.1294" y1="1467.9355" x2="-48.1938" y2="1467.9355" gradientTransform="matrix(-1 0 0 -1 -28.5615 1498.3008)">
+	<stop  offset="0" style="stop-color:#FFFFFF"/>
+	<stop  offset="0.0914" style="stop-color:#FFE4E4"/>
+	<stop  offset="0.4303" style="stop-color:#FF8383"/>
+	<stop  offset="0.7047" style="stop-color:#FF3D3D"/>
+	<stop  offset="0.9008" style="stop-color:#FF1111"/>
+	<stop  offset="1" style="stop-color:#FF0000"/>
+</linearGradient>
+<polygon fill="url(#SVGID_1_)" stroke="#8E8E8E" points="19.632,20.679 31.568,20.679 25.407,40.052 "/>
+</svg>

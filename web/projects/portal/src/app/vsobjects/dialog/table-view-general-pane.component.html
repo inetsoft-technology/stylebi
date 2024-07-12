@@ -1,0 +1,59 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<general-prop-pane *ngIf="model" [(form)]="form.controls['generalPropPaneForm']" [vsId]="vsId"
+                   [model]="model.generalPropPaneModel" [variableValues]="variableValues"
+                   [columnTreeRoot]="columnTreeRoot" [functionTreeRoot]="functionTreeRoot"
+                   [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions">
+</general-prop-pane>
+<title-prop-pane *ngIf="model" [model]="model.titlePropPaneModel" [vsId]="vsId"
+                 [variableValues]="variableValues" [columnTreeRoot]="columnTreeRoot"
+                 [functionTreeRoot]="functionTreeRoot" [operatorTreeRoot]="operatorTreeRoot"
+                 [scriptDefinitions]="scriptDefinitions">
+</title-prop-pane>
+<form [formGroup]="form" class="container-fluid" *ngIf="model.showMaxRows">
+  <div class="form-row-float-label row">
+    <div class="col form-floating">
+        <input type="number" class="form-control" [(ngModel)]="model.maxRows"
+               formControlName="maxRows" placeholder="_#(Max Rows)">
+        <label>_#(Max Rows)</label>
+      <div class="alert alert-danger" *ngIf="form.controls['maxRows'].errors && form.controls['maxRows'].errors['positiveIntegerInRange']">
+        _#(common.tableView.maxRowCheck)
+      </div>
+    </div>
+  </div>
+</form>
+<div class="container-fluid" *ngIf="model.showSubmitOnChange">
+  <div class="form-row-float-label row">
+    <div class="col">
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" id="submit"
+             [(ngModel)]="model.submitOnChange">
+        <label class="form-check-label" for="submit">
+          _#(Submit on Change)
+        </label>
+      </div>
+    </div>
+  </div>
+</div>
+<table-style-pane [model]="model.tableStylePaneModel"></table-style-pane>
+<size-position-pane [model]="model.sizePositionPaneModel"
+                    [(form)]="form.controls['sizePositionPaneForm']"
+                    [titleHeightEnable]="model.generalPropPaneModel.enabled == 'True'"
+></size-position-pane>

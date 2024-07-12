@@ -1,0 +1,298 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+main {
+  padding: 1em;
+  font-family: Roboto,Arial,Helvetica,sans-serif;
+  text-align: center;
+  margin-top: 50px;
+  display: block;
+}
+
+.expired-vs-banner {
+  display: flex;
+  align-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50px;
+  z-index: 10499; // below modal dialog
+}
+
+.expired-vs-mask {
+  position: absolute;
+  top: 33px;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 999998;
+}
+
+.profile-report-banner {
+  position: absolute;
+  top: 30px;
+  left: 0;
+  right: 0;
+  height: 33px;
+  z-index: 800;
+}
+
+.profile-btn {
+  background-repeat:no-repeat;
+  border: none;
+  cursor: pointer;
+  overflow: hidden;
+  outline: none;
+  height: 32px;
+  width: 32px;
+  padding: 0;
+}
+
+.profile-icon-align {
+  vertical-align: middle;
+}
+
+.viewer-container-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  z-index: 6;
+}
+
+.viewer-root {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  overflow: auto;
+  z-index: 1;
+}
+
+.overflow-hide {
+  overflow: hidden !important;
+}
+
+.overflow-x-hide {
+  overflow-x: hidden;
+}
+
+.viewer-root .scale-container {
+  transform-origin: 0 0;
+}
+
+.viewer-toolbar-visible + .viewer-root {
+  top: 33px;
+}
+
+.viewer-toolbar {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 33px;
+  margin: 0;
+  padding: 0;
+  overflow-y: visible;
+  overflow-x: auto;
+  transform-origin: top left;
+  z-index: 5;
+}
+
+.viewer-toolbar.viewer-toolbar-visible {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+.btn-toolbar > .btn-group.pull-right {
+  margin-left: 0;
+  margin-right: 5px;
+}
+
+.icon-with-dropdown-item {
+  padding-left: 0px;
+}
+
+.view-zoom {
+  margin: 0;
+  padding: 0;
+}
+
+.bookmark-dropdown {
+  width: 400px;
+  max-width: 400px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.bookmark-dropdown .dropdown-item:not([disabled]) {
+  cursor: default;
+}
+
+.bookmark-item {
+  display: flex;
+  align-items: center;
+}
+
+.bookmark-dropdown .bookmark-label {
+  flex-grow: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.context-menu-dropdown {
+  z-index: 999999;
+  position: fixed;
+}
+
+.hidden-input {
+  opacity: 0;
+  position: absolute;
+  z-index: -1;
+  left: -9999px;
+}
+
+.viewer-format-pane {
+  position: absolute;
+  float: left;
+  width: 20%;
+  min-height: 100%;
+  display: inline-block;
+  background-repeat: repeat-x;
+  z-index: 5;
+}
+
+.format-style {
+  position: absolute;
+  display: inline-block;
+}
+
+.viewer-toolbar-btn {
+  background-repeat:no-repeat;
+  border: none;
+  cursor: pointer;
+  overflow: hidden;
+  outline: none;
+  height: 32px;
+  width: 32px;
+}
+
+.mobile {
+  height: 66px !important;
+}
+
+.mobile-viewer-root {
+  top: 66px !important;
+}
+
+.mobile .viewer-toolbar-btn {
+  height: 66px;
+  width: 46px;
+
+  i {
+    font-size: 24px;
+  }
+}
+
+.mobile-dropdown {
+  display: flex;
+  flex-direction: column;
+  background: white;
+
+  i {
+    font-size: 24px;
+  }
+
+  span {
+    font-size: 16px;
+  }
+}
+
+.viewer-toolbar-btn:disabled, .viewer-toolbar-btn[disabled] {
+  cursor: default;
+}
+
+.viewer-toolbar-icon-align {
+  vertical-align: middle;
+}
+
+.notifications-viewer-app {
+  position: fixed;
+  top: 125px;
+  right: 0px;
+  width: 400px;
+  max-width: 40%;
+  z-index: 10000;
+}
+
+:host-context(.in-portal) .close-button {
+  visibility: visible;
+}
+
+@media (min-width: 480px) {
+  .viewer-toolbar.viewer-toolbar-visible {
+    justify-content: space-between;
+  }
+}
+
+.viewer-fullscreen {
+  position: fixed;
+  z-index: 100;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
+
+.row-limit-message {
+  font-size: 0.9em;
+  color: red;
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.05);
+  z-index: 1001;
+  text-align: center;
+}
+
+.dropdown-pane.share-menu {
+  .dropdown-item {
+    div {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+
+      i {
+        flex-grow: 0;
+        flex-shrink: 0;
+        margin-right: 5px;
+      }
+
+      span {
+        flex-grow: 1;
+        flex-shrink: 1;
+      }
+    }
+  }
+}
+
+.status-link {
+  text-decoration: underline;
+  cursor: pointer;
+}

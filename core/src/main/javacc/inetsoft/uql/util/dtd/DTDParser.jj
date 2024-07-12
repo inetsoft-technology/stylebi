@@ -1,0 +1,462 @@
+options {
+   STATIC = false;
+   JAVA_UNICODE_ESCAPE = true;
+   UNICODE_INPUT = false;
+}
+
+PARSER_BEGIN(DTDParser)
+
+package inetsoft.uql.util.dtd;
+
+import inetsoft.uql.*;
+import inetsoft.uql.util.*;
+import inetsoft.uql.schema.*;
+import java.util.*;
+import java.io.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * XML DTD parser, generates XTypeNode trees.
+ */
+public class DTDParser {
+   public static void main(String args[]) {
+      DTDParser parser;
+      try {
+	 parser = new DTDParser(
+            new InputStreamReader(new java.io.FileInputStream(args[0]), "UTF8"));
+      } catch (Exception e) {
+	 e.printStackTrace();
+	 return;
+      }
+
+      try {
+	 parser.parse();
+	 XMLUtil.printTree(parser.getRoot(), "");
+	 PrintWriter writer = new PrintWriter(System.err);
+	 parser.getRoot().writeTreeXML(writer);
+	 writer.close();
+      } catch (ParseException e) {
+	 e.printStackTrace();
+      }
+   }
+
+   /**
+    * Parse the DTD.
+    */
+   public void parse() throws ParseException {
+      dtd();
+      normalize();
+   }
+   
+   /**
+    * Get the type node of the specified type.
+    */
+   public XTypeNode getNode(String name) {
+      return (XTypeNode) types.get(name);
+   }
+   
+   /**
+    * Get the root type.
+    */
+   public XTypeNode getRoot() {
+      Enumeration elements = rootmap.elements();
+      
+      if(rootmap.size() >= 1) {
+         if(rootmap.size() > 1) {
+            LOG.warn("DTD has more than one root!");
+         }
+         
+         return (XTypeNode) elements.nextElement();
+      }
+      
+      LOG.warn("DTD does not have a root!");
+      
+      Enumeration elems = types.elements();
+      
+      return (XTypeNode) elems.nextElement();
+   }
+   
+   /**
+    * Create a type node.
+    */
+   XTypeNode createTypeNode(String name) {
+      XTypeNode type = (XTypeNode) types.get(name);
+      if(type == null) {
+	 types.put(name, type = new XTypeNode(name));
+      }
+      
+      return type;
+   }
+   
+   /**
+    * Create a type node.
+    */
+   XTypeNode createUserDefinedType(String name, XTypeNode parent) {
+      XTypeNode type = (XTypeNode) utypes.get(name);
+      if(type == null || type.getParent() != parent) {
+	 utypes.put(name, type = new UserDefinedType(name));
+	 ((UserDefinedType) type).setUserType(createTypeNode(name));
+      }
+      
+      return type;
+   }
+   
+   /**
+    * Normalize the type tree.
+    */
+   void normalize() {
+      Hashtable processed = new Hashtable();
+      
+      Enumeration elems = utypes.elements();
+      while(elems.hasMoreElements()) {
+         normalize((XTypeNode) elems.nextElement(), processed);
+      }
+      
+      elems = types.elements();
+      while(elems.hasMoreElements()) {
+         normalize((XTypeNode) elems.nextElement(), processed);
+      }
+   }
+   
+   /**
+    * Normalize the type tree.
+    */
+   XTypeNode normalize(XTypeNode type, Hashtable processed) {
+      processed.put(type.getName(), type);
+      
+      // find the bottom level utype and make sure it's initialized
+      for(XTypeNode tnode = type; tnode instanceof UserDefinedType; 
+	  tnode = ((UserDefinedType) tnode).getUserType()) {
+	 UserDefinedType utype = (UserDefinedType) tnode;
+	 
+	 if(utype.getUserType() == null) {
+	    utype.setUserType(createTypeNode(tnode.getName()));
+	    break;
+	 }
+      }
+
+      // types with no child are treated as string type
+      if(type.getChildCount() == 0 && type.getAttributeCount() == 0) {
+	 StringType ntype = new StringType(type.getName());
+	 XMLUtil.copyAttributes(type, ntype);
+	 return ntype;
+      }
+      
+      for(int i = 0; i < type.getChildCount(); i++) {
+	 XTypeNode child = (XTypeNode) type.getChild(i);
+	 // prevent infinite recursion from recursive dtd
+         if(processed.get(child.getName()) != null) {
+	    continue;
+	 }
+	 
+	 XTypeNode nchild = normalize(child, processed);
+	 if(child != nchild) {
+	    type.setChild(i, nchild);
+	 }
+      }
+      
+      return type;
+   }
+
+   /**
+    * Set the min/max occurs of a subtree.
+    */
+   static void setOccurs(XTypeNode type, int startidx, char occurs) {
+      for(int i = startidx; i < type.getChildCount(); i++) {
+	 XTypeNode child = (XTypeNode) type.getChild(i);
+	 switch(occurs) {
+	 case '?':
+	    child.setMinOccurs(0);
+	    child.setMaxOccurs(1);
+	    break;
+	 case '*':
+	    child.setMinOccurs(0);
+	    child.setMaxOccurs(XTypeNode.STAR);
+	    break;
+	 case '+':
+	    child.setMinOccurs(1);
+	    child.setMaxOccurs(XTypeNode.STAR);
+	    break;
+	 }
+      }
+   }
+
+   // @by larryl 2003-9-23, avoid adding type multiple times to a root.
+   // This method add or replace a child in a record
+   static void addChild(XNode root, XNode child) {
+      XNode ochild = root.getChild(child.getName());
+      
+      if(ochild != null) {
+         root.setChild(root.getChildIndex(ochild), child);
+      }
+      else {
+         root.addChild(child);
+      }
+   }
+   
+   // nodes that is not a child of other types
+   Hashtable rootmap = new Hashtable(); // name -> XTypeNode
+   // nodes that are child of other types
+   Hashtable childmap = new Hashtable(); // name -> XTypeNode
+   Hashtable types = new Hashtable(); // name -> XTypeNode
+   Hashtable utypes = new Hashtable(); // name -> UserDefinedType
+
+   private static final Logger LOG = LoggerFactory.getLogger(DTDParser.class);
+}
+
+PARSER_END(DTDParser)
+
+
+/*
+ * Tokens to ignore in the BNF follow.
+ */
+
+SKIP :
+{
+  < " " >
+| < "\t" >
+| < "\n" >
+| < "\r" >
+| <"<!--" (~[">"])* ">">
+| <"<?" (~[">"])* ">">
+}
+
+void dtd() :
+{}
+{
+  (doctypedecl())? (markupdecl())*
+}
+
+void doctypedecl() :
+{}
+{
+  "<!DOCTYPE" <NAME> (externalid())? ">"
+}
+
+void externalid() :
+{}
+{
+   <SYSTEM> <STRING>
+| <PUBLIC> <STRING> <STRING>
+}
+
+void markupdecl() :
+{}
+{
+  elemdecl() | attlistdecl() | entitydecl() | notationdecl()
+}
+
+void elemdecl() :
+{
+   XTypeNode type = null;
+}
+{
+  "<!ELEMENT" <NAME> {
+     String name = getToken(0).image;
+     type = createTypeNode(name);
+   
+     if(childmap.get(name) == null) {
+        rootmap.put(name, type);
+     }
+               
+  } contentspec(type) ">" 
+}
+
+void contentspec(XTypeNode type) :
+{}
+{
+  <EMPTY> | <ANY> | LOOKAHEAD(2000) mixed(type) 
+     | LOOKAHEAD(2000) children(type)
+}
+
+void mixed(XTypeNode type) :
+{}
+{
+ LOOKAHEAD(2000) "(" <PCDATA> ("|" <NAME> {
+    XTypeNode child = createUserDefinedType(getToken(0).image, type);
+    child.setMinOccurs(0);
+    child.setMaxOccurs(XTypeNode.STAR);
+    addChild(type, child);
+    
+    rootmap.remove(child.getName());
+    childmap.put(child.getName(), child);
+ } )* ")" "*"
+| LOOKAHEAD(2000) "(" <PCDATA> ")"    
+}
+
+void children(XTypeNode type) :
+{
+   int childcnt = type.getChildCount();
+}
+{
+ (LOOKAHEAD(2000) choice(type) | LOOKAHEAD(2000) seq(type)) 
+    ("?" {setOccurs(type, childcnt, '?');} |
+    "*" {setOccurs(type, childcnt, '*');} |
+    "+" {setOccurs(type, childcnt, '+');})?
+}
+
+void choice(XTypeNode type) :
+{}
+{
+  "(" cp(type) ("|" cp(type))* ")"
+}
+
+void seq(XTypeNode type) :
+{}
+{
+  "(" cp(type) ("," cp(type))* ")"
+}
+  
+void cp(XTypeNode type) :
+{
+   int childcnt = type.getChildCount();
+}
+{
+  (<NAME> {
+     XTypeNode child = createUserDefinedType(getToken(0).image, type);
+     addChild(type, child);
+     
+     rootmap.remove(child.getName());
+     childmap.put(child.getName(), child);
+  }
+  | LOOKAHEAD(2000) choice(type) | LOOKAHEAD(2000) seq(type)) 
+     ("?" {setOccurs(type, childcnt, '?');} |
+    "*" {setOccurs(type, childcnt, '*');} |
+    "+" {setOccurs(type, childcnt, '+');})?
+}
+
+void attlistdecl() :
+{
+   XTypeNode type = null;
+}
+{
+  "<!ATTLIST" <NAME> { type = createTypeNode(getToken(0).image); }
+  (attdef(type))* ">"
+}
+
+void attdef(XTypeNode type) :
+{
+   String name = null;
+}
+{
+  <NAME> { 
+     name = getToken(0).image; 
+     type.addAttribute(new StringType(name));
+  } atttype() defaultdecl(type, name)
+}
+  
+void atttype() :
+{}
+{
+  stringtype() | tokenizedtype() | enumeratedtype()
+}
+
+void defaultdecl(XTypeNode type, String name) :
+{}
+{
+   <REQUIRED> | <IMPLIED> | (<FIXED>)? <STRING> { 
+      type.setAttribute(name, getToken(0).image);
+   }
+}
+
+void stringtype() :
+{}
+{
+  <CDATA>
+}
+  
+void tokenizedtype() :
+{}
+{
+  <ID> | <IDREF> | <IDREFS> | <ENTITY> | <ENTITIES> | <NMTOKEN> | <NMTOKENS>
+}
+
+void enumeratedtype() :
+{}
+{
+  notationtype() | enumeration()
+}
+
+void notationtype() :
+{}
+{
+  <NOTATION> "(" <NAME> ("|" <NAME>)* ")"
+}
+
+void enumeration() :
+{}
+{
+  "(" (<NAME> | <NUMVAL>) ("|" (<NAME> | <NUMVAL>))* ")"
+}
+
+void entitydecl() :
+{}
+{
+  LOOKAHEAD(2000) gedecl() | LOOKAHEAD(2000) pedecl()
+}
+
+void gedecl() :
+{}
+{
+  "<!ENTITY" <NAME> entitydef() ">"
+}
+
+void pedecl() :
+{}
+{
+  "<!ENTITY" "%" <NAME> pedef() ">"
+}
+
+void entitydef() :
+{}
+{
+  <STRING> | (externalid() (<NDATA> <NAME>)?)
+}
+
+void pedef() :
+{}
+{
+  <STRING> | externalid()
+}
+
+void notationdecl() :
+{}
+{
+  "<!NOTATION" <NAME> (LOOKAHEAD(2000) externalid() | LOOKAHEAD(2000) publicid()) ">"
+}
+
+void publicid() :
+{}
+{
+  <PUBLIC> <STRING>
+}
+
+TOKEN :
+{
+ <SYSTEM: "SYSTEM">
+| <EMPTY: "EMPTY">
+| <ANY: "ANY">
+| <PCDATA: "#PCDATA">
+| <REQUIRED: "#REQUIRED">
+| <IMPLIED: "#IMPLIED">
+| <FIXED: "#FIXED">
+| <CDATA: "CDATA">
+| <ID: "ID">
+| <IDREF: "IDREF">
+| <IDREFS: "IDREFS">
+| <ENTITY: "ENTITY">
+| <ENTITIES: "ENTITIES">
+| <NMTOKEN: "NMTOKEN">
+| <NMTOKENS: "NMTOKENS">
+| <NOTATION: "NOTATION">
+| <NDATA: "NDATA">
+| <PUBLIC: "PUBLIC">   
+|	<#ALPHA:	["a"-"z","A"-"Z","_","-",".",":"]>
+|	<#NUM:		["0"-"9"]			>
+|	<#ALPHANUM:	<ALPHA> | <NUM>			>
+|       <#UNIALPHA:      ["\u0100"-"\uffff"]>
+|       <NAME:      (<ALPHA>|<UNIALPHA>)(<ALPHA>|<NUM>|<UNIALPHA>)*    >
+|       <NUMVAL:        (<NUM> | ".")+                        >
+| <STRING: "\"" ( ~["\""] )* "\"" | "\'" ( ~["\'"] )* "\'" >
+}

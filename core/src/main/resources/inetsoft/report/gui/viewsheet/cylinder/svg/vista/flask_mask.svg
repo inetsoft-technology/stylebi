@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg  xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="41.58" height="10.01" viewBox="0 0 41.58 10.01" overflow="visible" enable-background="new 0 0 41.58 10.01"
+	 xml:space="preserve">
+		<g id="Layer_1">
+		</g>
+		<g id="Layer_3">
+			<linearGradient id="XMLID_3_" gradientUnits="userSpaceOnUse" x1="5.0396" y1="5.0049" x2="36.5396" y2="5.0049">
+				<stop  offset="0" style="stop-color:#9CE296"/>
+				<stop  offset="0.2079" style="stop-color:#A7E0B1"/>
+				<stop  offset="0.4045" style="stop-color:#8BCDC2"/>
+				<stop  offset="1" style="stop-color:#6285A5"/>
+				<a:midPointStop  offset="0" style="stop-color:#9CE296"/>
+				<a:midPointStop  offset="0.5" style="stop-color:#9CE296"/>
+				<a:midPointStop  offset="0.2079" style="stop-color:#A7E0B1"/>
+				<a:midPointStop  offset="0.5" style="stop-color:#A7E0B1"/>
+				<a:midPointStop  offset="0.4045" style="stop-color:#8BCDC2"/>
+				<a:midPointStop  offset="0.5" style="stop-color:#8BCDC2"/>
+				<a:midPointStop  offset="1" style="stop-color:#6285A5"/>
+			</linearGradient>
+			<path opacity="0.8" fill="url(#XMLID_3_)" d="M36.539,10.005c0-0.004-0.002-0.01-0.003-0.016h0.004V0.005H5.04v9.984h0.004
+				C5.042,9.995,5.04,10.001,5.04,10.005"/>
+			<linearGradient id="XMLID_4_" gradientUnits="userSpaceOnUse" x1="0.0054" y1="5.0049" x2="41.5747" y2="5.0049">
+				<stop  offset="0" style="stop-color:#C5C5C5"/>
+				<stop  offset="1" style="stop-color:#3B3B3B"/>
+				<a:midPointStop  offset="0" style="stop-color:#C5C5C5"/>
+				<a:midPointStop  offset="0.5" style="stop-color:#C5C5C5"/>
+				<a:midPointStop  offset="1" style="stop-color:#3B3B3B"/>
+			</linearGradient>
+			
+				<rect x="0.005" y="0.005" opacity="0" fill="url(#XMLID_4_)" stroke="#3A3A3A" stroke-width="0.0105" width="41.569" height="10"/> 
+		</g>
+	</svg>

@@ -1,0 +1,56 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@use '@angular/material' as mat;
+$roboto-font-path: '../app/assets';
+@import 'node_modules/roboto-fontface/css/roboto/sass/roboto-fontface.scss';
+
+@import './app-theme';
+@include mat.core();
+@import './styles/theme-dark';
+
+@include mat.all-component-themes($em-theme);
+@include em-app-theme($em-theme);
+@include mat.all-component-typographies($em-typography-config);
+@include mat.form-field-typography($em-form-field-typography-config);
+@include mat.checkbox-typography($em-form-field-typography-config);
+@include em-app-typography($em-typography-config);
+
+body {
+  font-family: var(--inet-em-font-family);
+  margin: 0;
+}
+
+.mat-mdc-snack-bar-container .mdc-snackbar__surface {
+  background-color: var(--inet-em-primary-500) !important;
+
+  .mat-mdc-snack-bar-label {
+    color: var(--inet-em-light-primary-text);
+  }
+}
+
+.mat-primary .mat-mdc-option.mat-selected:not(.mat-option-disabled) {
+  color: var(--inet-em-light-primary-text);
+}
+
+.mat-mdc-progress-bar .mdc-linear-progress__buffer-bar {
+    background-color: dimgray;
+}
+
+.badge {
+  background-color: dimgray;
+}

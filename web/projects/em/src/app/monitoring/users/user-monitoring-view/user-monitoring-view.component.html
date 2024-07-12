@@ -1,0 +1,52 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" *ngIf="emptyPage">
+  <mat-card-title>
+    <mat-icon fontSet="ineticons" fontIcon="alert-circle-icon"></mat-icon>&nbsp;_#(em.monitor.usersDisabled)
+  </mat-card-title>
+</mat-card>
+
+<div class="em-user-monitoring-view">
+  <em-cluster-selector [clusterNodes]="clusterNodes"></em-cluster-selector>
+  <ng-container *ngIf="sessionVisible">
+    <div class="user-monitoring-view-container container-fluid flex-fixed-container">
+      <em-table-view
+        [dataSource]="sessionModel"
+        [tableInfo]="sessionTableInfo"
+        [trackByProp]="'sessionID'"
+        [collapsible]="true"
+        [noScrollCount]="20"
+        [sortingTimeCols]="sessionTimeCols"
+        [expandableRow]="true"
+        (removeSelection)="logoutSessions($event)">
+      </em-table-view>
+    </div>
+  </ng-container>
+  <ng-container *ngIf="failedLoginVisible">
+    <div>
+      <em-table-view *ngIf="failedLoginVisible"
+                     [dataSource]="failedLoginModel"
+                     [tableInfo]="failedLoginTableInfo"
+                     [noScrollCount]="6"
+                     [collapsible]="true">
+      </em-table-view>
+    </div>
+  </ng-container>
+</div>

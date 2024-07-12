@@ -1,0 +1,81 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.wizard-add {
+  display: flex;
+  position: absolute;
+  visibility: visible;
+  vertical-align: middle;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid;
+  opacity: 0.5;
+  transition: opacity .25s ease-in-out;
+  -moz-transition: opacity .25s ease-in-out;
+  -webkit-transition: opacity .25s ease-in-out;
+  cursor: pointer;
+
+  &::before {
+    content: '';
+    position: absolute;
+    background-color: var(--inet-composer-main-panel-bg-color);
+    opacity: 0.5;
+    width: inherit;
+    height: inherit;
+    z-index: -1;
+  }
+
+  &:hover {
+    opacity: 1;
+  }
+
+  .icon-container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+
+    img {
+      max-width: 50%;
+      max-height: 50%;
+      margin-top: 15px;
+      margin-bottom: 15px;
+    }
+
+    span {
+      font-weight: bold;
+    }
+  }
+
+  .i-div {
+    position: absolute;
+    right: 0px;
+    top: 0;
+    width: 25px;
+    height: 25px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: solid 1px transparent;
+
+    &:hover {
+      border: solid 1px var(--inet-default-border-color);
+    }
+  }
+}

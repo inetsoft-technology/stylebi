@@ -1,0 +1,88 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-editor-panel
+  *ngIf="model"
+  contentClass="tabbed-editor-panel-content"
+  [applyDisabled]="disabled"
+  (applyClicked)="apply()"
+  (resetClicked)="reset()"
+  (unsavedChanges)="unsavedChanges.emit($event)">
+  <mat-tab-group color="accent" [selectedIndex]="selectedTab" (selectedIndexChange)="selectedTabChanged.emit($event)">
+    <mat-tab label="_#(Property)">
+      <mat-card appearance="outlined">
+        <mat-card-content>
+          <form [formGroup]="form">
+            <div class="flex-col">
+              <mat-form-field appearance="outline" color="accent">
+                <mat-label>_#(Name)</mat-label>
+                <input matInput placeholder="_#(Name)" formControlName="name">
+                <mat-error *ngIf="form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['required']">_#(viewer.nameEmpty)</mat-error>
+                <mat-error *ngIf="form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['containsSpecialCharsForName']">_#(viewer.nameSpecialChar)</mat-error>
+                <mat-error *ngIf="form.controls['name'] && form.controls['name'].errors && form.controls['name'].errors['notWhiteSpace']">_#(viewer.whiteSpace)</mat-error>
+              </mat-form-field>
+              <mat-form-field appearance="outline" color="accent">
+                <mat-label>_#(Description)</mat-label>
+                <textarea matInput placeholder="_#(Description)" formControlName="description"></textarea>
+              </mat-form-field>
+              <mat-form-field appearance="outline" color="accent">
+                <mat-label>_#(Select Viewsheet)</mat-label>
+                <mat-select formControlName="viewsheet" required>
+                  <mat-option value="">_#(None)</mat-option>
+                  <mat-tree [dataSource]="dataSource" [treeControl]="treeControl" class="select-viewsheet-tree">
+                    <mat-tree-node *matTreeNodeDef="let node" matTreeNodeToggle class="dashboard-tree-node" matTreeNodePadding>
+                      <button mat-icon-button disabled></button>
+                      <mat-option class="mat_option" [value]="node.id" *ngIf="!node.folder">
+                        <mat-icon fontSet="ineticons" class="icon-size-medium margin-unset" fontIcon="viewsheet-icon"></mat-icon>
+                        {{node.name}}
+                      </mat-option>
+                      <div *ngIf="node.folder" class="tree-node-label">
+                        <mat-icon fontSet="ineticons" class="icon-size-medium margin-unset" fontIcon="folder-icon"></mat-icon>
+                        {{node.name}}
+                      </div>
+                    </mat-tree-node>
+                    <mat-tree-node *matTreeNodeDef="let node; when: hasChild" class="dashboard-tree-node" matTreeNodePadding>
+                      <button
+                        mat-icon-button matTreeNodeToggle
+                        [attr.aria-label]="'_#(Toggle) ' + node.name">
+                        <mat-icon fontSet="ineticons" class="icon-size-medium margin-unset" [fontIcon]="treeControl.isExpanded(node) ? 'downward-icon' : 'forward-icon'">
+                        </mat-icon>
+                      </button>
+                      <div class="tree-node-label">
+                        <mat-icon fontSet="ineticons" class="icon-size-medium margin-unset" fontIcon="folder-icon"></mat-icon>
+                        {{node.name}}
+                      </div>
+                      <mat-progress-bar *ngIf="node.loading" mode="indeterminate" class="viewsheet-tree-progress"></mat-progress-bar>
+                    </mat-tree-node>
+                  </mat-tree>
+                </mat-select>
+                <mat-error *ngIf="form.controls['viewsheet'] && form.controls['viewsheet'].errors && form.controls['viewsheet'].errors['required']">_#(viewer.viewsheet.nameEmpty)</mat-error>
+              </mat-form-field>
+              <mat-slide-toggle *ngIf="global && model.visible" formControlName="enable">_#(Enable)</mat-slide-toggle>
+            </div>
+          </form>
+        </mat-card-content>
+      </mat-card>
+    </mat-tab>
+    <mat-tab *ngIf="model.permissions" label="_#(Security)">
+      <em-resource-permission [model]="model.permissions" (permissionChanged)="dashboardChanged = true">
+      </em-resource-permission>
+    </mat-tab>
+  </mat-tab-group>
+</em-editor-panel>

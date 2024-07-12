@@ -1,0 +1,147 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: block;
+  max-width: 100%;
+}
+
+:host.left {
+  left: 0;
+}
+
+:host.right {
+  right: 0;
+}
+
+:host-context(slide-out) div.property-dialog-window.slide-out-content-container {
+  max-width: 750px;
+  width: 95vw;
+}
+
+.right.slide-out-wrapper {
+  flex-direction: row-reverse;
+}
+
+.slide-out-content-container {
+  height: 100%;
+  width: 1000px;
+  display: flex;
+  user-select: none;
+
+  .content-div {
+    flex-grow: 1;
+    flex-shrink: 1;
+    min-width: 50px;
+    height: 100%;
+  }
+
+  .v-resizer {
+    width: 4px;
+    min-width: 4px;
+    flex-grow: 0;
+
+    &:hover {
+      cursor: e-resize;
+    }
+  }
+}
+
+.slide-out-toggle-container {
+  position: relative;
+  width: 30px;
+  height: 100%;
+  display: inline-block;
+}
+
+.slide-out-toggle {
+  position: absolute;
+  top: -30px;
+
+  -webkit-transform-origin: 0 100%;
+  -moz-transform-origin: 0 100%;
+  -ms-transform-origin: 0 100%;
+  -o-transform-origin: 0 100%;
+
+  -webkit-transform: rotate(90deg);
+  -moz-transform: rotate(90deg);
+  -ms-transform: rotate(90deg);
+  -o-transform: rotate(90deg);
+}
+
+.left .slide-out-label.rotate {
+  -webkit-transform: rotate(180deg);
+  -moz-transform: rotate(180deg);
+  -ms-transform: rotate(180deg);
+  -o-transform: rotate(180deg);
+}
+
+.slide-out-label {
+  white-space: nowrap;
+  display: flex;
+  padding: 4px;
+}
+
+.right .slide-out-label {
+  flex-direction: row-reverse;
+}
+
+.slide-out-toggle-container:hover .count-label {
+  border: 1px solid gray;
+}
+
+.count-label {
+  -webkit-transform: rotate(90deg);
+  -moz-transform: rotate(90deg);
+  -ms-transform: rotate(90deg);
+  -o-transform: rotate(90deg);
+
+  width: 100%;
+  min-width: 1.4em;
+  height: 1.5em;
+  text-align: center;
+  margin: 2px;
+}
+
+.spacer {
+  width: 8px;
+  height: 2em;
+  border-right: 1px dashed gray;
+}
+
+.dropdown-pane {
+  .slideout-list {
+    max-height: 200px;
+    overflow: auto;
+    min-width: 10em;
+  }
+}
+
+@media(min-width: 576px) {
+  .slide-out-content-container {
+    max-width: 500px;
+  }
+}
+
+.warning-message {
+  position: fixed;
+  top: calc(100% - 50px);
+  left: 50px;
+}

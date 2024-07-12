@@ -1,0 +1,69 @@
+{
+  "endpoints": [
+    {
+      "name": "Calendar Lists",
+      "paged": true,
+      "suffix": "/v3/users/me/calendarList?minAccessRole={Minimum Access Role?:freeBusyReader|owner|reader|writer}&showDeleted={Show Deleted?:True|False}&showHidden={Show Hidden?:True|False}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Calendar", "Events"
+          ],
+          "jsonPath": "$.items[*]",
+          "key": "items.id",
+          "parameterName": "Calendar ID"
+        }
+      ]
+    },
+    {
+      "name": "Calendar List",
+      "paged": false,
+      "suffix": "/v3/users/me/calendarList/{Calendar ID}"
+    },
+    {
+      "name": "Calendar",
+      "paged": false,
+      "suffix": "/v3/calendars/{Calendar ID}"
+    },
+    {
+      "name": "Colors",
+      "paged": false,
+      "suffix": "/v3/colors"
+    },
+    {
+      "name": "Events",
+      "paged": true,
+      "suffix": "/v3/calendars/{Calendar ID}/events?iCalUID={iCalendar Event ID?}&maxAttendees={Max Attendees?}&privateExtendedProperty={Private Extended Properties?,:prop1=value,prop2=value,...}&q={Search Text?}&sharedExtendedProperty={Shared Extended Properties?,:prop1=value,prop2=value,...}&singleEvents={Single Events Only?:True|False}&timeMax={Before Time?:yyyy-MM-ddTHH:mm:ssZ}&timeMin={After Time?:yyyy-MM-ddTHH:mm:ssZ}&timeZone={Time Zone?}&updatedMin={Updated After?:yyyy-MM-ddTHH:mm:ssZ}",
+      "lookups": [
+        {
+          "endpoints": [
+             "Recurring Event Instances"
+          ],
+          "jsonPath": "$.items[*]",
+          "key": "items.id",
+          "parameterName": "Event ID"
+        }
+      ]
+    },
+    {
+      "name": "Event",
+      "paged": false,
+      "suffix": "/v3/calendars/{Calendar ID}/events/{Event ID}?maxAttendees={Max Attendees?}&timeZone={Time Zone?}"
+    },
+    {
+      "name": "Recurring Event Instances",
+      "paged": true,
+      "suffix": "/v3/calendars/{Calendar ID}/events/{Event ID}/instances?maxAttendees={Max Attendees?}&originalStart={Original Start Time?}&showDeleted={Show Deleted?:True|False}&timeMax={Before Time?:yyyy-MM-ddTHH:mm:ssZ}&timeMin={After Time?:yyyy-MM-ddTHH:mm:ssZ}&timeZone={Time Zone?}"
+    },
+    {
+      "name": "Settings",
+      "paged": true,
+      "suffix": "/v3/users/me/settings"
+    },
+    {
+      "name": "Setting",
+      "paged": false,
+      "suffix": "/v3/users/me/settings/{Setting ID}"
+    }
+  ]
+}

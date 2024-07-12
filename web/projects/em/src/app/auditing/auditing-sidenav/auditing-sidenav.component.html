@@ -1,0 +1,55 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="fluentdLogging; else auditViewer">
+  <mat-card appearance="outlined">
+    <mat-card-title>
+      <mat-icon fontSet="ineticons" fontIcon="alert-circle-icon"></mat-icon>
+      &nbsp;_#(em.monitor.missingFluentdAuditViewUrl)
+    </mat-card-title>
+  </mat-card>
+</ng-container>
+<ng-template #auditViewer>
+  <div class="auditing-sidenav-root" [class.auditing-sidenav-mobile]="isScreenSmall()">
+    <em-page-header (toggleSidenav)="sidenav.toggle()"></em-page-header>
+    <mat-sidenav-container class="auditing-sidenav-container">
+      <mat-sidenav #sidenav [mode]="isScreenSmall() ? 'over' : 'side'" [opened]="!isScreenSmall()"
+                   [fixedInViewport]="true" [fixedTopGap]="92" class="mat-elevation-z2">
+        <mat-nav-list>
+          <a *ngIf="inactiveResourceVisible" mat-list-item routerLink="/auditing/inactive-resource" routerLinkActive="active" class="auditing-sidenav-link">_#(Inactive Resources)</a>
+          <a *ngIf="inactiveUserVisible" mat-list-item routerLink="/auditing/inactive-user" routerLinkActive="active">_#(Inactive Users)</a>
+          <a *ngIf="identityInfoVisible" mat-list-item routerLink="/auditing/identity-info" routerLinkActive="active">_#(Identity Information)</a>
+          <a *ngIf="logonErrorVisible" mat-list-item routerLink="/auditing/logon-error" routerLinkActive="active">_#(Logon Errors)</a>
+          <a *ngIf="logonHistoryVisible" mat-list-item routerLink="/auditing/logon-history" routerLinkActive="active">_#(Logon History)</a>
+          <a *ngIf="modificationHistoryVisible" mat-list-item routerLink="/auditing/modification-history" routerLinkActive="active">_#(Modification History)</a>
+          <a *ngIf="userSessionVisible" mat-list-item routerLink="/auditing/user-session" routerLinkActive="active">_#(User Sessions)</a>
+          <a *ngIf="dependentAssetsVisible" mat-list-item routerLink="/auditing/dependent-assets" routerLinkActive="active">_#(Dependent Assets)</a>
+          <a *ngIf="requiredAssetsVisible" mat-list-item routerLink="/auditing/required-assets" routerLinkActive="active">_#(Required Assets)</a>
+          <a *ngIf="exportHistoryVisible" mat-list-item routerLink="/auditing/export-history" routerLinkActive="active">_#(Export History)</a>
+          <a *ngIf="scheduleHistoryVisible" mat-list-item routerLink="/auditing/schedule-history" routerLinkActive="active">_#(Schedule History)</a>
+          <a *ngIf="bookmarkHistoryVisible" mat-list-item routerLink="/auditing/bookmark-history" routerLinkActive="active">_#(Bookmark History)</a>
+        </mat-nav-list>
+      </mat-sidenav>
+
+      <mat-sidenav-content class="auditing-sidenav-content mat-elevation-z0" emTopScroll>
+        <router-outlet></router-outlet>
+      </mat-sidenav-content>
+    </mat-sidenav-container>
+  </div>
+</ng-template>

@@ -1,0 +1,52 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card class="mat-elevation-z0" [class.empty-file-list]="(!value || !value.length) && !header">
+  <mat-card-header *ngIf="header">{{ header }}</mat-card-header>
+  <mat-card-content *ngIf="value && value.length">
+    <mat-list *ngIf="!uploading">
+      <ng-container *ngFor="let file of value">
+        <mat-list-item role="listitem">
+          <div class="fileListItem">
+            <span class="fileItemText">{{ file.name }}</span>
+              <button mat-icon-button (click)="removeFile(file)">
+                <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+              </button>
+            </div>
+        </mat-list-item>
+        <mat-divider [inset]="true"></mat-divider>
+      </ng-container>
+    </mat-list>
+    <ng-container *ngIf="uploading">
+      <div>_#(Uploading)...</div>
+      <mat-progress-bar mode="determinate" [value]="progress"></mat-progress-bar>
+    </ng-container>
+  </mat-card-content>
+  <mat-card-actions>
+    <input #browseFile type="file" [accept]="accept" hidden multiple (change)="addFiles($event)"/>
+    <button
+      mat-stroked-button
+      (click)="browseFile.value = null; browseFile.click()"
+      [disabled]="uploading || disabled"
+    >
+      {{selectButtonLabel}}
+    </button>
+    <ng-content></ng-content>
+  </mat-card-actions>
+</mat-card>

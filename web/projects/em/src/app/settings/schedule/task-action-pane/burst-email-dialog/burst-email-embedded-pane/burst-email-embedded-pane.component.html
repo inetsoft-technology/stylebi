@@ -1,0 +1,50 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="flex-row">
+  <mat-form-field class="flex-spacer">
+    <mat-select placeholder="_#(Set Users)" [(value)]="selectedUsers" [compareWith]="checkEquality" multiple>
+      <mat-option *ngFor="let user of users" [value]="user">
+        {{ user.userID.name }}
+      </mat-option>
+    </mat-select>
+  </mat-form-field>
+  <div class="flex-spacer"></div>
+  <button mat-raised-button color="primary" class="bottom" aria-label="_#(Add Users)" title="_#(Add Users)" (click)="addSelectedUsers()">_#(Add Users)</button>
+</div>
+
+<table mat-table class="user-table" [dataSource]="tableDataSource">
+  <ng-container matColumnDef="name">
+    <th mat-header-cell *matHeaderCellDef> _#(Name) </th>
+    <td mat-cell *matCellDef="let element">
+      {{element.name}}
+    </td>
+  </ng-container>
+
+  <ng-container matColumnDef="email">
+    <th mat-header-cell *matHeaderCellDef> _#(Email) </th>
+    <td mat-cell *matCellDef="let element">
+      <mat-form-field>
+        <input matInput #email [(value)]="element.email" (input)="inputEmail(email.value, element.name)">
+      </mat-form-field>
+    </td>
+  </ng-container>
+  <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+  <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+</table>

@@ -1,0 +1,897 @@
+{
+  "endpoints": [
+    {
+      "name": "API Root",
+      "suffix": "/3.0/?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Authorized Apps",
+      "suffix": "/3.0/authorized-apps?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Authorized App",
+      "suffix": "/3.0/authorized-apps/{App ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Automations",
+      "suffix": "/3.0/automations?fields={Fields?}&exclude_fields={Exclude Fields?}&before_create_time={Before Create Time?}&since_create_time={Since Create Time?}&before_send_time={Before Send Time?}&since_send_time={Since Send Time?}&status={Status?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Automation Emails",
+            "Automation Removed Subscribers"
+          ],
+          "jsonPath": "$.automations[*]",
+          "key": "id",
+          "parameterName": "Workflow ID"
+        }
+      ]
+    },
+    {
+      "name": "Automation",
+      "suffix": "/3.0/automations/{Workflow ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Automation Emails",
+      "suffix": "/3.0/automations/{Workflow ID}/emails",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoint": "Automation Email Subscribers",
+          "jsonPath": "$.emails[*]",
+          "key": "id",
+          "parameterName": "Workflow Email ID"
+        }
+      ]
+    },
+    {
+      "name": "Automation Email",
+      "suffix": "/3.0/automations/{Workflow ID}/emails/{Workflow Email ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Automation Email Subscribers",
+      "suffix": "/3.0/automations/{Workflow ID}/emails/{Workflow Email ID}/queue",
+      "paged": "false"
+    },
+    {
+      "name": "Automation Email Subscriber",
+      "suffix": "/3.0/automations/{Workflow ID}/emails/{Workflow Email ID}/queue/{Subscriber Hash}",
+      "paged": "false"
+    },
+    {
+      "name": "Automation Removed Subscribers",
+      "suffix": "/3.0/automations/{Workflow ID}/removed-subscribers",
+      "paged": "true"
+    },
+    {
+      "name": "Batch Requests",
+      "suffix": "/3.0/batches?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Batch Request Status",
+      "suffix": "/3.0/batches/{Batch ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Batch Webhooks",
+      "suffix": "/3.0/batch-webhooks?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Batch Webhook",
+      "suffix": "/3.0/batch-webhooks/{Batch Webhook ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Folders",
+      "suffix": "/3.0/campaign-folders?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign Folder",
+      "suffix": "/3.0/campaign-folders/{Folder ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaigns",
+      "suffix": "/3.0/campaigns?fields={Fields?}&exclude_fields={Exclude Fields?}&type={Campaign Type?}&status={Status?}&before_send_time={Before Send Time?}&since_send_time={Since Send Time?}&before_create_time={Before Create Time?}&since_create_time={Since Create Time?}&list_id={List ID?}&folder_id={Folder ID?}&member_id={Member ID?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Campaign Feedback List",
+            "Campaign Send Checklist",
+            "Campaign Content"
+          ],
+          "jsonPath": "$.campaigns[*]",
+          "key": "id",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "List",
+          "jsonPath": "$.campaigns[*].recipients",
+          "key": "list_id",
+          "parameterName": "List ID"
+        }
+      ]
+    },
+    {
+      "name": "Campaign",
+      "suffix": "/3.0/campaigns/{Campaign ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Feedback List",
+      "suffix": "/3.0/campaigns/{Campaign ID}/feedback?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign Feedback Message",
+      "suffix": "/3.0/campaigns/{Campaign ID}/feedback/{Feedback ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Send Checklist",
+      "suffix": "/3.0/campaigns/{Campaign ID}/send-checklist?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Content",
+      "suffix": "/3.0/campaigns/{Campaign ID}/content?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Chimp Chatter Activity",
+      "suffix": "/3.0/activity-feed/chimp-chatter",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "List",
+          "jsonPath": "$.chimp_chatter[*]",
+          "key": "list_id",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Campaign",
+          "jsonPath": "$.chimp_chatter[*]",
+          "key": "campaign_id",
+          "parameterName": "Campaign ID"
+        }
+      ]
+    },
+    {
+      "name": "Connected Sites",
+      "suffix": "/3.0/connected-sites?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoints": [
+            "E-commerce Store",
+            "E-commerce Store Customers",
+            "E-commerce Store Orders",
+            "E-commerce Store Products",
+            "E-commerce Store Carts",
+            "E-commerce Store Promo Rules"
+          ],
+          "jsonPath": "$.sites[*]",
+          "key": "store_id",
+          "parameterName": "Store ID"
+        }
+      ]
+    },
+    {
+      "name": "Connected Site",
+      "suffix": "/3.0/connected-sites/{Connected Site Foreign ID}",
+      "paged": "false"
+    },
+    {
+      "name": "Conversations",
+      "suffix": "/3.0/conversations?fields={Fields?}&exclude_fields={Exclude Fields?}&has_unread_messages={Has Unread Messages?}&list_id={List ID?}&campaign_id={Campaign ID?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "List",
+          "jsonPath": "$.conversations[*]",
+          "key": "list_id",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Campaign",
+          "jsonPath": "$.conversations[*]",
+          "key": "campaign_id",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "Conversation Messages",
+          "jsonPath": "$.conversations[*]",
+          "key": "id",
+          "parameterName": "Conversation ID"
+        }
+      ]
+    },
+    {
+      "name": "Conversation",
+      "suffix": "/3.0/conversations/{Conversation ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Conversation Messages",
+      "suffix": "/3.0/conversations/{Conversation ID}/messages?fields={Fields?}&exclude_fields={Exclude Fields?}&is_read={Is Read?}&before_timestamp={Before Timestamp?}&since_timestamp={Since Timestamp?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "List",
+          "jsonPath": "$.conversation_messages[*]",
+          "key": "list_id",
+          "parameterName": "List ID"
+        }
+      ]
+    },
+    {
+      "name": "Conversation Message",
+      "suffix": "/3.0/conversations/{Conversation ID}/messages/{Message ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "E-commerce Stores",
+      "suffix": "/3.0/ecommerce/stores?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoints": [
+            "E-commerce Store Customers",
+            "E-commerce Store Orders",
+            "E-commerce Store Products",
+            "E-commerce Store Carts",
+            "E-commerce Store Promo Rules"
+          ],
+          "jsonPath": "$.stores[*]",
+          "key": "id",
+          "parameterName": "Store ID"
+        },
+        {
+          "endpoint": "List",
+          "jsonPath": "$.stores[*]",
+          "key": "list_id",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Connected Site",
+          "jsonPath": "$.stores[*].connected_site",
+          "key": "site_foreign_id",
+          "parameterName": "Connected Site Foreign ID"
+        }
+      ]
+    },
+    {
+      "name": "E-commerce Store",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "E-commerce Store Customers",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/customers?fields={Fields?}&exclude_fields={Exclude Fields?}&email_address={Customer Email Address?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-commerce Store Customer",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/customers/{Customer ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "All E-commerce Orders",
+      "suffix": "/3.0/ecommerce/orders?fields={Fields?}&exclude_fields={Exclude Fields?}&campaign_id={Campaign ID?}&outreach_id={Outreach ID?}&customer_id={Customer ID?}&has_outreach={Has Outreach?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoints": [
+            "E-commerce Store Customers",
+            "E-commerce Store Products",
+            "E-commerce Store Carts",
+            "E-commerce Store Promo Rules"
+          ],
+          "jsonPath": "$.orders[*]",
+          "key": "store_id",
+          "parameterName": "Store ID"
+        },
+        {
+          "endpoint": "Campaign",
+          "jsonPath": "$.orders[*]",
+          "key": "campaign_id",
+          "parameterName": "Campaign ID"
+        }
+      ]
+    },
+    {
+      "name": "E-commerce Store Orders",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/orders?fields={Fields?}&exclude_fields={Exclude Fields?}&campaign_id={Campaign ID?}&outreach_id={Outreach ID?}&customer_id={Customer ID?}&has_outreach={Has Outreach?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-commerce Store Order",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/orders/{Order ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "E-commerce Store Order Lines",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/orders/{Order ID}/lines?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-commerce Store Order Line",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/orders/{Order ID}/lines/{Order Line ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "E-commerce Store Products",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/products?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-commerce Store Product",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/products/{Product ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "E-commerce Store Product Variants",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/products/{Product ID}/variants?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-commerce Store Product Variant",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/products/{Product ID}/variants/{Product Variant ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "E-commerce Store Product Images",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/products/{Product ID}/images?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-commerce Store Product Image",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/products/{Product ID}/images/{Product Image ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "E-commerce Store Carts",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/carts?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-commerce Store Cart",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/carts/{Cart ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "E-commerce Store Cart Lines",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/carts/{Cart ID}/lines?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-commerce Store Cart Line",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/carts/{Cart ID}/lines/{Cart Line ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "E-commerce Store Promo Rules",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/promo-rules?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-commerce Store Promo Rule",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/promo-rules/{Promo Rule ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "E-commerce Store Promo Codes",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/promo-rules/{Promo Rule ID}/promo-codes?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "E-commerce Store Promo Code",
+      "suffix": "/3.0/ecommerce/stores/{Store ID}/promo-rules/{Promo Rule ID}/promo-codes/{Promo Code ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Facebook Ads",
+      "suffix": "/3.0/facebook-ads?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Facebook Ad",
+      "suffix": "/3.0/facebook-ads/{Outreach ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Files",
+      "suffix": "/3.0/file-manager/files?fields={Fields?}&exclude_fields={Exclude Fields?}&type={File Type?}&created_by={Created By?}&before_created_at={Before Created At?}&since_created_at={Since Created At?}",
+      "paged": "true"
+    },
+    {
+      "name": "File",
+      "suffix": "/3.0/file-manager/files/{File ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Folders",
+      "suffix": "/3.0/file-manager/folders?fields={Fields?}&exclude_fields={Exclude Fields?}&created_by={Created By?}&before_created_at={Before Created At?}&since_created_at={Since Created At?}",
+      "paged": "true"
+    },
+    {
+      "name": "Folder",
+      "suffix": "/3.0/file-manager/folders/{Folder ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Landing Pages",
+      "suffix": "/3.0/landing-pages?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoints": [
+            "E-commerce Store",
+            "E-commerce Store Customers",
+            "E-commerce Store Orders",
+            "E-commerce Store Products",
+            "E-commerce Store Carts",
+            "E-commerce Store Promo Rules"
+          ],
+          "jsonPath": "$.landing_pages[*]",
+          "key": "store_id",
+          "parameterName": "Store ID"
+        },
+        {
+          "endpoint": "List",
+          "jsonPath": "$.landing_pages[*]",
+          "key": "list_id",
+          "parameterName": "List ID"
+        },
+        {
+          "endpoint": "Template",
+          "jsonPath": "$.landing_pages[*]",
+          "key": "template_id",
+          "parameterName": "Template ID"
+        },
+        {
+          "endpoint": "Landing Page Content",
+          "jsonPath": "$.landing_pages[*]",
+          "key": "id",
+          "parameterName": "Landing Page unique ID"
+        }
+      ]
+    },
+    {
+      "name": "Landing Page Info",
+      "suffix": "/3.0/landing-pages/{Landing Page unique ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Landing Page Content",
+      "suffix": "/3.0/landing-pages/{Landing Page unique ID}/content?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Lists",
+      "suffix": "/3.0/lists?fields={Fields?}&exclude_fields={Exclude Fields?}&before_date_created={Before Date Created?}&since_date_created={Since Date Created?}&before_campaign_last_sent={Before Campaign Last Sent?}&since_campaign_last_sent={Since Campaign Last Sent?}&email={Subscriber Email?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoints": [
+            "List's Interest Categories",
+            "List Segments",
+            "List Abuse Reports",
+            "List Activity",
+            "List Clients",
+            "List Growth History",
+            "List Members",
+            "List Merge Fields",
+            "List Webhooks",
+            "List Signup Forms",
+            "List Locations"
+          ],
+          "jsonPath": "$.lists[*]",
+          "key": "id",
+          "parameterName": "List ID"
+        }
+      ]
+    },
+    {
+      "name": "List",
+      "suffix": "/3.0/lists/{List ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "List's Interest Categories",
+      "suffix": "/3.0/lists/{List ID}/interest-categories?fields={Fields?}&exclude_fields={Exclude Fields?}&type={Interest Group Type?}",
+      "paged": "true"
+    },
+    {
+      "name": "List Interest Category",
+      "suffix": "/3.0/lists/{List ID}/interest-categories/{Interest Category ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "All Intersts in an Interest Category",
+      "suffix": "/3.0/lists/{List ID}/interest-categories/{Interest Category ID}/interests?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Interest Category Interests",
+      "suffix": "/3.0/lists/{List ID}/interest-categories/{Interest Category ID}/interests/{Interest ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "List Segments",
+      "suffix": "/3.0/lists/{List ID}/segments?fields={Fields?}&exclude_fields={Exclude Fields?}&type={Segment Type?}&before_created_at={Before Created At?}&since_created_at={Since Created At?}&include_cleaned={Include Cleaned?:true|false}&include_transactional={Include Transactional?:true|false}&include_unsubscribed={Include Unsubscribed?:true|false}&since_updated_at={Since Updated At?}&before_updated_at={Before Updated At?}",
+      "paged": "true"
+    },
+    {
+      "name": "List Segment",
+      "suffix": "/3.0/lists/{List ID}/segments/{Segment ID}?fields={Fields?}&exclude_fields={Exclude Fields?}&include_cleaned={Include Cleaned?:true|false}&include_transactional={Include Transactional?:true|false}&include_unsubscribed={Include Unsubscribed?:true|false}",
+      "paged": "false"
+    },
+    {
+      "name": "List Segment Members",
+      "suffix": "/3.0/lists/{List ID}/segments/{Segment ID}/members?fields={Fields?}&exclude_fields={Exclude Fields?}&include_cleaned={Include Cleaned?:true|false}&include_transactional={Include Transactional?:true|false}&include_unsubscribed={Include Unsubscribed?:true|false}",
+      "paged": "true"
+    },
+    {
+      "name": "List Abuse Reports",
+      "suffix": "/3.0/lists/{List ID}/abuse-reports?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "List Abuse Report",
+      "suffix": "/3.0/lists/{List ID}/abuse-reports/{Report ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "List Activity",
+      "suffix": "/3.0/lists/{List ID}/activity?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "List Clients",
+      "suffix": "/3.0/lists/{List ID}/clients?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "List Growth History",
+      "suffix": "/3.0/lists/{List ID}/growth-history?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "List Growth History by Month",
+      "suffix": "/3.0/lists/{List ID}/growth-history/{Month}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "List Members",
+      "suffix": "/3.0/lists/{List ID}/members?fields={Fields?}&exclude_fields={Exclude Fields?}&email_type={Email Type?}&status={Subscriber Status?}&since_timestamp_opt={Since Timestamp Opt?}&before_timestamp_opt={Before Timestamp Opt?}&since_last_changed={Since Last Changed?}&before_last_changed={Before Last Changed?}&unique_email_id={Unique Email ID?}&vip_only={VIP Only?:true|false}&interest_category_id={Interest Category ID?}&interest_ids={Interest IDs?}&interest_match={Interest Match?}&since_last_campaign={Since Last Campaign?:true|false}&unsubscribed_since={Unsubscribed Since?:unsubscribed}",
+      "paged": "true"
+    },
+    {
+      "name": "List Member",
+      "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "List Member Activity",
+      "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/activity?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "List Member Goals",
+      "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/goals?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "List Member Notes",
+      "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/notes?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "List Member Note",
+      "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/notes/{Note ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "List Member Tags",
+      "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/events?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "List Member Events",
+      "suffix": "/3.0/lists/{List ID}/members/{Subscriber Hash}/tags?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "List Merge Fields",
+      "suffix": "/3.0/lists/{List ID}/merge-fields?fields={Fields?}&exclude_fields={Exclude Fields?}&required={Required?:true|false}",
+      "paged": "true"
+    },
+    {
+      "name": "List Merge Field",
+      "suffix": "/3.0/lists/{List ID}/merge-fields/{Merge ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "List Webhooks",
+      "suffix": "/3.0/lists/{List ID}/webhooks",
+      "paged": "true"
+    },
+    {
+      "name": "List Webhook",
+      "suffix": "/3.0/lists/{List ID}/webhooks/{Webhook ID}",
+      "paged": "false"
+    },
+    {
+      "name": "List Signup Forms",
+      "suffix": "/3.0/lists/{List ID}/signup-forms",
+      "paged": "true"
+    },
+    {
+      "name": "List Locations",
+      "suffix": "/3.0/lists/{List ID}/locations?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Ping",
+      "suffix": "/3.0/ping",
+      "paged": "false"
+    },
+    {
+      "name": "Reporting Information",
+      "suffix": "/3.0/reporting",
+      "paged": "false"
+    },
+    {
+      "name": "Facebook Ad Reports",
+      "suffix": "/3.0/reporting/facebook-ads?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Facebook Ad Report",
+      "suffix": "/3.0/reporting/facebook-ads/{Outreach ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Facebook Ad Product Activity",
+      "suffix": "/3.0/reporting/facebook-ads/{Outreach ID}/ecommerce-product-activity?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Landing Page Reports",
+      "suffix": "/3.0/reporting/landing-pages?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Landing Page Report",
+      "suffix": "/3.0/reporting/landing-pages/{Outreach ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Reports",
+      "suffix": "/3.0/reports?fields={Fields?}&exclude_fields={Exclude Fields?}&type={Campaign Type?}&before_send_time={Before Send Time?}&since_send_time={Since Send Time?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Campaign Abuse Reports",
+            "Campaign Feedback",
+            "Campaign Click Details",
+            "Campaign Domain Performance Stats",
+            "Campaign Eepurl Activity",
+            "Campaign Email Activity",
+            "Campaign Top Locations",
+            "Campaign Recipients",
+            "Child Campaign Reports",
+            "Campaign Unsubscribed Members",
+            "Campaign Open Details",
+            "Campaign E-commerce Activity"
+          ],
+          "jsonPath": "$.reports[*]",
+          "key": "id",
+          "parameterName": "Campaign ID"
+        },
+        {
+          "endpoint": "List",
+          "jsonPath": "$.reports[*]",
+          "key": "list_id",
+          "parameterName": "List ID"
+        }
+      ]
+    },
+    {
+      "name": "Campaign Report",
+      "suffix": "/3.0/reports/{Campaign ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Abuse Reports",
+      "suffix": "/3.0/reports/{Campaign ID}/abuse-reports?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign Abuse Report",
+      "suffix": "/3.0/reports/{Campaign ID}/abuse-reports/{Report ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Feedback",
+      "suffix": "/3.0/reports/{Campaign ID}/advice?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign Click Details",
+      "suffix": "/3.0/reports/{Campaign ID}/click-details?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoints": [
+            "Subscribers Who Clicked a Specific Link"
+          ],
+          "jsonPath": "$.urls_clicked[*]",
+          "key": "id",
+          "parameterName": "Link ID"
+        }
+      ]
+    },
+    {
+      "name": "Campaign Click Details for Specific Link",
+      "suffix": "/3.0/reports/{Campaign ID}/click-details/{Link ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Subscribers Who Clicked a Specific Link",
+      "suffix": "/3.0/reports/{Campaign ID}/click-details/{Link ID}/members?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Subscriber Who Clicked a Specific Link",
+      "suffix": "/3.0/reports/{Campaign ID}/click-details/{Link ID}/members/{Subscriber Hash}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Domain Performance Stats",
+      "suffix": "/3.0/reports/{Campaign ID}/domain-performance?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Eepurl Activity",
+      "suffix": "/3.0/reports/{Campaign ID}/eepurl?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Email Activity",
+      "suffix": "/3.0/reports/{Campaign ID}/email-activity?fields={Fields?}&exclude_fields={Exclude Fields?}&since={Email Activity since?}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign Email Activity for a Specific Subscriber",
+      "suffix": "/3.0/reports/{Campaign ID}/email-activity/{Subscriber Hash}?fields={Fields?}&exclude_fields={Exclude Fields?}&since={Email Activity since?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Top Locations",
+      "suffix": "/3.0/reports/{Campaign ID}/locations?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign Recipients",
+      "suffix": "/3.0/reports/{Campaign ID}/sent-to?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign Recipient",
+      "suffix": "/3.0/reports/{Campaign ID}/sent-to/{Subscriber Hash}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Child Campaign Reports",
+      "suffix": "/3.0/reports/{Campaign ID}/sub-reports?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Unsubscribed Members",
+      "suffix": "/3.0/reports/{Campaign ID}/unsubscribed?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign Unsubscribed Member",
+      "suffix": "/3.0/reports/{Campaign ID}/unsubscribed/{Subscriber Hash}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Campaign Open Details",
+      "suffix": "/3.0/reports/{Campaign ID}/open-details?fields={Fields?}&exclude_fields={Exclude Fields?}&since={Campaign opens since?}",
+      "paged": "true"
+    },
+    {
+      "name": "Campaign E-commerce Activity",
+      "suffix": "/3.0/reports/{Campaign ID}/ecommerce-product-activity?fields={Fields?}&exclude_fields={Exclude Fields?}&since={Campaign opens since?}",
+      "paged": "true"
+    },
+    {
+      "name": "Search Campaigns",
+      "suffix": "/3.0/search-campaigns?query={Query}&fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false",
+      "lookups": [
+        {
+          "endpoints": [
+            "Campaign Abuse Reports",
+            "Campaign Feedback",
+            "Campaign Click Details",
+            "Campaign Domain Performance Stats",
+            "Campaign Eepurl Activity",
+            "Campaign Email Activity",
+            "Campaign Top Locations",
+            "Campaign Recipients",
+            "Child Campaign Reports",
+            "Campaign Unsubscribed Members",
+            "Campaign Open Details",
+            "Campaign E-commerce Activity"
+          ],
+          "jsonPath": "$.results[*].campaign",
+          "key": "id",
+          "parameterName": "Campaign ID"
+        }
+      ]
+    },
+    {
+      "name": "Search Members",
+      "suffix": "/3.0/search-members?query={Query}&fields={Fields?}&exclude_fields={Exclude Fields?}&list_id={List ID?}",
+      "paged": "false"
+    },
+    {
+      "name": "Template Folders",
+      "suffix": "/3.0/template-folders?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "true"
+    },
+    {
+      "name": "Template Folder",
+      "suffix": "/3.0/template-folders/{Folder ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Templates",
+      "suffix": "/3.0/templates?fields={Fields?}&exclude_fields={Exclude Fields?}&created_by={Created By?}&since_created_at={Since Created At?}&before_created_at={Before Created At?}&type={Template Type?}&category={Category?}&folder_id={Folder ID?}",
+      "paged": "true",
+      "lookups": [
+        {
+          "endpoint": "Template Default Content",
+          "jsonPath": "$.templates[*]",
+          "key": "id",
+          "parameterName": "Template ID"
+        }
+      ]
+    },
+    {
+      "name": "Template",
+      "suffix": "/3.0/templates/{Template ID}?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "Template Default Content",
+      "suffix": "/3.0/templates/{Template ID}/default-content?fields={Fields?}&exclude_fields={Exclude Fields?}",
+      "paged": "false"
+    },
+    {
+      "name": "All Sending Domains",
+      "suffix": "/3.0/verified-domains",
+      "paged": "true"
+    },
+    {
+      "name": "Specific Sending Domain",
+      "suffix": "/3.0/verified-domains/{Domain Name}",
+      "paged": "false"
+    }
+  ]
+}

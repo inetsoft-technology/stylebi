@@ -1,0 +1,134 @@
+////
+  // inetsoft-sharepoint-online - StyleBI is a business intelligence web application.
+  // Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+  //
+  // This program is free software: you can redistribute it and/or modify
+  // it under the terms of the GNU General Public License as published by
+  // the Free Software Foundation, either version 3 of the License, or
+  // (at your option) any later version.
+  //
+  // This program is distributed in the hope that it will be useful,
+  // but WITHOUT ANY WARRANTY; without even the implied warranty of
+  // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  // GNU General Public License for more details.
+  //
+  // You should have received a copy of the GNU General Public License
+  // along with this program. If not, see <http://www.gnu.org/licenses/>.
+////
+
+= SharePoint Online Data Connector
+InetSoft Technology <info@inetsoft.com>
+v13.0 2019-10-25
+
+The SharePoint Online data connector allows you to query against lists in
+your SharePoint sites.
+
+== Preparation
+
+In order to use this data connector, you need to register an application
+in Azure. You can do this by following these steps.
+
+1. First, open the Azure administration portal
+(https://portal.azure.com[portal.azure.com]) in your web browser and log
+in using the administrator account for your SharePoint site.
+
+2. Search for and select "app registrations".
++
+image::step_02.png[Step 2]
+
+3. Click the "New Registration" link.
++
+image::step_03.png[Step 3]
+
+4. Enter a name for the application. In this example, we will be using
+"Style Intelligence". Make sure that the single tenant option is selected
+for the account type. No redirect URI is necessary. When this is done,
+click the "Register" button.
++
+image::step_04.png[Step 4]
+
+5. Select the "Authentication" blade. Enable the "Treat application as a
+public client" option and click "Save".
+
+6. Select the "API Permissions" blade. Click the "Microsoft Graph" API
+link in the permissions table. Select the "Group/Group.Read.All" and
+"Sites/Site.Read.All" permissions. Click the "Update permissions" button.
+The group permission is required if you want to be able to access lists in
+your group team sites.
++
+image::step_06_1.png[Step 6]
++
+Click the "Grant admin consent for ..." button on the API permissions page
+after you have added the required permissions.
++
+image::step_06_2.png[Step 6]
+
+7. Select the "Certificates & secrets" blade. Click the "New client secret"
+button. Enter a description, for this example, we are using "Tabular Data
+Source". Select an expiration for the secret and click the "Add" button.
++
+image::step_07_1.png[Step 7]
++
+Make sure to copy the secret displayed in the secrets table now, as it is
+the last time you will be able to do so.
++
+image::step_07_2.png[Step 7]
+
+8. Click the "Overview" blade. Copy the "Application (client) ID" and the
+"Directory (tenant) ID" values. These will be used for the client ID and
+tenant ID, respectively, in the data source configuration.
++
+image::step_08.png[Step 8]
+
+== Data Source Configuration
+
+The next step is to create a data source for your SharePoint sites. This
+can be done in the Style Studio, or if using version 2018 or later, in
+the user portal. For this example, we will be using the Style Studio.
+
+1. Select the "File/New..." menu.
+
+2. Select "Data Source" in the left-hand pane and "SharepointOnline" in
+the right-hand pane. Click the "OK" button.
++
+image::step_09.png[Step 2]
+
+3. Enter a name for the data source. For this example, we are using
+"Sharepoint". Click the "Finish" button.
++
+image::step_10.png[Step 3]
+
+4. Enter the username and password for your SharePoint account and the
+client ID, tenant ID, and client secret that you should have copied
+during the Preparation section. Click the save button.
++
+image::step_11.png[Step 4]
+
+5. Click the "Test Data Source" button in the toolbar. You should be
+able to connect at this point.
++
+image::step_12.png[Step 5]
+
+== Create a Query
+
+1. Navigate to your data source under "Data Source" in the "Asset" tree
+on the left side of the screen.
+
+2. Right-click your data source and select the "New Query" menu.
+
+3. Enter a name for your query. For this example, we will be using
+"Sales Records". Click the "Finish" button.
++
+image::step_13.png[Step 3]
+
+4. Select the site and list that you want to query. For this example,
+we will be using the "Communication site" site and the "Sales Records"
+list. Click the save button.
++
+image::step_14.png[Step 4]
+
+5. Switch to the "Preview" tab to verify the results of the query.
++
+image::step_15.png[Step 5]
+
+You can now use the query in a report or dashboard.

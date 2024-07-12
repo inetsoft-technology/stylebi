@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div #toolbarContainer class="auto-toolbar-container"
+     [style.justify-content]="flowRight ? 'flex-end' : 'flex-start'"
+     (resized)="resize($event)">
+  <div #buttonsContainer class="auto-buttons-container">
+    <ng-container *ngFor="let action of actions">
+      <button *ngIf="!collapse && action.visible()" type="button" class="btn btn-light-no-bg btn-sm"
+              [ngClass]="action.buttonClass"
+              [title]="!!action.tooltip ? action.tooltip() : ''"
+              [disabled]="!action.enabled()" (click)="clickAction(action)">
+        <i [ngClass]="action.iconClass"></i>
+      </button>
+    </ng-container>
+    <button *ngIf="collapse" type="button" class="btn btn-light-no-bg btn-sm"
+            [fixedDropdown]="treeDropdownMenu">
+      <i class="menu-sandwich-icon"></i>
+    </button>
+  </div>
+</div>
+
+<ng-template #treeDropdownMenu>
+  <div class="dropdown-pane">
+    <ng-container *ngFor="let action of actions">
+      <button *ngIf="collapse && action.visible()" type="button" class="dropdown-item"
+              (click)="clickAction(action)">
+        {{ action.label }}
+      </button>
+    </ng-container>
+  </div>
+</ng-template>
+

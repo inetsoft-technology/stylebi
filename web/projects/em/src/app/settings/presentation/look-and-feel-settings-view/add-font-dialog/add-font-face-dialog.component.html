@@ -1,0 +1,80 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMPresentationLookandFeel'" [title]="'_#(Add/Edit Font Face)'">
+</em-modal-header>
+<mat-dialog-content [formGroup]="form" class="mat-typography">
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(Name)</mat-label>
+    <input matInput formControlName="name" placeholder="_#(Name)"/>
+    <mat-error *ngIf="form.controls.name?.errors?.required">_#(em.laf.font.nameRequired)</mat-error>
+    <mat-error *ngIf="form.controls.name?.errors?.containsSpecialCharsForName">_#(designer.property.anyCharErrorPrefix)</mat-error>
+    <mat-error *ngIf="form.controls.name?.errors?.duplicateName">_#(em.laf.font.duplicateName)</mat-error>
+    <mat-error *ngIf="form.controls.name?.errors && !form.controls.name.errors.required &&
+               !form.controls.name.errors.containsSpecialCharsForName &&
+               !form.controls.name?.errors?.duplicateName">
+      _#(em.laf.font.nameNotStartWithDigit)
+    </mat-error>
+  </mat-form-field>
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(Font Face Identifier)</mat-label>
+    <input matInput formControlName="identifier" placeholder="_#(Identifier)"/>
+    <mat-error *ngIf="form.controls.identifier?.errors?.required">_#(em.laf.fontFace.identifierRequired)</mat-error>
+    <mat-error *ngIf="form.controls.identifier?.errors?.containsSpecialCharsForName">_#(designer.property.anyCharErrorPrefix)</mat-error>
+    <mat-error *ngIf="form.controls.identifier?.errors?.duplicateName">_#(em.laf.fontFace.duplicateIdentifier)</mat-error>
+    <mat-error *ngIf="form.controls.identifier?.errors && !form.controls.identifier.errors.required &&
+               !form.controls.identifier.errors.containsSpecialCharsForName &&
+               !form.controls.identifier?.errors?.duplicateName">
+      _#(em.laf.font.nameNotStartWithDigit)
+    </mat-error>
+  </mat-form-field>
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(TTF File)</mat-label>
+    <em-file-chooser formControlName="ttf" placeholder="_#(TTF File)" accept=".ttf"></em-file-chooser>
+    <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+    <mat-error *ngIf="form.controls.ttf?.errors?.required">_#(em.laf.font.ttfRequired)</mat-error>
+  </mat-form-field>
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(EOT File)</mat-label>
+    <em-file-chooser formControlName="eot" placeholder="_#(EOT File)" accept=".eot"></em-file-chooser>
+    <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+  </mat-form-field>
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(SVG File)</mat-label>
+    <em-file-chooser formControlName="svg" placeholder="_#(SVG File)" accept=".svg"></em-file-chooser>
+    <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+  </mat-form-field>
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(WOFF File)</mat-label>
+    <em-file-chooser formControlName="woff" placeholder="_#(WOFF File)" accept=".woff"></em-file-chooser>
+    <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
+  </mat-form-field>
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(Font Weight)</mat-label>
+    <input matInput formControlName="fontWeight" placeholder="_#(font.weight.hint)"/>
+  </mat-form-field>
+  <mat-form-field appearance="outline" color="accent">
+    <mat-label>_#(Font Style)</mat-label>
+    <input matInput formControlName="fontStyle" placeholder="_#(font.style.hint)"/>
+  </mat-form-field>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-raised-button (click)="submit()" color="primary" [disabled]="form.invalid">_#(OK)</button>
+  <button mat-button mat-dialog-close>_#(Cancel)</button>
+</mat-dialog-actions>

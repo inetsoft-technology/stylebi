@@ -1,0 +1,41 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="em-card">
+  <mat-card-title>_#(General Format)</mat-card-title>
+  <mat-card-content>
+    <form *ngIf="form" [formGroup]="form" class="flex-col">
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Date Format)</mat-label>
+        <input matInput formControlName="dateFormat" placeholder="_#(Date Format)">
+        <mat-hint>_#(Date Format Tooltip)</mat-hint>
+      </mat-form-field>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Time Format)</mat-label>
+        <input matInput formControlName="timeFormat" placeholder="_#(Time Format)">
+        <mat-hint>_#(Time Format Tooltip)</mat-hint>
+      </mat-form-field>
+      <mat-form-field appearance="outline" color="accent">
+        <mat-label>_#(Date/Time Format)</mat-label>
+        <input matInput formControlName="dateTimeFormat" placeholder="_#(Date/Time Format)">
+        <mat-hint>_#(Date/Time Format Tooltip)</mat-hint>
+      </mat-form-field>
+    </form>
+  </mat-card-content>
+</mat-card>

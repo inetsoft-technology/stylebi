@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_extend "http://ns.adobe.com/Extensibility/1.0/">
+	<!ENTITY ns_ai "http://ns.adobe.com/AdobeIllustrator/10.0/">
+	<!ENTITY ns_graphs "http://ns.adobe.com/Graphs/1.0/">
+	<!ENTITY ns_vars "http://ns.adobe.com/Variables/1.0/">
+	<!ENTITY ns_imrep "http://ns.adobe.com/ImageReplacement/1.0/">
+	<!ENTITY ns_sfw "http://ns.adobe.com/SaveForWeb/1.0/">
+	<!ENTITY ns_custom "http://ns.adobe.com/GenericCustomNamespace/1.0/">
+	<!ENTITY ns_adobe_xpath "http://ns.adobe.com/XPath/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg 
+	 xmlns:x="&ns_extend;" xmlns:i="&ns_ai;" xmlns:graph="&ns_graphs;" i:viewOrigin="349.9072 495.8008" i:rulerOrigin="0 0" i:pageBounds="0 1190.5508 841.8896 0"
+	 xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="73.293" height="200" viewBox="0 0 73.293 200" overflow="visible" enable-background="new 0 0 73.293 200"
+	 xml:space="preserve">
+		<switch>
+			<foreignObject requiredExtensions="&ns_ai;" x="0" y="0" width="1" height="1">
+				<i:pgfRef  xlink:href="#adobe_illustrator_pgf">
+				</i:pgfRef>
+			</foreignObject>
+			<g i:extraneous="self">
+				<g id="Layer_1_????" i:knockout="Off" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+				</g>
+				<g id="Layer_1" i:knockout="Off" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F008000FFFF">
+				</g>
+				<g id="Layer_3" i:knockout="Off" i:layer="yes" i:dimmedPercent="50" i:rgbTrio="#4F00FFFF4F00">
+					<g>
+						
+							<linearGradient id="XMLID_14_" gradientUnits="userSpaceOnUse" x1="-313.2607" y1="34.8008" x2="-313.2607" y2="234.8008" gradientTransform="matrix(1 0 0 -1 349.9072 234.8008)">
+							<stop  offset="0.0056" style="stop-color:#E3C2F4"/>
+							<stop  offset="0.4382" style="stop-color:#EF6E47"/>
+							<stop  offset="1" style="stop-color:#FF0000"/>
+							<a:midPointStop  offset="0.0056" style="stop-color:#E3C2F4"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#E3C2F4"/>
+							<a:midPointStop  offset="0.4382" style="stop-color:#EF6E47"/>
+							<a:midPointStop  offset="0.5" style="stop-color:#EF6E47"/>
+							<a:midPointStop  offset="1" style="stop-color:#FF0000"/>
+						</linearGradient>
+						<rect i:knockout="Off" opacity="0" fill="url(#XMLID_14_)" width="73.293" height="200"/> 
+					</g>
+					<path i:knockout="Off" fill="#C6E89A" stroke="#428403" d="M69.711,39.438c0-19.85-14.841-35.938-33.146-35.938
+						C18.258,3.5,3.418,19.588,3.418,39.438c0,0.055,0.002,0.108,0.002,0.164c0,0.025-0.002,0.051-0.002,0.075v42.559v4.848v25.836
+						v16.722v30.685c0,0.024,0.002,0.05,0.002,0.075c0,0.056-0.002,0.109-0.002,0.165c0,19.848,14.84,35.937,33.146,35.937
+						s33.146-16.089,33.146-35.937c0-0.057-0.002-0.112-0.002-0.167c0-0.025,0.002-0.05,0.002-0.073V129.64v-16.722V87.082v-4.848
+						V39.676c0-0.023-0.002-0.048-0.002-0.073C69.709,39.549,69.711,39.492,69.711,39.438z"/>
+					<path i:knockout="Off" fill="#FFFFFF" stroke="#428403" d="M66.359,42.189c0-19.166-13.34-34.701-29.794-34.701
+						c-16.455,0-29.794,15.535-29.794,34.701c0,0.054,0.002,0.104,0.002,0.158c0,0.025-0.002,0.051-0.002,0.073v41.098v4.681v24.949
+						v16.146v29.63c0,0.023,0.002,0.048,0.002,0.073c0,0.053-0.002,0.105-0.002,0.159c0,19.166,13.339,34.701,29.794,34.701
+						c16.454,0,29.794-15.535,29.794-34.701c0-0.056-0.002-0.108-0.002-0.163c0-0.022,0.002-0.047,0.002-0.069v-29.63v-16.146
+						V88.199v-4.681V42.421c0-0.021-0.002-0.047-0.002-0.069C66.357,42.298,66.359,42.244,66.359,42.189z"/>
+					<path i:knockout="Off" fill="#C6E89A" d="M53.555,47.067c0-13.35-7.607-24.167-16.99-24.167
+						c-9.384,0-16.99,10.817-16.99,24.167c0,0.036,0.001,0.073,0.001,0.11c0,0.018-0.001,0.034-0.001,0.051V75.85v3.261v17.375
+						v11.246v20.635c0,0.018,0.001,0.034,0.001,0.051c0,0.038-0.001,0.074-0.001,0.111c0,13.348,7.606,24.168,16.99,24.168
+						c9.383,0,16.99-10.82,16.99-24.168c0-0.037-0.001-0.075-0.001-0.113c0-0.016,0.001-0.032,0.001-0.049v-20.635V96.485V79.11
+						V75.85V47.229c0-0.017-0.001-0.031-0.001-0.049C53.554,47.143,53.555,47.105,53.555,47.067z"/>
+					<ellipse fill="#95CC71" cx="36.565" cy="170.165" rx="14.186" ry="3.914"/> 
+					<path i:knockout="Off" fill="#FFFFFF" stroke="#428403" stroke-width="0.5" d="M39.793,154.687
+						c0,1.783-1.445,3.229-3.229,3.229l0,0c-1.783,0-3.229-1.445-3.229-3.229V38.457c0-1.783,1.445-3.229,3.229-3.229l0,0
+						c1.783,0,3.229,1.445,3.229,3.229V154.687z"/>
+					<g>
+						
+							<switch id="XMLID_19_" i:objectNS="&ns_imrep;" i:objectType="replaceable-image" transform="matrix(1 0 0 1 26.0649 150.8008)" opacity="0.5" enable-background="new    ">
+							
+								<foreignObject overflow="visible" requiredExtensions="&ns_imrep;" x="0" y="0" width="21" height="21" opacity="0.5" enable-background="new    ">
+								
+									<imageReplacement  xmlns="&ns_imrep;" x="0" y="0" width="21" height="21" placementMethod="ratio" align="center" valign="middle" refWidth="21" refHeight="21"  opacity="0.5" enable-background="new    ">
+								</imageReplacement>
+								<x:targetRef  xlink:href="#XMLID_15_" />
+							</foreignObject>
+							
+								<image opacity="0.5" enable-background="new    " width="21" height="21" id="XMLID_15_" xlink:href="data:;base64,iVBORw0KGgoAAAANSUhEUgAAABUAAAAVCAYAAACpF6WWAAAACXBIWXMAAAsSAAALEgHS3X78AAAA
+BGdBTUEAAK/INwWK6QAAABl0RVh0U29mdHdhcmUAQWRvYmUgSW1hZ2VSZWFkeXHJZTwAAAJpSURB
+VHjaYmTAA7i4uBihTEYk4f8g4tu3b/9x6QMIIEZsgnx8fCBxJiBmAWJ2IGaFqgUZ9BuIfwLxHyD+
+9+nTJwzDAQIIw1B+fn4mqCE8QCwExBIge6AWgAz6BMQvgPgdEH8BWfLx48d/yGYABBAjmoHMQIoT
+iMWAWBGI1YBYA4jFgZgNiH8B8UsgvgHEt4D4PhC/AuLvQIP/wswBCCBGNBdyAbEMEBsBsTkQawKx
+HBaXPgLi60B8EojPAfETZIMBAogZFoZAAHKJJBCbArELEFsDsSrU1XxQC7mBmBeIhYFYBOorUBh/
+BhnKzs7+5+fPn/8BAogF6lAmaBgqQl1oAsQKUIOY0IIJFubsUNczQH0AirxnwBTzCyCAmEHJhomJ
+iRXoUgmoK22hLuSD+oQRS+TCDAa5lAPkSpCBQPz2379/vwACiAmqkB0ayxrQMOSBasQHmJAiVRoU
+LbCkBxBAMK+xQl0mDqVZcaVhLAazoqVlBoAAYkLyEis02RBrIM6kCRBATAzUASi5CiCAmJAEf0MT
+9290RQQMw9AHEEBMSBKfoLnlE5EG49QHEEAwl/6E5ucb0NwCytN/CRj8D6ruEVTfC6g5DAABxPz7
+928GYE5gAKbT/9BIAhUiAtAYRU6n/5EwyMJv0Ox5GoiPQcuBb1++fPkHEEDgbAo19C+sOEPSCMst
+v6AJHIZB2fIpEJ8F4sNAfAWU8EFqgdmUASCA0AsUWGJWQiuh2NG8/gPJ0PNQF3+DFYEAAcRIQlmK
+HAwg13+EGvwavegDCCBGEkp9bDEPipjfwNIfpZAGCCBGEusnBmLqKoAAAwB78LAYbfU5xAAAAABJ
+RU5ErkJggg==" i:isolated="yes" i:knockout="Off"/>
+						</switch>
+						<g i:knockout="Off">
+							<circle fill="#FF0000" cx="36.618" cy="161.112" r="7.131"/> 
+							<circle fill="#FF0000" cx="36.618" cy="161.112" r="7.131"/> 
+						</g>
+					</g>
+				</g>
+			</g>
+		</switch>
+	</svg>

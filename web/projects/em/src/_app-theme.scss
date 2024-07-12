@@ -1,0 +1,383 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@use "sass:math";
+@use 'sass:color';
+@use 'sass:meta';
+@use '@angular/material' as mat;
+@use '@material/textfield' as mdc-textfield;
+@use '@material/notched-outline' as mdc-notched-outline;
+@import './app/common/util/editor-panel/editor-panel-theme';
+@import './app/common/util/file-chooser/multi-file-chooser/multi-file-chooser-theme';
+@import './app/common/util/file-chooser/staged-file-chooser/staged-file-chooser-theme';
+@import './app/common/util/table/expandable-row-table/expandable-row-table-theme';
+@import './app/common/util/table/regular-table/regular-table-theme';
+@import './app/common/util/tree/flat-tree-view-theme';
+@import './app/manage-favorites/manage-favorites-theme';
+@import './app/monitoring/monitoring-sidenav/monitoring-sidenav-theme';
+@import './app/auditing/auditing-sidenav/auditing-sidenav-theme';
+@import './app/navbar/navbar-theme';
+@import './app/page-header/page-header-theme';
+@import './app/monitoring/summary/summary-monitoring-view/summary-monitoring-chart-view/summary-monitoring-chart-view-theme';
+@import './app/settings/content/repository/import-export/export-asset-dialog/export-asset-dialog-theme';
+@import './app/settings/content/repository/import-export/import-asset-dialog/import-asset-dialog-theme';
+@import './app/settings/content/repository/repository-tree-view/repository-tree-view-theme';
+@import './app/settings/general/license-key-settings-view/license-key-settings-view-theme';
+@import './app/settings/presentation/presentation-share-settings-view/presentation-share-settings-view-theme';
+@import './app/settings/schedule/schedule-cycle-editor-page/schedule-cycle-editor-theme';
+@import './app/settings/schedule/schedule-configuration-view/schedule-classpath-dialog/schedule-classpath-dialog-theme';
+@import './app/settings/schedule/schedule-task-editor-page/schedule-task-editor-theme';
+@import './app/settings/schedule/schedule-task-list/schedule-task-list-theme';
+@import './app/settings/presentation/look-and-feel-settings-view/edit-fonts-dialog/edit-fonts-dialog-theme';
+@import './app/settings/security/security-actions/security-actions-tree/security-actions-tree-theme';
+@import './app/settings/security/security-provider/custom-provider-view/custom-provider-view-theme';
+@import './app/settings/security/sso/custom-sso-form/custom-sso-form-theme';
+@import './app/settings/security/security-tree-view/security-tree-view-theme';
+@import './app/settings/settings-sidenav/settings-sidenav-theme';
+@import './app/common/util/mat-ckeditor/mat-ckeditor-theme';
+
+@mixin em-app-theme($theme) {
+  $primary: map-get($theme, primary);
+  $accent: map-get($theme, accent);
+  $warn: map-get($theme, warn);
+  $background: map-get($theme, background);
+  $foreground: map-get($theme, foreground);
+  $is-dark-theme: map-get($theme, is-dark);
+  $on-surface: if($is-dark-theme, #fff, #000);
+
+  .em-app-background {
+    background: mat.get-color-from-palette($background, background);
+  }
+
+  .em-primary-header {
+    background: mat.get-color-from-palette($primary, 200);
+
+    h1 {
+      color: mat.get-color-from-palette($primary, default-contrast);
+    }
+  }
+
+  .em-footer {
+    background: mat.get-color-from-palette($primary);
+    color: mat.get-color-from-palette($primary, default-contrast);
+  }
+
+  .links {
+    text-decoration: none;
+    color: mat.get-color-from-palette($foreground, text);
+  }
+
+  .links:hover {
+    text-decoration: underline;
+  }
+
+  .mat-mdc-card.group-card {
+    border: 1px solid mat.get-color-from-palette($foreground, divider, if($is-dark-theme, 0.3, 0.12));
+  }
+
+  .mat-mdc-card {
+    @extend .mat-elevation-z1;
+
+    &.mat-elevation-z0 {
+      border: none;
+      box-shadow: none;
+    }
+  }
+
+  span.mat-placeholder-required {
+    background-color: mat.get-color-from-palette($background);
+  }
+
+  .mat-mdc-table {
+    .mat-mdc-header-row {
+      @if $is-dark-theme {
+        background-color: mat.get-color-from-palette($primary);
+        color: mat.get-contrast-color-from-palette($primary, default);
+      } @else {
+        background-color: mat.get-color-from-palette($primary, 100);
+        color: mat.get-contrast-color-from-palette($primary, 100);
+      }
+    }
+
+    .mdc-data-table__cell {
+      font-size: 12px;
+    }
+  }
+
+  .mat-mdc-dialog-surface {
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-bottom: 24px;
+    padding-top: 24px;
+  }
+
+  .mdc-dialog__actions {
+    padding: 16px 0!important;
+    margin-bottom: -24px!important;
+    min-height: 52px;
+  }
+
+
+  .mdc-dialog .mdc-dialog__content {
+    margin: 0 -24px;
+    padding: 5px 24px 0 24px!important;
+  }
+
+  $header-border: 1px solid mat.get-color-from-palette($foreground, divider);
+
+  .mat-mdc-tab-nav-bar,
+  .mat-mdc-tab-header {
+    border-bottom: $header-border;
+  }
+
+  .mat-mdc-checkbox {
+    &.mat-primary {
+      --mdc-checkbox-selected-checkmark-color: #{mat.get-contrast-color-from-palette($primary, 500)};
+      --mdc-checkbox-disabled-selected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
+      --mdc-checkbox-disabled-unselected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
+    }
+
+    &.mat-accent {
+      --mdc-checkbox-selected-checkmark-color: #{mat.get-contrast-color-from-palette($accent, 500)};
+      --mdc-checkbox-disabled-selected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
+      --mdc-checkbox-disabled-unselected-icon-color: #{if($is-dark-theme, #686868, #b0b0b0)};
+    }
+  }
+
+  // normal
+  .mdc-text-field--outlined:not(.mdc-text-field--focused):not(.mdc-text-field--invalid) {
+    @include mdc-notched-outline.color(rgba($on-surface, if($is-dark-theme, 0.3, 0.12)));
+
+    &:hover {
+      @include mdc-notched-outline.stroke-width(2px);
+    }
+  }
+
+  // invalid
+  .mat-mdc-form-field {
+    .mdc-text-field--outlined.mdc-text-field--invalid:not(.mdc-text-field--disabled) {
+      @include mdc-notched-outline.stroke-width(2px);
+
+      &, &.mdc-text-field--focused {
+        @include mdc-notched-outline.color(mat.get-color-from-palette($warn, 500));
+      }
+    }
+  }
+
+  // float label colors on focus
+  .mat-mdc-form-field.mat-primary {
+    .mdc-text-field--focused:not(.mdc-text-field--disabled):not(.mdc-text-field--invalid) {
+      .mdc-floating-label {
+        color: mat.get-color-from-palette($primary, 500, 0);
+      }
+    }
+  }
+
+  .mat-mdc-form-field.mat-accent {
+    .mdc-text-field--focused:not(.mdc-text-field--disabled):not(.mdc-text-field--invalid) {
+      .mdc-floating-label {
+        color: mat.get-color-from-palette($accent, 500, 0);
+      }
+    }
+  }
+
+  .mat-mdc-form-field-hint {
+    color: rgba($on-surface, if($is-dark-theme, 0.7, 0.6));
+  }
+
+  // for https://github.com/angular/components/issues/26056
+  // Applies white to the main buttons and adjusts the background accordingly
+  // The default contrast is either affected by how our theme is applied or there really is a problem
+  // as noted by this github issue
+  .mat-mdc-raised-button.mat-primary {
+    --mdc-protected-button-label-text-color: #{mat.get-contrast-color-from-palette($primary, 500)};
+  }
+
+  .mat-mdc-unelevated-button.mat-primary {
+    --mdc-filled-button-label-text-color: #{mat.get-contrast-color-from-palette($primary, 500)};
+  }
+
+  .mat-mdc-fab.mat-primary, .mat-mdc-mini-fab.mat-primary {
+    --mat-mdc-fab-color: #{mat.get-contrast-color-from-palette($primary, 500)};
+  }
+
+  .mat-mdc-fab.mat-accent, .mat-mdc-mini-fab.mat-accent {
+    --mat-mdc-fab-color: #{mat.get-contrast-color-from-palette($accent, 500)};
+  }
+
+  .mat-mdc-dialog-container {
+    --mdc-dialog-supporting-text-color: #{mat.get-color-from-palette($foreground, text)};
+  }
+
+  body {
+    color: mat.get-color-from-palette($foreground, text);
+  }
+
+  @include em-custom-theme($theme);
+
+  @include manage-favorites-theme($theme);
+  @include monitoring-viewer-sidenav-theme($theme);
+  @include auditing-viewer-sidenav-theme($theme);
+  @include navbar-theme($theme);
+  @include settings-viewer-sidenav-theme($theme);
+  @include schedule-task-editor-theme($theme);
+  @include schedule-task-list-theme($theme);
+  @include schedule-cycle-editor-theme($theme);
+  @include schedule-classpath-dialog-theme($theme);
+  @include security-actions-tree-theme($theme);
+  @include security-tree-view-theme($theme);
+  @include custom-provider-view-theme($theme);
+  @include custom-sso-form-theme($theme);
+  @include flat-tree-view-theme($theme);
+  @include license-key-settings-view-theme($theme);
+  @include page-header-theme($theme);
+  @include multi-file-chooser-theme($theme);
+  @include staged-file-chooser-theme($theme);
+  @include expandable-row-table-theme($theme);
+  @include regular-table-theme($theme);
+  @include presentation-share-settings-view-theme($theme);
+  @include mat-ckeditor-theme($theme);
+  @include edit-fonts-dialog($theme)
+}
+
+// replaces inetsoft-form-field-outline-typography which really should be handled by density
+// inetsoft-form-field-outline-typography commented out below in case we really need such
+// extra customization
+.mat-mdc-form-field {
+  // prevent the float label from not showing when density is low
+  mdc-textfield.$minimum-height-for-filled-label: 34px;
+  @include mat.form-field-density(-5); // -5 is currently the smallest density
+
+  &.mat-form-field-appearance-outline:not(.mat-mdc-paginator-page-size-select) {
+    padding-bottom: .75em;
+  }
+
+  // prevents buttons from making the form field taller, matches density of form field
+  @include mat.icon-button-density(-5);
+
+  // align the icon in the center after decreasing its size above
+  .mat-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  // https://github.com/angular/components/issues/26529
+  // prevents icons from making the form field taller
+  .mat-mdc-form-field-icon-prefix>.mat-icon, .mat-mdc-form-field-icon-suffix>.mat-icon {
+    padding: 6px;
+  }
+
+  // the default padding on the right is 0 which looks awkward
+  .mat-mdc-form-field-icon-suffix {
+    padding-right: 12px;
+  }
+
+  .mat-mdc-text-field-wrapper:not(.mdc-text-field--outlined) .mat-mdc-form-field-infix {
+    padding-bottom: 0px; // density causing this to be negative which is not valid
+  }
+
+  .mdc-text-field--filled {
+    padding: 0;
+
+    &:not(.mdc-text-field--disabled) {
+      &, .mat-mdc-form-field-focus-overlay {
+        background-color: transparent;
+      }
+    }
+  }
+
+  &.mat-form-field-appearance-fill {
+    .mat-mdc-form-field-hint-wrapper, .mat-mdc-form-field-error-wrapper {
+      padding: 0;
+    }
+  }
+
+  .mat-mdc-form-field-bottom-align::before {
+    height: 10px;
+  }
+}
+
+mat-paginator.mat-mdc-paginator {
+  .mdc-text-field--no-label:not(.mdc-text-field--outlined):not(.mdc-text-field--textarea) {
+    .mat-mdc-form-field-infix {
+      padding-bottom: 0px;
+      min-height: 30px;
+    }
+  }
+}
+
+.mat-mdc-checkbox + .mat-form-field-appearance-outline {
+  padding-top: 0.5em;
+}
+
+.mdc-floating-label {
+  // to fix blurry float labels
+  will-change: unset !important;
+}
+
+.mat-mdc-checkbox, .mat-mdc-radio-group {
+  // to align with form fields
+  margin-left: -10px;
+}
+
+@mixin em-app-typography($config) {
+  @include editor-panel-typography($config);
+  @include export-asset-dialog-typography($config);
+  @include import-asset-dialog-typography($config);
+  @include mat.icon-typography($config);
+  @include multi-file-chooser-typography($config);
+  @include repository-tree-view-typography($config);
+  @include staged-file-chooser-typography($config);
+  //@include inetsoft-form-field-outline-typography($config);
+  @include summary-monitoring-chart-view-typography($config);
+  @include expandable-row-table-typography($config);
+  @include regular-table-typography($config);
+
+  // use body-1 font size as the base for sidenav
+  .mat-drawer {
+    font-size: mat.font-size($config, body-1);
+  }
+
+  // use same typography for dialogs as cards
+  .mat-mdc-dialog-title {
+    font: {
+      size: mat.font-size($config, headline-1);
+      weight: mat.font-weight($config, headline-1);
+    }
+  }
+
+  .mat-mdc-dialog-content, .mat-tree-node {
+    font-size: mat.font-size($config, body-1);
+  }
+
+  .mat-mdc-button, .mat-mdc-raised-button, .mat-mdc-outlined-button, .mat-mdc-unelevated-button {
+    padding: 0 16px;
+  }
+
+  .mat-mdc-card-title {
+    font: {
+      size: mat.font-size($config, headline-1);
+      weight: 500;
+    }
+  }
+
+  .mat-expansion-panel-header {
+    font-size: 15px;
+    font-weight: 400;
+  }
+}

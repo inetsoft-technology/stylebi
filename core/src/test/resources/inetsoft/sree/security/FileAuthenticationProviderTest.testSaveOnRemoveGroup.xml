@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<Registry>
+<Version>13.3</Version>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[arturostevenson]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[arturo.stevenson@example.com]]></email></emails><roles></roles><groups></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[bryanbell]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[bryan.bell@example.com]]></email></emails><roles><role><![CDATA[Strategist]]></role><role><![CDATA[Manager]]></role></roles><groups><group><![CDATA[Marketing]]></group></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[candacegriffin]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[candace.griffin@example.com]]></email></emails><roles><role><![CDATA[Developer]]></role><role><![CDATA[Manager]]></role><role><![CDATA[System Administrator]]></role></roles><groups><group><![CDATA[IT]]></group></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[charlieberry]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[charlie.berry@example.com]]></email></emails><roles><role><![CDATA[Strategist]]></role></roles><groups><group><![CDATA[Marketing]]></group></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[gladysweaver]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[gladys.weaver@example.com]]></email></emails><roles><role><![CDATA[Developer]]></role></roles><groups><group><![CDATA[IT]]></group></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[ismaelhogan]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[ismael.hogan@example.com]]></email></emails><roles><role><![CDATA[Salesperson]]></role></roles><groups><group><![CDATA[Sales]]></group></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[kirklamb]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[kirk.lamb@example.com]]></email></emails><roles><role><![CDATA[Strategist]]></role></roles><groups><group><![CDATA[Marketing]]></group></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[krystalbrock]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[krystal.brock@example.com]]></email></emails><roles><role><![CDATA[Strategist]]></role></roles><groups><group><![CDATA[Marketing]]></group></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[kurtgill]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[kurt.gill@example.com]]></email></emails><roles><role><![CDATA[Salesperson]]></role></roles><groups><group><![CDATA[Sales]]></group></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[lloydwilson]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[lloyd.wilson@example.com]]></email></emails><roles><role><![CDATA[Salesperson]]></role><role><![CDATA[Manager]]></role></roles><groups><group><![CDATA[Sales]]></group></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[mariejones]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[marie.jones@example.com]]></email></emails><roles></roles><groups></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[stevecurry]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[steve.curry@example.com]]></email></emails><roles><role><![CDATA[Salesperson]]></role></roles><groups><group><![CDATA[Sales]]></group></groups></FSUser>
+<FSUser class="inetsoft.sree.security.FSUser"><name><![CDATA[vernagordon]]></name><active><![CDATA[true]]></active><locale><![CDATA[]]></locale><password algorithm="MD5"><![CDATA[BQK9oo,00gn`8d:mL"B+]]></password><emails><email><![CDATA[verna.gordon@example.com]]></email></emails><roles></roles><groups></groups></FSUser>
+<FSGroup class="inetsoft.sree.security.FSGroup"><name><![CDATA[IT]]></name><roles></roles><groups></groups></FSGroup><FSGroup class="inetsoft.sree.security.FSGroup"><name><![CDATA[Marketing]]></name><roles></roles><groups></groups></FSGroup><FSGroup class="inetsoft.sree.security.FSGroup"><name><![CDATA[Sales]]></name><roles></roles><groups></groups></FSGroup></Registry>

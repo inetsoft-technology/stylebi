@@ -1,0 +1,174 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<span [ngSwitch]="type">
+  <!-- Input is of type "long" -->
+  <ng-template [ngSwitchCase]="XSchema.LONG">
+   <div *ngIf="form">
+      <form [formGroup]="form">
+        <input class="form-control" type="number" id="long"
+               [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="long">
+        <div *ngIf="form.controls['long'].errors && form.controls['long'].errors['pattern'] && value"
+             class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(em.common.config.integer)
+        </div>
+      </form>
+   </div>
+  </ng-template>
+
+  <!-- Input is of type "short" -->
+  <ng-template [ngSwitchCase]="XSchema.SHORT">
+    <div *ngIf="form">
+      <form [formGroup]="form">
+        <input class="form-control" type="number" id="short" min="-32768" max="32767" [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="short">
+        <div *ngIf="form.controls['short'].errors && form.controls['short'].errors['shortInRange'] && value"
+             class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(number.between.short)
+        </div>
+        <div *ngIf="form.controls['short'].errors && form.controls['short'].errors['pattern'] && value"
+             class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(em.common.config.integer)
+        </div>
+      </form>
+    </div>
+  </ng-template>
+
+  <!-- Input is of type "byte" -->
+  <ng-template [ngSwitchCase]="XSchema.BYTE">
+    <div *ngIf="form">
+      <form [formGroup]="form">
+        <input class="form-control" type="number" id="byte" min="-128" max="127" [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="byte">
+        <div *ngIf="form.controls['byte'].errors && form.controls['byte'].errors['byteInRange'] && value"
+             class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(number.between.byte)
+        </div>
+        <div *ngIf="form.controls['byte'].errors && form.controls['byte'].errors['pattern'] && value"
+             class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(em.common.config.integer)
+        </div>
+      </form>
+    </div>
+  </ng-template>
+
+  <!-- Input is of type "char" -->
+  <ng-template [ngSwitchCase]="XSchema.CHAR">
+    <input class="form-control" [disabled]="disabled" type="text" id="char" maxlength="1"
+           [ngModel]="value" (ngModelChange)="changeValue($event)">
+  </ng-template>
+
+  <!-- Input is of type "character" -->
+  <ng-template [ngSwitchCase]="XSchema.CHARACTER">
+    <input class="form-control" type="text" id="character" maxlength="1" [ngModel]="value"
+           [disabled]="disabled" (ngModelChange)="changeValue($event)">
+  </ng-template>
+
+  <!-- Input is of type "float" -->
+  <ng-template [ngSwitchCase]="XSchema.FLOAT">
+    <div *ngIf="form">
+      <form [formGroup]="form">
+        <input class="form-control" type="text" id="float"
+               [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="float">
+        <div *ngIf="form.controls['float'].errors && form.controls['float'].errors['pattern'] && value"
+             class="alert alert-danger">
+          <strong>_#(Error)</strong> Only numbers, decimal and negative dash.
+        </div>
+      </form>
+    </div>
+  </ng-template>
+
+  <!-- Input is of type "boolean" -->
+  <ng-template [ngSwitchCase]="XSchema.BOOLEAN">
+    <div class="boolean-from-check-input-in">
+       <input type="checkbox" id="boolean" class="boolean form-check-input" [ngModel]="value"
+              (ngModelChange)="changeValue($event)">
+    </div>
+  </ng-template>
+
+  <!-- Input is of type "timeinstant" -->
+  <ng-template [ngSwitchCase]="XSchema.TIME_INSTANT">
+    <input *ngIf="oneOf" class="form-control" [disabled]="disabled" type="text" id="timeInstant"
+           [ngModel]="value" (ngModelChange)="changeValue($event)">
+    <ng-container *ngIf="!oneOf">
+      <time-instant-value-editor [ngModel]="value" [disabled]="disabled"
+                                 (timeChange)="changeValue($event)" [format]="timeInstantFormat">
+      </time-instant-value-editor>
+    </ng-container>
+
+  </ng-template>
+
+  <!-- Input is of type "time" -->
+  <ng-template [ngSwitchCase]="XSchema.TIME">
+    <input *ngIf="oneOf" class="form-control" [disabled]="disabled" type="text" id="time"
+           [ngModel]="value" (ngModelChange)="changeValue($event)">
+    <ng-container *ngIf="!oneOf">
+      <time-value-editor [model]="value" [disabled]="disabled" (timeChange)="changeValue($event)"
+                         [format]="timeFormat">
+    </time-value-editor>
+    </ng-container>
+  </ng-template>
+
+  <!-- Input is of type "date" -->
+  <ng-template [ngSwitchCase]="XSchema.DATE">
+    <input *ngIf="oneOf" class="form-control" [disabled]="disabled" type="text" id="date"
+           [ngModel]="value" (ngModelChange)="changeValue($event)">
+    <ng-container *ngIf="!oneOf">
+      <date-value-editor [ngModel]="value" [disabled]="disabled" [format]="dateFormat"
+                         (ngModelChange)="changeValue($event)">
+      </date-value-editor>
+    </ng-container>
+  </ng-template>
+
+  <!-- Input is of type "integer" -->
+  <ng-template [ngSwitchCase]="XSchema.INTEGER">
+    <div *ngIf="form">
+      <form [formGroup]="form">
+        <input *ngIf="!oneOf" class="form-control" type="number" id="integer" min="-2147483648" max="2147483647" [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="integer">
+        <input *ngIf="oneOf" class="form-control" id="integer" min="-2147483648" max="2147483647" [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="integer">
+        <div *ngIf="form.controls['integer'].errors && form.controls['integer'].errors['integerInRange'] && value"
+             class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(number.between.int)
+        </div>
+        <div *ngIf="form.controls['integer'].errors && form.controls['integer'].errors['pattern'] && value"
+             class="alert alert-danger">
+          <strong>_#(Error)</strong> _#(em.common.config.integer)
+        </div>
+      </form>
+    </div>
+  </ng-template>
+
+  <!-- Input is of type "double" -->
+  <ng-template [ngSwitchCase]="XSchema.DOUBLE">
+    <div *ngIf="form">
+      <form [formGroup]="form">
+        <input class="form-control" type="text" id="double"
+               [ngModel]="value" (ngModelChange)="changeValue($event)" formControlName="double">
+        <div *ngIf="form.controls['double'].errors && form.controls['double'].errors['pattern'] && value"
+             class="alert alert-danger">
+          <strong>_#(Error)</strong> Only numbers, decimal and negative dash.
+        </div>
+      </form>
+    </div>
+  </ng-template>
+
+  <!-- Input is of type "string" -->
+  <ng-template [ngSwitchCase]="XSchema.STRING">
+        <input class="form-control" [disabled]="disabled" type="text" id="string"
+               [ngModel]="value" (ngModelChange)="changeValue($event)">
+  </ng-template>
+</span>

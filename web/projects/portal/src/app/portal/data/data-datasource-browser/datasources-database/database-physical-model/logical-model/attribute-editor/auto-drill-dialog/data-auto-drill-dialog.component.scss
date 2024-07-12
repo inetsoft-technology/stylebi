@@ -1,0 +1,75 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.card-header {
+  min-height: 68px;
+}
+
+.param-card-body {
+  max-height: 107px;
+}
+
+.min-height {
+  height: 590px;
+}
+
+.auto-overflow {
+  overflow-y: auto;
+}
+
+.no-shrink {
+  flex: 1 0 auto;
+}
+
+.parameter-label {
+  max-width: 80%;
+  min-width: 50%;
+}
+
+.drill-tree-dropdown-menu {
+  border: 1px solid #A9A9A9;
+  max-height: 300px;
+  min-width: 200px;
+  width: 100%;
+  overflow-y: auto;
+}
+
+.drill-dropdown-arrow {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  vertical-align: middle;
+  content: "";
+  border-top: 0.3em solid;
+  border-right: 0.3em solid transparent;
+  border-left: 0.3em solid transparent;
+  position: absolute;
+  top: 50%;
+  right: 15px;
+}
+
+.toolbar-button-group {
+  display: flex;
+}
+
+.card .parameter-list {
+  .card-header,
+  .list-group-item {
+    height: 3em;
+    min-height: 3em;
+  }
+}

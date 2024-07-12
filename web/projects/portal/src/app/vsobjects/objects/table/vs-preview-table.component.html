@@ -1,0 +1,51 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-template #content let-close="close">
+  <div>
+    <modal-header [title]="'_#(Data)'" [cshid]="'CrosstabDataPanel'" [isDataTip]="isDataTip"
+                  (onCancel)="close()"
+                  (onShowStyle)="showStyle()" (onExportTable)="exportTable()" [isShow]="true">
+    </modal-header>
+    <div class="vs-preview-table-body modal-body">
+      <preview-table [tableData]="tableData" [sortEnabled]="true"
+                     [linkUri]="linkUri" [runtimeId]="viewsheetClient.runtimeId"
+                     [assemblyName]="assemblyName"
+                     [formatGetter]="formatGetter" [worksheetId]="worksheetId"
+                     [formatModel]="formatModel" [sortInfo]="sortInfo"
+                     [colWidths]="colWidths"
+                     [isDetails]="isDetails"
+                     (onSort)="onChange.emit({sortInfo: $event, format: null, column: [], str: worksheetId, detailStyle: null, dndInfo: null})"
+                     (onOrder)="onChange.emit({sortInfo: null, format: null, column: [], str: worksheetId, detailStyle: null, dndInfo: $event})"
+                     (onRename)="onChange.emit({sortInfo: null, format: null, column: [$event.column], str: worksheetId, detailStyle: null, dndInfo: null, newColName: $event.newName})"
+                     (onHide)="onChange.emit({sortInfo: null, format: null, column: $event, str: worksheetId, detailStyle: null, dndInfo: null, toggleHide: true})"
+                     (onFormatChange)="onChange.emit($event)"
+                     [viewsheetClient]="viewsheetClient">
+      </preview-table>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-default" (click)="close()">_#(Close)</button>
+    </div>
+  </div>
+</ng-template>
+<ng-template #styleDialog let-close="close" let-dismiss="dismiss">
+  <table-style-dialog [styleModel]="tableStylePaneModel" (onCommit)="close($event)"
+   (onCancel)="dismiss($event)">
+  </table-style-dialog>
+</ng-template>

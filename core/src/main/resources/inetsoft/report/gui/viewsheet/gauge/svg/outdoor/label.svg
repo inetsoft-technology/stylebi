@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="201px" height="201px" viewBox="0 0 201 201" enable-background="new 0 0 201 201" xml:space="preserve">
+<linearGradient id="SVGID_1_" gradientUnits="userSpaceOnUse" x1="100.5" y1="140.6025" x2="100.5" y2="158.2871">
+	<stop  offset="0" style="stop-color:#D6EDD7"/>
+	<stop  offset="1" style="stop-color:#5D8459"/>
+</linearGradient>
+<path fill="url(#SVGID_1_)" d="M129.362,156.982c0,0.72-0.584,1.305-1.305,1.305H72.942c-0.721,0-1.305-0.585-1.305-1.305v-15.076
+	c0-0.72,0.584-1.304,1.305-1.304h55.115c0.721,0,1.305,0.584,1.305,1.304V156.982z"/>
+<linearGradient id="SVGID_2_" gradientUnits="userSpaceOnUse" x1="100.5" y1="141.5" x2="100.5" y2="157.3896">
+	<stop  offset="0" style="stop-color:#51604F"/>
+	<stop  offset="1" style="stop-color:#11230F"/>
+</linearGradient>
+<path fill="url(#SVGID_2_)" d="M128.406,156.217c0,0.647-0.565,1.173-1.262,1.173h-53.29c-0.697,0-1.261-0.525-1.261-1.173v-13.545
+	c0-0.647,0.564-1.172,1.261-1.172h53.29c0.696,0,1.262,0.524,1.262,1.172V156.217z"/>
+<linearGradient id="SVGID_3_" gradientUnits="userSpaceOnUse" x1="100.5" y1="142.2422" x2="100.5" y2="157.9521">
+	<stop  offset="0" style="stop-color:#EAEAEA"/>
+	<stop  offset="1" style="stop-color:#11230F"/>
+</linearGradient>
+<path opacity="0.3" fill="url(#SVGID_3_)" d="M128.091,156.793c0,0.64-0.559,1.159-1.247,1.159H74.156
+	c-0.689,0-1.247-0.52-1.247-1.159V143.4c0-0.64,0.558-1.158,1.247-1.158h52.688c0.688,0,1.247,0.519,1.247,1.158V156.793z"/>
+</svg>

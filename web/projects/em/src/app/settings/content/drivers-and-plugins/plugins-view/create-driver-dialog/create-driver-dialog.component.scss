@@ -1,0 +1,106 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+em-create-driver-dialog {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  height: 100%;
+}
+
+.mat-mdc-dialog-title.create-driver-dialog {
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+
+.mat-mdc-dialog-content.create-driver-dialog {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+
+  .mat-stepper-horizontal {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    flex-grow: 1;
+
+    .mat-horizontal-stepper-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      flex-grow: 1;
+
+      .mat-horizontal-content-container {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        flex-grow: 1;
+
+        .mat-horizontal-stepper-content {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          flex-grow: 1;
+
+          &.mat-horizontal-stepper-content-inactive {
+            flex-grow: 0;
+            flex-shrink: 1;
+          }
+
+          .step-content {
+            flex-grow: 1;
+
+            .em-staged-file-chooser {
+              margin-top: 4px;
+            }
+
+            .mat-mdc-radio-button {
+              margin-top: 10px;
+            }
+
+            .align-button {
+              margin-left: -10px;
+            }
+
+            .help-note {
+              margin-bottom: 1em;
+            }
+          }
+
+          .step-buttons {
+            flex-grow: 0;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: row;
+            justify-content: flex-end;
+          }
+        }
+      }
+    }
+  }
+
+  .mat-mdc-form-field {
+    display: block;
+  }
+
+  .fileListItem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+}

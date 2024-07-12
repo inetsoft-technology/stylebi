@@ -1,0 +1,157 @@
+{
+    "endpoints": [
+        {
+            "name": "Notifications",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/notifications?source={Notification Type:lightningDashboardSubscribe|lightningReportSubscribe|waveNotification }&ownerId={Owner ID?}&recordId={Record ID?:reportId|lensId}"
+        },
+        {
+            "name": "Notification",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/notifications/{Notification ID}"
+        },
+        {
+            "name": "Notification Limits",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/notifications/limits?source={Source:lightningDashboardSubscribe|lightningReportSubscribe|waveNotification}&recordId={Record ID?:reportId|lensId}"
+        },
+        {
+            "name": "Dashboards",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/dashboards",
+          "lookups": [
+            {
+              "endpoints": [
+                "Dashboard",
+                "Dashboard Metadata",
+                "Dashboard Status"
+              ],
+              "jsonPath": "$.[*]",
+              "key": "id",
+              "parameterName": "Dashboard ID"
+            }
+          ]
+        },
+        {
+            "name": "Dashboard",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/dashboards/{Dashboard ID}?runningUser={Running User ID?}&filter1={Filter 1 ID?}&filter2={Filter 2 ID?}&filter3={Filter 3 ID?}"
+        },
+        {
+            "name": "Dashboard Metadata",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/dashboards/{Dashboard ID}/describe?loadComponentProperties={Load Component Properties?:true|false}"
+        },
+        {
+            "name": "Dashboard Status",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/dashboards/{Dashboard ID}/status?runningUser={Running User ID?}&filter1={Filter 1 ID?}&filter2={Filter 2 ID?}&filter3={Filter 3 ID?}"
+        },
+        {
+            "name": "Filter Operators",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/filteroperators?forDashboards={For Dashboards?:true|false}"
+        },
+        {
+            "name": "Folders",
+            "paged": true,
+            "suffix": "/v43.0/folders/",
+          "lookups": [
+            {
+              "endpoints": [
+                "Folder",
+                "Folder Shares",
+                "Folder Children"
+              ],
+              "jsonPath": "$.folders[*]",
+              "key": "id",
+              "parameterName": "Folder ID"
+            }
+          ]
+        },
+        {
+            "name": "Folder",
+            "paged": false,
+            "suffix": "/v43.0/folders/{Folder ID}"
+        },
+        {
+            "name": "Folder Shares",
+            "paged": false,
+            "suffix": "/v41.0/folders/{Folder ID}/shares"
+        },
+        {
+            "name": "Folder Share",
+            "paged": false,
+            "suffix": "/v41.0/folders/{Folder ID}/shares/{Share ID}"
+        },
+        {
+            "name": "Folder Share Recipients",
+            "paged": false,
+            "suffix": "/v41.0/folders/{Folder ID}/share-recipients?shareType={shareType:user|group|role}&searchTerm={Search Term?}"
+        },
+        {
+            "name": "Folder Children",
+            "paged": true,
+            "suffix": "/v43.0/folders/{Folder ID}/children",
+          "lookups": [
+            {
+              "endpoints": [
+                "Folder",
+                "Folder Shares",
+                "Folder Children"
+              ],
+              "jsonPath": "$.folders[*]",
+              "key": "id",
+              "parameterName": "Folder ID"
+            }
+          ]
+        },
+        {
+            "name": "Reports",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/reports",
+          "lookups": [
+            {
+              "endpoints": [
+                "Report Metadata",
+                "Execute Report",
+                "Report Instances"
+              ],
+              "jsonPath": "$.[*]",
+              "key": "id",
+              "parameterName": "Report ID"
+            }
+          ]
+        },
+        {
+            "name": "Report Metadata",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/reports/{Report ID}/describe"
+        },
+        {
+            "name": "Execute Report",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/reports/{Report ID}"
+        },
+        {
+            "name": "Report Instances",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/reports/{Report ID}/instances"
+        },
+        {
+            "name": "Report Instance",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/reports/{Report ID}/instances/{Instance ID}"
+        },
+        {
+            "name": "Report Types",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/report-types"
+        },
+        {
+            "name": "Report Type",
+            "paged": false,
+            "suffix": "/@apiVersion@/analytics/reportTypes/type"
+        }
+    ]
+}

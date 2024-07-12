@@ -1,0 +1,72 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model">
+  <form class="container-fluid">
+    <fieldset>
+      <legend>_#(Localization)</legend>
+      <div class="container-fluid">
+        <w-shuffle-list leftTitle="_#(Components)" rightTitle="_#(Localization Text ID)">
+          <div class="bordered-box bd-gray bordered-box-tree" shuffleLeft>
+            <tree [root]="model.components" [multiSelect]="true"
+                  (dblclick)="add()"
+                  (nodesSelected)="selectComponent($event)">
+            </tree>
+          </div>
+          <ng-container shuffleButtons>
+            <button type="button" class="btn btn-light-no-bg btn-sm mb-1 add-localization-button" [disabled]="!isAddEnabled()"
+                    (click)="add()">
+              <i class="forward-icon"></i>
+              <span class="visually-hidden">_#(Add)</span>
+            </button>
+            <button type="button" class="btn btn-light-no-bg btn-sm remove-localization-button" [disabled]="!isRemoveEnabled()"
+                    (click)="remove()">
+              <i class="backward-icon"></i>
+              <span class="visually-hidden">_#(Remove)</span>
+            </button>
+          </ng-container>
+          <div shuffleRight>
+            <table class="table table-bordered table-sm table-hover" wScrollableTable>
+              <thead>
+              <tr class="active">
+                <th class="component-col">_#(Component)</th>
+                <th class="text-id-col">_#(Text ID)</th>
+              </tr>
+              </thead>
+              <tbody style="height: 20em">
+              <tr *ngFor="let component of model.localized"
+                  [class.selected]="isLocalizedSelected(component)"
+                  (click)="selectLocalized($event, component)">
+                <td class="component-col">
+                  <w-elided-cell (dblclick)="remove()"
+                                 [text]="getDisplayName(component.name)"></w-elided-cell>
+                </td>
+                <td class="text-id-col">
+                  <input type="text" class="form-control" [(ngModel)]="component.textId"
+                         [ngModelOptions]="{standalone:true}" placeholder="_#(Text ID)"/>
+                </td>
+              </tr>
+              </tbody>
+            </table>
+          </div>
+        </w-shuffle-list>
+      </div>
+    </fieldset>
+  </form>
+</div>

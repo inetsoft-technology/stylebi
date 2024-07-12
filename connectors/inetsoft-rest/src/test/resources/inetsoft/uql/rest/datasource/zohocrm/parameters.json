@@ -1,0 +1,141 @@
+{
+  "tests": [
+    {
+      "endpoint": "Modules",
+      "jsonPath": "$.modules",
+      "expandArrays": true,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Organization",
+      "jsonPath": "$.org",
+      "expandArrays": true,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Users",
+      "jsonPath": "$.users",
+      "expandArrays": true,
+      "parameters": {
+        "Type": "AllUsers"
+      }
+    },
+    {
+      "endpoint": "User",
+      "jsonPath": "$.users",
+      "expandArrays": true,
+      "parameters": {
+        "User ID": "4409794000000256001"
+      }
+    },
+    {
+      "endpoint": "Roles",
+      "jsonPath": "$.roles",
+      "expandArrays": true,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Role",
+      "jsonPath": "$.roles",
+      "expandArrays": true,
+      "parameters": {
+        "Role ID": "4409794000000026008"
+      }
+    },
+    {
+      "endpoint": "Profiles",
+      "jsonPath": "$.profiles",
+      "expandArrays": true,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Profile",
+      "jsonPath": "$.profiles",
+      "expandArrays": true,
+      "parameters": {
+        "Profile ID": "4409794000000026014"
+      }
+    },
+    {
+      "endpoint": "Module",
+      "jsonPath": "$.modules",
+      "expandArrays": true,
+      "parameters": {
+        "Module API Name": "Leads"
+      }
+    },
+    {
+      "endpoint": "Fields",
+      "jsonPath": "$.fields",
+      "expandArrays": true,
+      "parameters": {
+        "Module API Name": "Leads"
+      }
+    },
+    {
+      "endpoint": "Layouts",
+      "jsonPath": "$.layouts",
+      "expandArrays": true,
+      "parameters": {
+        "Module API Name": "Accounts"
+      }
+    },
+    {
+      "endpoint": "Layout",
+      "jsonPath": "$.layouts",
+      "expandArrays": true,
+      "parameters": {
+        "Layout ID": "4409794000000091029",
+        "Module API Name": "Accounts"
+      }
+    },
+    {
+      "endpoint": "Related Lists",
+      "jsonPath": "$.related_lists",
+      "expandArrays": true,
+      "parameters": {
+        "Module API Name": "Leads"
+      }
+    },
+    {
+      "endpoint": "Custom Views",
+      "jsonPath": "$.custom_views",
+      "expandArrays": true,
+      "parameters": {
+        "Module API Name": "Leads"
+      }
+    },
+    {
+      "endpoint": "Records",
+      "jsonPath": "$.data",
+      "expandArrays": true,
+      "parameters": {
+        "Module API Name": "Accounts"
+      }
+    },
+    {
+      "endpoint": "Record",
+      "jsonPath": "$.data",
+      "expandArrays": true,
+      "parameters": {
+        "Module API Name": "Accounts",
+        "Record ID": "4409794000000261040"
+      }
+    },
+    {
+      "endpoint": "Record Search",
+      "jsonPath": "$.data",
+      "expandArrays": true,
+      "parameters": {
+        "Module API Name": "Accounts",
+        "Criteria": "((Phone:starts_with:555)and(Phone:starts_with:555))"
+      }
+    },
+    {
+      "endpoint": "Notes",
+      "jsonPath": "$.data",
+      "expandArrays": true,
+      "parameters": {}
+    }
+  ]
+}

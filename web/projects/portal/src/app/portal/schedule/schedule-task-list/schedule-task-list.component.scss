@@ -1,0 +1,185 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  flex-grow: 1;
+  flex-direction: column;
+  align-items: stretch;
+
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+
+  .portal-schedule-task-list {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+
+    .portal-task-tool-bar {
+      flex-grow: 0;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--inet-default-border-color);
+    }
+
+    .portal-task-list-container {
+      flex-grow: 1;
+      flex-shrink: 1;
+
+      .portal-task-list-items {
+        height: 100%;
+        flex-grow: 1;
+        flex-shrink: 1;
+
+        .split-pane {
+          display: flex;
+          height: 100%;
+          width: 100%;
+
+          .schedule-task-list-content {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+
+            > .schedule-task-list-table {
+              flex-grow: 1;
+              flex-shrink: 1;
+              overflow-y: auto;
+              position: relative;
+
+              .table {
+                width: 100%;
+                text-align: center;
+                display: flex;
+                flex-direction: column;
+                word-break: break-all;
+                max-height: calc(100% - 16px);
+                border-top: 0;
+                margin: 0;
+
+                > thead {
+                  display: table;
+                  width: 100%;
+                  border-top: 0;
+                }
+
+                > tbody {
+                  display: flex;
+                  flex-direction: column;
+                  overflow-y: auto;
+                }
+
+                > tbody tr {
+                  display: table;
+                  width: 100%;
+                }
+
+                .schedule-container {
+                  width: 25% !important;
+                }
+
+                .disabled-task {
+                  text-decoration: line-through;
+                }
+
+                .actiones-container {
+                  width: 15% !important;
+                }
+
+                .status-container {
+                  width: 10% !important;
+                }
+
+                .run-time-container {
+                  width: 10% !important;
+                }
+
+                .description-container {
+                  word-break: break-all;
+                  width: 20% !important;
+                }
+
+                .tasks-container {
+                  width: 10% !important;
+                }
+              }
+
+              .loading-indicator {
+                display: flex;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.33);
+                z-index: 9999;
+
+                .loading-content {
+                  margin: auto;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      .schedule-task-list-actions {
+        flex-grow: 0;
+        flex-shrink: 0;
+      }
+    }
+  }
+
+  .task-row {
+    margin: 0;
+  }
+
+  .task-check-input {
+    width: 15px;
+    height: 15px;
+  }
+
+  .task-disabled {
+    text-decoration: line-through;
+  }
+
+  .pane {
+    position: relative;
+    float: left;
+    height: 100%;
+    width: 100%;
+    overflow: auto;
+  }
+
+  .data-tree-pane {
+    overflow: visible;
+    width: 200px;
+    flex-shrink: 0;
+
+    > p-data-sources-tree-view {
+      width: 100%;
+    }
+  }
+
+  .data-pane {
+    overflow-y: hidden;
+    display: block;
+  }
+
+  .btn.schedule-button {
+    color: var(--inet-icon-color);
+  }
+}

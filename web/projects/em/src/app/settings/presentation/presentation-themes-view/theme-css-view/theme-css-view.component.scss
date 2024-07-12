@@ -1,0 +1,95 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+:host {
+  > .mat-mdc-card {
+    margin-top: 10px;
+  }
+
+  > .mat-mdc-card:first-of-type {
+    margin-top: 0;
+  }
+
+  .table-container {
+    flex-shrink: 1;
+    flex-grow: 1;
+    overflow-y: hidden;
+    min-width: 0;
+
+    > .mat-mdc-table {
+      width: 100%;
+
+      .var-name {
+        display: flex;
+        white-space: pre-wrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding-right: 20px;
+      }
+
+      .heading {
+        padding-top: 30px;
+        padding-bottom: 10px;
+      }
+
+      td.mat-mdc-cell:last-of-type {
+        padding-right: 0;
+      }
+    }
+  }
+
+  .css-value-form-field {
+    width: 100%;
+    padding-bottom: 0;
+  }
+
+  .color-picker-div {
+    display: flex;
+    position: relative;
+    align-items: center;
+
+    span {
+      margin-left: 10px;
+    }
+
+    .mdc-data-table__cell {
+      overflow: visible;
+    }
+  }
+
+  .em-color-picker-field {
+    .color-picker-btn {
+      margin-top: 10px;
+    }
+  }
+
+  .color-picker-btn {
+    width: 25px;
+    height: 25px;
+    cursor: pointer;
+    position: relative;
+    background-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path d="M1 2V0h1v1H0v1z" fill-opacity="0.1"/></svg>');
+    background-repeat: repeat;
+    background-size: 14px;
+    border-radius: 3px;
+    border: 2px solid #dddddd;
+  }
+
+  .color-picker-btn:disabled {
+    cursor: unset;
+  }
+}

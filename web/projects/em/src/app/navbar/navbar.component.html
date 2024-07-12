@@ -1,0 +1,65 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<nav class="em-navbar-header" [@scrollUpDown]="scrollState" (@scrollUpDown.start)="onScrollUpDownStart($event)" (@scrollUpDown.done)="onScrollUpDownDone($event)">
+  <span class="em-logo">
+    <img *ngIf="model?.customLogo; else fontLogo" [src]="logoSrc"/>
+    <ng-template #fontLogo>
+      <mat-icon fontSet="ineticons" fontIcon="inetsoft-icon" aria-label="_#(Enterprise Manager)"></mat-icon>
+    </ng-template>
+  </span>
+  <a class="em-home em-button" href=".." aria-label="_#(Home)" [title]="'_#(Home)'">
+    <mat-icon fontSet="ineticons" fontIcon="home-icon"></mat-icon>
+  </a>
+  <a mat-icon-button class="em-button" routerLink="/monitoring" routerLinkActive="active" aria-label="_#(Monitoring)" [title]="'_#(Monitoring)'">
+    <mat-icon fontSet="ineticons" fontIcon="gauge-icon"></mat-icon>
+  </a>
+  <a mat-icon-button *ngIf="model?.enterprise" class="em-button" routerLink="/auditing" routerLinkActive="active" aria-label="_#(Auditing)" [title]="'_#(Auditing)'">
+    <mat-icon fontSet="ineticons" fontIcon="auditing-icon"></mat-icon>
+  </a>
+  <a mat-icon-button class="em-button" routerLink="/settings" routerLinkActive="active" aria-label="_#(Settings)" [title]="'_#(Settings)'">
+    <mat-icon fontSet="ineticons" fontIcon="setting-icon"></mat-icon>
+  </a>
+  <div class="flex-spacer"></div>
+  <a mat-icon-button *ngIf="notifyVisible" class="em-button" aria-label="_#(Send Notification)" title="_#(Send Notification)" (click)="showNotifyDialog()">
+    <mat-icon fontSet="ineticons" fontIcon="message-icon"></mat-icon>
+  </a>
+  <a mat-icon-button class="em-button" [href]="this.helpLink?.link" target="_blank" aria-label="_#(Help)" [title]="'_#(Help)'" [disabled]="!this.helpLink">
+    <mat-icon fontSet="ineticons" fontIcon="help-question-mark-icon"></mat-icon>
+  </a>
+  <button mat-icon-button class="em-button" (click)="toggleFavorite()" [disabled]="disabled" [attr.aria-label]="favoriteLabel" [title]="favoriteLabel">
+    <mat-icon fontSet="ineticons" [class.icon-disabled]="disabled" [fontIcon]="favoriteIcon"></mat-icon>
+  </button>
+  <a mat-icon-button [matMenuTriggerFor]="userOptionsMenu" class="em-button" aria-label="_#(User Options)" [title]="'_#(User Options)'">
+    <mat-icon fontSet="ineticons" fontIcon="account-icon"></mat-icon>
+  </a>
+  <mat-menu #userOptionsMenu="matMenu">
+    <a mat-menu-item class="em-navbar-name-menu" *ngIf="name" disabled>{{ name }}</a>
+    <a mat-menu-item [disabled]="model?.ssoUser" routerLink="/password">_#(Change Password)</a>
+    <a mat-menu-item [matMenuTriggerFor]="favoritesMenu">_#(Favorites)</a>
+    <button mat-menu-item (click)="logout()">_#(Log Out)</button>
+  </mat-menu>
+  <mat-menu #favoritesMenu="matMenu">
+    <ng-container *ngFor="let favorite of favorites | async; let last = last">
+      <a mat-menu-item (click)="navigateToFavorite(favorite.path)">{{favorite.label}}</a>
+      <hr *ngIf="last"/>
+    </ng-container>
+    <a mat-menu-item routerLink="/favorites">_#(Manage Favorites)</a>
+  </mat-menu>
+</nav>

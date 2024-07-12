@@ -1,0 +1,44 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="data-space-tree-panel">
+  <mat-toolbar class="toolbar-raised-button repository-toolbar">
+    <span class="toolbar-spacer"></span>
+    <button mat-icon-button title="_#(Delete)" (click)="deleteNode()" [disabled]="deleteDisabled">
+      <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+    </button>
+  </mat-toolbar>
+  <div class="data-space-tree" emTopScroll>
+    <em-flat-tree-view [dataSource]="dataSource" [treeControl]="dataSource.treeControl"
+                       [selectedNodes]="selectedNodes"
+                       (nodeSelected)="handleNodeSelected($event)"></em-flat-tree-view>
+  </div>
+  <div class="data-space-tree-actions" *ngIf="smallDevice">
+    <mat-toolbar>
+      <button mat-icon-button class="filter-button"
+              matTooltip="_#(Edit)"
+              matTooltipPosition="above"
+              (click)="editNode.emit()"
+              [disabled]="!currentNode">
+        <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+      </button>
+    </mat-toolbar>
+  </div>
+</div>
+

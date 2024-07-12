@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+
+
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+
+<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+<svg 
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="30"
+   height="30"
+   viewBox="0 0 30 30"
+   version="1.1"
+   id="svg822"
+   inkscape:version="0.92.4 (f8dce91, 2019-08-02)"
+   sodipodi:docname="settings.svg">
+  <defs
+     id="defs816">
+    <inkscape:path-effect
+       effect="copy_rotate"
+       starting_point="17,304.0625"
+       origin="15,304.0625"
+       id="path-effect1009"
+       is_visible="true"
+       copies_to_360="true"
+       fuse_paths="false"
+       starting_angle="0"
+       rotation_angle="60.2"
+       num_copies="8" />
+  </defs>
+  <sodipodi:namedview
+     id="base"
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1.0"
+     inkscape:pageopacity="0.0"
+     inkscape:pageshadow="2"
+     inkscape:zoom="19.610429"
+     inkscape:cx="12.726088"
+     inkscape:cy="14.536988"
+     inkscape:document-units="px"
+     inkscape:current-layer="layer1"
+     showgrid="true"
+     units="px"
+     inkscape:window-width="1366"
+     inkscape:window-height="713"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     showguides="false"
+     inkscape:guide-bbox="true">
+    <sodipodi:guide
+       position="21.126168,22.794393"
+       orientation="1,0"
+       id="guide1575"
+       inkscape:locked="false" />
+    <sodipodi:guide
+       position="22.682243,23.285047"
+       orientation="1,0"
+       id="guide1635"
+       inkscape:locked="false" />
+    <sodipodi:guide
+       position="22.682243,7.6455921"
+       orientation="0,1"
+       id="guide1639"
+       inkscape:locked="false" />
+    <sodipodi:guide
+       position="18.859863,18.859863"
+       orientation="1,0"
+       id="guide1242"
+       inkscape:locked="false" />
+    <inkscape:grid
+       type="xygrid"
+       id="grid1103" />
+  </sodipodi:namedview>
+  <metadata
+     id="metadata819">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title>
+
+</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(0,-289.0625)">
+    <path
+       style="color:#000000;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:medium;line-height:normal;font-family:sans-serif;font-variant-ligatures:normal;font-variant-position:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-alternates:normal;font-feature-settings:normal;text-indent:0;text-align:start;text-decoration:none;text-decoration-line:none;text-decoration-style:solid;text-decoration-color:#000000;letter-spacing:normal;word-spacing:normal;text-transform:none;writing-mode:lr-tb;direction:ltr;text-orientation:mixed;dominant-baseline:auto;baseline-shift:baseline;text-anchor:start;white-space:normal;shape-padding:0;clip-rule:nonzero;display:inline;overflow:visible;visibility:visible;opacity:1;isolation:auto;mix-blend-mode:normal;color-interpolation:sRGB;color-interpolation-filters:linearRGB;solid-color:#000000;solid-opacity:1;vector-effect:none;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:4;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;color-rendering:auto;image-rendering:auto;shape-rendering:auto;text-rendering:auto;enable-background:accumulate"
+       d="M 15 4.0253906 C 14.317542 4.0253906 13.652686 4.0842581 13 4.1738281 L 13 7.265625 C 12.271277 7.4558065 11.583139 7.7448996 10.949219 8.1210938 L 8.7578125 5.9296875 C 8.232937 6.3278575 7.7228051 6.7576644 7.2402344 7.2402344 C 6.7576637 7.7228044 6.3278706 8.2329625 5.9296875 8.7578125 L 8.1210938 10.949219 C 7.7448996 11.583139 7.4558065 12.271277 7.265625 13 L 4.1738281 13 C 4.0842281 13.65269 4.0253906 14.31754 4.0253906 15 C 4.0253906 15.68246 4.0842581 16.34731 4.1738281 17 L 7.265625 17 C 7.4558065 17.728723 7.7448996 18.416861 8.1210938 19.050781 L 5.9296875 21.242188 C 6.3278494 21.767058 6.7576637 22.277196 7.2402344 22.759766 C 7.7228051 23.242336 8.2329582 23.672123 8.7578125 24.070312 L 10.949219 21.878906 C 11.583139 22.2551 12.271277 22.544194 13 22.734375 L 13 25.826172 C 13.652686 25.915772 14.317542 25.974609 15 25.974609 C 15.682458 25.974609 16.347314 25.915742 17 25.826172 L 17 22.734375 C 17.728723 22.544194 18.416861 22.2551 19.050781 21.878906 L 21.242188 24.070312 C 21.767063 23.672143 22.277196 23.242336 22.759766 22.759766 C 23.242337 22.277196 23.672129 21.767038 24.070312 21.242188 L 21.878906 19.050781 C 22.2551 18.416861 22.544193 17.728723 22.734375 17 L 25.826172 17 C 25.915772 16.34731 25.974609 15.68246 25.974609 15 C 25.974609 14.31754 25.915742 13.65269 25.826172 13 L 22.734375 13 C 22.544193 12.271277 22.2551 11.583139 21.878906 10.949219 L 24.070312 8.7578125 C 23.672151 8.2329425 23.242337 7.7228044 22.759766 7.2402344 C 22.277196 6.7576644 21.767042 6.3278775 21.242188 5.9296875 L 19.050781 8.1210938 C 18.416861 7.7448996 17.728723 7.4558065 17 7.265625 L 17 4.1738281 C 16.347314 4.0842281 15.682458 4.0253906 15 4.0253906 z M 15 11 C 17.232828 11 19 12.76717 19 15 C 19 17.23283 17.232828 19 15 19 C 12.767172 19 11 17.23283 11 15 C 11 12.76717 12.767172 11 15 11 z "
+       transform="translate(0,289.0625)"
+       id="path987" />
+  </g>
+</svg>

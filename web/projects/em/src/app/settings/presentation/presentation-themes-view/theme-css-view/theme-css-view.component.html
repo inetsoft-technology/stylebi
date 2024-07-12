@@ -1,0 +1,200 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" *ngIf="portalForm" [formGroup]="portalForm">
+  <mat-card-title>
+    <span>_#(Portal)</span>
+  </mat-card-title>
+  <mat-card-content>
+    <mat-form-field color="accent" class="flex-row full-width">
+      <mat-label>_#(Filter)</mat-label>
+      <input matInput #portalSearch placeholder="_#(Filter)" (keyup)="filterTable($event.target.value, true)">
+      <button mat-icon-button matSuffix *ngIf="portalSearch.value"
+              title="_#(Clear)" aria-label="_#(Clear)"
+              (click)="portalSearch.value=''; filterTable(portalSearch.value, true)">
+        <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
+      </button>
+      <mat-icon matSuffix fontSet="ineticons" fontIcon="search-icon" *ngIf="!portalSearch.value"></mat-icon>
+    </mat-form-field>
+
+    <div class="table-container flex-col">
+      <table mat-table [dataSource]="portalCssDataSource" matSort [trackBy]="trackByFn">
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>_#(Name)</th>
+          <td mat-cell *matCellDef="let row">
+                  <span class="var-name" [class.mat-header-cell]="row.heading"
+                        [class.heading]="row.heading" [title]="row.name">{{row.name}}</span>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="value">
+          <th mat-header-cell *matHeaderCellDef>_#(Value)</th>
+          <td mat-cell *matCellDef="let row">
+            <ng-container [ngTemplateOutlet]="valueColumn" [ngTemplateOutletContext]="{row: row, form: portalForm}"></ng-container>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef>_#(Actions)</th>
+          <td mat-cell *matCellDef="let row">
+            <ng-container [ngTemplateOutlet]="actionsColumn" [ngTemplateOutletContext]="{row: row, form: portalForm}"></ng-container>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      </table>
+    </div>
+  </mat-card-content>
+</mat-card>
+
+<mat-card appearance="outlined" *ngIf="emForm" [formGroup]="emForm">
+  <mat-card-title>
+    <span>_#(Enterprise Manager)</span>
+  </mat-card-title>
+  <mat-card-content>
+    <div class="flex-row margin-bottom">
+      <mat-slide-toggle formControlName="--inet-em-dark">
+        _#(Dark)
+      </mat-slide-toggle>
+    </div>
+
+    <div class="flex-row">
+      <mat-form-field appearance="outline" color="accent" floatLabel="always" class="em-color-picker-field margin-right">
+        <mat-label>_#(Primary)</mat-label>
+        <button class="mat-button color-picker-btn"
+                [cpDisabled]="disabled"
+                [colorPicker]="emPrimaryColor" [cpAlphaChannel]="'disabled'"
+                (colorPickerChange)="updateEMPrimaryPalette($event)"
+                [style.background]="emPrimaryColor" [cpUseRootViewContainer]="true"
+                [cpAddColorButton]="true" [cpPresetColors]="presetColors"
+                [cpAddColorButtonText]="'_#(Add Color)'" [cpPresetLabel]="'_#(Preset Colors)'"
+                [cpPresetEmptyMessage]="''"
+                [cpCancelButton]="true" [cpCancelButtonText]="'_#(Cancel)'"
+                [cpCancelButtonClass]="'mdc-button mdc-button--raised mat-mdc-raised-button mat-unthemed mat-mdc-button-base'"
+                [cpOKButton]="true" [cpOKButtonText]="'_#(Confirm)'"
+                [cpOKButtonClass]="'mdc-button mdc-button--raised mat-mdc-raised-button mat-unthemed mat-mdc-button-base'"
+                (cpPresetColorsChange)="presetColors=$event"></button>
+        <input matInput [value]="emPrimaryColor" readonly/>
+      </mat-form-field>
+      <mat-form-field appearance="outline" color="accent" floatLabel="always" class="em-color-picker-field">
+        <mat-label>_#(Accent)</mat-label>
+        <button class="mat-button color-picker-btn"
+                [cpDisabled]="disabled"
+                [colorPicker]="emAccentColor" [cpAlphaChannel]="'disabled'"
+                (colorPickerChange)="updateEMAccentPalette($event)"
+                [style.background]="emAccentColor" [cpUseRootViewContainer]="true"
+                [cpAddColorButton]="true" [cpPresetColors]="presetColors"
+                [cpAddColorButtonText]="'_#(Add Color)'" [cpPresetLabel]="'_#(Preset Colors)'"
+                [cpPresetEmptyMessage]="''"
+                [cpCancelButton]="true" [cpCancelButtonText]="'_#(Cancel)'"
+                [cpCancelButtonClass]="'mdc-button mdc-button--raised mat-mdc-raised-button mat-unthemed mat-mdc-button-base'"
+                [cpOKButton]="true" [cpOKButtonText]="'_#(Confirm)'"
+                [cpOKButtonClass]="'mdc-button mdc-button--raised mat-mdc-raised-button mat-unthemed mat-mdc-button-base'"
+                (cpPresetColorsChange)="presetColors=$event"></button>
+        <input matInput [value]="emAccentColor" readonly/>
+      </mat-form-field>
+    </div>
+
+    <mat-form-field color="accent" class="flex-row full-width">
+      <mat-label>_#(Filter)</mat-label>
+      <input matInput #emSearch placeholder="_#(Filter)" (keyup)="filterTable($event.target.value, false)">
+      <button mat-icon-button matSuffix *ngIf="emSearch.value"
+              title="_#(Clear)" aria-label="_#(Clear)"
+              (click)="emSearch.value=''; filterTable(emSearch.value, false)">
+        <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
+      </button>
+      <mat-icon matSuffix fontSet="ineticons" fontIcon="search-icon" *ngIf="!emSearch.value"></mat-icon>
+    </mat-form-field>
+
+    <div class="table-container flex-col">
+      <table mat-table [dataSource]="emCssDataSource" matSort>
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>_#(Name)</th>
+          <td mat-cell *matCellDef="let row">
+                  <span class="var-name" [class.mat-header-cell]="row.heading"
+                        [class.heading]="row.heading" [title]="row.name">{{row.name}}</span>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="value">
+          <th mat-header-cell *matHeaderCellDef>_#(Value)</th>
+          <td mat-cell *matCellDef="let row">
+            <ng-container [ngTemplateOutlet]="valueColumn" [ngTemplateOutletContext]="{row: row, form: emForm}"></ng-container>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef>_#(Actions)</th>
+          <td mat-cell *matCellDef="let row">
+            <ng-container [ngTemplateOutlet]="actionsColumn" [ngTemplateOutletContext]="{row: row, form: emForm}"></ng-container>
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      </table>
+    </div>
+  </mat-card-content>
+</mat-card>
+
+<ng-template #valueColumn let-row="row" let-form="form">
+  <div *ngIf="!row.heading" class="flex-row" [formGroup]="form">
+    <div *ngIf="isScript(row.name); else notScript">
+      <mat-radio-group [formControlName]="row.name" class="flex-col">
+        <mat-radio-button value="ECLIPSE">_#(Eclipse)</mat-radio-button>
+        <mat-radio-button value="DARCULA">_#(Darcula)</mat-radio-button>
+        <mat-radio-button value="MATERIAL_PALENIGHT">_#(Material Palenight)</mat-radio-button>
+      </mat-radio-group>
+    </div>
+
+    <ng-template #notScript>
+      <div *ngIf="row.colorPickerActive; else elseBlock" class="color-picker-div">
+        <button class="mat-button color-picker-btn"
+                [cpDisabled]="disabled"
+                [disabled]="disabled"
+                [colorPicker]="form.controls[row.name].value"
+                (colorPickerChange)="updateCssColorValue(row, $event, form)"
+                [style.background]="form.controls[row.name].value" [cpUseRootViewContainer]="true"
+                [cpAddColorButton]="true" [cpPresetColors]="presetColors"
+                [cpAddColorButtonText]="'_#(Add Color)'" [cpPresetLabel]="'_#(Preset Colors)'"
+                [cpPresetEmptyMessage]="''"
+                [cpCancelButton]="true" [cpCancelButtonText]="'_#(Cancel)'"
+                [cpCancelButtonClass]="'mdc-button mdc-button--raised mat-mdc-raised-button mat-unthemed mat-mdc-button-base'"
+                [cpOKButton]="true" [cpOKButtonText]="'_#(Confirm)'"
+                [cpOKButtonClass]="'mdc-button mdc-button--raised mat-mdc-raised-button mat-unthemed mat-mdc-button-base'"
+                (cpPresetColorsChange)="presetColors=$event"></button>
+        <span>{{form.controls[row.name].value}}</span>
+      </div>
+
+      <ng-template #elseBlock>
+        <mat-form-field appearance="outline" color="accent" class="css-value-form-field" subscriptSizing="dynamic">
+          <input matInput type="text" [formControlName]="row.name"/>
+          <mat-error *ngIf="form.controls[row.name].errors && form.controls[row.name].errors['pattern']">_#(em.presentation.lookAndFeel.css.invalidCssValue)</mat-error>
+          <mat-error *ngIf="form.controls[row.name].errors && form.controls[row.name].errors['notColor']">_#(em.presentation.lookAndFeel.css.invalidCssColor)</mat-error>
+        </mat-form-field>
+      </ng-template>
+    </ng-template>
+  </div>
+</ng-template>
+
+<ng-template #actionsColumn let-row="row" let-form="form">
+  <div *ngIf="!row.heading && !isScript(row.name) && !disabled" class="flex-row no-wrap" [formGroup]="form">
+    <button mat-icon-button *ngIf="row.color" (click)="toggleEditor(row)" [title]="row.colorPickerActive ? '_#(Edit)' : '_#(Color Picker)'">
+      <mat-icon fontSet="ineticons" [fontIcon]="row.colorPickerActive ? 'edit-icon' : 'palette-icon'"></mat-icon>
+    </button>
+    <button mat-icon-button *ngIf="!!form.controls[row.name].value" (click)="clearEditorValue(row, form)" title="_#(Clear)">
+      <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+    </button>
+  </div>
+</ng-template>

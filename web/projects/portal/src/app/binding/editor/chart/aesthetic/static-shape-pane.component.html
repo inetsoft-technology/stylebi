@@ -1,0 +1,50 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="static-shape-pane" blockMouse>
+  <div class="toolbar-row">
+    <i class="add-icon icon-size-small icon-color-default" aria-hidden="true"
+       (click)="addShape()" title="_#(Add Shape)"></i>&nbsp;
+    <input #uploadInput class="hidden-input col-10" type="file" id="imageInput" name="imageInput"
+           accept=".jpg,.png" hidden multiple
+           (change)="fileChanged($event)"/>
+    <i *ngIf="nilSupported" class="eraser-icon icon-size-small icon-color-default"
+       aria-hidden="true"
+       (click)="clearShape()" title="_#(Clear)"></i>
+  </div>
+
+  <div class="content">
+    <i class="chevron-circle-arrow-left-icon icon-size-small icon-color-default me-3"
+       [class.fade]="!previousEnabled"
+       aria-hidden="true" (click)="showPrevious()">
+    </i>
+
+    <div class="shape-pane">
+      <ng-container *ngFor="let i of currentViewIndices">
+        <shape-item class="m-1" [shapeStr]="shapes[i]" (click)="selectShape(shapes[i])"
+                    *ngIf="shapes[i]" [class.bd-gray]="shapes[i] == shapeStr">
+        </shape-item>
+      </ng-container>
+    </div>
+
+    <i class="chevron-circle-arrow-right-icon icon-size-small icon-color-default ms-3"
+       [class.fade]="!nextEnabled"
+       aria-hidden="true" (click)="showNext()"></i>
+  </div>
+</div>

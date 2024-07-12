@@ -1,0 +1,152 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <fieldset>
+    <div class="form-row-float-label row">
+      <div class="col pe-0">
+        <div class="form-floating">
+          <tree-dropdown data-test="targetTreeDropdown"
+                         [root]="model.targetTree" [selected]="model.tableLabel"
+                         [selectedType]="model.variable ? 'variable' : 'table'"
+                         [expandSelectedNodes]="true" [currentNodeData]="model.table"
+                         (nodeSelected)="selectTarget($event)"></tree-dropdown>
+          <label>_#(Target)</label>
+        </div>
+      </div>
+      <ng-container *ngIf="!checkBox">
+        <div class="col-auto ps-2">
+          <span class="edit-icon icon-size-medium icon-color-default" title="_#(Choose Cell)"
+                [class.icon-disabled]="!isChooseCellEnabled()"
+                (click)="loadPopupTable()" [fixedDropdown]="dropdownMenu" [autoClose]="false"
+                dropdownPlacement="bottom">
+          </span>
+        </div>
+      </ng-container>
+    </div>
+    <ng-container *ngIf="!checkBox">
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-floating column_id">
+            <dynamic-combo-box data-test="columnDropdown"
+                               [values]="columns"
+                               [vsId]="runtimeId" [variables]="variableValues"
+                               [value]="model.columnValue" (valueChange)="selectColumn($event)"
+                               (typeChange)="selectColumnType($event)" [disable]="disableRowCol()">
+            </dynamic-combo-box>
+            <label>_#(Column)</label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+          <div class="form-floating row_id">
+            <dynamic-combo-box data-test="rowDropdown"
+                               [values]="rows"
+                               [vsId]="runtimeId" [variables]="variableValues"
+                               [value]="selectedRow" [type]="rowType"
+                               (valueChange)="selectRow($event)"
+                               (typeChange)="selectRowType($event)" [disable]="disableRowCol()">
+            </dynamic-combo-box>
+            <label>_#(Row)</label>
+          </div>
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col">
+          _#(viewer.viewsheet.inputNote)
+        </div>
+      </div>
+      <div class="form-row-float-label row">
+        <div class="col writeBack_id">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" [disabled]="!model.table || model.variable"
+                   [(ngModel)]="model.writeBackDirectly" id="writeBack">
+            <label class="form-check-label" for="writeBack">
+              _#(Write Back to Storage)
+            </label>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </fieldset>
+</form>
+
+<ng-template #dropdownMenu>
+  <div class="dropdown-menu-right popup-table-dropdown-menu dropdown-pane">
+    <div class="popup-table" *ngIf="popupTable">
+      <fieldset>
+        <legend>_#(viewer.viewsheet.selectCellNote) {{model.tableLabel}}</legend>
+        <div class="input-group w-100 mb-2">
+          <button type="button" class="btn btn-default"
+                  [disabled]="popupTable.page == 1"
+                  (click)="updatePopupTablePage($event, 1)">
+            <i class="backward-fast-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-default"
+                  [disabled]="popupTable.page == 1"
+                  (click)="updatePopupTablePage($event, popupTable.page - 1)">
+            <i class="backward-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
+          </button>
+          <span class="input-group-text">_#(Page)</span>
+          <input class="form-control" #pageInput type="number"
+                 [ngModel]="popupTable.page"
+                 (blur)="updatePopupTablePage($event, pageInput.value)"
+                 outOfZone
+                 (onKeydown)="updatePopupTablePage($event, pageInput.value)">
+          <span class="input-group-text">{{getPageLabel()}}</span>
+          <button type="button" class="btn btn-default"
+                  [disabled]="popupTable.page == popupTable.numPages"
+                  (click)="updatePopupTablePage($event, popupTable.page + 1)">
+            <i class="forward-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
+          </button>
+          <button type="button" class="btn btn-default"
+                  [disabled]="popupTable.page == popupTable.numPages"
+                  (click)="updatePopupTablePage($event, popupTable.numPages)">
+            <i class="forward-fast-icon icon-size-medium icon-color-default" aria-hidden="true"></i>
+          </button>
+        </div>
+        <table class="w-100">
+          <tbody>
+            <tr>
+              <td class="popup-table-cell bd-gray">
+                _#(Row)
+              </td>
+              <td class="popup-table-cell bd-gray" *ngFor="let column of popupTable.columnHeaders">
+                {{column}}
+              </td>
+            </tr>
+            <tr *ngFor="let row of popupTable.pageData; let i = index">
+              <td class="popup-table-cell bd-gray">
+                {{getRowIndex(i)}}
+              </td>
+              <td class="popup-table-cell popup-table-data-cell bd-gray"
+                  [class.selected]="isSelected(i, j)"
+                  [class.hover-bg-primary-selectable]="!isSelected(i,j)"
+                  *ngFor="let cell of row; let j = index"
+                  (click)="selectPopupCell(i, j);">
+                {{cell}}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </fieldset>
+    </div>
+  </div>
+</ng-template>

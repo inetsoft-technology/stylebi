@@ -1,0 +1,49 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div #treeContainer class="flex-fixed-container h-100 tree-container"
+     [class.vscrollable-always]="scrollY > 0"
+     (scroll)="onScroll($event)">
+  <div class="flex-fixed-content content-overflow-all mt-2">
+    <tree #tree *ngIf="rootNode"
+          [root]="rootNode" [showRoot]="false"
+          [fillHeight]="true"
+          [initSelectedNodesExpanded]="true"
+          [selectedNodes]="selectedNodes"
+          [isPortalDataSourcesTree]="true"
+          [draggable]="true"
+          [contextmenu]="true"
+          [hasMenuFunction]="hasMenuFunction"
+          [ellipsisOverflowText]="true"
+          [showTooltip]="true"
+          [selectOnClick]="true"
+          [multiSelect]="true"
+          (nodesSelected)="selectNode($event)"
+          (nodeExpanded)="expandNode($event)"
+          (nodeDrag)="onNodeDrag($event)"
+          (nodeDrop)="onNodeDrop($event)"
+          (onContextmenu)="contextMenu($event)"
+          [iconFunction]="getIconFunction()">
+    </tree>
+    <div *ngIf="loading" class="tree-loading-icon">
+      <i class="loading-icon--spin icon-size-xlarge loading-icon"></i>
+    </div>
+  </div>
+</div>
+<data-notifications #dataNotifications></data-notifications>

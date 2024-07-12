@@ -1,0 +1,97 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+@keyframes flyin {
+  to {
+    filter: blur(0);
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.mobile-toolbar.btn-toolbar {
+  flex-wrap: nowrap;
+  animation: flyin 0.2s ease forwards;
+  opacity: 0;
+  transform: scale(2);
+  filter: blur(4px);
+}
+
+.title {
+  margin-left: 2px;
+  font-size: 13px;
+  align-items: center;
+}
+
+.title.left {
+  display: flex;
+}
+
+.title.right {
+  display: none;
+}
+
+.btn {
+  box-shadow: none;
+}
+
+.viewer-left-toolbar {
+  overflow: visible;
+}
+
+.mobile-toolbar {
+  overflow: visible;
+}
+
+.mobile-dropdown {
+  display: flex;
+  flex-direction: column;
+  background: white;
+}
+
+.dropdown-menu, .dropdown-item {
+  i {
+    font-size: 24px;
+  }
+
+  span, a {
+    font-size: 16px;
+  }
+
+  align-items: center;
+}
+
+@media (min-width: 480px) {
+  .title.left {
+    display: none;
+  }
+
+  .title.right {
+    display: flex;
+  }
+}
+
+.toolbar-button {
+  outline: none;
+  background: none;
+  width: 46px;
+  height: 66px;
+
+  i {
+    font-size: 24px;
+  }
+}

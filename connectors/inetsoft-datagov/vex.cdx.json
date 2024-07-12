@@ -1,0 +1,22 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:ec1a2381-4b9b-410e-a5d4-13f13a060d3b",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2023-04-18T20:28:57Z",
+    "tools": [
+      {
+        "vendor": "OWASP",
+        "name": "Dependency-Track",
+        "version": "4.7.1"
+      }
+    ],
+    "component": {
+      "name": "inetsoft-datagov",
+      "version": "13.7",
+      "type": "library",
+      "bom-ref": "ad6bb58b-2254-404f-91cc-d98e23036b5d"
+    }
+  }
+}

@@ -1,0 +1,99 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div [style.position]="'absolute'"
+     [style.top.px]="getObjectTop()"
+     [style.left.px]="vsObject.objectFormat.left"
+     [style.width.px]="getBodyWidth()"
+     [style.height.px]="getBodyHeight()"
+     [style.z-index]="zIndex"
+     [style.border-bottom]="vsObject.objectFormat.border.bottom"
+     [style.border-left]="vsObject.objectFormat.border.left"
+     [style.border-right]="vsObject.objectFormat.border.right"
+     [style.font]="vsObject.objectFormat.font"
+     [style.background-color]="vsObject.objectFormat.background"
+     [style.color]="vsObject.objectFormat.foreground"
+     actionsContextmenuAnchor [actions]="actions?.menuActions"
+     (dragenter)="onEnter($event)"
+     (dragleave)="onLeave($event)"
+     outOfZone (onDragover)="onContainerDragOver($event)"
+     (drop)="onDrop($event)">
+  <div #scrollbarContainer class="scrollbar-container" [style.width.px]="getBodyWidth() + (isSelected() ? 0 : 16)">
+    <div class="scrollbar-container-inner" [style.width.px]="getInnerWidth()">
+    <current-selection *ngFor="let outer of vsObject.outerSelections; let i = index;"
+                       cSelectionContainerActionHandler [vsInfo]="viewsheet" [model]="vsObject"
+                       [selection]="outer"
+                       [titleHeight]="vsObject.dataRowHeight"
+                       [titleFormat]="vsObject.objectFormat"
+                       [titleRatio]="vsObject.titleRatio"
+                       [container]="vsObject.absoluteName"
+                       [draggable]="true"
+                       [actions]="currentSelectionActions[i]"
+                       (onAssemblyActionEvent)="onAssemblyActionEvent.emit($event)"
+                       (dragstart)="onDragStart($event, i, true)"
+                       (drag)="onDrag($event)"
+                       (dragend)="onDragEnd($event)"
+                       outOfZone (onDragover)="onDragOver($event, i, true)"
+                       (drop)="onDrop($event)"
+                       (click)="select($event)"
+                       class="d-block interact-drag current-selection"
+                       [class.bt-highlight-med]="isDropChildTop(i, true)"
+                       [class.bb-highlight-med]="isDropChildBottom(i, true)">
+    </current-selection>
+
+    <ng-template ngFor let-childObject let-i="index" [ngForOf]="vsObject.childObjects"
+                 [ngForTrackBy]="trackByName">
+      <editable-object-container
+        [viewsheet]="viewsheet" [vsObjectModel]="childObject"
+        [selectionChild]="i" [vsPaneRef]="containerRef" [touchDevice]="touchDevice"
+        [placeholderDragElementModel]="placeholderDragElementModel"
+        [style.height.px]="childrenHeight[i]"
+        [style.width.px]="vsObject.objectFormat.width"
+        (objectChanged)="childChanged($event)"
+        (onAssemblyActionEvent)="onAssemblyActionEvent.emit($event)"
+        (onMove)="moveAssembly($event)"
+        (onResize)="resizeAssembly($event)"
+        [draggable]="true"
+        (dragstart)="onDragStart($event, i, false)"
+        (drag)="onDrag($event)"
+        (dragend)="onDragEnd($event)"
+        outOfZone (onDragover)="onDragOver($event, i, false)"
+        (drop)="droppedOnChild($event)"
+        [dragOverBorder]="childWithBorder == i ? dragOverBorder : 0"
+        (onRefreshFormat)="onRefreshFormat.emit({event: $event, vsobject: childObject})"
+        (onOpenFormatPane)="onOpenFormatPane.emit($event)"
+        class="d-block interact-drag"
+        [class.bt-highlight-med]="isDropChildTop(i, false)"
+        [class.bb-highlight-med]="isDropChildBottom(i, false)">
+      </editable-object-container>
+    </ng-template>
+    <div class="scrollbar-vertical-padding"
+         [class.bt-highlight-med]="isContainerDragover && (dragOverBorder == 0 || childWithBorder < 0)"
+         [style.width.px]="getBodyWidth()"
+         [style.height.px]="getPaddingHeight()"
+         (click)="select($event)">
+    </div>
+  </div>
+  </div>
+</div>
+
+<ng-template #layoutOptionDialog let-close="close" let-dismiss="dismiss">
+  <layout-option-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                        [model]="layoutOptionDialogModel"></layout-option-dialog>
+</ng-template>

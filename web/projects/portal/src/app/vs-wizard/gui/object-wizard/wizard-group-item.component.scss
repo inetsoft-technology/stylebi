@@ -1,0 +1,105 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.field-container {
+  display: flex;
+  align-items: center;
+  padding: 5px;
+
+  &:hover {
+    background: var(--inet-hover-primary-bg-color);
+  }
+
+  .name-field {
+    display: flex;
+    text-align: left;
+    align-items: center;
+    flex-grow: 10;
+    flex-basis: 4em;
+
+    .name-text {
+      flex-grow: 100;
+    }
+  }
+
+  .arrow-container {
+    visibility: hidden;
+  }
+
+  .second-field {
+    min-width: 120px;
+    flex-grow: 1;
+    flex-basis: 4em;
+  }
+
+  .button-pane {
+    padding: 0px;
+    flex-grow: 1;
+    flex-basis: 2em;
+
+    .action-pane {
+      padding-left: 10px;
+      margin-left: 0px;
+      display: flex;
+      justify-content: flex-end;
+
+      div {
+        min-width: 25px;
+      }
+    }
+  }
+}
+
+.field-container:hover .arrow-container {
+  visibility: visible;
+}
+
+.wizard-convert {
+  height: 24px;
+  margin-right: 3px;
+  display: flex;
+  align-items: center;
+  padding: 1px 0px 1px 0px;
+  border: 1px solid var(--inet-default-border-color);
+  border-radius: 5px;
+}
+
+label {
+  width: 100%;
+}
+
+button {
+  padding: 0px;
+  width: 22px;
+  height: 22px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.field-container:hover .wizard-convert {
+  background: white;
+}
+
+.button-tooltip {
+  text-align: left;
+  white-space: pre-line;
+}
+
+.wizard-btn-icon {
+  padding-top: 2px;
+}

@@ -1,0 +1,115 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title data-th-text="#{signup.login.pageTitle}">Signup or Sign in</title>
+    <link rel="stylesheet" type="text/css" href="webjars/bootstrap/css/bootstrap.min.css"/>
+    <link rel="stylesheet" type="text/css" href="app/global.css"/>
+    <link rel="stylesheet" type="text/css" href="css/signup.css"/>
+    <link th:if="${customTheme} == true" rel="stylesheet" type="text/css" href="app/theme-variables.css">
+</head>
+<body>
+    <div class="d-flex align-items-center bg-navbar-top" data-th-switch="${customLogo}">
+        <img class="custom-logo" src="portal/logo" data-th-case="${true}">
+        <th-block data-th-case="*">
+            <i class="inetsoft-logo inetsoft-icon icon-size-logo txt-primary"></i>
+            <span class="inetsoft-logo txt-light"> InetSoft </span>
+        </th-block>
+    </div>
+    <div class="container-fluid login-root">
+        <div class="card">
+            <div class="card-header" data-th-text="#{signup.login.pageTitle}">
+                Signup or sign in
+            </div>
+            <div class="card-body">
+                <div class="view-container">
+                    <div id="start-view">
+                        <div class="start-text layout-item" data-th-text="#{signup.login.title}">Start Visualizing Your Data</div>
+                        <form id="start-form" novalidate>
+                            <div id="emailGroup" class="form-group">
+                                <input type="email" class="form-control" id="email" placeholder="Your Email"
+                                       name="userEmail" autocomplete="email" autofocus/>
+                                <div id="emailError" class="invalid-feedback" style="display: none;">
+                                    <span id="emailRequiredError" data-th-text="#{signup.email.required}">Please enter your email.</span>
+                                    <span id="emailFormatError" data-th-text="#{signup.email.invalid}">Invalid email address.</span>
+                                </div>
+                            </div>
+                        </form>
+                        <div class="row btn-center-container layout-item">
+                            <button id="signupButton" class="btn btn-primary signup-btn" data-th-text="#{signup.pageTitle}">
+                                Sign up
+                            </button>
+                        </div>
+                        <div class="layout-item">
+                            <a href="./login.html" target="_self" data-th-text="#{signup.hasAccount}">Already have an account</a>
+                        </div>
+                        <div class="layout-item" data-th-if="${gClientId != null}">
+                            <div class="separator-div">
+                                <hr class="separator-line">
+                                <span class="separator-text" data-th-text="#{OR}"> OR </span>
+                                <hr class="separator-line">
+                            </div>
+                        </div>
+                        <div class="layout-item btn-center-container d-flex align-items-center"
+                             data-th-if="${gClientId != null}">
+                            <div class="g_id_signin"
+                                 data-type="standard"
+                                 data-shape="rectangular"
+                                 data-theme="outline"
+                                 data-text="signup_with"
+                                 data-size="large"
+                                 data-logo_alignment="left">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="notifications" class="alert alert-danger" style="display: none"></div>
+    </div>
+    <div class="loading-indicator">
+        <div>
+            <i class="loading-icon loading-icon--spin fa-spin icon-4x fa-fw" aria-hidden="true"></i>
+            <span class="sr-only" data-th-text="#{login.loading}">Loading</span>
+        </div>
+    </div>
+    <div id="g_id_onload" data-th-if="${gClientId != null}"
+         data-th-attr="data-client_id=${gClientId}, data-login_uri=${gLoginUri}"
+         data-context="signin"
+         data-ux_mode="redirect"
+         data-auto_select="true"
+         data-itp_support="true">
+    </div>
+    <script type="text/javascript" src="webjars/jquery/jquery.min.js"></script>
+    <script type="text/javascript" src="webjars/bootstrap/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="js/signup.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto" rel="stylesheet">
+    <script src="https://accounts.google.com/gsi/client" async></script>
+    <script>
+        /*<![CDATA[*/
+        $(document).ready(function() {
+            initSignUpView();
+        });
+        /*]]>*/
+    </script>
+</body>
+</html>

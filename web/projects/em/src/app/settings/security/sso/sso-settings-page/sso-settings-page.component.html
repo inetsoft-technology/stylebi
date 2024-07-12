@@ -1,0 +1,69 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-editor-panel [contentStyle]="editorStyle" [applyDisabled]="selection === ssoTypes.SAML && !samlForm?.valid"
+                 (applyClicked)="submit()" (resetClicked)="reset()">
+  <div class="em-content-container">
+    <mat-card appearance="outlined" class="em-card">
+      <mat-card-title>_#(em.security.sso.title)</mat-card-title>
+      <mat-card-content>
+        <mat-form-field>
+          <mat-label>_#(em.security.sso.provider)</mat-label>
+          <mat-select aria-labelledby="sso-option-label" [(value)]="selection" (valueChange)="changeSelection()">
+            <mat-option [value]="ssoTypes.NONE">_#(None)</mat-option>
+            <mat-option [value]="ssoTypes.SAML">_#(SAML)</mat-option>
+            <mat-option [value]="ssoTypes.OPENID">_#(OpenID Connect)</mat-option>
+            <mat-option [value]="ssoTypes.CUSTOM">_#(Custom)</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <div class="sso-properties">
+          <ng-container *ngIf="selection !== ssoTypes.NONE">
+            <div class="roles-container" *ngIf="!isMultiTenant && roles != null && roles.length > 0">
+              <mat-form-field>
+                <mat-label>_#(em.security.sso.roles)</mat-label>
+                <mat-select aria-labelledby="sso-option-label"
+                            [(value)]="selectedRoles"
+                            placeholder="_#(None)"
+                            #roleSelection
+                            multiple>
+                  <mat-option *ngFor="let role of roles" [value]="role.name">{{role.label}}</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <button mat-icon-button (click)="clearRoles()" aria-label="_#(Clear)" title="_#(Clear)" *ngIf="!roleSelection.empty">
+                <mat-icon fontSet="ineticons" fontIcon="eraser-icon"></mat-icon>
+              </button>
+            </div>
+            <mat-form-field>
+              <mat-label>_#(em.security.sso.logoutUrl)</mat-label>
+              <input matInput [(ngModel)]="logoutUrl"/>
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>_#(em.security.sso.logoutPath)</mat-label>
+              <input matInput [(ngModel)]="logoutPath"/>
+            </mat-form-field>
+            <mat-checkbox class="fallback-login-check" [(ngModel)]="fallbackLogin">_#(em.security.sso.fallbackLogin)</mat-checkbox>
+          </ng-container>
+          <em-sso-settings-form *ngIf="selection === ssoTypes.SAML" [form]="samlForm"></em-sso-settings-form>
+          <em-openid-settings-form *ngIf="selection === ssoTypes.OPENID" [(model)]="openIdModel"></em-openid-settings-form>
+          <em-custom-sso-form *ngIf="selection === ssoTypes.CUSTOM" [model]="customModel"></em-custom-sso-form>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</em-editor-panel>

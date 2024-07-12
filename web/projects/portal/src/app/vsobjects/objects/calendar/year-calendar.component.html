@@ -1,0 +1,91 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div unselectable="on" class="year-calendar"
+     [class.double-calendar]="model.doubleCalendar" [class.second-calendar]="secondCalendar"
+     [style.height.px]= "getCalendarHeight()">
+   <div class="child-calendar-title w-100" [style.border-bottom]="model?.calendarTitleFormat?.border?.bottom">
+      <div #lastYearRef
+           class="calendar-navBtn calendar-preYear"
+           [class.btn-disabled]="!isBtnEnabled(true)"
+           [class.bd-selected-cell]="selectedRow == SelectionRegions.LAST_YEAR"
+           title="_#(Last Year)"
+           (click)="nextYear(-1)"
+           tabindex="-1" role="button">
+         <i class="backward-icon icon-size-small" [style.color]="iconColor"></i>
+      </div>
+      <div class="calendar-title-label-container">
+        <div #titleRef
+             class="calendar-title-label bd-gray selectable"
+             [class.selected-cell]="isYearSelected()"
+             [class.bd-selected-cell]="selectedRow == SelectionRegions.TITLE"
+             [style.align-items]="model.calendarTitleFormat.alignItems"
+             [style.justify-content]="model.calendarTitleFormat.justifyContent"
+             (click)="clickYearTitle($event)"
+             [safeFont]="model.calendarTitleFormat.font"
+             [style.background]="isYearSelected() ? selectedBgColor : model.calendarTitleFormat.background"
+             [style.color]="model.calendarTitleFormat.foreground"
+             [style.text-decoration]="model.calendarTitleFormat.decoration"
+             [style.word-wrap]="model.calendarTitleFormat.wrapping.wordWrap"
+             [style.overflow]="model.calendarTitleFormat.wrapping.overflow"
+             tabindex="-1" [attr.aria-label]="currentDate.year"
+             [attr.aria-selected]="isYearSelected()">{{getYear()}}
+        </div>
+     </div>
+     <div #nextYearRef
+          class="calendar-navBtn calendar-nextYear"
+          [class.btn-disabled]="!isBtnEnabled(false)"
+          [class.bd-selected-cell]="selectedRow == SelectionRegions.NEXT_YEAR"
+          title="_#(Next Year)"
+          (click)="nextYear(1)"
+          tabindex="-1" role="button">
+         <i class="forward-icon icon-size-small" [style.color]="iconColor"></i>
+     </div>
+   </div>
+   <div #listRef class="month-table">
+      <div class="month-row" *ngFor="let row of [0, 1, 2]">
+         <div class="month-cell bd-gray" *ngFor="let col of [0, 1, 2, 3]"
+              (click)="clickCell(row, col, $event)"
+              [ngClass]="{
+                'calendar-selected-cell': selectedMonth[row * 4 + col],
+                'not-selectable disabled-grayout': !isInRange(row * 4 + col),
+                'bd-selected-cell': isCellFocused(row, col)
+              }"
+              [safeFont]="model.yearFormat.font"
+              [style.line-height]="null"
+              [style.background]="selectedMonth[row * 4 + col] ? selectedBgColor : model.yearFormat.background"
+              [style.color]="isInRange(row * 4 + col) ? model.yearFormat.foreground : iconColor"
+              [style.text-decoration]="model.yearFormat.decoration"
+              [style.word-wrap]="model.yearFormat.wrapping.wordWrap"
+              [style.align-items]="model.yearFormat.alignItems"
+              [style.justify-content]="model.yearFormat.justifyContent"
+              [style.border-top]="model.yearFormat.border.top"
+              [style.border-left]="model.yearFormat.border.left"
+              [style.border-right]="model.yearFormat.border.right"
+              [style.border-bottom]="model.yearFormat.border.bottom"
+              [style.overflow]="model.yearFormat.wrapping.overflow"
+              tabindex="-1" role="cell"
+              [attr.aria-label]="months[(row * 4 + col + 1) - 1] + ' ' + currentDate.year"
+              [attr.aria-selected]="selectedMonth[row * 4 + col]"
+              [attr.aria-disabled]="!isInRange(row * 4 + col)">
+           {{getMonth(row, col)}}
+         </div>
+      </div>
+   </div>
+</div>

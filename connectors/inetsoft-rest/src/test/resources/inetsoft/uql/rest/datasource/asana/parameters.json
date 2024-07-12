@@ -1,0 +1,55 @@
+{
+  "tests": [
+    {
+      "endpoint": "Attachment",
+      "jsonPath": "$.data",
+      "expandArrays": true,
+      "parameters": {
+        "Attachment GID": "1162621896296705",
+        "Pretty Output": "true"
+      }
+    },
+    {
+      "endpoint": "Project",
+      "jsonPath": "$.data",
+      "expandArrays": true,
+      "parameters": {
+        "Project GID": "1162613849916475",
+        "Pretty Output": "true"
+      }
+    },
+    {
+      "endpoint": "Task",
+      "jsonPath": "$.data",
+      "expandArrays": true,
+      "parameters": {
+        "Task GID": "1162650468955853",
+        "Pretty Output": "true"
+      }
+    },
+    {
+      "endpoint": "Project Tasks",
+      "jsonPath": "$.data",
+      "expandArrays": true,
+      "parameters": {
+        "Project GID": "1162613849916475",
+        "Pretty Output": "true"
+      }
+    },
+    {
+      "endpoint": "Team Users",
+      "jsonPath": "$.data",
+      "expandArrays": true,
+      "parameters": {
+        "Team GID": "1161972677262361",
+        "Pretty Output": "true"
+      }
+    },
+    {
+      "endpoint": "Workspaces",
+      "jsonPath": "$.data",
+      "expandArrays": true,
+      "parameters": {}
+    }
+  ]
+}

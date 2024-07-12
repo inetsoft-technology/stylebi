@@ -1,0 +1,307 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:3dc992f7-f84b-4125-9a18-0cb33f32b43c",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2023-04-18T20:27:53Z",
+    "tools": [
+      {
+        "vendor": "OWASP",
+        "name": "Dependency-Track",
+        "version": "4.7.1"
+      }
+    ],
+    "component": {
+      "name": "inetsoft-core",
+      "version": "13.7",
+      "type": "library",
+      "bom-ref": "f16e033b-5b6b-449a-9bb7-b800c4bb4a3a"
+    }
+  },
+  "vulnerabilities": [
+    {
+      "bom-ref": "047efd0d-6e28-40c5-8560-cc26f9abf1ab",
+      "id": "CVE-2018-14335",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 4.0,
+          "severity": "medium",
+          "method": "CVSSv2",
+          "vector": "(AV:N/AC:L/Au:S/C:P/I:N/A:N)"
+        },
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 6.5,
+          "severity": "medium",
+          "method": "CVSSv3",
+          "vector": "CVSS:3.0/AV:N/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N"
+        }
+      ],
+      "cwes": [
+        59
+      ],
+      "description": "An issue was discovered in H2 1.4.197. Insecure handling of permissions in the backup function allows attackers to read sensitive files (outside of their permissions) via a symlink to a fake database file.",
+      "published": "2018-07-24T13:29:00Z",
+      "updated": "2020-08-24T17:37:00Z",
+      "analysis": {
+        "state": "resolved",
+        "response": [
+          "workaround_available"
+        ],
+        "detail": "H2 databases should not be used in a production environment. Remove the H2 driver in production environments."
+      },
+      "affects": [
+        {
+          "ref": "f16e033b-5b6b-449a-9bb7-b800c4bb4a3a"
+        }
+      ]
+    },
+    {
+      "bom-ref": "a43415fb-b9ac-4abb-8fb3-d2a3a0808524",
+      "id": "CVE-2022-45868",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 7.8,
+          "severity": "high",
+          "method": "CVSSv3",
+          "vector": "CVSS:3.0/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
+        }
+      ],
+      "cwes": [
+        312
+      ],
+      "description": "The web-based admin console in H2 Database Engine through 2.1.214 can be started via the CLI with the argument -webAdminPassword, which allows the user to specify the password in cleartext for the web admin console. Consequently, a local user (or an attacker that has obtained local access through some means) would be able to discover the password by listing processes and their arguments. NOTE: the vendor states \"This is not a vulnerability of H2 Console ... Passwords should never be passed on the command line and every qualified DBA or system administrator is expected to know that.\"",
+      "published": "2022-11-23T21:15:00Z",
+      "updated": "2022-11-30T20:46:00Z",
+      "analysis": {
+        "state": "resolved",
+        "response": [
+          "workaround_available"
+        ],
+        "detail": "H2 databases should not be used in a production environment. Remove the H2 driver in production environments."
+      },
+      "affects": [
+        {
+          "ref": "f16e033b-5b6b-449a-9bb7-b800c4bb4a3a"
+        }
+      ]
+    },
+    {
+      "bom-ref": "713754f5-ecfc-41d8-aaf7-903b89323751",
+      "id": "CVE-2016-1000027",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 7.5,
+          "severity": "high",
+          "method": "CVSSv2",
+          "vector": "(AV:N/AC:L/Au:N/C:P/I:P/A:P)"
+        },
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 9.8,
+          "severity": "critical",
+          "method": "CVSSv3",
+          "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+        }
+      ],
+      "cwes": [
+        502
+      ],
+      "description": "Pivotal Spring Framework through 5.3.16 suffers from a potential remote code execution (RCE) issue if used for Java deserialization of untrusted data. Depending on how the library is implemented within a product, this issue may or not occur, and authentication may be required. NOTE: the vendor's position is that untrusted data is not an intended use case. The product's behavior will not be changed because some users rely on deserialization of trusted data.",
+      "published": "2020-01-02T23:15:00Z",
+      "updated": "2022-12-07T19:59:00Z",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Spring states that this is a false positive. It requires the use of an optional component, Java serialization for external endpoints. InetSoft does not use this component/feature and is not exposed to this vulnerability."
+      },
+      "affects": [
+        {
+          "ref": "f16e033b-5b6b-449a-9bb7-b800c4bb4a3a"
+        }
+      ]
+    },
+    {
+      "bom-ref": "7d1bd77b-f242-4c70-878e-2acd72eac34f",
+      "id": "CVE-2022-45146",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 5.5,
+          "severity": "medium",
+          "method": "CVSSv3",
+          "vector": "CVSS:3.0/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N"
+        }
+      ],
+      "cwes": [
+        416
+      ],
+      "description": "An issue was discovered in the FIPS Java API of Bouncy Castle BC-FJA before 1.0.2.4. Changes to the JVM garbage collector in Java 13 and later trigger an issue in the BC-FJA FIPS modules where it is possible for temporary keys used by the module to be zeroed out while still in use by the module, resulting in errors or potential information loss. NOTE: FIPS compliant users are unaffected because the FIPS certification is only for Java 7, 8, and 11.",
+      "published": "2022-11-21T10:15:00Z",
+      "updated": "2022-11-30T15:14:00Z",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "protected_by_mitigating_control",
+        "detail": "InetSoft requires using Java 8 or Java 11. This vulnerability only affects Java 13."
+      },
+      "affects": [
+        {
+          "ref": "f16e033b-5b6b-449a-9bb7-b800c4bb4a3a"
+        }
+      ]
+    },
+    {
+      "bom-ref": "54c3045c-3635-4e32-bb67-da6f7db2c7ab",
+      "id": "CVE-2020-8908",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 2.1,
+          "severity": "low",
+          "method": "CVSSv2",
+          "vector": "(AV:L/AC:L/Au:N/C:P/I:N/A:N)"
+        },
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 3.3,
+          "severity": "low",
+          "method": "CVSSv3",
+          "vector": "CVSS:3.0/AV:L/AC:L/PR:L/UI:N/S:U/C:L/I:N/A:N"
+        }
+      ],
+      "cwes": [
+        732
+      ],
+      "description": "A temp directory creation vulnerability exists in all versions of Guava, allowing an attacker with access to the machine to potentially access data in a temporary directory created by the Guava API com.google.common.io.Files.createTempDir(). By default, on unix-like systems, the created directory is world-readable (readable by an attacker with access to the system). The method in question has been marked @Deprecated in versions 30.0 and later and should not be used. For Android developers, we recommend choosing a temporary directory API provided by Android, such as context.getCacheDir(). For other Java developers, we recommend migrating to the Java 7 API java.nio.file.Files.createTempDirectory() which explicitly configures permissions of 700, or configuring the Java runtime's java.io.tmpdir system property to point to a location whose permissions are appropriately configured.",
+      "published": "2020-12-10T23:15:00Z",
+      "updated": "2022-05-10T15:21:00Z",
+      "analysis": {
+        "state": "resolved",
+        "response": [
+          "workaround_available"
+        ],
+        "detail": "Set the java.io.tmpdir system property to a safe directory."
+      },
+      "affects": [
+        {
+          "ref": "f16e033b-5b6b-449a-9bb7-b800c4bb4a3a"
+        }
+      ]
+    },
+    {
+      "bom-ref": "f4286a75-9f55-425e-81d4-27360381da11",
+      "id": "CVE-2022-1471",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "score": 9.8,
+          "severity": "critical",
+          "method": "CVSSv3",
+          "vector": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+        }
+      ],
+      "cwes": [
+        502
+      ],
+      "description": "SnakeYaml's Constructor() class does not restrict types which can be instantiated during deserialization. Deserializing yaml content provided by an attacker can lead to remote code execution. We recommend using SnakeYaml's SafeConsturctor when parsing untrusted content to restrict deserialization.",
+      "published": "2022-12-01T11:15:00Z",
+      "updated": "2023-03-21T13:17:00Z",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "InetSoft does not allow user provided YAML to be parsed. It is only used for parsing the local InetSoft configuration file, and the mapped type is specified in the method call. InetSoft is not exposed to this vulnerability."
+      },
+      "affects": [
+        {
+          "ref": "f16e033b-5b6b-449a-9bb7-b800c4bb4a3a"
+        }
+      ]
+    },
+    {
+      "bom-ref": "a769af08-aa93-4347-b39b-37c49ab7d198",
+      "id": "CVE-2023-20863",
+      "source": {
+        "name": "NVD",
+        "url": "https://nvd.nist.gov/"
+      },
+      "ratings": [
+        {
+          "source": {
+            "name": "NVD",
+            "url": "https://nvd.nist.gov/"
+          },
+          "severity": "unknown",
+          "method": "other"
+        }
+      ],
+      "description": "In spring framework versions prior to 5.2.24 release+ ,5.3.27+ and 6.0.8+ , it is possible for a user to provide a specially crafted SpEL expression that may cause a denial-of-service (DoS) condition.",
+      "published": "2023-04-13T20:15:00Z",
+      "updated": "2023-04-14T13:06:00Z",
+      "analysis": {
+        "state": "not_affected",
+        "justification": "code_not_reachable",
+        "detail": "Spring states that this is a configuration issue, not a vulnerability. It requires the use of an optional component that is not used in InetSoft. InetSoft is not exposed to this vulnerability."
+      },
+      "affects": [
+        {
+          "ref": "f16e033b-5b6b-449a-9bb7-b800c4bb4a3a"
+        }
+      ]
+    }
+  ]
+}

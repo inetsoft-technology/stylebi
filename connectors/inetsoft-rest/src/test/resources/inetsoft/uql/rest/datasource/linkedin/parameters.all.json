@@ -1,0 +1,770 @@
+{
+  "tests": [
+    {
+      "endpoint": "Ad Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Ad Account ID": ""
+      }
+    },
+    {
+      "endpoint": "Ad Accounts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Ad Account User",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsered Account URN": "",
+        "User URN": ""
+      }
+    },
+    {
+      "endpoint": "Authenticated Ad Account User",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Ad Account Users by Accounts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsered Account URNs": ""
+      }
+    },
+    {
+      "endpoint": "Ad Account Users",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsered Account URN": ""
+      }
+    },
+    {
+      "endpoint": "Campaign Group",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Campaign Group ID": ""
+      }
+    },
+    {
+      "endpoint": "Campaign Groups",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Campaign",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Campaign ID": ""
+      }
+    },
+    {
+      "endpoint": "Campaigns",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Creative",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Creative ID": ""
+      }
+    },
+    {
+      "endpoint": "Creatives",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Ad Targeting Facets",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "Ad Targeting Entities",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Ad Targeting Facet URN": ""
+      }
+    },
+    {
+      "endpoint": "Ad Targeting Entities by Similar Entities",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Ad Targeting Facet URN": "",
+        "Entity URN": ""
+      }
+    },
+    {
+      "endpoint": "Audience Counts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Targeting Criteria": ""
+      }
+    },
+    {
+      "endpoint": "Ad Supply Forecasts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Targeting Criteria": ""
+      }
+    },
+    {
+      "endpoint": "Video Ad",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "UGC Post URN": ""
+      }
+    },
+    {
+      "endpoint": "Video Ads By Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": "",
+        "Organization URN": ""
+      }
+    },
+    {
+      "endpoint": "Video Ads by Owner",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Organization URN": "urn:li:organization:2414183"
+      }
+    },
+    {
+      "endpoint": "Sponsored Conversation",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Conversation ID": ""
+      }
+    },
+    {
+      "endpoint": "Sponsored Conversations",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Conversation IDs": ""
+      }
+    },
+    {
+      "endpoint": "Sponsored Message Contents",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Conversation ID": ""
+      }
+    },
+    {
+      "endpoint": "Sponsored Message Content",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Conversation ID": "",
+        "Content ID": ""
+      }
+    },
+    {
+      "endpoint": "Ad InMail Content",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Content ID": ""
+      }
+    },
+    {
+      "endpoint": "Ad InMail Contents",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Content IDs": ""
+      }
+    },
+    {
+      "endpoint": "Member Sender Permissions by Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": ""
+      }
+    },
+    {
+      "endpoint": "Company Senders by Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": ""
+      }
+    },
+    {
+      "endpoint": "Sender Permissions by Member",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Member URN": ""
+      }
+    },
+    {
+      "endpoint": "Ad Analytics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Pivot": "",
+        "Time Granularity": "",
+        "Campaign Types": "",
+        "Share URNs": "",
+        "Campaign URNs": "",
+        "Creative URNs": "",
+        "Campaign Group URNs": "",
+        "Account URNs": "",
+        "Organization URNs": "",
+        "Start Year": "",
+        "Start Month": "",
+        "Start Day": "",
+        "End Year": "",
+        "End Month": "",
+        "End Day": ""
+      }
+    },
+    {
+      "endpoint": "Ad Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Pivots": "",
+        "Objective Type": "",
+        "Time Granularity": "",
+        "Campaign Types": "",
+        "Share URNs": "",
+        "Campaign URNs": "",
+        "Creative URNs": "",
+        "Campaign Group URNs": "",
+        "Sponsored Account URNs": "",
+        "Organization URNs": "",
+        "Start Year": "",
+        "Start Month": "",
+        "Start Day": "",
+        "End Year": "",
+        "End Month": "",
+        "End Day": ""
+      }
+    },
+    {
+      "endpoint": "Pricing Insights by Criteria",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Campaign Type": "",
+        "Sponsored Account URN": "",
+        "Bid Type": "",
+        "ISO Currency Code": "",
+        "ISO Country Code": "",
+        "Match Type": "",
+        "Targeting Criteria": "",
+        "Daily Budget": "",
+        "Objective Type": "",
+        "Optimization Target Type": ""
+      }
+    },
+    {
+      "endpoint": "Insight Tags by Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": ""
+      }
+    },
+    {
+      "endpoint": "Insight Tag",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Insight Tag ID": ""
+      }
+    },
+    {
+      "endpoint": "Insight Tag Permissions byAccount",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": ""
+      }
+    },
+    {
+      "endpoint": "Insight Tag Domains by Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": ""
+      }
+    },
+    {
+      "endpoint": "Conversion",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Conversion ID": "",
+        "Sponsored Account URN": ""
+      }
+    },
+    {
+      "endpoint": "Conversions",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": "",
+        "Conversion IDs": ""
+      }
+    },
+    {
+      "endpoint": "Conversions by Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": ""
+      }
+    },
+    {
+      "endpoint": "Campaign Conversion",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Campaign and Conversion URN": ""
+      }
+    },
+    {
+      "endpoint": "Campaign Conversions",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Campaign and Conversion URNs": ""
+      }
+    },
+    {
+      "endpoint": "Campaign Conversions by Campaign",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Campaign URNs": ""
+      }
+    },
+    {
+      "endpoint": "Campaign Recommendations",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Campaign URNs": ""
+      }
+    },
+    {
+      "endpoint": "Campaign Insights",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Campaign URNs": ""
+      }
+    },
+    {
+      "endpoint": "Third-Party Tracking Tag",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Tag ID": ""
+      }
+    },
+    {
+      "endpoint": "Third-Party Tracking Tags by Creative",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Creative URN": ""
+      }
+    },
+    {
+      "endpoint": "Ad Forms by Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": ""
+      }
+    },
+    {
+      "endpoint": "Ad Form",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Form ID": ""
+      }
+    },
+    {
+      "endpoint": "Ad Forms",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Form IDs": ""
+      }
+    },
+    {
+      "endpoint": "Ad Form Question",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Form URN": "",
+        "Question ID": ""
+      }
+    },
+    {
+      "endpoint": "Ad Form Responses by Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": "",
+        "Campaign URN": "",
+        "Creative URN": "",
+        "Form URN": "",
+        "Lead Type": "",
+        "Start Time": "",
+        "End Time": ""
+      }
+    },
+    {
+      "endpoint": "Ad Form Response",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Response ID": "",
+        "Sponsored Account URN": ""
+      }
+    },
+    {
+      "endpoint": "Ad Form Responses by Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": "",
+        "Response IDs": ""
+      }
+    },
+    {
+      "endpoint": "DMP Segments",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Segment IDs": ""
+      }
+    },
+    {
+      "endpoint": "DMP Segment",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Segment ID": ""
+      }
+    },
+    {
+      "endpoint": "DMP Segments by Account",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Sponsored Account URN": ""
+      }
+    },
+    {
+      "endpoint": "DMP Segment Destination",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Segment ID": "",
+        "Destination": ""
+      }
+    },
+    {
+      "endpoint": "DMP Segment Destinations",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Segment ID": ""
+      }
+    },
+    {
+      "endpoint": "DMP Segment Lookalikes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Segment ID": ""
+      }
+    },
+    {
+      "endpoint": "Ad Segment Status",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Segment ID": ""
+      }
+    },
+    {
+      "endpoint": "Organization",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Organization ID": "2414183"
+      }
+    },
+    {
+      "endpoint": "Organization by Email Domain",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Email Domain": "inetsoft.com"
+      }
+    },
+    {
+      "endpoint": "Organization Follower Count",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Organization URN": "urn:li:organization:91536"
+      }
+    },
+    {
+      "endpoint": "Organization Brand",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Brand ID": ""
+      }
+    },
+    {
+      "endpoint": "Organization Brands by Organization",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Parent Organization URN": "urn:li:organization:91536"
+      }
+    },
+    {
+      "endpoint": "Organization Brands by Vanity Name",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Vanity Name": "devtestco1"
+      }
+    },
+    {
+      "endpoint": "Follower Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Organization URN": "urn:li:organization:2414183"
+      }
+    },
+    {
+      "endpoint": "Organization Page Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Organization URN": "urn:li:organization:2414183"
+      }
+    },
+    {
+      "endpoint": "Brand Page Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Brand URN": "",
+        "Time Granularity": "",
+        "Start Time": "",
+        "End Time": ""
+      }
+    },
+    {
+      "endpoint": "Share Statistics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Organization URN": "urn:li:organization:2414183"
+      }
+    },
+    {
+      "endpoint": "UGC Posts by URN",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Post or Share URN": "",
+        "View Context": ""
+      }
+    },
+    {
+      "endpoint": "UGC Posts",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Post URNs": ""
+      }
+    },
+    {
+      "endpoint": "UGC Posts by Authors",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Person or Organization URNs": "urn:li:organization:2414183"
+      }
+    },
+    {
+      "endpoint": "UGC Posts by Group",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Group URNs": ""
+      }
+    },
+    {
+      "endpoint": "UGC Posts by Permalink Suffixes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Permalink Suffixes": ""
+      }
+    },
+    {
+      "endpoint": "Share",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Share ID": ""
+      }
+    },
+    {
+      "endpoint": "Shares by Owner",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Owner URN": "urn:li:organization:2414183",
+        "Shares Per Owner": "10"
+      }
+    },
+    {
+      "endpoint": "Shares",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Share IDs": ""
+      }
+    },
+    {
+      "endpoint": "Activities",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Activity IDs": ""
+      }
+    },
+    {
+      "endpoint": "Socal Actions Summary",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Share/Post/Comment URN": ""
+      }
+    },
+    {
+      "endpoint": "Likes",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Share/Post/Comment URN": ""
+      }
+    },
+    {
+      "endpoint": "Comments",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Share/Post/Comment URN": ""
+      }
+    },
+    {
+      "endpoint": "Social Metadata Summary",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Share/Post/Comment URN": ""
+      }
+    },
+    {
+      "endpoint": "Social Metadata Summaries",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Share/Post/Comment URNs": ""
+      }
+    },
+    {
+      "endpoint": "Reactions",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Share/Post/Comment URN": ""
+      }
+    },
+    {
+      "endpoint": "Video Analytics",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Post URN": "",
+        "Type": "",
+        "Aggregation": ""
+      }
+    },
+    {
+      "endpoint": "Current User Profile",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+      }
+    },
+    {
+      "endpoint": "User Profile",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Person ID": ""
+      }
+    },
+    {
+      "endpoint": "User Profiles",
+      "jsonPath": "$",
+      "expandArrays": false,
+      "parameters": {
+        "Person IDs": ""
+      }
+    }
+  ]
+}

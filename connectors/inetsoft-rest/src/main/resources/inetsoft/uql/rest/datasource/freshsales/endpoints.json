@@ -1,0 +1,139 @@
+{
+  "endpoints": [
+    {
+      "paged": "false", 
+      "name": "Lead", 
+      "suffix": "/leads/{Lead ID}?include={Include?:owner|creater|updater|...}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Leads", 
+      "suffix": "/leads/view/{View ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Lead Filters", 
+      "suffix": "/leads/filters"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Lead Fields", 
+      "suffix": "/settings/leads/fields?include={Include?:field_group}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Lead Activites", 
+      "suffix": "/leads/{Lead ID}/activities?include={Include?:owner|creater|updater|...}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Contact", 
+      "suffix": "/contacts/{Contact ID}?include={Include?:owner|creater|updater|...}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contacts", 
+      "suffix": "/contacts/view/{View ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contact Filters", 
+      "suffix": "/contacts/filters"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contact Fields", 
+      "suffix": "/settings/contacts/fields?include={Include?:field_group}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Contact Actvities", 
+      "suffix": "/contacts/{Contact ID}/activities?include={Include?:owner|creater|updater|...}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Account", 
+      "suffix": "/sales_accounts/{Account ID}?include={Include?:owner|creater|updater|...}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Accounts", 
+      "suffix": "/sales_accounts/view/{View ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Account Filters", 
+      "suffix": "/sales_accounts/filters"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Account Fields", 
+      "suffix": "/settings/sales_accounts/fields?include={Include?:field_group}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Deal", 
+      "suffix": "/deals/{Deal ID}?include={Include?:owner|creater|updater|...}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Deals", 
+      "suffix": "/deals/view/{View ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Deal Filters", 
+      "suffix": "/deals/filters"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Deal Fields", 
+      "suffix": "/settings/deals/fields?include={Include?:field_group}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task", 
+      "suffix": "/tasks/{Task ID}?include={Include?:users|targetable}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Tasks", 
+      "suffix": "/tasks?filter={Filter:open|due today|overdue|completed}&include={Include?:users|targetable|owner}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Appointment", 
+      "suffix": "/appointments/{Appointment ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Appointments", 
+      "suffix": "/appointments?filter={Filter:past|upcoming}&include={Include?:creater|targetable|appointment_attendees}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Sales Activity", 
+      "suffix": "/sales_activities/{Sales Activity ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Sales Activities", 
+      "suffix": "/sales_activities"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Search", 
+      "suffix": "/search?q={Search Query}&include={Entity:user|lead|contact|sales_account|deal}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Lookup Search", 
+      "suffix": "/lookup?q={Search Query}&f={Field:email|name|...}&entities={Entities?:lead|contact|sales_account|deal}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Files and Links", 
+      "suffix": "/leads/{Lead ID}/document_associations"
+    }
+  ]
+}

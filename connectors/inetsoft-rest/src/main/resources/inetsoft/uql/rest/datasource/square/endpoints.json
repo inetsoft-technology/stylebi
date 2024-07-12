@@ -1,0 +1,222 @@
+{
+  "endpoints": [
+    {
+      "name": "Payments",
+      "paged": true,
+      "suffix": "/v2/payments?begin_time={Begin Time?:yyyy-MM-ddTHH:mm:ssZ}&end_time={End Time?:yyyy-MM-ddTHH:mm:ssZ}&location_id={Location ID?}&total={Total Amount?}&last_4={Card Last 4 Digits?}&card_brand={Card Brand?}",
+      "lookups": [
+        {
+          "endpoint": "Location",
+          "jsonPath": "$.payments[*]",
+          "key": "location_id",
+          "parameterName": "Location ID"
+        }
+      ]
+    },
+    {
+      "name": "Payment",
+      "paged": false,
+      "suffix": "/v2/payments/{Payment ID}"
+    },
+    {
+      "name": "Refunds",
+      "paged": true,
+      "suffix": "/v2/refunds?begin_time={Begin Time?:yyyy-MM-ddTHH:mm:ssZ}&end_time={End Time?:yyyy-MM-ddTHH:mm:ssZ}&location_id={Location ID?}&status={Status?}&source_type={Source Type?}",
+      "lookups": [
+        {
+          "endpoint": "Location",
+          "jsonPath": "$.refunds[*]",
+          "key": "location_id",
+          "parameterName": "Location ID"
+        },
+        {
+          "endpoint": "Payment",
+          "jsonPath": "$.refunds[*]",
+          "key": "payment_id",
+          "parameterName": "Payment ID"
+        }
+      ]
+    },
+    {
+      "name": "Refund",
+      "paged": false,
+      "suffix": "/v2/refunds/{Refund ID}"
+    },
+    {
+      "name": "Catalog Info",
+      "paged": false,
+      "suffix": "/v2/catalog/info"
+    },
+    {
+      "name": "List Catalog",
+      "paged": true,
+      "suffix": "/v2/catalog/list?types={Types?:ITEM,CATEGORY,IMAGE,...}",
+      "lookups": [
+        {
+          "endpoint": "Inventory Count",
+          "jsonPath": "$.objects[*].item_data.variations[*]",
+          "key": "id",
+          "parameterName": "Catalog Object ID"
+        },
+        {
+          "endpoint": "Inventory Changes",
+          "jsonPath": "$.objects[*]",
+          "key": "id",
+          "parameterName": "Catalog Object ID"
+        }
+      ]
+    },
+    {
+      "name": "Catalog Object",
+      "paged": false,
+      "suffix": "/v2/catalog/object/{Object ID}?include_related_objects={Include Related Objects?:true|false}"
+    },
+    {
+      "name": "Inventory Adjustment",
+      "paged": false,
+      "suffix": "/v2/inventory/adjustment/{Adjustment ID}"
+    },
+    {
+      "name": "Inventory Physical Count",
+      "paged": false,
+      "suffix": "/v2/inventory/physical-count/{Physical Count ID}"
+    },
+    {
+      "name": "Inventory Count",
+      "paged": true,
+      "suffix": "/v2/inventory/{Catalog Object ID}?location_ids={Location IDs?}",
+      "lookups": [
+        {
+          "endpoint": "Location",
+          "jsonPath": "$.counts[*]",
+          "key": "location_id",
+          "parameterName": "Location ID"
+        }
+      ]
+    },
+    {
+      "name": "Inventory Changes",
+      "paged": true,
+      "suffix": "/v2/inventory/{Catalog Object ID}/changes?location_ids={Location IDs?}"
+    },
+    {
+      "name": "Customers",
+      "paged": true,
+      "suffix": "/v2/customers"
+    },
+    {
+      "name": "Customer",
+      "paged": false,
+      "suffix": "/v2/customers/{Customer ID}"
+    },
+    {
+      "name": "Merchants",
+      "paged": true,
+      "suffix": "/v2/merchants",
+      "lookups": [
+        {
+          "endpoint": "Location",
+          "jsonPath": "$.merchant[*]",
+          "key": "main_location_id",
+          "parameterName": "Location ID"
+        }
+      ]
+    },
+    {
+      "name": "Merchant",
+      "paged": false,
+      "suffix": "/v2/merchants/{Merchant ID}"
+    },
+    {
+      "name": "Locations",
+      "paged": false,
+      "suffix": "/v2/locations",
+      "lookups": [
+        {
+          "endpoint": "Merchant",
+          "jsonPath": "$.locations[*]",
+          "key": "merchant_id",
+          "parameterName": "Merchant ID"
+        }
+      ]
+    },
+    {
+      "name": "Location",
+      "paged": false,
+      "suffix": "/v2/locations/{Location ID}"
+    },
+    {
+      "name": "Team Member",
+      "paged": false,
+      "suffix": "/v2/team-members/{Team Member ID}"
+    },
+    {
+      "name": "Team Member Wage Setting",
+      "paged": false,
+      "suffix": "/v2/team-members/{Team Member ID}/wage-setting"
+    },
+    {
+      "name": "Break Types",
+      "paged": true,
+      "suffix": "/v2/labor/break-types?location_id={Location ID?}"
+    },
+    {
+      "name": "Break Type",
+      "paged": false,
+      "suffix": "/v2/labor/break-types/{Break Type ID}"
+    },
+    {
+      "name": "Team Member Wages",
+      "paged": true,
+      "suffix": "/v2/labor/team-member-wages?team_member_id={Team Member ID?}"
+    },
+    {
+      "name": "Team Member Wage",
+      "paged": false,
+      "suffix": "/v2/labor/team-member-wages/{Team Member Wage ID}"
+    },
+    {
+      "name": "Shift",
+      "paged": false,
+      "suffix": "/v2/labor/shifts/{Shift ID}"
+    },
+    {
+      "name": "Workweek Configurations",
+      "paged": true,
+      "suffix": "/v2/labor/workweek-configs"
+    },
+    {
+      "name": "Cash Drawer Shifts",
+      "paged": true,
+      "suffix": "/v2/cash-drawers/shifts?location_id={Location ID}&begin_time={Begin Time:yyyy-MM-ddTHH:mm:ssZ}&end_time={End Time:yyyy-MM-ddTHH:mm:ssZ}"
+    },
+    {
+      "name": "Cash Drawer Shift",
+      "paged": false,
+      "suffix": "/v2/cash-drawers/shifts/{Shift ID}?location_id={Location ID}"
+    },
+    {
+      "name": "Cash Drawer Shift Events",
+      "paged": true,
+      "suffix": "/v2/cash-drawers/shifts/{Shift ID}?/events?location_id={Location ID}"
+    },
+    {
+      "name": "Bank Accounts",
+      "paged": true,
+      "suffix": "/v2/bank-accounts?location_id={Location ID?}",
+      "lookups": [
+        {
+          "endpoint": "Location",
+          "jsonPath": "$.bank_accounts[*]",
+          "key": "location_id",
+          "parameterName": "Location ID"
+        }
+      ]
+    },
+    {
+      "name": "Bank Account",
+      "paged": false,
+      "suffix": "/v2/bank-accounts/{Bank Account ID}"
+    }
+  ]
+}

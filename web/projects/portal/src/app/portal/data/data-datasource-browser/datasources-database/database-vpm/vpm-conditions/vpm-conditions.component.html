@@ -1,0 +1,206 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<split-pane [sizes]="[30, 70]" [minSize]="200" [snapOffset]="0" [gutterSize]="5">
+  <div class="split conditionspane">
+    <div class="list-group group-container list-group-flush">
+      <div class="data-model-header-pane truncate-parent justify-content-between align-items-center rounded-0">
+        <span class="truncate-text font-weight-bold" >_#(Conditions)</span>
+        <div class="condition-toolbar">
+          <button class="truncate-addon btn btn-sm btn-light-no-bg"
+                  role="button"
+                  [attr.title]="'_#(Add Condition)'"
+                  (click)="addCondition()">
+            <i class="add-icon"></i>
+          </button>
+          <button class="truncate-addon btn btn-sm btn-light-no-bg"
+                  role="button"
+                  [attr.title]="'_#(Delete)'"
+                  (click)="deleteSelectedCondition()"
+                  [disabled]="deleteDisabled()">
+            <i class="trash-icon"></i>
+          </button>
+        </div>
+      </div>
+      <div class="group-container-body">
+         <div *ngFor="let condition of conditions; let i = index"
+              class="list-group-item list-group-item-action truncate-parent justify-content-between hover-bg-primary
+                     align-items-center rounded-0 cursor-pointer"
+              [class.active]="isSelected(condition)"
+              [class.bg-selected]="isSelected(condition)"
+              (click)="editCondition($event, condition)">
+           <span class="truncate-text" [attr.title]="condition.name">{{condition.name}}</span>
+           <span class="truncate-addon">
+             <button class="btn btn-sm btn-light-no-bg"
+                     role="button"
+                     [attr.title]="'_#(data.vpm.deleteConditionTooltip)'"
+                     (click)="deleteCondition(condition, i); $event.stopPropagation()">
+               <i class="trash-icon"></i>
+             </button>
+           </span>
+         </div>
+      </div>
+    </div>
+  </div>
+  <div class="split">
+    <ng-container *ngIf="!!editingCondition">
+      <div class="container-fluid hidden-column-container">
+        <div class="form-group mt-2 form-floating">
+            <input type="text" #nameCtrl="ngModel"
+                   name="name"
+                   class="form-control"
+                   [class.is-invalid]="nameCtrl.invalid"
+                   [(ngModel)]="editingCondition.name"
+                   nameExists [names]="existsNames"
+                   required>
+            <label>_#(Name)</label>
+            <span class="invalid-feedback" *ngIf="nameCtrl.hasError('required')">
+              _#(data.vpm.conditionNameRequired)
+            </span>
+            <span class="invalid-feedback" *ngIf="!nameCtrl.hasError('required') && nameCtrl.hasError('exists')">
+              _#(data.vpm.duplicateConditionName)
+            </span>
+        </div>
+        <div class="col-12 flex-container">
+          <ul ngbNav #nav="ngbNav" class="nav-tabs">
+            <ng-container ngbNavItem="conditions">
+              <a ngbNavLink>_#(data.vpm.conditions)</a>
+              <ng-template ngbNavContent>
+                <div class="row">
+                  <div class="col">
+                <div class="form-check form-check-inline mt-2">
+                  <label class="form-check-label">
+                    <input class="form-check-input" type="radio" #tableRadio
+                           name="typeRadio"
+                           [(ngModel)]="editingCondition.type"
+                           (ngModelChange)="tableRadio.blur(); chooseTable(true)"
+                           [value]="ConditionTypes.TABLE">
+                     {{'_#(Table)'}}
+                  </label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <label class="form-check-label">
+                    <input class="form-check-input" type="radio" #physicalRadio
+                           name="typeRadio"
+                           [(ngModel)]="editingCondition.type"
+                           (ngModelChange)="physicalRadio.blur(); chooseTable(true)"
+                           [value]="ConditionTypes.PHYSICAL_MODEL">
+                    {{'_#(Physical View)'}}
+                  </label>
+                </div>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col form-group mt-2">
+                    <div class="input-group">
+                      <div class="form-floating">
+                        <input readonly type="text"
+                               class="form-control"
+                               [value]="editingCondition.tableName"/>
+                        <label>_#(data.vpm.conditionFor)</label>
+                      </div>
+                      <button class="btn btn-secondary" type="button"
+                              (click)="chooseTable()">
+                        {{
+                          editingCondition.type == ConditionTypes.PHYSICAL_MODEL ?
+                          '_#(data.vpm.choosePhysicalModel)' : '_#(data.vpm.chooseTable)'
+                        }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col">
+                <div class="form-group">
+                  <div class="bordered-box bordered-box-md bd-gray">
+                    <div *ngIf="editingCondition.clauses.length == 0"
+                         class="unhighlightable">
+                      _#(data.vpm.noClauses)
+                    </div>
+                    <div *ngFor="let item of editingCondition.clauses; let even = even"
+                         class="unhighlightable">
+                      <div *ngIf="even">
+                        {{ item | clauseToString }}
+                      </div>
+                      <div *ngIf="!even">
+                        {{ item | conjunctionToString }}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="mt-2 text-right">
+                    <button type="button" class="btn btn-primary"
+                            (click)="editClauses()"
+                            [disabled]="tableNameNull || refreshingColumns">
+                      _#(data.vpm.editClause)
+                    </button>
+                  </div>
+                </div>
+                  </div>
+                </div>
+              </ng-template>
+            </ng-container>
+            <ng-container ngbNavItem="trigger" [disabled]="tableNameNull">
+              <a ngbNavLink>_#(Trigger)</a>
+              <ng-template ngbNavContent>
+                <div class="hidden-column-container">
+                  <div>
+                    /**<br/>
+                    &nbsp;* Return a condition string to append to query.<br/>
+                    &nbsp;*<br/>
+                    &nbsp;* @param user user id.<br/>
+                    &nbsp;* @param roles user roles(array).<br/>
+                    &nbsp;* @param groups user groups(array).<br/>
+                    &nbsp;* @param parameter parameters if any; might be empty.<br/>
+                    &nbsp;* @param tables list of tables in the query.<br/>
+                    &nbsp;* @param taliases list of table aliases in the query. <br/>
+                    &nbsp;* @param columns query columns(array). <br/>
+                    &nbsp;* @param condition condition string of the conditions defined in the VPM. <br/>"
+                    &nbsp;*/<br/>
+                    function conditionScript(user, roles, groups, parameter, tables, taliases, columns, condition)&nbsp;{{'{'}}
+                  </div>
+                  <div class="w-100 auto-size-flex-item">
+                    <data-model-script-pane [expression]="editingCondition.script" [fullContainer]="true"
+                                            (expressionChange)="expressionChanged($event)">
+                    </data-model-script-pane>
+                  </div>
+                  <div>
+                    &nbsp;}&nbsp;
+                  </div>
+                </div>
+              </ng-template>
+            </ng-container>
+          </ul>
+          <div class="h-100" [ngbNavOutlet]="nav"></div>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+</split-pane>
+<ng-template #chooseTableDialog let-close="close" let-dismiss="dismiss">
+  <choose-table-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                       [databaseName]="databaseName"
+                       [conditionType]="editingCondition.type"
+                       [tableName]="editingCondition.tableName">
+  </choose-table-dialog>
+</ng-template>
+<ng-template #vpmConditionDialog let-close="close" let-dismiss="dismiss">
+  <vpm-condition-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                        [model]="vpmConditionDialogModel">
+  </vpm-condition-dialog>
+</ng-template>

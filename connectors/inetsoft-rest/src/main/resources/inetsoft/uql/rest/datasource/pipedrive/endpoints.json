@@ -1,0 +1,791 @@
+{
+  "endpoints": [
+    {
+      "name": "Activities",
+      "paged": true,
+      "suffix": "/v1/activities?user_id={User ID?}&filter_id={Filter ID?}&type={Type?}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&done={Done?:0|1}",
+      "lookups": [
+        {
+          "endpoint": "User",
+          "jsonPath": "$.data[*]",
+          "key": "user_id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "Deal",
+          "jsonPath": "$.data[*]",
+          "key": "deal_id",
+          "parameterName": "Deal ID"
+        },
+        {
+          "endpoint": "Person",
+          "jsonPath": "$.data[*]",
+          "key": "person_id",
+          "parameterName": "Person ID"
+        },
+        {
+          "endpoint": "Organization",
+          "jsonPath": "$.data[*]",
+          "key": "org_id",
+          "parameterName": "Organization ID"
+        }
+      ]
+    },
+    {
+      "name": "Activity",
+      "paged": false,
+      "suffix": "/v1/activities/{Activity ID}"
+    },
+    {
+      "name": "Activity Fields",
+      "paged": true,
+      "suffix": "/v1/activityFields"
+    },
+    {
+      "name": "Activity Types",
+      "paged": true,
+      "suffix": "/v1/activityTypes"
+    },
+    {
+      "name": "Currencies",
+      "paged": true,
+      "suffix": "/v1/currencies?term={Term?}"
+    },
+    {
+      "name": "Deals",
+      "paged": true,
+      "suffix": "/v1/deals?user_id={User ID?}&filter_id={Filter ID?}&stage_id={Stage ID?}&status={Status?:all_not_deleted|open|...}&owned_by_you={Owned By You?:0|1}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Deal Activities",
+            "Deal Files",
+            "Deal Updates",
+            "Deal Followers",
+            "Deal Mail Messages",
+            "Deal Participants",
+            "Deal Permitted Users",
+            "Deal People",
+            "Deal Products"
+          ],
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Deal ID"
+        }
+      ]
+    },
+    {
+      "name": "Deal Search",
+      "paged": true,
+      "suffix": "/v1/deals/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}&person_id={Person ID?}&organization_id={Organization ID?}&status={Status?:open|won|lost}"
+    },
+    {
+      "name": "Deal Summary",
+      "paged": true,
+      "suffix": "/v1/deals/summary?status={Status?:open|won|lost}&filter_id={Filter ID?}&user_id={User ID?}&stage_id={Stage ID?}"
+    },
+    {
+      "name": "Deal Timeline",
+      "paged": true,
+      "suffix": "/v1/deals/timeline?start_date={Start Date:YYYY-MM-DD}?interval={Interval:day|week|...}&amount={Amount}&field_key={Field Key}&user_id={User ID?}&pipeline_id={Pipeline ID?}&filter_id={Filter ID?}&exclude_deals={Exclude Deals?:0|1}&totals_convert_currency={Totals Convert Currency?}"
+    },
+    {
+      "name": "Deal",
+      "paged": false,
+      "suffix": "/v1/deals/{Deal ID}"
+    },
+    {
+      "name": "Deal Activities",
+      "paged": true,
+      "suffix": "/v1/deals/{Deal ID}/activities",
+      "lookups": [
+        {
+          "endpoint": "User",
+          "jsonPath": "$.data[*]",
+          "key": "user_id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "Deal",
+          "jsonPath": "$.data[*]",
+          "key": "deal_id",
+          "parameterName": "Deal ID"
+        },
+        {
+          "endpoint": "Person",
+          "jsonPath": "$.data[*]",
+          "key": "person_id",
+          "parameterName": "Person ID"
+        },
+        {
+          "endpoint": "Organization",
+          "jsonPath": "$.data[*]",
+          "key": "org_id",
+          "parameterName": "Organization ID"
+        }
+      ]
+    },
+    {
+      "name": "Deal Files",
+      "paged": true,
+      "suffix": "/v1/deals/{Deal ID}/files?include_deleted_files={Include Deleted Files?:0|1}"
+    },
+    {
+      "name": "Deal Updates",
+      "paged": true,
+      "suffix": "/v1/deals/{Deal ID}/flow"
+    },
+    {
+      "name": "Deal Followers",
+      "paged": true,
+      "suffix": "/v1/deals/{Deal ID}/followers",
+      "lookups": [
+        {
+          "endpoint": "User",
+          "jsonPath": "$.data[*]",
+          "key": "user_id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "Deal Mail Messages",
+      "paged": true,
+      "suffix": "/v1/deals/{Deal ID}/mailMessages"
+    },
+    {
+      "name": "Deal Participants",
+      "paged": true,
+      "suffix": "/v1/deals/{Deal ID}/participants"
+    },
+    {
+      "name": "Deal Permitted Users",
+      "paged": true,
+      "suffix": "/v1/deals/{Deal ID}/permittedUsers"
+    },
+    {
+      "name": "Deal People",
+      "paged": true,
+      "suffix": "/v1/deals/{Deal ID}/persons"
+    },
+    {
+      "name": "Deal Products",
+      "paged": true,
+      "suffix": "/v1/deals/{Deal ID}/products?include_product_data={Include Product Data?:0|1}"
+    },
+    {
+      "name": "Deal Fields",
+      "paged": true,
+      "suffix": "/v1/dealFields"
+    },
+    {
+      "name": "Deal Field",
+      "paged": false,
+      "suffix": "/v1/dealFields/{Field ID}"
+    },
+    {
+      "name": "Files",
+      "paged": true,
+      "suffix": "/v1/files?include_deleted_files={Include Deleted Files?:0|1}"
+    },
+    {
+      "name": "File",
+      "paged": false,
+      "suffix": "/v1/files/{File ID}"
+    },
+    {
+      "name": "Filters",
+      "paged": true,
+      "suffix": "/v1/filters?type={Type?:deals|org|...}",
+      "lookups": [
+        {
+          "endpoint": "User",
+          "jsonPath": "$.data[*]",
+          "key": "user_id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "Filter Helpers",
+      "paged": true,
+      "suffix": "/v1/filters/helpers"
+    },
+    {
+      "name": "Filter",
+      "paged": false,
+      "suffix": "/v1/filters/{Filter ID}"
+    },
+    {
+      "name": "Global Messages",
+      "paged": true,
+      "suffix": "/v1/globalMessages"
+    },
+    {
+      "name": "Goals",
+      "paged": true,
+      "suffix": "/v1/goals/find?type.name={Type Name?}&title={Title?}&is_active={Is Active?}&assignee.id={Assignee ID?}&assignee.type={Assignee Type?:person|company|term}&expected_outcome.target={Expected Outcome Target?}&expected_outcome.tracking_metric={Expected Outcome Tracking Metric?:quantity|sum}"
+    },
+    {
+      "name": "Goal Result",
+      "paged": true,
+      "suffix": "/v1/goals/{Goal ID}/results?period.start={Period Start:YYYY-MM-DD}&period.end={Period End:YYYY-MM-DD}"
+    },
+    {
+      "name": "Mail Message",
+      "paged": false,
+      "suffix": "/v1/mailbox/mailMessages/{Message ID}?include_body={Include Body?:0|1}"
+    },
+    {
+      "name": "Mail Threads",
+      "paged": true,
+      "suffix": "/v1/mailbox/mailThreads?folder={Folder:inbox|drafts|...}"
+    },
+    {
+      "name": "Mail Thread",
+      "paged": false,
+      "suffix": "/v1/mailbox/mailThreads/{Mail Thread ID}"
+    },
+    {
+      "name": "Mail Thread Messages",
+      "paged": true,
+      "suffix": "/v1/mailbox/mailThreads/{Mail Thread ID}/mailMessages"
+    },
+    {
+      "name": "Notes",
+      "paged": true,
+      "suffix": "/v1/notes?user_id={User ID?}&deal_id={Deal ID?}&person_id={Person ID?}&org_id={Organization ID?}&start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}",
+      "lookups": [
+        {
+          "endpoint": "User",
+          "jsonPath": "$.data[*]",
+          "key": "user_id",
+          "parameterName": "User ID"
+        },
+        {
+          "endpoint": "Deal",
+          "jsonPath": "$.data[*]",
+          "key": "deal_id",
+          "parameterName": "Deal ID"
+        },
+        {
+          "endpoint": "Person",
+          "jsonPath": "$.data[*]",
+          "key": "person_id",
+          "parameterName": "Person ID"
+        },
+        {
+          "endpoint": "Organization",
+          "jsonPath": "$.data[*]",
+          "key": "org_id",
+          "parameterName": "Organization ID"
+        }
+      ]
+    },
+    {
+      "name": "Note",
+      "paged": false,
+      "suffix": "/v1/notes/{Note ID}"
+    },
+    {
+      "name": "Note Fields",
+      "paged": true,
+      "suffix": "/v1/noteFields"
+    },
+    {
+      "name": "Organization Fields",
+      "paged": true,
+      "suffix": "/v1/organizationFields"
+    },
+    {
+      "name": "Organization Field",
+      "paged": true,
+      "suffix": "/v1/organizationFields/{Field ID}"
+    },
+    {
+      "name": "Organizations",
+      "paged": true,
+      "suffix": "/v1/organizations?user_id={User ID?}&filter_id={Filter ID?}&first_char={First Char?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Organization Activities",
+            "Organization Deals",
+            "Organization Files",
+            "Organization Updates",
+            "Organization Followers",
+            "Organization Mail Messages",
+            "Organization Permitted Users",
+            "Organization People",
+            "Organization Relationships"
+          ],
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Organization ID"
+        }
+      ]
+    },
+    {
+      "name": "Organization Search",
+      "paged": true,
+      "suffix": "/v1/organizations/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}"
+    },
+    {
+      "name": "Organization",
+      "paged": false,
+      "suffix": "/v1/organizations/{Organization ID}"
+    },
+    {
+      "name": "Organization Activities",
+      "paged": true,
+      "suffix": "/v1/organizations/{Organization ID}/activities?done={Done?:0|1}&exclude={Exclude?}"
+    },
+    {
+      "name": "Organization Deals",
+      "paged": true,
+      "suffix": "/v1/organizations/{Organization ID}/deals?status={Status?:all_not_deleted|open|won|...}&only_primary_association={Only Primary Association?:0|1}"
+    },
+    {
+      "name": "Organization Files",
+      "paged": true,
+      "suffix": "/v1/organizations/{Organization ID}/files?include_deleted_files={Include Deleted Files?:0|1}"
+    },
+    {
+      "name": "Organization Updates",
+      "paged": true,
+      "suffix": "/v1/organizations/{Organization ID}/flow"
+    },
+    {
+      "name": "Organization Followers",
+      "paged": true,
+      "suffix": "/v1/organizations/{Organization ID}/followers"
+    },
+    {
+      "name": "Organization Mail Messages",
+      "paged": true,
+      "suffix": "/v1/organizations/{Organization ID}/mailMessages"
+    },
+    {
+      "name": "Organization Permitted Users",
+      "paged": true,
+      "suffix": "/v1/organizations/{Organization ID}/permittedUsers"
+    },
+    {
+      "name": "Organization People",
+      "paged": true,
+      "suffix": "/v1/organizations/{Organization ID}/persons"
+    },
+    {
+      "name": "Organization Relationships",
+      "paged": true,
+      "suffix": "/v1/organizationRelationships?org_id={Organization ID}"
+    },
+    {
+      "name": "Organization Relationship",
+      "paged": true,
+      "suffix": "/v1/organizationRelationships/{Organization Relationship ID}?org_id={Organization ID}"
+    },
+    {
+      "name": "Permission Sets",
+      "paged": true,
+      "suffix": "/v1/permissionSets",
+      "lookups": [
+        {
+          "endpoints": [
+            "Permission Set",
+            "Permission Set Assignments"
+          ],
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Permission Set ID"
+        }
+      ]
+    },
+    {
+      "name": "Permission Set",
+      "paged": false,
+      "suffix": "/v1/permissionSets/{Permission Set ID}"
+    },
+    {
+      "name": "Permission Set Assignments",
+      "paged": true,
+      "suffix": "/v1/permissionSets/{Permission Set ID}/assignments",
+      "lookups": [
+        {
+          "endpoint": "User",
+          "jsonPath": "$.data[*]",
+          "key": "user_id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "People",
+      "paged": true,
+      "suffix": "/v1/persons?user_id={User ID?}&filter_id={Filter ID?}&first_char={First Char?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Person Activities",
+            "Person Deals",
+            "Person Files",
+            "Person Updates",
+            "Person Followers",
+            "Person Mail Messages",
+            "Person Permitted Users",
+            "Person Products"
+          ],
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Person ID"
+        }
+      ]
+    },
+    {
+      "name": "Person Search",
+      "paged": true,
+      "suffix": "/v1/persons/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}&organization_id={Organization ID?}"
+    },
+    {
+      "name": "Person",
+      "paged": false,
+      "suffix": "/v1/persons/{Person ID}"
+    },
+    {
+      "name": "Person Activities",
+      "paged": true,
+      "suffix": "/v1/persons/{Person ID}/activities?done={Done?}&exclude={Exclude?}",
+      "lookups": [
+        {
+          "endpoint": "User",
+          "jsonPath": "$.data[*]",
+          "key": "user_id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "Person Deals",
+      "paged": true,
+      "suffix": "/v1/persons/{Person ID}/deals?status={Status?:all_not_deleted|open|...}"
+    },
+    {
+      "name": "Person Files",
+      "paged": true,
+      "suffix": "/v1/persons/{Person ID}/files?include_deleted_files={Include Deleted Files?:0|1}"
+    },
+    {
+      "name": "Person Updates",
+      "paged": true,
+      "suffix": "/v1/persons/{Person ID}/flow"
+    },
+    {
+      "name": "Person Followers",
+      "paged": true,
+      "suffix": "/v1/persons/{Person ID}/followers"
+    },
+    {
+      "name": "Person Mail Messages",
+      "paged": true,
+      "suffix": "/v1/persons/{Person ID}/mailMessages"
+    },
+    {
+      "name": "Person Permitted Users",
+      "paged": true,
+      "suffix": "/v1/persons/{Person ID}/permittedUsers"
+    },
+    {
+      "name": "Person Products",
+      "paged": true,
+      "suffix": "/v1/persons/{Person ID}/products"
+    },
+    {
+      "name": "Person Fields",
+      "paged": true,
+      "suffix": "/v1/personFields"
+    },
+    {
+      "name": "Person Field",
+      "paged": false,
+      "suffix": "/v1/personFields/{Field ID}"
+    },
+    {
+      "name": "Pipelines",
+      "paged": true,
+      "suffix": "/v1/pipelines",
+      "lookups": [
+        {
+          "endpoints": [
+            "Pipeline Conversion Rates",
+            "Pipeline Deals",
+            "Pipeline Deal Movement"
+          ],
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Pipeline ID"
+        }
+      ]
+    },
+    {
+      "name": "Pipeline",
+      "paged": false,
+      "suffix": "/v1/pipelines/{Pipeline ID}?totals_convert_currency={Totals Convert Currency?}"
+    },
+    {
+      "name": "Pipeline Conversion Rates",
+      "paged": true,
+      "suffix": "/v1/pipelines/{Pipeline ID}/conversion_statistics?start_date={Start Date:YYYY-MM-DD}&end_date={End Date:YYYY-MM-DD}&user_id={User ID}"
+    },
+    {
+      "name": "Pipeline Deals",
+      "paged": false,
+      "suffix": "/v1/pipelines/{Pipeline ID}/deals?filter_id={Filter ID?}&user_id={User ID?}&everyone={Everyone?:0|1}&stage_id={Stage ID?}&get_summary={Get Summary?:0|1}&totals_convert_currency={Totals Convert Currency?}"
+    },
+    {
+      "name": "Pipeline Deal Movement",
+      "paged": true,
+      "suffix": "/v1/pipelines/{Pipeline ID}/movement_statistics?start_date={Start Date:YYYY-MM-DD}&end_date={End Date:YYYY-MM-DD}&user_id={User ID?}"
+    },
+    {
+      "name": "Products",
+      "paged": true,
+      "suffix": "/v1/products?user_id={User ID?}&filter_id={Filter ID?}&first_char={Starts With Character?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Product Deals",
+            "Product Files",
+            "Product Followers",
+            "Product Permitted Users"
+          ],
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Product ID"
+        }
+      ]
+    },
+    {
+      "name": "Product Search",
+      "paged": true,
+      "suffix": "/v1/products/search?term={Term}&fields={Fields?:field1,field2,...}&exact_match={Exact Match?:true|false}"
+    },
+    {
+      "name": "Product",
+      "paged": false,
+      "suffix": "/v1/products/{Product ID}"
+    },
+    {
+      "name": "Product Deals",
+      "paged": true,
+      "suffix": "/v1/products/{Product ID}/deals?status={Status?:all_not_deleted|open|\u2026}"
+    },
+    {
+      "name": "Product Files",
+      "paged": true,
+      "suffix": "/v1/products/{Product ID}/files?include_deleted_files={Include Deleted Files?:0|1}"
+    },
+    {
+      "name": "Product Followers",
+      "paged": true,
+      "suffix": "/v1/products/{Product ID}/followers"
+    },
+    {
+      "name": "Product Permitted Users",
+      "paged": true,
+      "suffix": "/v1/products/{Product ID}/permittedUsers"
+    },
+    {
+      "name": "Product Fields",
+      "paged": true,
+      "suffix": "/v1/productFields"
+    },
+    {
+      "name": "Product Field",
+      "paged": false,
+      "suffix": "/v1/productFields/{Product Field ID}"
+    },
+    {
+      "name": "Recent Changes",
+      "paged": true,
+      "suffix": "/v1/recents?since_timestamp={Since Timestamp:YYYY-MM-DDTHH:mm:ssZ}&items={Items?:activity|activityType|...}"
+    },
+    {
+      "name": "Roles",
+      "paged": true,
+      "suffix": "/v1/roles",
+      "lookups": [
+        {
+          "endpoints": [
+            "Role Assignments",
+            "Sub-roles",
+            "Role Settings"
+          ],
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Role ID"
+        }
+      ]
+    },
+    {
+      "name": "Role",
+      "paged": false,
+      "suffix": "/v1/roles/{Role ID}"
+    },
+    {
+      "name": "Role Assignments",
+      "paged": true,
+      "suffix": "/v1/roles/{Role ID}/assignments"
+    },
+    {
+      "name": "Sub-roles",
+      "paged": true,
+      "suffix": "/v1/roles/{Role ID}/roles"
+    },
+    {
+      "name": "Role Settings",
+      "paged": true,
+      "suffix": "/v1/roles/{Role ID}/settings"
+    },
+    {
+      "name": "Search",
+      "paged": true,
+      "suffix": "/v1/itemSearch?term={Term}&item_types={Item Types?:type1,type2,...}&fields={Fields?:field1,field2,...}&search_for_related_items={Search for Related Items?:true|false}&exact_match={Exact Match?:true|false}"
+    },
+    {
+      "name": "Field Search",
+      "paged": true,
+      "suffix": "/v1/itemSearch/field?term={Term}&field_type={Field Type:dealField|personField|...}&field_key={Field Key}&exact_match={Exact Match?:true|false}&return_item_ids={Return Item IDs?:true|false}"
+    },
+    {
+      "name": "Stages",
+      "paged": true,
+      "suffix": "/v1/stages?pipeline_id={Pipeline ID?}",
+      "lookups": [
+        {
+          "endpoint": "Stage Deals",
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Stage ID"
+        },
+        {
+          "endpoint": "Pipeline",
+          "jsonPath": "$.data[*]",
+          "key": "pipeline_id",
+          "parameterName": "Pipeline ID"
+        }
+      ]
+    },
+    {
+      "name": "Stage",
+      "paged": false,
+      "suffix": "/v1/stages/{Stage ID}"
+    },
+    {
+      "name": "Stage Deals",
+      "paged": true,
+      "suffix": "/v1/stages/{Stage ID}/deals?filter_id={Filter ID?}&user_id={User ID?}&everyone={Everyone?:0|1}"
+    },
+    {
+      "name": "Teams",
+      "paged": true,
+      "suffix": "/v1/teams?skip_users={Skip Users?:0|1}",
+      "lookups": [
+        {
+          "endpoint": "Team Users",
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "Team ID"
+        }
+      ]
+    },
+    {
+      "name": "Team",
+      "paged": false,
+      "suffix": "/v1/teams/{Team ID}?skip_users={Skip Users?:0|1}"
+    },
+    {
+      "name": "Team Users",
+      "paged": true,
+      "suffix": "/v1/teams/{Team ID}/users"
+    },
+    {
+      "name": "User Teams",
+      "paged": true,
+      "suffix": "/v1/teams/user/{User ID}?skip_users={Skip Users?:0|1}"
+    },
+    {
+      "name": "Users",
+      "paged": true,
+      "suffix": "/v1/users",
+      "lookups": [
+        {
+          "endpoints": [
+            "Blacklisted Email Addresses",
+            "User Followers",
+            "User Permissions",
+            "User Roles",
+            "User Role Settings"
+          ],
+          "jsonPath": "$.data[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "User Search",
+      "paged": true,
+      "suffix": "/v1/users/find?term={Term}&search_by_email={Search By Email?:0|1}"
+    },
+    {
+      "name": "Currenct User",
+      "paged": true,
+      "suffix": "/v1/users/me"
+    },
+    {
+      "name": "User",
+      "paged": false,
+      "suffix": "/v1/users/{User ID}"
+    },
+    {
+      "name": "Blacklisted Email Addresses",
+      "paged": true,
+      "suffix": "/v1/users/{User ID}/blacklistedEmails"
+    },
+    {
+      "name": "User Followers",
+      "paged": false,
+      "suffix": "/v1/users/{User ID}/followers"
+    },
+    {
+      "name": "User Permissions",
+      "paged": true,
+      "suffix": "/v1/users/{User ID}/permissions"
+    },
+    {
+      "name": "User Roles",
+      "paged": true,
+      "suffix": "/v1/users/{User ID}/roleAssignments"
+    },
+    {
+      "name": "User Role Settings",
+      "paged": true,
+      "suffix": "/v1/users/{User ID}/roleSettings"
+    },
+    {
+      "name": "User Connections",
+      "paged": true,
+      "suffix": "/v1/userConnections"
+    },
+    {
+      "name": "Current User Settings",
+      "paged": true,
+      "suffix": "/v1/userSettings"
+    },
+    {
+      "name": "Webhooks",
+      "paged": true,
+      "suffix": "/v1/webhooks"
+    }
+  ]
+}

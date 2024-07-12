@@ -1,0 +1,138 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.table-modes-dropdown .dropdown-item {
+  display: flex;
+  align-items: center;
+}
+
+.ws-details-dropdown-button {
+  border: none;
+  overflow: hidden;
+  outline: none;
+  height: 20px;
+  width: 35px;
+  padding: 0;
+  z-index: 5;
+}
+
+.table-mode-dropdown-icon.ws-details-table-button {
+  background-position: bottom;
+  background-color: transparent;
+  border: none;
+  cursor: default;
+}
+
+.dropdown-menu.table-modes-dropdown {
+  min-width: 0;
+}
+
+.ws-details-table-button {
+  background-repeat: no-repeat;
+  border: none;
+  overflow: hidden;
+  outline: none;
+  height: 24px;
+  width: 30px;
+  padding: 0;
+  z-index: 5;
+
+  &:disabled {
+    cursor: default;
+    pointer-events: none;
+  }
+
+  &:hover, &:active {
+    &:not([disabled]) {
+      cursor: pointer;
+      border-radius: 1px;
+    }
+  }
+}
+
+.ws-table-container {
+  flex: 1;
+  width: 100%;
+  overflow: hidden;
+}
+
+.ws-table-bar {
+  position: relative;
+  padding-left: 10px;
+  padding-bottom: 4px;
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.ws-details-table-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 0; // Gets rid of spaces as a result of newlines in between span tags
+
+  * {
+    font-size: 15px;
+    white-space: pre;
+  }
+
+  .ws-details-table-name {
+    font-weight: bold;
+  }
+}
+
+.ws-table-image {
+  font-size: 22px;
+  margin-right: 6px;
+}
+
+.ws-table-buttons {
+  font-size: 20px;
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: inherit;
+}
+
+.ws-table-column-search {
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  position: absolute;
+  top: -44px;
+  left: -1px;
+  border-radius: 0 0.25rem 0 0;
+  padding: 0.25rem 0.25rem;
+  background-color: var(--inet-dropdown-bg-color);
+}
+
+.search-result-count {
+  padding: .375rem .55rem
+}
+
+.dropdown-item {
+  padding: 0.25rem 1rem;
+}
+
+.bg-button-toggled {
+  background-color: var(--inet-selected-item-bg-color);
+}

@@ -1,0 +1,169 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" class="select-viewsheet">
+  <mat-card-content>
+    <mat-form-field appearance="outline" color="accent" [formGroup]="form">
+      <mat-label>_#(Select Dashboard)</mat-label>
+      <mat-select placeholder="_#(Select Dashboard)" name="someName"
+                  formControlName="dashboardSelected"
+                  (valueChange)="onChange($event)">
+        <mat-option class="mat-option-text">_#(None)</mat-option>
+        <mat-progress-bar *ngIf="dataSource?.loading" mode="indeterminate" class="viewsheet-tree-progress"></mat-progress-bar>
+        <mat-tree [dataSource]="dataSource" [treeControl]="treeControl" class="select-viewsheet-tree">
+          <mat-tree-node *matTreeNodeDef="let node" matTreeNodeToggle matTreeNodePadding [class.mat-active]="selectedViewsheet === node.id">
+            <button mat-icon-button disabled></button>
+            <mat-option class="mat-option-text" [value]="node.id" *ngIf="!node.folder">
+              <mat-icon fontSet="ineticons" class="icon-size-medium margin-unset" fontIcon="viewsheet-icon">
+              </mat-icon>
+              {{node.name}}
+            </mat-option>
+            <span *ngIf="node.folder">
+              <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="folder-icon"></mat-icon>
+              <span>{{node.name}}</span>
+            </span>
+          </mat-tree-node>
+          <mat-tree-node *matTreeNodeDef="let node; when: hasChild" matTreeNodePadding>
+            <button mat-icon-button matTreeNodeToggle [attr.aria-label]="'_#(Toggle) ' + node.name">
+              <mat-icon fontSet="ineticons" class="icon-size-medium" [fontIcon]="treeControl.isExpanded(node) ? 'downward-icon' : 'forward-icon'">
+              </mat-icon>
+            </button>
+            <span>
+              <mat-icon fontSet="ineticons" class="icon-size-medium" fontIcon="folder-icon"></mat-icon>
+              <span>{{node.name}}</span>
+            </span>
+            <mat-progress-bar *ngIf="node.loading" mode="indeterminate" class="viewsheet-tree-progress"></mat-progress-bar>
+          </mat-tree-node>
+        </mat-tree>
+      </mat-select>
+      <mat-error *ngIf="form.controls.dashboardSelected?.errors?.required">_#(em.scheduleRepletAction.dashboardRequired)</mat-error>
+      <mat-error *ngIf="form.controls.dashboardSelected?.errors?.notExists">{{notExistsMessage()}}</mat-error>
+    </mat-form-field>
+    <table mat-table [dataSource]="bookmarksDB">
+      <ng-container matColumnDef="bookmark">
+        <th mat-header-cell *matHeaderCellDef> _#(Bookmark) </th>
+        <td mat-cell *matCellDef="let element; let i = index">
+          <mat-form-field floatLabel="never" appearance="outline" color="accent">
+            <mat-select [(value)]="selectedBookmarks[i]" placeholder="_#(Select Bookmark)" [compareWith]="compareBookmark" (valueChange)="fireModelChanged()">
+              <mat-option *ngFor="let bookmark of bookmarks | async" [value]="bookmark">{{bookmark.label}}</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </td>
+      </ng-container>
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let element; let i = index">
+          <button mat-icon-button aria-label="_#(Remove Bookmark)" title="_#(Delete Tooltip Bookmark)"
+                  (click)="removeBookmark(element)" [disabled]="selectedBookmarks?.length == 1">
+            <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+          </button>
+        </td>
+      </ng-container>
+      <tr mat-header-row *matHeaderRowDef="columnsToDisplay"></tr>
+      <tr mat-row *matRowDef="let element; columns: columnsToDisplay;"></tr>
+    </table>
+    <mat-error *ngIf="duplicateBookmark">_#(em.scheduler.actions.bookmarkDuplicate)</mat-error>
+    <button mat-mini-fab color="accent"  title="_#(Add Tooltip Bookmark)" (click)="addBookmark()" aria-label="_#(Add Bookmark)"
+            [disabled]="!bookmarks || bookmarks.value.length == 0">
+      <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
+    </button>
+  </mat-card-content>
+</mat-card>
+<div class="action-options">
+  <em-notification-emails
+    *ngIf="model?.notificationEmailEnabled"
+    [enabled]="actionModel?.notificationEnabled"
+    [emails]="actionModel?.notifications"
+    [notifyIfFailed]="actionModel?.notifyIfFailed"
+    [notifyLink]="actionModel?.link"
+    [emailBrowserEnabled]="emailBrowserEnabled"
+    [users]="emailUsers"
+    [groups]="groups"
+    (notificationsChanged)="onNotificationsChanged($event)"
+  >
+  </em-notification-emails>
+  <em-delivery-emails
+    *ngIf="model?.emailDeliveryEnabled"
+    [type]="type"
+    [tableDataAssemblies]="tableDataAssemblies | async"
+    [enabled]="actionModel?.deliverEmailsEnabled"
+    [mailFormats]="model?.vsMailFormats"
+    [senderEnabled]="model?.fromEmailEnabled"
+    [sender]="actionModel?.fromEmail && model?.fromEmailEnabled ? actionModel?.fromEmail : model?.defaultFromEmail"
+    [recipients]="actionModel?.to"
+    [subject]="actionModel?.subject"
+    [bundledAsZip]="actionModel?.bundledAsZip"
+    [zipPassword]="actionModel?.password"
+    [attachmentName]="actionModel?.attachmentName"
+    [format]="actionModel?.format"
+    [emailMatchLayout]="actionModel?.emailMatchLayout != null ? actionModel?.emailMatchLayout : true"
+    [emailExpandSelections]="actionModel?.emailExpandSelections != null ? actionModel?.emailExpandSelections : false"
+    [emailOnlyDataComponents]="actionModel?.emailOnlyDataComponents != null ? actionModel?.emailOnlyDataComponents : false"
+    [exportAllTabbedTables]="actionModel.exportAllTabbedTables"
+    [message]="actionModel?.message"
+    [deliverLink]="actionModel?.deliverLink"
+    [emailBrowserEnabled]="emailBrowserEnabled"
+    [expandEnabled]="model?.expandEnabled"
+    [users]="emailUsers"
+    [groups]="groups"
+    [csvExportModel]="actionModel?.csvExportModel"
+    [ccAddress]="actionModel?.ccAddress" [bccAddress]="actionModel?.bccAddress"
+    [hasPrintLayout]="hasPrintLayout | async"
+    [fipsMode]="model?.fipsMode"
+    (deliveryChanged)="onDeliveryChanged($event)"
+  >
+  </em-delivery-emails>
+  <em-server-save
+    *ngIf="model?.saveToDiskEnabled"
+    [type]="type"
+    [matchLayout]="actionModel?.saveMatchLayout != null ? actionModel?.saveMatchLayout : true"
+    [expandSelections]=
+       "actionModel?.saveExpandSelections != null ? actionModel?.saveExpandSelections : false"
+    [saveOnlyDataComponents]=
+       "actionModel?.saveOnlyDataComponents != null ? actionModel?.saveOnlyDataComponents : false"
+    [expandEnabled]="model?.expandEnabled"
+    [enabled]="actionModel?.saveToServerEnabled"
+    [saveFormats]="actionModel?.saveFormats"
+    [savePaths]="actionModel?.filePaths"
+    [serverPaths]="actionModel?.serverFilePaths"
+    [formats]="model?.vsSaveFileFormats"
+    [locations]="model?.serverLocations"
+    [csvSaveModel]="actionModel?.csvSaveModel"
+    [tableDataAssemblies]="tableDataAssemblies | async"
+    [saveExportAllTabbedTables]="actionModel.saveExportAllTabbedTables"
+    (serverSaveChanged)="onServerSaveChanged($event)"
+  >
+  </em-server-save>
+  <em-parameter-table
+    [parameters]="actionModel?.parameters"
+    [requiredParameters]="optionalParameters | async"
+    [optionalParameters]="optionalParameters | async"
+    (parametersChange)="onParametersChanged($event)"
+  >
+  </em-parameter-table>
+  <em-schedule-alerts
+    *ngIf="hasHighlights"
+    [enabled]="actionModel?.highlightsSelected"
+    [highlights]="highlights | async"
+    [selectedElements]="actionModel?.highlightAssemblies"
+    [selectedHighlights]="actionModel?.highlightNames"
+    (alertsChanged)="onAlertsChanged($event)"
+  >
+  </em-schedule-alerts>
+</div>

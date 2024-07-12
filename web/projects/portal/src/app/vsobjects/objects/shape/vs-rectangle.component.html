@@ -1,0 +1,107 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model" #objectContainer
+     class="vs-object vs-rectangle"
+     VSDataTip [dataTipName]="model.absoluteName"
+     VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
+     [popZIndex]="model.objectFormat.zIndex"
+     [style.display]="getVisible() ? null : 'none'"
+     [class.fade-assembly]="!viewer && !model.visible"
+     [class.disable-actions-fade]="!model.enabled"
+     [class.move-handle]="(selected || inSelectedGroupContainer) && !viewer && !model.locked"
+     [style.top.px]="viewer || embeddedVS ? model.objectFormat.top : null"
+     [style.left.px]="viewer || embeddedVS ? model.objectFormat.left : null"
+     [style.position]="viewer || embeddedVS ? 'absolute' : 'relative'"
+     [style.width.px]="model.objectFormat.width"
+     [style.height.px]="model.objectFormat.height"
+     [style.z-index]="viewer ? model.objectFormat.zIndex : null"
+     [class.vs-rectangle--shadow]="model.shadow">
+  <svg class="vs-rectangle__svg"
+       [attr.shape-rendering]="roundCornerValue ? 'auto' : 'crispEdges'"
+       [attr.width]="model.objectFormat.width"
+       [attr.height]="model.objectFormat.height">
+     <defs>
+        <linearGradient *ngIf="gradientDirection == 'linear'"
+           [id]="getGradientId(model.objectFormat.gradientColor.direction)"
+           [attr.x1]="linearGradientStartX"
+           [attr.y1]="linearGradientStartY"
+           [attr.x2]="linearGradientEndX"
+           [attr.y2]="linearGradientEndY"
+           spreadMethod="pad">
+          <stop *ngFor="let gradientColor of model.objectFormat.gradientColor.colors"
+            [attr.offset]="gradientColor.offset/100" [attr.stop-color]="gradientColor.color"
+            [attr.stop-opacity]="model.objectFormat.alpha"/>
+       </linearGradient>
+       <radialGradient *ngIf="gradientDirection == 'radial'"
+           [id]="getGradientId(model.objectFormat.gradientColor.direction)"
+           cx="50%" cy="50%"
+           fx="50%" y2="50%"
+           spreadMethod="pad">
+          <stop *ngFor="let gradientColor of model.objectFormat.gradientColor.colors"
+            [attr.offset]="gradientColor.offset/100" [attr.stop-color]="gradientColor.color"
+            [attr.stop-opacity]="model.objectFormat.alpha"/>
+       </radialGradient>
+    </defs>
+    <rect [attr.x]="!lineWidth ? 0 : lineWidth / 2 - 1"
+          [attr.y]="!lineWidth ? 0 : lineWidth / 2 - 1"
+          [attr.width]="model.objectFormat.width"
+          [attr.height]="model.objectFormat.height"
+          [attr.fill]="model.objectFormat.gradientColor && model.objectFormat.gradientColor.apply ?
+                      'url(#' + getGradientId(model.objectFormat.gradientColor.direction) +')' :
+                      model.objectFormat.background"
+          [attr.fill-opacity]="model.objectFormat.background ? 1 : 0"
+          [attr.stroke]="model.objectFormat.foreground"
+          [attr.rx]="roundCornerValue"
+          [attr.ry]="roundCornerValue"
+          [attr.stroke-width]="lineWidth"
+          [attr.stroke-dasharray]="lineDash">
+    </rect>
+    <rect *ngIf="doubleLine"
+          x="3" y="3"
+          fill-opacity="0"
+          [attr.width]="model.objectFormat.width - 6"
+          [attr.height]="model.objectFormat.height - 6"
+          [attr.stroke]="model.objectFormat.foreground"
+          [attr.rx]="roundCornerValue"
+          [attr.ry]="roundCornerValue"
+          [attr.stroke-width]="lineWidth">
+    </rect>
+  </svg>
+  <div class="vs-rectangle__box-shadow"
+       [style.width.px]="model.objectFormat.width"
+       [style.height.px]="model.objectFormat.height"
+       [style.border-radius.px]="roundCornerValue"
+       [style.opacity]="model.objectFormat.alpha">
+  </div>
+  <div class="annotation-hidden-container" *ngIf="viewer">
+    <vs-hidden-annotation [annotations]="model.assemblyAnnotationModels"></vs-hidden-annotation>
+  </div>
+  <ng-container *ngIf="viewer">
+    <vs-annotation *ngFor="let annotationModel of model.assemblyAnnotationModels"
+                   [model]="annotationModel"
+                   [actions]="actions"
+                   [restrictTo]="objectContainer"
+                   [vsInfo]="vsInfo"
+                   [selected]="isAnnotationSelected(annotationModel)"
+                   (remove)="removeAnnotation(annotationModel)"
+                   (mouseSelect)="selectAnnotation($event)">
+    </vs-annotation>
+  </ng-container>
+</div>

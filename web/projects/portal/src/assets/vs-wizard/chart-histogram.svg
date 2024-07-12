@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Generator: Adobe Illustrator 15.1.0, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   version="1.1"
+   id="Layer_1"
+   x="0px"
+   y="0px"
+   width="24px"
+   height="24px"
+   viewBox="88 88 24 24"
+   enable-background="new 88 88 24 24"
+   xml:space="preserve"
+   sodipodi:docname="chart-histogram.svg"
+   inkscape:version="0.92.4 (5da689c313, 2019-01-14)"><metadata
+   id="metadata851"><rdf:RDF><cc:Work
+       rdf:about=""><dc:format>image/svg+xml</dc:format><dc:type
+         rdf:resource="http://purl.org/dc/dcmitype/StillImage" /><dc:title /></cc:Work></rdf:RDF></metadata><defs
+   id="defs849">
+	
+	
+	
+	
+</defs><sodipodi:namedview
+   pagecolor="#ffffff"
+   bordercolor="#666666"
+   borderopacity="1"
+   objecttolerance="10"
+   gridtolerance="10"
+   guidetolerance="10"
+   inkscape:pageopacity="0"
+   inkscape:pageshadow="2"
+   inkscape:window-width="1920"
+   inkscape:window-height="1057"
+   id="namedview847"
+   showgrid="false"
+   inkscape:zoom="37"
+   inkscape:cx="7.7972973"
+   inkscape:cy="12"
+   inkscape:window-x="-8"
+   inkscape:window-y="-8"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="Layer_1" />
+<g
+   id="g837"
+   transform="translate(-2.2702703,-0.1081081)">
+	<title
+   id="title834">background</title>
+	<rect
+   id="canvas_background"
+   x="89.900002"
+   y="89.900002"
+   width="20.201"
+   height="20.201"
+   style="fill:none" />
+</g>
+<rect
+   style="opacity:1;vector-effect:none;fill:#ffffff;fill-opacity:1;stroke:#468eba;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+   height="12.5"
+   width="5"
+   y="96.59864"
+   x="90.499992"
+   id="svg_1" />
+<rect
+   style="opacity:1;vector-effect:none;fill:#fdfefe;fill-opacity:1;stroke:#468eba;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;font-variant-east_asian:normal"
+   height="9.1000004"
+   width="4.7567978"
+   y="99.99868"
+   x="105.22973"
+   id="svg_3-3" /><rect
+   style="opacity:1;vector-effect:none;fill:#ffffff;fill-opacity:1;stroke:#468eba;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;font-variant-east_asian:normal"
+   height="14.370271"
+   width="5"
+   y="94.728409"
+   x="100.22973"
+   id="svg_3" /><rect
+   style="opacity:1;vector-effect:none;fill:#ffffff;fill-opacity:1;stroke:#468eba;stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;font-variant-east_asian:normal"
+   height="18.799999"
+   width="5"
+   y="90.298683"
+   x="95.229729"
+   id="svg_2" /><rect
+   style="opacity:1;vector-effect:none;fill:#eb8e25;fill-opacity:1;stroke:none;stroke-width:0.96908921;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+   height="2.7239282"
+   width="21.548252"
+   y="107.4083"
+   x="89.455605"
+   id="svg_1-5" /></svg>

@@ -1,0 +1,43 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMExportAssets'" [title]="'_#(Select Assets)'">
+</em-modal-header>
+<div mat-dialog-content [class.loading]="loading">
+  <div class="tree-container" *ngIf="!!dataSource.data && ((!!selectedNodes && selectedNodes.length > 0) || !loading)">
+    <em-flat-tree-view
+      [dataSource]="dataSource"
+      [treeControl]="dataSource.treeControl"
+      [selectedNodes]="selectedNodes"
+      emMultiSelectTree
+      [tree]="dataSource"
+      [currentSelection]="selectedNodes"
+      (nodesSelected)="selectNodes($event)"
+      (dblClicked)="onDBClicked($event)"
+    ></em-flat-tree-view>
+  </div>
+  <div class="progress-bar-container">
+    <h3>_#(Loading)...</h3>
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  </div>
+</div>
+<div mat-dialog-actions>
+  <button mat-raised-button color="primary" (click)="finish()" [disabled]="!selectedNodes || !selectedNodes.length || loading">_#(OK)</button>
+  <button mat-button (click)="cancel()">_#(Cancel)</button>
+</div>

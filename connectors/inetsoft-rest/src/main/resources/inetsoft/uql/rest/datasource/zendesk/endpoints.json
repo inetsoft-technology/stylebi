@@ -1,0 +1,2076 @@
+{
+  "endpoints": [
+    {
+      "name": "Support Search",
+      "pageType": "link",
+      "suffix": "/api/v2/search.json?query={Query}"
+    },
+    {
+      "name": "Support Users",
+      "pageType": "link",
+      "suffix": "/api/v2/users.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support User Related Information",
+            "Support Compliance Deletion Statuses",
+            "Support User Identities",
+            "Support Password Requirements",
+            "Support End User",
+            "Support Groups for User",
+            "Support Group Memberships for User",
+            "Support Organizations for User",
+            "Support Requests for User",
+            "Support Requested Tickets for User",
+            "Support CCd Tickets for User",
+            "Support Assigned Tickets for User",
+            "Support Ticket Skips for User",
+            "Support Sessions for User",
+            "Support Tags for User",
+            "Help Desk Articles for User",
+            "Help Desk Article Comments for User",
+            "Help Desk Posts for User",
+            "Help Desk Post Comments for User",
+            "Help Desk User Subscriptions",
+            "Help Desk User Segments for User",
+            "Help Desk Votes for User"
+          ],
+          "jsonPath": "$.users[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Users for Group",
+      "pageType": "link",
+      "suffix": "/api/v2/groups/{Group ID}/users.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support User Related Information",
+            "Support Compliance Deletion Statuses",
+            "Support User Identities",
+            "Support Password Requirements",
+            "Support End User",
+            "Support Groups for User",
+            "Support Group Memberships for User",
+            "Support Organizations for User",
+            "Support Requests for User",
+            "Support Requested Tickets for User",
+            "Support CCd Tickets for User",
+            "Support Assigned Tickets for User",
+            "Support Ticket Skips for User",
+            "Support Sessions for User",
+            "Support Tags for User",
+            "Help Desk Articles for User",
+            "Help Desk Article Comments for User",
+            "Help Desk Posts for User",
+            "Help Desk Post Comments for User",
+            "Help Desk User Subscriptions",
+            "Help Desk User Segments for User",
+            "Help Desk Votes for User"
+          ],
+          "jsonPath": "$.users[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Users for Organization",
+      "pageType": "link",
+      "suffix": "/api/v2/organizations/{Organization ID}/users.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support User Related Information",
+            "Support Compliance Deletion Statuses",
+            "Support User Identities",
+            "Support Password Requirements",
+            "Support End User",
+            "Support Groups for User",
+            "Support Group Memberships for User",
+            "Support Organizations for User",
+            "Support Requests for User",
+            "Support Requested Tickets for User",
+            "Support CCd Tickets for User",
+            "Support Assigned Tickets for User",
+            "Support Ticket Skips for User",
+            "Support Sessions for User",
+            "Support Tags for User",
+            "Help Desk Articles for User",
+            "Help Desk Article Comments for User",
+            "Help Desk Posts for User",
+            "Help Desk Post Comments for User",
+            "Help Desk User Subscriptions",
+            "Help Desk User Segments for User",
+            "Help Desk Votes for User"
+          ],
+          "jsonPath": "$.users[*]",
+          "key": "id",
+          "parameterName": "User ID"
+        }
+      ]
+    },
+    {
+      "name": "Support User",
+      "pageType": "none",
+      "suffix": "/api/v2/users/{User ID}.json"
+    },
+    {
+      "name": "Support User Related Information",
+      "pageType": "none",
+      "suffix": "/api/v2/users/{User ID}/related.json"
+    },
+    {
+      "name": "Support User Search",
+      "pageType": "link",
+      "suffix": "/api/v2/users/search.json?query={Query}"
+    },
+    {
+      "name": "Support Deleted Users",
+      "pageType": "link",
+      "suffix": "/api/v2/deleted_users.json"
+    },
+    {
+      "name": "Support Deleted User",
+      "pageType": "none",
+      "suffix": "/api/v2/deleted_users/{User ID}.json"
+    },
+    {
+      "name": "Support Compliance Deletion Statuses",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/compliance_deletion_statuses.json"
+    },
+    {
+      "name": "Support Current User",
+      "pageType": "none",
+      "suffix": "/api/v2/users/me.json"
+    },
+    {
+      "name": "Support User Identities",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/identities.json"
+    },
+    {
+      "name": "Support User Identity",
+      "pageType": "none",
+      "suffix": "/api/v2/users/{User ID}/identities/{Identity ID}.json"
+    },
+    {
+      "name": "Support Password Requirements",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/password/requirements.json"
+    },
+    {
+      "name": "Support End User",
+      "pageType": "none",
+      "suffix": "/api/v2/end_users/{User ID}.json"
+    },
+    {
+      "name": "Support Groups",
+      "pageType": "link",
+      "suffix": "/api/v2/groups.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Users for Group",
+            "Support Group Memberships for Group",
+            "Support Assignable Memberships for Group"
+          ],
+          "jsonPath": "$.groups[*]",
+          "key": "id",
+          "parameterName": "Group ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Groups for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/groups.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Users for Group",
+            "Support Group Memberships for Group",
+            "Support Assignable Memberships for Group"
+          ],
+          "jsonPath": "$.groups[*]",
+          "key": "id",
+          "parameterName": "Group ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Assignable Groups",
+      "pageType": "link",
+      "suffix": "/api/v2/groups/assignable.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Users for Group",
+            "Support Group Memberships for Group",
+            "Support Assignable Memberships for Group"
+          ],
+          "jsonPath": "$.groups[*]",
+          "key": "id",
+          "parameterName": "Group ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Group",
+      "pageType": "none",
+      "suffix": "/api/v2/groups/{Group ID}.json"
+    },
+    {
+      "name": "Support Group Memberships",
+      "pageType": "link",
+      "suffix": "/api/v2/group_memberships.json"
+    },
+    {
+      "name": "Support Group Memberships for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/group_memberships.json"
+    },
+    {
+      "name": "Support Group Memberships for Group",
+      "pageType": "link",
+      "suffix": "/api/v2/groups/{Group ID}/memberships.json"
+    },
+    {
+      "name": "Support Assignable Memberships",
+      "pageType": "link",
+      "suffix": "/api/v2/group_memberships/assignable.json"
+    },
+    {
+      "name": "Support Assignable Memberships for Group",
+      "pageType": "link",
+      "suffix": "/api/v2/groups/{Group ID}/memberships/assignable.json"
+    },
+    {
+      "name": "Support Group Membership",
+      "pageType": "none",
+      "suffix": "/api/v2/group_membership/{Membership ID}.json"
+    },
+    {
+      "name": "Support Group Membership for User",
+      "pageType": "none",
+      "suffix": "/api/v2/users/{User ID}/group_memberships/{Membership ID}.json"
+    },
+    {
+      "name": "Support Custom Roles",
+      "pageType": "link",
+      "suffix": "/api/v2/custom_roles.json"
+    },
+    {
+      "name": "Support Custom Role",
+      "pageType": "none",
+      "suffix": "/api/v2/custom_roles/{Role ID}.json"
+    },
+    {
+      "name": "Support Organizations",
+      "pageType": "link",
+      "suffix": "/api/v2/organizations.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Users for Organization",
+            "Support Organization Related Information",
+            "Support Organization Subscriptions for Organization",
+            "Support Organization Memberships for Organization",
+            "Support Requests for Organization",
+            "Support Tickets for Organization",
+            "Support Tags for Organization"
+          ],
+          "jsonPath": "$.organizations[*]",
+          "key": "id",
+          "parameterName": "Organization ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Organizations for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/organizations.json"
+    },
+    {
+      "name": "Support Organization Related Information",
+      "pageType": "none",
+      "suffix": "/api/v2/organizations/{Organization ID}/related.json"
+    },
+    {
+      "name": "Support Organization",
+      "pageType": "none",
+      "suffix": "/api/v2/organizations/{Organization ID}.json"
+    },
+    {
+      "name": "Support Organization Subscriptions for Organization",
+      "pageType": "link",
+      "suffix": "/api/v2/organizations/{Organization ID}/subscriptions.json"
+    },
+    {
+      "name": "Support Organization Subscriptions",
+      "pageType": "link",
+      "suffix": "/api/v2/organization_subscriptions.json"
+    },
+    {
+      "name": "Support Organization Subscriptions for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/organization_subscriptions.json"
+    },
+    {
+      "name": "Support Organization Subscription",
+      "pageType": "none",
+      "suffix": "/api/v2/organization_subscriptions/{Subscription ID}.json"
+    },
+    {
+      "name": "Support Organization Memberships",
+      "pageType": "link",
+      "suffix": "/api/v2/organization_memberships.json"
+    },
+    {
+      "name": "Support Organization Memberships for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/organization_memberships.json"
+    },
+    {
+      "name": "Support Organization Memberships for Organization",
+      "pageType": "link",
+      "suffix": "/api/v2/organizations/{Organization ID}/organization_memberships.json"
+    },
+    {
+      "name": "Support Organization Membership",
+      "pageType": "none",
+      "suffix": "/api/v2/organization_memberships/{Membership ID}.json"
+    },
+    {
+      "name": "Support Organization Membership for User",
+      "pageType": "none",
+      "suffix": "/api/v2/users/{User ID}/organization_memberships/{Membership ID}.json"
+    },
+    {
+      "name": "Support Requests",
+      "pageType": "link",
+      "suffix": "/api/v2/requests.json?status={Status?:hold,open,...}",
+      "lookups": [
+        {
+          "endpoint": "Support Request Comments",
+          "jsonPath": "$.requests[*]",
+          "key": "id",
+          "parameterName": "Request ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Open Requests",
+      "pageType": "link",
+      "suffix": "/api/v2/requests/open.json",
+      "lookups": [
+        {
+          "endpoint": "Support Request Comments",
+          "jsonPath": "$.requests[*]",
+          "key": "id",
+          "parameterName": "Request ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Solved Requests",
+      "pageType": "link",
+      "suffix": "/api/v2/requests/solved.json",
+      "lookups": [
+        {
+          "endpoint": "Support Request Comments",
+          "jsonPath": "$.requests[*]",
+          "key": "id",
+          "parameterName": "Request ID"
+        }
+      ]
+    },
+    {
+      "name": "Support CCd Requests",
+      "pageType": "link",
+      "suffix": "/api/v2/requests/ccd.json",
+      "lookups": [
+        {
+          "endpoint": "Support Request Comments",
+          "jsonPath": "$.requests[*]",
+          "key": "id",
+          "parameterName": "Request ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Requests for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/requests.json",
+      "lookups": [
+        {
+          "endpoint": "Support Request Comments",
+          "jsonPath": "$.requests[*]",
+          "key": "id",
+          "parameterName": "Request ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Requests for Organization",
+      "pageType": "link",
+      "suffix": "/api/v2/organizations/{Organization ID}/requests.json",
+      "lookups": [
+        {
+          "endpoint": "Support Request Comments",
+          "jsonPath": "$.requests[*]",
+          "key": "id",
+          "parameterName": "Request ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Request Search",
+      "pageType": "link",
+      "suffix": "/api/v2/requests/search.json?query={Query}",
+      "lookups": [
+        {
+          "endpoint": "Support Request Comments",
+          "jsonPath": "$.requests[*]",
+          "key": "id",
+          "parameterName": "Request ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Request",
+      "pageType": "none",
+      "suffix": "/api/v2/requests/{Request ID}.json"
+    },
+    {
+      "name": "Support Request Comments",
+      "pageType": "link",
+      "suffix": "/api/v2/requests/{Request ID}/comments.json?since={Since?:YYYY-MM-DDTHH:MM:SS}&role={Role?:agent|end_user}"
+    },
+    {
+      "name": "Support Request Comment",
+      "pageType": "none",
+      "suffix": "/api/v2/requests/{Request ID}/comments/{Comment ID}.json"
+    },
+    {
+      "name": "Support Tickets",
+      "pageType": "link",
+      "suffix": "/api/v2/tickets.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Ticket Related Information",
+            "Support Ticket Collaborators",
+            "Support Ticket Followers",
+            "Support Ticket Email CCs",
+            "Support Ticket Incidents",
+            "Support Ticket Audits for Ticket",
+            "Support Ticket Comments",
+            "Support Ticket Skips for Ticket",
+            "Support Ticket Metrics for Ticket",
+            "Support Tags for Ticket",
+            "Support Routing Attribute Values for Ticket"
+          ],
+          "jsonPath": "$.tickets[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Tickets for Organization",
+      "pageType": "link",
+      "suffix": "/api/v2/organizations/{Organization ID}/tickets.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Ticket Related Information",
+            "Support Ticket Collaborators",
+            "Support Ticket Followers",
+            "Support Ticket Email CCs",
+            "Support Ticket Incidents",
+            "Support Ticket Audits for Ticket",
+            "Support Ticket Comments",
+            "Support Ticket Skips for Ticket",
+            "Support Ticket Metrics for Ticket",
+            "Support Tags for Ticket",
+            "Support Routing Attribute Values for Ticket"
+          ],
+          "jsonPath": "$.tickets[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Requested Tickets for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/tickets/requested.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Ticket Related Information",
+            "Support Ticket Collaborators",
+            "Support Ticket Followers",
+            "Support Ticket Email CCs",
+            "Support Ticket Incidents",
+            "Support Ticket Audits for Ticket",
+            "Support Ticket Comments",
+            "Support Ticket Skips for Ticket",
+            "Support Ticket Metrics for Ticket",
+            "Support Tags for Ticket",
+            "Support Routing Attribute Values for Ticket"
+          ],
+          "jsonPath": "$.tickets[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        }
+      ]
+    },
+    {
+      "name": "Support CCd Tickets for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/tickets/ccd.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Ticket Related Information",
+            "Support Ticket Collaborators",
+            "Support Ticket Followers",
+            "Support Ticket Email CCs",
+            "Support Ticket Incidents",
+            "Support Ticket Audits for Ticket",
+            "Support Ticket Comments",
+            "Support Ticket Skips for Ticket",
+            "Support Ticket Metrics for Ticket",
+            "Support Tags for Ticket",
+            "Support Routing Attribute Values for Ticket"
+          ],
+          "jsonPath": "$.tickets[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Assigned Tickets for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/tickets/assigned.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Ticket Related Information",
+            "Support Ticket Collaborators",
+            "Support Ticket Followers",
+            "Support Ticket Email CCs",
+            "Support Ticket Incidents",
+            "Support Ticket Audits for Ticket",
+            "Support Ticket Comments",
+            "Support Ticket Skips for Ticket",
+            "Support Ticket Metrics for Ticket",
+            "Support Tags for Ticket",
+            "Support Routing Attribute Values for Ticket"
+          ],
+          "jsonPath": "$.tickets[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Recent Tickets",
+      "pageType": "link",
+      "suffix": "/api/v2/tickets/recent.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Ticket Related Information",
+            "Support Ticket Collaborators",
+            "Support Ticket Followers",
+            "Support Ticket Email CCs",
+            "Support Ticket Incidents",
+            "Support Ticket Audits for Ticket",
+            "Support Ticket Comments",
+            "Support Ticket Skips for Ticket",
+            "Support Ticket Metrics for Ticket",
+            "Support Tags for Ticket",
+            "Support Routing Attribute Values for Ticket"
+          ],
+          "jsonPath": "$.tickets[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Ticket",
+      "pageType": "none",
+      "suffix": "/api/v2/tickets/{Ticket ID}.json"
+    },
+    {
+      "name": "Support Ticket Related Information",
+      "pageType": "none",
+      "suffix": "/api/v2/tickets/{Ticket ID}/related.json"
+    },
+    {
+      "name": "Support Deleted Tickets",
+      "pageType": "link",
+      "suffix": "/api/v2/deleted_tickets.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Ticket Related Information",
+            "Support Ticket Collaborators",
+            "Support Ticket Followers",
+            "Support Ticket Email CCs",
+            "Support Ticket Incidents",
+            "Support Ticket Audits for Ticket",
+            "Support Ticket Comments",
+            "Support Ticket Skips for Ticket",
+            "Support Ticket Metrics for Ticket",
+            "Support Tags for Ticket",
+            "Support Routing Attribute Values for Ticket"
+          ],
+          "jsonPath": "$.tickets[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Ticket Collaborators",
+      "pageType": "link",
+      "suffix": "/api/v2/tickets/{Ticket ID}/collaborators.json"
+    },
+    {
+      "name": "Support Ticket Followers",
+      "pageType": "link",
+      "suffix": "/api/v2/tickets/{Ticket ID}/followers"
+    },
+    {
+      "name": "Support Ticket Email CCs",
+      "pageType": "link",
+      "suffix": "/api/v2/tickets/{Ticket ID}/email_ccs"
+    },
+    {
+      "name": "Support Ticket Incidents",
+      "pageType": "link",
+      "suffix": "/api/v2/tickets/{Ticket ID}/incidents.json"
+    },
+    {
+      "name": "Support Ticket Problems",
+      "pageType": "link",
+      "suffix": "/api/v2/problems.json"
+    },
+    {
+      "name": "Support Attachment",
+      "pageType": "none",
+      "suffix": "/api/v2/attachments/{Attachment ID}.json"
+    },
+    {
+      "name": "Support Satisfaction Ratings",
+      "pageType": "link",
+      "suffix": "/api/v2/satisfaction_ratings.json?score={Score?:offered|unoffered|received|...}&start_time={Start Time?:Unix timestamp}&end_time={End Time?:Unix timestamp}"
+    },
+    {
+      "name": "Support Satisfaction Rating",
+      "pageType": "none",
+      "suffix": "/api/v2/satisfaction_ratings/{Rating ID}.json"
+    },
+    {
+      "name": "Support Satisfaction Reasons",
+      "pageType": "link",
+      "suffix": "/api/v2/satisfaction_reasons.json"
+    },
+    {
+      "name": "Support Satisfaction Reason",
+      "pageType": "none",
+      "suffix": "/api/v2/satisfaction_reasons/{Reason ID}.json"
+    },
+    {
+      "name": "Support Suspended Tickets",
+      "pageType": "link",
+      "suffix": "/api/v2/suspended_tickets.json"
+    },
+    {
+      "name": "Support Suspended Ticket",
+      "pageType": "none",
+      "suffix": "/api/v2/suspended_tickets/{Ticket ID}.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Ticket Related Information",
+            "Support Ticket Collaborators",
+            "Support Ticket Followers",
+            "Support Ticket Email CCs",
+            "Support Ticket Incidents",
+            "Support Ticket Audits for Ticket",
+            "Support Ticket Comments",
+            "Support Ticket Skips for Ticket",
+            "Support Ticket Metrics for Ticket",
+            "Support Tags for Ticket",
+            "Support Routing Attribute Values for Ticket"
+          ],
+          "jsonPath": "$.suspended_tickets[*]",
+          "key": "ticket_id",
+          "parameterName": "Ticket ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Ticket Audits",
+      "pageType": "cursor",
+      "suffix": "/api/v2/ticket_audits.json"
+    },
+    {
+      "name": "Support Ticket Audits for Ticket",
+      "pageType": "link",
+      "suffix": "/api/v2/tickets/{Ticket ID}/audits.json"
+    },
+    {
+      "name": "Support Ticket Audit",
+      "pageType": "none",
+      "suffix": "/api/v2/tickets/{Ticket ID}/audits/{Audit ID}.json"
+    },
+    {
+      "name": "Support Ticket Comments",
+      "pageType": "link",
+      "suffix": "/api/v2/tickets/{Ticket ID}/comments.json"
+    },
+    {
+      "name": "Support Ticket Skips",
+      "pageType": "link",
+      "suffix": "/api/v2/skips.json"
+    },
+    {
+      "name": "Support Ticket Skips for Ticket",
+      "pageType": "link",
+      "suffix": "/api/v2/tickets/{Ticket ID}/skips.json"
+    },
+    {
+      "name": "Support Ticket Skips for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/skips.json"
+    },
+    {
+      "name": "Support Ticket Metrics",
+      "pageType": "none",
+      "suffix": "/api/v2/ticket_metrics.json"
+    },
+    {
+      "name": "Support Ticket Metric",
+      "pageType": "none",
+      "suffix": "/api/v2/ticket_metrics/{Metric ID}.json"
+    },
+    {
+      "name": "Support Ticket Metrics for Ticket",
+      "pageType": "none",
+      "suffix": "/api/v2/tickets/{Ticket ID}/metrics.json"
+    },
+    {
+      "name": "Support Ticket Activities",
+      "pageType": "link",
+      "suffix": "/api/v2/activities.json?since={Since?:YYYY-MM-DDTHH:MM:SSZ}"
+    },
+    {
+      "name": "Support Ticket Activity",
+      "pageType": "none",
+      "suffix": "/api/v2/activities/{Activity ID}.json"
+    },
+    {
+      "name": "Support Sessions",
+      "pageType": "link",
+      "suffix": "/api/v2/sessions.json"
+    },
+    {
+      "name": "Support Sessions for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/sessions.json"
+    },
+    {
+      "name": "Support Session",
+      "pageType": "none",
+      "suffix": "/api/v2/users/{User ID}/sessions/{Session ID}.json"
+    },
+    {
+      "name": "Support Current Session",
+      "pageType": "none",
+      "suffix": "/api/v2/users/me/session.json"
+    },
+    {
+      "name": "Support Most Popular Tags",
+      "pageType": "link",
+      "suffix": "/api/v2/tags.json"
+    },
+    {
+      "name": "Support Tags for Ticket",
+      "pageType": "link",
+      "suffix": "/api/v2/tickets/{Ticket ID}/tags.json"
+    },
+    {
+      "name": "Support Tags for Organization",
+      "pageType": "link",
+      "suffix": "/api/v2/organizations/{Organization ID}/tags.json"
+    },
+    {
+      "name": "Support Tags for User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/{User ID}/tags.json"
+    },
+    {
+      "name": "Support Views",
+      "pageType": "link",
+      "suffix": "/api/v2/views.json?access={Access?:personal|shared|account}&active={Active?:true|false}&group_id={Group ID?}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support View Tickets",
+            "Support View Count"
+          ],
+          "jsonPath": "$.views[*]",
+          "key": "id",
+          "parameterName": "View ID"
+        }
+      ]
+    },
+    {
+      "name": "Support View",
+      "pageType": "none",
+      "suffix": "/api/v2/views/{View ID}.json"
+    },
+    {
+      "name": "Support View Tickets",
+      "pageType": "link",
+      "suffix": "/api/v2/views/{View ID}/tickets.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Support Ticket Related Information",
+            "Support Ticket Collaborators",
+            "Support Ticket Followers",
+            "Support Ticket Email CCs",
+            "Support Ticket Incidents",
+            "Support Ticket Audits for Ticket",
+            "Support Ticket Comments",
+            "Support Ticket Skips for Ticket",
+            "Support Ticket Metrics for Ticket",
+            "Support Tags for Ticket",
+            "Support Routing Attribute Values for Ticket"
+          ],
+          "jsonPath": "$.tickets[*]",
+          "key": "id",
+          "parameterName": "Ticket ID"
+        }
+      ]
+    },
+    {
+      "name": "Support View Counts",
+      "pageType": "none",
+      "suffix": "/api/v2/views/count_many.json?ids={View IDs:id1,id2,...}"
+    },
+    {
+      "name": "Support View Count",
+      "pageType": "none",
+      "suffix": "/api/v2/views/{View ID}/count.json"
+    },
+    {
+      "name": "Support View Search",
+      "pageType": "link",
+      "suffix": "/api/v2/views/search.json?query={Query}&access={Access?:personal|shared|account}&active={Active?:true|false}&group_id={Group ID?}"
+    },
+    {
+      "name": "Support Triggers",
+      "pageType": "link",
+      "suffix": "/api/v2/triggers.json?active={Active?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Support Trigger Revisions",
+          "jsonPath": "$.triggers[*]",
+          "key": "id",
+          "parameterName": "Trigger ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Trigger",
+      "pageType": "none",
+      "suffix": "/api/v2/triggers/{Trigger ID}.json"
+    },
+    {
+      "name": "Support Active Triggers",
+      "pageType": "link",
+      "suffix": "/api/v2/triggers/active.json",
+      "lookups": [
+        {
+          "endpoint": "Support Trigger Revisions",
+          "jsonPath": "$.triggers[*]",
+          "key": "id",
+          "parameterName": "Trigger ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Trigger Search",
+      "pageType": "link",
+      "suffix": "/api/v2/triggers/search.json?query={Query}&active={Active?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Support Trigger Revisions",
+          "jsonPath": "$.triggers[*]",
+          "key": "id",
+          "parameterName": "Trigger ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Trigger Definitions",
+      "pageType": "link",
+      "suffix": "/api/v2/triggers/definitions.json"
+    },
+    {
+      "name": "Support Trigger Revisions",
+      "pageType": "link",
+      "suffix": "/api/v2/triggers/{Trigger ID}/revisions.json"
+    },
+    {
+      "name": "Support Trigger Revision",
+      "pageType": "none",
+      "suffix": "/api/v2/triggers/{Trigger ID}/revisions/{Revision ID}.json"
+    },
+    {
+      "name": "Support Automations",
+      "pageType": "link",
+      "suffix": "/api/v2/automations.json?active={Active?:true|false}"
+    },
+    {
+      "name": "Support Automation",
+      "pageType": "none",
+      "suffix": "/api/v2/automations/{Automation ID}.json"
+    },
+    {
+      "name": "Support Active Automations",
+      "pageType": "link",
+      "suffix": "/api/v2/automations/active.json"
+    },
+    {
+      "name": "Support Automation Search",
+      "pageType": "link",
+      "suffix": "/api/v2/automations/search.json?query={Query}&active={Active?:true|false}"
+    },
+    {
+      "name": "Support SLA Policies",
+      "pageType": "link",
+      "suffix": "/api/v2/slas/policies"
+    },
+    {
+      "name": "Support SLA Policy",
+      "pageType": "none",
+      "suffix": "/api/v2/slas/policies/{Policy ID}"
+    },
+    {
+      "name": "Support SLA Policy Definitions",
+      "pageType": "link",
+      "suffix": "/api/v2/slas/policies/definitions.json"
+    },
+    {
+      "name": "Support Targets",
+      "pageType": "link",
+      "suffix": "/api/v2/targets.json"
+    },
+    {
+      "name": "Support Target",
+      "pageType": "none",
+      "suffix": "/api/v2/targets/{Target ID}.json"
+    },
+    {
+      "name": "Support Target Failures",
+      "pageType": "link",
+      "suffix": "/api/v2/target_failures"
+    },
+    {
+      "name": "Support Target Failure",
+      "pageType": "none",
+      "suffix": "/api/v2/target_failures/{Failure ID}"
+    },
+    {
+      "name": "Support Macros",
+      "pageType": "link",
+      "suffix": "/api/v2/macros.json?access={Access?:personal|shared|account}&active={Active?:true|false}&category={Category?}&group_id={Group ID?}&only_viewable={Only Viewable?:true|false}",
+      "lookups": [
+        {
+          "endpoint": "Support Macro Attachments",
+          "jsonPath": "$.macros[*]",
+          "key": "id",
+          "parameterName": "Macro ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Macro",
+      "pageType": "none",
+      "suffix": "/api/v2/macros/{Macro ID}.json"
+    },
+    {
+      "name": "Support Active Macros",
+      "pageType": "link",
+      "suffix": "/api/v2/macros/active.json?access={Access?:personal|shared|account}&category={Category?}&group_id={Group ID?}"
+    },
+    {
+      "name": "Support Macro Categories",
+      "pageType": "link",
+      "suffix": "/api/v2/macros/categories.json"
+    },
+    {
+      "name": "Support Macro Search",
+      "pageType": "link",
+      "suffix": "/api/v2/macros/search.json?query={Query}&access={Access?:personal|shared|account}&active={Active?:true|false}&category={Category?}&group_id={Group ID?}&only_viewable={Only Viewable?:true|false}"
+    },
+    {
+      "name": "Support Macro Actions",
+      "pageType": "link",
+      "suffix": "/api/v2/macros/actions.json"
+    },
+    {
+      "name": "Support Macro Action Definitions",
+      "pageType": "link",
+      "suffix": "/api/v2/macros/definitions.json"
+    },
+    {
+      "name": "Support Macro Attachments",
+      "pageType": "link",
+      "suffix": "/api/v2/macros/{Macro ID}/attachments.json"
+    },
+    {
+      "name": "Support Macro Attachment",
+      "pageType": "none",
+      "suffix": "/api/v2/macros/attachments/{Attachment ID}.json"
+    },
+    {
+      "name": "Support Brands",
+      "pageType": "link",
+      "suffix": "/api/v2/brands.json",
+      "lookups": [
+        {
+          "endpoint": "Support Host Mapping Validity for Brand",
+          "jsonPath": "$.brands[*]",
+          "key": "id",
+          "parameterName": "Brand ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Brand",
+      "pageType": "none",
+      "suffix": "/api/v2/brands/{Brand ID}.json"
+    },
+    {
+      "name": "Support Host Mapping Validity",
+      "pageType": "none",
+      "suffix": "/api/v2/brands/check_host_mapping.json?host_mapping={Host Mapping}&subdomain={Subdomain}"
+    },
+    {
+      "name": "Support Host Mapping Validity for Brand",
+      "pageType": "none",
+      "suffix": "/api/v2/brands/{Brand ID}/check_host_mapping.json"
+    },
+    {
+      "name": "Support Dynamic Content Items",
+      "pageType": "link",
+      "suffix": "/api/v2/dynamic_content/items.json",
+      "lookups": [
+        {
+          "endpoint": "Support Dynamic Content Variant",
+          "jsonPath": "$.items[*]",
+          "key": "id",
+          "parameterName": "Item ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Dynamic Content Item",
+      "pageType": "none",
+      "suffix": "/api/v2/dynamic_content/items/{Item ID}.json"
+    },
+    {
+      "name": "Support Dynamic Content Variants",
+      "pageType": "link",
+      "suffix": "/api/v2/dynamic_content/items/{Item ID}/variants.json"
+    },
+    {
+      "name": "Support Dynamic Content Variant",
+      "pageType": "none",
+      "suffix": "/api/v2/dynamic_content/items/{Item ID}/variants/{Variant ID}.json"
+    },
+    {
+      "name": "Support Locales",
+      "pageType": "link",
+      "suffix": "/api/v2/locales.json"
+    },
+    {
+      "name": "Support Public Locales",
+      "pageType": "link",
+      "suffix": "/api/v2/locales/public.json"
+    },
+    {
+      "name": "Support Agent Locales",
+      "pageType": "link",
+      "suffix": "/api/v2/locales/agent.json"
+    },
+    {
+      "name": "Support Locale",
+      "pageType": "none",
+      "suffix": "/api/v2/locales/{Locale ID}.json"
+    },
+    {
+      "name": "Support Current Locale",
+      "pageType": "none",
+      "suffix": "/api/v2/locales/current.json"
+    },
+    {
+      "name": "Support Schedules",
+      "pageType": "link",
+      "suffix": "/api/v2/business_hours/schedules.json"
+    },
+    {
+      "name": "Support Schedule",
+      "pageType": "none",
+      "suffix": "/api/v2/business_hours/schedules/{Schedule ID}.json",
+      "lookups": [
+        {
+          "endpoint": "Support Schedule Holidays",
+          "jsonPath": "$.schedules[*]",
+          "key": "id",
+          "parameterName": "Schedule ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Schedule Holidays",
+      "pageType": "link",
+      "suffix": "/api/v2/business_hours/schedules/{Schedule ID}/holidays.json?start_date={Start Date?:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}"
+    },
+    {
+      "name": "Support Schedule Holiday",
+      "pageType": "none",
+      "suffix": "/api/v2/business_hours/schedules/{Schedule ID}/holidays/{Holiday ID}.json"
+    },
+    {
+      "name": "Support Sharing Agreements",
+      "pageType": "link",
+      "suffix": "/api/v2/sharing_agreements.json"
+    },
+    {
+      "name": "Support Sharing Agreement",
+      "pageType": "none",
+      "suffix": "/api/v2/sharing_agreements/{Agreement ID}.json"
+    },
+    {
+      "name": "Support Addresses",
+      "pageType": "link",
+      "suffix": "/api/v2/recipient_addresses.json"
+    },
+    {
+      "name": "Support Address",
+      "pageType": "none",
+      "suffix": "/api/v2/recipient_addresses/{Address ID}.json"
+    },
+    {
+      "name": "Support Ticket Forms",
+      "pageType": "link",
+      "suffix": "/api/v2/ticket_forms.json?active={Active?:true|false}&end_user_visible={Visible to End Users?:true|false}&fallback_to_default={Fallback to Default?:true|false}&associated_to_brand={Associated to Brand?:true|false}"
+    },
+    {
+      "name": "Support Ticket Form",
+      "pageType": "none",
+      "suffix": "/api/v2/ticket_forms/{Form ID}.json"
+    },
+    {
+      "name": "Support Ticket Fields",
+      "pageType": "link",
+      "suffix": "/api/v2/ticket_fields.json",
+      "lookups": [
+        {
+          "endpoint": "Support Ticket Field Options",
+          "jsonPath": "$.ticket_fields[*]",
+          "key": "id",
+          "parameterName": "Field ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Ticket Field",
+      "pageType": "none",
+      "suffix": "/api/v2/ticket_fields/{Field ID}.json"
+    },
+    {
+      "name": "Support Ticket Field Options",
+      "pageType": "link",
+      "suffix": "/api/v2/ticket_fields/{Field ID}/options.json"
+    },
+    {
+      "name": "Support Ticket Field Option",
+      "pageType": "none",
+      "suffix": "/api/v2/ticket_fields/{Field ID}/options/{Option ID}.json"
+    },
+    {
+      "name": "Support User Fields",
+      "pageType": "link",
+      "suffix": "/api/v2/user_fields.json",
+      "lookups": [
+        {
+          "endpoint": "Support User Field Options",
+          "jsonPath": "$.user_fields[*]",
+          "key": "id",
+          "parameterName": "Field ID"
+        }
+      ]
+    },
+    {
+      "name": "Support User Field",
+      "pageType": "none",
+      "suffix": "/api/v2/user_fields/{Field ID}.json"
+    },
+    {
+      "name": "Support User Field Options",
+      "pageType": "link",
+      "suffix": "/api/v2/user_fields/{Field ID}/options.json"
+    },
+    {
+      "name": "Support User Field Option",
+      "pageType": "none",
+      "suffix": "/api/v2/user_fields/{Field ID}/option/{Option ID}.json"
+    },
+    {
+      "name": "Support Organization Fields",
+      "pageType": "link",
+      "suffix": "/api/v2/organization_fields.json"
+    },
+    {
+      "name": "Support Organization Field",
+      "pageType": "none",
+      "suffix": "/api/v2/organization_fields/{Field ID}.json"
+    },
+    {
+      "name": "Support Job Statuses",
+      "pageType": "link",
+      "suffix": "/api/v2/job_statuses.json"
+    },
+    {
+      "name": "Support Job Status",
+      "pageType": "none",
+      "suffix": "/api/v2/job_statuses/{Status ID}.json"
+    },
+    {
+      "name": "Support Routing Attributes",
+      "pageType": "link",
+      "suffix": "/api/v2/routing/attributes.json",
+      "lookups": [
+        {
+          "endpoint": "Support Routing Attribute Values",
+          "jsonPath": "$.attributes[*]",
+          "key": "id",
+          "parameterName": "Attribute ID"
+        }
+      ]
+    },
+    {
+      "name": "Support Routing Attribute",
+      "pageType": "none",
+      "suffix": "/api/v2/routing/attributes/{Attribute ID}.json"
+    },
+    {
+      "name": "Support Routing Attribute Definitions",
+      "pageType": "link",
+      "suffix": "/api/v2/routing/attributes/definitions.json"
+    },
+    {
+      "name": "Support Routing Attribute Values",
+      "pageType": "link",
+      "suffix": "/api/v2/routing/attributes/{Attribute ID}/values.json"
+    },
+    {
+      "name": "Support Routing Attribute Value",
+      "pageType": "none",
+      "suffix": "/api/v2/routing/attributes/{Attribute ID}/values/{Value ID}.json"
+    },
+    {
+      "name": "Support Routing Attribute Values for Ticket",
+      "pageType": "link",
+      "suffix": "/api/v2/routing/tickets/{Ticket ID}/instance_values.json"
+    },
+    {
+      "name": "Support Routing Attribute Values for Agent",
+      "pageType": "link",
+      "suffix": "/api/v2/routing/agents/{Agent ID}/instance_values.json"
+    },
+    {
+      "name": "Support Tickets Fulfilled by Current User",
+      "pageType": "link",
+      "suffix": "/api/v2/routing/requirements/fulfilled.json"
+    },
+    {
+      "name": "Support Workspaces",
+      "pageType": "link",
+      "suffix": "/api/v2/workspaces.json"
+    },
+    {
+      "name": "Support Workspace",
+      "pageType": "none",
+      "suffix": "/api/v2/workspaces/{Workspace ID}.json"
+    },
+    {
+      "name": "Support Apps",
+      "pageType": "link",
+      "suffix": "/api/v2/apps.json"
+    },
+    {
+      "name": "Support App",
+      "pageType": "none",
+      "suffix": "/api/v2/apps/{App ID}.json"
+    },
+    {
+      "name": "Support Owned Apps",
+      "pageType": "link",
+      "suffix": "/api/v2/apps/owned.json"
+    },
+    {
+      "name": "Support App Installations",
+      "pageType": "link",
+      "suffix": "/api/v2/apps/installations.json",
+      "lookups": [
+        {
+          "endpoint": "Support App Requirements",
+          "jsonPath": "$.installations[*]",
+          "key": "id",
+          "parameterName": "Installation ID"
+        }
+      ]
+    },
+    {
+      "name": "Support App Installation",
+      "pageType": "none",
+      "suffix": "/api/v2/apps/installations/{Installation ID}.json"
+    },
+    {
+      "name": "Support App Installation Status",
+      "pageType": "none",
+      "suffix": "/api/v2/apps/installations/job_status/{Job ID}.json"
+    },
+    {
+      "name": "Support App Requirements",
+      "pageType": "link",
+      "suffix": "/api/v2/apps/installations/{Installation ID}/requirements.json"
+    },
+    {
+      "name": "Support App Location Installations",
+      "pageType": "link",
+      "suffix": "/api/v2/apps/location_installations.json"
+    },
+    {
+      "name": "Support App Locations",
+      "pageType": "link",
+      "suffix": "/api/v2/apps/locations.json"
+    },
+    {
+      "name": "Support App Location",
+      "pageType": "none",
+      "suffix": "/api/v2/apps/locations/{Location ID}.json"
+    },
+    {
+      "name": "Support OAuth Clients",
+      "pageType": "link",
+      "suffix": "/api/v2/oauth/clients.json"
+    },
+    {
+      "name": "Support OAuth Clients for Current User",
+      "pageType": "link",
+      "suffix": "/api/v2/users/me/oauth/clients.json"
+    },
+    {
+      "name": "Support OAuth Client",
+      "pageType": "none",
+      "suffix": "/api/v2/oauth/clients/{Client ID}.json"
+    },
+    {
+      "name": "Support OAuth Tokens",
+      "pageType": "link",
+      "suffix": "/api/v2/oauth/tokens.json"
+    },
+    {
+      "name": "Support OAuth Token",
+      "pageType": "none",
+      "suffix": "/api/v2/oauth/tokens/{Token ID}.json"
+    },
+    {
+      "name": "Support OAuth Current Token",
+      "pageType": "none",
+      "suffix": "/api/v2/oauth/tokens/current.json"
+    },
+    {
+      "name": "Support Authorized Global Clients",
+      "pageType": "link",
+      "suffix": "/api/v2/oauth/global_clients..json"
+    },
+    {
+      "name": "Support Account Settings",
+      "pageType": "none",
+      "suffix": "/api/v2/account/settings.json"
+    },
+    {
+      "name": "Support Audit Logs",
+      "pageType": "link",
+      "suffix": "/api/v2/audit_logs.json"
+    },
+    {
+      "name": "Support Audit Log",
+      "pageType": "none",
+      "suffix": "/api/v2/audit_logs/{Log ID}.json"
+    },
+    {
+      "name": "Support Bookmarks",
+      "pageType": "link",
+      "suffix": "/api/v2/bookmarks.json"
+    },
+    {
+      "name": "Support Resource Collections",
+      "pageType": "link",
+      "suffix": "/api/v2/resource_collections.json"
+    },
+    {
+      "name": "Support Resource Collection",
+      "pageType": "none",
+      "suffix": "/api/v2/resource_collections/{Collection ID}.json"
+    },
+    {
+      "name": "Help Desk Articles",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/articles.json?label_names={Labels?:label1,label2,...}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk Article Attachments",
+            "Help Desk Article Inline Attachments",
+            "Help Desk Article Block Attachments",
+            "Help Desk Article Comments",
+            "Help Desk Article Labels for Article",
+            "Help Desk Translations for Article",
+            "Help Desk Missing Translations for Article",
+            "Help Desk Article Subscriptions",
+            "Help Desk Votes for Article Comment"
+          ],
+          "jsonPath": "$.articles[*]",
+          "key": "id",
+          "parameterName": "Article ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Articles for Category",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/categories/{Category ID}/articles.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk Article Attachments",
+            "Help Desk Article Inline Attachments",
+            "Help Desk Article Block Attachments",
+            "Help Desk Article Comments",
+            "Help Desk Article Labels for Article",
+            "Help Desk Translations for Article",
+            "Help Desk Missing Translations for Article",
+            "Help Desk Article Subscriptions",
+            "Help Desk Votes for Article Comment"
+          ],
+          "jsonPath": "$.articles[*]",
+          "key": "id",
+          "parameterName": "Article ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Articles for Section",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/sections/{Section ID}/articles.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk Article Attachments",
+            "Help Desk Article Inline Attachments",
+            "Help Desk Article Block Attachments",
+            "Help Desk Article Comments",
+            "Help Desk Article Labels for Article",
+            "Help Desk Translations for Article",
+            "Help Desk Missing Translations for Article",
+            "Help Desk Article Subscriptions",
+            "Help Desk Votes for Article Comment"
+          ],
+          "jsonPath": "$.articles[*]",
+          "key": "id",
+          "parameterName": "Article ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Articles for User",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/users/{User ID}/articles.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk Article Attachments",
+            "Help Desk Article Inline Attachments",
+            "Help Desk Article Block Attachments",
+            "Help Desk Article Comments",
+            "Help Desk Article Labels for Article",
+            "Help Desk Translations for Article",
+            "Help Desk Missing Translations for Article",
+            "Help Desk Article Subscriptions",
+            "Help Desk Votes for Article Comment"
+          ],
+          "jsonPath": "$.articles[*]",
+          "key": "id",
+          "parameterName": "Article ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Article",
+      "pageType": "none",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}.json"
+    },
+    {
+      "name": "Help Desk Article Attachments",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/attachments.json"
+    },
+    {
+      "name": "Help Desk Article Inline Attachments",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/attachments/inline.json"
+    },
+    {
+      "name": "Help Desk Article Block Attachments",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/attachments/block.json"
+    },
+    {
+      "name": "Help Desk Article Attachment",
+      "pageType": "none",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/attachments/{Attachment ID}.json"
+    },
+    {
+      "name": "Help Desk Article Comments",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/comments.json"
+    },
+    {
+      "name": "Help Desk Article Comments for User",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/users/{User ID}/comments.json"
+    },
+    {
+      "name": "Help Desk Article Comment",
+      "pageType": "none",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/comments/{Comment ID}.json"
+    },
+    {
+      "name": "Help Desk Article Labels",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/labels.json"
+    },
+    {
+      "name": "Help Desk Article Label",
+      "pageType": "none",
+      "suffix": "/api/v2/help_center/articles/labels/{Label ID}.json"
+    },
+    {
+      "name": "Help Desk Article Labels for Article",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/articles/{Article ID}/labels.json"
+    },
+    {
+      "name": "Help Desk Categories",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/categories.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk Articles for Category",
+            "Help Desk Translations for Category",
+            "Help Desk Missing Translations for Category",
+            "Help Desk Sections for Category"
+          ],
+          "jsonPath": "$.categories[*]",
+          "key": "id",
+          "parameterName": "Category ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Category",
+      "pageType": "none",
+      "suffix": "/api/v2/help_center/{Locale?}/categories/{Category ID}.json"
+    },
+    {
+      "name": "Help Desk Permission Groups",
+      "pageType": "link",
+      "suffix": "/api/v2/guide/permission_groups.json"
+    },
+    {
+      "name": "Help Desk Permission Group",
+      "pageType": "none",
+      "suffix": "/api/v2/guide/permission_groups/{Group ID}.json"
+    },
+    {
+      "name": "Help Desk Article Search",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/articles/search.json?query={Query}&category={Category ID?}&section={Section ID?}&label_names={Labels?}&locale={Locale?}&multibrand={Multibrand?:true|false}&brand_id={Brand ID?}&created_before={Created Before?:YYYY-MM-DD}&created_after={Created After?:YYYY-MM-DD}&created_at={Created On?:YYYY-MM-DD}&updated_before={Updated Before?:YYYY-MM-DD}&updated_after={Updated After?:YYYY-MM-DD}&updated_at={Updated On?:YYYY-MM-DD}"
+    },
+    {
+      "name": "Help Desk Post Search",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/community_posts.json?query={Query}&topic={Topic ID?}&created_before={Created Before?:YYYY-MM-DD}&created_after={Created After?:YYYY-MM-DD}&created_at={Created On?:YYYY-MM-DD}&updated_before={Updated Before?:YYYY-MM-DD}&updated_after={Updated After?:YYYY-MM-DD}&updated_at={Updated On?:YYYY-MM-DD}"
+    },
+    {
+      "name": "Help Desk Translations for Article",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/articles/{Article ID}/translations.json"
+    },
+    {
+      "name": "Help Desk Translations for Section",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/section/{Section ID}/translations.json"
+    },
+    {
+      "name": "Help Desk Translations for Category",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/categories/{Category ID}/translations.json"
+    },
+    {
+      "name": "Help Desk Missing Translations for Article",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/articles/{Article ID}/translations/missing.json"
+    },
+    {
+      "name": "Help Desk Missing Translations for Section",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/section/{Section ID}/translations/missing.json"
+    },
+    {
+      "name": "Help Desk Missing Translations for Category",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/categories/{Category ID}/translations/missing.json"
+    },
+    {
+      "name": "Help Desk Translation",
+      "pageType": "none",
+      "suffix": "/api/v2/help_center/articles/{Article ID}/translations/{Locale}.json"
+    },
+    {
+      "name": "Help Desk Locales",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/locales.json"
+    },
+    {
+      "name": "Help Desk Themes",
+      "pageType": "link",
+      "suffix": "/api/v2/guide/theming/themes?brand_id={Brand ID?}"
+    },
+    {
+      "name": "Help Desk Theme",
+      "pageType": "none",
+      "suffix": "/api/v2/guide/theming/themes/{Theme ID}"
+    },
+    {
+      "name": "Help Desk Theming Job",
+      "pageType": "none",
+      "suffix": "/api/v2/guide/theming/jobs/{Job ID}"
+    },
+    {
+      "name": "Help Desk Topics",
+      "pageType": "link",
+      "suffix": "/api/v2/community/topics.json",
+      "lookups": [
+        {
+          "endpoint": "Help Desk Posts for Topic",
+          "jsonPath": "$.topics[*]",
+          "key": "id",
+          "parameterName": "Topic ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Topic",
+      "pageType": "none",
+      "suffix": "/api/v2/community/topics/{Topic ID}.json"
+    },
+    {
+      "name": "Help Desk Posts",
+      "pageType": "link",
+      "suffix": "/api/v2/community/posts.json?filter_by={Filter By?:planned|not_planned|completed|answered|none}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk Post Comments",
+            "Help Desk Post Subscriptions"
+          ],
+          "jsonPath": "$.posts[*]",
+          "key": "id",
+          "parameterName": "Post ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Posts for Topic",
+      "pageType": "link",
+      "suffix": "/api/v2/community/topics/{Topic ID}/posts.json?filter_by={Filter By?:planned|not_planned|completed|answered|none}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk Post Comments",
+            "Help Desk Post Subscriptions",
+            "Help Desk Votes for Post"
+          ],
+          "jsonPath": "$.posts[*]",
+          "key": "id",
+          "parameterName": "Post ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Posts for User",
+      "pageType": "link",
+      "suffix": "/api/v2/community/users/{User ID}/posts.json?filter_by={Filter By?:planned|not_planned|completed|answered|none}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk Post Comments",
+            "Help Desk Post Subscriptions",
+            "Help Desk Votes for Post"
+          ],
+          "jsonPath": "$.posts[*]",
+          "key": "id",
+          "parameterName": "Post ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Post",
+      "pageType": "none",
+      "suffix": "/api/v2/community/posts/{Post ID}.json"
+    },
+    {
+      "name": "Help Desk Post Comments",
+      "pageType": "link",
+      "suffix": "/api/v2/community/posts/{Post ID}/comments.json"
+    },
+    {
+      "name": "Help Desk Post Comments for User",
+      "pageType": "link",
+      "suffix": "/api/v2/community/users/{User ID}/comments.json"
+    },
+    {
+      "name": "Help Desk Post Comment",
+      "pageType": "none",
+      "suffix": "/api/v2/community/posts/{Post ID}/comments/{Comment ID}.json"
+    },
+    {
+      "name": "Help Desk Sections",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/sections.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk Articles for Section",
+            "Help Desk Translations for Section",
+            "Help Desk Missing Translations for Section",
+            "Help Desk Section Subscriptions"
+          ],
+          "jsonPath": "$.sections[*]",
+          "key": "id",
+          "parameterName": "Section ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Sections for Category",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/categories/{Category ID}/sections.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk Articles for Section",
+            "Help Desk Translations for Section",
+            "Help Desk Missing Translations for Section",
+            "Help Desk Section Subscriptions"
+          ],
+          "jsonPath": "$.sections[*]",
+          "key": "id",
+          "parameterName": "Section ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Section",
+      "pageType": "none",
+      "suffix": "/api/v2/help_center/{Locale?}/sections/{Section ID}.json"
+    },
+    {
+      "name": "Help Desk Article Subscriptions",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/subscriptions.json"
+    },
+    {
+      "name": "Help Desk Article Subscription",
+      "pageType": "none",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/subscriptions/{Subscription ID}.json"
+    },
+    {
+      "name": "Help Desk Section Subscriptions",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/sections/{Section ID}/subscriptions.json"
+    },
+    {
+      "name": "Help Desk Section Subscription",
+      "pageType": "none",
+      "suffix": "/api/v2/help_center/{Locale?}/sections/{Section ID}/subscriptions/{Subscription ID}.json"
+    },
+    {
+      "name": "Help Desk User Subscriptions",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/users/{User ID}/subscriptions.json"
+    },
+    {
+      "name": "Help Desk Post Subscriptions",
+      "pageType": "link",
+      "suffix": "/api/v2/community/posts/{Post ID}/subscriptions.json"
+    },
+    {
+      "name": "Help Desk Post Subscription",
+      "pageType": "none",
+      "suffix": "/api/v2/community/posts/{Post ID}/subscriptions/{Subscription ID}.json"
+    },
+    {
+      "name": "Help Desk Topic Subscriptions",
+      "pageType": "link",
+      "suffix": "/api/v2/community/topics/{Topic ID}/subscriptions.json"
+    },
+    {
+      "name": "Help Desk Topic Subscription",
+      "pageType": "none",
+      "suffix": "/api/v2/community/topics/{Topic ID}/subscriptions/{Subscription ID}.json"
+    },
+    {
+      "name": "Help Desk User Segments",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/user_segments.json?built_in={Built In?:true|false}",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk User Segment Sections",
+            "Help Desk User Segment Topics"
+          ],
+          "jsonPath": "$.user_segments[*]",
+          "key": "id",
+          "parameterName": "Segment ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Applicable User Segments",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/user_segments/applicable.json?built_in={Built In?:true|false}"
+    },
+    {
+      "name": "Help Desk User Segments for User",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/users/{User ID}/user_segments.json?built_in={Built In?:true|false}"
+    },
+    {
+      "name": "Help Desk User Segment",
+      "pageType": "none",
+      "suffix": "/api/v2/help_center/user_segments/{Segment ID}.json"
+    },
+    {
+      "name": "Help Desk User Segment Sections",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/user_segments/{Segment ID}/sections.json",
+      "lookups": [
+        {
+          "endpoints": [
+            "Help Desk Articles for Section",
+            "Help Desk Translations for Section",
+            "Help Desk Missing Translations for Section",
+            "Help Desk Section Subscriptions"
+          ],
+          "jsonPath": "$.sections[*]",
+          "key": "id",
+          "parameterName": "Section ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk User Segment Topics",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/user_segments/{Segment ID}/topics.json",
+      "lookups": [
+        {
+          "endpoint": "Help Desk Posts for Topic",
+          "jsonPath": "$.topics[*]",
+          "key": "id",
+          "parameterName": "Topic ID"
+        }
+      ]
+    },
+    {
+      "name": "Help Desk Votes for User",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/users/{User ID}/votes.json"
+    },
+    {
+      "name": "Help Desk Votes for Article",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/votes.json"
+    },
+    {
+      "name": "Help Desk Votes for Article Comment",
+      "pageType": "link",
+      "suffix": "/api/v2/help_center/{Locale?}/articles/{Article ID}/comments/{Comment ID}/votes.json"
+    },
+    {
+      "name": "Help Desk Votes for Post",
+      "pageType": "link",
+      "suffix": "/api/v2/community/posts/{Post ID}/votes.json"
+    },
+    {
+      "name": "Help Desk Votes for Post Comment",
+      "pageType": "link",
+      "suffix": "/api/v2/community/posts/{Post ID}/comments/{Comment ID}/votes.json"
+    },
+    {
+      "name": "Help Desk Vote",
+      "pageType": "none",
+      "suffix": "/api/v2/help_center/votes/{Vote ID}.json"
+    },
+    {
+      "name": "Talk Phone Number Search",
+      "pageType": "link",
+      "suffix": "/api/v2/channels/voice/phone_numbers/search.json?country={Country ISO Code}&toll_free={Toll Free?:true|false}&area_code={Area Code?}&contains={Contains?:regular expression}"
+    },
+    {
+      "name": "Talk Phone Numbers",
+      "pageType": "link",
+      "suffix": "/api/v2/channels/voice/phone_numbers.json"
+    },
+    {
+      "name": "Talk Phone Number",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/phone_numbers/{Phone Number ID}.json"
+    },
+    {
+      "name": "Talk Availability",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/availabilities/{Availability ID}.json"
+    },
+    {
+      "name": "Talk Greeting Categories",
+      "pageType": "link",
+      "suffix": "/api/v2/channels/voice/greeting_categories.json"
+    },
+    {
+      "name": "Talk Greeting Category",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/greeting_categories/{Category ID}.json"
+    },
+    {
+      "name": "Talk Greetings",
+      "pageType": "link",
+      "suffix": "/api/v2/channels/voice/greetings.json"
+    },
+    {
+      "name": "Talk Greeting",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/greetings/{Greeting ID}.json"
+    },
+    {
+      "name": "Talk Current Queue Activity",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/stats/current_queue_activity.json?phone_number_ids={Phone Number IDs?:id1,id2,...}"
+    },
+    {
+      "name": "Talk Account Overview",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/stats/account_overview.json?phone_number_ids={Phone Number IDs?:id1,id2,...}"
+    },
+    {
+      "name": "Talk Agents Overview",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/stats/agents_overview.json"
+    },
+    {
+      "name": "Talk Agents Activity Statistics",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/stats/agents_activity.json"
+    },
+    {
+      "name": "Talk Addresses",
+      "pageType": "link",
+      "suffix": "/api/v2/channels/voice/addresses.json"
+    },
+    {
+      "name": "Talk Address",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/addresses/{Address ID}.json"
+    },
+    {
+      "name": "Talk Interactive Voice Responses",
+      "pageType": "link",
+      "suffix": "/api/v2/channels/voice/ivr.json",
+      "lookups": [
+        {
+          "endpoint": "Talk Interactive Voice Response Menus",
+          "jsonPath": "$.ivrs[*]",
+          "key": "id",
+          "parameterName": "IVR ID"
+        }
+      ]
+    },
+    {
+      "name": "Talk Interactive Voice Response",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}.json"
+    },
+    {
+      "name": "Talk Interactive Voice Response Menus",
+      "pageType": "link",
+      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}/menus.json",
+      "lookups": [
+        {
+          "endpoint": "Talk Interactive Voice Response Routes",
+          "jsonPath": "$.ivr_menus[*]",
+          "key": "id",
+          "parameterName": "Menu ID"
+        }
+      ]
+    },
+    {
+      "name": "Talk Interactive Voice Response Menu",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}/menus/{Menu ID}.json"
+    },
+    {
+      "name": "Talk Interactive Voice Response Routes",
+      "pageType": "link",
+      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}/menus/{Menu ID}/routes.json"
+    },
+    {
+      "name": "Talk Interactive Voice Response Route",
+      "pageType": "none",
+      "suffix": "/api/v2/channels/voice/ivr/{IVR ID}/menus/{Menu ID}/routes/{Route ID}.json"
+    }
+  ]
+}

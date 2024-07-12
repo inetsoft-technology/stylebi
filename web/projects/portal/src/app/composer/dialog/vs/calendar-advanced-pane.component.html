@@ -1,0 +1,177 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid">
+  <fieldset>
+    <legend>_#(Options)</legend>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <fieldset class="float-title bd-gray mt-0">
+          <legend>_#(Show as)</legend>
+          <div class="container">
+            <div class="row">
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="show-as" id="calendar"
+                         [ngModel]="model.showType" [value]="1" (ngModelChange)="changeShowType($event)">
+                  <label class="form-check-label" for="calendar">
+                    _#(Calendar)
+                  </label>
+                </div>
+              </div>
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="show-as" id="dropdown"
+                         [ngModel]="model.showType" [value]="2" (ngModelChange)="changeShowType($event)">
+                  <label class="form-check-label" for="dropdown">
+                    _#(Dropdown)
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <fieldset class="float-title bd-gray mt-0">
+          <legend>_#(View Mode)</legend>
+          <div class="container">
+            <div class="row">
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="view-type" id="simpleview"
+                         [ngModel]="model.viewMode" [value]="1" (ngModelChange)="changeViewMode($event)">
+                  <label class="form-check-label" for="simpleview">
+                    _#(Simple View)
+                  </label>
+                </div>
+              </div>
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="view-type" id="range"
+                         [ngModel]="model.viewMode" [value]="2" (ngModelChange)="changeViewMode($event)">
+                  <label class="form-check-label" for="range">
+                    _#(Range)
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <fieldset class="float-title bd-gray mt-0">
+          <legend>_#(Calendar Type)</legend>
+          <div class="container">
+            <div class="row">
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="view-mode" id="monthly"
+                         [(ngModel)]="model.yearView" [value]="false">
+                  <label class="form-check-label" for="monthly">
+                    _#(Monthly)
+                  </label>
+                </div>
+              </div>
+              <div class="col">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="view-mode" id="yearly"
+                         [(ngModel)]="model.yearView" [value]="true">
+                  <label class="form-check-label" for="yearly">
+                    _#(Yearly)
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-floating">
+          <dynamic-value-editor [valueModel]="model.min"
+                                     [variableValues]="variableValues"
+                                     [columnTreeRoot]="columnTreeRoot"
+                                     [functionTreeRoot]="functionTreeRoot"
+                                     [operatorTreeRoot]="operatorTreeRoot"
+                                     [scriptDefinitions]="scriptDefinitions"
+                                     [invalid]="form.controls['min'].invalid"
+                                     (onValueModelChange)="updateForm()">
+          </dynamic-value-editor>
+          <label>_#(Min)</label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-floating">
+          <dynamic-value-editor [valueModel]="model.max"
+                                     [variableValues]="variableValues"
+                                     [columnTreeRoot]="columnTreeRoot"
+                                     [functionTreeRoot]="functionTreeRoot"
+                                     [operatorTreeRoot]="operatorTreeRoot"
+                                     [scriptDefinitions]="scriptDefinitions"
+                                     [invalid]="form.controls['max'].invalid"
+                                     (onValueModelChange)="updateForm()">
+          </dynamic-value-editor>
+          <label>_#(Max)</label>
+        </div>
+      </div>
+    </div>
+    <div *ngIf="form.controls['min'].errors || form.controls['max'].errors"
+         class="alert alert-danger">
+      _#(date.common.dateValid)
+    </div>
+    <div *ngIf="form.controls['minGreaterThankMax'].errors"
+         class="alert alert-danger">
+      _#(viewer.viewsheet.dateRange.maxMinWarning)
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col-auto">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="single" [(ngModel)]="model.singleSelection"/>
+          <label class="form-check-label" for="single">
+            _#(Single Selection)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input type="checkbox" id="day" class="form-check-input" [disabled]="model.yearView"
+               [(ngModel)]="model.daySelection"/>
+          <label class="form-check-label" for="day">
+            _#(Day Selection)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input type="checkbox" id="submit" class="form-check-input" [disabled]="model.viewMode == 2"
+               [(ngModel)]="model.submitOnChange"/>
+          <label class="form-check-label" for="submit">
+            _#(Submit on Change)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>

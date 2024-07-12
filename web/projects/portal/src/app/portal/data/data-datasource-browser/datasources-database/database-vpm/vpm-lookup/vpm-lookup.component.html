@@ -1,0 +1,61 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="vpm-lookup-container">
+  <ul ngbNav #nav="ngbNav" class="nav-tabs">
+    <ng-container ngbNavItem="lookup">
+      <a ngbNavLink>_#(Lookup)</a>
+      <ng-template ngbNavContent>
+        <div class="lookup-list bd-gray">
+          <div *ngFor="let item of lookupList" class="lookup-item">{{ item }}</div>
+        </div>
+      </ng-template>
+    </ng-container>
+    <ng-container ngbNavItem="trigger">
+      <a ngbNavLink>_#(Trigger)</a>
+      <ng-template ngbNavContent>
+        <div class="col-12 flex-container">
+          <div>
+            /**<br/>
+            &nbsp;* Return true if the VPM should be applied.<br/>
+            &nbsp;*<br/>
+            &nbsp;* @param user user id.<br/>
+            &nbsp;* @param roles user roles(array).<br/>
+            &nbsp;* @param groups user groups(array).<br/>
+            &nbsp;* @param parameter parameters if any; might be empty.<br/>
+            &nbsp;* @param tables list of tables in the query.<br/>
+            &nbsp;* @param columns query columns(array).<br/>
+            &nbsp;*/<br/>
+            function lookupScript(user, roles, groups, parameter, tables, columns)&nbsp;{{'{'}}
+          </div>
+          <div class="w-100 auto-size-flex-item">
+            <data-model-script-pane [expression]="expression" [fullContainer]="true"
+                                    (expressionChange)="expressionChange.emit($event)">
+            </data-model-script-pane>
+          </div>
+          <div>
+          &nbsp;}&nbsp;
+          </div>
+        </div>
+      </ng-template>
+    </ng-container>
+
+  </ul>
+  <div [ngbNavOutlet]="nav"></div>
+</div>

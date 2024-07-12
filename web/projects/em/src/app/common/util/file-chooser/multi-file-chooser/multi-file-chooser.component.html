@@ -1,0 +1,53 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined" [class.empty-file-list]="(!value || !value.length) && !header">
+  <mat-card-header *ngIf="header">{{ header }}</mat-card-header>
+  <mat-card-content *ngIf="value && value.length">
+    <mat-list>
+      <ng-container *ngFor="let file of value">
+        <mat-list-item>
+          <span matLine>{{ file.name }}</span>
+          <button mat-icon-button (click)="removeFile(file)">
+            <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+          </button>
+        </mat-list-item>
+        <mat-divider [inset]="true"></mat-divider>
+      </ng-container>
+    </mat-list>
+  </mat-card-content>
+  <mat-card-actions>
+    <em-file-chooser
+       #fileChooser
+       [(ngModel)]="selectedFiles"
+       [hidden]="true"
+       [multiple]="true"
+       [accept]="accept"
+    >
+    </em-file-chooser>
+    <button
+      mat-button
+      (click)="selectedFiles = []; fileChooser.browse()"
+      [disabled]="disabled"
+    >
+      {{selectButtonLabel}}
+    </button>
+    <ng-content></ng-content>
+  </mat-card-actions>
+</mat-card>

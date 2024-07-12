@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 13.0.0, SVG Export Plug-In . SVG Version: 6.00 Build 14948)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" id="图层_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 width="67.941px" height="200px" viewBox="4.561 -0.001 67.941 200" enable-background="new 4.561 -0.001 67.941 200"
+	 xml:space="preserve">
+<path fill="#FFFFFF" d="M7.799,179.747c0,4.795,13.761,8.684,30.734,8.684s30.732-3.889,30.732-8.684"/>
+<g>
+	<g>
+		<path fill="#FFFFFF" d="M38.532,19.011c-17.77,0-32.344-3.854-33.834-8.769H4.561V190.4c0,5.304,15.209,9.601,33.971,9.601
+			c18.76,0,33.971-4.297,33.971-9.601V10.242h-0.135C70.876,15.154,56.3,19.011,38.532,19.011z"/>
+	</g>
+</g>
+<g>
+	<g>
+		<path fill="#FFFFFF" d="M38.533,192.311c-18.762,0-33.971-4.299-33.971-9.602v7.383c0,5.305,15.208,9.6,33.971,9.6
+			c18.76,0,33.969-4.295,33.969-9.6v-7.383C72.502,188.012,57.293,192.311,38.533,192.311z"/>
+	</g>
+</g>
+<g opacity="0.2">
+	<g>
+		<path fill="#FFFFFF" d="M38.532,18.267c-17.289,0-31.315-3.941-31.452-8.816H7.074v171.074c0,4.908,14.084,8.89,31.458,8.89
+			c17.373,0,31.458-3.979,31.458-8.89V9.45h-0.007C69.846,14.325,55.819,18.267,38.532,18.267z"/>
+	</g>
+</g>
+<path opacity="0.3" fill="#FFFFFF" enable-background="new    " d="M72.31,189.301l-34.002,3.959l-33.554-3.463v-49.223
+	c0,0,6.681-31.865,27.716-49.218C55.402,72.439,72.31,73.06,72.31,73.06V189.301z"/>
+<g>
+	<g>
+		<path fill="#FFFFFF" d="M38.533,18.174c-18.21,0-33.073-4.049-33.929-9.135H4.562v6.264c0,5.301,15.209,9.599,33.971,9.599
+			c18.761,0,33.97-4.298,33.97-9.599V9.039h-0.042C71.604,14.125,56.743,18.174,38.533,18.174z"/>
+	</g>
+</g>
+<ellipse fill="#FFFFFF" enable-background="new    " cx="38.533" cy="9.46" rx="33.94" ry="9.461"/>
+<ellipse opacity="0.5" fill="#FFFFFF" enable-background="new    " cx="38.533" cy="9.46" rx="31.401" ry="8.792"/>
+</svg>

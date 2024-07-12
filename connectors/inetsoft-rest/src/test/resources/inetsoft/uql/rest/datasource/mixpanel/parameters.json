@@ -1,0 +1,132 @@
+{
+  "tests": [
+    {
+      "endpoint": "Annotations",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "From Date": "2020-01-01",
+        "To Date": "2020-03-31"
+      }
+    },
+    {
+      "endpoint": "Events",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Events": "[\"log in\"]",
+        "Type": "general",
+        "Unit": "day"
+      }
+    },
+    {
+      "endpoint": "Top Events for Today",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Type": "general"
+      }
+    },
+    {
+      "endpoint": "Common Event Names",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Type": "general"
+      }
+    },
+    {
+      "endpoint": "Event Properties",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Event Name": "log in",
+        "Property Name": "user",
+        "Type": "general",
+        "Unit": "day"
+      }
+    },
+    {
+      "endpoint": "Top Property Names for Event",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Event Name": "log in"
+      }
+    },
+    {
+      "endpoint": "Top Values for Property",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Event Name": "log in",
+        "Property Name": "user"
+      }
+    },
+    {
+      "endpoint": "Funnels",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {}
+    },
+    {
+      "endpoint": "Segmentation Event Data",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Event Name": "log in",
+        "From Date": "2020-01-01",
+        "To Date": "2020-03-31"
+      }
+    },
+    {
+      "endpoint": "Sum",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Event Name": "log in",
+        "From Date": "2020-01-01",
+        "To Date": "2020-03-31",
+        "On": "number(properties[\"time\"])"
+      }
+    },
+    {
+      "endpoint": "Average",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "Event Name": "log in",
+        "From Date": "2020-01-01",
+        "To Date": "2020-03-31",
+        "On": "number(properties[\"time\"])"
+      }
+    },
+    {
+      "endpoint": "Retention",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "From Date": "2020-01-01",
+        "To Date": "2020-03-31",
+        "Retention Type": "compounded"
+      }
+    },
+    {
+      "endpoint": "Addiction",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {
+        "From Date": "2020-01-01",
+        "To Date": "2020-03-31",
+        "Unit": "day",
+        "Addiction Unit": "hour"
+      }
+    },
+    {
+      "endpoint": "Engage",
+      "jsonPath": "$",
+      "expandArrays": true,
+      "parameters": {}
+    }
+  ]
+}

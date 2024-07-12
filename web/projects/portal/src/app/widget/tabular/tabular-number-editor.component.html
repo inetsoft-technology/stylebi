@@ -1,0 +1,30 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<input type="number" class="form-control" min="{{min}}" max="{{max}}" step="1" [(ngModel)]="value"
+       [formControl]="valueControl" (blur)="valueChanged()"/>
+<span class="form-floating" *ngIf="valueControl.getError('required')">
+  <span class="invalid-feedback">_#(enter.number)</span>
+</span>
+<span class="form-floating" *ngIf="valueControl.getError('min')">
+  <span class="invalid-feedback">The number must be greater than or equal to {{min}}</span>
+</span>
+<span class="form-floating" *ngIf="valueControl.getError('max')">
+  <span class="invalid-feedback">The number must be less than or equal to {{max}}</span>
+</span>

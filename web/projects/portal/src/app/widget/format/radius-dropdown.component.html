@@ -1,0 +1,29 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form [formGroup]="form">
+  <div class="input-group">
+    <input type="number" class="form-control" formControlName="radius"
+            data-test="radius-input"
+            disableDrop>
+    <div class="input-group-text">_#(px)</div>
+  </div>
+  <div class="alert alert-danger" *ngIf="!disabled && !!form.get('radius').getError('requiredNumber')">_#(common.sree.needValidNum)</div>
+  <div class="alert alert-danger" *ngIf="!disabled && !!!form.get('radius').getError('requiredNumber') && form.get('radius').errors">_#(common.forbiddenDiameterInterval)</div>
+</form>

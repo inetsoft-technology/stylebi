@@ -1,0 +1,76 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined">
+  <mat-card-header>
+    <span matLine class="schedule-cycle-header-container">
+      <label class="schedule-cycle-header-label">_#(Data Cycles)</label>
+      <span class="schedule-cycle-header-search">
+        <mat-form-field>
+          <mat-label>_#(Filter)</mat-label>
+          <input matInput #search (keyup)="applyFilter($event.target.value)">
+          <button mat-icon-button matSuffix *ngIf="search.value"
+                  title="_#(Clear)" aria-label="_#(Clear)"
+                  (click)="search.value=''; applyFilter(search.value)">
+            <mat-icon fontSet="ineticons" fontIcon="shape-cross-icon"></mat-icon>
+          </button>
+          <mat-icon matSuffix fontSet="ineticons" fontIcon="search-icon" *ngIf="!search.value"></mat-icon>
+        </mat-form-field>
+      </span>
+    </span>
+  </mat-card-header>
+  <mat-card-content class="list-card-content">
+    <table mat-table class="cycle-list-table" [dataSource]="ds" matSort 
+      (matSortChange)="sortData($event)">
+      <ng-container matColumnDef="selected">
+        <th mat-header-cell *matHeaderCellDef>
+          <mat-checkbox (change)="$event ? masterToggle() : null"
+                        [checked]="selection.hasValue() && isAllSelected()"
+                        [indeterminate]="selection.hasValue() && !isAllSelected()">
+          </mat-checkbox>
+        </th>
+        <td mat-cell *matCellDef="let element">
+          <mat-checkbox (click)="$event.stopPropagation()"
+                        (change)="$event ? selection.toggle(element) : null"
+                        [checked]="selection.isSelected(element)">
+          </mat-checkbox>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="name">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>_#(Cycle Name)</th>
+        <td mat-cell *matCellDef="let element">
+          <a class="links" [title]="element.name" [routerLink]="['/settings/schedule/cycles', element.name]">{{element.name}}</a>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="condition">
+        <th mat-header-cell *matHeaderCellDef>_#(Condition)</th>
+        <td mat-cell [title]="element?.conditions" *matCellDef="let element"> {{element?.conditions.join(", ")}}</td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="columns; sticky: true"></tr>
+      <tr mat-row *matRowDef="let element; columns: columns;"></tr>
+    </table>
+  </mat-card-content>
+  <mat-card-actions>
+    <button mat-stroked-button (click)="addCycle.emit()">_#(New Cycle)</button>
+    <button mat-button [disabled]="!selection.hasValue()" (click)="removeCycles.emit(selection.selected)">_#(Delete)</button>
+  </mat-card-actions>
+</mat-card>

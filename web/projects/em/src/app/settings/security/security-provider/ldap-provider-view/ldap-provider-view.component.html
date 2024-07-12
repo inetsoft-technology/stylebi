@@ -1,0 +1,252 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container [formGroup]="ldapForm">
+  <mat-card appearance="outlined" *ngIf="statusReceived; else progressingStatus">
+    <mat-card-content>
+      <h3>_#(LDAP Environment Settings)</h3>
+      <div class="flex-row">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(LDAP Server)</mat-label>
+          <mat-select placeholder="_#(LDAP Server)" formControlName="ldapServer">
+            <mat-option [value]="'ACTIVE_DIRECTORY'">_#(Active Directory)</mat-option>
+            <mat-option [value]="'GENERIC'">_#(Generic)</mat-option>
+          </mat-select>
+          <mat-hint>_#(em.security.ldap.serverDesc)</mat-hint>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(LDAP Protocol)</mat-label>
+          <input matInput placeholder="_#(LDAP Protocol)" formControlName="protocol" required>
+          <mat-hint>_#(em.security.ldap.protocolDesc)</mat-hint>
+          <mat-error *ngIf="ldapForm.controls['protocol']?.errors?.required">
+            _#(em.security.ldap.protocolRequired)
+          </mat-error>
+        </mat-form-field>
+      </div>
+      <div class="flex-row">
+        <mat-checkbox formControlName="startTls">_#(Use StartTLS)</mat-checkbox>
+      </div>
+      <div class="flex-row">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Host Name)</mat-label>
+          <input matInput placeholder="_#(Host Name)" formControlName="hostName" required>
+          <mat-hint>_#(em.security.ldap.hostNameDesc)</mat-hint>
+          <mat-error *ngIf="ldapForm.controls['hostName']?.errors?.required">
+            _#(em.security.ldap.hostNameRequired)
+          </mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Host Port)</mat-label>
+          <input matInput type="number" placeholder="_#(Host Port)" formControlName="hostPort" required>
+          <mat-hint>_#(em.security.ldap.hostPortDesc)</mat-hint>
+          <mat-error *ngIf="ldapForm.controls['hostPort']?.errors?.required">
+            _#(em.security.ldap.hostPortRequired)
+          </mat-error>
+        </mat-form-field>
+      </div>
+      <div class="flex-row">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Root DN)</mat-label>
+          <input matInput placeholder="_#(Root DN)" formControlName="rootDN" required>
+          <mat-hint>_#(em.security.ldap.rootDNDesc)</mat-hint>
+          <mat-error *ngIf="ldapForm.controls['rootDN']?.errors?.required">
+            _#(em.security.ldap.rootDNRequired)
+          </mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Administrator ID)</mat-label>
+          <input matInput placeholder="_#(Administrator ID)" formControlName="adminID" required>
+          <mat-hint>_#(em.security.ldap.adminIDDesc)</mat-hint>
+          <mat-error *ngIf="ldapForm.controls['adminID']?.errors?.required">
+            _#(em.security.ldap.adminIDRequired)
+          </mat-error>
+        </mat-form-field>
+      </div>
+      <div class="flex-row">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Password)</mat-label>
+          <input matInput type="password" placeholder="_#(Password)" formControlName="password" required>
+          <mat-hint>_#(em.security.ldap.passwordDesc)</mat-hint>
+          <mat-error *ngIf="ldapForm.controls['password']?.errors?.required">
+            _#(em.security.ldap.passwordRequired)
+          </mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Verify Password)</mat-label>
+          <input matInput type="password" placeholder="_#(Verify Password)" formControlName="confirmPassword"
+                 [errorStateMatcher]="errorStateMatcher" required>
+          <mat-error *ngIf="ldapForm.errors?.passwordsMatch">
+            _#(em.securityLdapProp.pwdMatch)
+          </mat-error>
+        </mat-form-field>
+      </div>
+    </mat-card-content>
+    <mat-card-actions>
+      <button mat-stroked-button
+              [disabled]="!ldapForm.valid"
+              (click)="testConnection()">
+        _#(Test Connection)
+      </button>
+      <span class="form-spacing">{{connectionStatus}}</span>
+    </mat-card-actions>
+  </mat-card>
+
+  <ng-template #progressingStatus>
+    <mat-spinner class="center"></mat-spinner>
+  </ng-template>
+
+  <mat-card appearance="outlined">
+    <mat-card-content [formGroup]="userSearchForm">
+      <div class="flex-col">
+        <div class="flex-row">
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(User Search Filter)</mat-label>
+            <input matInput placeholder="_#(User Search Filter)" formControlName="userFilter" required>
+            <mat-hint>_#(em.security.ldap.userSearchFilterDesc)</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(User Search Base)</mat-label>
+            <input matInput placeholder="_#(User Search Base)" formControlName="userBase">
+            <mat-hint>_#(em.security.ldap.userSearchBaseDesc)</mat-hint>
+          </mat-form-field>
+        </div>
+        <div class="flex-row" [class.form-hidden]="isAD">
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(User Attribute)</mat-label>
+            <input matInput placeholder="_#(User Attribute)" formControlName="userAttr" required>
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent" [class.form-hidden]="isAD">
+            <mat-label>_#(Email Attribute)</mat-label>
+            <input matInput placeholder="_#(Email Attribute)" formControlName="mailAttr">
+          </mat-form-field>
+        </div>
+      </div>
+      <!--<mat-list>-->
+        <!--<mat-list-item *ngFor="let user of userList">-->
+          <!--{{user}}-->
+        <!--</mat-list-item>-->
+      <!--</mat-list>-->
+    </mat-card-content>
+    <mat-card-actions>
+      <button mat-stroked-button [disabled]="!userSearchForm.valid" (click)="getUsers()">_#(Show Users)</button>
+    </mat-card-actions>
+  </mat-card>
+
+  <mat-card appearance="outlined">
+    <mat-card-content [formGroup]="groupSearchForm">
+      <div class="flex-col">
+        <div class="flex-row">
+          <mat-form-field appearance="outline" color="accent" [class.form-hidden]="isAD">
+            <mat-label>_#(Group Search Filter)</mat-label>
+            <input matInput placeholder="_#(Group Search Filter)" formControlName="groupFilter" required>
+            <mat-hint>_#(em.security.ldap.groupSearchFilterDesc)</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Group Search Base)</mat-label>
+            <input matInput placeholder="_#(Group Search Base)" formControlName="groupBase">
+            <mat-hint>_#(em.security.ldap.groupSearchBaseDesc)</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent" [class.form-hidden]="isAD">
+            <mat-label>_#(Group Attribute)</mat-label>
+            <input matInput placeholder="_#(Group Attribute)" formControlName="groupAttr" required>
+          </mat-form-field>
+        </div>
+      </div>
+      <!--<mat-list>-->
+        <!--<mat-list-item *ngFor="let group of groupList">-->
+          <!--{{group}}-->
+        <!--</mat-list-item>-->
+      <!--</mat-list>-->
+    </mat-card-content>
+    <mat-card-actions>
+      <button mat-stroked-button [disabled]="!groupSearchForm.valid" (click)="getGroups()">_#(Show Groups)</button>
+    </mat-card-actions>
+  </mat-card>
+
+  <mat-card appearance="outlined">
+    <mat-card-content [formGroup]="roleSearchForm">
+      <div class="flex-col">
+        <div class="flex-row">
+          <mat-form-field appearance="outline" color="accent" [class.form-hidden]="isAD">
+            <mat-label>_#(Role Search Filter)</mat-label>
+            <input matInput placeholder="_#(Role Search Filter)" formControlName="roleFilter" required>
+            <mat-hint>_#(em.security.ldap.roleSearchFilterDesc)</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Role Search Base)</mat-label>
+            <input matInput placeholder="_#(Role Search Base)" formControlName="roleBase">
+            <mat-hint>_#(em.security.ldap.roleSearchBaseDesc)</mat-hint>
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent" [class.form-hidden]="isAD">
+            <mat-label>_#(Role Attribute)</mat-label>
+            <input matInput placeholder="_#(Role Attribute)" formControlName="roleAttr" required>
+          </mat-form-field>
+        </div>
+      </div>
+      <!--<mat-list>-->
+        <!--<mat-list-item *ngFor="let role of roleList">-->
+          <!--{{role}}-->
+        <!--</mat-list-item>-->
+      <!--</mat-list>-->
+    </mat-card-content>
+    <mat-card-actions>
+      <button mat-stroked-button [disabled]="!roleSearchForm.valid" class="show-button" (click)="getRoles()">_#(Show Roles)</button>
+    </mat-card-actions>
+  </mat-card>
+
+  <mat-card appearance="outlined">
+    <mat-card-content>
+      <div class="flex-col" [class.form-hidden]="isAD">
+        <div class="flex-row">
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(User-Role Search Filter)</mat-label>
+            <input matInput placeholder="_#(User-Role Search Filter)" formControlName="userRoleFilter">
+          </mat-form-field>
+        </div>
+        <div class="flex-row">
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Role-Role Search Filter)</mat-label>
+            <input matInput placeholder="_#(Role-Role Search Filter)" formControlName="roleRoleFilter">
+          </mat-form-field>
+        </div>
+        <div class="flex-row">
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Group-Role Search Filter)</mat-label>
+            <input matInput placeholder="_#(Group-Role Search Filter)" formControlName="groupRoleFilter">
+          </mat-form-field>
+        </div>
+      </div>
+    </mat-card-content>
+
+    <div class="flex-col">
+      <div class="flex-row">
+        <mat-checkbox class="mat-checkbox" formControlName="searchTree">_#(Search User Subtree)</mat-checkbox>
+      </div>
+      <div class="flex-row">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(System Administrator Roles)</mat-label>
+          <input matInput placeholder="_#(System Administrator Roles)" formControlName="sysAdminRoles" readonly>
+          <button mat-icon-button matSuffix title="_#(Edit System Administrator Roles)" aria-label="_#(Edit System Administrator Roles)" (click)="editRoles(true)">
+            <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+          </button>
+        </mat-form-field>
+      </div>
+    </div>
+  </mat-card>
+</ng-container>

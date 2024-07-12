@@ -1,0 +1,65 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="theme-list-panel">
+  <mat-toolbar class="toolbar-raised-button theme-toolbar">
+    <ng-container *ngIf="collapseToolbar">
+      <span class="toolbar-spacer"></span>
+      <button mat-icon-button title="_#(Menu)" [matMenuTriggerFor]="toolbarMenu">
+        <mat-icon fontSet="ineticons" fontIcon="menu-sandwich-icon"></mat-icon>
+      </button>
+    </ng-container>
+    <ng-container *ngIf="!collapseToolbar">
+      <button mat-icon-button title="_#(New)" (click)="createTheme()">
+        <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
+      </button>
+      <button mat-icon-button title="_#(Delete)" (click)="deleteTheme()" [disabled]="cannotDelete()">
+        <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+      </button>
+      <button mat-icon-button title="_#(Download)" (click)="downloadTheme()" [disabled]="!selectedTheme">
+        <mat-icon fontSet="ineticons" fontIcon="export-icon"></mat-icon>
+      </button>
+    </ng-container>
+  </mat-toolbar>
+  <div class="theme-list" emTopScroll>
+    <div class="theme-list__container">
+      <mat-action-list class="flat-tree">
+        <div *ngFor="let theme of themes" class="flat-tree-node" [class.selected]="theme.id == selectedTheme?.id">
+          <a
+            mat-list-item
+            (click)="onThemeSelected(theme.id)">
+            {{theme.name}}
+            <mat-icon *ngIf="theme.defaultTheme" fontSet="ineticons" class="default-theme-icon" fontIcon="select-single-icon"></mat-icon>
+          </a>
+        </div>
+      </mat-action-list>
+    </div>
+  </div>
+  <mat-menu #toolbarMenu="matMenu">
+    <button mat-menu-item class="dropdown-import-button" (click)="createTheme()">
+      <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
+    </button>
+    <button mat-menu-item class="dropdown-import-button" (click)="deleteTheme()" [disabled]="!selectedTheme">
+      <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
+    </button>
+    <button mat-menu-item class="dropdown-import-button" (click)="downloadTheme()" [disabled]="!selectedTheme">
+      <mat-icon fontSet="ineticons" fontIcon="export-icon"></mat-icon>
+    </button>
+  </mat-menu>
+</div>

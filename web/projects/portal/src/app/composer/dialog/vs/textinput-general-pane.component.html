@@ -1,0 +1,61 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<general-prop-pane [model]="model.generalPropPaneModel" [vsId]="vsId"
+                   [variableValues]="variableValues"
+                   [(form)]="form.controls['generalPropPaneForm']"
+                   [columnTreeRoot]="columnTreeRoot" [functionTreeRoot]="functionTreeRoot"
+                   [operatorTreeRoot]="operatorTreeRoot" [scriptDefinitions]="scriptDefinitions">
+</general-prop-pane>
+<form ngNoForm (submit)="$event.preventDefault()" class="container-fluid mt-1">
+  <div class="form-row-float-label row">
+    <div class="col form-floating">
+      <input class="form-control" type="text" [(ngModel)]="model.toolTip"
+             placeholder="_#(Placeholder Text)">
+      <label><span>_#(Placeholder Text)</span></label>
+    </div>
+  </div>
+  <div class="form-row-float-label row" >
+    <div class="col form-floating">
+      <input class="form-control" type="text" [(ngModel)]="model.defaultText"
+             placeholder="_#(Default Text)">
+      <label><span>_#(Default Text)</span></label>
+    </div>
+  </div>
+  <div class="form-row-float-label row" >
+    <div class="checkbox col-auto">
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" [(ngModel)]="model.insetStyle" id="inset">
+        <label class="form-check-label" for="inset">
+          _#(Inset Border Style)
+        </label>
+      </div>
+    </div>
+    <div class="checkbox col-auto">
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" [(ngModel)]="model.multiLine" id="multi"
+               [disabled]="!multiEnabled">
+        <label class="form-check-label" for="multi">
+          _#(Multiple Lines)
+        </label>
+      </div>
+    </div>
+  </div>
+</form>
+<size-position-pane [model]="model.sizePositionPaneModel" [(form)]="form.controls['sizePositionPaneForm']"></size-position-pane>

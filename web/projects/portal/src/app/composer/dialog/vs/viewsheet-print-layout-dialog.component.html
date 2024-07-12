@@ -1,0 +1,229 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<w-standard-dialog [title]="'_#(Viewsheet Print Layout)'"
+                   (onClose)="cancelChanges()"
+                   [cshid]="'PrintLayout'"
+                   [submitOnEnter]="formValid"
+                   (onSubmit)="saveChanges()">
+  <ng-template wDialogContent>
+    <div *ngIf="model">
+      <form [formGroup]="formPrint" class="container-fluid">
+        <fieldset>
+          <legend>_#(Paper)</legend>
+          <div class="form-row-float-label form-row">
+            <div class="form-floating col-12">
+              <select class="form-control" [(ngModel)]="model.paperSize"
+                      [ngModelOptions]="{standalone: true}" (change)="initForm()">
+                <option *ngFor="let paperSize of paper" [value]="paperSize.value">{{paperSize.label}}</option>
+              </select>
+              <label><span>_#(Paper Size)</span></label>
+            </div>
+          </div>
+          <div class="form-row form-row-float-label" *ngIf="model.paperSize === '(Custom Size)'">
+            <div class="form-floating col">
+              <input type="number" class="form-control" [(ngModel)]="model.customWidth"
+                     formControlName="customWidth" placeholder="_#(Width)"
+                     [class.is-invalid]="formPrint.controls.customWidth.errors?.required || formPrint.controls.customWidth.errors?.positiveIntegerInRange"/>
+              <label><span>_#(Width)</span></label>
+              <span class="invalid-feedback"
+                    *ngIf="formPrint.controls.customWidth.errors?.required">
+                _#(layout.device.printWidthCheck)
+              </span>
+              <span class="invalid-feedback"
+                    *ngIf="formPrint.controls.customWidth.errors?.positiveIntegerInRange">
+                _#(viewer.viewsheet.layout.screenValid)
+              </span>
+            </div>
+            <div class="form-floating col">
+              <input type="number" class="form-control" [(ngModel)]="model.customHeight"
+                     formControlName="customHeight" placeholder="_#(Height)"
+                     [class.is-invalid]="formPrint.controls.customHeight.errors?.required || formPrint.controls.customHeight.errors?.positiveIntegerInRange"/>
+              <label><span>_#(Height)</span></label>
+              <span class="invalid-feedback"
+                    *ngIf="formPrint.controls.customHeight.errors?.required">
+                _#(layout.device.printHeightCheck)
+              </span>
+              <span class="invalid-feedback"
+                    *ngIf="formPrint.controls.customHeight.errors?.positiveIntegerInRange">
+                _#(viewer.viewsheet.layout.screenValid)
+              </span>
+            </div>
+          </div>
+          <div class="form-row-float-label form-row">
+            <div class="col-auto">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input" [(ngModel)]="model.landscape"
+                     [ngModelOptions]="{standalone: true}" id="landscape"/>
+                <label class="form-check-label" for="landscape">
+                  _#(Landscape)
+                </label>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>_#(Units)</legend>
+          <div class="form-row-float-label form-row">
+            <div class="form-floating col-auto">
+              <select class="form-control unit_select_id" [ngModel]="model.units" (ngModelChange)="unitChanged($event)" [ngModelOptions]="{standalone: true}">
+                <option *ngFor="let measurement of measurementsView" [value]="measurement.value">
+                  {{measurement.label}}
+                </option>
+              </select>
+              <label><span>_#(Units)</span></label>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>_#(Options)</legend>
+          <div class="form-row-float-label form-row">
+            <div class="form-floating col-12">
+              <input class="form-control" type="number" [(ngModel)]="model.numberingStart"
+                     formControlName="numberingStart" placeholder="_#(viewer.viewsheet.layout.pageProp.startPageIndex)"
+                     [class.is-invalid]="formPrint.controls.numberingStart?.errors">
+              <label><span>_#(viewer.viewsheet.layout.pageProp.startAtPageIndex)</span></label>
+              <span class="invalid-feedback">_#(viewer.viewsheet.layout.pageProp.startPageIndexValid)</span>
+            </div>
+          </div>
+          <div class="form-row-float-label form-row">
+            <div ngbDropdown #scaleFontDropdown="ngbDropdown" class="col-12 form-floating">
+              <input class="form-control no-spinner" type="number" placeholder="_#(Scale Font)"
+                     ngbDropdownToggle [(ngModel)]="model.scaleFont" formControlName="scaleFont"
+                     [class.is-invalid]="formPrint.controls?.scaleFont.errors && !formPrint.controls?.scaleFont.pristine"/>
+              <label><span>_#(Scale Font)</span></label>
+              <span class="invalid-feedback">_#(layout.vsLayout.scaleFont)</span>
+              <i class="caret-down-icon dropdown-caret"
+                 (click)="$event.stopPropagation(); scaleFontDropdown.toggle()">
+              </i>
+              <ul ngbDropdownMenu>
+                <li *ngFor="let scale of scaleOptions" (click)="selectScaleFont(scale)"
+                    class="dropdown-item" [class.selected]="model.scaleFont == scale">
+                  {{scale}}
+                </li>
+              </ul>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>_#(Margin)</legend>
+          <div class="form-row-float-label form-row">
+            <div class="form-floating col">
+              <input class="form-control" type="number" [(ngModel)]="model.marginTop"
+                     formControlName="marginTop" placeholder="_#(Top)"
+                     [class.is-invalid]="formPrint.controls.marginTop.errors || isVerticalMarginTooLarge()"/>
+              <label><span>_#(Top)</span></label>
+              <span class="invalid-feedback" *ngIf="formPrint.controls.marginTop.errors">
+                _#(viewer.viewsheet.layout.pageProp.marginValid)
+              </span>
+              <span class="invalid-feedback"
+                    *ngIf="!!!formPrint.controls.marginTop.errors && isVerticalMarginTooLarge()">
+                _#(viewer.viewsheet.layout.pageProp.marginTooLarge)
+              </span>
+            </div>
+            <div class="form-floating col">
+              <input class="form-control" type="number" [(ngModel)]="model.marginLeft"
+                     formControlName="marginLeft" placeholder="_#(Left)"
+                     [class.is-invalid]="formPrint.controls.marginLeft.errors || isHorizontalMarginTooLarge()"/>
+              <label><span>_#(Left)</span></label>
+              <span class="invalid-feedback" *ngIf="formPrint.controls.marginLeft.errors">
+                _#(viewer.viewsheet.layout.pageProp.marginValid)
+              </span>
+              <span class="invalid-feedback"
+                    *ngIf="!!!formPrint.controls.marginLeft.errors && isHorizontalMarginTooLarge()">
+                _#(viewer.viewsheet.layout.pageProp.marginTooLarge)
+              </span>
+            </div>
+          </div>
+          <div class="form-row-float-label form-row">
+            <div class="form-floating col">
+              <input class="form-control" type="number" [(ngModel)]="model.marginBottom"
+                     formControlName="marginBottom" placeholder="_#(Bottom)"
+                     [class.is-invalid]="formPrint.controls.marginBottom.errors || isVerticalMarginTooLarge()"/>
+              <label><span>_#(Bottom)</span></label>
+              <span class="invalid-feedback" *ngIf="formPrint.controls.marginBottom.errors">
+                _#(viewer.viewsheet.layout.pageProp.marginValid)
+              </span>
+              <span class="invalid-feedback"
+                    *ngIf="!!!formPrint.controls.marginBottom.errors && isVerticalMarginTooLarge()">
+                _#(viewer.viewsheet.layout.pageProp.marginTooLarge)
+              </span>
+            </div>
+            <div class="form-floating col">
+              <input class="form-control" type="number" [(ngModel)]="model.marginRight"
+                     formControlName="marginRight" placeholder="_#(Right)"
+                     [class.is-invalid]="formPrint.controls.marginRight.errors || isHorizontalMarginTooLarge()"/>
+              <label><span>_#(Right)</span></label>
+              <span class="invalid-feedback" *ngIf="formPrint.controls.marginRight.errors">
+                _#(viewer.viewsheet.layout.pageProp.marginValid)
+              </span>
+              <span class="invalid-feedback"
+                    *ngIf="!!!formPrint.controls.marginRight.errors && isHorizontalMarginTooLarge()">
+                _#(viewer.viewsheet.layout.pageProp.marginTooLarge)
+              </span>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>_#(From Edge)</legend>
+          <div class="form-row-float-label form-row">
+            <div class="form-floating col">
+              <input class="form-control" type="text" [(ngModel)]="model.headerFromEdge"
+                     formControlName="headerFromEdge" placeholder="_#(Header)"
+                     [class.is-invalid]="formPrint.controls.headerFromEdge.errors || isHeaderFromEdgeTooLarge()"/>
+              <label><span>_#(Header)</span></label>
+              <span class="invalid-feedback"
+                    *ngIf="formPrint.controls.headerFromEdge?.errors?.required || formPrint.controls.headerFromEdge?.errors?.positiveIntegerInRange">
+                _#(viewer.viewsheet.layout.pageProp.distanceValid)
+              </span>
+              <span class="invalid-feedback"
+                    *ngIf="isHeaderFromEdgeTooLarge()">
+                _#(designer.pageProp.headerValExceed)
+              </span>
+            </div>
+            <div class="form-floating col">
+              <input class="form-control" type="text" [(ngModel)]="model.footerFromEdge"
+                     formControlName="footerFromEdge" placeholder="_#(Footer)"
+                     [class.is-invalid]="formPrint.controls.footerFromEdge.errors || isFooterFromEdgeTooLarge()"/>
+              <label><span>_#(Footer)</span></label>
+              <span class="invalid-feedback"
+                    *ngIf="formPrint.controls.footerFromEdge?.errors?.required || formPrint.controls.footerFromEdge?.errors?.positiveIntegerInRange">
+                _#(viewer.viewsheet.layout.pageProp.distanceValid)
+              </span>
+              <span class="invalid-feedback"
+                    *ngIf="isFooterFromEdgeTooLarge()">
+                _#(designer.pageProp.footerValExceed)
+              </span>
+            </div>
+          </div>
+        </fieldset>
+      </form>
+    </div>
+  </ng-template>
+  <ng-template wDialogButtons>
+    <button type="button" class="btn btn-primary" (click)="saveChanges()"
+            [disabled]="!model || !formPrint?.valid || isVerticalMarginTooLarge() || isHorizontalMarginTooLarge() ||
+                        isHeaderFromEdgeTooLarge() || isFooterFromEdgeTooLarge()">
+      _#(OK)
+    </button>
+    <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">
+      _#(Cancel)
+    </button>
+  </ng-template>
+</w-standard-dialog>

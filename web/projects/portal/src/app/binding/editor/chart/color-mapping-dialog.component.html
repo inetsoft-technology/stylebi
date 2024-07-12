@@ -1,0 +1,78 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div blockMouse>
+  <modal-header
+    [title]="'_#(Color Mapping)'"
+    (onCancel)="close()"
+    [cshid]="'RepresentingColorDimension'">
+  </modal-header>
+  <div class="modal-body" *ngIf="model" blockMouse>
+    <div class="bordered-box bordered-box-lg bd-gray">
+      <form class="container-fluid">
+        <div class="row form-row-float-label"
+             *ngFor="let colorMap of currentColorMaps; let _j = index">
+          <div class="col-auto">
+            <button type="button" class="btn btn-default btn-sm"
+                    (click)="deleteRow(_j)" title="_#(Delete Row)"
+                    [ngStyle]="{'visibility': currentColorMaps.length > 1 ? 'visible' : 'hidden'}">
+              <i class="shape-horizontal-bar-icon icon-size-small icon-color-default"
+                 aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="col">
+            <select class="form-control" *ngIf="dimensionData.length > 0"
+                    [(ngModel)]="colorMap.option" [ngModelOptions]="{standalone: true}">
+              <option [value]="data.value"
+                      *ngFor="let data of dimensionData">{{data.label}}
+              </option>
+            </select>
+            <input class="form-control" *ngIf="dimensionData.length == 0"
+                   [ngModelOptions]="{standalone: true}"
+                   [(ngModel)]="colorMap.option">
+          </div>
+          <div class="col-auto ps-0">
+            <color-editor [(color)]="colorMap.color"></color-editor>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-auto">
+            <button type="button" class="btn btn-default btn-sm"
+                    (click)="addRow()" title="_#(Add Row)">
+              <i class="shape-plus-icon icon-size-small icon-color-default"
+                 aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  <div *ngIf="!isValid" class="alert alert-danger">_#(viewer.nameValid)</div>
+  </div>
+  <div class="modal-footer" *ngIf="model">
+    <div class="col-1 btn-reset">
+      <button type="button" class="btn btn-default" (click)="reset()">_#(Reset)</button>
+    </div>
+    <button type="button" class="btn btn-primary" *ngIf="model" (click)="ok()"
+      [disabled]="!isValid">_#(OK)
+    </button>
+    <button type="button" class="btn btn-default" data-dismiss="modal"
+      (click)="close()">_#(Cancel)
+    </button>
+  </div>
+</div>

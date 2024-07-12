@@ -1,0 +1,88 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!-- Modal Header -->
+<modal-header
+  [title]="'_#(Insert Rows/Columns)'"
+  (onCancel)="cancelChanges()"
+  [cshid]="helpLinkKey">
+</modal-header>
+<!-- Modal Body -->
+<div class="modal-body">
+  <fieldset class="mt-0">
+    <legend>_#(Insert)</legend>
+    <div class="container">
+      <div class="row form-row-float-label">
+        <div class="col">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="rows" name="insert" value="true"
+                   [(ngModel)]="insertRadio">
+            <label class="form-check-label" for="rows">_#(Rows)</label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="columns" name="insert" value="false"
+                   [(ngModel)]="insertRadio">
+            <label class="form-check-label" for="columns">_#(Columns)</label>
+          </div>
+        </div>
+      </div>
+      <div class="row form-row-float-label">
+        <div class="col-auto form-floating">
+          <input class="form-control" type="number" [(ngModel)]="num"
+                 (focusout)="changeNum($event)" [min]="1"/>
+          <label><span>_#(Number)</span></label>
+        </div>
+      </div>
+      <div class="alert alert-danger warning"
+           *ngIf="num <= 0">
+         _#(viewer.flash.rankWizard.enterPositiveInt)
+      </div>
+    </div>
+  </fieldset>
+  <fieldset class="mt-0">
+    <legend>_#(Where)</legend>
+    <div class="container">
+      <div class="row">
+        <div class="col">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="before"
+                   name="where" value="true" [(ngModel)]="insertBefore">
+            <label class="form-check-label" for="before">_#(Before the Selection)</label>
+          </div>
+        </div>
+        <div class="col">
+          <div class="form-check">
+            <input class="form-check-input" type="radio" id="after"
+                   name="where" value="false" [(ngModel)]="insertBefore">
+            <label class="form-check-label" for="after">_#(After the Selection)</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</div>
+
+<!-- Modal Footer -->
+<div class="modal-footer">
+   <apply-button (onApply)="apply($event)"></apply-button>
+   <button class="btn btn-primary" type="button" (click)="ok()">_#(OK)</button>
+   <button class="btn btn-default" type="button" (click)="cancelChanges()">_#(Cancel)</button>
+</div>

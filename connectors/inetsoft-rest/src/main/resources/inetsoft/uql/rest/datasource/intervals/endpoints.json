@@ -1,0 +1,289 @@
+{
+  "endpoints": [
+    {
+      "paged": "true", 
+      "name": "Clients", 
+      "suffix": "/client?localid={Local ID?}&active={Active?:t|f}&search={Search Text?}&projectsonly={With Active Projects Only?:t|f}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Client",
+      "suffix": "/client/{Client ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Contact Descriptors", 
+      "suffix": "/contactdescriptor?contacttypeid={Contact Type ID?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Contact Types", 
+      "suffix": "/contacttype"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Customers", 
+      "suffix": "/customer"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Documents", 
+      "suffix": "/document?public={Visible to Executive-level Only?:t|f}&taskid={Task ID?}&milestoneid={Milestone ID?}&queueid={Queue ID?}&clientid={Client ID?}&projectid={Project ID?}&moduleid={Module ID?}&personId={Person ID?}&search={Search Text?}&projectactive={Active Projects?:t|f}&taskassignedorownedby={Tasks Assigned or Owned By?:Person ID}&tag={Tag?}&datebegin={Uploaded On or After?:yyyy-MM-dd}&dateend={Uploaded On or Before?:yyyy-MM-dd}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Document", 
+      "suffix": "/document/{Document ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Expenses", 
+      "suffix": "/expense?projectid={Project ID?}&personid={Person ID?}&clientid={Client ID?}&managerid={Manager ID?}&datebegin={Passed On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&date={Date Passed?:yyyy-MM-dd}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Expense", 
+      "suffix": "/expense/{Expense ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Groups", 
+      "suffix": "/group"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Invoices", 
+      "suffix": "/invoice?localid={Local ID?}&clientid={Client ID?}&projectid={Project ID?}&datebegin={Passed On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&status={Status?:outstanding|paid}&search={Search Text?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Invoice", 
+      "suffix": "/invoice/{Invoice ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Invoice Items", 
+      "suffix": "/invoiceitem?invoiceid={Invoice ID?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Invoice Item", 
+      "suffix": "/invoiceitem/{Invoice Item ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Invoice Notes", 
+      "suffix": "/invoicenote?invoiceid={Invoice ID?}&authorid={Author ID?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Invoice Note", 
+      "suffix": "/invoicenote/{Invoice Note ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Invoice Terms", 
+      "suffix": "/invoiceterm"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Current User", 
+      "suffix": "/me"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Milestones", 
+      "suffix": "/milestone?localid={Local ID?}&search={Search Text?}&clientid={Client ID?}&projectid={Project ID?}&ownerid={Owner ID?}&hasmilestonerelation={Related To?:Person ID}&complete={Complete?:t|f}&dateduebegin={Due Date On or After?:yyyy-MM-dd}&datedueend={Due Date On or Before?:yyyy-MM-dd}&title={Title Contains?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Milestone", 
+      "suffix": "/milestone/{Milestone ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Milestone Notes", 
+      "suffix": "/milestonenote?milestoneid={Milestone ID?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Milestone Note", 
+      "suffix": "/milestonenote/{Milestone Note ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Modules", 
+      "suffix": "/module?active={Active?:t|f}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Module", 
+      "suffix": "/module/{Module ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Payments", 
+      "suffix": "/payment?clientid={Client ID?}&projectid={Project ID?}&personid={Person ID?}&date={Date Passed?:yyyy-MM-dd}&typeid={Type ID?}&invoiceid={Invoice ID?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Payment", 
+      "suffix": "/payment/{Payment ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Payment Types", 
+      "suffix": "/paymenttype"
+    }, 
+    {
+      "paged": "true", 
+      "name": "People", 
+      "suffix": "/person?localid={Local ID?}&username={Username?}&email={Email?}&firstname={First Name?}&lastname={Last Name?}&excludegroupids={Exclude Group IDs?:1,2,...}&projectid={Project IDs?:1,2,...}&clientid={Client IDs?:1,2,...}&projectclientid={Projects Belonging to Clients?:clientId1,clientId2,...}&search={Search Text?}&active={Active?:t|f}&groupId={Group ID?}&allprojects={Should be Added to All Future Projects?:t|f}&restricttasks={Restricted to Owned or Assigned Tasks?:t|f}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Person", 
+      "suffix": "/person/{Person ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Person Contacts", 
+      "suffix": "/personcontact?personid={Person ID?}&contacttypeid={Contact Type ID?}&contactdescriptorid={Contact Descriptor ID?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Person Contact", 
+      "suffix": "/personcontact/{Person Contact ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Projects", 
+      "suffix": "/project?localid={Local ID?}&clientid={Client ID?}&managerid={Manager ID?}&name={Name?}&datestart={Beginning On?:yyyy-MM-dd}&dateend={Ending On?:yyyy-MM-dd}&search={Search Text?}&active={Active?:t|f}&billable={Billable?:t|f}&personid={Accessable By?:Person ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Project", 
+      "suffix": "/project/{Project ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Project Modules", 
+      "suffix": "/projectmodule?projectid={Project ID}&active={Active?:t|f}&personid={Accessable By?:Person ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Project Module", 
+      "suffix": "/projectmodule/{Project Module ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Project Notes", 
+      "suffix": "/projectnote?localid={Local ID?}&clientid={Client ID?}&projectid={Project ID?}&authorid={Author ID?}&title={Title?}&search={Search Text?}&noteid={Note ID?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Project Note", 
+      "suffix": "/projectnote/{Project Note ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Project Work Types", 
+      "suffix": "/projectworktype?projectid={Project ID?}&active={Active?:t|f}&personid={Person ID}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Project Work Type", 
+      "suffix": "/projectworktype/{Project Work Type ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Work Requests", 
+      "suffix": "/request?priorityid={Priority ID?}&personid={Person ID?}&projectid={Project ID?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Work Request", 
+      "suffix": "/request/{Work Request ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Tasks", 
+      "suffix": "/task?localid={Local ID?}&personid={Person ID?}&assigneeid={Assignee ID?}&followerid={Follower ID?}&statusid={Status ID?}&clientid={Client ID?}&projectid={Project ID?}&moduleid={Module ID?}&milestoneid={Milestone ID?}&title={Title?}&dateopen={Opening On or After?:yyyy-MM-dd}&dateopenbegin={Starting After?:yyyy-MM-dd}&datedue={Date Due?:yyyy-MM-dd}&dateduebegin={Date Due After?:yyyy-MM-dd}&datedueend={Date Due Before?:yyyy-MM-dd}&dateclosed={Date Closed?:yyyy-MM-dd}&dateclosedbegin={Date Closed After?:yyyy-MM-dd}&dateclosedend={Date Closed Before?:yyyy-MM-dd}&hasduedate={Has Due Date?:t|f}&ownerid={Owner ID?}&priorityid={Priority ID?}&tasklistfilterid={Task List Filter ID?}&overdue={Overdue?:t|f}&excludeclosed={Exclude Closed?:t|f}&hastaskrelation={Related To?:Person ID}&search={Search Text?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task", 
+      "suffix": "/task/{Task ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Task List Filters", 
+      "suffix": "/tasklistfilter"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task List Filter", 
+      "suffix": "/tasklistfilter/{Task List Filter ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Task Notes", 
+      "suffix": "/tasknote?taskid={Task ID?}&title={Title?}&date={Date Created?:yyyy-MM-dd}&datebegin={Created On or After?:yyyy-MM-dd}&dateend={Created On or Before?:yyyy-MM-dd}&datemodifiedbegin={Modified On or After?:yyyy-MM-dd}&datemodifiedend={Modified On or Before?:yyyy-MM-dd}&authorid={Author ID?}&public={Public?:t|f}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task Note", 
+      "suffix": "/tasknote/{Task Note ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Task Priorities", 
+      "suffix": "/taskpriority?active={Active?:t|f}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task Priority", 
+      "suffix": "/taskpriority/{Task Priority ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Task Statuses", 
+      "suffix": "/taskstatus?active={Active?:t|f}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Task Status", 
+      "suffix": "/taskstatus/{Task Status ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Times", 
+      "suffix": "/time?activeonly={Active Only?:t|f}&moduleid={Module ID?}&taskid={Task ID?}&worktypeid={Work Type ID?}&personid={Person ID?}&clientid={Client ID?}&projectid={Project ID?}&milestoneid={Milestone ID?}&date={Date Passed?:yyyy-MM-dd}&datebegin={Pased On or After?:yyyy-MM-dd}&dateend={Passed On or Before?:yyyy-MM-dd}&billable={Billable?:t|f}&approved={Approved?:t|f}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Time", 
+      "suffix": "/time/{Time ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Timers", 
+      "suffix": "/timer?generaltimers={General Timers?:t|f}&gettimerinfo={Include Timer Info?:t|f}&taskid={Task ID?}&personid={Person ID?}&projectid={Project ID?}&clientid={Client ID?}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Timer", 
+      "suffix": "/timer/{Timer ID}"
+    }, 
+    {
+      "paged": "true", 
+      "name": "Work Types", 
+      "suffix": "/worktype?active={Active?:t|f}"
+    }, 
+    {
+      "paged": "false", 
+      "name": "Work Type", 
+      "suffix": "/worktype/{Work Type ID}"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="search" class="row search-container">
+  <div class="col-10">
+    <input class="form-control form-control-sm" type="text" placeholder="_#(Search)"
+           [(ngModel)]="searchString"
+           enterSubmit
+           [enterSubmitEnable]="true"
+           (onEnter)="onSearchChange.emit(this.searchString)"
+           (keyup)="searchChange()">
+    <i *ngIf="searchString" class="close-icon icon-size-medium icon-color-default"
+       aria-hidden="true" (click)="resetSearch()"></i>
+  </div>
+  <div class="col-auto search-button">
+    <a class="icon-size-medium p-2" (click)="onSearchChange.emit(searchString)" role="button"
+       title="_#(Search)" tabindex="0" enterClick>
+      <i class="search-icon icon-size-medium icon-color-default"></i>
+      <span class="visually-hidden">_#(Search)</span>
+    </a>
+  </div>
+</div>
+<div class="row large-form-field" [style.height]="getFieldsContainerHeight()">
+  <div class="col large-field-element">
+    <ng-content select="[largeFieldElement]"></ng-content>
+  </div>
+  <div class="col-auto btn-container-vertical">
+    <ng-content select="[largeFieldButtons]"></ng-content>
+  </div>
+</div>

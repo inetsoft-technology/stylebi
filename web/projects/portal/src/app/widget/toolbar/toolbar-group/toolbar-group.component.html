@@ -1,0 +1,75 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div ngbDropdown #dropdown="ngbDropdown" *ngIf="asMenu" placement="{{getStyle(1)}}">
+  <ng-template #toolTipContentMain>
+    <div class="composer-tooltip" [innerHTML]="actionGroup.tooltip()"></div>
+  </ng-template>
+  <button *ngIf="actionGroup.visible()" [id]="dropdownId"
+          [ngbTooltip]="showTooltips && !!actionGroup.tooltip && actionGroup.enabled() ? toolTipContentMain : ''"
+    class="{{getStyle(0)}}" [ngClass]="actionGroup.buttonClass" placement="bottom" container="body"
+    [disabled]="!actionGroup.enabled()" (click)="click($event)" ngbDropdownToggle>
+    <i *ngIf="childGroupToolbar" class="bare-arrow-left-icon icon-size1"></i>
+    <i class="{{actionGroup.iconClass}} icon-size-medium"></i>
+    <span>{{actionGroup.label}}
+       <i *ngIf="!childGroupToolbar" class="downward-icon icon-size1"
+          style="display: inline-block;vertical-align: middle;"></i>
+    </span>
+  </button>
+  <div ngbDropdownMenu aria-labelledby="dropdownId" class="drop-down-pane">
+     <div *ngIf="!!mergeActionGroup">
+        <div *ngFor="let group of mergeActionGroup.actions">
+           <toolbar-group [actionGroup]="group" [childGroupToolbar]="true"
+              [asMenu]="true" [snapToObjects]="snapToObjects" [snapToGrid]="snapToGrid">
+           </toolbar-group>
+        </div>
+     </div>
+     <ng-container *ngFor="let action of actionGroup.actions">
+        <ng-template #toolTipContent>
+          <div class="composer-tooltip" [innerHTML]="action.tooltip()"></div>
+        </ng-template>
+        <button type="button" *ngIf="action.visible() && !isCheckboxInput(action)"
+                [ngbTooltip]="showTooltips && !!action.tooltip && action.enabled() ? toolTipContent: ''"
+                [ngClass]="action.buttonClass" class="{{getStyle(2)}}" placement="right" container="body"
+                (click)="action.action()" [disabled]="!action.enabled() || !actionGroup.enabled()">
+          <i class="{{action.iconClass}} icon-size-medium"></i>
+          <span class="{{getStyle(3)}}">{{action.label}}</span>
+        </button>
+        <div *ngIf="action.visible() && isCheckboxInput(action)" class="check-input">
+           <input type="checkbox" class="form-check-input"
+              [ngModel]="getSnapToModel(action)" (change)="action.action()"/>
+           <label>{{action.label}}</label>
+        </div>
+     </ng-container>
+  </div>
+</div>
+<div class="btn-group" role="group" [attr.aria-label]="actionGroup.label" *ngIf="!asMenu">
+  <ng-container *ngFor="let action of actionGroup.actions">
+    <ng-template #toolTipContentNoMenu>
+      <div class="composer-tooltip" [innerHTML]="action.tooltip()"></div>
+    </ng-template>
+    <button type="button" *ngIf="action.visible()"
+      class="btn composer-btn toolbar-btn pb-1 ps-1 pe-1"
+      [ngClass]="action.buttonClass" [ngbTooltip]="showTooltips && !!action.tooltip && action.enabled() ? toolTipContentNoMenu: ''"
+      (click)="action.action()" [disabled]="!action.enabled() || !actionGroup.enabled()" placement="bottom" container="body">
+      <i class="{{action.iconClass}} icon-size-medium"></i>
+      <span>{{action.label}}</span>
+    </button>
+  </ng-container>
+</div>

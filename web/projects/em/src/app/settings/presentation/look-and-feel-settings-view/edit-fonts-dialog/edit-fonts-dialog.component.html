@@ -1,0 +1,92 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-modal-header [cshid]="'EMPresentationLookandFeel'" [title]=title>
+</em-modal-header>
+<mat-dialog-content>
+  <div class="table-container">
+    <table mat-table multiTemplateDataRows [dataSource]="matTableDataSource" class="edit-fonts-table mat-elevation-z8" matSort>
+      <ng-container matColumnDef="select">
+        <th mat-header-cell *matHeaderCellDef>
+          <mat-checkbox (change)="$event ? toggleHeader($event) : null"
+                        [disabled]="matTableDataSource.data.length == 0"
+                        [checked]="selectedValues.length > 0 && isAllSelected()"
+                        [indeterminate]="selectedValues.length > 0 && !isAllSelected()"></mat-checkbox>
+        </th>
+        <td mat-cell *matCellDef="let element">
+          <mat-checkbox (click)="$event.stopPropagation()"
+                        (change)="$event ? selectToggle($event, element) : null"
+                        [checked]="element.select"></mat-checkbox>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="font">
+        <th mat-header-cell mat-sort-header *matHeaderCellDef> _#(Font) </th>
+        <td mat-cell *matCellDef="let element"> {{element.font}} </td>
+      </ng-container>
+
+      <ng-container matColumnDef="font face count">
+        <th mat-header-cell mat-sort-header *matHeaderCellDef> _#(Font Face Count) </th>
+        <td mat-cell *matCellDef="let element"> {{element.fontFaces.length}}</td>
+      </ng-container>
+
+      <!-- Expanded Content Column - The detail row is made up of this one column that spans across all columns -->
+      <ng-container matColumnDef="font faces">
+        <td mat-cell *matCellDef="let element" [attr.colspan]="displayedColumns.length">
+          <div class="font-element-detail"
+               [@detailExpand]="element === expandedElement ? 'expanded' : 'collapsed'">
+            <ng-container *ngFor="let _fontFace of element.fontFaces; let _i = index">
+              <div>
+                <button mat-icon-button title="_#(Remove Font Face)" aria-label="_#(Remove Font Face)"
+                        (click)="removeFontFace(element, _i)">
+                  <mat-icon fontSet="ineticons" fontIcon="shape-minus-icon"></mat-icon>
+                </button>
+                <button mat-icon-button title="_#(Edit Font Face)" aria-label="_#(Edit Font Face)"
+                        (click)="editFontFace(element, _i)">
+                  <mat-icon fontSet="ineticons" fontIcon="edit-icon"></mat-icon>
+                </button>
+
+                <span> _#(Font Face Identifier): {{getFontFaceIdentifier(_fontFace)}}</span>&nbsp;&nbsp;|&nbsp;&nbsp;
+                <span [style.font-weight]="_fontFace.fontWeight"> _#(Font Weight): {{getFontWeightString(_fontFace)}};</span>&nbsp;&nbsp;|&nbsp;&nbsp;
+                <span [style.font-style]="_fontFace.fontStyle"> _#(Font Style): {{getFontStyleString(_fontFace)}};</span>
+              </div>
+            </ng-container>
+            <button mat-icon-button title="_#(Add Font Face)" aria-label="_#(Add Font Face)"
+                    (click)="addFontFace(element)">
+              <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
+            </button>
+          </div>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row class="table-header-row"
+        *matHeaderRowDef="displayedColumns; sticky: true"></tr>
+      <tr mat-row class="table-row" *matRowDef="let row; columns: displayedColumns;"
+          [class.table-expanded-row]="expandedElement === row"
+          (click)="clickRow(row)"></tr>
+      <tr mat-row *matRowDef="let row; columns: fontFaceColumns" class="font-detail-row"></tr>
+    </table>
+  </div>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button mat-raised-button (click)="ok()" color="primary">_#(OK)</button>
+  <button mat-button (click)="add()">_#(Add)</button>
+  <button mat-button [disabled]="selectedValues.length == 0" (click)="delete()">_#(Delete)</button>
+  <button mat-button mat-dialog-close>_#(Cancel)</button>
+</mat-dialog-actions>

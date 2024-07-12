@@ -1,0 +1,140 @@
+{
+  "replet": {
+    "addLink": {
+      "!type": "fn(eid: string, item: ?, replet: string, request: ?) -> ?",
+      "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Replet_addLink.htm"
+    },
+    "addLinkURL": {
+      "!type": "fn(eid: string, item: ?, url: string, target: string) -> ?",
+      "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Replet_addLinkURL.htm"
+    },
+    "addFormLink": {
+      "!type": "fn(form: string, replet: string) -> ?",
+      "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Replet_addFormLink.htm"
+    },
+    "addMenuAction": {
+      "!type": "fn(eid: ?, item: ?, menuitem: string, command: ?) -> ?",
+      "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Replet_addMenuAction.htm"
+    },
+    "addPopupMenu": {
+      "!type": "fn(eid: ?, item: ?, menuitems: ?) -> ?",
+      "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Replet_addPopupMenu.htm"
+    },
+    "addRequest": {
+      "!type": "fn(eid: string, item: ?, request: ?) -> ?",
+      "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Replet_addRequest.htm"
+    },
+    "addStatus": {
+      "!type": "fn(eid: string, item: ?, message: string) -> ?",
+      "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Replet_addStatus.htm"
+    },
+    "removeAllActions": {
+      "!type": "fn() -> ?",
+      "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Replet_removeAllActions.htm"
+    },
+    "setStagedFlowLevel": {
+      "!type": "fn(flow: ?, level: ?) -> ?",
+      "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Replet_setStagedFlowLevel.htm"
+    },
+    "getStagedFlowLevel": {
+      "!type": "fn(flow: ?) -> ?",
+      "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Replet_getStagedFlowLevel.htm"
+    }
+  },
+  "addBoolean": {
+    "!type": "fn(name: string, def: bool) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_addBoolean.htm"
+  },
+  "addChoice": {
+    "!type": "fn(name: string, def: ?, options: [], values: []) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_addChoice.htm"
+  },
+  "addDate": {
+    "!type": "fn(name: string, def: +Date) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_addDate.htm"
+  },
+  "addDateTime": {
+    "!type": "fn(name: string, def: +Date) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_addDateTime.htm"
+  },
+  "addList": {
+    "!type": "fn(name: string, def: ?, options: [], values: []) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_addList.htm"
+  },
+  "addOption": {
+    "!type": "fn(name: string, def: [], options: [], values: []) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_addOption.htm"
+  },
+  "addParameter": {
+    "!type": "fn(name: string, def: ?, format: ?) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_addParameter.htm"
+  },
+  "addPassword": {
+    "!type": "fn(name: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_addPassword.htm"
+  },
+  "addRadio": {
+    "!type": "fn(name: string, def: ?, options: [], values: []) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_addRadio.htm"
+  },
+  "addTextArea": {
+    "!type": "fn(name: string, def: string, rows: number, cols: number) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_addTextArea.htm"
+  },
+  "addTime": {
+    "!type": "fn(name: string, def: +Date) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_addTime.htm"
+  },
+  "clear": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_clear.htm"
+  },
+  "removeParameter": {
+    "!type": "fn(name: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_removeParameter.htm"
+  },
+  "setAlias": {
+    "!type": "fn(name: string, alias: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_setAlias.htm"
+  },
+  "setVisible": {
+    "!type": "fn(name: string, visible: bool) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_RepletParameters_setVisible.htm"
+  },
+  "promptParameters": {
+    "!type": "fn(reqname: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Style_Intelligence_Global_promptParam.htm"
+  },
+  "refresh": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Style_Intelligence_Global_refresh.htm"
+  },
+  "reprint": {
+    "!type": "fn() -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Replet_reprint.htm"
+  },
+  "scrollTo": {
+    "!type": "fn(eid: string, row: number) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Style_Intelligence_Global_scrollTo.htm"
+  },
+  "sendRequest": {
+    "!type": "fn(request: ?) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Style_Intelligence_Global_sendRequest.htm"
+  },
+  "showReplet": {
+    "!type": "fn(repletname: string, request: ?, target: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Style_Intelligence_Global_showReplet.htm"
+  },
+  "showReport": {
+    "!type": "fn(archive_report: string, target: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Style_Intelligence_Global_showReport.htm"
+  },
+  "showStatus": {
+    "!type": "fn(msg: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Style_Intelligence_Global_showStatus.htm"
+  },
+  "showURL": {
+    "!type": "fn(url: string, target: string) -> ?",
+    "!url": "https://www.inetsoft.com/docs/2023/devhelp/#ProductDocs/reportscripting/html/Report_Style_Intelligence_Global_showURL.htm"
+  }
+}

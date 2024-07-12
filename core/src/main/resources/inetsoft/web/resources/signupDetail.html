@@ -1,0 +1,123 @@
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title data-th-text="#{signup.pageTitle}">Sign up</title>
+  <meta name="description" content="Style Intelligence">
+  <meta name="author" content="InetSoft Technology Corp">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+  <link rel="stylesheet" type="text/css" href="webjars/bootstrap/css/bootstrap.min.css"/>
+  <link rel="stylesheet" type="text/css" href="app/global.css"/>
+  <link th:if="${customTheme} == true" rel="stylesheet" type="text/css" href="app/theme-variables.css">
+  <link rel="stylesheet" type="text/css" href="css/login.css"/>
+  <link rel="stylesheet" type="text/css" href="css/signupDetail.css"/>
+  <link rel="shortcut icon" data-th-href="@{/portal/favicon}" href="portal/favicon">
+</head>
+<body>
+  <div class="d-flex align-items-center bg-navbar-top" data-th-switch="${customLogo}">
+    <img class="custom-logo" src="portal/logo" data-th-case="${true}">
+    <th-block data-th-case="*">
+      <i class="inetsoft-logo inetsoft-icon icon-size-logo txt-primary"></i>
+      <span class="inetsoft-logo txt-light"> InetSoft </span>
+    </th-block>
+  </div>
+  <div class="container-fluid login-root">
+    <div class="card">
+      <div class="card-header" data-th-text="#{signup.title}">
+        Sign Up
+      </div>
+      <div class="card-body">
+        <form novalidate>
+          <div id="signupUserNameGroup" class="form-group">
+            <label class="required-field" for="signupUserName" data-th-text="#{signup.username.label}">User name</label>
+            <input type="text" class="form-control" id="signupUserName" autocomplete="username"
+                   name="signupUserName" autofocus/>
+            <div id="userNameError" class="invalid-feedback" style="display: none;">
+              <span id="userNameRequiredError" data-th-text="#{signup.username.required}">User name is required.</span>
+              <span id="userNameFormatError" data-th-text="#{signup.username.contains.special}">Name cannot include special characters.</span>
+              <span id="userNameTooLongError" data-th-text="#{signup.username.tooLong}">Username is too long (maximum is 39 characters).</span>
+            </div>
+          </div>
+          <div id="signupPasswordGroup" class="form-group">
+            <label class="required-field" for="signupPassword" data-th-text="#{signup.password.label}">Password</label>
+            <input type="password" class="form-control" id="signupPassword" autocomplete="new-password"
+                   name="signupPassword"/>
+            <div id="passwordError" class="invalid-feedback" style="display: none;">
+              <span id="passwordRequiredError" data-th-text="#{signup.password.required}">Password is required.</span>
+              <span id="passwordFormatError" data-th-text="#{signup.password.invalid}">The password must be at least 8 characters long and contain both letters and numbers.</span>
+              <span id="passwordTooLongError" data-th-text="#{signup.password.tooLong}">Password is too long (maximum is 72 characters).</span>
+            </div>
+          </div>
+          <div id="signupVerifyPasswordGroup" class="form-group">
+            <label class="required-field" for="signupVerifyPassword" data-th-text="#{signup.password.verify.label}">Verify Password</label>
+            <input type="password" class="form-control" id="signupVerifyPassword" autocomplete="new-password"
+                   name="signupVerifyPassword"/>
+            <div id="verifyPasswordError" class="invalid-feedback" style="display: none;">
+              <span id="verifyPasswordRequiredError" data-th-text="#{signup.password.verify.required}">Please re-typed password.</span>
+              <span id="verifyPasswordFormatError" data-th-text="#{signup.password.verify.non.match}">Make sure your re-typed password is the same as your password.</span>
+            </div>
+          </div>
+          <div id="emailCodeGroup" class="form-group">
+            <label class="required-field" for="emailCode" data-th-text="#{signup.email.verify.code.label}">Verification Code</label>
+            <div class="input-group">
+              <input class="form-control" id="emailCode"
+                     name="signupVerifyPassword" placeholder="We sent a verification code to Your email, Please enter it."
+                     data-th-attr="placeholder=#{signup.email.verify.code.tooltip}"/>
+              <span type="button" id="resendCodeBtn" class="btn resendCodeBtn text-primary">Resend the code</span>
+            </div>
+            <div id="emailCodeError" class="invalid-feedback" style="display: none;">
+              <span id="emailCodeRequiredError" data-th-text="#{signup.email.verify.code.required}">We sent a verification code to Your email, Please enter it.</span>
+              <span id="emailCodeFormatError" data-th-text="#{signup.email.verify.code.length.error}">The launch code must be at 6 characters long.</span>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="card-footer">
+        <button type="button" id="signupButton" class="btn btn-primary btn-block">
+          Sign Up
+        </button>
+      </div>
+    </div>
+    <div id="notifications" class="alert alert-danger" style="display: none"></div>
+  </div>
+  <div class="loading-indicator">
+    <div>
+      <i class="loading-icon loading-icon--spin fa-spin icon-4x fa-fw" aria-hidden="true"></i>
+      <span class="sr-only" data-th-text="#{login.loading}">Loading</span>
+    </div>
+  </div>
+
+  <script type="text/javascript" src="webjars/jquery/jquery.min.js"></script>
+  <script type="text/javascript" src="webjars/bootstrap/js/bootstrap.min.js"></script>
+  <script type="text/javascript" src="js/signup.js"></script>
+  <script type="text/javascript" src="js/login.js"></script>
+  <script data-th-inline="javascript">
+    /*<![CDATA[*/
+    $(document).ready(function() {
+      var requestedUrl = "app/portal";
+      initSignUpDetailView(requestedUrl);
+    });
+    /*]]>*/
+  </script>
+</body>
+</html>

@@ -1,0 +1,147 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+.schedule-cycle-editor {
+  flex-grow: 1;
+  flex-shrink: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+
+  .editor-panel-content.tabbed-editor-panel-content {
+    > .mat-mdc-form-field {
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+
+    > .mat-mdc-tab-group {
+      flex-grow: 1;
+      flex-shrink: 1;
+
+      > .mat-mdc-tab-header {
+        flex-grow: 0;
+      }
+
+      > .mat-mdc-tab-body-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        flex-grow: 1;
+        flex-shrink: 1;
+        overflow: hidden !important;
+
+        .mat-mdc-tab-body {
+          display: flex;
+          flex-direction: column;
+          align-items: stretch;
+          overflow: hidden;
+          flex-grow: 1;
+          flex-shrink: 1;
+
+          .mat-mdc-tab-body-content {
+            flex-grow: 1;
+            flex-shrink: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            overflow: hidden;
+
+            .editor {
+              flex-grow: 1;
+              flex-shrink: 1;
+              display: flex;
+              flex-direction: row;
+              align-items: stretch;
+              overflow-y: auto;
+
+              .nav-pane {
+                flex-grow: 0;
+                flex-shrink: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: stretch;
+
+                > .mat-mdc-card {
+                  flex-grow: 1;
+                  flex-shrink: 1;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: stretch;
+                  margin-top: 10px;
+                  margin-bottom: 10px;
+                  margin-left: 2px;
+
+                  .mat-mdc-card-content {
+                    flex-grow: 1;
+                    flex-shrink: 1;
+                    overflow-y: auto;
+                    max-width: 150px;
+
+                    @media screen and (min-width: 1125px) {
+                      max-width: 300px;
+                    }
+
+                    @media screen and (min-width: 1600px) {
+                      max-width: 100%;
+                    }
+
+                    @media screen and (max-width: 725px) {
+                      max-width: 25vw;
+                    }
+
+                    .mat-mdc-nav-list {
+                      .mat-mdc-list-item {
+                        .list-label {
+                          display: inline-block;
+                          overflow: hidden;
+                          text-overflow: ellipsis;
+                          max-width: 100%;
+                          white-space: nowrap;
+                        }
+                      }
+                    }
+                  }
+
+                  .mat-mdc-card-actions {
+                    flex-grow: 0;
+                    flex-shrink: 0;
+                  }
+                }
+
+                .mat-mdc-card + mat-card {
+                  margin-top: 10px;
+                }
+              }
+
+              .content-pane {
+                flex-grow: 1;
+                flex-shrink: 1;
+                overflow-y: auto;
+
+                > .mat-mdc-card {
+                  margin-left: 10px;
+                  margin-right: 2px;
+                  margin-top: 10px;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

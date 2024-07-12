@@ -1,0 +1,606 @@
+options {
+   STATIC = false;
+   JAVA_UNICODE_ESCAPE = true;
+   //UNICODE_INPUT = true;
+}
+
+PARSER_BEGIN(ExprParser)
+
+package inetsoft.uql.util.expr;
+
+import inetsoft.uql.util.*;
+import inetsoft.uql.path.*;
+import inetsoft.uql.path.expr.*;
+import inetsoft.uql.schema.*;
+import java.util.*;
+import java.io.*;
+
+/**
+ * XSelection and XNodePath parser.
+ */
+public class ExprParser {
+   public static void main(String args[]) {
+      ExprParser parser;
+      try {
+	 parser = new ExprParser(new java.io.FileInputStream(args[0]));
+      } catch (java.io.FileNotFoundException e) {
+	 e.printStackTrace();
+	 return;
+      }
+
+      try {
+	 //parser.xpath(); // parse XNodePath
+	 System.err.println(parser.xselection()); // parse XSelection
+      } catch (ParseException e) {
+	 e.printStackTrace();
+      }
+   }
+
+   String strip(String str) {
+      if(str == null) {
+	 return null;
+      }
+
+      String ch = "";
+      if(str.length() > 1 &&
+	 (str.charAt(0) == '`' && str.charAt(str.length() - 1) == '`' ||
+          str.charAt(0) == '\'' && str.charAt(str.length() - 1) == '\'' ||
+          str.charAt(0) == '"' && str.charAt(str.length() - 1) == '"'))
+      {
+	 ch = str.charAt(0) + "";
+	 str = str.substring(1, str.length() - 1);
+      }
+
+      // handle escape, e.g. '', or ""
+      return (ch.length() > 0) ? replace(str, ch + ch, ch) : str;
+   }
+
+   /**
+    * Remove character from the string.
+    */
+   String strip(String str, char ch) {
+      StringBuffer buf = new StringBuffer();
+      for(int i = 0; i < str.length(); i++) {
+	 if(str.charAt(i) != ch) {
+	    buf.append(str.charAt(i));
+	 }
+      }
+
+      return buf.toString();
+   }
+
+   /**
+    * Replace the occurance of string in a string.
+    */
+   public static String replace(String str, String old, String news) {
+      int idx = 0;
+      while((idx = str.indexOf(old, idx)) >= 0) {
+	 str = str.substring(0, idx) + news + str.substring(idx+old.length());
+	 idx += news.length();
+      }
+
+      return str;
+   }
+}
+
+PARSER_END(ExprParser)
+
+
+/*
+ * Tokens to ignore in the BNF follow.
+ */
+
+<DEFAULT, IN_CONVERT_TO>
+SKIP :
+{
+  < " " >
+| < "\t" >
+| < "\n" >
+| < "\r" >
+}
+
+XSelection xselection():
+{
+   XSelection select = new XSelection();
+}
+{
+   <SELECT> { select.setExpandSubtree(false); } [<EXPANDED> {
+      select.setExpandSubtree(true);
+   }] selection_list(select) {
+      return select;
+   }
+}
+
+void selection_list(XSelection select):
+{}
+{
+   [selection_item(select)] ("," selection_item(select))*
+}
+
+void selection_item(XSelection select):
+{
+   String name, alias = null;
+}
+{
+   name = name_or_string() { select.addColumn(strip(name)); } [<AS> <STRING> {
+      select.setAlias(select.getColumnCount() - 1, strip(getToken(0).image));
+   }] [<TO> convert_to(select, name)]
+}
+
+String name_or_string():
+{
+   String str = null;
+   Expr expr = null;
+}
+{
+   LOOKAHEAD(2000) expr = scalar_exp() {
+      if(expr instanceof NameExpr) {
+         return ((NameExpr) expr).getName();
+      }
+      else {
+         return expr.toString();
+      }
+   }
+   | LOOKAHEAD(2000) str = path_name() { return str; }
+   | LOOKAHEAD(2000) <STRING> { return strip(getToken(0).image); }
+}
+
+void convert_to(XSelection select, String name):
+{
+   String fmt = null;
+}
+{
+   <XSTRING> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.STRING, fmt);
+   }
+   | <XINTEGER> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.INTEGER, fmt);
+   }
+   | <XLONG> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.LONG, fmt);
+   }
+   | <XFLOAT> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.FLOAT, fmt);
+   }
+   | <XDOUBLE> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.DOUBLE, fmt);
+   }
+   | <XDATE> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.DATE, fmt);
+   }
+   | <XBOOLEAN> {
+      select.setConversion(name, XSchema.BOOLEAN, fmt);
+   }
+   | <XCHAR> {
+      select.setConversion(name, XSchema.CHAR, fmt);
+   }
+   | <XBYTE> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.BYTE, fmt);
+   }
+   | <XSHORT> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.SHORT, fmt);
+   }
+   | <XTIMEINSTANT> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.TIME_INSTANT, fmt);
+   }
+   | <XTIME> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.TIME, fmt);
+   }
+   | <XENUM> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.ENUM, fmt);
+   }
+   | <XUSERDEFINED> ["(" <STRING> { fmt = strip(getToken(0).image); } ")"] {
+      select.setConversion(name, XSchema.USER_DEFINED, fmt);
+   }
+}
+
+XNodePath xpath() :
+{
+   XNodePath path = new XNodePath();
+}
+{
+   path_node(path) ("." path_node(path) )* {
+      return path;
+   }
+}
+
+void path_node(XNodePath path):
+{
+   String name;
+   Expr cond = null;
+}
+{
+   (<NAME> | <STRING>) {name = strip(getToken(0).image);}
+   ["[" cond = search_condition() "]"] {
+      path.add(name, cond);
+   }
+}
+
+Expr search_condition():
+{
+   Expr expr1, expr2 = null;
+}
+{
+   expr1 = search_term() (LOOKAHEAD(2000) <OR> expr2 = search_term() {
+      expr1 = new OrExpr(expr1, expr2);
+   })* { return expr1; }
+}
+
+Expr search_term():
+{
+   Expr expr1, expr2 = null;
+}
+{
+   expr1 = search_fact() (LOOKAHEAD(2000) <AND> expr2 = search_fact() {
+      expr1 = new AndExpr(expr1, expr2);
+   })* { return expr1; }
+}
+
+Expr search_fact():
+{
+   Expr expr1;
+}
+{
+   <NOT> expr1 = search_condition() {
+      return new NotExpr(expr1);
+   }
+   | LOOKAHEAD(2000) "(" expr1 = search_condition() ")" {
+      return expr1; }
+   | LOOKAHEAD(2000) expr1 = predicate() { return expr1; }
+}
+
+Expr predicate():
+{
+   Expr expr1 = null;
+}
+{
+    LOOKAHEAD(2000) expr1 = comparison_predicate() { return expr1; }
+   | LOOKAHEAD(2000) expr1 = between_predicate() { return expr1; }
+   | LOOKAHEAD(2000) expr1 = like_predicate() { return expr1; }
+   | LOOKAHEAD(2000) expr1 = test_for_null() { return expr1; }
+   | LOOKAHEAD(2000) expr1 = in_predicate() { return expr1; }
+   | LOOKAHEAD(2000) expr1 = all_or_any_predicate() { return expr1; }
+   | LOOKAHEAD(2000) expr1 = existence_test() { return expr1; }
+}
+
+Expr comparison_predicate():
+{
+   Expr expr1, expr2;
+   String op;
+}
+{
+   expr1 = scalar_exp() (<COMPARISON> | "=") { op = getToken(0).image; }
+   expr2 = scalar_exp() {
+      return new ComparisonExpr(expr1, op, expr2);
+   }
+}
+
+Expr between_predicate():
+{
+   Expr expr1, expr2, expr3;
+}
+{
+   LOOKAHEAD(2000) expr1 = scalar_exp() <NOT> <BETWEEN> expr2 = scalar_exp()
+   <AND> expr3 = scalar_exp() {
+      return new NotExpr(new BetweenExpr(expr1, expr2, expr3));
+   }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <BETWEEN> expr2 = scalar_exp()
+   <AND> expr3 = scalar_exp() {
+      return new BetweenExpr(expr1, expr2, expr3);
+   }
+}
+
+Expr like_predicate():
+{
+   Expr expr1;
+}
+{
+   LOOKAHEAD(2000) expr1 = scalar_exp() <NOT> <LIKE> <STRING> {
+      return new NotExpr(new LikeExpr(expr1, strip(getToken(0).image)));
+   }
+
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <LIKE> <STRING> {
+      return new LikeExpr(expr1, strip(getToken(0).image));
+   }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <NOT> <MATCH> <STRING> {
+      return new NotExpr(new MatchExpr(expr1, strip(getToken(0).image)));
+   }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <MATCH> <STRING> {
+      return new MatchExpr(expr1, strip(getToken(0).image));
+   }
+}
+
+Expr test_for_null():
+{
+   Expr expr1;
+}
+{
+   LOOKAHEAD(2000) expr1 = named() <IS> <NOT> <NULL> {
+      return new NotExpr(new NullExpr(expr1));
+   }
+   | LOOKAHEAD(2000) expr1 = named() <IS> <NULL> {
+      return new NullExpr(expr1);
+   }
+}
+
+Expr in_predicate():
+{
+   Expr expr1, expr2;
+   Vector list;
+}
+{
+   LOOKAHEAD(2000) expr1 = scalar_exp() <NOT> <IN>
+      "(" expr2 = named() ")" {
+      return new NotExpr(new InExpr(expr1, expr2));
+   }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <IN>
+	"(" expr2 = named() ")" {
+      return new InExpr(expr1, expr2);
+   }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <NOT> <IN>
+        expr2 = named() {
+      return new NotExpr(new InExpr(expr1, expr2));
+   }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <IN>
+	expr2 = named() {
+      return new InExpr(expr1, expr2);
+   }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <NOT> <IN> "("
+      list = atom_commalist() ")" {
+      return new NotExpr(new InExpr(expr1, list));
+   }
+   | LOOKAHEAD(2000) expr1 = scalar_exp() <IN>
+	"(" list = atom_commalist() ")" {
+      return new InExpr(expr1, list);
+   }
+}
+
+Vector atom_commalist():
+{
+   Expr expr1;
+   Vector list = new Vector();
+}
+{
+   expr1 = atom() { list.addElement(expr1); }
+   ("," expr1 = atom() { list.addElement(expr1); })* {
+      return list;
+   }
+}
+
+Expr all_or_any_predicate():
+{
+   Expr expr1, expr2;
+   int type;
+   String op;
+}
+{
+   type = any_all_some() expr1 = scalar_exp() <MATCH> <STRING> {
+      String pat = strip(getToken(0).image);
+      return new ListMatchExpr(expr1, pat, type);
+   }
+   | expr1 = scalar_exp() (<COMPARISON> | "=") {op = getToken(0).image; }
+   type = any_all_some() expr2 = named() {
+      return new ListComparisonExpr(expr1, expr2, op, type);
+   }
+}
+
+int any_all_some():
+{}
+{
+   <ANY> { return Expr.ANY; }
+   | <ALL> { return Expr.ALL; }
+   | <SOME> { return Expr.SOME; }
+}
+
+Expr existence_test():
+{
+   Expr expr1;
+}
+{
+   <EXISTS> expr1 = named() { return new ExistsExpr(expr1); }
+}
+
+Expr scalar_exp():
+{
+   Expr expr1, expr2;
+   char op = '+';
+}
+{
+   expr1 = scalar_term()
+      (LOOKAHEAD(2000) ("+" | "-" { op = '-'; } ) expr2 = scalar_term() {
+      expr1 = new AlgoExpr(expr1, op, expr2);
+   })* { return expr1; }
+}
+
+Expr scalar_term():
+{
+   Expr expr1, expr2;
+   char op = '*';
+}
+{
+   expr1 = scalar_fact()
+      (LOOKAHEAD(2000) ("*" | "/" { op = '/'; }) expr2 = scalar_fact() {
+      expr1 = new AlgoExpr(expr1, op, expr2);
+   })* { return expr1; }
+}
+
+Expr scalar_fact():
+{
+   Expr expr1;
+}
+{
+   LOOKAHEAD(2000) "+" expr1 = scalar_exp() {
+      return expr1;
+   }
+   | LOOKAHEAD(2000) "-" expr1 = scalar_exp() {
+      return new NegateExpr(expr1);
+   }
+   | LOOKAHEAD(2000) expr1 = atom() { return expr1; }
+   | "(" expr1 = scalar_exp() ")" { return expr1; }
+}
+
+Expr atom():
+{
+   Expr expr1;
+   String str, fmt = null;
+}
+{
+   LOOKAHEAD(2000) expr1 = named() {return expr1;}
+   | <STRING> { return new LiteralExpr(strip(getToken(0).image)); }
+   | <INTEGER> { return new LiteralExpr(Integer.valueOf(getToken(0).image)); }
+   | <FLOAT> { return new LiteralExpr(Double.valueOf(getToken(0).image)); }
+   | <TRUE> { return new LiteralExpr(Boolean.TRUE); }
+   | <FALSE> { return new LiteralExpr(Boolean.FALSE); }
+   | "{d" <STRING> { str = getToken(0).image; } "}" {
+      if(str.indexOf("-") >= 0 && str.indexOf(":") >= 0) {
+         return new DateExpr(strip(str), "yyyy-MM-dd HH:mm:ss");
+      }
+      else if(str.indexOf(":") >= 0) {
+         return new DateExpr(strip(str), "HH:mm:ss");
+      }
+      else {
+         return new DateExpr(strip(str), "yyyy-MM-dd");
+      }
+   }
+   | <TO_DATE> "(" <STRING> { str = getToken(0).image; }
+   ["," <STRING> { fmt = getToken(0).image; } ] ")" {
+      return new DateExpr(strip(str), strip(fmt));
+   }
+}
+
+Expr named():
+{
+   String name;
+   QueryExpr expr = null;
+   Expr var = null;
+}
+{
+   name = path_name() { return new NameExpr(name); }
+   | "$" "(" (LOOKAHEAD(2000) name = full_name() | <STRING> {
+      name = strip(getToken(0).image); } ) ")" { return new VarExpr(name); }
+   | <NODE> "(" <STRING> { name = strip(getToken(0).image); }
+   ")" { return new NameExpr(name); }
+   | <FILTER> "(" <STRING> { name = strip(getToken(0).image); }
+   ")" { return new FilterExpr(name); }
+   | <QUERY> "(" <STRING> { expr = new QueryExpr(strip(getToken(0).image)); }
+   ("," name = full_name() "=" var = atom() {
+      expr.setParameter(name, var);
+   })* ")" { return expr; }
+   | var = list_func() { return var; }
+}
+
+String path_name():
+{
+   String name, idx = null;
+}
+{
+   "@" <NAME> { return "@" + strip(getToken(0).image); }
+   | name = full_name() ["[" <INTEGER> {
+      idx = getToken(0).image; } "]"] {
+      return (idx != null) ? (name + "[" + idx + "]") : name;
+   }
+}
+
+String full_name():
+{
+   StringBuffer str = new StringBuffer();
+}
+{
+   <NAME> { str.append(strip(getToken(0).image)); }
+   ("." { str.append("."); } ["@" { str.append("@"); }]
+   (<NAME> | <STRING>) { str.append(strip(getToken(0).image)); } )* {
+      return str.toString();
+   }
+   | <STRING> { str.append(strip(getToken(0).image)); }
+   ("." { str.append("."); } ["@" { str.append("@"); }]
+   (<NAME> | <STRING>) { str.append(strip(getToken(0).image)); } )+ {
+      return str.toString();
+   }
+}
+
+Expr list_func():
+{
+   String op;
+   Expr var = null;
+}
+{
+   (<SUM> | <AVG> | <MIN> | <MAX> | <COUNT>) {
+      op = getToken(0).image;
+   }
+   [ "(" var = named() ")" ] {
+      return (var == null) ? (Expr) new NameExpr(op)
+	 : (Expr) new ListFuncExpr(op.toLowerCase(), var);
+   }
+}
+
+TOKEN :
+{
+<COMPARISON: "<" | ">" | "<=" | ">=" | "==" | "<>" | "!=">
+}
+
+<IN_CONVERT_TO>
+TOKEN [IGNORE_CASE] :
+{
+   <XINTEGER: "integer"> : DEFAULT
+| <XSTRING: "string"> : DEFAULT
+| <XLONG: "long"> : DEFAULT
+| <XFLOAT: "float"> : DEFAULT
+| <XDOUBLE: "double"> : DEFAULT
+| <XDATE: "date"> : DEFAULT
+| <XBOOLEAN: "boolean"> : DEFAULT
+| <XCHAR: "char"> : DEFAULT
+| <XBYTE: "byte"> : DEFAULT
+| <XSHORT: "short"> : DEFAULT
+| <XTIMEINSTANT: "timeInstant"> : DEFAULT
+| <XTIME: "time"> : DEFAULT
+| <XENUM: "enum"> : DEFAULT
+| <XUSERDEFINED: "userDefined"> : DEFAULT
+}
+
+TOKEN [IGNORE_CASE] :
+{
+   <AND: "and">
+| <OR: "or">
+| <NOT: "not">
+| <LIKE: "like">
+| <MATCH: "match">
+| <IN: "in">
+| <EXISTS: "exists">
+| <IS: "is">
+| <NULL: "null">
+| <BETWEEN: "between">
+| <ANY: "any">
+| <ALL: "all">
+| <SOME: "some">
+| <SELECT: "select">
+| <COLLAPSE: "collapse">
+| <AS: "as">
+| <TO: "to"> : IN_CONVERT_TO
+| <TO_DATE: "to_date">
+| <QUERY: "query">
+| <NODE: "node">
+| <SUM: "sum">
+| <AVG: "avg">
+| <MIN: "min">
+| <MAX: "max">
+| <COUNT: "count">
+| <TRUE: "true">
+| <FALSE: "false">
+| <FILTER: "filter">
+| <EXPANDED: "expanded">
+| <#ALPHA:	["a"-"z","A"-"Z","_",":"]	>
+| <#NUM:		["0"-"9"]			>
+| <#ALPHANUM:	<ALPHA> | <NUM>			>
+| <#UNIALPHA:      ["\u0100"-"\uffff"]                 >
+| <NAME:	(<ALPHA> | <UNIALPHA>) ( <ALPHANUM> | "#" | <UNIALPHA>)* 
+      | "`" (~["`"] | "``")* "`" 
+      >
+| <STRING: "\"" (~["\""] | "\"\"")* "\"" | "\'" (~["\'"] | "''")* "\'" >
+| < #EXPONENT: ["e","E"] (["+","-"])? (["0"-"9"])+ >
+| < FLOAT: (["0"-"9"])+ "." (["0"-"9"])* (<EXPONENT>)? (["f","F","d","D"])?
+      | "." (["0"-"9"])+ (<EXPONENT>)? (["f","F","d","D"])?
+      | (["0"-"9"])+ <EXPONENT> (["f","F","d","D"])?
+      | (["0"-"9"])+ (<EXPONENT>)? ["f","F","d","D"]
+  >
+| <INTEGER: (["0"-"9"])+>
+}

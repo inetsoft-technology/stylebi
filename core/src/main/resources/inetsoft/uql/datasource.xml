@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<registry>
+  <datasource name="mdb1" type="jdbc">
+    <ds_jdbc url="jdbc:odbc:dxExample" driver="sun.jdbc.odbc.JdbcOdbcDriver" requireLogin="false">
+    </ds_jdbc>
+  </datasource>
+  <datasource name="oracle1" type="jdbc">
+    <ds_jdbc url="jdbc:oracle:thin:@newyork:1521:inetsoft" driver="oracle.jdbc.driver.OracleDriver"
+             requireLogin="true" user="scott" password="tiger">
+    </ds_jdbc>
+  </datasource>
+  <datasource name="sqlserver" type="jdbc">
+    <ds_jdbc url="jdbc:odbc:LocalServer" driver="sun.jdbc.odbc.JdbcOdbcDriver" requireLogin="true"
+             defaultDB="Northwind" user="sa" password="">
+    </ds_jdbc>
+  </datasource>
+  <datasource name="xml2" type="xml">
+    <ds_xml url="http://xx" method="post">
+      <request>
+        <name>default</name>
+        <parameters>
+        </parameters>
+        <output type="snm-dpf">
+          <type name="bocollection">
+            <element name="entity" type="string"/>
+            <element name="status" type="string"/>
+            <element name="businessobject" type="string" maxOccurs="*"/>
+          </type>
+          <type name="user">
+            <element name="name" type="string"/>
+          </type>
+          <type name="boholder">
+            <element name="bocollection" type="bocollection"/>
+          </type>
+          <type name="snm-dpf">
+            <element name="transferobject" type="transferobject"/>
+          </type>
+          <type name="section">
+            <element name="name" type="string"/>
+            <element name="boholder" type="boholder"/>
+          </type>
+          <type name="transferobject">
+            <element name="application" type="string"/>
+            <element name="version" type="string"/>
+            <element name="user" type="user"/>
+            <element name="section" type="section"/>
+          </type>
+        </output>
+      </request>
+      <request>
+        <name>test</name>
+        <parameters>
+        </parameters>
+      </request>
+    </ds_xml>
+  </datasource>
+  <datasource name="xml1" type="xml">
+    <ds_xml url="http://192.168.1.3:8100/servlet/DataServlet" method="post">
+      <request>
+        <name>customer</name>
+        <parameters>
+          <param>
+            <name type="string" null="false"><![CDATA[file]]></name>
+            <value type="string" null="false"><![CDATA[customer.xml]]></value>
+          </param>
+        </parameters>
+        <output type="customers">
+          <type name="name">
+            <element name="fname" type="string"/>
+            <element name="lname" type="string"/>
+          </type>
+          <type name="customers">
+            <element name="customer" type="customer" maxOccurs="*"/>
+          </type>
+          <type name="customer">
+            <element name="name" type="name"/>
+            <element name="company" type="string"/>
+            <element name="phone" type="string"/>
+            <element name="address" type="string"/>
+            <element name="city" type="string"/>
+            <element name="state" type="string"/>
+            <element name="zip" type="string"/>
+            <element name="email" type="string"/>
+            <attribute name="id" type="string"/>
+          </type>
+        </output>
+      </request>
+      <request>
+        <name>product</name>
+        <parameters>
+          <param>
+            <name type="string" null="false"><![CDATA[file]]></name>
+            <value type="string" null="false"><![CDATA[product.xml]]></value>
+          </param>
+        </parameters>
+        <output type="catalog">
+          <type name="catalog">
+            <element name="product" type="product" maxOccurs="*"/>
+          </type>
+          <type name="product">
+            <element name="os" type="string" minOccurs="0" maxOccurs="*"/>
+            <attribute name="sku" type="string"/>
+            <attribute name="name" type="string"/>
+            <attribute name="category" type="string"/>
+            <attribute name="price" type="string"/>
+          </type>
+        </output>
+      </request>
+      <request>
+        <name>datatypes</name>
+        <parameters>
+          <param>
+            <name type="string" null="false"><![CDATA[file]]></name>
+            <value type="string" null="false"><![CDATA[datatypes.xml]]></value>
+          </param>
+        </parameters>
+        <output type="types">
+          <type name="record">
+            <element name="f_integer" type="integer" minOccurs="0" maxOccurs="*"/>
+            <element name="f_long" type="long" minOccurs="0" maxOccurs="*"/>
+            <element name="f_float" type="float" minOccurs="0" maxOccurs="*"/>
+            <element name="f_double" type="double" minOccurs="0" maxOccurs="*"/>
+            <element name="f_boolean" type="boolean" minOccurs="0" maxOccurs="*"/>
+            <element name="f_string" type="string" minOccurs="0" maxOccurs="*"/>
+            <element name="f_date" type="date" minOccurs="0" maxOccurs="*"/>
+            <element name="f_timeInstant" type="timeInstant" minOccurs="0" maxOccurs="*"/>
+            <element name="f_time" type="time" minOccurs="0" maxOccurs="*"/>
+          </type>
+          <type name="types">
+            <element name="record" type="record" minOccurs="0" maxOccurs="*"/>
+          </type>
+        </output>
+      </request>
+      <request>
+        <name>chn</name>
+        <parameters>
+          <param>
+            <name type="string" null="false"><![CDATA[file]]></name>
+            <value type="string" null="false"><![CDATA[chn_1.xml]]></value>
+          </param>
+        </parameters>
+      </request>
+    </ds_xml>
+  </datasource>
+  <datasource name="informix" type="jdbc">
+    <ds_jdbc url="jdbc:informix-sqli://poweredge:10000/sysutils:INFORMIXSERVER=ol_poweredge1"
+             driver="com.informix.jdbc.IfxDriver" requireLogin="true">
+    </ds_jdbc>
+  </datasource>
+  <datasource name="sybase" type="jdbc">
+    <ds_jdbc url="jdbc:sybase:Tds:192.168.1.177:5000/psdemodb"
+             driver="com.sybase.jdbc2.jdbc.SybDriver" requireLogin="true" user="sa" password="">
+    </ds_jdbc>
+  </datasource>
+  <datasource name="Text1" type="text">
+    <ds_text url="http://localhost:8100/servlet/TestDataServlet">
+      <request>
+        <name>types</name>
+        <parameters>
+          <param>
+            <name type="string" null="false"><![CDATA[file]]></name>
+            <value type="string" null="false"><![CDATA[data.txt]]></value>
+          </param>
+        </parameters>
+      </request>
+      <request>
+        <name>tabs</name>
+        <parameters>
+          <param>
+            <name type="string" null="false"><![CDATA[file]]></name>
+            <value type="string" null="false"><![CDATA[dataTab.txt]]></value>
+          </param>
+        </parameters>
+      </request>
+    </ds_text>
+  </datasource>
+</registry>

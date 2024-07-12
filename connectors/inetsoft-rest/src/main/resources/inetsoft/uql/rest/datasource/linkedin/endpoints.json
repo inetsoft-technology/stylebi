@@ -1,0 +1,449 @@
+{
+  "endpoints": [
+    {
+      "name": "Ad Account",
+      "paged": false,
+      "suffix": "/v2/adAccountsV2/{Ad Account ID}"
+    },
+    {
+      "name": "Ad Accounts",
+      "paged": true,
+      "suffix": "/v2/adAccountsV2?q=search"
+    },
+    {
+      "name": "Ad Account User",
+      "paged": false,
+      "suffix": "/v2/adAccountUsersV2?account={Sponsored Account URN}&user={User URN}"
+    },
+    {
+      "name": "Authenticated Ad Account User",
+      "paged": true,
+      "suffix": "/v2/adAccountUsersV2?q=authenticatedUser"
+    },
+    {
+      "name": "Ad Account Users by Accounts",
+      "paged": true,
+      "suffix": "/v2/adAccountUsersV2?q=accounts&accounts={Sponsored Account URNs,:urn1,urn2,...}"
+    },
+    {
+      "name": "Ad Account Users",
+      "paged": true,
+      "suffix": "/v2/adAccountUsersV2?&q=account&totals=true&Account={Sponsored Account URN}"
+    },
+    {
+      "name": "Campaign Group",
+      "paged": false,
+      "suffix": "/v2/adCampaignGroupsV2/{Campaign Group ID}"
+    },
+    {
+      "name": "Campaign Groups",
+      "paged": true,
+      "suffix": "/v2/adCampaignGroupsV2?q=search"
+    },
+    {
+      "name": "Campaign",
+      "paged": false,
+      "suffix": "/v2/adCampaignsV2/{Campaign ID}"
+    },
+    {
+      "name": "Campaigns",
+      "paged": true,
+      "suffix": "/v2/adCampaignsV2?q=search"
+    },
+    {
+      "name": "Creative",
+      "paged": false,
+      "suffix": "/v2/adCreativesV2/{Creative ID}"
+    },
+    {
+      "name": "Creatives",
+      "paged": true,
+      "suffix": "/v2/adCreativesV2?q=search"
+    },
+    {
+      "name": "Ad Targeting Facets",
+      "paged": true,
+      "suffix": "/v2/adTargetingFacets"
+    },
+    {
+      "name": "Ad Targeting Entities",
+      "paged": true,
+      "suffix": "/v2/adTargetingEntities?q=adTargetingFacet&facet={Ad Targeting Facet URN}"
+    },
+    {
+      "name": "Ad Targeting Entities by Similar Entities",
+      "paged": true,
+      "suffix": "/v2/adTargetingEntities?q=similarEntities&facet={Ad Targeting Facet URN}&entities={Entity URN}"
+    },
+    {
+      "name": "Audience Counts",
+      "paged": true,
+      "suffix": "/v2/audienceCountsV2?q=targetingCriteria&targetingCriteria={Targeting Criteria}"
+    },
+    {
+      "name": "Ad Supply Forecasts",
+      "paged": true,
+      "suffix": "/v2/adSupplyForecasts?q=criteriaV2&targetingCriteria={Targeting Criteria}"
+    },
+    {
+      "name": "Video Ad",
+      "paged": false,
+      "suffix": "/v2/adDirectSponsoredContents/{UGC Post URN}"
+    },
+    {
+      "name": "Video Ads By Account",
+      "paged": true,
+      "suffix": "/v2/adDirectSponsoredContents?q=account&types=List[VIDEO]&includeTotals=false&account={Sponsored Account URN}&owner={Organization URN}"
+    },
+    {
+      "name": "Video Ads by Owner",
+      "paged": true,
+      "suffix": "/v2/adDirectSponsoredContents?q=owner&owner={Organization URN}"
+    },
+    {
+      "name": "Sponsored Conversation",
+      "paged": false,
+      "suffix": "/v2/sponsoredConversations/{Conversation ID}"
+    },
+    {
+      "name": "Sponsored Conversations",
+      "paged": true,
+      "suffix": "/v2/sponsoredConversations?ids={Conversation IDs:List(id1,id2,...)}"
+    },
+    {
+      "name": "Sponsored Message Contents",
+      "paged": true,
+      "suffix": "/v2/sponsoredConversations/{Conversation ID}/sponsoredMessageContents"
+    },
+    {
+      "name": "Sponsored Message Content",
+      "paged": false,
+      "suffix": "/v2/sponsoredConversations/{Conversation ID}/sponsoredMessageContents/{Content ID}"
+    },
+    {
+      "name": "Ad InMail Content",
+      "paged": false,
+      "suffix": "/v2/adInMailContentsV2/{Content ID}"
+    },
+    {
+      "name": "Ad InMail Contents",
+      "paged": true,
+      "suffix": "/v2/adInMailContentsV2?ids={Content IDs,:id1,id2,...}"
+    },
+    {
+      "name": "Member Sender Permissions by Account",
+      "paged": true,
+      "suffix": "/v2/adInMailMemberSenderPermissions?q=account&account={Sponsored Account URN}"
+    },
+    {
+      "name": "Company Senders by Account",
+      "paged": true,
+      "suffix": "/v2/adInMailCompanySenderPermissions?q=account&account={Sponsored Account URN}"
+    },
+    {
+      "name": "Sender Permissions by Member",
+      "paged": true,
+      "suffix": "/v2/adInMailMemberSenderPermissions?q=member&member={Member URN}"
+    },
+    {
+      "name": "Ad Analytics",
+      "paged": true,
+      "suffix": "/v2/adAnalyticsV2?q=analytics&pivot={Pivot}&timeGranularity={Time Granularity}&campaignType={Campaign Types?}&shares={Share URNs?}&campaigns={Campaign URNs?}&creatives={Creative URNs?}&campaignGroups={Campaign Group URNs?}&accounts={Account URNs?}&companies={Organization URNs?}&dateRange.start.year={Start Year?}&dateRange.start.month={Start Month?}&dateRange.start.day={Start Day?}&dateRange.end.year={End Year?}&dateRange.end.month={End Month?}&dateRange.end.day={End Day?}"
+    },
+    {
+      "name": "Ad Statistics",
+      "paged": true,
+      "suffix": "/v2/adAnalyticsV2?q=statistics&pivots={Pivots}&objectiveType={Objective Type}&timeGranularity={Time Granularity}&campaignType={Campaign Types?}&shares={Share URNs}&campaigns={Campaign URNs?}&creatives={Creative URNs?}&campaignGroups={Campaign Group URNs?}&accounts={Sponsored Account URNs?}&companies={Organization URNs?}&dateRange.start.year={Start Year?}&dateRange.start.month={Start Month?}&dateRange.start.day={Start Day?}&dateRange.end.year={End Year?}&dateRange.end.month={End Month?}&dateRange.end.day={End Day?}"
+    },
+    {
+      "name": "Pricing Insights by Criteria",
+      "paged": true,
+      "suffix": "/v2/adBudgetPricing?q=criteriaV2&campaignType={Campaign Type}&account={Sponsored Account URN}&bidType={Bid Type}&currency={ISO Currency Code?}&countryCode={ISO Country Code}&matchType={Match Type}&targetingCriteria={Targeting Criteria}&dailyBudget={Daily Budget}&objectiveType={Objective Type}&optimizationTargetType={Optimization Target Type}"
+    },
+    {
+      "name": "Insight Tags by Account",
+      "paged": true,
+      "suffix": "/v2/insightTags?q=account&account={Sponsored Account URN}"
+    },
+    {
+      "name": "Insight Tag",
+      "paged": false,
+      "suffix": "/v2/insightTags/{Insight Tag ID}"
+    },
+    {
+      "name": "Insight Tag Permissions by Account",
+      "paged": true,
+      "suffix": "/v2/insightTagPermission?q=account&account={Sponsored Account URN}"
+    },
+    {
+      "name": "Insight Tag Domains by Account",
+      "paged": true,
+      "suffix": "/v2/insightTagDomainsV2?q=account&account={Sponsored Account URN}"
+    },
+    {
+      "name": "Conversion",
+      "paged": false,
+      "suffix": "/v2/conversions/{Conversion ID}?account={Sponsored Account URN}"
+    },
+    {
+      "name": "Conversions",
+      "paged": true,
+      "suffix": "/v2/conversions?account={Sponsored Account URN}&ids={Conversion IDs}"
+    },
+    {
+      "name": "Conversions by Account",
+      "paged": true,
+      "suffix": "/v2/conversions?q=account&account={Sponsored Account URN}"
+    },
+    {
+      "name": "Campaign Conversion",
+      "paged": false,
+      "suffix": "/v2/campaignConversions/{Campaign and Conversion URN}"
+    },
+    {
+      "name": "Campaign Conversions",
+      "paged": true,
+      "suffix": "/v2/campaignConversions?ids={Campaign and Conversion URNs}"
+    },
+    {
+      "name": "Campaign Conversions by Campaign",
+      "paged": true,
+      "suffix": "/v2/campaignConversions?q=campaigns&campaigns={Campaign URNs}"
+    },
+    {
+      "name": "Campaign Recommendations",
+      "paged": false,
+      "suffix": "/v2/adCampaignRecommendations?q=campaigns&campaigns={Campaign URNs}"
+    },
+    {
+      "name": "Campaign Insights",
+      "paged": false,
+      "suffix": "/v2/adCampaignInsightsV2?q=entities&entities={Campaign URNs}"
+    },
+    {
+      "name": "Third-Party Tracking Tag",
+      "paged": false,
+      "suffix": "/v2/thirdPartyTrackingTags/{Tag ID}"
+    },
+    {
+      "name": "Third-Party Tracking Tags by Creative",
+      "paged": true,
+      "suffix": "/v2/thirdPartyTrackingTags?q=creative&totals=true&creative={Creative URN}"
+    },
+    {
+      "name": "Ad Forms by Account",
+      "paged": true,
+      "suffix": "/v2/adForms?q=account&totals=true&account={Sponsored Account URN}"
+    },
+    {
+      "name": "Ad Form",
+      "paged": false,
+      "suffix": "/v2/adForms/{Form ID}"
+    },
+    {
+      "name": "Ad Forms",
+      "paged": true,
+      "suffix": "/v2/adForms?ids={Form IDs,}"
+    },
+    {
+      "name": "Ad Form Question",
+      "paged": false,
+      "suffix": "/v2/adFormQuestions?form={Form URN}&questionId={Question ID}"
+    },
+    {
+      "name": "Ad Form Responses by Account",
+      "paged": true,
+      "suffix": "/v2/adFormResponses?q=account&account={Sponsored Account URN}&campaign={Campaign URN?}&creative={Creative URN?}&form={Form URN?}&leadType={Lead Type?}&timeRange.start={Start Time?:Unix Timestamp}&timeRange.end={End Time?:Unix Timestamp}"
+    },
+    {
+      "name": "Ad Form Response",
+      "paged": false,
+      "suffix": "/v2/adFormResponses/{Response ID}?account={Sponsored Account URN}"
+    },
+    {
+      "name": "Ad Form Responses",
+      "paged": true,
+      "suffix": "/v2/adFormResponses?account={Sponsored Account URN}&ids={Response IDs,}"
+    },
+    {
+      "name": "DMP Segments",
+      "paged": false,
+      "suffix": "/v2/dmpSegments?ids={Segment IDs}"
+    },
+    {
+      "name": "DMP Segment",
+      "paged": false,
+      "suffix": "/v2/dmpSegments/{Segment ID}"
+    },
+    {
+      "name": "DMP Segments by Account",
+      "paged": true,
+      "suffix": "/v2/dmpSegments?q=account&account={Sponsored Account URN}"
+    },
+    {
+      "name": "DMP Segment Destination",
+      "paged": false,
+      "suffix": "/v2/dmpSegments/{Segment ID}/destinations/{Destination}"
+    },
+    {
+      "name": "DMP Segment Destinations",
+      "paged": true,
+      "suffix": "/v2/dmpSegments/{Segment ID}/destinations"
+    },
+    {
+      "name": "DMP Segment Lookalikes",
+      "paged": true,
+      "suffix": "/v2/dmpSegments/{Segment ID}/lookalikes"
+    },
+    {
+      "name": "Ad Segment Status",
+      "paged": false,
+      "suffix": "/v2/adSegmentsV2/{Segment ID}"
+    },
+    {
+      "name": "Organization",
+      "paged": false,
+      "suffix": "/v2/organizations/{Organization ID}"
+    },
+    {
+      "name": "Organization by Email Domain",
+      "paged": true,
+      "suffix": "/v2/organizations?q=emailDomain&emailDomain={Email Domain}"
+    },
+    {
+      "name": "Organization Follower Count",
+      "paged": false,
+      "suffix": "/v2/networkSizes/{Organization URN}?edgeType=CompanyFollowedByMember"
+    },
+    {
+      "name": "Organization Brand",
+      "paged": false,
+      "suffix": "/v2/organizationBrands/{Brand ID}"
+    },
+    {
+      "name": "Organization Brands by Organization",
+      "paged": true,
+      "suffix": "/v2/organizations?q=parentOrganization&parent={Parent Organization URN}"
+    },
+    {
+      "name": "Organization Brands by Vanity Name",
+      "paged": true,
+      "suffix": "/v2/organizationBrands?q=vanityName&vanityName={Vanity Name}"
+    },
+    {
+      "name": "Follower Statistics",
+      "paged": true,
+      "suffix": "/v2/organizationalEntityFollowerStatistics?q=organizationalEntity&organizationalEntity={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}"
+    },
+    {
+      "name": "Organization Page Statistics",
+      "paged": true,
+      "suffix": "/v2/organizationPageStatistics?q=organization&organization={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}"
+    },
+    {
+      "name": "Brand Page Statistics",
+      "paged": true,
+      "suffix": "/v2/brandPageStatistics?q=brand&brand={Brand URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}"
+    },
+    {
+      "name": "Share Statistics",
+      "paged": true,
+      "suffix": "/v2/organizationalEntityShareStatistics?q=organizationalEntity&organizationalEntity={Organization URN}&timeIntervals.timeGranularityType={Time Granularity?:DAY|MONTH}&timeIntervals.timeRange.start={Start Time?:Unix Timestamp}&timeIntervals.timeRange.end={End Time?:Unix Timestamp}"
+    },
+    {
+      "name": "UGC Posts by URN",
+      "paged": true,
+      "suffix": "/v2/ugcPosts/{Post or Share URN}?viewContext={View Context:AUTHOR|READER}"
+    },
+    {
+      "name": "UGC Posts",
+      "paged": true,
+      "suffix": "/v2/ugcPosts?ids={Post URNs}"
+    },
+    {
+      "name": "UGC Posts by Authors",
+      "paged": true,
+      "suffix": "/v2/ugcPosts?q=authors&authors={Person or Organization URNs}"
+    },
+    {
+      "name": "UGC Posts by Group",
+      "paged": true,
+      "suffix": "/v2/ugcPosts?q=containerEntities&containerEntities={Group URNs}"
+    },
+    {
+      "name": "UGC Posts by Permalink Suffixes",
+      "paged": true,
+      "suffix": "/v2/ugcPosts?q=permalinkSuffixes&permalinkSuffixes={Permalink Suffixes}"
+    },
+    {
+      "name": "Share",
+      "paged": false,
+      "suffix": "/v2/shares/{Share ID}"
+    },
+    {
+      "name": "Shares by Owner",
+      "paged": true,
+      "suffix": "/v2/shares?q=owners&owners={Owner URN}&sharesPerOwner={Shares Per Owner?}"
+    },
+    {
+      "name": "Shares",
+      "paged": true,
+      "suffix": "/v2/shares?ids={Share IDs}"
+    },
+    {
+      "name": "Activities",
+      "paged": true,
+      "suffix": "/v2/activities?ids={Activity IDs,}"
+    },
+    {
+      "name": "Social Actions Summary",
+      "paged": false,
+      "suffix": "/v2/socialActions/{Share/Post/Comment URN}"
+    },
+    {
+      "name": "Likes",
+      "paged": true,
+      "suffix": "/v2/socialActions/{Share/Post/Comment URN}/likes"
+    },
+    {
+      "name": "Comments",
+      "paged": true,
+      "suffix": "/v2/socialActions/{Share/Post/Comment URN}/comments"
+    },
+    {
+      "name": "Social Metadata Summary",
+      "paged": true,
+      "suffix": "/v2/socialMetadata/{Share/Post/Comment URN}"
+    },
+    {
+      "name": "Social Metadata Summaries",
+      "paged": true,
+      "suffix": "/v2/socialMetadata?ids={Share/Post/Comment URNs}"
+    },
+    {
+      "name": "Reactions",
+      "paged": true,
+      "suffix": "/v2/reactions/{Share/Post/Comment URN}?q=entity"
+    },
+    {
+      "name": "Video Analytics",
+      "paged": true,
+      "suffix": "/v2/videoAnalytics?q=entity&entity={Post URN}&type={Type:VIDEO_VIEW|VIEWER|TIME_WATCHED|TIME_WATCHED_FOR_VIDEO_VIEWS}&aggregation={Aggregation?:DAY|WEEK|ALL}"
+    },
+    {
+      "name": "Current User Profile",
+      "paged": false,
+      "suffix": "/v2/me"
+    },
+    {
+      "name": "User Profile",
+      "paged": false,
+      "suffix": "/v2/people/{Person ID}"
+    },
+    {
+      "name": "User Profiles",
+      "paged": true,
+      "suffix": "/v2/people?ids={Person IDs}"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container-fluid">
+  <w-large-form-field>
+    <div class="bordered-box bd-gray bordered-box-lg" largeFieldElement>
+      <div id="sort-list-item" *ngFor="let _col of model.columnSortList; let _i = index"
+           [ngSwitch]="_col.order" class="sort-row p-1 mb-1 bd-gray"
+           [class.selected]="_col == selectedField"
+           [class.hover-bg-primary-selectable]="_col != selectedField"
+           (click)="selectedField = _col" draggable="true"
+           outOfZone (onDragover)="$event.preventDefault()"
+           (dragenter)="fieldDragEnter($event, _i)"
+           (dragleave)="fieldDragLeave($event, _i)" (drop)="fieldDrop($event, _i)"
+           (dragstart)="fieldDragStart($event, _col, _i)">
+        <button class="sort-button sort-ascending-icon" *ngSwitchCase="SortEnum.ASC"
+                title="_#(Ascending)"
+             (click)="_col.order = SortEnum.DESC" style="padding: 0px"></button>
+        <button class="sort-button sort-descending-icon" *ngSwitchCase="SortEnum.DESC"
+                title="_#(Descending)"
+             (click)="_col.order = SortEnum.NONE; move(_i, model.columnSortList, model.columnNoneList);" style="padding: 0px"></button>
+        <div style="padding-left: 6px">{{_col.dataRefModel.view || _col.dataRefModel.name}}</div>
+      </div>
+      <div *ngFor="let _col of model.columnNoneList; let _i = index" class="sort-row p-1 mb-1 bd-gray"
+           [class.selected]="_col == selectedField"
+           [class.hover-bg-primary-selectable]="_col != selectedField"
+           (click)="selectedField = _col">
+        <button class="sort-button sort-icon icon-size-sm"
+                title="_#(Sort)"
+                (click)="_col.order = SortEnum.ASC; move(_i, model.columnNoneList, model.columnSortList);" style="padding: 0px"></button>
+        <div style="padding-left: 6px">{{_col.dataRefModel.view || _col.dataRefModel.name}} </div>
+      </div>
+    </div>
+    <ng-container largeFieldButtons>
+      <button type="button" class="btn btn-default" title="_#(Move Up)"
+              [disabled]="!moveSortColEnabled(true)" (click)="swap(true)">
+        <i class="upward-icon" aria-hidden="true"></i>
+      </button>
+      <button type="button" class="btn btn-default" title="_#(Move Down)"
+              [disabled]="!moveSortColEnabled(false)" (click)="swap(false)">
+        <i class="downward-icon" aria-hidden="true"></i>
+      </button>
+    </ng-container>
+  </w-large-form-field>
+</div>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  - This file is part of StyleBI.
+  -
+  - Copyright (c) 2024, InetSoft Technology Corp, All Rights Reserved.
+  -
+  - The software and information contained herein are copyrighted and
+  - proprietary to InetSoft Technology Corp. This software is furnished
+  - pursuant to a written license agreement and may be used, copied,
+  - transmitted, and stored only in accordance with the terms of such
+  - license and with the inclusion of the above copyright notice. Please
+  - refer to the file "COPYRIGHT" for further copyright and licensing
+  - information. This software and information or any other copies
+  - thereof may not be provided or otherwise made available to any other
+  - person.
+  -->
+
+<!-- Generator: Adobe Illustrator 11.0, SVG Export Plug-In . SVG Version: 6.0.0 Build 78)  -->
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN"    "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd" [
+	<!ENTITY ns_flows "http://ns.adobe.com/Flows/1.0/">
+	<!ENTITY ns_svg "http://www.w3.org/2000/svg">
+	<!ENTITY ns_xlink "http://www.w3.org/1999/xlink">
+]>
+<svg  xmlns="&ns_svg;" xmlns:xlink="&ns_xlink;" xmlns:a="http://ns.adobe.com/AdobeSVGViewerExtensions/3.0/"
+	 width="131.292" height="165" viewBox="0 0 131.292 165" overflow="visible" enable-background="new 0 0 131.292 165"
+	 xml:space="preserve">
+		<g id="Layer_2">
+		</g>
+		<g id="_x3F__x3F__x3F__x5F_1_x5F__x3F__x3F__x3F__x3F__x5F_3">
+		</g>
+		<g id="Layer_2_1_">
+		</g>
+		<g id="_x3F__x3F__x3F__x5F_1">
+		</g>
+		<g id="_x3F__x3F__x3F__x5F_1_x5F__x3F__x3F__x3F__x3F_">
+			<path fill="#FFFFFF" enable-background="new    " d="M131.292,10.346H0.001v137.751h0.146c-0.087,0.336-0.146,0.675-0.146,1.013
+				C0.001,157.886,29.39,165,65.645,165c36.256,0,65.645-7.114,65.645-15.891c0-0.34-0.06-0.678-0.145-1.011h0.145V10.346H131.292z"
+				/>
+			<ellipse fill="#FFFFFF" cx="65.646" cy="10.023" rx="65.646" ry="10.023"/> 
+		</g>
+	</svg>

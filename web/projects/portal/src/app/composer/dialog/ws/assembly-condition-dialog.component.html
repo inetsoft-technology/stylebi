@@ -1,0 +1,71 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<modal-header [title]="'_#(Condition)'"
+   (onCancel)="cancel()"
+   [cshid]="'DefiningSimpleConditions'">
+</modal-header>
+<div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
+  <nav ngbNav #nav="ngbNav" class="nav-tabs">
+    <ng-container ngbNavItem="conditions">
+      <a ngbNavLink>_#(Conditions)</a>
+      <ng-template ngbNavContent>
+        <fieldset>
+          <div class="form-row-float-label">
+            <div class="form-check">
+              <input type="checkbox" class="form-check-input" [ngModel]="model.advanced"
+                     (ngModelChange)="advancedChange($event)" id="adv"/>
+              <label class="form-check-label" for="adv">
+                _#(Advanced Conditions)
+              </label>
+            </div></div>
+        </fieldset>
+        <simple-condition-pane *ngIf="!model.advanced" [provider]="simpleProvider" [variableNames]="variableNames"
+                               [subqueryTables]="model.subqueryTables" [fields]="simpleFields"
+                               [conditionList]="simpleConditionList" [isVSContext]="false"
+                               (conditionListChange)="simpleConditionListChange($event)"></simple-condition-pane>
+        <advanced-condition-pane *ngIf="model.advanced" [runtimeId]="worksheet.runtimeId" [assemblyName]="assemblyName"
+                                 [subqueryTables]="model.subqueryTables" [preAggregateFields]="model.preAggregateFields"
+                                 [postAggregateFields]="model.postAggregateFields"
+                                 [preAggregateConditionList]="model.preAggregateConditionList"
+                                 (preAggregateConditionListChange)="preAggregateConditionListChange($event)"
+                                 [postAggregateConditionList]="model.postAggregateConditionList"
+                                 (postAggregateConditionListChange)="postAggregateConditionListChange($event)"
+                                 [rankingConditionList]="model.rankingConditionList"
+                                 (rankingConditionListChange)="rankingConditionListChange($event)"
+                                 [expressionFields]="model.expressionFields"
+                                 [variableNames]="variableNames"
+                                 [grayedOutFields]="grayedOutFields"></advanced-condition-pane>
+      </ng-template>
+    </ng-container>
+    <ng-container ngbNavItem="mv update">
+      <a ngbNavLink>_#(MV Update)</a>
+      <ng-template ngbNavContent>
+        <mv-condition-pane [subqueryTables]="model.subqueryTables" [runtimeId]="worksheet.runtimeId" [assemblyName]="assemblyName"
+                           [model]="model.mvConditionPaneModel" [expressionFields]="model.expressionFields"
+                           [variableNames]="model.variableNames"></mv-condition-pane>
+      </ng-template>
+    </ng-container>
+  </nav>
+  <div [ngbNavOutlet]="nav"></div>
+</div>
+<div class="modal-footer">
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!conditionListValid" #okButton>_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>
+</div>

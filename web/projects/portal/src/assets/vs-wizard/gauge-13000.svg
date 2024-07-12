@@ -1,0 +1,18 @@
+<svg width="23.999999999999996" height="23.999999999999996" xmlns="http://www.w3.org/2000/svg">
+ <g>
+  <title>background</title>
+  <rect x="-1" y="-1" width="3.81818" height="3.81818" id="canvas_background" fill="none"/>
+ </g>
+
+ <g>
+  <title>Layer 1</title>
+  <path fill="#518db9" d="m6.47735,4.60109l0,3.92685c4.3934,0.63503 7.77593,4.3934 7.77593,8.96824c0,1.16639 -0.23327,2.26798 -0.64984,3.29182l3.39549,1.98101c0.72576,-1.60518 1.14231,-3.39364 1.14231,-5.27283c0,-6.71321 -5.11916,-12.24709 -11.6639,-12.89509" id="svg_2" transform="rotate(-57.21175765991211 12.309301376342777,13.685050964355472) " stroke="null"/>
+  <circle fill="#464646" cx="5.82984" cy="8.81935" r="1" id="svg_4"/>
+  <circle fill="#464646" cx="18.39732" cy="9.29114" r="1" id="svg_5"/>
+  <circle fill="#464646" cx="22.90093" cy="12.87296" r="1" id="svg_6"/>
+  <circle fill="#464646" cx="12" cy="7.62179" r="1" id="svg_7"/>
+  <circle stroke="null" fill="#464646" cx="1.27506" cy="11.9831" r="1" id="svg_8"/>
+  <circle transform="rotate(37.763458251953125 11.772727012634272,18.858982086181644) " fill="#fc8f2a" cx="11.77273" cy="18.85898" r="1.48718" id="svg_9" stroke="null"/>
+  <path stroke="null" fill="#fc8f2a" stroke-width="null" stroke-opacity="null" d="m12.92025,19.40444l1.20513,-6.95092l1.20513,6.95092l-2.41026,0z" id="svg_10" transform="rotate(37.763458251953125 14.125374794006339,15.928977966308596) "/>
+ </g>
+</svg>

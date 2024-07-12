@@ -1,0 +1,94 @@
+{
+    "endpoints": [
+        {
+            "name": "Annotations",
+            "paged": false,
+            "suffix": "/2.0/annotations/?from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}"
+        },
+        {
+            "name": "Events",
+            "paged": false,
+            "suffix": "/2.0/events?event={Events:[\"value1\",\"value2\",...]}&type={Type:general|unique|average}&unit={Unit:minute|hour|day|week|month}&interval={Interval?}&from_date={From Date?:yyyy-mm-dd}&to_date={To Date?:yyyy-mm-dd}&format=json"
+        },
+        {
+            "name": "Top Events for Today",
+            "paged": false,
+            "suffix": "/2.0/events/top?type={Type:general|unique|average}&limit={Maximum Number of Events?}"
+        },
+        {
+            "name": "Common Event Names",
+            "paged": false,
+            "suffix": "/2.0/events/names/?type={Type:general|unique|average}&limit={Maximum Number of Events?}"
+        },
+        {
+            "name": "Event Properties",
+            "paged": false,
+            "suffix": "/2.0/events/properties?event={Event Name}&name={Property Name}&type={Type:general|unique|average}&unit={Unit:minute|hour|day|week|month}&values={Values?:[\"value1\",\"value2\"...]}&interval={Interval?}&from_date={From Date?:yyyy-mm-dd}&to_date={To Date?:yyyy-mm-dd}&format=json&limit={Maximum Number of Values?}"
+        },
+        {
+            "name": "Top Property Names for Event",
+            "paged": false,
+            "suffix": "/2.0/events/properties/top?event={Event Name}&limit={Maximum Number of Properties?}"
+        },
+        {
+            "name": "Top Values for Property",
+            "paged": false,
+            "suffix": "/2.0/events/properties/values?event={Event Name}&name={Property Name}&limit={Maximum Number of Values?}"
+        },
+        {
+            "name": "Funnel",
+            "paged": false,
+            "suffix": "/2.0/funnels?funnel_id={Funnel ID}&unit={Unit?:day|week|month}&interval={Interval?}&from_date={From Date?:yyyy-mm-dd}&to_date={To Date?:yyyy-mm-dd}&length={Length?}&length_unit={Length Unit?:second|minute|hour|day}&on={On?}&where={Where?}&limit={Maximum Number of Values?}"
+        },
+        {
+            "name": "Funnels",
+            "paged": false,
+            "suffix": "/2.0/funnels/list"
+        },
+        {
+            "name": "Segmentation Event Data",
+            "paged": false,
+            "suffix": "/2.0/segmentation?event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&type={Type?:general|unique|average}&unit={Unit?:minute|hour|day|month}&interval={Interval?}&on={On?}&where={Where?}&format=json&limit={Maximum Number of Values?}"
+        },
+        {
+            "name": "Numeric Event Data",
+            "paged": false,
+            "suffix": "/2.0/segmentation/numeric?event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&on={On}&type={Type?:general|unique|average}&unit={Unit?:hour|day}&where={Where?}"
+        },
+        {
+            "name": "Sum",
+            "paged": false,
+            "suffix": "/2.0/segmentation/sum?event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&on={On}&unit={Unit?:hour|day}&where={Where?}"
+        },
+        {
+            "name": "Average",
+            "paged": false,
+            "suffix": "/2.0/segmentation/average?event={Event Name}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&on={On}&unit={Unit?:hour|day}&where={Where?}"
+        },
+        {
+            "name": "Retention",
+            "paged": false,
+            "suffix": "/2.0/retention?from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&retention_type={Retention Type?:birth|compounded}&born_event={Born Event?}&event={Event Name?}&where={Where?}&interval={Interval?}&interval_count={Interval Count?}&unit={Unit?:day|week|month}&on={On?}&limit={Maximum Number of Values?}"
+        },
+        {
+            "name": "Addiction",
+            "paged": false,
+            "suffix": "/2.0/retention/addiction?from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&unit={Unit:day|week|month}&addiction_unit={Addiction Unit:hour|day}&event={Event Name?}&on={On?}&where={Where?}&limit={Maximum Number of Values?}"
+        },
+        {
+            "name": "Engage",
+            "paged": true,
+            "suffix": "/2.0/engage?distinct_id={Distinct ID?}&distinct_ids={Distinct Ids?:[\"id1\",\"id2\",...]}&where={Where?}&output_properties={Output Properties?:[\"prop1\",\"prop2\",...]}&session_id={Session ID?}&behaviors={Behaviors?}&as_of_timestamp={As of Timestamp?:Unix timestamp}&filter_by_cohort={Filter By Cohort?}&include_all_users={Include All Users?:True|False}"
+        },
+        {
+            "name": "Revenue",
+            "paged": false,
+            "suffix": "/2.0/engage/revenue/?project_id={Project ID}&from_date={From Date:yyyy-mm-dd}&to_date={To Date:yyyy-mm-dd}&unit={Unit:day|week|month}"
+        },
+        {
+            "name": "Scheduled Pipelines",
+            "paged": false,
+            "suffix": "/2.0/nessie/pipeline/jobs"
+        }
+    ]
+}

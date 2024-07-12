@@ -1,0 +1,80 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div *ngIf="model" class="dashboard-tab-container" [class.top]="model.dashboardTabsTop">
+  <div class="portal-sub-navbar bg-white4">
+    <responsive-tabs class="dashboard-tabs" [tabs]="model.dashboards"
+                     [(selectedIndex)]="selectedDashboardIndex" [labelFunction]="getDashboardLabel"
+                     (selectedIndexChange)="selectTab($event)">
+    </responsive-tabs>
+    <ul class="nav nav-inline ms-auto">
+      <li class="nav-item tab" [class.disabled]="!model.editable" *ngIf="!mobile">
+        <a class="nav-icon icon-size-medium icon-hover-bg nav-link"
+           [fixedDropdown]="settingsDropdown"
+           title="_#(Dashboard Configuration)" dropdownPlacement="bottom"
+           aria-haspopup="true" tabindex="-1" role="button" enterClick>
+          <i class="setting-icon" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Settings)</span>
+        </a>
+      </li>
+    </ul>
+    <ng-template #settingsDropdown>
+      <ul role="menu" class="dropdown-pane portal-dropdown bt-highlight-primary">
+        <li class="dropdown-item" [class.disabled]="!model.editable" (click)="newDashboard()"
+            enterClick tabindex="-1" role="menuitem" [attr.aria-disabled]="!model.editable"
+            defaultFocus [autoSelect]="false" [preventScroll]="true">
+          <i class="add-icon icon-size-medium" aria-hidden="true"></i>
+          <a class="p-2">
+            _#(Add)
+          </a>
+        </li>
+        <li class="dropdown-item" [class.disabled]="!model.editable || !selectedDashboard || selectedDashboard.type === 'g'"
+            (click)="editDashboard(selectedDashboard)"
+            enterClick tabindex="-1" role="menuitem"
+            [attr.aria-disabled]="!model.editable || !selectedDashboard || selectedDashboard.type === 'g'">
+          <i class="edit-icon icon-size-medium" aria-hidden="true"></i>
+          <a class="p-2">
+            _#(Edit)
+          </a>
+        </li>
+        <li class="dropdown-item"
+            [class.disabled]="!model.editable || !selectedDashboard || selectedDashboard.type === 'g'"
+            (click)="deleteDashboard()"
+            enterClick tabindex="-1" role="menuitem"
+            [attr.aria-disabled]="!model.editable || !selectedDashboard || selectedDashboard.type === 'g'">
+          <i class="trash-icon icon-size-medium" aria-hidden="true"></i>
+          <a class="p-2">
+            _#(Delete)
+          </a>
+        </li>
+        <li class="dropdown-item" [class.disabled]="!model.editable"
+            (click)="openArrangeDashboardDialog()"
+            enterClick tabindex="-1" role="menuitem" [attr.aria-disabled]="!model.editable">
+          <i class="order-column-icon icon-size-medium" aria-hidden="true"></i>
+          <a class="p-2">
+            _#(Arrange)
+          </a>
+        </li>
+      </ul>
+    </ng-template>
+  </div>
+  <div class="dashboard-container viewer-pane bg-white1">
+     <router-outlet></router-outlet>
+  </div>
+</div>

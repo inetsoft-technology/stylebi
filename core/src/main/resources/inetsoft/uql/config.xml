@@ -1,0 +1,115 @@
+<?xml version="1.0"?>
+<!--
+
+    inetsoft-core - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+
+<config>
+  <dependon name="Style Report" class="inetsoft.report.XSessionManager"/>
+  <datasource type="jdbc" datasourcepane="inetsoft.uql.jdbc.gui.JDBCDataSourceProperty"
+              querypane="inetsoft.uql.jdbc.gui.JDBCQueryProperty"
+              datasourceclass="inetsoft.uql.jdbc.JDBCDataSource"
+              queryclass="inetsoft.uql.jdbc.JDBCQuery" handler="inetsoft.uql.jdbc.JDBCHandler"
+              icon="/inetsoft/web/resources/app/assets/ineticons/icon_svg/database.svg"
+              datasourcewizard="inetsoft.uql.jdbc.gui.JDBCDataSourceWizard"
+              querywizard="inetsoft.uql.jdbc.gui.JDBCQueryWizard"
+              modelhandler="inetsoft.uql.jdbc.JDBCModelHandler"
+              agent="inetsoft.uql.jdbc.util.JDBCAgent">
+    <label>JDBC</label>
+    <displayLabel>JDBC</displayLabel>
+    <description>erm.wizard.ds.jdbc.desc</description>
+  </datasource>
+  <datasource type="xmla" datasourcepane="inetsoft.uql.xmla.gui.XMLADataSourceProperty"
+              datasourceclass="inetsoft.uql.xmla.XMLADataSource"
+              queryclass="inetsoft.uql.xmla.XMLAQuery" handler="inetsoft.uql.xmla.XMLAHandler"
+              icon="/inetsoft/web/resources/app/assets/ineticons/icon_svg/cube.svg"
+              datasourcewizard="inetsoft.uql.xmla.gui.XMLADataSourceWizard"
+              agent="inetsoft.uql.jdbc.util.XMLAAgent">
+    <label>XMLA</label>
+    <displayLabel>XMLA</displayLabel>
+    <description>erm.wizard.ds.xmla.desc</description>
+  </datasource>
+
+  <!-- JDBC Drivers -->
+  <jdbcdrivers>
+    <jdbcdriver name="MS Access" driver="net.ucanaccess.jdbc.UcanaccessDriver"
+                description="UCanAccess" url="jdbc:ucanaccess://{file}"/>
+    <jdbcdriver name="Oracle" driver="oracle.jdbc.OracleDriver" description=""
+                url="jdbc:oracle:thin:@&lt;host>:&lt;port>:&lt;SID>"/>
+    <jdbcdriver name="Oracle BI" driver="oracle.bi.jdbc.AnaJdbcDriver"
+                url="jdbc:oraclebi:&lt;host>[:&lt;port>]/"/>
+    <jdbcdriver name="SQL Server" description=""
+                driver="com.microsoft.sqlserver.jdbc.SQLServerDriver"
+                url="jdbc:sqlserver://&lt;host>[:&lt;port>]"/>
+    <jdbcdriver name="MySQL" driver="com.mysql.jdbc.Driver" description=""
+                url="jdbc:mysql://&lt;host>[:&lt;port>]/&lt;databaseName>"/>
+    <jdbcdriver name="DB2" driver="com.ibm.db2.jcc.DB2Driver" description="V9"
+                url="jdbc:db2://&lt;host>[:&lt;port>]/&lt;databaseName>"/>
+    <jdbcdriver name="DB2" driver="COM.ibm.db2.jdbc.net.DB2Driver" description="V8"
+                url="jdbc:db2://&lt;host>[:&lt;port>]/&lt;databaseName>"/>
+    <jdbcdriver name="jTDS" driver="net.sourceforge.jtds.jdbc.Driver" description=""
+                url="jdbc:jtds:&lt;server_type&gt;//&lt;host>[:&lt;port>]/&lt;databaseName>"/>
+    <jdbcdriver name="Ingres" driver="com.ingres.jdbc.IngresDriver" description="2006"
+                url="jdbc:ingres://&lt;host>[:&lt;port>]/&lt;databaseName>"/>
+    <jdbcdriver name="Ingres" driver="ca.edbc.jdbc.EdbcDriver" description="2.6"
+                url="jdbc:edbc://&lt;host>[:&lt;port>]/&lt;databaseName>"/>
+    <jdbcdriver name="Sybase" driver="com.sybase.jdbc3.jdbc.SybDriver" description="jdbc3"
+                url="jdbc:sybase:Tds:&lt;host>[:&lt;port>][?serviceName]"/>
+    <jdbcdriver name="Sybase" driver="com.sybase.jdbc2.jdbc.SybDriver" description="jdbc2"
+                url="jdbc:sybase:Tds:&lt;host>[:&lt;port>][?serviceName]">
+      <defaultPoolProperties>
+        <property name="autoCommit">true</property>
+      </defaultPoolProperties>
+    </jdbcdriver>
+    <jdbcdriver name="Derby" driver="org.apache.derby.jdbc.ClientDriver"
+                url="jdbc:derby://&lt;host>[:&lt;port>]/databaseName"/>
+    <jdbcdriver name="Derby Embedded" driver="org.apache.derby.jdbc.EmbeddedDriver"
+                url="jdbc:derby:&lt;databaseName>"/>
+    <jdbcdriver name="Informix" driver="com.informix.jdbc.IfxDriver"
+                url="jdbc:informix-sqli://&lt;host>[:&lt;port>]/&lt;databaseName>"/>
+    <jdbcdriver name="SQL Anywhere" driver="sybase.jdbc.sqlanywhere.IDriver" description="11.0.1"
+                url="jdbc:sqlanywhere:&lt;connectionString>"/>
+    <jdbcdriver name="SQL Anywhere" driver="ianywhere.ml.jdbcodbc.jdbc3.IDriver"
+                description="11.0.0" url="jdbc:ianywhere:&lt;connectionString>"/>
+    <jdbcdriver name="PostgreSQL" driver="org.postgresql.Driver"
+                url="jdbc:postgresql://&lt;host>[:&lt;port>]/&lt;databaseName>"/>
+    <jdbcdriver name="Hive" driver="org.apache.hive.jdbc.HiveDriver"
+                url="jdbc:hive2://&lt;host>[:&lt;port>]/&lt;databaseName>"/>
+    <jdbcdriver name="Dremio" driver="com.dremio.jdbc.Driver"
+                url="jdbc:dremio:direct=&lt;host>[:&lt;port>][;schema=&lt;schema>]">
+      <defaultPoolProperties>
+        <property name="autoCommit">true</property>
+      </defaultPoolProperties>
+    </jdbcdriver>
+    <jdbcdriver name="Snowflake" driver="net.snowflake.client.jdbc.SnowflakeDriver"
+                url="jdbc:snowflake://&lt;account_name>.snowflakecomputing.com/[?db=&lt;database>]"/>
+    <jdbcdriver name="google bigquery" driver="com.simba.googlebigquery.jdbc42.Driver"
+                url="jdbc:bigquery://https://www.googleapis.com/bigquery/v2:443">
+      <defaultPoolProperties>
+        <property name="minimumIdle">1</property>
+        <property name="autoCommit">true</property>
+      </defaultPoolProperties>
+    </jdbcdriver>
+    <jdbcdriver name="Apache Drill" driver="org.apache.drill.jdbc.Driver"
+                url="jdbc:drill:&lt;connectionString>">
+      <defaultPoolProperties>
+        <property name="autoCommit">true</property>
+      </defaultPoolProperties>
+    </jdbcdriver>
+  </jdbcdrivers>
+</config>

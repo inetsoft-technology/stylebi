@@ -1,0 +1,18 @@
+[
+  {
+    "state": "NJ",
+    "city": "Piscataway",
+    "demographics": {
+      "population": 50000,
+      "change": 0.02
+    }
+  },
+  {
+    "state": "NY",
+    "city": "Brooklyn",
+    "demographics": {
+      "population": 1250000,
+      "change": 0.15
+    }
+  }
+]

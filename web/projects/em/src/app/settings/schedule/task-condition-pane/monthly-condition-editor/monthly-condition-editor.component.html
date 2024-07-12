@@ -1,0 +1,128 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-card appearance="outlined">
+  <mat-card-content [formGroup]="form">
+    <em-start-time-editor
+      [data]="startTimeData"
+      [timeRanges]="timeRanges"
+      [startTimeEnabled]="startTimeEnabled"
+      [timeRangeEnabled]="timeRangeEnabled"
+      [timeZone]="timeZone"
+      [timeZoneLabel]="timeZoneLabel"
+      [showMeridian]="showMeridian"
+      (startTimeChanged)="onStartTimeChanged($event)"
+    >
+      <em-time-zone-select formControlName="timeZone"
+                           [startTimeEnabled]="startTimeEnabled"
+                           [timeZoneOptions]="timeZoneOptions" [serverTimeZone]="timeZone" [enabled]="timeZoneEnabled"
+                           (labelChanged)="setTimeZoneLabel($event)" (changed)="fireModelChanged()">
+      </em-time-zone-select>
+    </em-start-time-editor>
+    <mat-radio-group formControlName="monthlyDaySelected" (change)="onTypeChanged(); fireModelChanged()">
+      <div class="option-row">
+        <mat-radio-button class="align-center" [value]="true"></mat-radio-button>
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Day of the Month)</mat-label>
+          <mat-select formControlName="dayOfMonth" placeholder="_#(Day of the Month)" [errorStateMatcher]="dayOfMonthErrorMatcher" (selectionChange)="fireModelChanged()">
+            <mat-option [value]="1">_#(1st)</mat-option>
+            <mat-option [value]="2">_#(2nd)</mat-option>
+            <mat-option [value]="3">_#(3rd)</mat-option>
+            <mat-option [value]="4">_#(4th)</mat-option>
+            <mat-option [value]="5">_#(5th)</mat-option>
+            <mat-option [value]="6">_#(6th)</mat-option>
+            <mat-option [value]="7">_#(7th)</mat-option>
+            <mat-option [value]="8">_#(8th)</mat-option>
+            <mat-option [value]="9">_#(9th)</mat-option>
+            <mat-option [value]="10">_#(10th)</mat-option>
+            <mat-option [value]="11">_#(11th)</mat-option>
+            <mat-option [value]="12">_#(12th)</mat-option>
+            <mat-option [value]="13">_#(13th)</mat-option>
+            <mat-option [value]="14">_#(14th)</mat-option>
+            <mat-option [value]="15">_#(15th)</mat-option>
+            <mat-option [value]="16">_#(16th)</mat-option>
+            <mat-option [value]="17">_#(17th)</mat-option>
+            <mat-option [value]="18">_#(18th)</mat-option>
+            <mat-option [value]="19">_#(19th)</mat-option>
+            <mat-option [value]="20">_#(20th)</mat-option>
+            <mat-option [value]="21">_#(21th)</mat-option>
+            <mat-option [value]="22">_#(22nd)</mat-option>
+            <mat-option [value]="23">_#(23rd)</mat-option>
+            <mat-option [value]="24">_#(24th)</mat-option>
+            <mat-option [value]="25">_#(25th)</mat-option>
+            <mat-option [value]="26">_#(26th)</mat-option>
+            <mat-option [value]="27">_#(27th)</mat-option>
+            <mat-option [value]="28">_#(28th)</mat-option>
+            <mat-option [value]="29">_#(29th)</mat-option>
+            <mat-option [value]="TimeConditionType.LAST_DAY_OF_MONTH - 1">_#(Day before last day)</mat-option>
+            <mat-option [value]="TimeConditionType.LAST_DAY_OF_MONTH">_#(Last day of month)</mat-option>
+          </mat-select>
+          <mat-error>_#(em.schedule.condition.dayRequired)</mat-error>
+        </mat-form-field>
+      </div>
+      <div class="option-row">
+        <mat-radio-button class="align-center" [value]="false"></mat-radio-button>
+        <mat-form-field class="half-width" appearance="outline" color="accent">
+          <mat-label>_#(Week of Month)</mat-label>
+          <mat-select formControlName="weekOfMonth" placeholder="_#(Week of Month)"
+                      (selectionChange)="fireModelChanged()" [errorStateMatcher]="weekOfMonthErrorMatcher">
+            <mat-option [value]="1">_#(1st)</mat-option>
+            <mat-option [value]="2">_#(2nd)</mat-option>
+            <mat-option [value]="3">_#(3rd)</mat-option>
+            <mat-option [value]="4">_#(4th)</mat-option>
+            <mat-option [value]="5">_#(5th)</mat-option>
+          </mat-select>
+          <mat-error>_#(em.schedule.condition.weekRequired)</mat-error>
+        </mat-form-field>
+        <mat-form-field class="half-width" appearance="outline" color="accent">
+          <mat-label>_#(Day of Week)</mat-label>
+          <mat-select formControlName="dayOfWeek" placeholder="_#(Day of Week)"
+                      (selectionChange)="fireModelChanged()" [errorStateMatcher]="dayOfWeekErrorMatcher">
+            <mat-option [value]="1">_#(Sunday)</mat-option>
+            <mat-option [value]="2">_#(Monday)</mat-option>
+            <mat-option [value]="3">_#(Tuesday)</mat-option>
+            <mat-option [value]="4">_#(Wednesday)</mat-option>
+            <mat-option [value]="5">_#(Thursday)</mat-option>
+            <mat-option [value]="6">_#(Friday)</mat-option>
+            <mat-option [value]="7">_#(Saturday)</mat-option>
+          </mat-select>
+          <mat-error>_#(em.schedule.condition.dayRequired)</mat-error>
+        </mat-form-field>
+      </div>
+    </mat-radio-group>
+    <mat-form-field appearance="outline" color="accent">
+      <mat-label>_#(Months)</mat-label>
+      <mat-select formControlName="months" placeholder="_#(Months)" (selectionChange)="fireModelChanged()" multiple>
+        <mat-option [value]="0">_#(January)</mat-option>
+        <mat-option [value]="1">_#(February)</mat-option>
+        <mat-option [value]="2">_#(March)</mat-option>
+        <mat-option [value]="3">_#(April)</mat-option>
+        <mat-option [value]="4">_#(May)</mat-option>
+        <mat-option [value]="5">_#(June)</mat-option>
+        <mat-option [value]="6">_#(July)</mat-option>
+        <mat-option [value]="7">_#(August)</mat-option>
+        <mat-option [value]="8">_#(September)</mat-option>
+        <mat-option [value]="9">_#(October)</mat-option>
+        <mat-option [value]="10">_#(November)</mat-option>
+        <mat-option [value]="11">_#(December)</mat-option>
+      </mat-select>
+      <mat-error>_#(em.schedule.condition.monthRequired)</mat-error>
+    </mat-form-field>
+  </mat-card-content>
+</mat-card>

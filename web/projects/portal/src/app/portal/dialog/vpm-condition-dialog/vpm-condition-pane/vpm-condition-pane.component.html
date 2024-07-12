@@ -1,0 +1,115 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="container-fluid" [ngClass]="getContainerClass()">
+  <div class="row">
+    <div class="col-10">
+      <vpm-condition-item-pane [provider]="provider"
+                               [fields]="fields" [datasource]="provider?.datasource"
+                               [(condition)]="condition">
+      </vpm-condition-item-pane>
+    </div>
+    <div class="col-2">
+      <div class="form-check">
+        <label class="form-check-label not_check_id">
+          <input type="checkbox"
+                 class="form-check-input"
+                 [(ngModel)]="conjunction.isNot"
+                 [disabled]="conditionList.length == 0"
+                 (ngModelChange)="conjunctionChanged()">
+          {{'_#(Not)'}}
+        </label>
+      </div>
+      <div class="form-check">
+        <label class="form-check-label">
+          <input type="radio" name="vpm-andOrButtons"
+                 class="form-check-input"
+                 [(ngModel)]="conjunction.conjunction"
+                 [value]="ConjunctionTypes.AND"
+                 [disabled]="conditionList.length == 0"
+                 (ngModelChange)="conjunctionChanged()">
+           {{'_#(And)'}}
+        </label>
+      </div>
+      <div class="form-check">
+        <label class="form-check-label">
+          <input type="radio" name="vpm-andOrButtons"
+                 class="form-check-input"
+                 [(ngModel)]="conjunction.conjunction"
+                 [value]="ConjunctionTypes.OR"
+                 [disabled]="conditionList.length == 0"
+                 (ngModelChange)="conjunctionChanged()">
+           {{'_#(Or)'}}
+        </label>
+      </div>
+    </div>
+  </div>
+  <div class="row condition-list-pane">
+    <div class="col-10">
+      <div class="bordered-box bd-gray" [ngClass]="getConditionListBoxClass()">
+        <div *ngFor="let item of conditionList; let even = even; let i = index;"
+             class="unhighlightable"
+             [class.bg-selected]="selectedIndex == i" (click)="conditionItemSelected(i)">
+          <div *ngIf="even">
+            {{item | clauseToString}}
+          </div>
+          <div *ngIf="!even">
+            {{item | conjunctionToString}}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-2 btn-container-vertical">
+      <button type="button" class="btn btn-primary btn-sm"
+                (click)="insert()"
+                [disabled]="!isConditionValid(condition)">
+          {{buttonText}}
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm"
+                (click)="modify()"
+                [disabled]="modifyDisable()">
+          _#(Modify)
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="deleteCondition()"
+              [disabled]="selectedIndex == null || selectedIndex % 2 !== 0">
+        _#(Delete)
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="clear()"
+              [disabled]="conditionList == null || conditionList.length === 0">
+        _#(Clear)
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="indent()"
+              [disabled]="!canIndent()">
+        _#(Indent)
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="unindent()"
+              [disabled]="!canUnindent()">
+        _#(Unindent)
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="up()"
+              [disabled]="!canMoveUp()">
+        _#(Move Up)
+      </button>
+      <button type="button" class="btn btn-secondary btn-sm" (click)="down()"
+              [disabled]="!canMoveDown()">
+        _#(Move Down)
+      </button>
+    </div>
+  </div>
+</div>

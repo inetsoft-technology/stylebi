@@ -1,0 +1,542 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<ng-container *ngIf="expired || transformFinished">
+  <div class="expired-vs-banner alert-danger" role="alert">
+    <div class="p-2">{{getReloadMessage()}}</div>
+    <div class="ms-auto me-1">
+      <button *ngIf="!!assetId && !preview" type="button" class="btn btn-sm btn-danger"
+              (click)="reopenExpiredViewsheet()">_#(Reload Now)
+      </button>
+    </div>
+    <div class="close-button"
+         *ngIf="!isPermissionForbidden('Close')"
+         [hidden]="fullScreen">
+      <button type="button" class="viewer-toolbar-btn alert-danger"
+              (click)="closeClicked.emit(false)"
+              title="_#(Close)">
+        <i class="close-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+        <span class="visually-hidden">_#(Close)</span>
+      </button>
+    </div>
+  </div>
+</ng-container>
+<ng-container *ngIf="mobileDevice && isPageControlVisible()">
+  <paging-control [enabled]="pagingControlModel?.enabled"
+                  [assemblyName]="pagingControlModel?.assemblyName"
+                  [viewportWidth]="pagingControlModel?.viewportWidth"
+                  [viewportHeight]="pagingControlModel?.viewportHeight"
+                  [contentWidth]="pagingControlModel?.contentWidth"
+                  [contentHeight]="pagingControlModel?.contentHeight"
+                  [scrollTop]="pagingControlModel?.scrollTop"
+                  [scrollLeft]="pagingControlModel?.scrollLeft"
+                  [startX]="pageControlStartX"
+                  [startY]="pageControlStartY"
+                  (scrollTopChange)="updateScrollTop($event)"
+                  (scrollLeftChange)="updateScrollLeft($event)">
+  </paging-control>
+</ng-container>
+<div #viewerContainer class="viewer-container unhighlightable"
+     *ngIf="!cancelled; else cancelledOverlay"
+     [class.viewer-container-preview]="preview"
+     [class.viewer-fullscreen]="fullScreen && !preview"
+     [class.server-refresh]="updateEnabled && !exporting"
+     tabindex="-1" outOfZone
+     [attr.runtime-id]="runtimeId">
+  <div class="btn-toolbar viewer-toolbar bb-gray" #viewerToolbar
+       [class.mobile]="mobileDevice"
+       [class.viewer-toolbar-visible]="toolbarVisible"
+       [style.transform]="toolbarTransform"
+       role="toolbar" (contextmenu)="showViewsheetContextMenu($event)" (keydown)="onKeyDown($event)">
+    <div *ngIf="!mobileDevice" class="btn-group viewer-left-toolbar" role="group">
+      <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1 viewer-previous-button"
+              (click)="previousPage()"
+              *ngIf="isPreviousPageVisible()"
+              [disabled]="isPreviousPageDisabled()"
+              title="_#(Previous Page)"
+              (vsToolbarButton)="onToolbarButtonFocus($event)">
+        <i class="arrow-left-circle-outline-icon viewer-toolbar-icon-align" aria-hidden="true"
+           [class.icon-disabled]="!undoEnabled || maxMode"></i>
+        <span class="visually-hidden">_#(Previous Page)</span>
+      </button>
+      <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1" (click)="nextPage()"
+              *ngIf="isNextPageVisible()" [disabled]="isNextPageDisabled()"
+              title="_#(Next Page)"
+              (vsToolbarButton)="onToolbarButtonFocus($event)">
+        <i class="arrow-right-circle-outline-icon viewer-toolbar-icon-align" [class.icon-disabled] = "!redoEnabled" aria-hidden="true"></i>
+        <span class="visually-hidden">_#(Next Page)</span>
+      </button>
+      <ng-container>
+        <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1" (click)="editViewsheet()"
+                *ngIf="isEditVisible()"
+                title="_#(Edit)"
+                (vsToolbarButton)="onToolbarButtonFocus($event)">
+          <i class="edit-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Edit)</span>
+        </button>
+        <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1" (click)="refreshViewsheet()"
+                *ngIf="isRefreshViewsheetVisible()"
+                title="_#(Refresh Viewsheet)"
+                (vsToolbarButton)="onToolbarButtonFocus($event)">
+          <i class="refresh-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Refresh Viewsheet)</span>
+        </button>
+        <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1" (click)="emailViewsheet()"
+                *ngIf="isEmailVisible()"
+                title="_#(Email)"
+                (vsToolbarButton)="onToolbarButtonFocus($event)">
+          <i class="email-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Email)</span>
+        </button>
+        <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1"
+                *ngIf="isSocialSharingVisible()" title="_#(Social Sharing)"
+                [fixedDropdown]="shareDropdown" dropdownPlacement="bottom" aria-haspopup="true"
+                (vsToolbarButton)="onToolbarButtonFocus($event)">
+          <i class="share-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Social Sharing)</span>
+        </button>
+        <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1" (click)="scheduleViewsheet()"
+                *ngIf="isScheduleVisible()"
+                title="_#(Schedule)"
+                (vsToolbarButton)="onToolbarButtonFocus($event)">
+          <!-- TODO hide in Agile -->
+          <i class="calendar-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Schedule)</span>
+        </button>
+        <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1" (click)="printViewsheet()"
+                *ngIf="isPrintViewsheetVisible()"
+                title="_#(Print)"
+                (vsToolbarButton)="onToolbarButtonFocus($event)">
+          <i class="printer-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Print)</span>
+        </button>
+        <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1" (click)="exportViewsheet()"
+                *ngIf="isExportVisible()"
+                title="_#(Export)"
+                (vsToolbarButton)="onToolbarButtonFocus($event)">
+          <i class="export-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Export)</span>
+        </button>
+        <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1" (click)="importExcel()"
+                *ngIf="isImportExcelVisible()"
+                title="_#(Import Excel)"
+                (vsToolbarButton)="onToolbarButtonFocus($event)">
+          <i class="upload-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(import.excel.previous)</span>
+        </button>
+        <button class="viewer-toolbar-btn icon-hover-bg bg-white1" [fixedDropdown]="dropdownMenu"
+                *ngIf="isZoomVisible()"
+                title="_#(viewer.help.report.zoom)" [dropdownPlacement]="'bottom'"
+                (vsToolbarButton)="onToolbarButtonFocus($event)">
+          <i class="zoom-in-icon viewer-toolbar-icon-align"></i>
+        </button>
+        <ng-template #dropdownMenu class="dropdown-menu-left">
+          <div class="dropdown-pane view-zoom">
+            <button class="dropdown-item" (click)="zoomLayout(zoomOptions.ZOOM_IN)"
+                    [class.selected]="isZoomItemSelected(zoomOptions.ZOOM_IN)"
+                    [disabled]="!zoomInEnabled()">
+              _#(Zoom In)
+            </button>
+            <button class="dropdown-item" (click)="zoomLayout(zoomOptions.ZOOM_OUT)"
+                    [class.selected]="isZoomItemSelected(zoomOptions.ZOOM_OUT)"
+                    [disabled]="!zoomOutEnabled()">
+              _#(Zoom Out)
+            </button>
+
+            <div class="dropdown-divider"></div>
+
+            <button class="dropdown-item" (click)="zoomLayout(zoomOptions.ZOOM_40)"
+                    [class.selected]="isZoomItemSelected(zoomOptions.ZOOM_40)">
+              40%
+            </button>
+            <button class="dropdown-item" (click)="zoomLayout(zoomOptions.ZOOM_60)"
+                    [class.selected]="isZoomItemSelected(zoomOptions.ZOOM_60)">
+              60%
+            </button>
+            <button class="dropdown-item" (click)="zoomLayout(zoomOptions.ZOOM_100)"
+                    [class.selected]="isZoomItemSelected(zoomOptions.ZOOM_100)">
+              100%
+            </button>
+            <button class="dropdown-item" (click)="zoomLayout(zoomOptions.ZOOM_140)"
+                    [class.selected]="isZoomItemSelected(zoomOptions.ZOOM_140)">
+              140%
+            </button>
+            <button class="dropdown-item" (click)="zoomLayout(zoomOptions.ZOOM_160)"
+                    [class.selected]="isZoomItemSelected(zoomOptions.ZOOM_160)">
+              160%
+            </button>
+          </div>
+        </ng-template>
+      </ng-container>
+      <!-- TODO add user actions here -->
+    </div>
+    <input #fileSelector class="hidden-input" type="file" id="xlsInput" name="xlsInput"
+           aria-hidden="true" accept=".xls,.xlsx" (change)="importExcelFile($event)"/>
+    <ng-template #shareDropdown>
+      <ul role="menu" class="dropdown-pane share-menu" [class.mobile-dropdown]="mobileDevice">
+        <li class="dropdown-item" [class.disabled]="isShareEmailDisabled()"
+            tabindex="0" aria-labelledby="share-email" defaultFocus [autoSelect]="false" [preventScroll]="true"
+            (click)="shareEmail()" enterClick>
+          <div>
+            <i class="email-icon"></i>
+            <span id="share-email">_#(em.settings.share.email)</span>
+          </div>
+        </li>
+        <li class="dropdown-item" [class.disabled]="isShareFacebookDisabled()"
+            tabindex="0" aria-labelledby="share-facebook"
+            (click)="shareFacebook()" enterClick>
+          <div>
+            <i class="share-facebook-icon"></i>
+            <span id="share-facebook">_#(em.settings.share.facebook)</span>
+          </div>
+        </li>
+        <li class="dropdown-item" [class.disabled]="isShareHangoutsDisabled()"
+            tabindex="0" aria-labelledby="share-google-chat"
+            (click)="shareHangouts()" enterClick>
+          <div>
+            <i class="share-google-chat-icon"></i>
+            <span id="share-google-chat">_#(em.settings.share.googleChat)</span>
+          </div>
+        </li>
+        <li class="dropdown-item" [class.disabled]="isShareLinkedInDisabled()"
+            tabindex="0" aria-labelledby="share-linkedin"
+            (click)="shareLinkedin()" enterClick>
+          <div>
+            <i class="share-linkedin-icon"></i>
+            <span id="share-linkedin">_#(em.settings.share.linkedin)</span>
+          </div>
+        </li>
+        <li class="dropdown-item" [class.disabled]="isShareSlackDisabled()"
+            tabindex="0" aria-labelledby="share-slack"
+            (click)="shareSlack()" enterClick>
+          <div>
+            <i class="share-slack-icon"></i>
+            <span id="share-slack">_#(em.settings.share.slack)</span>
+          </div>
+        </li>
+        <li class="dropdown-item" [class.disabled]="isShareTwitterDisabled()"
+            tabindex="0" aria-labelledby="share-twitter"
+            (click)="shareTwitter()" enterClick>
+          <div>
+            <i class="share-twitter-icon"></i>
+            <span id="share-twitter">_#(em.settings.share.twitter)</span>
+          </div>
+        </li>
+        <li class="dropdown-item" [class.disabled]="isShareLinkDisabled()"
+            tabindex="0" aria-labelledby="share-link"
+            (click)="shareLink()" enterClick>
+          <div>
+            <i class="share-link-icon"></i>
+            <span id="share-link">_#(em.settings.share.link)</span>
+          </div>
+        </li>
+      </ul>
+    </ng-template>
+    <div *ngIf="mobileDevice && !mobileToolbarVisible" class="d-flex">
+      <ng-container *ngIf="!!showingActions">
+        <ng-container  *ngFor="let group of showingActions">
+          <ng-container *ngFor="let action of group.actions">
+            <button *ngIf="action.visible() && action.id() != 'mobile social sharing'"
+                    type="button" class="viewer-toolbar-btn bg-white1 icon-hover-bg"
+                    [disabled]="!action.enabled()" (click)="action.action()">
+              <i [class]="action.icon()" [class.icon-disabled] = "!action.enabled()" aria-hidden="true"></i>
+              <span class="visually-hidden" [innerHTML]="action.label()"></span>
+            </button>
+            <button *ngIf="action.visible() && action.id() == 'mobile social sharing'"
+                    type="button" class="viewer-toolbar-btn bg-white1 icon-hover-bg"
+                    [disabled]="!action.enabled()"
+                    [fixedDropdown]="shareDropdown" dropdownPlacement="bottom">
+              <i [class]="action.icon()" [class.icon-disabled] = "!action.enabled()" aria-hidden="true"></i>
+              <span class="visually-hidden" [innerHTML]="action.label()"></span>
+            </button>
+          </ng-container>
+        </ng-container>
+      </ng-container>
+      <ng-container *ngIf="!!moreActions">
+        <ng-container  *ngFor="let group of moreActions; let i = index">
+          <button *ngIf="group.visible" class="viewer-toolbar-btn bg-white1 icon-hover-bg"
+                  [fixedDropdown]="dropdownMenu" dropdownPlacement="bottom">
+            <i class="menu-horizontal-icon" aria-hidden="true"></i>
+            <span class="visually-hidden"></span>
+          </button>
+          <ng-template #dropdownMenu>
+            <div class="dropdown-pane mobile-dropdown py-2" *ngIf="group">
+              <ng-container *ngFor="let action of group.actions">
+                <div class="action-item" *ngIf="action.id() != 'mobile social sharing'">
+                  <a *ngIf="action.visible()" class="dropdown-item" (click)="action.action()">
+                    <div class="d-flex align-contents-center align-items-center">
+                      <i [class]="action.icon()" aria-hidden="true"></i>
+                      <span class="px-2" [innerHTML]="action.label()"></span>
+                    </div>
+                  </a>
+                </div>
+                <div class="action-item" *ngIf="action.id() == 'mobile social sharing'" blockMouse>
+                  <a *ngIf="action.visible()" class="dropdown-item"
+                     [fixedDropdown]="shareDropdown" dropdownPlacement="bottom">
+                    <div class="d-flex align-contents-center align-items-center">
+                      <i [class]="action.icon()" aria-hidden="true"></i>
+                      <span class="px-2" [innerHTML]="action.label()"></span>
+                    </div>
+                    <i class="mat-menu-submenu-icon" aria-hidden="true"></i>
+                  </a>
+                </div>
+              </ng-container>
+            </div>
+          </ng-template>
+        </ng-container>
+      </ng-container>
+    </div>
+    <viewer-mobile-toolbar *ngIf="mobileToolbarVisible && mobileDevice"
+                           (closeMobileToolbar)="clearSelectedAssemblies(null, true)"
+                           [actions]="selectedActions">
+    </viewer-mobile-toolbar>
+    <div *ngIf="!mobileToolbarVisible" class="btn-group viewer-right-toolbar"
+         role="group" (keydown)="onKeyDown($event)">
+      <ng-container *ngIf="!snapshot && annotated && !isPermissionForbidden('Annotation')">
+        <ng-container *ngIf="showAnnotations">
+          <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1"
+                  *ngIf="isHideAnnotationsVisible()"
+                  (click)="toggleAnnotations()"
+                  title="_#(Hide Annotations)"
+                  (vsToolbarButton)="onToolbarButtonFocus($event)">
+            <i class="annotation-no-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+            <span class="visually-hidden">_#(Hide Annotations)</span>
+          </button>
+        </ng-container>
+        <ng-container *ngIf="!showAnnotations">
+          <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1"
+                  *ngIf="isShowAnnotationsVisible()"
+                  (click)="toggleAnnotations()"
+                  title="_#(Show Annotations)"
+                  (vsToolbarButton)="onToolbarButtonFocus($event)">
+            <i class="annotation-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+            <span class="visually-hidden">_#(Show Annotations)</span>
+          </button>
+        </ng-container>
+      </ng-container>
+      <div class="d-inline-block">
+        <button type="button" class="viewer-toolbar-btn icon-hover-bg  bg-white1 no-caret" (click)="showBookmarks()"
+                [fixedDropdown]="bookmarkDropdown" dropdownPlacement="bottom"
+                *ngIf="bookmarksVisible()"
+                title="_#(Bookmarks)" aria-haspopup="true"
+                (vsToolbarButton)="onToolbarButtonFocus($event)">
+          <i class="bookmark-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Bookmarks)</span>
+        </button>
+        <ng-template #bookmarkDropdown>
+          <vs-bookmark-pane [preview]="preview" [vsBookmarkList]="vsBookmarkList"
+                            [securityEnabled]="securityEnabled" [addBookmarkDisabled]="isAddBookmarkDisabled()"
+                            [saveCurrentBookmarkDisabled]="saveCurrentBookmarkDisabled()"
+                            [setDefaultBookmarkDisabled]="isSetDefaultBookmarkDisabled()"
+                            [principal]="principal" (onSetDefaultBookmark)="setDefaultBookmark($event)"
+                            (onEditBookmark)="editBookmark($event)" (onDeleteBookmark)="deleteBookmark($event)"
+                            (onDeleteBookmarks)="deleteBookmarkByCondition()"
+                            (onGoToBookmark)="gotoBookmark($event, true)" (onAddBookmark)="addBookmark()"
+                            (onSaveBookmark)="saveBookmark()">
+          </vs-bookmark-pane>
+        </ng-template>
+      </div>
+      <button type="button" class="viewer-toolbar-btn icon-hover-bg bg-white1 viewer-full-screen-button"
+              (click)="toggleFullScreen()"
+              *ngIf="isToggleFullScreenVisible()"
+              [title]="fullScreen ? '_#(Exit Full Screen)' : '_#(Full Screen)'"
+              (vsToolbarButton)="onToolbarButtonFocus($event)">
+        <i class="viewer-toolbar-icon-align" aria-hidden="true"
+           [class.maximize-icon]="!fullScreen"
+           [class.collapse-icon]="fullScreen"></i>
+        <span class="visually-hidden">_#(Toggle Full Screen)</span>
+      </button>
+      <button *ngIf="isCloseViewsheetVisible()"
+              type="button" class="viewer-toolbar-btn bg-white1 icon-hover-bg"
+              (click)="closeViewsheet()"
+              title="_#(Close)"
+              (vsToolbarButton)="onToolbarButtonFocus($event)">
+        <i class="close-icon viewer-toolbar-icon-align" aria-hidden="true"></i>
+        <span class="visually-hidden">_#(Close)</span>
+      </button>
+    </div>
+  </div>
+  <div class="viewer-root" #viewerRoot
+       tabindex="0"
+       [class.mobile-viewer-root]="mobileDevice"
+       [class.show-hints]="_showHints"
+       [class.overflow-hide]="scaleToScreen && !fitToWidth && !showScroll"
+       [class.overflow-x-hide]="scaleToScreen && fitToWidth && !showScroll && !mobileDevice"
+       [style.bottom.px]="tabsHeight"
+       [style.transform]="bodyTransform"
+       [attr.aria-label]="'_#(Viewsheet) ' + name"
+       [style.background]="viewsheetBackground"
+       [style.background-image]="backgroundImage"
+       [style.background-repeat]="backgroundImageRepeat"
+       [style.height]="getViewerRootHeight()"
+       wInteractContainer [draggableRestriction]="draggableRestriction"
+       (contextmenu)="showViewsheetContextMenu($event)"
+       [scrollLeft]="scrollLeft"
+       [scrollTop]="scrollTop"
+       (scroll)="scroll($event)"
+       (mousedown)="mousedown($event)"
+       (click)="clearSelectedAssemblies($event)"
+       (keydown)="onKeyDown($event)">
+    <div *ngIf="openFormatPane" class="viewer-format-pane bd-gray">
+      <viewer-format-pane [vsId]="assetId" [currentFormat]="currentFormat"
+                          [focusedAssemblies]="[selectObjectModel]"
+                          [variableValues]="getVariables()"
+                          (onFormatPaneClosed)="closeFormatPane()"
+                          (onUpdateData)="updateData($event)">
+      </viewer-format-pane>
+    </div>
+    <div class="scale-container format-style" #scaleContainer
+         [style.transform]="scale ? 'scale(' + scale + ')' : null"
+         [style.height.px]="hasBottomPadding ? allAssemblyBounds.top + allAssemblyBounds.bottom : null"
+         [style.width.px]="hasRightPadding ? allAssemblyBounds.right + allAssemblyBounds.left : null">
+      <vs-object-container
+        (openContextMenu)="onOpenContextMenu($event)"
+        (onEditChart)="gotoBindingPane=true;onEditChart.emit({model: $event, isMetadata: isMetadata})"
+        (onEditTable)="gotoBindingPane=true;onEditTable.emit({model: $event, isMetadata: isMetadata})"
+        (onOpenChartFormatPane)="onOpenChartFormatPane($event)"
+        (onLoadFormatModel)="getCurrentFormat($event)"
+        (onOpenConditionDialog)="openConditionDialog($event)"
+        (onOpenHighlightDialog)="openHighlightDialog($event)"
+        (onOpenAnnotationDialog)="showAnnotationDialog($event)"
+        (onOpenViewsheet)="onOpenViewsheet.emit($event)"
+        (onSelectedAssemblyChanged)="selectAssembly($event)"
+        (removeAnnotations)="removeAnnotations()"
+        (maxModeChange)="changeMaxMode($event.maxMode)"
+        (onToggleDoubleCalendar)="toggleDoubleCalendar($event)"
+        [touchDevice]="touchDevice"
+        [vsInfo]="vsInfo" [containerRef]="viewerRoot"
+        [vsObjectActions]="vsObjectActions"
+        [selectedAssemblies]="selectedAssemblies"
+        [scaleToScreen]="scaleToScreen" [appSize]="appSize" [allAssemblyBounds]="allAssemblyBounds"
+        [submitted]="submitClicked"
+        [keyNavigation]="keyNavigation"
+        [focusedObject]="focusedObject"
+        [guideType]="guideType"
+        (onSubmit)="submitData()">
+      </vs-object-container>
+    </div>
+  </div>
+  <ng-container *ngIf="profilingVisible && !maxMode">
+  <div class="profile-report-banner alert-info" role="alert">
+    <div class="d-flex flex-row">
+      <div class="ms-auto me-1 align-self-center">
+        <button *ngIf="!!assetId" type="button" class="btn btn-link"
+                (click)="openProfileDialog()">_#(Profiling)...
+        </button>
+      </div>
+      <div class="close-button">
+        <button type="button" class="btn profile-btn btn-outline-info"
+                title="_#(Close)" (click)="hideProfilingBanner()">
+          <i class="close-icon profile-icon-align" aria-hidden="true"></i>
+          <span class="visually-hidden">_#(Close)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  </ng-container>
+  <status-bar *ngIf="preview">
+    <div class="d-flex align-items-center h-100" status-bar-component>
+      <div class="p-1 base-font-size status-normal">
+        <span class="status-link" (click)="openViewsheetOptionDialog()">_#(Set Scale Options)</span>
+      </div>
+    </div>
+  </status-bar>
+  <vs-loading-display *ngIf="!hideLoadingDisplay && (viewsheetLoading || exporting)"
+                      [preparingData]="preparingData && !exporting"
+                      [runtimeId]="runtimeId"
+                      [autoShowCancel]="!exporting"
+                      [message]="exporting ? '_#(viewer.viewsheet.exporting)' : null"
+                      (cancelLoading)="cancelViewsheetLoading()">
+  </vs-loading-display>
+</div>
+
+<ng-template #cancelledOverlay>
+  <div class="cancelled-sheet-overlay">
+    <h1>_#(common.viewsheet.cancelled)</h1>
+  </div>
+</ng-template>
+
+<ng-template #exportDialog let-close="close" let-dismiss="dismiss">
+  <export-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                 [exportTypes]="exportTypes"
+                 [model]="exportDialogModel" [runtimeId]="runtimeId"></export-dialog>
+</ng-template>
+<ng-template #emailDialog let-close="close" let-dismiss="dismiss">
+  <email-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                [exportTypes]="exportTypes" [securityEnabled]="securityEnabled"
+                [model]="emailDialogModel" [sendFunction]="sendFunction"></email-dialog>
+</ng-template>
+<ng-template #scheduleDialog let-close="close" let-dismiss="dismiss">
+  <schedule-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                   [exportTypes]="exportTypes" [securityEnabled]="securityEnabled"
+                   [model]="scheduleDialogModel" [runtimeId]="runtimeId"
+                   [principal]="principal"></schedule-dialog>
+</ng-template>
+<ng-template #bookmarkDialog let-close="close" let-dismiss="dismiss">
+  <bookmark-property-dialog (onCommit)="close($event)" (onCancel)="dismiss($event)"
+                            [model]="propertyBookmark" [assetId]="assetId"
+                            [isSharedBookmarkPermitted]="!isPermissionForbidden('ShareBookmark')"
+                            [shareToAllDisabled]="isShareToAllDisabled()"
+                            [runtimeId]="runtimeId"></bookmark-property-dialog>
+</ng-template>
+<ng-template #variableInputDialog let-close="close" let-dismiss="dismiss">
+  <variable-input-dialog [model]="variableInputDialogModel"
+                         (onCommit)="close($event)"
+                         (onCancel)="dismiss($event)"></variable-input-dialog>
+</ng-template>
+<ng-template #shareEmailDialog let-close="close" let-dismiss="dismiss">
+  <share-email-dialog
+    [viewsheetId]="assetId"
+    [viewsheetName]="viewsheetName"
+    [username]="principal"
+    (onCommit)="close($event)"
+    (onCancel)="dismiss($event)"
+  ></share-email-dialog>
+</ng-template>
+<ng-template #shareHangoutsDialog let-close="close" let-dismiss="dismiss">
+  <share-google-chat-dialog
+    [viewsheetId]="assetId"
+    [viewsheetName]="viewsheetName"
+    [username]="principal"
+    (onCommit)="close($event)"
+    (onCancel)="dismiss($event)"
+  ></share-google-chat-dialog>
+</ng-template>
+<ng-template #shareSlackDialog let-close="close" let-dismiss="dismiss">
+  <share-slack-dialog
+    [viewsheetId]="assetId"
+    [viewsheetName]="viewsheetName"
+    [username]="principal"
+    (onCommit)="close($event)"
+    (onCancel)="dismiss($event)"
+  ></share-slack-dialog>
+</ng-template>
+<ng-template #shareLinkDialog let-close="close" let-dismiss="dismiss">
+  <share-link-dialog
+    [viewsheetId]="assetId"
+    (onCommit)="close($event)"
+    (onCancel)="dismiss($event)"
+  ></share-link-dialog>
+</ng-template>
+<ng-template #removeBookmarksDialog let-close="close" let-dismiss="dismiss">
+  <remove-bookmarks-dialog (onCommit)="close($event)"
+                           (onCancel)="dismiss($event)"></remove-bookmarks-dialog>
+</ng-template>
+<notifications #notifications class="notifications-viewer-app" [timeout]="5000"></notifications>
+<div *ngIf="waiting" class="modal-backdrop show"></div>

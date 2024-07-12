@@ -1,0 +1,53 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-loading-spinner [loading]="loading"></em-loading-spinner>
+<mat-card>
+  <mat-card-content>
+    <ng-content></ng-content>
+    <section class="flex-row audit-date-label" *ngIf="dateRangeVisible">
+      <span class="mat-body-2 audit-start-date margin-left">_#(Start Time): {{ startDateLabel }}</span>
+      <span class="mat-body-2 audit-end-date margin-right">_#(End Time): {{ endDateLabel }}</span>
+    </section>
+    <section class="flex-row" *ngIf="dateRangeVisible">
+      <mat-slider [min]="minDate" [max]="maxDate" [step]="1000" class="flex">
+        <input [(ngModel)]="startDate" matSliderStartThumb>
+        <input [(ngModel)]="endDate" matSliderEndThumb>
+      </mat-slider>
+    </section>
+  </mat-card-content>
+  <mat-card-content>
+    <button mat-raised-button [disabled]="!parameterForm.valid" (click)="apply()">_#(Apply)</button>
+  </mat-card-content>
+</mat-card>
+<div class="mat-elevation-z8 margin-top audit-table-view">
+  <table mat-table [dataSource]="dataSource" matSort *ngIf="!!displayedColumns">
+    <ng-container *ngFor="let renderer of columnRenderers" [matColumnDef]="renderer.name">
+      <th mat-header-cell *matHeaderCellDef mat-sort-header>{{renderer.label}}</th>
+      <td mat-cell *matCellDef="let row">
+        <span [title]="renderer.value(row)">
+          {{renderer.value(row)}}
+        </span>
+      </td>
+    </ng-container>
+    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+  </table>
+  <mat-paginator [length]="totalRowCount" [pageSize]="10" showFirstLastButtons></mat-paginator>
+</div>

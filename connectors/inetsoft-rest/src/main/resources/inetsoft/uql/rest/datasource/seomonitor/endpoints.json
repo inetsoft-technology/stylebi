@@ -1,0 +1,117 @@
+{
+  "endpoints": [
+    {
+      "pageType": 1,
+      "name": "Competitor Keywords",
+      "suffix": "/v1/compare/keywords/{Site ID}/{Start Date}/{End Date}/{Competitors}"
+    },
+    {
+      "pageType": 1,
+      "name": "Group Competitor Keywords",
+      "suffix": "/v1/compare/keywords/{Site ID}/{Start Date}/{End_date}/{Competitors}/{Group ID}"
+    },
+    {
+      "pageType": 0,
+      "name": "Competitor Visibility Score",
+      "suffix": "/v1/compare/competitors/visibility_score/{Site ID}/{Start Date}/{End Date}?group_id={Group ID?}&competitors={Competitors?}&device={Device?:1|2}"
+    },
+    {
+      "pageType": 0,
+      "name": "Group Competitor Visibility Score",
+      "suffix": "/v1/compare/competitors/visibility_score/{Site ID}/{Start Date}/{End Date}/{Competitors}/{Group ID?}?device={Device?:1|2}"
+    },
+    {
+      "pageType": 2,
+      "name": "Content Performance",
+      "suffix": "/v1/content/{Site ID}/{Start Date}/{End Date}"
+    },
+    {
+      "pageType": 0,
+      "name": "Devices",
+      "suffix": "/v1/devices"
+    },
+    {
+      "pageType": 0,
+      "name": "Forecast",
+      "suffix": "/v1/on_target/{Site ID}"
+    },
+    {
+      "pageType": 0,
+      "name": "Forecast by Date",
+      "suffix": "/v1/on_target/by_dates/{Site ID}"
+    },
+    {
+      "pageType": 0,
+      "name": "Groups",
+      "suffix": "/v1/groups_list/{Site ID}"
+    },
+    {
+      "pageType": 0,
+      "name": "Group Details",
+      "suffix": "/v1/group_details/{Site ID}/{Group ID}/{Start Date}/{End Date}"
+    },
+    {
+      "pageType": 0,
+      "name": "All Group Details",
+      "suffix": "/v1/all_group_details/{Site ID}/{Start Date}/{End Date}"
+    },
+    {
+      "pageType": 2,
+      "name": "Keyword Data",
+      "suffix": "/v1/keyword_data/{Site ID}/{Start Date}/{End Date}?keyword_name={Keyword Name?}"
+    },
+    {
+      "pageType": 2,
+      "name": "Group Keyword Data",
+      "suffix": "/v1/keyword_data/{Site ID}/{Group ID}/{Start Date}/{End Date}?keyword_name={Keyword Name?}"
+    },
+    {
+      "pageType": 0,
+      "name": "Top Landing Pages",
+      "suffix": "/v1/keyword_serp/{Site ID}?keyword_name={Keyword Name}&mobile={Mobile?:0|1}&full_lp={Full URLs?:0|1}"
+    },
+    {
+      "pageType": 0,
+      "name": "Top Landing Pages by ID",
+      "suffix": "/v1/keyword_serp/{Site ID}/{Keyword ID}?mobile={Mobile?:0|1}&full_lp={Full URLs?:0|1}"
+    },
+    {
+      "pageType": 0,
+      "name": "Organic Traffic Statistics",
+      "suffix": "/v1/organic_traffic/{Site ID}/{Start Date}/{End Date}"
+    },
+    {
+      "pageType": 0,
+      "name": "Organic Traffic Statistics by Brand/Non-brand",
+      "suffix": "/v1/organic_traffic/split/{Site ID}/{Start Date}/{End Date}?type={Type?:brand|non-brand}"
+    },
+    {
+      "pageType": 3,
+      "name": "Ranks",
+      "suffix": "/v1/ranks/{Site ID}/{Start Date}/{End Date}"
+    },
+    {
+      "pageType": 3,
+      "name": "Group Ranks",
+      "suffix": "/v1/ranks/{Site ID}/{Start Date}/{End Date}/{Group ID}"
+    },
+    {
+      "pageType": 0,
+      "name": "Sites",
+      "suffix": "/v1/sites",
+      "lookups": [
+        {
+          "endpoints": ["Forecast", "Forecast by Date", "Groups"],
+          "jsonPath": "$.[*]",
+          "key": "id",
+          "parameterName": "Site ID"
+        }
+      ]
+    },
+    {
+      "pageType": 0,
+      "name": "Visibility Score",
+      "suffix": "/v1/visibility_score_data/{Site ID}/{Group ID}/{Start Date}/{End Date}?device={Device?:1|2}"
+    }
+  ]
+}

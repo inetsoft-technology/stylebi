@@ -1,0 +1,59 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<em-editor-panel
+  [applyDisabled]="!isValid"
+  (applyClicked)="onSubmit.emit(form)"
+  (resetClicked)="reset()"
+>
+  <ng-container [formGroup]="form">
+    <section class="provider-options-container">
+    <mat-card appearance="outlined">
+      <mat-card-content>
+        <h3>_#(Authorization Provider)</h3>
+        <div class="flex flex-row">
+          <mat-form-field class="flex provider-field" appearance="outline" color="accent">
+            <mat-label>_#(Provider Name)</mat-label>
+            <input matInput placeholder="_#(Provider Name)" formControlName="providerName" required>
+            <mat-error *ngIf="form.controls['providerName'].errors && form.controls['providerName'].errors['required']">
+              _#(em.security.provider.name)
+            </mat-error>
+            <mat-error *ngIf="form.controls['providerName'].errors && form.controls['providerName'].errors['containsSpecialCharsForCommonName']">
+              _#(em.security.provider.nameSpecialChars)
+            </mat-error>
+          </mat-form-field>
+          <mat-form-field class="flex provider-field" appearance="outline" color="accent">
+            <mat-label>_#(Provider Type)</mat-label>
+            <mat-select placeholder="_#(Provider Type)" formControlName="providerType">
+              <mat-option [value]="'FILE'">_#(em.common.security.defaultProvider)</mat-option>
+              <mat-option [value]="'CUSTOM'">_#(Custom)</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+      </mat-card-content>
+    </mat-card>
+    <em-custom-provider-view
+      [class.form-hidden]="form.value.providerType !== 'CUSTOM'"
+      [form]="form"
+      [model]="model ? model.customProviderModel : null"
+      (changed)="changed = true">
+    </em-custom-provider-view>
+    </section>
+  </ng-container>
+</em-editor-panel>

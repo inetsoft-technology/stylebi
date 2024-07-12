@@ -1,0 +1,124 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div unselectable="on" class="month-calendar" [class.double-calendar]="model.doubleCalendar" [class.second-calendar]="secondCalendar"
+      [style.height.px]= "getCalendarHeight()" >
+   <div class="child-calendar-title w-100" [style.border-bottom]="model?.calendarTitleFormat?.border?.bottom"
+                                           [style.border-top]="model?.calendarTitleFormat?.border?.top"
+                                           [style.border-right]="model?.calendarTitleFormat?.border?.right"
+                                           [style.border-left]="model?.calendarTitleFormat?.border?.left">
+      <div #lastYearRef
+           class="calendar-navBtn calendar-preYear"
+           [class.btn-disabled]="!isBtnEnabled(true, true)"
+           [class.bd-selected-cell]="selectedRow == SelectionRegions.LAST_YEAR"
+           title="_#(Last Year)"
+           (click)="nextYear(-1)"
+           tabindex="-1" role="button">
+         <i class="backward-fast-icon icon-size-small" [style.color]="iconColor"></i>
+      </div>
+      <div #lastMonthRef
+           class="calendar-navBtn calendar-preMonth"
+           [class.btn-disabled]="!isBtnEnabled(true, false)"
+           [class.bd-selected-cell]="selectedRow == SelectionRegions.LAST_MONTH"
+           title="_#(Last Month)"
+           (click)="nextMonth(-1)"
+           tabindex="-1" role="button">
+         <i class="backward-icon icon-size-small" [style.color]="iconColor"></i>
+      </div>
+      <div class="calendar-title-label-container">
+        <div #titleRef
+             class="calendar-title-label bd-gray text-center selectable"
+             [ngClass]="{
+                'calendar-selected-cell': isMonthSelected()
+             }"
+             [class.selected-cell]="isMonthSelected()"
+             [class.bd-selected-cell]="selectedRow == SelectionRegions.TITLE"
+             (click)="clickMonthTitle($event)"
+             [style.align-items]="model.calendarTitleFormat.alignItems"
+             [style.justify-content]="model.calendarTitleFormat.justifyContent"
+             [safeFont]="model.calendarTitleFormat.font"
+             [style.background]="isMonthSelected() ? selectedBgColor : model.calendarTitleFormat.background"
+             [style.color]="model.calendarTitleFormat.foreground"
+             [style.text-decoration]="model.calendarTitleFormat.decoration"
+             [style.word-wrap]="model.calendarTitleFormat.wrapping.wordWrap"
+             [style.overflow]="model.calendarTitleFormat.wrapping.overflow"
+             tabindex="-1" [attr.aria-label]="monthTitle">{{getMonth()}}
+        </div>
+      </div>
+      <div #nextMonthRef
+           class="calendar-navBtn calendar-nextMonth"
+           [class.btn-disabled]="!isBtnEnabled(false, false)"
+           [class.bd-selected-cell]="selectedRow == SelectionRegions.NEXT_MONTH"
+           title="_#(Next Month)"
+           (click)="nextMonth(1)"
+           tabindex="-1" role="button">
+         <i class="forward-icon icon-size-small" [style.color]="iconColor"></i>
+      </div>
+      <div #nextYearRef
+           class="calendar-navBtn calendar-nextYear"
+           [class.btn-disabled]="!isBtnEnabled(false, true)"
+           [class.bd-selected-cell]="selectedRow == SelectionRegions.NEXT_YEAR"
+           title="_#(Next Year)"
+           (click)="nextYear(1)"
+           tabindex="-1" role="button">
+         <i class="forward-fast-icon icon-size-small" [style.color]="iconColor"></i>
+      </div>
+   </div>
+  <div #listRef class="day-table" [style.overflow]="mobile ? 'auto' : 'unset'">
+    <div *ngFor="let col of [0,1,2,3,4,5,6]"
+         class="day-column">
+      <ng-container *ngFor="let row of [0,1,2,3,4,5,6]; let first = first">
+        <div *ngIf="first; else dayCell" class="day-title-cell bd-gray txt-dark"
+             [safeFont]="model.monthFormat.font"
+             [style.background]="model.monthFormat.background"
+             [style.color]="model.monthFormat.foreground"
+             [style.text-align]="model.monthFormat.hAlign"
+             [style.text-decoration]="model.monthFormat.decoration"
+             [style.word-wrap]="model.monthFormat.wrapping.wordWrap"
+             [style.overflow]="model.monthFormat.wrapping.overflow"
+             (click)="clickDayTitle(col, $event)">
+          {{getWeekName((col + firstDayOfWeek - 1) % 7)}}
+        </div>
+        <ng-template #dayCell>
+          <div class="day-cell"
+               [ngClass]="{
+                  'disabled-grayout': days[(row - 1) * 7 + col].disabled,
+                  'calendar-selected-cell': isSelectedDayCell(row, col),
+                  'not-selectable': model.daySelection && days[(row - 1) * 7 + col].disabled,
+                  'bd-selected-cell': isCellFocused(row - 1, col)
+                }"
+               [safeFont]="model.monthFormat.font"
+               [style.background]="getDayCellBackground(row, col)"
+               [style.color]="days[(row - 1) * 7 + col].disabled ? iconColor : model.monthFormat.foreground"
+               [style.align-items]="model.monthFormat.alignItems"
+               [style.justify-content]="model.monthFormat.justifyContent"
+               [style.text-decoration]="model.monthFormat.decoration"
+               [style.word-wrap]="model.monthFormat.wrapping.wordWrap"
+               [style.overflow]="model.monthFormat.wrapping.overflow"
+               (click)="clickCell(row - 1, col, $event)"
+               tabindex="-1" [attr.aria-disabled]="days[(row - 1) * 7 + col].disabled"
+               role="cell" [attr.aria-label]="ariaDateLabel(days[(row - 1)* 7 + col].day)"
+               [attr.aria-selected]="isSelectedDayCell(row, col)">
+            {{getDay(row, col)}}
+          </div>
+        </ng-template>
+      </ng-container>
+    </div>
+  </div>
+</div>

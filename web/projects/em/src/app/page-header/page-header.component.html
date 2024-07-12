@@ -1,0 +1,31 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<mat-toolbar class="em-header-toolbar">
+  <button mat-icon-button (click)="toggleSidenav.emit()">
+    <mat-icon fontSet="ineticons" fontIcon="menu-sandwich-icon"></mat-icon>
+  </button>
+  <h1 class="em-page-title">{{getTitle()}}</h1>
+  <div class="org-label" *ngIf="model?.isMultiTenant && !!model?.currOrgID && showOrgs() && isEnterprise">_#(Select Organization):</div>
+  <mat-form-field class="em-button em-org-dropdown" *ngIf="model?.isMultiTenant && !!model?.currOrgID && showOrgs() && isEnterprise">
+    <mat-select [(value)]="model.currOrgID" (valueChange)="changeOrg()">
+      <mat-option *ngFor="let orgID of model.orgIDs; let i = index" [value]="orgID">{{ model.orgs[i] }}</mat-option>
+    </mat-select>
+  </mat-form-field>
+</mat-toolbar>

@@ -1,0 +1,145 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<div class="portal-schedule-task-list">
+  <div class="d-flex align-items-center portal-task-tool-bar">
+    <button class="d-flex btn btn-sm btn-light-no-bg me-1"
+            (click)="changeShowType(!showTasksAsList)"
+            [title]="showTasksAsList ? '_#(schedule.task.toggle.toFolderView)' : '_#(schedule.task.toggle.toListView)'">
+      <i class="menu-sandwich-icon"></i>
+      <span class="visually-hidden">
+        {{showTasksAsList ? "_#(schedule.task.toggle.toFolderView)" : "_#(schedule.task.toggle.toListView)"}}
+      </span>
+    </button>
+    <h6 class="mb-0">_#(Tasks)</h6>
+  </div>
+  <div class="portal-task-list-container">
+    <div class="portal-task-list-items">
+      <split-pane [sizes]="[INIT_TREE_PANE_SIZE, 100 - INIT_TREE_PANE_SIZE]"
+                  class="split-pane" [minSize]="0" [snapOffset]="0"
+                  [gutterSize]="1" [fullWidth]="true">
+        <div class="pane data-tree-pane" [style.height.px]="treeHeight">
+          <tree #tree *ngIf="rootNode && !showTasksAsList"
+                [root]="rootNode"
+                [fillHeight]="true"
+                [selectedNodes]="selectedNodes"
+                [isPortalDataSourcesTree]="true"
+                [initSelectedNodesExpanded]="true"
+                [contextmenu]="true"
+                [hasMenuFunction]="hasMenuFunction()"
+                [multiSelect]="true"
+                [selectOnClick]="true"
+                [draggable]="true"
+                (nodeDrop)="nodeDrop($event)"
+                (nodesSelected)="selectNode($event)"
+                (onContextmenu)="openTreeContextmenu($event)">
+          </tree>
+        </div>
+        <div class="pane data-pane bg-white1">
+          <div class="schedule-task-list-content">
+            <div class="schedule-task-list-table">
+              <table class="table table-bordered table-sm" wScrollableFlexTable [wScrollableSetBodyWidths]="true">
+                <thead class="thead-light">
+                <tr class="task-row">
+                  <th class="select-container">
+                    <input type="checkbox" class="align-middle" [ngModel]="selectAllChecked"
+                           (change)="selectAll($event.target.checked)"/>
+                  </th>
+                  <th class="tasks-container" sortColumn [sortKey]="'label'" [data]="tasks" [sortType]="sortType"
+                      [enableUnsorted]="true" (sortTypeChanged)="changeSortType($event)">_#(Name)</th>
+                  <th *ngIf="showOwners" class="tasks-container" sortColumn [sortKey]="'name'" [data]="tasks" [sortType]="sortType"
+                      [enableUnsorted]="true" (sortTypeChanged)="changeSortType($event)">_#(User)</th>
+                  <th class="description-container" sortColumn [sortKey]="'description'" [data]="tasks" [sortType]="sortType"
+                      [enableUnsorted]="true" (sortTypeChanged)="changeSortType($event)">_#(Description)</th>
+                  <th class="status-container" sortColumn [sortKey]="'status'" [data]="tasks" [sortType]="sortType"
+                      [enableUnsorted]="true" (sortTypeChanged)="changeSortType($event)">_#(Status)</th>
+                  <th class="run-time-container" sortColumn [sortKey]="'lastRunTime'" [data]="tasks" [sortType]="sortType"
+                      [enableUnsorted]="true" (sortTypeChanged)="changeSortType($event)">_#(Last Run End)</th>
+                  <th class="schedele-container" sortColumn [sortKey]="'schedule'" [data]="tasks" [sortType]="sortType"
+                      [enableUnsorted]="true" (sortTypeChanged)="changeSortType($event)">_#(Schedule)</th>
+                  <th class="actiones-container">_#(Actions)</th>
+                </tr>
+                </thead>
+                <tbody [style.height.px]="tableHeight">
+                <tr class="task-row" *ngFor="let task of tasks" [class.selected]="selectedItems.includes(task.name)"
+                    (dragstart)="dragTask($event, task)" [draggable]="true"
+                    (dragover)="$event.preventDefault();"
+                    (dragenter)="$event.preventDefault()">
+                  <td class="select-container">
+                    <input type="checkbox" class="align-middle" [checked]="selectedItems.includes(task.name)"
+                           (change)="selectTask(task)"/>
+                  </td>
+                  <td class="tasks-container" [class.disabled-task]="!task.enabled">{{ task.label }}</td>
+                  <td *ngIf="showOwners" class="tasks-container" [class.disabled-task]="!task.enabled">{{ getTaskOwnerLabel(task) }}</td>
+                  <td class="description-container">{{ task.description }}</td>
+                  <td class="status-container" (click)="openError(task)"
+                      *ngIf="task.status && task.status.errorMessage; else normalStatus">
+                    <span class="href-style href-underline">{{ task.status ? task.status.lastRunStatus : "" }}</span>
+                  </td>
+                  <ng-template #normalStatus>
+                    <td class="status-container">{{ task.status ? task.status.lastRunStatus : "" }}</td>
+                  </ng-template>
+                  <td class="run-time-container">{{ task.status ? task.status.lastRunEnd : "" }}</td>
+                  <td class="schedule-container">{{ task.schedule }}</td>
+                  <td class="actiones-container">
+                    <span class="btn icon-hover-bg schedule-button p-0 icon-size-medium edit-icon"
+                          [class.disable-actions-fade]="!task.editable || !task.canDelete"
+                          (click)="editTask(task)" title="_#(Edit)"></span>
+                    <span class="btn icon-hover-bg schedule-button p-0 icon-size-medium arrow-right-circle-outline-icon"
+                          (click)="runTask(task)"
+                          title="_#(Run Now)"></span>
+                    <span class="btn icon-hover-bg schedule-button p-0 icon-size-medium stop-icon"
+                          (click)="stopTask(task)"
+                          title="_#(Stop Now)"></span>
+                    <span class="btn icon-hover-bg schedule-button p-0 icon-size-medium"
+                          [class.disable-actions-fade]="isToggleTasksEnabledDisabled(task)"
+                          [class.cancel-icon]="task.enabled"
+                          [class.submit-icon]="!task.enabled"
+                          (click)="disableTask(task)"
+                          [title]="task.enabled ? '_#(Disable)' : '_#(Enable)'"></span>
+                  </td>
+                </tr>
+                </tbody>
+              </table>
+              <div *ngIf="loading" class="loading-indicator">
+                <div class="loading-content">
+                  <i class="loading-icon--spin loading-icon fa-spin icon-4x fa-fw" aria-hidden="true"></i>
+                  <span class="visually-hidden" data-th-text="_#(Loading)">Loading</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </split-pane>
+    </div>
+  </div>
+  <div class="schedule-task-list-actions m-2" [class.disable-actions-fade]="loading">
+    <button type="button" class="btn btn-primary" (click)="newTask()" [disabled]="!isCreateTaskEnabled()">_#(New Task)</button>
+    <button type="button" class="btn btn-default ms-2" (click)="loadTasks(true)">_#(Refresh List)</button>
+    <button type="button" class="btn btn-default ms-2"
+            (click)="moveTasks()"
+            [disabled]="(showTasksAsList || !removeEnable())">
+      _#(Move)
+    </button>
+    <button type="button" class="btn btn-default ms-2"
+            (click)="removeItems()" [disabled]="!removeEnable()">
+      _#(Delete)
+    </button>
+  </div>
+</div>

@@ -1,0 +1,1126 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+$ineticons-cache-buster: "7cvzwkffjqz1k5yj214cy1jfn8";
+
+$account-key-icon: "\ea01";
+$account-icon: "\ea02";
+$add-icon: "\ea03";
+$adhoc-icon: "\ea04";
+$alert-circle-icon: "\ea05";
+$alert-icon: "\ea06";
+$align-bottom-icon: "\ea07";
+$align-center-icon: "\ea08";
+$align-left-icon: "\ea09";
+$align-middle-icon: "\ea0a";
+$align-right-icon: "\ea0b";
+$align-text-bottom-icon: "\ea0c";
+$align-text-center-icon: "\ea0d";
+$align-text-left-icon: "\ea0e";
+$align-text-middle-icon: "\ea0f";
+$align-text-right-icon: "\ea10";
+$align-text-top-icon: "\ea11";
+$align-top-icon: "\ea12";
+$annotation-empty-icon: "\ea13";
+$annotation-no-icon: "\ea14";
+$annotation-icon: "\ea15";
+$archive-open-icon: "\ea16";
+$archive-icon: "\ea17";
+$arrow-left-circle-outline-skip-icon: "\ea18";
+$arrow-left-circle-outline-icon: "\ea19";
+$arrow-right-circle-outline-skip-icon: "\ea1a";
+$arrow-right-circle-outline-icon: "\ea1b";
+$assets-icon: "\ea1c";
+$auditing-icon: "\ea1d";
+$auto-chart-type-icon: "\ea1e";
+$auto-complete-click-icon: "\ea1f";
+$auto-complete-icon: "\ea20";
+$auto-fix-icon: "\ea21";
+$auto-join-icon: "\ea22";
+$auto-reload-icon: "\ea23";
+$axis-dimension-icon: "\ea24";
+$axis-icon: "\ea25";
+$backward-fast-icon: "\ea26";
+$backward-icon: "\ea27";
+$bare-arrow-down-icon: "\ea28";
+$bare-arrow-left-icon: "\ea29";
+$bare-arrow-right-icon: "\ea2a";
+$bare-arrow-up-icon: "\ea2b";
+$book-icon: "\ea2c";
+$bookmark-default-icon: "\ea2d";
+$bookmark-folder-icon: "\ea2e";
+$bookmark-home-icon: "\ea2f";
+$bookmark-set-default-icon: "\ea30";
+$bookmark-icon: "\ea31";
+$books-icon: "\ea32";
+$boolean-field-icon: "\ea33";
+$border-bottom-icon: "\ea34";
+$border-left-icon: "\ea35";
+$border-right-icon: "\ea36";
+$border-top-icon: "\ea37";
+$brush-no-icon: "\ea38";
+$brush-icon: "\ea39";
+$button-icon: "\ea3a";
+$calculated-detail-field-icon: "\ea3b";
+$calculated-sum-field-icon: "\ea3c";
+$calendar-double-icon: "\ea3d";
+$calendar-minus-icon: "\ea3e";
+$calendar-plus-icon: "\ea3f";
+$calendar-icon: "\ea40";
+$cancel-icon: "\ea41";
+$card-text-outline-icon: "\ea42";
+$chart-3D-bar-stacked-icon: "\ea43";
+$chart-3D-bar-icon: "\ea44";
+$chart-3D-pie-icon: "\ea45";
+$chart-area-stacked-icon: "\ea46";
+$chart-area-icon: "\ea47";
+$chart-bar-stacked-icon: "\ea48";
+$chart-bar-icon: "\ea49";
+$chart-boxplot-icon: "\ea4a";
+$chart-bullet-icon: "\ea4b";
+$chart-candle-icon: "\ea4c";
+$chart-circle-network-icon: "\ea4d";
+$chart-circle-pack-icon: "\ea4e";
+$chart-donut-icon: "\ea4f";
+$chart-funnel-icon: "\ea50";
+$chart-gantt-icon: "\ea51";
+$chart-icicle-icon: "\ea52";
+$chart-interval-icon: "\ea53";
+$chart-jump-icon: "\ea54";
+$chart-line-stacked-icon: "\ea55";
+$chart-line-icon: "\ea56";
+$chart-map-contour-icon: "\ea57";
+$chart-map-icon: "\ea58";
+$chart-mekko-icon: "\ea59";
+$chart-multi-style-icon: "\ea5a";
+$chart-network-icon: "\ea5b";
+$chart-pareto-icon: "\ea5c";
+$chart-pie-icon: "\ea5d";
+$chart-radar-filled-icon: "\ea5e";
+$chart-radar-icon: "\ea5f";
+$chart-scatter-contour-icon: "\ea60";
+$chart-scattered-stacked-icon: "\ea61";
+$chart-scattered-icon: "\ea62";
+$chart-size-icon: "\ea63";
+$chart-step-area-stacked-icon: "\ea64";
+$chart-step-area-icon: "\ea65";
+$chart-step-stacked-icon: "\ea66";
+$chart-step-icon: "\ea67";
+$chart-stock-icon: "\ea68";
+$chart-sunburst-icon: "\ea69";
+$chart-tree-icon: "\ea6a";
+$chart-treemap-icon: "\ea6b";
+$chart-waterfall-icon: "\ea6c";
+$chart-icon: "\ea6d";
+$checkbox-blank-circle-icon: "\ea6e";
+$checkbox-icon: "\ea6f";
+$chevron-circle-arrow-down-icon: "\ea70";
+$chevron-circle-arrow-left-icon: "\ea71";
+$chevron-circle-arrow-right-icon: "\ea72";
+$chevron-circle-arrow-up-icon: "\ea73";
+$chevron-circle-up-down-icon: "\ea74";
+$clock-icon: "\ea75";
+$close-circle-icon: "\ea76";
+$close-icon: "\ea77";
+$code-tags-check-icon: "\ea78";
+$collapse-icon: "\ea79";
+$color-fill-icon: "\ea7a";
+$column-select-icon: "\ea7b";
+$column-selection-icon: "\ea7c";
+$column-icon: "\ea7d";
+$compare-icon: "\ea7e";
+$composer-icon: "\ea7f";
+$composite-table-icon: "\ea80";
+$concat-icon: "\ea81";
+$condition-with-query-icon: "\ea82";
+$condition-with-variable-icon: "\ea83";
+$condition-icon: "\ea84";
+$console-icon: "\ea85";
+$content-duplicate-icon: "\ea86";
+$contract-icon: "\ea87";
+$copy-icon: "\ea88";
+$creation-icon: "\ea89";
+$cross-join-icon: "\ea8a";
+$crosstab-column-header-icon: "\ea8b";
+$crosstab-row-header-icon: "\ea8c";
+$crosstab-icon: "\ea8d";
+$cube-icon: "\ea8e";
+$cursor-default-icon: "\ea8f";
+$customize-icon: "\ea90";
+$cut-icon: "\ea91";
+$data-block-type-bound-icon: "\ea92";
+$data-block-type-concat-icon: "\ea93";
+$data-block-type-join-icon: "\ea94";
+$data-block-type-mirror-icon: "\ea95";
+$data-block-type-mv-icon: "\ea96";
+$data-block-type-query-icon: "\ea97";
+$data-block-type-rotated-icon: "\ea98";
+$data-cache-icon: "\ea99";
+$data-full-icon: "\ea9a";
+$data-partial-icon: "\ea9b";
+$data-source-folder-icon: "\ea9c";
+$data-sources-icon: "\ea9d";
+$data-table-icon: "\ea9e";
+$database-check-icon: "\ea9f";
+$database-plus-icon: "\eaa0";
+$database-icon: "\eaa1";
+$date-field-icon: "\eaa2";
+$date-range-icon: "\eaa3";
+$datetime-field-icon: "\eaa4";
+$db-model-icon: "\eaa5";
+$db-table-icon: "\eaa6";
+$decimal-decrease-icon: "\eaa7";
+$decimal-increase-icon: "\eaa8";
+$delete-relation-icon: "\eaa9";
+$dimension-setting-icon: "\eaaa";
+$dimension-icon: "\eaab";
+$distribute-bottom-icon: "\eaac";
+$distribute-center-icon: "\eaad";
+$distribute-H-icon: "\eaae";
+$distribute-horizontal-icon: "\eaaf";
+$distribute-left-icon: "\eab0";
+$distribute-middle-icon: "\eab1";
+$distribute-right-icon: "\eab2";
+$distribute-top-icon: "\eab3";
+$distribute-V-icon: "\eab4";
+$distribute-vertical-icon: "\eab5";
+$divider-horizontal-icon: "\eab6";
+$divider-vertical-icon: "\eab7";
+$double-axis-icon: "\eab8";
+$downward-fast-icon: "\eab9";
+$downward-icon: "\eaba";
+$drill-down-filter-icon: "\eabb";
+$drill-down-icon: "\eabc";
+$drill-filter-icon: "\eabd";
+$drill-up-filter-icon: "\eabe";
+$drill-up-icon: "\eabf";
+$dropdown-box-icon: "\eac0";
+$edit-print-icon: "\eac1";
+$edit-icon: "\eac2";
+$email-icon: "\eac3";
+$embedded-table-icon: "\eac4";
+$enter-parameter-icon: "\eac5";
+$enterprise-manager-icon: "\eac6";
+$equal-sign-icon: "\eac7";
+$eraser-icon: "\eac8";
+$expand-icon: "\eac9";
+$export-icon: "\eaca";
+$extra-icon: "\eacb";
+$eye-off-icon: "\eacc";
+$eye-plus-icon: "\eacd";
+$eye-icon: "\eace";
+$feature-search-icon: "\eacf";
+$field-list-icon: "\ead0";
+$field-script-icon: "\ead1";
+$field-tree-icon: "\ead2";
+$file-csv-icon: "\ead3";
+$file-html-icon: "\ead4";
+$file-multiple-icon: "\ead5";
+$file-pdf-icon: "\ead6";
+$file-pdf2-icon: "\ead7";
+$file-plus-icon: "\ead8";
+$file-ppt-icon: "\ead9";
+$file-rtf-icon: "\eada";
+$file-sql-icon: "\eadb";
+$file-svg-icon: "\eadc";
+$file-txt-icon: "\eadd";
+$file-xgm-icon: "\eade";
+$file-xls-icon: "\eadf";
+$file-xml-icon: "\eae0";
+$file-icon: "\eae1";
+$folder-account-icon: "\eae2";
+$folder-bookmark-icon: "\eae3";
+$folder-move-icon: "\eae4";
+$folder-open-icon: "\eae5";
+$folder-plus-icon: "\eae6";
+$folder-remove-icon: "\eae7";
+$folder-toolbox-icon: "\eae8";
+$folder-icon: "\eae9";
+$format-align-justify-icon: "\eaea";
+$format-area-break-icon: "\eaeb";
+$format-bold-icon: "\eaec";
+$format-color-text-icon: "\eaed";
+$format-columns-icon: "\eaee";
+$format-conditional-page-break-icon: "\eaef";
+$format-indent-decrease-icon: "\eaf0";
+$format-indent-increase-icon: "\eaf1";
+$format-italic-icon: "\eaf2";
+$format-list-numbers-icon: "\eaf3";
+$format-page-break-icon: "\eaf4";
+$format-painter-icon: "\eaf5";
+$format-pilcrow-icon: "\eaf6";
+$format-underline-icon: "\eaf7";
+$format-icon: "\eaf8";
+$formula-condition-icon: "\eaf9";
+$formula-edit-icon: "\eafa";
+$formula-sort-ascending-icon: "\eafb";
+$formula-sort-descending-icon: "\eafc";
+$formula-table-icon: "\eafd";
+$formula-icon: "\eafe";
+$forward-fast-icon: "\eaff";
+$forward-icon: "\eb00";
+$function-and-variable-icon: "\eb01";
+$gauge-icon: "\eb02";
+$geo-field-error-icon: "\eb03";
+$geo-field-icon: "\eb04";
+$geo-mapped-icon: "\eb05";
+$geo-not-mapped-icon: "\eb06";
+$grid-icon: "\eb07";
+$grouping-icon: "\eb08";
+$help-question-mark-icon: "\eb09";
+$highlight-icon: "\eb0a";
+$home-icon: "\eb0b";
+$image-area-icon: "\eb0c";
+$image-icon: "\eb0d";
+$inetsoft-full-icon: "\eb0e";
+$inetsoft-icon: "\eb0f";
+$info-icon: "\eb10";
+$inner-join-icon: "\eb11";
+$intersect-tables-icon: "\eb12";
+$javascript-icon: "\eb13";
+$join-icon: "\eb14";
+$keyboard-return-icon: "\eb15";
+$keyboard-tab-icon: "\eb16";
+$layout-icon: "\eb17";
+$line-icon: "\eb18";
+$loading-icon: "\eb19";
+$lock-icon: "\eb1a";
+$logical-formula-icon: "\eb1b";
+$logical-model-icon: "\eb1c";
+$login-icon: "\eb1d";
+$logout-icon: "\eb1e";
+$materialized-viewsheet-icon: "\eb1f";
+$materialized-worksheet-icon: "\eb20";
+$max-height-icon: "\eb21";
+$max-width-icon: "\eb22";
+$maximize-icon: "\eb23";
+$measure-setting-icon: "\eb24";
+$measure-icon: "\eb25";
+$menu-horizontal-icon: "\eb26";
+$menu-sandwich-icon: "\eb27";
+$menu-vertical-icon: "\eb28";
+$merge-join-icon: "\eb29";
+$message-error-icon: "\eb2a";
+$message-warning-icon: "\eb2b";
+$message-icon: "\eb2c";
+$min-height-icon: "\eb2d";
+$min-width-icon: "\eb2e";
+$minus-box-outline-icon: "\eb2f";
+$minus-tables-icon: "\eb30";
+$mirror-icon: "\eb31";
+$mobile-icon: "\eb32";
+$move-icon: "\eb33";
+$multi-chart-icon: "\eb34";
+$named-group-icon: "\eb35";
+$new-logical-model-icon: "\eb36";
+$new-objects-icon: "\eb37";
+$new-partition-icon: "\eb38";
+$new-report-icon: "\eb39";
+$new-viewsheet-icon: "\eb3a";
+$new-vpm-icon: "\eb3b";
+$new-worksheet-icon: "\eb3c";
+$null-icon: "\eb3d";
+$num-range-icon: "\eb3e";
+$number-field-icon: "\eb3f";
+$numeric-icon: "\eb40";
+$OBJ-icon: "\eb41";
+$order-column-icon: "\eb42";
+$other-join-icon: "\eb43";
+$outer-join-icon: "\eb44";
+$oval-icon: "\eb45";
+$page-body-icon: "\eb46";
+$page-footer-icon: "\eb47";
+$page-header-icon: "\eb48";
+$page-layout-icon: "\eb49";
+$page-setting-icon: "\eb4a";
+$page-icon: "\eb4b";
+$palette-icon: "\eb4c";
+$partition-icon: "\eb4d";
+$paste-icon: "\eb4e";
+$pending-submit-icon: "\eb4f";
+$plus-box-outline-icon: "\eb50";
+$preview-icon: "\eb51";
+$printer-default-icon: "\eb52";
+$printer-network-icon: "\eb53";
+$printer-icon: "\eb54";
+$private-report-icon: "\eb55";
+$private-viewsheet-icon: "\eb56";
+$private-worksheet-icon: "\eb57";
+$profile-icon: "\eb58";
+$query-icon: "\eb59";
+$radio-button-icon: "\eb5a";
+$range-slider-icon: "\eb5b";
+$recent-icon: "\eb5c";
+$recommend-icon: "\eb5d";
+$rectangle-icon: "\eb5e";
+$redo-icon: "\eb5f";
+$refresh-icon: "\eb60";
+$reload-no-icon: "\eb61";
+$rename-icon: "\eb62";
+$report-adhoc-icon: "\eb63";
+$report-bean-icon: "\eb64";
+$report-bursted-icon: "\eb65";
+$report-edit-icon: "\eb66";
+$report-formula-icon: "\eb67";
+$report-meta-icon: "\eb68";
+$report-param-only-icon: "\eb69";
+$report-pregenerated-icon: "\eb6a";
+$report-replet-icon: "\eb6b";
+$report-wizard-icon: "\eb6c";
+$report-icon: "\eb6d";
+$reset-icon: "\eb6e";
+$resize-bottom-right-icon: "\eb6f";
+$rotate-icon: "\eb70";
+$SAP-icon: "\eb71";
+$save-as-changed-icon: "\eb72";
+$save-as-icon: "\eb73";
+$save-changed-icon: "\eb74";
+$save-close-icon: "\eb75";
+$save-icon: "\eb76";
+$search-next-icon: "\eb77";
+$search-result-icon: "\eb78";
+$search-icon: "\eb79";
+$select-empty-circle-icon: "\eb7a";
+$select-empty-icon: "\eb7b";
+$select-excluded-circle-icon: "\eb7c";
+$select-excluded-icon: "\eb7d";
+$select-multi-icon: "\eb7e";
+$select-other-circle-icon: "\eb7f";
+$select-other-icon: "\eb80";
+$select-range-no-icon: "\eb81";
+$select-range-icon: "\eb82";
+$select-single-icon: "\eb83";
+$selected-auto-circle-icon: "\eb84";
+$selected-auto-icon: "\eb85";
+$selected-circle-icon: "\eb86";
+$selected-icon: "\eb87";
+$selection-container-icon: "\eb88";
+$selection-list-icon: "\eb89";
+$selection-swap-icon: "\eb8a";
+$selection-tree-icon: "\eb8b";
+$selection-icon: "\eb8c";
+$separate-chart-icon: "\eb8d";
+$server-file-icon: "\eb8e";
+$setting-icon: "\eb8f";
+$shape-arrow-down-bold-icon: "\eb90";
+$shape-arrow-lower-right-icon: "\eb91";
+$shape-arrow-up-bold-icon: "\eb92";
+$shape-arrow-upper-right-icon: "\eb93";
+$shape-asterisk-icon: "\eb94";
+$shape-cancel-icon: "\eb95";
+$shape-check-icon: "\eb96";
+$shape-circle-icon: "\eb97";
+$shape-cross-icon: "\eb98";
+$shape-diamond-icon: "\eb99";
+$shape-dodecagon-icon: "\eb9a";
+$shape-exclamation-icon: "\eb9b";
+$shape-face-happy-icon: "\eb9c";
+$shape-face-sad-icon: "\eb9d";
+$shape-face-icon: "\eb9e";
+$shape-filled-25-circle-icon: "\eb9f";
+$shape-filled-50-circle-icon: "\eba0";
+$shape-filled-75-circle-icon: "\eba1";
+$shape-filled-circle-icon: "\eba2";
+$shape-filled-diamond-icon: "\eba3";
+$shape-filled-square-icon: "\eba4";
+$shape-filled-triangle-icon: "\eba5";
+$shape-flag-icon: "\eba6";
+$shape-hexagon-icon: "\eba7";
+$shape-horizontal-bar-icon: "\eba8";
+$shape-L-icon: "\eba9";
+$shape-light-icon: "\ebaa";
+$shape-line-dash0-icon: "\ebab";
+$shape-line-dash1-icon: "\ebac";
+$shape-line-dash2-icon: "\ebad";
+$shape-line-dash3-icon: "\ebae";
+$shape-line-dash4-icon: "\ebaf";
+$shape-man-icon: "\ebb0";
+$shape-minus-icon: "\ebb1";
+$shape-no-icon: "\ebb2";
+$shape-octagon-icon: "\ebb3";
+$shape-pattern-cross-thick-dense-icon: "\ebb4";
+$shape-pattern-cross-thick-sparse-icon: "\ebb5";
+$shape-pattern-cross-thin-dense-icon: "\ebb6";
+$shape-pattern-cross-thin-sparse-icon: "\ebb7";
+$shape-pattern-L30-thick-dense-icon: "\ebb8";
+$shape-pattern-L30-thick-sparse-icon: "\ebb9";
+$shape-pattern-L30-thin-dense-icon: "\ebba";
+$shape-pattern-L30-thin-sparse-icon: "\ebbb";
+$shape-pattern-L60-thick-dense-icon: "\ebbc";
+$shape-pattern-L60-thick-sparse-icon: "\ebbd";
+$shape-pattern-L60-thin-dense-icon: "\ebbe";
+$shape-pattern-L60-thin-sparse-icon: "\ebbf";
+$shape-pattern-R30-thick-dense-icon: "\ebc0";
+$shape-pattern-R30-thick-sparse-icon: "\ebc1";
+$shape-pattern-R30-thin-dense-icon: "\ebc2";
+$shape-pattern-R30-thin-sparse-icon: "\ebc3";
+$shape-pattern-R60-thick-dense-icon: "\ebc4";
+$shape-pattern-R60-thick-sparse-icon: "\ebc5";
+$shape-pattern-R60-thin-dense-icon: "\ebc6";
+$shape-pattern-R60-thin-sparse-icon: "\ebc7";
+$shape-pattern-solid-icon: "\ebc8";
+$shape-plus-icon: "\ebc9";
+$shape-rectangle-icon: "\ebca";
+$shape-square-icon: "\ebcb";
+$shape-star-icon: "\ebcc";
+$shape-trapezium-icon: "\ebcd";
+$shape-triangle-icon: "\ebce";
+$shape-V-rotate-icon: "\ebcf";
+$shape-V-icon: "\ebd0";
+$shape-vertical-bar-icon: "\ebd1";
+$shape-woman-icon: "\ebd2";
+$shapes-lines-icon: "\ebd3";
+$shapes-overview-icon: "\ebd4";
+$shapes-patterns-icon: "\ebd5";
+$shapes-points-icon: "\ebd6";
+$share-facebook-icon: "\ebd7";
+$share-google-chat-icon: "\ebd8";
+$share-hangouts-icon: "\ebd9";
+$share-link-copy-icon: "\ebda";
+$share-link-icon: "\ebdb";
+$share-linkedin-icon: "\ebdc";
+$share-slack-icon: "\ebdd";
+$share-twitter-icon: "\ebde";
+$share-icon: "\ebdf";
+$shared-report-icon: "\ebe0";
+$shared-viewsheet-open-icon: "\ebe1";
+$shared-viewsheet-icon: "\ebe2";
+$shared-worksheet-open-icon: "\ebe3";
+$shared-worksheet-icon: "\ebe4";
+$show-detail-icon: "\ebe5";
+$show-summary-icon: "\ebe6";
+$single-chart-icon: "\ebe7";
+$slider-icon: "\ebe8";
+$snap-grid-icon: "\ebe9";
+$snapshot-icon: "\ebea";
+$SOAP-icon: "\ebeb";
+$sort-ascending-icon: "\ebec";
+$sort-descending-icon: "\ebed";
+$sort-value-ascending-icon: "\ebee";
+$sort-value-descending-icon: "\ebef";
+$sort-icon: "\ebf0";
+$spinner-icon: "\ebf1";
+$square-edit-outline-icon: "\ebf2";
+$star-outline-icon: "\ebf3";
+$star-icon: "\ebf4";
+$stop-icon: "\ebf5";
+$style-icon: "\ebf6";
+$submit-icon: "\ebf7";
+$summary-edit-icon: "\ebf8";
+$summary-icon: "\ebf9";
+$tab-icon: "\ebfa";
+$table-of-contents-icon: "\ebfb";
+$table-icon: "\ebfc";
+$tabular-data-icon: "\ebfd";
+$tabular-subquery-icon: "\ebfe";
+$text-box-icon: "\ebff";
+$text-field-icon: "\ec00";
+$text-input-icon: "\ec01";
+$text-icon: "\ec02";
+$thumbnails-icon: "\ec03";
+$title-auto-icon: "\ec04";
+$title-rotate-L45-icon: "\ec05";
+$title-rotate-L90-icon: "\ec06";
+$title-rotate-R45-icon: "\ec07";
+$title-rotate-R90-icon: "\ec08";
+$toolbar-icon: "\ec09";
+$trash-icon: "\ec0a";
+$TXT-icon: "\ec0b";
+$undo-icon: "\ec0c";
+$union-tables-icon: "\ec0d";
+$unpivot-icon: "\ec0e";
+$upload-icon: "\ec0f";
+$upward-fast-icon: "\ec10";
+$upward-icon: "\ec11";
+$user-group-icon: "\ec12";
+$user-organizations-icon: "\ec13";
+$user-roles-icon: "\ec14";
+$value-list-icon: "\ec15";
+$value-type-list-icon: "\ec16";
+$variable-with-query-icon: "\ec17";
+$variable-icon: "\ec18";
+$view-detail-live-icon: "\ec19";
+$view-detail-meta-icon: "\ec1a";
+$view-grid-icon: "\ec1b";
+$view-list-icon: "\ec1c";
+$view-summary-live-icon: "\ec1d";
+$view-summary-meta-icon: "\ec1e";
+$viewsheet-book-icon: "\ec1f";
+$viewsheet-icon: "\ec20";
+$vpm-icon: "\ec21";
+$window-restore-icon: "\ec22";
+$worksheet-icon: "\ec23";
+$wrap-icon: "\ec24";
+$XML-icon: "\ec25";
+$zoom-in-icon: "\ec26";
+$zoom-no-icon: "\ec27";
+$zoom-out-icon: "\ec28";
+
+$ineticons-base-map: (
+  account-key-icon: $account-key-icon,
+  account-icon: $account-icon,
+  add-icon: $add-icon,
+  adhoc-icon: $adhoc-icon,
+  alert-circle-icon: $alert-circle-icon,
+  alert-icon: $alert-icon,
+  align-bottom-icon: $align-bottom-icon,
+  align-center-icon: $align-center-icon,
+  align-left-icon: $align-left-icon,
+  align-middle-icon: $align-middle-icon,
+  align-right-icon: $align-right-icon,
+  align-text-bottom-icon: $align-text-bottom-icon,
+  align-text-center-icon: $align-text-center-icon,
+  align-text-left-icon: $align-text-left-icon,
+  align-text-middle-icon: $align-text-middle-icon,
+  align-text-right-icon: $align-text-right-icon,
+  align-text-top-icon: $align-text-top-icon,
+  align-top-icon: $align-top-icon,
+  annotation-empty-icon: $annotation-empty-icon,
+  annotation-no-icon: $annotation-no-icon,
+  annotation-icon: $annotation-icon,
+  archive-open-icon: $archive-open-icon,
+  archive-icon: $archive-icon,
+  arrow-left-circle-outline-skip-icon: $arrow-left-circle-outline-skip-icon,
+  arrow-left-circle-outline-icon: $arrow-left-circle-outline-icon,
+  arrow-right-circle-outline-skip-icon: $arrow-right-circle-outline-skip-icon,
+  arrow-right-circle-outline-icon: $arrow-right-circle-outline-icon,
+  assets-icon: $assets-icon,
+  auditing-icon: $auditing-icon,
+  auto-chart-type-icon: $auto-chart-type-icon,
+  auto-complete-click-icon: $auto-complete-click-icon,
+  auto-complete-icon: $auto-complete-icon,
+  auto-fix-icon: $auto-fix-icon,
+  auto-join-icon: $auto-join-icon,
+  auto-reload-icon: $auto-reload-icon,
+  axis-dimension-icon: $axis-dimension-icon,
+  axis-icon: $axis-icon,
+  backward-fast-icon: $backward-fast-icon,
+  backward-icon: $backward-icon,
+  bare-arrow-down-icon: $bare-arrow-down-icon,
+  bare-arrow-left-icon: $bare-arrow-left-icon,
+  bare-arrow-right-icon: $bare-arrow-right-icon,
+  bare-arrow-up-icon: $bare-arrow-up-icon,
+  book-icon: $book-icon,
+  bookmark-default-icon: $bookmark-default-icon,
+  bookmark-folder-icon: $bookmark-folder-icon,
+  bookmark-home-icon: $bookmark-home-icon,
+  bookmark-set-default-icon: $bookmark-set-default-icon,
+  bookmark-icon: $bookmark-icon,
+  books-icon: $books-icon,
+  boolean-field-icon: $boolean-field-icon,
+  border-bottom-icon: $border-bottom-icon,
+  border-left-icon: $border-left-icon,
+  border-right-icon: $border-right-icon,
+  border-top-icon: $border-top-icon,
+  brush-no-icon: $brush-no-icon,
+  brush-icon: $brush-icon,
+  button-icon: $button-icon,
+  calculated-detail-field-icon: $calculated-detail-field-icon,
+  calculated-sum-field-icon: $calculated-sum-field-icon,
+  calendar-double-icon: $calendar-double-icon,
+  calendar-minus-icon: $calendar-minus-icon,
+  calendar-plus-icon: $calendar-plus-icon,
+  calendar-icon: $calendar-icon,
+  cancel-icon: $cancel-icon,
+  card-text-outline-icon: $card-text-outline-icon,
+  chart-3D-bar-stacked-icon: $chart-3D-bar-stacked-icon,
+  chart-3D-bar-icon: $chart-3D-bar-icon,
+  chart-3D-pie-icon: $chart-3D-pie-icon,
+  chart-area-stacked-icon: $chart-area-stacked-icon,
+  chart-area-icon: $chart-area-icon,
+  chart-bar-stacked-icon: $chart-bar-stacked-icon,
+  chart-bar-icon: $chart-bar-icon,
+  chart-boxplot-icon: $chart-boxplot-icon,
+  chart-bullet-icon: $chart-bullet-icon,
+  chart-candle-icon: $chart-candle-icon,
+  chart-circle-network-icon: $chart-circle-network-icon,
+  chart-circle-pack-icon: $chart-circle-pack-icon,
+  chart-donut-icon: $chart-donut-icon,
+  chart-funnel-icon: $chart-funnel-icon,
+  chart-gantt-icon: $chart-gantt-icon,
+  chart-icicle-icon: $chart-icicle-icon,
+  chart-interval-icon: $chart-interval-icon,
+  chart-jump-icon: $chart-jump-icon,
+  chart-line-stacked-icon: $chart-line-stacked-icon,
+  chart-line-icon: $chart-line-icon,
+  chart-map-contour-icon: $chart-map-contour-icon,
+  chart-map-icon: $chart-map-icon,
+  chart-mekko-icon: $chart-mekko-icon,
+  chart-multi-style-icon: $chart-multi-style-icon,
+  chart-network-icon: $chart-network-icon,
+  chart-pareto-icon: $chart-pareto-icon,
+  chart-pie-icon: $chart-pie-icon,
+  chart-radar-filled-icon: $chart-radar-filled-icon,
+  chart-radar-icon: $chart-radar-icon,
+  chart-scatter-contour-icon: $chart-scatter-contour-icon,
+  chart-scattered-stacked-icon: $chart-scattered-stacked-icon,
+  chart-scattered-icon: $chart-scattered-icon,
+  chart-size-icon: $chart-size-icon,
+  chart-step-area-stacked-icon: $chart-step-area-stacked-icon,
+  chart-step-area-icon: $chart-step-area-icon,
+  chart-step-stacked-icon: $chart-step-stacked-icon,
+  chart-step-icon: $chart-step-icon,
+  chart-stock-icon: $chart-stock-icon,
+  chart-sunburst-icon: $chart-sunburst-icon,
+  chart-tree-icon: $chart-tree-icon,
+  chart-treemap-icon: $chart-treemap-icon,
+  chart-waterfall-icon: $chart-waterfall-icon,
+  chart-icon: $chart-icon,
+  checkbox-blank-circle-icon: $checkbox-blank-circle-icon,
+  checkbox-icon: $checkbox-icon,
+  chevron-circle-arrow-down-icon: $chevron-circle-arrow-down-icon,
+  chevron-circle-arrow-left-icon: $chevron-circle-arrow-left-icon,
+  chevron-circle-arrow-right-icon: $chevron-circle-arrow-right-icon,
+  chevron-circle-arrow-up-icon: $chevron-circle-arrow-up-icon,
+  chevron-circle-up-down-icon: $chevron-circle-up-down-icon,
+  clock-icon: $clock-icon,
+  close-circle-icon: $close-circle-icon,
+  close-icon: $close-icon,
+  code-tags-check-icon: $code-tags-check-icon,
+  collapse-icon: $collapse-icon,
+  color-fill-icon: $color-fill-icon,
+  column-select-icon: $column-select-icon,
+  column-selection-icon: $column-selection-icon,
+  column-icon: $column-icon,
+  compare-icon: $compare-icon,
+  composer-icon: $composer-icon,
+  composite-table-icon: $composite-table-icon,
+  concat-icon: $concat-icon,
+  condition-with-query-icon: $condition-with-query-icon,
+  condition-with-variable-icon: $condition-with-variable-icon,
+  condition-icon: $condition-icon,
+  console-icon: $console-icon,
+  content-duplicate-icon: $content-duplicate-icon,
+  contract-icon: $contract-icon,
+  copy-icon: $copy-icon,
+  creation-icon: $creation-icon,
+  cross-join-icon: $cross-join-icon,
+  crosstab-column-header-icon: $crosstab-column-header-icon,
+  crosstab-row-header-icon: $crosstab-row-header-icon,
+  crosstab-icon: $crosstab-icon,
+  cube-icon: $cube-icon,
+  cursor-default-icon: $cursor-default-icon,
+  customize-icon: $customize-icon,
+  cut-icon: $cut-icon,
+  data-block-type-bound-icon: $data-block-type-bound-icon,
+  data-block-type-concat-icon: $data-block-type-concat-icon,
+  data-block-type-join-icon: $data-block-type-join-icon,
+  data-block-type-mirror-icon: $data-block-type-mirror-icon,
+  data-block-type-mv-icon: $data-block-type-mv-icon,
+  data-block-type-query-icon: $data-block-type-query-icon,
+  data-block-type-rotated-icon: $data-block-type-rotated-icon,
+  data-cache-icon: $data-cache-icon,
+  data-full-icon: $data-full-icon,
+  data-partial-icon: $data-partial-icon,
+  data-source-folder-icon: $data-source-folder-icon,
+  data-sources-icon: $data-sources-icon,
+  data-table-icon: $data-table-icon,
+  database-check-icon: $database-check-icon,
+  database-plus-icon: $database-plus-icon,
+  database-icon: $database-icon,
+  date-field-icon: $date-field-icon,
+  date-range-icon: $date-range-icon,
+  datetime-field-icon: $datetime-field-icon,
+  db-model-icon: $db-model-icon,
+  db-table-icon: $db-table-icon,
+  decimal-decrease-icon: $decimal-decrease-icon,
+  decimal-increase-icon: $decimal-increase-icon,
+  delete-relation-icon: $delete-relation-icon,
+  dimension-setting-icon: $dimension-setting-icon,
+  dimension-icon: $dimension-icon,
+  distribute-bottom-icon: $distribute-bottom-icon,
+  distribute-center-icon: $distribute-center-icon,
+  distribute-H-icon: $distribute-H-icon,
+  distribute-horizontal-icon: $distribute-horizontal-icon,
+  distribute-left-icon: $distribute-left-icon,
+  distribute-middle-icon: $distribute-middle-icon,
+  distribute-right-icon: $distribute-right-icon,
+  distribute-top-icon: $distribute-top-icon,
+  distribute-V-icon: $distribute-V-icon,
+  distribute-vertical-icon: $distribute-vertical-icon,
+  divider-horizontal-icon: $divider-horizontal-icon,
+  divider-vertical-icon: $divider-vertical-icon,
+  double-axis-icon: $double-axis-icon,
+  downward-fast-icon: $downward-fast-icon,
+  downward-icon: $downward-icon,
+  drill-down-filter-icon: $drill-down-filter-icon,
+  drill-down-icon: $drill-down-icon,
+  drill-filter-icon: $drill-filter-icon,
+  drill-up-filter-icon: $drill-up-filter-icon,
+  drill-up-icon: $drill-up-icon,
+  dropdown-box-icon: $dropdown-box-icon,
+  edit-print-icon: $edit-print-icon,
+  edit-icon: $edit-icon,
+  email-icon: $email-icon,
+  embedded-table-icon: $embedded-table-icon,
+  enter-parameter-icon: $enter-parameter-icon,
+  enterprise-manager-icon: $enterprise-manager-icon,
+  equal-sign-icon: $equal-sign-icon,
+  eraser-icon: $eraser-icon,
+  expand-icon: $expand-icon,
+  export-icon: $export-icon,
+  extra-icon: $extra-icon,
+  eye-off-icon: $eye-off-icon,
+  eye-plus-icon: $eye-plus-icon,
+  eye-icon: $eye-icon,
+  feature-search-icon: $feature-search-icon,
+  field-list-icon: $field-list-icon,
+  field-script-icon: $field-script-icon,
+  field-tree-icon: $field-tree-icon,
+  file-csv-icon: $file-csv-icon,
+  file-html-icon: $file-html-icon,
+  file-multiple-icon: $file-multiple-icon,
+  file-pdf-icon: $file-pdf-icon,
+  file-pdf2-icon: $file-pdf2-icon,
+  file-plus-icon: $file-plus-icon,
+  file-ppt-icon: $file-ppt-icon,
+  file-rtf-icon: $file-rtf-icon,
+  file-sql-icon: $file-sql-icon,
+  file-svg-icon: $file-svg-icon,
+  file-txt-icon: $file-txt-icon,
+  file-xgm-icon: $file-xgm-icon,
+  file-xls-icon: $file-xls-icon,
+  file-xml-icon: $file-xml-icon,
+  file-icon: $file-icon,
+  folder-account-icon: $folder-account-icon,
+  folder-bookmark-icon: $folder-bookmark-icon,
+  folder-move-icon: $folder-move-icon,
+  folder-open-icon: $folder-open-icon,
+  folder-plus-icon: $folder-plus-icon,
+  folder-remove-icon: $folder-remove-icon,
+  folder-toolbox-icon: $folder-toolbox-icon,
+  folder-icon: $folder-icon,
+  format-align-justify-icon: $format-align-justify-icon,
+  format-area-break-icon: $format-area-break-icon,
+  format-bold-icon: $format-bold-icon,
+  format-color-text-icon: $format-color-text-icon,
+  format-columns-icon: $format-columns-icon,
+  format-conditional-page-break-icon: $format-conditional-page-break-icon,
+  format-indent-decrease-icon: $format-indent-decrease-icon,
+  format-indent-increase-icon: $format-indent-increase-icon,
+  format-italic-icon: $format-italic-icon,
+  format-list-numbers-icon: $format-list-numbers-icon,
+  format-page-break-icon: $format-page-break-icon,
+  format-painter-icon: $format-painter-icon,
+  format-pilcrow-icon: $format-pilcrow-icon,
+  format-underline-icon: $format-underline-icon,
+  format-icon: $format-icon,
+  formula-condition-icon: $formula-condition-icon,
+  formula-edit-icon: $formula-edit-icon,
+  formula-sort-ascending-icon: $formula-sort-ascending-icon,
+  formula-sort-descending-icon: $formula-sort-descending-icon,
+  formula-table-icon: $formula-table-icon,
+  formula-icon: $formula-icon,
+  forward-fast-icon: $forward-fast-icon,
+  forward-icon: $forward-icon,
+  function-and-variable-icon: $function-and-variable-icon,
+  gauge-icon: $gauge-icon,
+  geo-field-error-icon: $geo-field-error-icon,
+  geo-field-icon: $geo-field-icon,
+  geo-mapped-icon: $geo-mapped-icon,
+  geo-not-mapped-icon: $geo-not-mapped-icon,
+  grid-icon: $grid-icon,
+  grouping-icon: $grouping-icon,
+  help-question-mark-icon: $help-question-mark-icon,
+  highlight-icon: $highlight-icon,
+  home-icon: $home-icon,
+  image-area-icon: $image-area-icon,
+  image-icon: $image-icon,
+  inetsoft-full-icon: $inetsoft-full-icon,
+  inetsoft-icon: $inetsoft-icon,
+  info-icon: $info-icon,
+  inner-join-icon: $inner-join-icon,
+  intersect-tables-icon: $intersect-tables-icon,
+  javascript-icon: $javascript-icon,
+  join-icon: $join-icon,
+  keyboard-return-icon: $keyboard-return-icon,
+  keyboard-tab-icon: $keyboard-tab-icon,
+  layout-icon: $layout-icon,
+  line-icon: $line-icon,
+  loading-icon: $loading-icon,
+  lock-icon: $lock-icon,
+  logical-formula-icon: $logical-formula-icon,
+  logical-model-icon: $logical-model-icon,
+  login-icon: $login-icon,
+  logout-icon: $logout-icon,
+  materialized-viewsheet-icon: $materialized-viewsheet-icon,
+  materialized-worksheet-icon: $materialized-worksheet-icon,
+  max-height-icon: $max-height-icon,
+  max-width-icon: $max-width-icon,
+  maximize-icon: $maximize-icon,
+  measure-setting-icon: $measure-setting-icon,
+  measure-icon: $measure-icon,
+  menu-horizontal-icon: $menu-horizontal-icon,
+  menu-sandwich-icon: $menu-sandwich-icon,
+  menu-vertical-icon: $menu-vertical-icon,
+  merge-join-icon: $merge-join-icon,
+  message-error-icon: $message-error-icon,
+  message-warning-icon: $message-warning-icon,
+  message-icon: $message-icon,
+  min-height-icon: $min-height-icon,
+  min-width-icon: $min-width-icon,
+  minus-box-outline-icon: $minus-box-outline-icon,
+  minus-tables-icon: $minus-tables-icon,
+  mirror-icon: $mirror-icon,
+  mobile-icon: $mobile-icon,
+  move-icon: $move-icon,
+  multi-chart-icon: $multi-chart-icon,
+  named-group-icon: $named-group-icon,
+  new-logical-model-icon: $new-logical-model-icon,
+  new-objects-icon: $new-objects-icon,
+  new-partition-icon: $new-partition-icon,
+  new-report-icon: $new-report-icon,
+  new-viewsheet-icon: $new-viewsheet-icon,
+  new-vpm-icon: $new-vpm-icon,
+  new-worksheet-icon: $new-worksheet-icon,
+  null-icon: $null-icon,
+  num-range-icon: $num-range-icon,
+  number-field-icon: $number-field-icon,
+  numeric-icon: $numeric-icon,
+  OBJ-icon: $OBJ-icon,
+  order-column-icon: $order-column-icon,
+  other-join-icon: $other-join-icon,
+  outer-join-icon: $outer-join-icon,
+  oval-icon: $oval-icon,
+  page-body-icon: $page-body-icon,
+  page-footer-icon: $page-footer-icon,
+  page-header-icon: $page-header-icon,
+  page-layout-icon: $page-layout-icon,
+  page-setting-icon: $page-setting-icon,
+  page-icon: $page-icon,
+  palette-icon: $palette-icon,
+  partition-icon: $partition-icon,
+  paste-icon: $paste-icon,
+  pending-submit-icon: $pending-submit-icon,
+  plus-box-outline-icon: $plus-box-outline-icon,
+  preview-icon: $preview-icon,
+  printer-default-icon: $printer-default-icon,
+  printer-network-icon: $printer-network-icon,
+  printer-icon: $printer-icon,
+  private-report-icon: $private-report-icon,
+  private-viewsheet-icon: $private-viewsheet-icon,
+  private-worksheet-icon: $private-worksheet-icon,
+  profile-icon: $profile-icon,
+  query-icon: $query-icon,
+  radio-button-icon: $radio-button-icon,
+  range-slider-icon: $range-slider-icon,
+  recent-icon: $recent-icon,
+  recommend-icon: $recommend-icon,
+  rectangle-icon: $rectangle-icon,
+  redo-icon: $redo-icon,
+  refresh-icon: $refresh-icon,
+  reload-no-icon: $reload-no-icon,
+  rename-icon: $rename-icon,
+  report-adhoc-icon: $report-adhoc-icon,
+  report-bean-icon: $report-bean-icon,
+  report-bursted-icon: $report-bursted-icon,
+  report-edit-icon: $report-edit-icon,
+  report-formula-icon: $report-formula-icon,
+  report-meta-icon: $report-meta-icon,
+  report-param-only-icon: $report-param-only-icon,
+  report-pregenerated-icon: $report-pregenerated-icon,
+  report-replet-icon: $report-replet-icon,
+  report-wizard-icon: $report-wizard-icon,
+  report-icon: $report-icon,
+  reset-icon: $reset-icon,
+  resize-bottom-right-icon: $resize-bottom-right-icon,
+  rotate-icon: $rotate-icon,
+  SAP-icon: $SAP-icon,
+  save-as-changed-icon: $save-as-changed-icon,
+  save-as-icon: $save-as-icon,
+  save-changed-icon: $save-changed-icon,
+  save-close-icon: $save-close-icon,
+  save-icon: $save-icon,
+  search-next-icon: $search-next-icon,
+  search-result-icon: $search-result-icon,
+  search-icon: $search-icon,
+  select-empty-circle-icon: $select-empty-circle-icon,
+  select-empty-icon: $select-empty-icon,
+  select-excluded-circle-icon: $select-excluded-circle-icon,
+  select-excluded-icon: $select-excluded-icon,
+  select-multi-icon: $select-multi-icon,
+  select-other-circle-icon: $select-other-circle-icon,
+  select-other-icon: $select-other-icon,
+  select-range-no-icon: $select-range-no-icon,
+  select-range-icon: $select-range-icon,
+  select-single-icon: $select-single-icon,
+  selected-auto-circle-icon: $selected-auto-circle-icon,
+  selected-auto-icon: $selected-auto-icon,
+  selected-circle-icon: $selected-circle-icon,
+  selected-icon: $selected-icon,
+  selection-container-icon: $selection-container-icon,
+  selection-list-icon: $selection-list-icon,
+  selection-swap-icon: $selection-swap-icon,
+  selection-tree-icon: $selection-tree-icon,
+  selection-icon: $selection-icon,
+  separate-chart-icon: $separate-chart-icon,
+  server-file-icon: $server-file-icon,
+  setting-icon: $setting-icon,
+  shape-arrow-down-bold-icon: $shape-arrow-down-bold-icon,
+  shape-arrow-lower-right-icon: $shape-arrow-lower-right-icon,
+  shape-arrow-up-bold-icon: $shape-arrow-up-bold-icon,
+  shape-arrow-upper-right-icon: $shape-arrow-upper-right-icon,
+  shape-asterisk-icon: $shape-asterisk-icon,
+  shape-cancel-icon: $shape-cancel-icon,
+  shape-check-icon: $shape-check-icon,
+  shape-circle-icon: $shape-circle-icon,
+  shape-cross-icon: $shape-cross-icon,
+  shape-diamond-icon: $shape-diamond-icon,
+  shape-dodecagon-icon: $shape-dodecagon-icon,
+  shape-exclamation-icon: $shape-exclamation-icon,
+  shape-face-happy-icon: $shape-face-happy-icon,
+  shape-face-sad-icon: $shape-face-sad-icon,
+  shape-face-icon: $shape-face-icon,
+  shape-filled-25-circle-icon: $shape-filled-25-circle-icon,
+  shape-filled-50-circle-icon: $shape-filled-50-circle-icon,
+  shape-filled-75-circle-icon: $shape-filled-75-circle-icon,
+  shape-filled-circle-icon: $shape-filled-circle-icon,
+  shape-filled-diamond-icon: $shape-filled-diamond-icon,
+  shape-filled-square-icon: $shape-filled-square-icon,
+  shape-filled-triangle-icon: $shape-filled-triangle-icon,
+  shape-flag-icon: $shape-flag-icon,
+  shape-hexagon-icon: $shape-hexagon-icon,
+  shape-horizontal-bar-icon: $shape-horizontal-bar-icon,
+  shape-L-icon: $shape-L-icon,
+  shape-light-icon: $shape-light-icon,
+  shape-line-dash0-icon: $shape-line-dash0-icon,
+  shape-line-dash1-icon: $shape-line-dash1-icon,
+  shape-line-dash2-icon: $shape-line-dash2-icon,
+  shape-line-dash3-icon: $shape-line-dash3-icon,
+  shape-line-dash4-icon: $shape-line-dash4-icon,
+  shape-man-icon: $shape-man-icon,
+  shape-minus-icon: $shape-minus-icon,
+  shape-no-icon: $shape-no-icon,
+  shape-octagon-icon: $shape-octagon-icon,
+  shape-pattern-cross-thick-dense-icon: $shape-pattern-cross-thick-dense-icon,
+  shape-pattern-cross-thick-sparse-icon: $shape-pattern-cross-thick-sparse-icon,
+  shape-pattern-cross-thin-dense-icon: $shape-pattern-cross-thin-dense-icon,
+  shape-pattern-cross-thin-sparse-icon: $shape-pattern-cross-thin-sparse-icon,
+  shape-pattern-L30-thick-dense-icon: $shape-pattern-L30-thick-dense-icon,
+  shape-pattern-L30-thick-sparse-icon: $shape-pattern-L30-thick-sparse-icon,
+  shape-pattern-L30-thin-dense-icon: $shape-pattern-L30-thin-dense-icon,
+  shape-pattern-L30-thin-sparse-icon: $shape-pattern-L30-thin-sparse-icon,
+  shape-pattern-L60-thick-dense-icon: $shape-pattern-L60-thick-dense-icon,
+  shape-pattern-L60-thick-sparse-icon: $shape-pattern-L60-thick-sparse-icon,
+  shape-pattern-L60-thin-dense-icon: $shape-pattern-L60-thin-dense-icon,
+  shape-pattern-L60-thin-sparse-icon: $shape-pattern-L60-thin-sparse-icon,
+  shape-pattern-R30-thick-dense-icon: $shape-pattern-R30-thick-dense-icon,
+  shape-pattern-R30-thick-sparse-icon: $shape-pattern-R30-thick-sparse-icon,
+  shape-pattern-R30-thin-dense-icon: $shape-pattern-R30-thin-dense-icon,
+  shape-pattern-R30-thin-sparse-icon: $shape-pattern-R30-thin-sparse-icon,
+  shape-pattern-R60-thick-dense-icon: $shape-pattern-R60-thick-dense-icon,
+  shape-pattern-R60-thick-sparse-icon: $shape-pattern-R60-thick-sparse-icon,
+  shape-pattern-R60-thin-dense-icon: $shape-pattern-R60-thin-dense-icon,
+  shape-pattern-R60-thin-sparse-icon: $shape-pattern-R60-thin-sparse-icon,
+  shape-pattern-solid-icon: $shape-pattern-solid-icon,
+  shape-plus-icon: $shape-plus-icon,
+  shape-rectangle-icon: $shape-rectangle-icon,
+  shape-square-icon: $shape-square-icon,
+  shape-star-icon: $shape-star-icon,
+  shape-trapezium-icon: $shape-trapezium-icon,
+  shape-triangle-icon: $shape-triangle-icon,
+  shape-V-rotate-icon: $shape-V-rotate-icon,
+  shape-V-icon: $shape-V-icon,
+  shape-vertical-bar-icon: $shape-vertical-bar-icon,
+  shape-woman-icon: $shape-woman-icon,
+  shapes-lines-icon: $shapes-lines-icon,
+  shapes-overview-icon: $shapes-overview-icon,
+  shapes-patterns-icon: $shapes-patterns-icon,
+  shapes-points-icon: $shapes-points-icon,
+  share-facebook-icon: $share-facebook-icon,
+  share-google-chat-icon: $share-google-chat-icon,
+  share-hangouts-icon: $share-hangouts-icon,
+  share-link-copy-icon: $share-link-copy-icon,
+  share-link-icon: $share-link-icon,
+  share-linkedin-icon: $share-linkedin-icon,
+  share-slack-icon: $share-slack-icon,
+  share-twitter-icon: $share-twitter-icon,
+  share-icon: $share-icon,
+  shared-report-icon: $shared-report-icon,
+  shared-viewsheet-open-icon: $shared-viewsheet-open-icon,
+  shared-viewsheet-icon: $shared-viewsheet-icon,
+  shared-worksheet-open-icon: $shared-worksheet-open-icon,
+  shared-worksheet-icon: $shared-worksheet-icon,
+  show-detail-icon: $show-detail-icon,
+  show-summary-icon: $show-summary-icon,
+  single-chart-icon: $single-chart-icon,
+  slider-icon: $slider-icon,
+  snap-grid-icon: $snap-grid-icon,
+  snapshot-icon: $snapshot-icon,
+  SOAP-icon: $SOAP-icon,
+  sort-ascending-icon: $sort-ascending-icon,
+  sort-descending-icon: $sort-descending-icon,
+  sort-value-ascending-icon: $sort-value-ascending-icon,
+  sort-value-descending-icon: $sort-value-descending-icon,
+  sort-icon: $sort-icon,
+  spinner-icon: $spinner-icon,
+  square-edit-outline-icon: $square-edit-outline-icon,
+  star-outline-icon: $star-outline-icon,
+  star-icon: $star-icon,
+  stop-icon: $stop-icon,
+  style-icon: $style-icon,
+  submit-icon: $submit-icon,
+  summary-edit-icon: $summary-edit-icon,
+  summary-icon: $summary-icon,
+  tab-icon: $tab-icon,
+  table-of-contents-icon: $table-of-contents-icon,
+  table-icon: $table-icon,
+  tabular-data-icon: $tabular-data-icon,
+  tabular-subquery-icon: $tabular-subquery-icon,
+  text-box-icon: $text-box-icon,
+  text-field-icon: $text-field-icon,
+  text-input-icon: $text-input-icon,
+  text-icon: $text-icon,
+  thumbnails-icon: $thumbnails-icon,
+  title-auto-icon: $title-auto-icon,
+  title-rotate-L45-icon: $title-rotate-L45-icon,
+  title-rotate-L90-icon: $title-rotate-L90-icon,
+  title-rotate-R45-icon: $title-rotate-R45-icon,
+  title-rotate-R90-icon: $title-rotate-R90-icon,
+  toolbar-icon: $toolbar-icon,
+  trash-icon: $trash-icon,
+  TXT-icon: $TXT-icon,
+  undo-icon: $undo-icon,
+  union-tables-icon: $union-tables-icon,
+  unpivot-icon: $unpivot-icon,
+  upload-icon: $upload-icon,
+  upward-fast-icon: $upward-fast-icon,
+  upward-icon: $upward-icon,
+  user-group-icon: $user-group-icon,
+  user-organizations-icon: $user-organizations-icon,
+  user-roles-icon: $user-roles-icon,
+  value-list-icon: $value-list-icon,
+  value-type-list-icon: $value-type-list-icon,
+  variable-with-query-icon: $variable-with-query-icon,
+  variable-icon: $variable-icon,
+  view-detail-live-icon: $view-detail-live-icon,
+  view-detail-meta-icon: $view-detail-meta-icon,
+  view-grid-icon: $view-grid-icon,
+  view-list-icon: $view-list-icon,
+  view-summary-live-icon: $view-summary-live-icon,
+  view-summary-meta-icon: $view-summary-meta-icon,
+  viewsheet-book-icon: $viewsheet-book-icon,
+  viewsheet-icon: $viewsheet-icon,
+  vpm-icon: $vpm-icon,
+  window-restore-icon: $window-restore-icon,
+  worksheet-icon: $worksheet-icon,
+  wrap-icon: $wrap-icon,
+  XML-icon: $XML-icon,
+  zoom-in-icon: $zoom-in-icon,
+  zoom-no-icon: $zoom-no-icon,
+  zoom-out-icon: $zoom-out-icon
+);

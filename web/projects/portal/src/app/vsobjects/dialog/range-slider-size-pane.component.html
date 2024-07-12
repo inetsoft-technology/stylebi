@@ -1,0 +1,96 @@
+<!--
+
+    inetsoft-web - StyleBI is a business intelligence web application.
+    Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+-->
+<form class="container-fluid" [formGroup]="form">
+  <fieldset>
+    <legend>_#(Options)</legend>
+    <div class="form-row-float-label row">
+      <div class="col pe-0 form-floating" [ngClass]="{ 'has-error' : !form.controls['length'].valid}">
+          <input id="length" type="number" value="3" class="form-control"
+                 placeholder="_#(Slider Size)"
+                 [(ngModel)]="model.length" formControlName="length"/>
+          <label>_#(Slider Size)</label>
+      </div>
+      <div class="col-auto ps-1" *ngIf="!dataModel.composite && rangeOptions.length > 1">
+        <select class="form-control"
+                [ngModelOptions]="{standalone: true}" [(ngModel)]="model.rangeType">
+          <option *ngFor="let range of rangeOptions" [ngValue]="range.value">
+            {{range.label}}
+          </option>
+        </select>
+      </div>
+      <div class="col-auto" *ngIf="dataModel.composite">_#(periods)</div>
+    </div>
+    <div *ngIf="form.controls['length'].errors" class="alert alert-danger">
+      _#(viewer.viewsheet.timeSlider.sliderSizeWarning)
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['rangeSize'].valid}">
+          <input id="rangeSize" type="number" class="form-control"
+                 placeholder="_#(Minimum Increment)"
+                 formControlName="rangeSize" [(ngModel)]="model.rangeSize"/>
+          <label>_#(Minimum Increment)</label>
+      </div>
+      <div class="col form-floating" [ngClass]="{ 'has-error' : !form.controls['maxRangeSize'].valid}">
+          <input id="maxRangeSize" type="number" placeholder="_#(Maximum Increment)"
+                 class="form-control"
+                 formControlName="maxRangeSize" [(ngModel)]="model.maxRangeSize"/>
+          <label>_#(Maximum Increment)</label>
+      </div>
+    </div>
+    <div *ngIf="form.controls['rangeSize'].errors" class="alert alert-danger">
+      _#(viewer.worksheet.Grouping.positiveNumber)
+    </div>
+    <div *ngIf="form.controls['maxRangeSize'].errors" class="alert alert-danger">
+      _#(viewer.worksheet.Grouping.positiveNumber)
+    </div>
+    <div class="form-row-float-label row">
+      <div class="col-auto">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input logScale-cb_id" id="log"
+               [disabled]="logScaleDisabled || dataModel.composite"
+               [ngModelOptions]="{standalone: true}" [(ngModel)]="model.logScale"
+               (change)="updateRangeSizeDisabled(); updateMaxRangeSizeDisabled()">
+          <label class="form-check-label" for="log">
+            _#(Logarithmic Scale)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="upper"
+               [ngModelOptions]="{standalone: true}"
+               [(ngModel)]="model.upperInclusive"/>
+          <label class="form-check-label" for="upper">
+            _#(Upper Bound Inclusive)
+          </label>
+        </div>
+      </div>
+      <div class="col-auto">
+        <div class="form-check">
+          <input id="submitBox" type="checkbox" class="form-check-input"
+                 [ngModelOptions]="{standalone: true}" [(ngModel)]="model.submitOnChange"/>
+          <label class="form-check-label" for="submitBox">
+            _#(Submit on Change)
+          </label>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+</form>

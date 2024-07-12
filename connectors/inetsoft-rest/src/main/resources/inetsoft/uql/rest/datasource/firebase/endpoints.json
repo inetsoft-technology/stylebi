@@ -1,0 +1,54 @@
+{
+    "endpoints": [
+        {
+            "name": "Field",
+            "paged": false,
+            "suffix": "/v1/projects/@projectId@/databases/{Database ID}/collectionGroups/{Collection ID}/fields/{Field ID}"
+        },
+        {
+            "name": "Fields",
+            "paged": true,
+            "suffix": "/v1/projects/@projectId@/databases/{Database ID}/collectionGroups/{Collection ID}/fields?filter={Filter}"
+        },
+        {
+            "name": "Index",
+            "paged": false,
+            "suffix": "/v1/projects/@projectId@/databases/{Database ID}/collectionGroups/{Collection ID}/indexes/{Index ID}"
+        },
+        {
+            "name": "Indexes",
+            "paged": true,
+            "suffix": "/v1/projects/@projectId@/databases/{Database ID}/collectionGroups/{Collection ID}/indexes?filter={Filter?}"
+        },
+        {
+            "name": "Document",
+            "paged": false,
+            "suffix": "/v1/projects/@projectId@/databases/{Database ID}/documents/{Document Path}?mask={Document Mask?}&transaction={Transaction?}&readTime={Read Time?:YYYY-MM-DDThh:mm:ssZ}"
+        },
+        {
+            "name": "Documents",
+            "paged": true,
+            "suffix": "/v1/projects/@projectId@/databases/{Database ID}/documents/{Document Path?}/{Collection ID}?orderBy={Order By?}&mask={Document Mask?}&showMissing={Show Missing?:true|false}&transaction={Transaction?}&readTime={Read Time?:YYYY-MM-DDThh:mm:ssZ}"
+        },
+        {
+            "name": "Operation",
+            "paged": false,
+            "suffix": "/v1/projects/@projectId@/databases/{Database ID}/operations/{Operation}"
+        },
+        {
+            "name": "Operations",
+            "paged": true,
+            "suffix": "/v1/projects/@projectId@/databases/{Database ID}/operations?filter={Filter?}"
+        },
+        {
+            "name": "Location",
+            "paged": false,
+            "suffix": "/v1/projects/@projectId@/locations/{Location}"
+        },
+        {
+            "name": "Locations",
+            "paged": true,
+            "suffix": "/v1/projects/@projectId@/locations?filter={Filter?}"
+        }
+    ]
+}

@@ -1,0 +1,38 @@
+{
+    "tests": [
+        {
+            "endpoint": "Reports Query",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "Start Date": "",
+                "End Date": "",
+                "ID of YouTube Channel": "",
+                "Metrics": "",
+                "Currency": "",
+                "Dimensions": "",
+                "Filters": "",
+                "Include Historical Channel Data": ""
+            }
+        },
+        {
+            "endpoint": "Groups",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "Group IDs": "",
+                "Mine": "",
+                "Content Owner ID": ""
+            }
+        },
+        {
+            "endpoint": "Group Items",
+            "jsonPath": "$",
+            "expandArrays": false,
+            "parameters": {
+                "Group ID": "",
+                "Content Owner ID": ""
+            }
+        }
+    ]
+}

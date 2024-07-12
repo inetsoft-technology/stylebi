@@ -1,0 +1,76 @@
+/**
+ * inetsoft-web - StyleBI is a business intelligence web application.
+ * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+th {
+   text-align: center;
+}
+
+table {
+   height: 230px;
+   width: 750px;
+}
+
+.style-table {
+   height: 205px;
+   width: 666px;
+}
+
+.style-cell{
+   height: 20px;
+   width: 110px;
+   white-space: nowrap;
+   overflow: hidden;
+}
+
+.table-wrapper {
+   display: flex;
+   justify-content: center;
+   align-items: center;
+   height: 360px;
+   min-width: 750px;
+}
+
+.table-container {
+   display: flex;
+   justify-content: center;
+   align-items: center;
+}
+
+.selected {
+   background-color: #8bccf8 !important;
+}
+
+.hover {
+   background-color: #dcf396 !important;
+}
+
+.border-row {
+   width: 750px;
+   display: flex;
+   justify-content: center;
+}
+.border-col {
+   display: flex;
+   height: 205px;
+   flex-direction: column;
+   justify-content: center;
+}
+
+.margin-top-right {
+   margin-right: 130px;
+   margin-top: -10px;
+}
