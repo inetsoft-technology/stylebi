@@ -24,7 +24,7 @@
     <version>1.0.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>inetsoft-integration-mapdb</artifactId>
+  <artifactId>inetsoft-storage-mapdb</artifactId>
   <packaging>jar</packaging>
 
   <properties>
@@ -40,13 +40,6 @@
     <dependency>
       <groupId>com.inetsoft.stylebi</groupId>
       <artifactId>inetsoft-core</artifactId>
-      <version>${project.version}</version>
-      <scope>provided</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>com.inetsoft.stylebi</groupId>
-      <artifactId>inetsoft-enterprise</artifactId>
       <version>${project.version}</version>
       <scope>provided</scope>
     </dependency>
@@ -198,7 +191,7 @@
                   </excludes>
                 </filter>
                 <filter>
-                  <artifact>com.inetsoft.stylebi:inetsoft-integration-mapdb</artifact>
+                  <artifact>com.inetsoft.stylebi:inetsoft-storage-mapdb</artifact>
                   <excludes>
                     <exclude>**/*.proto</exclude>
                     <exclude>META-INF/native/*</exclude>

@@ -72,6 +72,10 @@
         </exclusion>
         <exclusion>
           <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-mapdb</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.inetsoft.stylebi</groupId>
           <artifactId>inetsoft-integration-mongo</artifactId>
         </exclusion>
       </exclusions>

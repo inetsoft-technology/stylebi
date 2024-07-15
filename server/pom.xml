@@ -81,7 +81,7 @@
 
     <dependency>
       <groupId>com.inetsoft.stylebi</groupId>
-      <artifactId>inetsoft-integration-mapdb</artifactId>
+      <artifactId>inetsoft-storage-mapdb</artifactId>
       <version>${project.version}</version>
       <classifier>shaded</classifier>
       <scope>runtime</scope>
@@ -453,6 +453,13 @@
           <artifactId>inetsoft-integration-google</artifactId>
           <version>${project.version}</version>
           <classifier>shaded</classifier>
+          <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-mapdb</artifactId>
+          <version>${project.version}</version>
           <scope>runtime</scope>
         </dependency>
 

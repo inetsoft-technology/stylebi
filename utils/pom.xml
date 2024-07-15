@@ -32,7 +32,7 @@
   <modules>
     <module>inetsoft-ssl-helpers</module>
     <module>inetsoft-xml-formats</module>
-    <module>inetsoft-integration-mapdb</module>
+    <module>inetsoft-storage-mapdb</module>
   </modules>
 
 </project>
