@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,14 +12,15 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
@@ -34,6 +35,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.database.*;
 import inetsoft.web.admin.content.database.types.AccessDatabaseType;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
@@ -51,6 +53,7 @@ import org.springframework.util.StringUtils;
 
 import java.rmi.RemoteException;
 import java.security.Principal;
+import java.sql.Timestamp;
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -209,6 +212,7 @@ public class DatabaseDatasourcesService {
                path, newPath, childrenSources);
             RenameTransformHandler.getTransformHandler().addTransformTask(dinfo);
             folder.setName(newPath);
+
             Permission permission =
                securityEngine.getPermission(ResourceType.DATA_SOURCE_FOLDER, path);
             repository.updateDataSourceFolder(folder, path);
@@ -216,6 +220,12 @@ public class DatabaseDatasourcesService {
             if(permission != null) {
                securityEngine.setPermission(ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
             }
+
+            Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
+            ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
+               ActionRecord.ACTION_NAME_RENAME, model.name(), ActionRecord.OBJECT_TYPE_FOLDER,
+               actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE, null);
+            Audit.getInstance().auditAction(actionRecord, principal);
          }
       }
 

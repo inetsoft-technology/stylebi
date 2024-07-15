@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.sree.schedule.quartz;
 
@@ -66,9 +66,7 @@ public class ScheduleTaskJob implements InterruptableJob {
             // Bug #40798, don't audit logins for internal tasks
             if(principal == null && !ScheduleManager.isInternalTask(taskName)) {
                if(identity == null) {
-                  DataCycleManager.CycleInfo cycleInfo = task.getCycleInfo();
-                  IdentityID remoteUser = cycleInfo != null ? IdentityID.getIdentityIDFromKey(cycleInfo.getCreatedBy()) : task.getOwner();
-                  principal = SUtil.getPrincipal(remoteUser, addr, true);
+                  principal = SUtil.getPrincipal(task.getOwner(), addr, true);
                }
                else {
                   principal = SUtil.getPrincipal(identity, addr, true);

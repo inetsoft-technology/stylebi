@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.web.admin.monitoring;
 
@@ -21,6 +21,8 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.schedule.ScheduleMetrics;
 import inetsoft.web.cluster.ServerClusterClient;
@@ -194,10 +196,28 @@ public abstract class MonitorLevelService {
          return new ArrayList<>();
       }
       else {
-         return Arrays.stream(provider.getUsers())
+         List<IdentityID> list = Arrays.stream(provider.getUsers())
             .map(provider::getUser)
             .filter(u -> (u != null) && org.getName().equals(u.getOrganization()))
             .map(User::getIdentityID).toList();
+
+         Principal principal = ThreadContext.getContextPrincipal();
+         boolean ssoUser = principal instanceof XPrincipal &&
+            !"true".equals(((XPrincipal) principal).getProperty("__internal__"));
+
+         if(!ssoUser) {
+            return list;
+         }
+
+         List<IdentityID> dlist = new ArrayList<>();
+         dlist.addAll(list);
+         IdentityID id = ((XPrincipal) principal).getIdentityID();
+
+         if(!dlist.contains(id)) {
+            dlist.add(id);
+         }
+
+         return dlist;
       }
    }
 

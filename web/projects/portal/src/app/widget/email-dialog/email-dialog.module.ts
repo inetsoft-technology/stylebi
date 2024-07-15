@@ -1,6 +1,6 @@
 /*
- * inetsoft-web - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,26 +12,24 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {CommonModule} from "@angular/common";
-import {NgModule} from "@angular/core";
-import {EmailAddrDialog} from "./email-addr-dialog.component";
-import {EmailPane} from "./email-pane.component";
-import {EmbeddedEmailPane} from "./embedded-email-pane.component";
-import {QueryEmailPane} from "./query-email-pane.component";
-import {ModalHeaderModule} from "../modal-header/modal-header.module";
-import {NgbNavModule, NgbTypeaheadModule} from "@ng-bootstrap/ng-bootstrap";
-import {WidgetDirectivesModule} from "../directive/widget-directives.module";
-import {FormsModule, ReactiveFormsModule} from "@angular/forms";
-import {CKEditorModule} from "@ckeditor/ckeditor5-angular";
-import {IdentityTreeModule} from "../identity-tree/identity-tree.module";
-import {
-   ScrollableTableModule
-} from "../scrollable-table/scrollable-table.module";
-import {ShuffleListModule} from "../shuffle-list/shuffle-list.module";
-import {AssetTreeModule} from "../asset-tree/asset-tree.module";
+import { CommonModule } from "@angular/common";
+import { NgModule } from "@angular/core";
+import { FormsModule, ReactiveFormsModule } from "@angular/forms";
+import { NgbNavModule, NgbTypeaheadModule } from "@ng-bootstrap/ng-bootstrap";
+import { CkeditorWrapperModule } from "../../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
+import { AssetTreeModule } from "../asset-tree/asset-tree.module";
+import { WidgetDirectivesModule } from "../directive/widget-directives.module";
+import { IdentityTreeModule } from "../identity-tree/identity-tree.module";
+import { ModalHeaderModule } from "../modal-header/modal-header.module";
+import { ScrollableTableModule } from "../scrollable-table/scrollable-table.module";
+import { ShuffleListModule } from "../shuffle-list/shuffle-list.module";
+import { EmailAddrDialog } from "./email-addr-dialog.component";
+import { EmailPane } from "./email-pane.component";
+import { EmbeddedEmailPane } from "./embedded-email-pane.component";
+import { QueryEmailPane } from "./query-email-pane.component";
 
 @NgModule({
    imports: [
@@ -42,11 +40,11 @@ import {AssetTreeModule} from "../asset-tree/asset-tree.module";
       ReactiveFormsModule,
       NgbTypeaheadModule,
       FormsModule,
-      CKEditorModule,
       IdentityTreeModule,
       ScrollableTableModule,
       ShuffleListModule,
       AssetTreeModule,
+      CkeditorWrapperModule,
    ],
    declarations: [
       EmailAddrDialog,

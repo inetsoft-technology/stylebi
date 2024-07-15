@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.sree.schedule;
 
@@ -40,6 +40,7 @@ import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.RepletRequest;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.Mailer;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.storage.ExternalStorageService;
@@ -1151,7 +1152,8 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                   FTPUtil.uploadToFTP(str, file, pathInfo, append);
                }
                else {
-                  ExternalStorageService.getInstance().write(str, file.toPath());
+                  ExternalStorageService.getInstance()
+                     .write(SUtil.addUserSpacePathPrefix(principal, str), file.toPath());
                }
             }
             catch(Throwable ex) {

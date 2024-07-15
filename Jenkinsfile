@@ -54,12 +54,6 @@ pipeline {
     }
 
     stage('Build Tools') {
-      when {
-        anyOf {
-          changeset 'build-tools/**'
-          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-        }
-      }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
@@ -71,13 +65,13 @@ pipeline {
     }
 
     stage('Core') {
-      when {
-        anyOf {
-          changeset 'pom.xml'
-          changeset 'core/**'
-          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-        }
-      }
+//      when {
+//        anyOf {
+//          changeset 'pom.xml'
+//          changeset 'core/**'
+//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
+//        }
+//      }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
@@ -94,14 +88,14 @@ pipeline {
     }
 
     stage('Utils') {
-      when {
-        anyOf {
-          changeset 'pom.xml'
-          changeset 'core/**'
-          changeset 'utils/**'
-          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-        }
-      }
+//      when {
+//        anyOf {
+//          changeset 'pom.xml'
+//          changeset 'core/**'
+//          changeset 'utils/**'
+//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
+//        }
+//      }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
@@ -118,14 +112,14 @@ pipeline {
     }
 
     stage('Enterprise') {
-      when {
-        anyOf {
-          changeset 'pom.xml'
-          changeset 'core/**'
-          changeset 'enterprise/**'
-          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-        }
-      }
+//      when {
+//        anyOf {
+//          changeset 'pom.xml'
+//          changeset 'core/**'
+//          changeset 'enterprise/**'
+//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
+//        }
+//      }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
@@ -142,14 +136,14 @@ pipeline {
     }
 
     stage('Integration') {
-      when {
-        anyOf {
-          changeset 'pom.xml'
-          changeset 'core/**'
-          changeset 'integration/**'
-          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-        }
-      }
+//      when {
+//        anyOf {
+//          changeset 'pom.xml'
+//          changeset 'core/**'
+//          changeset 'integration/**'
+//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
+//        }
+//      }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
@@ -166,14 +160,14 @@ pipeline {
     }
 
     stage('Shell') {
-      when {
-        anyOf {
-          changeset 'pom.xml'
-          changeset 'core/**'
-          changeset 'shell/**'
-          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-        }
-      }
+//      when {
+//        anyOf {
+//          changeset 'pom.xml'
+//          changeset 'core/**'
+//          changeset 'shell/**'
+//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
+//        }
+//      }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
@@ -190,14 +184,14 @@ pipeline {
     }
 
     stage('Connectors') {
-      when {
-        anyOf {
-          changeset 'pom.xml'
-          changeset 'core/**'
-          changeset 'connectors/**'
-          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-        }
-      }
+//      when {
+//        anyOf {
+//          changeset 'pom.xml'
+//          changeset 'core/**'
+//          changeset 'connectors/**'
+//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
+//        }
+//      }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
@@ -214,12 +208,12 @@ pipeline {
     }
 
     stage('Web') {
-      when {
-        anyOf {
-          changeset 'web/**'
-          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-        }
-      }
+//      when {
+//        anyOf {
+//          changeset 'web/**'
+//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
+//        }
+//      }
       environment {
         NODE_OPTIONS = '--max-old-space-size=4096'
       }
@@ -240,14 +234,14 @@ pipeline {
     }
 
     stage('Server') {
-      when {
-        anyOf {
-          changeset 'pom.xml'
-          changeset 'core/**'
-          changeset 'server/**'
-          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-        }
-      }
+//      when {
+//        anyOf {
+//          changeset 'pom.xml'
+//          changeset 'core/**'
+//          changeset 'server/**'
+//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
+//        }
+//      }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
@@ -291,7 +285,7 @@ pipeline {
       steps {
         withCredentials([aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
-            sh 'dependency-cache.sh save "/home/jenkins/workspace/local_cache" "s3://inetsoft-build-cache/Product/Version 14.0/Style BI/cache/deps_cache.tar.gz"'
+            sh 'dependency-cache.sh save "/home/jenkins/workspace/local_cache" "s3://inetsoft-build-cache/Product/Version 14.0/Style BI/cache/deps_cache.tar.gz" 2684354560'
           }
         }
       }

@@ -1,6 +1,6 @@
 /*
- * inetsoft-web - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,9 +12,10 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { BreakpointObserver } from "@angular/cdk/layout";
 import { HttpClient } from "@angular/common/http";
 import {
@@ -28,7 +29,6 @@ import {
 } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { Subscription } from "rxjs";
-import { CkeditorLanguageService } from "../../../shared/ckeditor/ckeditor-language.service";
 import { SsoHeartbeatDispatcherService } from "../../../shared/sso/sso-heartbeat-dispatcher.service";
 import { StompClientConnection } from "../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../shared/stomp/stomp-client.service";
@@ -59,12 +59,9 @@ export class AppComponent implements OnInit, OnDestroy {
                private dialog: MatDialog, private breakpointObserver: BreakpointObserver,
                private scrollService: TopScrollService,
                private ssoHeartbeatDispatcher: SsoHeartbeatDispatcherService,
-               languageService: CkeditorLanguageService,
                public viewContainerRef: ViewContainerRef)
    {
       // viewContainerRef is used by the color picker in the theme page
-      // Make sure to pre-fetch the language so there isn't a race condition later when it is used.
-      languageService.getLanguage().subscribe();
    }
 
    ngOnInit(): void {

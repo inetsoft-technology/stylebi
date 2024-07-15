@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,18 +12,24 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.util;
 
+import inetsoft.report.Hyperlink;
+import inetsoft.report.TableDataPath;
+import inetsoft.report.internal.table.TableHyperlinkAttr;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.asset.Worksheet;
+import inetsoft.uql.asset.*;
+import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.asset.internal.AssetFolder;
+import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.*;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -432,22 +438,44 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    @Override
-   public void migrateStorageData(String oId, String nId) throws Exception  {
+   public void migrateStorageData(Organization oorg, Organization norg) throws Exception  {
+      String oId = oorg.getId();
+      String nId = norg.getId();
+
       for(String key : getKeys(null, oId)) {
-         int orgIDIndex = StringUtils.ordinalIndexOf(key, "^", 4);
-         orgIDIndex = orgIDIndex == -1 ? key.length() : orgIDIndex;
-         String identifier = key.substring(0, orgIDIndex) + "^" + nId;
-         AssetEntry entry = AssetEntry.createAssetEntry(key.substring(0, orgIDIndex) + "^" + nId);
+         AssetEntry entry = AssetEntry.createAssetEntry(key);
+         entry = entry.cloneAssetEntry(nId);
+         IdentityID user = entry.getUser();
+
+         if(user != null && !Tool.equals(oorg.getName(), norg.getName())) {
+            user.setOrganization(norg.getName());
+         }
+
+         String identifier = entry.toIdentifier();
+
          XMLSerializable data = getXMLSerializable(key, null, oId);
 
          if(entry.getType() == AssetEntry.Type.VIEWSHEET) {
-            if(((Viewsheet) data).getBaseEntry() != null) {
-               AssetEntry wentry = ((Viewsheet) data).getBaseEntry().cloneAssetEntry(nId);
-               ((Viewsheet) data).setBaseEntry(wentry);
+            migrateViewsheet(oorg, norg, ((Viewsheet) data));
+         }
+         else if(entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+            String path = entry.getPath();
+            int index = path.lastIndexOf("__");
+
+            if(index != -1) {
+               String str = path.substring(index + 2);
+
+               if(Tool.equals(str, oId)) {
+                  path = path .substring(0, index) + "__" + nId;
+               }
             }
+
+            entry.setPath(path);
+            identifier = entry.toIdentifier(true);
          }
          else if(entry.getType() == AssetEntry.Type.REPOSITORY_FOLDER ||
-            entry.getType() == AssetEntry.Type.SCHEDULE_TASK_FOLDER)
+            entry.getType() == AssetEntry.Type.SCHEDULE_TASK_FOLDER ||
+            (entry.getType() == AssetEntry.Type.DATA_SOURCE_FOLDER && data instanceof AssetFolder))
          {
             List<AssetEntry> newEntries = new ArrayList<>();
             AssetFolder folder = (AssetFolder) data;
@@ -465,10 +493,33 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          putXMLSerializable(identifier, data);
       }
 
-      removeStorage(oId);
+      if(!Tool.equals(oId, nId)) {
+         removeStorage(oId);
+      }
    }
 
+   private void migrateViewsheet(Organization oorg, Organization norg, Viewsheet viewsheet) {
+      String oId = oorg.getId();
+      String nId = norg.getId();
+      String oname = oorg.getName();
+      String nname = norg.getName();
+      AssetEntry baseEntry = viewsheet.getBaseEntry();
 
+      if(!Tool.equals(oId, nId) && baseEntry != null) {
+         baseEntry = baseEntry.cloneAssetEntry(nId);
+      }
+
+      if(!Tool.equals(oname, nname) && baseEntry != null) {
+         IdentityID user = baseEntry.getUser();
+
+         if(user != null) {
+            user.setOrganization(nname);
+         }
+      }
+
+      viewsheet.setBaseEntry(baseEntry);
+      MigrateUtil.updateAllAssemblyHyperlink(viewsheet, oorg, norg);
+   }
 
    @Override
    public void copyStorageData(String oId, String nId) throws Exception  {

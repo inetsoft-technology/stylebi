@@ -1,6 +1,6 @@
 /*
- * inetsoft-web - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,10 +12,10 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient} from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
 import {
    Component,
    EventEmitter,
@@ -28,34 +28,37 @@ import {
    TemplateRef,
    ViewChild
 } from "@angular/core";
-import {AbstractControl, UntypedFormControl, UntypedFormGroup, ValidationErrors} from "@angular/forms";
-import {NgbModal, NgbModalOptions} from "@ng-bootstrap/ng-bootstrap";
-import {Observable, Subscription} from "rxjs";
-import {debounceTime, map} from "rxjs/operators";
+import {
+   AbstractControl,
+   UntypedFormControl,
+   UntypedFormGroup,
+   ValidationErrors
+} from "@angular/forms";
+import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
+import { Observable, Subscription } from "rxjs";
+import { debounceTime, map } from "rxjs/operators";
+import { DashboardOptions } from "../../../../../../../../em/src/app/settings/schedule/model/dashboard-options";
+import { ReportOptions } from "../../../../../../../../em/src/app/settings/schedule/model/reports-options";
 import { IdentityId } from "../../../../../../../../em/src/app/settings/security/users/identity-id";
-import * as CustomEditor from "../../../../../../../../shared/ckeditor/ckeditor";
-import {CkeditorLanguageService} from "../../../../../../../../shared/ckeditor/ckeditor-language.service";
-import {IdentityType} from "../../../../../../../../shared/data/identity-type";
-import {AddParameterDialogModel} from "../../../../../../../../shared/schedule/model/add-parameter-dialog-model";
-import {CSVConfigModel} from "../../../../../../../../shared/schedule/model/csv-config-model";
-import {ExportFormatModel} from "../../../../../../../../shared/schedule/model/export-format-model";
-import {GeneralActionModel} from "../../../../../../../../shared/schedule/model/general-action-model";
-import {ServerLocation} from "../../../../../../../../shared/schedule/model/server-location";
-import {TaskActionPaneModel} from "../../../../../../../../shared/schedule/model/task-action-pane-model";
-import {ScheduleUsersService} from "../../../../../../../../shared/schedule/schedule-users.service";
-import {FormValidators} from "../../../../../../../../shared/util/form-validators";
-import {Tool} from "../../../../../../../../shared/util/tool";
-import {FileTypes} from "../../../../../common/data/file-types";
-import {ComponentTool} from "../../../../../common/util/component-tool";
-import {GuiTool} from "../../../../../common/util/gui-tool";
-import {ServerPathInfoModel} from "../../../../../vsobjects/model/server-path-info-model";
-import {VSBookmarkInfoModel} from "../../../../../vsobjects/model/vs-bookmark-info-model";
-import {EmailAddrDialogModel} from "../../../../../widget/email-dialog/email-addr-dialog-model";
-import {EmailDialogData} from "../../../../../widget/email-dialog/email-addr-dialog.component";
-import {TreeNodeModel} from "../../../../../widget/tree/tree-node-model";
-import {ScheduleAlertModel} from "../../../model/schedule-alert-model";
-import {ReportOptions} from "../../../../../../../../em/src/app/settings/schedule/model/reports-options";
-import {DashboardOptions} from "../../../../../../../../em/src/app/settings/schedule/model/dashboard-options";
+import { IdentityType } from "../../../../../../../../shared/data/identity-type";
+import { AddParameterDialogModel } from "../../../../../../../../shared/schedule/model/add-parameter-dialog-model";
+import { CSVConfigModel } from "../../../../../../../../shared/schedule/model/csv-config-model";
+import { ExportFormatModel } from "../../../../../../../../shared/schedule/model/export-format-model";
+import { GeneralActionModel } from "../../../../../../../../shared/schedule/model/general-action-model";
+import { ServerLocation } from "../../../../../../../../shared/schedule/model/server-location";
+import { TaskActionPaneModel } from "../../../../../../../../shared/schedule/model/task-action-pane-model";
+import { ScheduleUsersService } from "../../../../../../../../shared/schedule/schedule-users.service";
+import { FormValidators } from "../../../../../../../../shared/util/form-validators";
+import { Tool } from "../../../../../../../../shared/util/tool";
+import { FileTypes } from "../../../../../common/data/file-types";
+import { ComponentTool } from "../../../../../common/util/component-tool";
+import { GuiTool } from "../../../../../common/util/gui-tool";
+import { ServerPathInfoModel } from "../../../../../vsobjects/model/server-path-info-model";
+import { VSBookmarkInfoModel } from "../../../../../vsobjects/model/vs-bookmark-info-model";
+import { EmailAddrDialogModel } from "../../../../../widget/email-dialog/email-addr-dialog-model";
+import { EmailDialogData } from "../../../../../widget/email-dialog/email-addr-dialog.component";
+import { TreeNodeModel } from "../../../../../widget/tree/tree-node-model";
+import { ScheduleAlertModel } from "../../../model/schedule-alert-model";
 
 @Component({
    selector: "action-accordion",
@@ -135,8 +138,6 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    openPanels: string[] = [];
    form: UntypedFormGroup = null;
    allParameters: string[];
-   Editor = CustomEditor;
-   deliveryMessageConfig: any = Object.assign({}, GuiTool.richTextAdvancedConfig);
    formSubscriptions: Subscription = new Subscription();
    selectedBookmarkListIndex: number = -1;
 
@@ -204,15 +205,8 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    }
 
    constructor(private modalService: NgbModal, private http: HttpClient,
-               private usersService: ScheduleUsersService,
-               languageService: CkeditorLanguageService)
+               private usersService: ScheduleUsersService)
    {
-      languageService.getLanguage().subscribe(language => {
-         if(!!language) {
-            this.deliveryMessageConfig.language = language;
-         }
-      });
-
       usersService.getEmailUsers().subscribe(value => {
          if(this.emailUsers != value) {
             this.emailUsers = value;

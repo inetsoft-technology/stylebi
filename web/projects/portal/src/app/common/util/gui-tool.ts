@@ -1,6 +1,6 @@
 /*
- * inetsoft-web - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,28 +12,28 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpParams} from "@angular/common/http";
-import {NgZone} from "@angular/core";
-import {TinyColor} from "@ctrl/tinycolor";
-import {of as observableOf, Subject} from "rxjs";
-import {AssetEntry} from "../../../../../shared/data/asset-entry";
-import {AssetType} from "../../../../../shared/data/asset-type";
-import {Tool} from "../../../../../shared/util/tool";
-import {DomService} from "../../widget/dom-service/dom.service";
-import {TreeNodeModel} from "../../widget/tree/tree-node-model";
-import {AssetConstants} from "../data/asset-constants";
-import {AssetEntryHelper} from "../data/asset-entry-helper";
-import {DataRef} from "../data/data-ref";
-import {DataRefType} from "../data/data-ref-type";
-import {Dimension} from "../data/dimension";
-import {DragEvent} from "../data/drag-event";
-import {XSchema} from "../data/xschema";
-import {BrowserMaxHeight} from "./browser-max-height";
-import {NetTool} from "./net-tool";
-import {isBoolean, isNumber, isString} from "lodash";
+import { HttpParams } from "@angular/common/http";
+import { NgZone } from "@angular/core";
+import { TinyColor } from "@ctrl/tinycolor";
+import { isBoolean, isNumber, isString } from "lodash";
+import { of as observableOf, Subject } from "rxjs";
+import { AssetEntry } from "../../../../../shared/data/asset-entry";
+import { AssetType } from "../../../../../shared/data/asset-type";
+import { Tool } from "../../../../../shared/util/tool";
+import { DomService } from "../../widget/dom-service/dom.service";
+import { TreeNodeModel } from "../../widget/tree/tree-node-model";
+import { AssetConstants } from "../data/asset-constants";
+import { AssetEntryHelper } from "../data/asset-entry-helper";
+import { DataRef } from "../data/data-ref";
+import { DataRefType } from "../data/data-ref-type";
+import { Dimension } from "../data/dimension";
+import { DragEvent } from "../data/drag-event";
+import { XSchema } from "../data/xschema";
+import { BrowserMaxHeight } from "./browser-max-height";
+import { NetTool } from "./net-tool";
 
 declare const window: any;
 
@@ -1225,35 +1225,6 @@ export class GuiTool {
 
       return null;
    }
-
-   static readonly richTextSimpleConfig = {
-      toolbar: [
-         "heading", "|",
-         "bold", "italic", "underline", "strikethrough", "|",
-         "superscript", "subscript", "|",
-         "fontFamily", "fontSize", "fontColor", "fontBackgroundColor", "|",
-         "alignment"
-      ],
-      fontSize: {
-         options: [ "default", 9, 10, 12, 14, 16, 18, 20, 24 ]
-      }
-   };
-
-   static readonly richTextAdvancedConfig = {
-      toolbar: [
-         "heading", "|",
-         "bold", "italic", "underline", "strikethrough", "|",
-         "bulletedList", "numberedList", "|",
-         "superscript", "subscript", "|",
-         "outdent", "indent", "|",
-         "fontFamily", "fontSize", "fontColor", "fontBackgroundColor", "|",
-         "alignment", "|",
-         "link", "imageUpload"
-      ],
-      fontSize: {
-         options: [ "default", 9, 10, 12, 14, 16, 18, 20, 24 ]
-      }
-   };
 
    static getContrastColor(colorStr: string, defaultColor: string = "inherit"): string {
       let color = new TinyColor(colorStr);

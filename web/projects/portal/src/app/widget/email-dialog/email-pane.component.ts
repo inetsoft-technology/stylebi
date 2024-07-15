@@ -1,6 +1,6 @@
 /*
- * inetsoft-web - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,9 +12,10 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import {
    Component,
    Input,
@@ -28,13 +29,11 @@ import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, Subscription } from "rxjs";
 import { debounceTime, map } from "rxjs/operators";
-import * as CustomEditor from "../../../../../shared/ckeditor/ckeditor";
-import { CkeditorLanguageService } from "../../../../../shared/ckeditor/ckeditor-language.service";
 import { FormValidators } from "../../../../../shared/util/form-validators";
+import { Tool } from "../../../../../shared/util/tool";
 import { GuiTool } from "../../common/util/gui-tool";
 import { EmailPaneModel } from "../../vsobjects/model/email-pane-model";
 import { EmailDialogData } from "./email-addr-dialog.component";
-import { Tool } from "../../../../../shared/util/tool";
 
 @Component({
    selector: "email-pane",
@@ -61,8 +60,6 @@ export class EmailPane implements OnInit, OnDestroy {
    isIE = GuiTool.isIE();
    initialAddresses: string = "";
    subscriptions: Subscription = new Subscription();
-   Editor = CustomEditor;
-   messageConfig: any = Object.assign({}, GuiTool.richTextSimpleConfig);
    private _model: EmailPaneModel;
 
    get message(): string {
@@ -75,12 +72,7 @@ export class EmailPane implements OnInit, OnDestroy {
       }
    }
 
-   constructor(private modalService: NgbModal, languageService: CkeditorLanguageService) {
-      languageService.getLanguage().subscribe(language => {
-         if(!!language) {
-            this.messageConfig.language = language;
-         }
-      });
+   constructor(private modalService: NgbModal) {
    }
 
    ngOnInit(): void {

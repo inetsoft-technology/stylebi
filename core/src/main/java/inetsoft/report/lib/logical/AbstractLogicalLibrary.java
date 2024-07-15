@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.report.lib.logical;
 
@@ -478,6 +478,19 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    }
 
    @Override
+   public void clear(String orgId) {
+      lock.writeLock().lock();
+
+      try {
+         getNameToEntryMap(orgId).clear();
+         transactions.clear();
+      }
+      finally {
+         lock.writeLock().unlock();
+      }
+   }
+
+   @Override
    public List<Transaction<LogicalLibraryEntry<T>>> flushTransactions() {
       lock.readLock().lock();
 
@@ -531,10 +544,8 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    }
 
    protected Map<String, LogicalLibraryEntry<T>> getNameToEntryMap(String orgID) {
-      if (orgID == null) {
+      if(orgID == null) {
          orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      } else {
-         orgID = orgID;
       }
 
       if(nameToEntryMaps.containsKey(orgID)) {

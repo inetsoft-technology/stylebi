@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.sree.web.dashboard;
 
@@ -129,8 +129,10 @@ public class DashboardRegistry implements SessionListener {
       return registry;
    }
 
-   public static void migrateRegistry(IdentityID identityID, String oOID, String nOID) {
+   public static void migrateRegistry(IdentityID identityID, Organization oorg, Organization norg) {
       String userName = identityID == null ? null : identityID.getName();
+      String nOID = norg.getId();
+      String oOID = oorg.getId();
       String nKey = getRegistryKey(userName, nOID);
       DashboardRegistry registry = getRegistry(identityID, oOID, true);
 
@@ -153,24 +155,71 @@ public class DashboardRegistry implements SessionListener {
 
             String[] dashboardNames = registry.getDashboardNames();
             DashboardRegistry dashboardRegistry = registry;
+            boolean changeId = !Tool.equals(oorg.getId(), norg.getId());
 
             Arrays.stream(dashboardNames).forEach(name -> {
                Dashboard dashboard = dashboardRegistry.getDashboard(name);
-               VSDashboard vsDashboard = (VSDashboard) dashboard;
-               ViewsheetEntry viewsheet = vsDashboard.getViewsheet();
-               String identifier = viewsheet.getIdentifier();
-               AssetEntry assetEntry = AssetEntry.createAssetEntry(identifier);
-               AssetEntry cloned = assetEntry.cloneAssetEntry(nOID);
-               viewsheet.setIdentifier(cloned.toIdentifier());
+
+               if(dashboard != null) {
+                  VSDashboard vsDashboard = (VSDashboard) dashboard;
+                  migrateVSDashboard(vsDashboard, oorg, norg);
+               }
             });
 
             map.put(nKey, registry);
-            clear(userName, oOID);
+
+            if(changeId) {
+               clear(userName, oOID);
+            }
          }
       }
       finally {
          REGISTRY_LOCK.unlock();
       }
+   }
+
+   private static void migrateVSDashboard(VSDashboard vsDashboard,
+                                          Organization oorg, Organization norg)
+   {
+      boolean changeId = !Tool.equals(oorg.getId(), norg.getId());
+      boolean changeName = !Tool.equals(oorg.getName(), norg.getName());
+      ViewsheetEntry viewsheet = vsDashboard.getViewsheet();
+      String identifier = viewsheet.getIdentifier();
+      AssetEntry assetEntry = AssetEntry.createAssetEntry(identifier);
+      assetEntry = changeId ? assetEntry.cloneAssetEntry(norg.getId()) : assetEntry;
+
+      if(changeName) {
+         IdentityID owner = viewsheet.getOwner();
+
+         if(owner != null) {
+            owner.setOrganization(norg.getName());
+            viewsheet.setOwner(owner);
+         }
+
+         IdentityID user = assetEntry.getUser();
+
+         if(user != null) {
+            user.setOrganization(norg.getName());
+         }
+
+         String createdBy = vsDashboard.getCreatedBy();
+
+         if(!Tool.isEmptyString(createdBy)) {
+            IdentityID createUser = IdentityID.getIdentityIDFromKey(createdBy);
+            createUser.setOrganization(norg.getName());
+            vsDashboard.setCreatedBy(createUser.convertToKey());
+         }
+
+         String lastModifiedBy = vsDashboard.getLastModifiedBy();
+
+         if(!Tool.isEmptyString(lastModifiedBy)) {
+            IdentityID modifyUser = IdentityID.getIdentityIDFromKey(lastModifiedBy);
+            modifyUser.setOrganization(norg.getName());
+            vsDashboard.setCreatedBy(modifyUser.convertToKey());
+         }
+      }
+
+      viewsheet.setIdentifier(assetEntry.toIdentifier(true));
    }
 
    /**

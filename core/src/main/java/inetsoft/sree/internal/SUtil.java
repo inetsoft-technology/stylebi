@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.sree.internal;
 
@@ -903,9 +903,9 @@ public class SUtil {
     *
     * @param principal user.
     */
-   public static boolean isInternalUser(SRPrincipal principal) {
-      return principal != null &&
-         "true".equals(((SRPrincipal) principal).getProperty("__internal__"));
+   public static boolean isInternalUser(Principal principal) {
+      return principal instanceof XPrincipal &&
+         "true".equals(((XPrincipal) principal).getProperty("__internal__"));
    }
 
    /**
@@ -2854,7 +2854,7 @@ public class SUtil {
 
    public static String getTaskUser(String name, String taskOrganization) {
       if(name.indexOf(":") < 0) {
-         return "";
+         return "None";
       }
 
       String[] names = name.split(":");
@@ -2878,6 +2878,50 @@ public class SUtil {
       }
 
       return "";
+   }
+
+   /**
+    * Add user space path prefix to the original folder.
+    *
+    * @param principal current user.
+    * @param path original folder.
+    *
+    * @return orgName/userName/originalFolder
+    */
+   public static String addUserSpacePathPrefix(Principal principal, String path) {
+      if(path == null) {
+         return null;
+      }
+
+      if(!SUtil.isMultiTenant()) {
+         return path;
+      }
+
+      StringBuilder stringBuilder = new
+         StringBuilder(OrganizationManager.getInstance().getCurrentOrgName(principal));
+      stringBuilder.append("/");
+      boolean internalUser = SUtil.isInternalUser(principal);
+
+      if(internalUser) {
+         stringBuilder.append(IdentityID.getIdentityIDFromKey(principal.getName()).getName());
+      }
+      else {
+         stringBuilder.append(principal.getName());
+      }
+
+      String prefix = stringBuilder.toString();
+
+      if(path.startsWith(prefix)) {
+         return path;
+      }
+      else {
+         if(path.startsWith("/")) {
+            return prefix + path;
+         }
+         else {
+            return prefix + "/" + path;
+         }
+      }
    }
 
    private static final List<WeakReference<HttpSession>> userSessions = new ArrayList<>();

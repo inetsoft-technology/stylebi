@@ -8,7 +8,7 @@ Casual business or consumer-type users get maximum self-service via personalizab
 
 ## Licensing
 
-StyleBI Community Edition is licensed under the GNU Affero General Public License, Version 3. Please refer to the [LICENSE](./LICENSE) file available in this repository for further details.
+StyleBI Community Edition is licensed under the Affero GNU General Public License, Version 3. Please refer to the [LICENSE](./LICENSE) file available in this repository for further details.
 
 ## Enterprise Edition
 

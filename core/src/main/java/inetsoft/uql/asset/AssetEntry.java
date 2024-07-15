@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.uql.asset;
 
@@ -1257,6 +1257,10 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       this.alias = alias;
    }
 
+   public void setPath(String path) {
+      this.path = path;
+   }
+
    /**
     * Get favoritesUser in asset entry
     */
@@ -1886,7 +1890,15 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
     * @return the string identifier of the asset entry.
     */
    public String toIdentifier() {
-      if(identifier == null) {
+      return toIdentifier(false);
+   }
+
+   /**
+    * To string identifier.
+    * @return the string identifier of the asset entry.
+    */
+   public String toIdentifier(boolean recreate) {
+      if(identifier == null || recreate) {
          identifier = scope + "^" + type.id + "^" +
             (user == null ? NULL : user.convertToKey()) + "^" + path + "^" + orgID;
       }

@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.web.admin.viewsheet;
 
@@ -377,18 +377,6 @@ public class ViewsheetService
 
       // Filter viewsheets
       List<IdentityID> users = getOrgUsers();
-      Principal principal = ThreadContext.getContextPrincipal();
-      boolean ssoUser = principal instanceof XPrincipal &&
-         !"true".equals(((XPrincipal) principal).getProperty("__internal__"));
-
-      if(ssoUser) {
-         IdentityID id = ((XPrincipal) principal).getIdentityID();
-
-         if(!users.contains(id)) {
-            users.add(id);
-         }
-      }
-
       viewsheets = viewsheets.stream()
          .filter(vs -> users.contains(vs.monitorUser()))
          .collect(Collectors.toList());

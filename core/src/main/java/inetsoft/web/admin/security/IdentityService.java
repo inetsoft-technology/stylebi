@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.web.admin.security;
 
@@ -23,6 +23,7 @@ import inetsoft.mv.fs.internal.BlockFileStorage;
 import inetsoft.report.LibManager;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.schedule.ScheduleManager;
@@ -322,12 +323,14 @@ public class IdentityService {
       int type = identity.getType();
       DashboardManager dmanager = DashboardManager.getManager();
       ScheduleManager smanager = ScheduleManager.getScheduleManager();
+      LibManager manager = LibManager.getManager();
       Identity nid = new DefaultIdentity(identityId, type);
       Identity oid = oID == null ? null : new DefaultIdentity(oID, type);
 
       if(oID == null) {
          dmanager.setDashboards(nid, null);
          smanager.identityRemoved(identity, eprovider);
+         manager.clear(SUtil.getOrgID(identityId));
       }
       else {
          if(!identityId.equals(oID)) {
@@ -353,7 +356,7 @@ public class IdentityService {
          }
          else {
             if(!identityId.equals(oID)) {
-               String orgId = identityId.organization;
+               String orgId = SUtil.getOrgID(identityId);
                //rep.renameUser(oID, identityId);
                RepletRegistry.renameUser(oID, identityId);
                DashboardRegistry.clear(oID);
@@ -392,6 +395,7 @@ public class IdentityService {
                //update organization identityId inside of permissions
                if(!id.equals(oId)) {
                   updateIdentityPermissions(type, oID, identityId, oId, id, false);
+                  DataCycleManager.getDataCycleManager().migrateDataCycles(oId, id);
                }
                else {
                   updateIdentityPermissions(type, oID, identityId,oId,oId, true);
@@ -403,11 +407,19 @@ public class IdentityService {
                updateIdentityPermissions(type, oID, identityId,oId, id, false);
                // delete organization identityId inside of permissions
                authoc.cleanOrganizationFromPermissions(oId);
+               DataCycleManager.getDataCycleManager().migrateDataCycles(oId, id);
             }
-            if(!id.equals(oId)) {
-               updateStorageNames(oId, id);
-               migrateDashboardRegistry(oId, id);
+
+            Organization oorg = new Organization(oID.getOrganization());
+            oorg.setId(oId);
+
+            if(!Tool.equals(oID.getOrganization(), identity.getName()) ||
+               !Tool.equals(oId, ((Organization) identity).getId()))
+            {
+               updateStorageNames(oorg, ((Organization) identity));
+               migrateDashboardRegistry(oorg, ((Organization) identity));
                updateOrgProperties(oId, id);
+               updateAutoSaveFiles(oorg, ((Organization) identity));
             }
 
             eprovider.setOrganization(oID.name, (Organization) identity);
@@ -912,11 +924,11 @@ public class IdentityService {
       }
    }
 
-   public void migrateDashboardRegistry(String oOID, String nOID) {
-      DashboardRegistry.migrateRegistry(null, oOID, nOID);
+   public void migrateDashboardRegistry(Organization oorg, Organization norg) {
+      DashboardRegistry.migrateRegistry(null, oorg, norg);
 
       for(IdentityID user : securityEngine.getUsers()) {
-         DashboardRegistry.migrateRegistry(user, oOID, nOID);
+         DashboardRegistry.migrateRegistry(user, oorg, norg);
       }
    }
 
@@ -939,11 +951,14 @@ public class IdentityService {
       }
    }
 
-   private void updateStorageNames(String oId, String id) throws Exception {
+   private void updateStorageNames(Organization oorg, Organization norg) throws Exception {
+      String oId = oorg.getId();
+      String id = norg.getId();
+
       DashboardManager.getManager().migrateStorageData(oId, id);
       DependencyStorageService.getInstance().migrateStorageData(oId, id);
       RecycleBin.getRecycleBin().migrateStorageData(oId, id);
-      IndexedStorage.getIndexedStorage().migrateStorageData(oId, id);
+      IndexedStorage.getIndexedStorage().migrateStorageData(oorg, norg);
 
       updateBlobStorageName("__mv", oId, id, MVStorage.Metadata.class);
       updateBlobStorageName("__mvws", oId, id, MVWorksheetStorage.Metadata.class);
@@ -1989,6 +2004,55 @@ public class IdentityService {
 
          String orgId = sProvider.getOrgId(orgName);
          updateIdentityPermissions(type, fromIdentity, newIdentity, orgId, newOrgId, false);
+      }
+   }
+
+   private void updateAutoSaveFiles(Organization oorg, Organization norg) {
+      if(oorg.getName().equals(norg.getName())) {
+         return;
+      }
+
+      FileSystemService fileSystemService = FileSystemService.getInstance();
+      String path = SreeEnv.getProperty("sree.home") + "/" + "autoSavedFile/recycle";
+      File folder = fileSystemService.getFile(path);
+
+      if(!folder.exists()) {
+         return;
+      }
+
+      File[] list = folder.listFiles();
+
+      if(list == null) {
+         return;
+      }
+
+      for(File file : list) {
+         String asset = file.getName();
+
+         if(!file.isFile()) {
+            continue;
+         }
+
+         String[] attrs = Tool.split(asset, '^');
+
+         if(attrs.length > 3) {
+            String user = attrs[2];
+            user = "anonymous".equals(user) ? "_NULL_" : user;
+
+            if(user == null || Tool.equals(user, "_NULL_")) {
+               continue;
+            }
+
+            IdentityID userID = IdentityID.getIdentityIDFromKey(user);
+
+            if(oorg.getName().equals(userID.getOrganization())) {
+               userID.setOrganization(norg.getName());
+               attrs[2] = userID.convertToKey();
+               String newFilePath = path + "/" + String.join("^", attrs);
+               File newFile = fileSystemService.getFile(newFilePath);
+               fileSystemService.rename(file, newFile);
+            }
+         }
       }
    }
 

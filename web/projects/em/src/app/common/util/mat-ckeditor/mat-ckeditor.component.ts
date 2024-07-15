@@ -1,6 +1,6 @@
 /*
- * inetsoft-web - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,9 +12,10 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+
 import { FocusMonitor } from "@angular/cdk/a11y";
 import { coerceBooleanProperty } from "@angular/cdk/coercion";
 import {
@@ -42,8 +43,6 @@ import {
 } from "@angular/material/core";
 import { MatFormFieldControl } from "@angular/material/form-field";
 import { Subject } from "rxjs";
-import * as CustomEditor from "../../../../../../shared/ckeditor/ckeditor";
-import { CkeditorLanguageService } from "../../../../../../shared/ckeditor/ckeditor-language.service";
 
 export class MatCkeditorBase {
    stateChanges = new Subject<void>();
@@ -70,7 +69,7 @@ export class MatCkeditorComponent
    extends _MatCkEditorMixinBase
    implements OnInit, OnDestroy, DoCheck, AfterViewInit, MatFormFieldControl<string>, ControlValueAccessor
 {
-   @Input() config: any;
+   @Input() advanced = true;
    @Input() errorStateMatcher: ErrorStateMatcher;
    @Output() valueChange = new EventEmitter<string>();
    @HostBinding() id = `em-mat-ckeditor-${MatCkeditorComponent.nextId++}`;
@@ -141,7 +140,6 @@ export class MatCkeditorComponent
    stateChanges = new Subject<void>();
    focused = false;
    controlType = "em-mat-ckeditor";
-   Editor = CustomEditor;
 
    private _placeholder: string;
    private _required = false;
@@ -149,14 +147,12 @@ export class MatCkeditorComponent
    private _onChange: (event: any) => void;
    private _onTouched: () => void;
    private _value: string;
-   private _language: string;
    private static nextId = 0;
 
    constructor(@Optional() @Self() public ngControl: NgControl,
                private changeDetector: ChangeDetectorRef, private focusMonitor: FocusMonitor,
                private element: ElementRef, defaultErrorStateMatcher: ErrorStateMatcher,
-               @Optional() parentForm: NgForm, @Optional() parentFormGroup: FormGroupDirective,
-               languageService: CkeditorLanguageService)
+               @Optional() parentForm: NgForm, @Optional() parentFormGroup: FormGroupDirective)
    {
       super(element, defaultErrorStateMatcher, parentForm, parentFormGroup, ngControl);
       focusMonitor.monitor(element.nativeElement, true).subscribe((origin) => {
@@ -172,13 +168,9 @@ export class MatCkeditorComponent
       if(this.ngControl != null) {
          this.ngControl.valueAccessor = this;
       }
-      languageService.getLanguage().subscribe(language => this._language = language);
    }
 
    ngOnInit(): void {
-      if(!!this._language && !this.config.language) {
-         this.config.language = this._language;
-      }
    }
 
    ngAfterViewInit(): void {

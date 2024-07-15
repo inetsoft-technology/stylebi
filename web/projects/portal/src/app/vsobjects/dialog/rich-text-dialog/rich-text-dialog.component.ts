@@ -1,6 +1,6 @@
 /*
- * inetsoft-web - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,20 +12,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { DOCUMENT } from "@angular/common";
-import {
-   Component,
-   EventEmitter,
-   Inject,
-   Input,
-   OnInit,
-   Output,
-   ViewEncapsulation
-} from "@angular/core";
-import * as CustomEditor from "../../../../../../shared/ckeditor/ckeditor";
+import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
+import { ClassicEditor } from "ckeditor5";
 import { GuiTool } from "../../../common/util/gui-tool";
 
 @Component({
@@ -53,30 +44,18 @@ export class RichTextDialog implements OnInit {
 
    isIE = GuiTool.isIE();
    content = "";
-   Editor = CustomEditor;
-   messageConfig: any = Object.assign({}, GuiTool.richTextSimpleConfig);
    private _initialContent: string;
 
-   constructor(@Inject(DOCUMENT) private document: HTMLDocument) {
+   constructor() {
    }
 
    ngOnInit() {
-      if(!!this.fonts) {
-         this.messageConfig.fontFamily = {
-            options: ["default"].concat(this.fonts)
-         };
-      }
-
-      if(!!this.language) {
-         this.messageConfig.language = this.language;
-      }
-
       if(this._initialContent) {
          this.content = this._initialContent;
       }
    }
 
-   onEditorReady(editor: any): void {
+   onEditorReady(editor: ClassicEditor): void {
       if(!this._initialContent) {
          // make sure the default color is set to black, because the default background is white
          editor.execute("fontColor", { value: "hsl(0, 0%, 0%)" });

@@ -1,6 +1,6 @@
 /*
- * inetsoft-web - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,29 +12,79 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { CommonModule } from "@angular/common";
 import { HttpClient } from "@angular/common/http";
 import { NgModule } from "@angular/core";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
-import { CKEditorModule } from "@ckeditor/ckeditor5-angular";
+import {
+   NgbDatepickerModule,
+   NgbDropdownModule,
+   NgbModal,
+   NgbNavModule,
+   NgbProgressbarModule,
+   NgbTooltipModule,
+   NgbTypeaheadModule
+} from "@ng-bootstrap/ng-bootstrap";
+import { CkeditorWrapperModule } from "../../../../shared/ckeditor-wrapper/ckeditor-wrapper.module";
+import { FeatureFlagsModule } from "../../../../shared/feature-flags/feature-flags.module";
 import { AngularResizeEventModule } from "../../../../shared/resize-event/angular-resize-event.module";
 import { BindingModule } from "../binding/binding.module";
+import { BindingService } from "../binding/services/binding.service";
+import { ChartEditorService } from "../binding/services/chart/chart-editor.service";
+import { VSChartEditorService } from "../binding/services/chart/vs-chart-editor.service";
+import { VSBindingService } from "../binding/services/vs-binding.service";
 import { DndService } from "../common/dnd/dnd.service";
 import { VSDndService } from "../common/dnd/vs-dnd.service";
 import { FileUploadService } from "../common/services/file-upload.service";
+import { FullScreenService } from "../common/services/full-screen.service";
+import { ComposerRecentService } from "../composer/gui/composer-recent.service";
+import { ScriptService } from "../composer/gui/script/script.service";
 import { FormatModule } from "../format/format.module";
 import { GraphModule } from "../graph/graph.module";
+import { StatusBarModule } from "../status-bar/status-bar.module";
+import { AutoCompleteModule } from "../widget/auto-complete/auto-complete.module";
 import { ColorPickerModule } from "../widget/color-picker/color-picker.module";
+import { ConditionModule } from "../widget/condition/condition.module";
+import { DateTypeEditorModule } from "../widget/date-type-editor/date-type-editor.module";
+import { AdditionalTableSelectionPaneModule } from "../widget/dialog/additional-table-selection-pane/additional-table-selection-pane.module";
+import { AutoDrillDialogModule } from "../widget/dialog/auto-drill-dialog/auto-drill-dialog.module";
+import { TipCustomizeDialogModule } from "../widget/dialog/tip-customize-dialog/tip-customize-dialog.module";
+import { VariableInputDialogModule } from "../widget/dialog/variable-input-dialog/variable-input-dialog.module";
+import { VariableListDialogModule } from "../widget/dialog/variable-list-dialog/variable-list-dialog.module";
+import { VSAssemblyScriptPaneModule } from "../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.module";
+import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
+import { DropdownViewModule } from "../widget/dropdown-view/dropdown-view.module";
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
+import { EmailDialogModule } from "../widget/email-dialog/email-dialog.module";
+import { FixedDropdownModule } from "../widget/fixed-dropdown/fixed-dropdown.module";
+import { FontPaneModule } from "../widget/font-pane/font-pane.module";
 import { WidgetFormatModule } from "../widget/format/widget-format.module";
+import { GenericSelectableListModule } from "../widget/generic-selectable-list/generic-selectable-list.module";
+import { HelpLinkModule } from "../widget/help-link/help-link.module";
+import { HighlightModule } from "../widget/highlight/highlight.module";
 import { InteractModule } from "../widget/interact/interact.module";
+import { LargeFormFieldModule } from "../widget/large-form-field/large-form-field.module";
+import { ModalHeaderModule } from "../widget/modal-header/modal-header.module";
+import { MouseEventModule } from "../widget/mouse-event/mouse-event.module";
 import { NotificationsModule } from "../widget/notifications/notifications.module";
+import { PipeModule } from "../widget/pipe/pipe.module";
+import { PlaceholderDragElementModule } from "../widget/placeholder-drag-element/placeholder-drag-element.module";
+import { PresenterModule } from "../widget/presenter/presenter.module";
+import { RepositoryTreeModule } from "../widget/repository-tree/repository-tree.module";
+import { WidgetScheduleModule } from "../widget/schedule/widget-schedule.module";
+import { ScrollModule } from "../widget/scroll/scroll.module";
+import { FontService } from "../widget/services/font.service";
+import { ModelService } from "../widget/services/model.service";
+import { ShareModule } from "../widget/share/share.module";
+import { SimpleTableModule } from "../widget/simple-table/simple-table.module";
 import { SlideOutModule } from "../widget/slide-out/slide-out.module";
 import { TableStyleModule } from "../widget/table-style/table-style.module";
+import { TooltipModule } from "../widget/tooltip/tooltip.module";
 import { TreeModule } from "../widget/tree/tree.module";
+import { VsBookmarkPaneComponent } from "./bookmark/vs-bookmark-pane.component";
 import { AddFilterDialog } from "./dialog/add-filter-dialog.component";
 import { AlignmentPane } from "./dialog/alignment-pane.component";
 import { AnnotationFormatDialog } from "./dialog/annotation/annotation-format-dialog.component";
@@ -52,6 +102,13 @@ import { HierarchyContentPane } from "./dialog/cube/hierarchy-content-pane.compo
 import { HierarchyEditor } from "./dialog/cube/hierarchy-editor.component";
 import { HierarchyPropertyPane } from "./dialog/cube/hierarchy-property-pane.component";
 import { DataTreeValidatorService } from "./dialog/data-tree-validator.service";
+import { DateComparisonCustomPeriodsComponent } from "./dialog/date-comparison-dialog/date-comparison-custom-periods.component";
+import { DateComparisonDialog } from "./dialog/date-comparison-dialog/date-comparison-dialog.component";
+import { DateComparisonIntervalPaneComponent } from "./dialog/date-comparison-dialog/date-comparison-interval-pane.component";
+import { DateComparisonPaneComponent } from "./dialog/date-comparison-dialog/date-comparison-pane.component";
+import { DateComparisonPeriodsPaneComponent } from "./dialog/date-comparison-dialog/date-comparison-periods-pane.component";
+import { DateComparisonSharePaneComponent } from "./dialog/date-comparison-dialog/date-comparison-share-pane.component";
+import { DateComparisonStandardPeriodsComponent } from "./dialog/date-comparison-dialog/date-comparison-standard-periods.component";
 import { DateEditor } from "./dialog/date-editor.component";
 import { EmailDialog } from "./dialog/email/email-dialog.component";
 import { ExportDialog } from "./dialog/export-dialog.component";
@@ -69,12 +126,16 @@ import { ImageFormatSelectComponent } from "./dialog/image-format-select.compone
 import { InputParameterDialog } from "./dialog/input-parameter-dialog.component";
 import { IntegerEditor } from "./dialog/integer-editor.component";
 import { PaddingPane } from "./dialog/padding-pane.component";
+import { ProfilingDataPaneComponent } from "./dialog/profiling-data-pane.component";
+import { ProfilingDialog } from "./dialog/profiling-dialog.component";
 import { RangeSliderAdvancedPane } from "./dialog/range-slider-advanced-pane.component";
 import { RangeSliderDataPane } from "./dialog/range-slider-data-pane.component";
 import { RangeSliderEditDialog } from "./dialog/range-slider-edit-dialog.component";
 import { RangeSliderGeneralPane } from "./dialog/range-slider-general-pane.component";
 import { RangeSliderPropertyDialog } from "./dialog/range-slider-property-dialog.component";
 import { RangeSliderSizePane } from "./dialog/range-slider-size-pane.component";
+import { RemoveBookmarksDialog } from "./dialog/remove-bookmarks-dialog.component";
+import { CKEditorRichTextService } from "./dialog/rich-text-dialog/ckeditor-rich-text.service";
 import { RichTextDialog } from "./dialog/rich-text-dialog/rich-text-dialog.component";
 import { RichTextService } from "./dialog/rich-text-dialog/rich-text.service";
 import { ScheduleDialog } from "./dialog/schedule-dialog.component";
@@ -101,18 +162,19 @@ import { VSComboBox } from "./objects/combo-box/vs-combo-box.component";
 import { VSCylinder } from "./objects/cylinder/vs-cylinder.component";
 import { DataTipDirectivesModule } from "./objects/data-tip/data-tip-directives.module";
 import { VSGroupContainer } from "./objects/group/vs-group-container.component";
+import { MiniToolbarModule } from "./objects/mini-toolbar/mini-toolbar.module";
 import { MiniToolbarService } from "./objects/mini-toolbar/mini-toolbar.service";
 import { VSGauge } from "./objects/output/gauge/vs-gauge.component";
 import { VSImage } from "./objects/output/image/vs-image.component";
 import { VSText } from "./objects/output/text/vs-text.component";
+import { VSPageBreak } from "./objects/page-break/vs-page-break.component";
 import { VSRadioButton } from "./objects/radio-button/vs-radio-button.component";
 import { VSRangeSlider } from "./objects/range-slider/vs-range-slider.component";
 import { CollapseToggleButton } from "./objects/selection/collapse-toggle-button.component";
 import { CurrentSelection } from "./objects/selection/current-selection.component";
 import { SelectionListCell } from "./objects/selection/selection-list-cell.component";
-import {
-   VSSelectionContainerChildren
-} from "./objects/selection/vs-selection-container-children.component";
+import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
+import { VSSelectionContainerChildren } from "./objects/selection/vs-selection-container-children.component";
 import { VSSelectionContainer } from "./objects/selection/vs-selection-container.component";
 import { VSSelection } from "./objects/selection/vs-selection.component";
 import { VSLineModule } from "./objects/shape/vs-line.module";
@@ -124,9 +186,7 @@ import { VSSpinner } from "./objects/spinner/vs-spinner.component";
 import { VSSubmit } from "./objects/submit/vs-submit.component";
 import { VSTab } from "./objects/tab/vs-tab.component";
 import { PreviewTableModule } from "./objects/table/preview-table.module";
-import {
-   TableCellResizeDialogComponent
-} from "./objects/table/table-cell-resize-dialog/table-cell-resize-dialog.component";
+import { TableCellResizeDialogComponent } from "./objects/table/table-cell-resize-dialog/table-cell-resize-dialog.component";
 import { VSCalcTable } from "./objects/table/vs-calctable.component";
 import { VSCrosstab } from "./objects/table/vs-crosstab.component";
 import { VSSimpleCell } from "./objects/table/vs-simple-cell.component";
@@ -139,122 +199,26 @@ import { TitleCell } from "./objects/title-cell/title-cell.component";
 import { VSTitleModule } from "./objects/title/vs-title.module";
 import { VSUpload } from "./objects/upload/vs-upload.component";
 import { ViewerFormatPane } from "./objects/viewer-format-pane.component";
-import {
-   ViewerMobileToolbarComponent
-} from "./objects/viewer-mobile-toolbar/viewer-mobile-toolbar.component";
+import { ViewerMobileToolbarComponent } from "./objects/viewer-mobile-toolbar/viewer-mobile-toolbar.component";
 import { VSViewsheet } from "./objects/viewsheet/vs-viewsheet.component";
 import { VSLoadingDisplayModule } from "./objects/vs-loading-display/vs-loading-display.module";
 import { VSObjectContainer } from "./objects/vs-object-container.component";
 import { ShowHyperlinkService } from "./show-hyperlink.service";
+import { ToolbarActionsHandler } from "./toolbar-actions-handler";
 import { CheckFormDataService } from "./util/check-form-data.service";
+import { DateComparisonService } from "./util/date-comparison.service";
 import { FormInputService } from "./util/form-input.service";
+import { GlobalSubmitService } from "./util/global-submit.service";
+import { PropertyDialogService } from "./util/property-dialog.service";
+import { VSTabService } from "./util/vs-tab.service";
 import { ViewerAppComponent } from "./viewer-app.component";
 import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
-import { VSPageBreak } from "./objects/page-break/vs-page-break.component";
-import { PropertyDialogService } from "./util/property-dialog.service";
-import {
-   DateComparisonDialog
-} from "./dialog/date-comparison-dialog/date-comparison-dialog.component";
-import {
-   DateComparisonPaneComponent
-} from "./dialog/date-comparison-dialog/date-comparison-pane.component";
-import {
-   DateComparisonPeriodsPaneComponent
-} from "./dialog/date-comparison-dialog/date-comparison-periods-pane.component";
-import {
-   DateComparisonStandardPeriodsComponent
-} from "./dialog/date-comparison-dialog/date-comparison-standard-periods.component";
-import {
-   DateComparisonCustomPeriodsComponent
-} from "./dialog/date-comparison-dialog/date-comparison-custom-periods.component";
-import {
-   DateComparisonIntervalPaneComponent
-} from "./dialog/date-comparison-dialog/date-comparison-interval-pane.component";
-import { DateComparisonService } from "./util/date-comparison.service";
-import {
-   DateComparisonSharePaneComponent
-} from "./dialog/date-comparison-dialog/date-comparison-share-pane.component";
-import { GlobalSubmitService } from "./util/global-submit.service";
-import { ChartEditorService } from "../binding/services/chart/chart-editor.service";
-import { VSChartEditorService } from "../binding/services/chart/vs-chart-editor.service";
-import { BindingService } from "../binding/services/binding.service";
-import { ModelService } from "../widget/services/model.service";
-import { VSBindingService } from "../binding/services/vs-binding.service";
-import { FullScreenService } from "../common/services/full-screen.service";
-import { FeatureFlagsModule } from "../../../../shared/feature-flags/feature-flags.module";
-import { ToolbarActionsHandler } from "./toolbar-actions-handler";
-import { ComposerRecentService } from "../composer/gui/composer-recent.service";
-import { SelectionMobileService } from "./objects/selection/services/selection-mobile.service";
-import { VsBookmarkPaneComponent } from "./bookmark/vs-bookmark-pane.component";
-import { RemoveBookmarksDialog } from "./dialog/remove-bookmarks-dialog.component";
-import { VSTabService } from "./util/vs-tab.service";
-import { StatusBarModule } from "../status-bar/status-bar.module";
-import { WidgetDirectivesModule } from "../widget/directive/widget-directives.module";
-import { TooltipModule } from "../widget/tooltip/tooltip.module";
-import { FixedDropdownModule } from "../widget/fixed-dropdown/fixed-dropdown.module";
-import { ModalHeaderModule } from "../widget/modal-header/modal-header.module";
-import { ScrollModule } from "../widget/scroll/scroll.module";
-import { AutoCompleteModule } from "../widget/auto-complete/auto-complete.module";
-import { MouseEventModule } from "../widget/mouse-event/mouse-event.module";
-import { DropdownViewModule } from "../widget/dropdown-view/dropdown-view.module";
-import { FontPaneModule } from "../widget/font-pane/font-pane.module";
-import { PresenterModule } from "../widget/presenter/presenter.module";
-import { HelpLinkModule } from "../widget/help-link/help-link.module";
-import { ShareModule } from "../widget/share/share.module";
-import {
-   VariableInputDialogModule
-} from "../widget/dialog/variable-input-dialog/variable-input-dialog.module";
-import { WidgetScheduleModule } from "../widget/schedule/widget-schedule.module";
-import {
-   VSAssemblyScriptPaneModule
-} from "../widget/dialog/vsassembly-script-pane/vsassembly-script-pane.module";
-import { RepositoryTreeModule } from "../widget/repository-tree/repository-tree.module";
-import { ConditionModule } from "../widget/condition/condition.module";
-import {
-   GenericSelectableListModule
-} from "../widget/generic-selectable-list/generic-selectable-list.module";
-import { LargeFormFieldModule } from "../widget/large-form-field/large-form-field.module";
-import { DateTypeEditorModule } from "../widget/date-type-editor/date-type-editor.module";
-import {
-   AdditionalTableSelectionPaneModule
-} from "../widget/dialog/additional-table-selection-pane/additional-table-selection-pane.module";
-import {
-   TipCustomizeDialogModule
-} from "../widget/dialog/tip-customize-dialog/tip-customize-dialog.module";
-import { HighlightModule } from "../widget/highlight/highlight.module";
-import { PipeModule } from "../widget/pipe/pipe.module";
-import {
-   VariableListDialogModule
-} from "../widget/dialog/variable-list-dialog/variable-list-dialog.module";
-import { EmailDialogModule } from "../widget/email-dialog/email-dialog.module";
-import {
-   PlaceholderDragElementModule
-} from "../widget/placeholder-drag-element/placeholder-drag-element.module";
-import {
-   NgbDatepickerModule,
-   NgbDropdownModule,
-   NgbModal,
-   NgbNavModule,
-   NgbProgressbarModule,
-   NgbTooltipModule,
-   NgbTypeaheadModule
-} from "@ng-bootstrap/ng-bootstrap";
-import { MiniToolbarModule } from "./objects/mini-toolbar/mini-toolbar.module";
-import { CKEditorRichTextService } from "./dialog/rich-text-dialog/ckeditor-rich-text.service";
-import { FontService } from "../widget/services/font.service";
-import { CkeditorLanguageService } from "../../../../shared/ckeditor/ckeditor-language.service";
-import { AutoDrillDialogModule } from "../widget/dialog/auto-drill-dialog/auto-drill-dialog.module";
-import { ScriptService } from "../composer/gui/script/script.service";
-import { ProfilingDialog } from "./dialog/profiling-dialog.component";
-import { ProfilingDataPaneComponent } from "./dialog/profiling-data-pane.component";
-import { SimpleTableModule } from "../widget/simple-table/simple-table.module";
 
 @NgModule({
    imports: [
       CommonModule,
       FormsModule,
       ReactiveFormsModule,
-      CKEditorModule,
       AutoDrillDialogModule,
       BindingModule,
       GraphModule,
@@ -311,7 +275,8 @@ import { SimpleTableModule } from "../widget/simple-table/simple-table.module";
       NgbNavModule,
       NgbDropdownModule,
       MiniToolbarModule,
-      SimpleTableModule
+      SimpleTableModule,
+      CkeditorWrapperModule
    ],
    declarations: [
       VsToolbarButtonDirective,
@@ -536,7 +501,7 @@ import { SimpleTableModule } from "../widget/simple-table/simple-table.module";
       {
          provide: RichTextService,
          useClass: CKEditorRichTextService,
-         deps: [FontService, CkeditorLanguageService, NgbModal]
+         deps: [FontService]
       },
       PropertyDialogService,
       FullScreenService,

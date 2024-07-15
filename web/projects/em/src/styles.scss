@@ -1,6 +1,6 @@
-/**
- * inetsoft-web - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+/*!
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 @import './styles/general';
 @import '~codemirror/lib/codemirror.css';
@@ -21,6 +21,7 @@
 @import '~codemirror/addon/fold/foldgutter.css';
 @import '~codemirror/addon/hint/show-hint.css';
 @import '~codemirror/addon/tern/tern.css';
+@import '~node_modules/ckeditor5/dist/ckeditor5.css';
 
 $inet-default-icon-color: black; // overridden later
 $ineticons-font-path: '~/../../portal/src/assets/ineticons/fonts';
@@ -261,4 +262,14 @@ $brush-cursor-path: '~/../../portal/src/assets/cursor/brushcursor.gif';
   padding: 2px 6px;
   font-size: xx-small;
   font-weight: bold;
+}
+
+.main-container {
+  font-family: "Roboto", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+}
+
+.ck-content {
+  font-family: "Roboto", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
+  line-height: 1.6;
+  word-break: break-word;
 }

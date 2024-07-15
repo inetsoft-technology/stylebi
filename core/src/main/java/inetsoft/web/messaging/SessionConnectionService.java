@@ -1,6 +1,6 @@
 /*
- * inetsoft-core - StyleBI is a business intelligence web application.
- * Copyright © 2024 InetSoft Technology (info@inetsoft.com)
+ * This file is part of StyleBI.
+ * Copyright (C) 2024  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -12,8 +12,8 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU Affero General Public License for more details.
  *
- * You should have received a copy of the GNU Affrero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package inetsoft.web.messaging;
 
@@ -45,8 +45,9 @@ import java.util.*;
 public class SessionConnectionService implements MapSessionRepository.SessionExpirationListener {
 
    @Autowired
-   public SessionConnectionService(MapSessionRepository sessionRepository) {
+   public SessionConnectionService(MapSessionRepository sessionRepository, AuthenticationService authenticationService) {
       this.sessionRepository = sessionRepository;
+      this.authenticationService = authenticationService;
    }
 
    @PostConstruct
@@ -201,13 +202,14 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
                   e.getValue().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
                if(sessionPrincipal != null && Tool.equals(oldOrgName, sessionPrincipal.getIdentityID().organization)) {
-                  sessionRepository.invalidate(e.getKey());
+                  authenticationService.logout(sessionPrincipal, sessionPrincipal.getHost(), "", false);
                }
             }
          }
       }
    }
 
+   private final AuthenticationService authenticationService;
    private final MapSessionRepository sessionRepository;
    private final Map<String, WebSocketSessionRef> webSocketSessions = new HashMap<>();
    private final Map<String, Set<String>> httpSessions = new HashMap<>();
