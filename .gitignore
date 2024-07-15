@@ -182,3 +182,4 @@ buildNumber.properties
 /web/junit.xml
 web/*-lint-results.xml
 !/web/projects/portal/src/app/widget/target/
+

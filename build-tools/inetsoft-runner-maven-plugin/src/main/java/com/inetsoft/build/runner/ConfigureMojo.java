@@ -28,11 +28,12 @@ import org.apache.maven.project.MavenProject;
 import org.apache.maven.shared.filtering.MavenResourcesExecution;
 import org.apache.maven.shared.filtering.MavenResourcesFiltering;
 
-import java.io.*;
+import java.io.File;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.net.*;
-import java.nio.file.*;
+import java.nio.file.Files;
 import java.util.*;
 
 @Mojo(
@@ -137,25 +138,14 @@ public class ConfigureMojo extends AbstractMojo {
       }
 
       try(URLClassLoader loader = getDependencyClassloader()) {
-         Object setupService;
-
-         try {
-            Class<?> clazz = loader.loadClass("inetsoft.shell.setup.SetupService");
-            Constructor<?> cstr = clazz.getConstructor();
-            setupService = cstr.newInstance();
-         }
-         catch(Exception e) {
-            throw new MojoFailureException("Failed to setup instance", e);
-         }
-
          String configDir = configDirectory.getAbsolutePath();
 
          if(backupFile != null && backupFile.exists()) {
-            restoreBackup(loader, setupService, configDir);
+            restoreBackup(loader, configDir);
          }
 
          if(properties != null && !properties.isEmpty()) {
-            try(AutoCloseable propertiesService = getPropertiesService(loader, setupService, configDir)) {
+            try(AutoCloseable propertiesService = getPropertiesService(loader, configDir)) {
                for(String prop : properties.stringPropertyNames()) {
                   putProperty(loader, propertiesService, prop, properties.getProperty(prop));
                }
@@ -185,7 +175,7 @@ public class ConfigureMojo extends AbstractMojo {
             .filter(Objects::nonNull)
             .toList();
 
-         try(AutoCloseable storageService = getStorageService(loader, setupService, configDir)) {
+         try(AutoCloseable storageService = getStorageService(loader, configDir)) {
             for(File file : plugins) {
                installPlugin(loader, storageService, file);
             }
@@ -215,17 +205,15 @@ public class ConfigureMojo extends AbstractMojo {
       }
    }
 
-   private void restoreBackup(ClassLoader loader, Object setupService, String configDir)
+   private void restoreBackup(ClassLoader loader, String configDir)
       throws MojoExecutionException
    {
       ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
       Thread.currentThread().setContextClassLoader(loader);
 
       try {
-         Method method = setupService.getClass().getMethod("getStorageService", String.class);
-
-         try(AutoCloseable storageService = (AutoCloseable) method.invoke(setupService, configDir)) {
-            method = storageService.getClass().getMethod("restore", File.class);
+         try(AutoCloseable storageService = getStorageService(loader, configDir)) {
+            Method method = storageService.getClass().getMethod("restore", File.class);
             method.invoke(storageService, backupFile);
          }
       }
@@ -237,15 +225,35 @@ public class ConfigureMojo extends AbstractMojo {
       }
    }
 
-   private AutoCloseable getPropertiesService(ClassLoader loader, Object setupService,
-                                              String configDir) throws MojoExecutionException
+   private AutoCloseable getStorageService(ClassLoader loader, String configDir)
+      throws MojoExecutionException
    {
       ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
       Thread.currentThread().setContextClassLoader(loader);
 
       try {
-         Method method = setupService.getClass().getMethod("getPropertiesService", String.class);
-         return (AutoCloseable) method.invoke(setupService, configDir);
+         Class<?> storageClass = loader.loadClass("inetsoft.setup.StorageService");
+         Constructor<?> cstr = storageClass.getConstructor(String.class);
+         return (AutoCloseable) cstr.newInstance(configDir);
+      }
+      catch(Exception e) {
+         throw new MojoExecutionException("Failed to get storage service", e);
+      }
+      finally {
+         Thread.currentThread().setContextClassLoader(oldLoader);
+      }
+   }
+
+   private AutoCloseable getPropertiesService(ClassLoader loader, String configDir)
+      throws MojoExecutionException
+   {
+      ClassLoader oldLoader = Thread.currentThread().getContextClassLoader();
+      Thread.currentThread().setContextClassLoader(loader);
+
+      try {
+         Class<?> clazz = loader.loadClass("inetsoft.setup.PropertiesService");
+         Constructor<?> cstr = clazz.getConstructor(String.class);
+         return (AutoCloseable) cstr.newInstance(configDir);
       }
       catch(Exception e) {
          throw new MojoExecutionException("Failed to get properties service", e);
