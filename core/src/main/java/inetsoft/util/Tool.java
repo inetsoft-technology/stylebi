@@ -39,8 +39,8 @@ import net.jpountz.lz4.LZ4BlockOutputStream;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.SystemUtils;
-import org.iq80.snappy.SnappyInputStream;
-import org.iq80.snappy.SnappyOutputStream;
+import org.iq80.snappy.SnappyFramedInputStream;
+import org.iq80.snappy.SnappyFramedOutputStream;
 import org.pojava.datetime.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -4229,7 +4229,7 @@ public final class Tool extends CoreTool {
       }
       // LZ4 may not be supported
       catch(Exception ex) {
-         return new SnappyOutputStream(out);
+         return new SnappyFramedOutputStream(out);
       }
    }
 
@@ -4255,7 +4255,7 @@ public final class Tool extends CoreTool {
          return new LZ4BlockInputStream(inp);
       }
       else {
-         return new SnappyInputStream(inp);
+         return new SnappyFramedInputStream(inp);
       }
    }
 
