@@ -1,0 +1,37 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+
+<div class="date-input-field">
+   <div *ngIf="hideDcombox">
+      <target-combo-box
+         [values]="values" [promptString]="promptString"
+         [value]="displayValue" [editable]="isValueEditable()"
+         (valueChange)="onValueChange($event)">
+      </target-combo-box>
+   </div>
+
+   <div *ngIf="!hideDcombox">
+      <dynamic-combo-box
+         [type]="valueType" [values]="values" [promptString]="promptString"
+         [value]="displayValue" [variables]="variables" [editable]="isValueEditable()"
+         [vsId]="vsId" (valueChange)="onValueChange($event)"
+         (onValueTyping)="onValueChange($event)">
+      </dynamic-combo-box>
+   </div>
+   <div *ngIf="value && !valid" class="alert alert-danger mb-0">_#(enter.date)</div>
+</div>

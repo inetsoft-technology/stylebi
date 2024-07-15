@@ -1,0 +1,46 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+
+<div ngbDropdown #valueDropdown="ngbDropdown" [autoClose]="false"
+     class="target-combo-box-body w-100"
+     [class.dropdown-toggle]="values && values.length > 0">
+  <input *ngIf="mode == ValueMode.TEXT"
+         class="input-area form-control"
+         [placeholder]="promptString"
+         type='text' [ngModel]="getCurrentValue()"
+         (ngModelChange)="updateValue($event); valueDropdown.close()"
+         [readonly]="!editable" ngbDropdownToggle>
+  <input *ngIf="mode == ValueMode.NUMBER"
+         class="input-area no-spinner form-control"
+         [placeholder]="promptString"
+         (ngModelChange)="updateValue($event) ;valueDropdown.close()"
+         type='number' [ngModel]="value" (focusout)="updateValue($event)"
+         [readonly]="!editable" ngbDropdownToggle>
+  <!--[ngClass]="getDisplayClass(choice)"-->
+  <ul ngbDropdownMenu *ngIf="values" class="dropdown-container">
+    <li *ngFor="let choice of values; let i = index">
+      <div *ngIf="isValueEnabled(choice)" class="dropdown-item"
+         [class.fade-assembly]="choice == promptString  ? 'fade' : '' ||
+         choice == EMPTY_DATA ||
+         grayedOutValues.indexOf(choice.value != null ? choice.value : choice) >= 0"
+         [class.selected]="(choice.value != null ? choice.value : choice) == value"
+         (mousedown)="selectValue(choice); valueDropdown.close()">
+        {{choice.label ? choice.label : choice}}</div>
+    </li>
+  </ul>
+</div>

@@ -1,0 +1,59 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+
+<div blockMouse>
+  <div class="modal-header">
+    <h3 class="modal-title">_#(Select Palette)</h3>
+    <button type="button" class="btn-close" (click)="cancelChanges()" aria-label="Close"></button>
+  </div>
+  <div class="modal-body" *ngIf="colorPalettes">
+    <!--palette selector-->
+    <div class="palette-row" *ngIf="colorPalettes">
+      <div class="form-floating">
+        <select class="palette-cell" class="form-control"
+                [(ngModel)]="_selectedIndex">
+          <option *ngFor="let p of colorPalettes; let i = index" [value]="i">
+            {{p.name}}
+          </option>
+        </select>
+        <label>_#(Select Palette)</label>
+      </div>
+    </div>
+    <!--display colors of the selected palette-->
+    <div *ngIf="displayPalette" class="color-cell-container">
+      <span *ngFor="let color of displayPalette.colors; index as i">
+        <label class="color-cell" [ngStyle]="{'background-color': color}">
+        </label>
+        <br *ngIf="(i + 1) % 8 == 0"/>
+      </span>
+    </div>
+    <div>
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" [(ngModel)]="_reversed" id="reverse"/>
+        <label class="form-check-label" for="reverse">
+          _#(Reverse)
+        </label>
+      </div>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <button type="submit" class="btn btn-primary" (click)="saveChanges()">_#(OK)</button>
+    <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancelChanges()">
+      _#(Cancel)</button>
+  </div>
+</div>

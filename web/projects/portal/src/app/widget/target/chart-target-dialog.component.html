@@ -1,0 +1,59 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+
+<modal-header
+  [title]="title"
+  (onCancel)="cancelChanges()"
+  [cshid]="cshid">
+</modal-header>
+<div class="modal-body" *ngIf="chartTarget">
+  <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="activeTab" (navChange)="tabChange($event)">
+    <ng-container ngbNavItem="tab0">
+      <a ngbNavLink>_#(Line)</a>
+      <ng-template ngbNavContent>
+        <line-panel [variables]="variables"
+                    [hideDcombox]="hideDcombox" [model]="chartTarget"
+                    [availableFields]="getLineAvailableFields()" [vsId]="vsId"
+                    [chartType]="chartType"></line-panel>
+      </ng-template>
+    </ng-container>
+    <ng-container ngbNavItem="tab1">
+      <a ngbNavLink>_#(Band)</a>
+      <ng-template ngbNavContent>
+        <band-panel [variables]="variables"
+                    [hideDcombox]="hideDcombox" [model]="chartTarget"
+                    [availableFields]="availableFields" [vsId]="vsId" [chartType]="chartType"></band-panel>
+      </ng-template>
+    </ng-container>
+    <ng-container ngbNavItem="tab2" [disabled]="isBoxplot()">
+      <a ngbNavLink>_#(Statistics)</a>
+      <ng-template ngbNavContent>
+        <stat-panel [variables]="variables" [hideDcombox]="hideDcombox"
+                    [model]="chartTarget" [availableFields]="availableFields" [vsId]="vsId" [chartType]="chartType">
+        </stat-panel>
+      </ng-template>
+    </ng-container>
+  </ul>
+  <div [ngbNavOutlet]="nav"></div>
+</div>
+<div class="modal-footer">
+  <button type="submit" class="btn btn-primary" [disabled]="!isValid()"
+          (click)="saveChanges()">_#(OK)</button>
+  <button type="button" class="btn btn-default" data-dismiss="modal"
+          (click)="cancelChanges()">_#(Cancel)</button>
+</div>

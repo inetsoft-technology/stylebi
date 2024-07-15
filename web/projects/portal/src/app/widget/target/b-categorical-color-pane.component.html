@@ -1,0 +1,61 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<div class="color-picker input-group">
+  <span class="input-group-text">_#(Fill Band)</span>
+  <span class="input-group-btn" ngbDropdown #fillBandDropdown="ngbDropdown" autoClose="outside">
+    <button type="button" class="btn form-control input-group-addon-action bd-gray fill-band-btn"
+            ngbDropdownToggle>
+      <span class="color-fill-icon"></span>
+    </button>
+    <div ngbDropdownMenu class="dropdown-menu fill-band-dropdown-menu"
+         (click)="$event.stopPropagation()">
+    <div class="container-fluid">
+      <div class="row justify-content-end">
+        <div class="col-auto p-0">
+          <i class="img-button palette-icon" (click)="openPalette()"
+             title="_#(Select Palette)"></i>
+        </div>
+        <div class="col-auto p-0">
+          <i class="img-button reset-icon" (click)="reset()" title="_#(Reset)"></i>
+        </div>
+        <div class="col-auto p-0 pe-2">
+         <i class="submit-icon icon-size-small color-pane-apply" title="_#(Apply)"
+            aria-hidden="true" (click)="$event.stopPropagation(); fillBandDropdown.close()"></i>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-auto p-0 ps-1 pe-1">
+          <button type="button" class="btn btn-sm btn-light-no-bg" [disabled]="viewAtBeginning" (click)="shift(-1)">
+            <i class="caret-left-icon" aria-hidden="true"></i></button>
+        </div>
+        <div class="col-auto p-0 ps-1 pe-1" *ngFor="let _i of currentViewIndices">
+          <color-editor [(color)]="colorModel.colors[_i]" class="color-editor"
+                        [attr.title]="_i + 1"></color-editor>
+        </div>
+        <div class="col-auto p-0 ps-1 pe-1">
+          <button type="button" class="btn btn-sm btn-light-no-bg" [disabled]="viewAtEnd" (click)="shift(1)">
+            <i class="caret-right-icon" aria-hidden="true"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</span>
+</div>
+<ng-template #paletteDialog let-close="close" let-dismiss="dismiss">
+  <graph-palette-dialog (confirm)="close($event)" (cancel)="dismiss($event)" [currPalette]="colorModel" [colorPalettes]="colorPalettes"></graph-palette-dialog>
+</ng-template>

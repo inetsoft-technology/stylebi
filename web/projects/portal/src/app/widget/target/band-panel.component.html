@@ -1,0 +1,157 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+
+<form ngNoForm (submit)="$event.preventDefault()" class="p-2">
+  <div class="row form-row-float-label">
+    <div class="col form-floating">
+        <select class="form-control" [(ngModel)]="model.measure" placeholder="_#(Field)">
+          <ng-container *ngFor="let field of availableFields">
+            <option *ngIf="!field.groupOthers" [ngValue]="field">
+              {{field.label}}
+            </option>
+          </ng-container>
+        </select>
+        <label>_#(Field)</label>
+    </div>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col">
+      <div class="form-floating" [ngClass]="{ 'has-error' : !model.value}">
+        <value-input-field *ngIf="!isDateField()" [value]="model.value" [hideDcombox]="hideDcombox"
+                           [variables]="variables" [formulaSupported]="isFormulaSupported()"
+                           (valueChange)="onFromValueChange($event)" [vsId]="vsId"
+                           (enableFormulaLabelOnValueInput)="enableFromFormulaLabel($event)">
+        </value-input-field>
+        <date-input-field *ngIf="isDateField()" [value]="model.value" #dateField1
+                          [variables]="variables" [formulaSupported]="isFormulaSupported()"
+                          [vsId]="vsId" [hideDcombox]="hideDcombox"
+                          [timeField]="isTimeField()"
+                          (valueChange)="onFromValueChange($event)">
+        </date-input-field>
+        <label>_#(From Value)</label>
+      </div>
+      <div *ngIf="!model.value" class="alert alert-danger mb-0">_#(composer.bandPanel.fromCheck)</div>
+    </div>
+    <div class="col-auto ps-0">
+      <div class="checkbox col-auto">
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input entriChart-cb_id"
+                 id="entire" [disabled]="!isChartScopeEnabled()"
+                 [(ngModel)]="model.chartScope">
+          <label class="form-check-label" for="entire">
+            _#(Entire Chart)
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col">
+      <div class="form-floating">
+        <label-input-field [label]="model.label" [variables]="variables"
+                           [grayedOutFormula]="!isChartScopeEnabled()" [vsId]="vsId"
+                           [enableFormulaLabel]="enableFromFormulaLabelBandPanel"
+                           [hideDcombox]="hideDcombox"
+                           (labelChange)="onFromLabelChange($event)">
+        </label-input-field>
+        <label>_#(From Label)</label>
+      </div>
+    </div>
+    <div class="col-auto ps-0">
+      <target-label-pane [label]="model.label" (labelChange)="onFromLabelChange($event)">
+      </target-label-pane>
+    </div>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col">
+      <div class="form-floating" [ngClass]="{ 'has-error' : !model.toValue}">
+        <value-input-field *ngIf="!isDateField()" [value]="model.toValue"
+                           [hideDcombox]="hideDcombox" [variables]="variables"
+                           [formulaSupported]="isFormulaSupported()"
+                           (valueChange)="onToValueChange($event)" [vsId]="vsId"
+                           (enableFormulaLabelOnValueInput)="enableToFormulaLabel($event)">
+        </value-input-field>
+        <date-input-field *ngIf="isDateField()" [value]="model.toValue" #dateField2
+                          [variables]="variables" [formulaSupported]="isFormulaSupported()"
+                          [hideDcombox]="hideDcombox" (valueChange)="onToValueChange($event)"
+                          [vsId]="vsId" [timeField]="isTimeField()">
+        </date-input-field>
+        <label>_#(To Value)</label>
+      </div>
+      <div *ngIf="!model.toValue" class="alert alert-danger mb-0">_#(composer.bandPanel.toCheck)</div>
+    </div>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col">
+      <div class="form-floating">
+        <label-input-field [label]="model.toLabel" [variables]="variables"
+                           [grayedOutFormula]="!isChartScopeEnabled()" [vsId]="vsId"
+                           [enableFormulaLabel]="enableToFormulaLabelBandPanel"
+                           [hideDcombox]="hideDcombox"
+                           (labelChange)="onToLabelChange($event)">
+        </label-input-field>
+        <label>_#(To Label)</label>
+      </div>
+    </div>
+    <div class="col-auto ps-0">
+      <target-label-pane [label]="model.toLabel" (labelChange)="onToLabelChange($event)">
+      </target-label-pane>
+    </div>
+  </div>
+  <div class="row form-row-float-label">
+    <div class="col">
+      <div class="form-floating">
+        <grid-line-dropdown [(lineStyle)]="model.lineStyle"></grid-line-dropdown>
+        <label>_#(Line Style)</label>
+      </div>
+    </div>
+    <div class="col-auto ps-0">
+      <color-editor [(color)]="model.lineColor.color"></color-editor>
+    </div>
+  </div>
+  <fieldset>
+    <legend>_#(Fill)</legend>
+    <div class="row form-row-float-label">
+      <div class="col-3">
+        <color-editor [(color)]="model.fillBandColor.color" label="_#(Fill Band)"
+                      [palette]="fillPalette"></color-editor>
+      </div>
+      <div class="col-3">
+        <color-editor class="col fill-above" [(color)]="model.fillAboveColor.color"
+                      [palette]="fillPalette"
+                      label="_#(Above)" [enabled]="model.supportFill"></color-editor>
+      </div>
+      <div class="col-3">
+        <color-editor class="col fill-below" [(color)]="model.fillBelowColor.color"
+                      [palette]="fillPalette"
+                      label="_#(Below)" [enabled]="model.supportFill"></color-editor>
+      </div>
+      <div class="col-3">
+        <div class="form-floating">
+          <alpha-dropdown [(alpha)]="model.alpha" (alphaInvalid)="changeAlphaWarning($event)"
+                          [disabled]="!alphaEnabled">
+          </alpha-dropdown>
+          <label>_#(Alpha)</label>
+        </div>
+      </div>
+    </div>
+    <div *ngIf=alphaInvalid class="alert alert-danger">
+      _#(viewer.flash.format.invalidTransparencyError)
+    </div>
+  </fieldset>
+</form>

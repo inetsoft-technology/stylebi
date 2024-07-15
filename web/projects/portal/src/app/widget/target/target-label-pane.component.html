@@ -1,0 +1,40 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+
+<div [fixedDropdown]="dropdownMenu" [autoClose]="false" (openChange)="onLabelChange($event)">
+   <div class="btn btn-light btn-sm">
+      <i class="edit-icon icon-size-medium" aria-hidden="true" title="_#(Edit)"></i>
+   </div>
+</div>
+
+<ng-template #dropdownMenu>
+  <div class="dropdown-pane">
+    <div class="popup-editor__container">
+      <div class="popup-editor__button-group">
+        <button class="popup-editor__button btn" title="_#(Apply)"
+                (click)="onLabelChange(false)">
+          <i class="submit-icon icon-size-small" aria-hidden="true"></i>
+        </button>
+      </div>
+      <textarea class="form-control" rows="8" cols="50" [(ngModel)]="label"></textarea>
+      <div *ngFor="let hint of hints; let i = index">
+        {{hints[i]}}
+      </div>
+    </div>
+  </div>
+</ng-template>
