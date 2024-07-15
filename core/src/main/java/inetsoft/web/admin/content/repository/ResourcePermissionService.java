@@ -60,11 +60,11 @@ public class ResourcePermissionService {
          (type == ResourceType.SCHEDULE_TASK_FOLDER && "/".equals(path)));
       boolean isDenyLabel = isRoot || type == ResourceType.SCHEDULE_CYCLE || type == ResourceType.SCHEDULE_TIME_RANGE;
       String label = isDenyLabel ? Catalog.getCatalog().getString("Deny access to all users") : null;
-      return getTableModel(path, type, actions, label, principal);
+      return getTableModel(path, type, actions, label, false, principal);
    }
 
    public ResourcePermissionModel getTableModel(String path, ResourceType type, EnumSet<ResourceAction> actions,
-                                                String label, Principal principal)
+                                                String label, boolean useOrgDefaults, Principal principal)
    {
       if(label == null) {
          label = "Use Parent Permissions";
@@ -76,7 +76,7 @@ public class ResourcePermissionService {
 
       List<ResourcePermissionTableModel> resourcePermissions = getResourcePermissions(path, type, principal);
 
-      boolean hasOrgEdited = hasOrgEditedPerm(path, type, principal);
+      boolean hasOrgEdited = hasOrgEditedPerm(path, type, principal) || !useOrgDefaults;
 
       ResourcePermissionModel.Builder builder =
          ResourcePermissionModel.builder()
