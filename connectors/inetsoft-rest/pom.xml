@@ -145,7 +145,7 @@
       <groupId>com.inetsoft.stylebi</groupId>
       <artifactId>inetsoft-core</artifactId>
       <version>${project.version}</version>
-      <scope>compile</scope>
+      <scope>test</scope>
       <classifier>tests</classifier>
     </dependency>
   </dependencies>
