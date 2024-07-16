@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi</groupId>
     <artifactId>inetsoft-stylebi</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0-alpha-1</version>
   </parent>
 
   <artifactId>inetsoft-server</artifactId>
@@ -532,7 +532,7 @@
           <plugin>
             <groupId>com.inetsoft.stylebi.build</groupId>
             <artifactId>keygen-maven-plugin</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>1.0.0-alpha-1</version>
             <configuration>
               <type>SESSION</type>
               <standalone>true</standalone>
