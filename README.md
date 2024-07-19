@@ -18,11 +18,11 @@ InetSoft also provides a commercial Enterprise version of StyleBI. It includes a
 
 ## Quickstart
 
-You will need Docker installed with a version 1.29.0 or later of Docker Compose.
+You will need Docker installed with a version 1.29.0 or later of Docker Compose. If you are using Docker Desktop, Docker Compose is already included. 
 
 Copy the [community-examples/docker-compose.yaml](community-examples/docker-compose.yaml) file from this repository to the Docker host machine.
 
-In the directory containing the Docker Compose file, run the following command:
+For Docker Desktop, start it first then open a Command Prompt window. In the directory containing the .yaml file, run the following command:
 
 ```shell
 docker compose up -d
