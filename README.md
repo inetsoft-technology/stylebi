@@ -10,9 +10,9 @@ Casual business or consumer-type users get maximum self-service via personalizab
 
 You will need Docker installed with a version 1.29.0 or later of Docker Compose. 
 
-If you are using Docker Desktop, Docker Compose is already included. Docker Desktop for Windows, Mac and Linux is available here (Docker Desktop) [https://www.docker.com/products/docker-desktop/]
+If you are using Docker Desktop, Docker Compose is already included. To install Docker Desktop, you can download from [Docker Desktop website](https://www.docker.com/products/docker-desktop/)
 
-Copy the [community-examples/docker-compose.yaml](community-examples/docker-compose.yaml) file from this repository to the Docker host machine.
+Right click this [.yaml file link](community-examples/docker-compose.yaml) and save it to any directory in your mahcine
 
 For Docker Desktop, start it first then open a Command Prompt window. In the directory containing the .yaml file, run the following command:
 
@@ -21,7 +21,7 @@ docker compose up -d
 docker compose logs -f server
 ```
 
-Once the server has started, you can press `Ctrl-C` to stop tailing the log. Open http://localhost:8080 in your browser to access the application. The Enterprise Manager can be accessed with the initial username "admin" and password "admin".
+The last command will start the server. Once the server has started, you can press `Ctrl-C` to stop tailing the log. Open http://localhost:8080 in your browser to access the application. The Enterprise Manager can be accessed with the initial username "admin" and password "admin".
 
 ## Build from Source
 
