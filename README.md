@@ -8,7 +8,9 @@ Casual business or consumer-type users get maximum self-service via personalizab
 
 ## Quickstart
 
-You will need Docker installed with a version 1.29.0 or later of Docker Compose. If you are using Docker Desktop, Docker Compose is already included. 
+You will need Docker installed with a version 1.29.0 or later of Docker Compose. 
+
+If you are using Docker Desktop, Docker Compose is already included. Docker Desktop for Windows, Mac and Linux is available here [https://www.docker.com/products/docker-desktop/]
 
 Copy the [community-examples/docker-compose.yaml](community-examples/docker-compose.yaml) file from this repository to the Docker host machine.
 
