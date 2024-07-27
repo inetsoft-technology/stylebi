@@ -6,16 +6,6 @@ At the core of the data intelligence platform is InetSoft's Data Block&trade; te
 
 Casual business or consumer-type users get maximum self-service via personalizable, intuitive point-and-click visual access to information. Power users and data scientists get the ability to work with whatever data they need without relying on IT.
 
-## Licensing
-
-StyleBI Community Edition is licensed under the Affero GNU General Public License, Version 3. Please refer to the [LICENSE](./LICENSE) file available in this repository for further details.
-
-## Enterprise Edition
-
-> Coming Soon
-
-InetSoft also provides a commercial Enterprise version of StyleBI. It includes advanced security options, cloud optimization, support for Kubernetes, clustering with elastic scaling, professional customer support and more.
-
 ## Quickstart
 
 You will need Docker installed with a version 1.29.0 or later of Docker Compose. If you are using Docker Desktop, Docker Compose is already included. 
