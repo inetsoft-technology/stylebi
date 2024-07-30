@@ -21,7 +21,7 @@ docker compose up -d
 docker compose logs -f server
 ```
 
-The last command will start the server. Once the server has started, you can press `Ctrl-C` to stop tailing the log. Open http://localhost:8080 in your browser to access the application. The Enterprise Manager can be accessed with the initial username "admin" and password "admin".
+The last command will start the server. Once the server has started, you can press `Ctrl-C` to stop tailing the log. Open http://localhost:8080 in your browser to access the application. The Enterprise Manager can be accessed with the initial username "admin" and password "admin".  See the [Style BI documentation](https://www.inetsoft.com/docs/stylebi) for complete information on how to manage the server and how to create dashboards.
 
 ## Build from Source
 
