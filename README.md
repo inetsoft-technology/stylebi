@@ -14,7 +14,7 @@ If you are using Docker Desktop, Docker Compose is already included. To install 
 
 Click this link [.yaml file link](community-examples/docker-compose.yaml) and click the "Download" icon to save it to any directory in your mahcine
 
-For Docker Desktop, start it first then open a Command Prompt window. In the directory containing the .yaml file, run the following command:
+For Docker Desktop, start it first then open a Command Prompt window. Note on Windows, you need to login with "Administrator" type of account. In the directory containing the .yaml file, run the following command:
 
 ```shell
 docker compose up -d
