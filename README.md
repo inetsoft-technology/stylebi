@@ -12,7 +12,7 @@ You will need Docker installed with a version 1.29.0 or later of Docker Compose.
 
 If you are using Docker Desktop, Docker Compose is already included. To install Docker Desktop, you can download from [Docker Desktop website](https://www.docker.com/products/docker-desktop/)
 
-Right click this [.yaml file link](community-examples/docker-compose.yaml) and save it to any directory in your mahcine
+Click this link [.yaml file link](community-examples/docker-compose.yaml) and click the "Download" icon to save it to any directory in your mahcine
 
 For Docker Desktop, start it first then open a Command Prompt window. In the directory containing the .yaml file, run the following command:
 
