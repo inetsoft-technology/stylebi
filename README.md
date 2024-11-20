@@ -1,4 +1,4 @@
-# StyleBI Open Source
+# StyleBI
 
 StyleBI is an easy to use interactive dashboard software application that includes real time reporting capabilities. It focuses on business data monitoring and exploration by combining a data intelligence platform with visualization technology, serving both enterprises and solution providers.
 
@@ -6,30 +6,22 @@ At the core of the data intelligence platform is InetSoft's Data Block&trade; te
 
 Casual business or consumer-type users get maximum self-service via personalizable, intuitive point-and-click visual access to information. Power users and data scientists get the ability to work with whatever data they need without relying on IT.
 
-## Licensing
-
-StyleBI Community Edition is licensed under the Affero GNU General Public License, Version 3. Please refer to the [LICENSE](./LICENSE) file available in this repository for further details.
-
-## Enterprise Edition
-
-> Coming Soon
-
-InetSoft also provides a commercial Enterprise version of StyleBI. It includes advanced security options, cloud optimization, support for Kubernetes, clustering with elastic scaling, professional customer support and more.
-
 ## Quickstart
 
-You will need Docker installed with a version 1.29.0 or later of Docker Compose.
+You will need Docker installed with a version 1.29.0 or later of Docker Compose. 
 
-Copy the [community-examples/docker-compose.yaml](community-examples/docker-compose.yaml) file from this repository to the Docker host machine.
+If you are using Docker Desktop, Docker Compose is already included. To install Docker Desktop, you can download from [Docker Desktop website](https://www.docker.com/products/docker-desktop/)
 
-In the directory containing the Docker Compose file, run the following command:
+Click this link [.yaml file link](community-examples/docker-compose.yaml) and click the "Download" icon to save it to any directory in your mahcine
+
+For Docker Desktop, start it first then open a Command Prompt window. Note on Windows, you need to login with "Administrator" type of account. In the directory containing the .yaml file, run the following command:
 
 ```shell
 docker compose up -d
 docker compose logs -f server
 ```
 
-Once the server has started, you can press `Ctrl-C` to stop tailing the log. Open http://localhost:8080 in your browser to access the application. The Enterprise Manager can be accessed with the initial username "admin" and password "admin".
+The last command will start the server. Once the server has started, you can press `Ctrl-C` to stop tailing the log. Open http://localhost:8080 in your browser to access the application. The Enterprise Manager can be accessed with the initial username "admin" and password "admin".  See the [Style BI documentation](https://www.inetsoft.com/docs/stylebi) for complete information on how to manage the server and how to create dashboards.
 
 ## Build from Source
 

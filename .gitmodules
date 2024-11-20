@@ -13,53 +13,18 @@
 	url = https://repo.inetsoft.com/stylebi/stylebi-shell
 	update = merge
 	branch = master
-[submodule "build-tools/key-generator"]
-	path = build-tools/key-generator
-	url = https://repo.inetsoft.com/stylebi/stylebi-key-generator
-	update = merge
-	branch = master
-[submodule "build-tools/keygen-maven-plugin"]
-	path = build-tools/keygen-maven-plugin
-	url = https://repo.inetsoft.com/stylebi/stylebi-keygen-maven-plugin
-	update = merge
-	branch = master
-[submodule "build-tools/inetsoft-shell-maven-plugin"]
-	path = build-tools/inetsoft-shell-maven-plugin
-	url = https://repo.inetsoft.com/stylebi/stylebi-shell-maven-plugin
-	update = merge
-	branch = master
-[submodule "connectors/inetsoft-facebook-insights"]
-	path = connectors/inetsoft-facebook-insights
-	url = https://repo.inetsoft.com/stylebi/stylebi-facebook-insights-connector
-	update = merge
-	branch = master
-[submodule "connectors/inetsoft-google-analytics"]
-	path = connectors/inetsoft-google-analytics
-	url = https://repo.inetsoft.com/stylebi/stylebi-google-analytics-connector
-	update = merge
-	branch = master
-[submodule "connectors/inetsoft-google-analytics-ga4"]
-	path = connectors/inetsoft-google-analytics-ga4
-	url = https://repo.inetsoft.com/stylebi/stylebi-google-analytics-ga4-connector
-	update = merge
-	branch = master
-[submodule "connectors/inetsoft-google-bigquery"]
-	path = connectors/inetsoft-google-bigquery
-	url = https://repo.inetsoft.com/stylebi/stylebi-google-bigquery-connector
-	update = merge
-	branch = master
-[submodule "connectors/inetsoft-salesforce"]
-	path = connectors/inetsoft-salesforce
-	url = https://repo.inetsoft.com/stylebi/stylebi-salesforce-connector
-	update = merge
-	branch = master
-[submodule "connectors/inetsoft-sap"]
-	path = connectors/inetsoft-sap
-	url = https://repo.inetsoft.com/stylebi/stylebi-sap-connector
-	update = merge
-	branch = master
 [submodule "docker/enterprise"]
 	path = docker/enterprise
 	url = https://repo.inetsoft.com/stylebi/stylebi-docker-enterprise
+	update = merge
+	branch = master
+[submodule "enterprise-build-tools"]
+	path = enterprise-build-tools
+	url = https://repo.inetsoft.com/stylebi/stylebi-enterprise-build-tools
+	update = merge
+	branch = master
+[submodule "enterprise-connectors"]
+	path = enterprise-connectors
+	url = https://repo.inetsoft.com/stylebi/stylebi-enterprise-connectors
 	update = merge
 	branch = master
