@@ -1,4 +1,4 @@
-# StyleBI Community Edition
+# StyleBI Open Source
 
 StyleBI is an easy to use interactive dashboard software application that includes real time reporting capabilities. It focuses on business data monitoring and exploration by combining a data intelligence platform with visualization technology, serving both enterprises and solution providers.
 
