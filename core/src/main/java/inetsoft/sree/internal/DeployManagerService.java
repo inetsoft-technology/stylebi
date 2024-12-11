@@ -214,7 +214,8 @@ public class DeployManagerService {
 
                   String user = fname.substring(0, idx);
                   fname = fname.substring(idx + 1);
-                  folder = "portal/" + user + "/myreport";
+                  IdentityID userID = IdentityID.getIdentityIDFromKey(user);
+                  folder = "portal/" + userID.orgID + "/" + userID.name + "/myreport";
                }
                else if(filename.startsWith("__TEMPLATE_")) {
                   fname = filename.substring(11);
@@ -427,11 +428,13 @@ public class DeployManagerService {
          throw new IOException("JarFileInfo.xml missing");
       }
 
-      Document infoDom = Tool.parseXML(new FileInputStream(file));
-      Element root = infoDom.getDocumentElement();
-      final PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
-      info.parseXML(root);
-      return info;
+      try(InputStream in = new FileInputStream(file)) {
+         Document infoDom = Tool.parseXML(in);
+         Element root = infoDom.getDocumentElement();
+         final PartialDeploymentJarInfo info = new PartialDeploymentJarInfo();
+         info.parseXML(root);
+         return info;
+      }
    }
 
    // temp debugging for import error
@@ -439,6 +442,7 @@ public class DeployManagerService {
    private static long set1 = 0;
    private static long load1 = 0;
    private static String files1 = "";
+
    /**
     * Set the jar file to be imported.
     */
@@ -446,11 +450,21 @@ public class DeployManagerService {
                                    Map<String, String> names)
       throws Exception
    {
+      return setJarFile(in,  fileOrders, names, false);
+   }
+
+   /**
+    * Set the jar file to be imported.
+    */
+   public static String setJarFile(InputStream in, List<String> fileOrders,
+                                   Map<String, String> names, boolean uniqueCacheFolder)
+      throws Exception
+   {
       JarInputStream jarIn = new JarInputStream(in);
       JarEntry jentry;
       FileSystemService fileSystemService = FileSystemService.getInstance();
       String cacheFolder = fileSystemService.getCacheDirectory() + File.separator +
-         "partialDeploymentJarUnzip";
+         "partialDeploymentJarUnzip" + (uniqueCacheFolder ? System.currentTimeMillis() : "");
       FileSystemService fileSystemService1 = FileSystemService.getInstance();
 
       delete1 = System.currentTimeMillis();
@@ -578,7 +592,8 @@ public class DeployManagerService {
                                    List<String> ignoreList,
                                    ActionRecord actionRecord,
                                    List<String> failedList,
-                                   ImportTargetFolderInfo targetFolderInfo)
+                                   ImportTargetFolderInfo targetFolderInfo,
+                                   List<String> ignoreUserAssets)
       throws Exception
    {
       List<AssetEntry> vss = new ArrayList<>();
@@ -628,8 +643,12 @@ public class DeployManagerService {
             Map<AssetObject, AssetObject> changeAssetMap = helper.getChangeAssetMap();
 
             for(XAsset xAsset : assets) {
-               if(isIgnoreAsset(xAsset, ignoreAssets) || targetFolder == null ||
-                  !targetFolderInfo.isDependenciesApplyTarget() && !selectedAssets.contains(xAsset))
+               actionRecord = SUtil.getActionRecord(principal,
+                   ActionRecord.ACTION_NAME_IMPORT, null, null);
+
+               if(isIgnoreAsset(xAsset, ignoreAssets) || ignoreUserAssets.contains(xAsset.getPath())
+                  || targetFolder == null || !targetFolderInfo.isDependenciesApplyTarget() &&
+                  !selectedAssets.contains(xAsset))
                {
                   continue;
                }
@@ -662,6 +681,8 @@ public class DeployManagerService {
             List<File> unImportedFile = new ArrayList<>();
 
             for(int i = 0; i < files.length; i++) {
+               actionRecord = SUtil.getActionRecord(principal,
+                  ActionRecord.ACTION_NAME_IMPORT, null, null);
                File file = files[i];
 
                if(file == null) {
@@ -684,6 +705,20 @@ public class DeployManagerService {
                   continue;
                }
 
+               if(fileName.startsWith("__WS_EMBEDDED_TABLE_")) {
+                  String fname = fileName.substring("__WS_EMBEDDED_TABLE_".length());
+
+                  int idx = fname.indexOf('/');
+
+                  if(idx > 0) {
+                     fname = fname.substring(idx + 1);
+                  }
+
+                  if(ignoreUserAssets.contains(fname)) {
+                     continue;
+                  }
+               }
+
                XAsset asset = DeployHelper.getAsset(file, names);
 
                if(asset == null) {
@@ -693,7 +728,7 @@ public class DeployManagerService {
                   continue;
                }
 
-               if(isIgnoreAsset(asset, ignoreAssets)) {
+               if(isIgnoreAsset(asset, ignoreAssets) || ignoreUserAssets.contains(asset.getPath())) {
                   continue;
                }
 
@@ -1191,13 +1226,13 @@ public class DeployManagerService {
                return false;
             }
 
-            IdentityID user = importAsAsset != null ? importAsAsset.getUser() : new IdentityID(fname.substring(0, idx), pId.organization);
+            IdentityID user = importAsAsset != null ? importAsAsset.getUser() : new IdentityID(fname.substring(0, idx), pId.orgID);
 
             if(Tool.isEmptyString(user.name)) {
                folder = "templates";
             }
             else {
-               folder = "portal/" + user + "/myreport";
+               folder = "portal/" + user.orgID + "/" + user.name + "/myreport";
             }
 
             fname = fname.substring(idx + 1);
@@ -1206,7 +1241,8 @@ public class DeployManagerService {
             fname = filename.substring(11);
 
             if(importAsAsset != null && !Tool.isEmptyString(importAsAsset.getUser().name)) {
-               folder = "portal/" + importAsAsset.getUser() + "/myreport";
+               IdentityID userID = importAsAsset.getUser();
+               folder = "portal/" + userID.orgID + "/" + userID.name + "/myreport";
             }
             else {
                folder = "templates";
@@ -1337,6 +1373,7 @@ public class DeployManagerService {
             if(actionRecord != null) {
                actionRecord.setObjectName(getRecordName(path, asset));
                actionRecord.setObjectType(getAuditType(asset));
+               actionRecord.setScheduleUser();
                Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
                actionRecord.setActionTimestamp(actionTimestamp);
                //declare the asset tyle further
@@ -1362,8 +1399,9 @@ public class DeployManagerService {
                   // user is the owner or it has admin permission on owner
                   IdentityID owner = asset.getUser();
 
-                  if(!(principal.getName().equals(owner) || SecurityEngine.getSecurity().checkPermission(
-                     principal, ResourceType.SECURITY_USER, owner, ResourceAction.ADMIN)))
+                  if(!(principal.getName().equals(owner.convertToKey()) || SecurityEngine.getSecurity().checkPermission(
+                     principal, ResourceType.SECURITY_USER, owner, ResourceAction.ADMIN)) ||
+                     !Tool.equals(owner.getOrgID(), OrganizationManager.getInstance().getCurrentOrgID()))
                   {
                      String msg = catalog.getString("em.import.file.failed.noPermission",
                         asset.getType() + " " + path);
@@ -1673,7 +1711,7 @@ public class DeployManagerService {
                !Tool.isEmptyString(asset.getUser().name) &&
                !Tool.equals(asset.getUser(), commonPrefixFolder.getUser()))
             {
-               targetFolderPath += "/" + asset.getUser();
+               targetFolderPath += "/" + asset.getUser().name;
             }
 
             nIdentifier = getUpdatedIdentifier(asset, changeAssetMap);
@@ -1833,33 +1871,21 @@ public class DeployManagerService {
    private static String getAuditType(XAsset asset) {
       String assetType = asset.getType();
 
-      if(ViewsheetAsset.VIEWSHEET.equals(assetType)) {
-         return ActionRecord.OBJECT_TYPE_DASHBOARD;
-      }
-      else if(ScriptAsset.SCRIPT.equals(assetType)) {
-         return ActionRecord.OBJECT_TYPE_SCRIPT;
-      }
-      else if(DashboardAsset.DASHBOARD.equals(assetType)) {
-         return ActionRecord.OBJECT_TYPE_DASHBOARD;
-      }
-      else if(TableStyleAsset.TABLESTYLE.equals(assetType)) {
-         return ActionRecord.OBJECT_TYPE_TABLE_STYLE;
-      }
-      else if(XDataSourceAsset.XDATASOURCE.equals(assetType)) {
-         return ActionRecord.OBJECT_TYPE_DATASOURCE;
-      }
-      else if(VSSnapshotAsset.VSSNAPSHOT.equals(assetType)) {
-         return ActionRecord.OBJECT_TYPE_SNAPSHOT;
-      }
-      else if(ScheduleTaskAsset.SCHEDULETASK.equals(assetType)) {
-         return ActionRecord.OBJECT_TYPE_TASK;
-      }
-      else if(WorksheetAsset.WORKSHEET.equals(assetType)) {
-         return ActionRecord.OBJECT_TYPE_WORKSHEET;
-      }
-      else {
-         return ActionRecord.OBJECT_TYPE_ASSET;
-      }
+      return switch(assetType) {
+         case ViewsheetAsset.VIEWSHEET -> ActionRecord.OBJECT_TYPE_DASHBOARD;
+         case VirtualPrivateModelAsset.VPM -> ActionRecord.OBJECT_TYPE_VIRTUAL_PRIVATE_MODEL;
+         case DeviceAsset.DEVICE -> ActionRecord.OBJECT_TYPE_DEVICE;
+         case ScriptAsset.SCRIPT -> ActionRecord.OBJECT_TYPE_SCRIPT;
+         case DashboardAsset.DASHBOARD -> ActionRecord.OBJECT_TYPE_DASHBOARD;
+         case TableStyleAsset.TABLESTYLE -> ActionRecord.OBJECT_TYPE_TABLE_STYLE;
+         case XDataSourceAsset.XDATASOURCE -> ActionRecord.OBJECT_TYPE_DATASOURCE;
+         case VSSnapshotAsset.VSSNAPSHOT -> ActionRecord.OBJECT_TYPE_SNAPSHOT;
+         case ScheduleTaskAsset.SCHEDULETASK -> ActionRecord.OBJECT_TYPE_TASK;
+         case WorksheetAsset.WORKSHEET -> ActionRecord.OBJECT_TYPE_WORKSHEET;
+         case XPartitionAsset.XPARTITION -> ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW;
+         case XLogicalModelAsset.XLOGICALMODEL -> ActionRecord.OBJECT_TYPE_LOGICAL_MODEL;
+         case null, default -> ActionRecord.OBJECT_TYPE_ASSET;
+      };
    }
 
    private static String getRecordName(String oname, XAsset asset) {
@@ -1867,7 +1893,7 @@ public class DeployManagerService {
       String nname;
 
       if(asset instanceof DeviceAsset) {
-         return ((DeviceAsset) asset).getDeviceInfo().getName();
+         return ((DeviceAsset) asset).getDeviceInfo() != null ? ((DeviceAsset) asset).getDeviceInfo().getName() : null;
       }
 
       if(!Tool.equals(ViewsheetAsset.VIEWSHEET, asset.getType())) {

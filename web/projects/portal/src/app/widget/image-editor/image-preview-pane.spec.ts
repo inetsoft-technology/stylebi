@@ -119,7 +119,7 @@ describe("Image Preview Pane Test", () => {
       }});
 
       const requests = httpTestingController.match((req) => {
-         return req.url === "../composer/vs/image-preview-pane/upload/Viewsheet1";
+         return req.url === "../api/composer/vs/image-preview-pane/upload/Viewsheet1";
       });
       expect(requests.length).toBe(1);
       requests.forEach(req => req.flush({}));

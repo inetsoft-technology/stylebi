@@ -19,6 +19,7 @@ package inetsoft.util.config;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.util.config.crd.CRDProperty;
 import inetsoft.util.config.json.PasswordDeserializer;
 import inetsoft.util.config.json.PasswordSerializer;
 
@@ -89,6 +90,17 @@ public class S3Config implements Serializable {
    }
 
    /**
+    * The path prefix (directory) in the bucket to use as the root.
+    */
+   public String getPath() {
+      return path;
+   }
+
+   public void setPath(String path) {
+      this.path = path;
+   }
+
+   /**
     * Uses path-style URLs. This should be enabled when using some S3-compatible object stores like
     * MinIO.
     */
@@ -100,10 +112,18 @@ public class S3Config implements Serializable {
       this.pathStyleAccess = pathStyleAccess;
    }
 
+   @CRDProperty(description = "The name of the default region")
    private String region;
+   @CRDProperty(description = "The access key ID for the IAM account", secret = true)
    private String accessKeyId;
+   @CRDProperty(description = "The secret access key for the IAM account", secret = true)
    private String secretAccessKey;
+   @CRDProperty(description = "The endpoint URL for the S3 service")
    private String endpoint;
+   @CRDProperty(description = "The name of the bucket")
    private String bucket;
+   @CRDProperty(description = "The path prefix (directory) in the bucket to use as the root")
+   private String path;
+   @CRDProperty(description = "A flag that indicates if the store uses path-style URLs. This should be enabled when using some S3-compatible object stores like MinIO.")
    private boolean pathStyleAccess = false;
 }

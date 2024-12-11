@@ -1121,7 +1121,7 @@ public abstract class SetTableLens
    @Override
    protected void finalize() throws Throwable {
       super.finalize();
-      dispose();
+      disposeResources();
    }
 
    /**
@@ -1129,6 +1129,11 @@ public abstract class SetTableLens
     */
    @Override
    public synchronized void dispose() {
+      disposeResources();
+      disposeTables();
+   }
+
+   private void disposeResources() {
       if(merged != null) {
          merged.dispose();
          merged = null;
@@ -1138,7 +1143,9 @@ public abstract class SetTableLens
          rows.dispose();
          rows = null;
       }
+   }
 
+   private void disposeTables() {
       for(Iterator<TableLens> i = tables.iterator(); i.hasNext();) {
          TableLens table = i.next();
          table.dispose();

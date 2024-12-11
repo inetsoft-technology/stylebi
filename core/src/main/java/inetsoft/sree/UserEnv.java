@@ -231,7 +231,7 @@ public class UserEnv {
    static String getUserFile(Object key) {
       IdentityID user = getName(key);
       IdentityID name = user == null ? new IdentityID("anonymous","") : user;
-      return name + ".xml";
+      return name.getName() + "_" + name.getOrgID() + ".xml";
    }
 
    /**

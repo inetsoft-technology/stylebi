@@ -16,11 +16,10 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <!-- Modal Header -->
-<div class="modal-header">
-  <h3 class="modal-title">_#(Aggregate)</h3>
-  <button type="button" class="btn-close" aria-label="Close" (click)="cancelChanges()"></button>
-</div>
-
+<modal-header [title]="'_#(Aggregate)'"
+              (onCancel)="cancelChanges()"
+              [cshid]="'ViewsheetCalcAggregate'">
+</modal-header>
 <!-- Modal Body -->
 <div class="modal-body" *ngIf="model && form">
   <form [formGroup]="form" class="form-horizontal col-offset-1">

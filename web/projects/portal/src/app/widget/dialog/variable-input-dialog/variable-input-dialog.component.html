@@ -17,8 +17,10 @@
   -->
 <!-- Modal Header -->
 <div class="modal-header">
-  <h3 class="modal-title">_#(Enter Parameters)</h3>
-  <button type="button" class="btn-close" aria-label="Close" (click)="cancel()"></button>
+  <h3 [style.width]="'50%'" class="modal-title">_#(Enter Parameters)</h3>
+  <div [style.width]="'50%'" [style.text-align]="'right'">
+    <button type="button" class="btn-close" aria-label="Close" (click)="cancel()"></button>
+  </div>
 </div>
 
 <!-- Modal Body -->

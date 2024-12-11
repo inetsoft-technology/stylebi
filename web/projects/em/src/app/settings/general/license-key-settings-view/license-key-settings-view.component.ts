@@ -19,7 +19,6 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { MatTableDataSource } from "@angular/material/table";
 import { ContextHelp } from "../../../context-help";
 import { Searchable } from "../../../searchable";
-import { ClusterSettingsModel } from "../cluster-settings-view/cluster-settings-model";
 import { GeneralSettingsChanges } from "../general-settings-page/general-settings-page.component";
 import { GeneralSettingsType } from "../general-settings-page/general-settings-type.enum";
 import { LicenseKeyModel, LicenseKeySettingsModel } from "./license-key-settings-model";
@@ -58,16 +57,10 @@ export class LicenseKeySettingsViewComponent {
    set model(model: LicenseKeySettingsModel) {
       this._model = model || {
          serverKeys: [],
-         schedulerKeys: [],
          clusterKeys: {}
       };
 
       this.updateClusterDataSource();
-   }
-
-   @Input()
-   set clusterModel(clusterModel: ClusterSettingsModel) {
-      this.cluster = !!clusterModel && clusterModel.cluster;
    }
 
    get serverKeys(): LicenseKeyModel[] {
@@ -76,15 +69,6 @@ export class LicenseKeySettingsViewComponent {
 
    set serverKeys(value: LicenseKeyModel[]) {
       this.model.serverKeys = value;
-      this.emitUpdate();
-   }
-
-   get schedulerKeys(): LicenseKeyModel[] {
-      return this.model.schedulerKeys || [];
-   }
-
-   set schedulerKeys(value: LicenseKeyModel[]) {
-      this.model.schedulerKeys = value;
       this.emitUpdate();
    }
 
@@ -101,7 +85,6 @@ export class LicenseKeySettingsViewComponent {
    clusterColumnsToDisplay = ["server", "license"];
    private _model: LicenseKeySettingsModel = {
       serverKeys: [],
-      schedulerKeys: [],
       clusterKeys: {}
    };
 

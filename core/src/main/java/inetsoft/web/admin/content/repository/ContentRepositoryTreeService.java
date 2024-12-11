@@ -24,6 +24,7 @@ import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleManager;
+import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.*;
@@ -49,8 +50,8 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.security.Principal;
 import java.util.*;
-import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -84,17 +85,21 @@ public class ContentRepositoryTreeService {
          .map(IdentityID::convertToKey)
          .collect(Collectors.toList());
       return getRootNodes(principal, users).stream()
-         .map(n -> searchNode(n, filter))
+         .map(n -> searchNode(n, filter, Tool.equals(n.label(), filter, false)))
          .filter(Objects::nonNull)
          .collect(Collectors.toList());
    }
 
-   private ContentRepositoryTreeNode searchNode(ContentRepositoryTreeNode node, String filter) {
+   private ContentRepositoryTreeNode searchNode(ContentRepositoryTreeNode node, String filter,
+                                                boolean fullMatched)
+   {
       List<ContentRepositoryTreeNode> matchedChildren = new ArrayList<>();
 
       if(node.children() != null) {
+         fullMatched = Tool.equals(node.label(), filter, false) || fullMatched;
+
          for(ContentRepositoryTreeNode child : node.children()) {
-            ContentRepositoryTreeNode matchedChild = searchNode(child, filter);
+            ContentRepositoryTreeNode matchedChild = searchNode(child, filter, fullMatched);
 
             if(matchedChild != null) {
                matchedChildren.add(matchedChild);
@@ -103,7 +108,7 @@ public class ContentRepositoryTreeService {
       }
 
       if(node.label() != null && node.label().toLowerCase().contains(filter.toLowerCase()) ||
-         !matchedChildren.isEmpty())
+         !matchedChildren.isEmpty() || fullMatched)
       {
          return ContentRepositoryTreeNode.builder()
             .from(node)
@@ -117,31 +122,79 @@ public class ContentRepositoryTreeService {
    List<ContentRepositoryTreeNode> getRootNodes(Principal principal, List<String> usersToLoad) throws Exception {
       List<UserNodes> userNodes = createUserNodes(principal, usersToLoad);
       RegistrySupplier registryFn = new RegistrySupplier();
+      Catalog catalog = Catalog.getCatalog();
+      Principal contextPrincipal = ThreadContext.getContextPrincipal();
 
       // global viewsheets/worksheets/reports
-      final List<ContentRepositoryTreeNode> assetNodes = getAssetNodes(principal, registryFn);
+      CompletableFuture<List<ContentRepositoryTreeNode>> assetNodesFuture =
+         getNodesCompletableFuture(contextPrincipal, "Failed to get asset nodes", () -> {
+            try {
+               return getAssetNodes(principal, registryFn);
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e);
+            }
+         });
 
       // data source/library
-      final List<ContentRepositoryTreeNode> objectNodes = getObjectNodes();
+      CompletableFuture<List<ContentRepositoryTreeNode>> objectNodesFuture =
+         getNodesCompletableFuture(contextPrincipal, "Failed to get object nodes", this::getObjectNodes);
 
       // prototype/trashcan/my reports
-      final List<ContentRepositoryTreeNode> repositoryNodes =
-         getRepositoryNodes(userNodes, principal, registryFn);
+      CompletableFuture<List<ContentRepositoryTreeNode>> repositoryNodesFuture =
+         getNodesCompletableFuture(contextPrincipal, "Failed to get asset nodes", () -> {
+            try {
+               return getRepositoryNodes(userNodes, principal, registryFn);
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e);
+            }
+         });
 
       // global dashboards/user dashboards
-      final List<ContentRepositoryTreeNode> dashboardNodes =
-         getDashboardNodes(userNodes, principal);
+      CompletableFuture<List<ContentRepositoryTreeNode>> dashboardNodesFuture =
+         getNodesCompletableFuture(contextPrincipal, "Failed to get dashboard nodes", () -> {
+            try {
+               return getDashboardNodes(userNodes, principal);
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e);
+            }
+         });
 
-      final List<ContentRepositoryTreeNode> schedulerTaskNodes =
-         getSchedulerNodes(principal);
+      CompletableFuture<List<ContentRepositoryTreeNode>> schedulerTaskNodesFuture =
+         getNodesCompletableFuture(contextPrincipal, "Failed to get scheduler task nodes", () -> {
+            try {
+               return getSchedulerNodes(principal);
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e);
+            }
+         });
 
       //recycle bin node
-      final List<ContentRepositoryTreeNode> recycleNodes =
-         getRecycleNodes(userNodes, principal, registryFn);
+      CompletableFuture<List<ContentRepositoryTreeNode>> recycleNodesFuture =
+         getNodesCompletableFuture(contextPrincipal, catalog.getString("Failed to get asset nodes"), () -> {
+            try {
+               return getRecycleNodes(userNodes, principal, registryFn);
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e);
+            }
+         });
+
+      CompletableFuture.allOf(assetNodesFuture, objectNodesFuture, repositoryNodesFuture,
+                              dashboardNodesFuture, schedulerTaskNodesFuture, recycleNodesFuture).join();
+      List<ContentRepositoryTreeNode> assetNodes = assetNodesFuture.join();
+      List<ContentRepositoryTreeNode> objectNodes = objectNodesFuture.join();
+      List<ContentRepositoryTreeNode> repositoryNodes = repositoryNodesFuture.join();
+      List<ContentRepositoryTreeNode> dashboardNodes = dashboardNodesFuture.join();
+      List<ContentRepositoryTreeNode> schedulerTaskNodes = schedulerTaskNodesFuture.join();
+      List<ContentRepositoryTreeNode> recycleNodes = recycleNodesFuture.join();
 
       // merge all and return
       return Stream.of(assetNodes.stream(), objectNodes.stream(), repositoryNodes.stream(),
-                       dashboardNodes.stream(), schedulerTaskNodes.stream(), recycleNodes.stream())
+            dashboardNodes.stream(), schedulerTaskNodes.stream(), recycleNodes.stream())
          .flatMap(Function.identity())
          .map(n -> applyPermissions(n, principal))
          .filter(Optional::isPresent)
@@ -149,11 +202,43 @@ public class ContentRepositoryTreeService {
          .collect(Collectors.toList());
    }
 
+   private CompletableFuture<List<ContentRepositoryTreeNode>> getNodesCompletableFuture(
+      Principal contextPrincipal, String errorMessage,
+      Supplier<List<ContentRepositoryTreeNode>> nodesSupplier)
+   {
+      return CompletableFuture.supplyAsync(() -> {
+            Principal oprincipal = ThreadContext.getContextPrincipal();
+
+            try {
+               ThreadContext.setContextPrincipal(contextPrincipal);
+
+               if(contextPrincipal instanceof SRPrincipal) {
+                  ThreadContext.setLocale(((SRPrincipal) contextPrincipal).getLocale());
+               }
+
+               return nodesSupplier.get();
+            }
+            catch(Exception ex) {
+               throw new RuntimeException(errorMessage, ex);
+            }
+            finally {
+               ThreadContext.setContextPrincipal(oprincipal);
+            }
+         })
+         .handle((result, ex) -> {
+            if(ex != null) {
+               throw new RuntimeException(ex.getMessage(), ex);
+            }
+
+            return result;
+         });
+   }
+
    private List<IdentityID> getOrgUsers(Principal principal) {
       String ssoType = SreeEnv.getProperty("sso.protocol.type");
       boolean sso = "Auth0".equals(ssoType) || SSOType.OPENID.getName().equals(ssoType) ||
          SSOType.SAML.getName().equals(ssoType) || SSOType.CUSTOM.getName().equals(ssoType);
-      String org = OrganizationManager.getInstance().getCurrentOrgName(principal);
+      String org = OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal);
 
       if(!sso) {
          return getOrgUsers(principal, org);
@@ -167,7 +252,7 @@ public class ContentRepositoryTreeService {
 
       return keys.stream()
          .map(key -> AssetEntry.createAssetEntry(key).getUser())
-         .filter(user -> user != null && Tool.equals(user.getOrganization(), org))
+         .filter(user -> user != null && Tool.equals(user.getOrgID(), org))
          .collect(Collectors.toCollection(HashSet::new))
          .stream()
          .collect(Collectors.toList());
@@ -217,7 +302,7 @@ public class ContentRepositoryTreeService {
                                   Principal principal) throws Exception
    {
       RepositoryEntry[] entries = registryManager.getRepositoryEntries(
-         RecycleUtils.MY_REPORT_RECYCLE, 63, user, 1, registry, principal);
+         RecycleUtils.MY_REPORT_RECYCLE, 63, user, 1, registry, principal, false);
       nodes.addAll(addRecycleEntries(entries, recycleBin));
    }
 
@@ -489,7 +574,7 @@ public class ContentRepositoryTreeService {
          "My Dashboards/Worksheets/" + RECYCLE_BIN_FOLDER : RECYCLE_BIN_FOLDER;
 
       RepositoryEntry[] entries = registryManager.getRepositoryEntries(
-         recycleBinFolder, 63, user, type, registry, principal);
+         recycleBinFolder, 63, user, type, registry, principal, false);
 
       for(RepositoryEntry entry : entries) {
          String path =
@@ -778,7 +863,7 @@ public class ContentRepositoryTreeService {
                                                             Principal principal) throws Exception
    {
       final RepositoryEntry[] entries = registryManager.getRepositoryEntries(
-         path, filter, owner, type, registry, principal);
+         path, filter, owner, type, registry, principal, false);
       final List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
 
       for(RepositoryEntry entry : entries) {
@@ -1180,10 +1265,12 @@ public class ContentRepositoryTreeService {
 
    List<ContentRepositoryTreeNode> getScheduleTaskNodeChildren(Principal principal) {
       ScheduleManager manager = ScheduleManager.getScheduleManager();
-      List<String> taskNames = manager.getScheduleTasks().stream()
-         .filter(task -> !ScheduleManager.isInternalTask(task.getName()))
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
+      List<String> taskNames = manager.getScheduleTasks(orgID).stream()
+         .filter(task -> !ScheduleManager.isInternalTask(task.getTaskId()))
          .map(task -> Tool.isEmptyString(task.getPath()) || task.getPath().equals("/")  ?
-            task.getName() : task.getPath() + "/" + task.getName())
+            task.getTaskId() : task.getPath() + "/" + task.getTaskId())
          .sorted()
          .collect(Collectors.toList());
 
@@ -1294,21 +1381,13 @@ public class ContentRepositoryTreeService {
       int idx = taskFullName.indexOf(":");
       String taskName = taskFullName.substring(idx + 1 );
       String path = parentPath.isEmpty() ? taskFullName : parentPath + "/" + taskFullName;
-      long lastModified = manager.getScheduleTask(taskFullName,
-              OrganizationManager.getInstance().getCurrentOrgID(principal)).getLastModified();
+      ScheduleTask task =  manager.getScheduleTask(taskFullName,
+         OrganizationManager.getInstance().getCurrentOrgID(principal));
+      long lastModified = task != null ? task.getLastModified() : 0;
       String ownerKey = taskFullName.substring(0, idx);
       idx = ownerKey.indexOf(IdentityID.KEY_DELIMITER);
-      IdentityID ownerId = null;
-      String user = null;
-
-      if(idx != -1) {
-         user = ownerKey.substring(0, idx);
-         String org = ownerKey.substring(idx + IdentityID.KEY_DELIMITER.length());
-         ownerId = new IdentityID(user, org);
-      }
-      else {
-         ownerId = new IdentityID(ownerKey, OrganizationManager.getCurrentOrgName());
-      }
+      String user = idx != -1 ? ownerKey.substring(0, idx) : ownerKey;
+      IdentityID ownerId = new IdentityID(user, OrganizationManager.getInstance().getCurrentOrgID());
 
       if(!Tool.isEmptyString(ownerId.getName())) {
          taskName = ownerId.getName() + ":" + taskName;
@@ -1829,22 +1908,9 @@ public class ContentRepositoryTreeService {
 
       // @by billh, fix customer bug1303944306880
       // handle SSO problem
-      List<IdentityID> users = getUsers(principal);
+      User user = securityProvider.getUser(userID);
 
-      if(securityEnabled && users.contains(userID)) {
-         String orgName = Organization.getDefaultOrganizationName();
-         String orgId = principal.getOrgId();
-         List<String> orgs = getOrganizations(principal);
-
-         for(String oname : orgs) {
-            Organization o = securityProvider.getOrganization(oname);
-            if(orgId.equals(o.getId())) {
-               orgName = oname;
-               break;
-            }
-
-         }
-
+      if(securityEnabled && user != null) {
          identity = new User(userID, new String[0], principal.getGroups(),
                              principal.getRoles(), null, null);
       }
@@ -1858,7 +1924,10 @@ public class ContentRepositoryTreeService {
    }
 
    private List<IdentityID> getUsers(Principal principal) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+
       return Arrays.stream(securityProvider.getUsers())
+         .filter(u -> Tool.equals(u.getOrgID(), currentOrgID))
          .filter(u -> checkUserPermission(u, principal))
          .sorted()
          .collect(Collectors.toList());
@@ -1866,15 +1935,15 @@ public class ContentRepositoryTreeService {
 
    private List<IdentityID> getOrgUsers(Principal principal, String orgID) {
       return Arrays.stream(securityProvider.getUsers())
+         .filter(u -> u.orgID.equals(orgID))
          .filter(u -> checkUserPermission(u, principal))
-         .filter(u -> u.organization.equals(orgID))
          .sorted()
          .collect(Collectors.toList());
    }
 
    private List<String> getOrganizations(Principal principal) {
-      return Arrays.stream(securityProvider.getOrganizations())
-         .filter(o -> checkUserPermission(new IdentityID(o, o), principal))
+      return Arrays.stream(securityProvider.getOrganizationIDs())
+         .filter(o -> checkUserPermission(new IdentityID(securityProvider.getOrgNameFromID(o) , o), principal))
          .sorted()
          .collect(Collectors.toList());
    }

@@ -39,6 +39,7 @@ export class StagedFileChooserComponent implements OnInit {
    @Input() accept: string;
    @Input() disabled = false;
    @Input() selectButtonLabel = "_#(js:Select)";
+   @Input() displayList: boolean = true;
 
    value: any[] = [];
    uploading = false;
@@ -97,5 +98,9 @@ export class StagedFileChooserComponent implements OnInit {
       );
 
       return result;
+   }
+
+   getDisplayValueStr() {
+      return this.value.map(f => f.name).join(", ");
    }
 }

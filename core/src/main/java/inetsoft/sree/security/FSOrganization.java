@@ -57,14 +57,22 @@ public class FSOrganization extends Organization implements XMLSerializable {
    /**
     * Constructor.
     */
-   public FSOrganization(String name) {
-      super(name);
+   public FSOrganization(String id) {
+      super(id);
    }
 
    /**
     * Constructor.
-    * @param name user's name.
-    * @param locale user's locale.
+    * @param id new organization's id
+    */
+   public FSOrganization(IdentityID id) {
+      super(id);
+   }
+
+   /**
+    * Constructor.
+    * @param name organization's name.
+    * @param locale organization's locale.
     */
    public FSOrganization(String name, String id, String[] members, String locale) {
       super(name, id, members, locale, true);
@@ -75,15 +83,15 @@ public class FSOrganization extends Organization implements XMLSerializable {
     */
 
    /**
-    * Set user's active.
+    * Set organization active.
     */
    public void setActive(boolean active) {
       this.active = active;
    }
 
    /**
-    * Set the locale of the user.
-    * @param locale This user's locale.
+    * Set the locale of the organization.
+    * @param locale This organization's locale.
     */
    public void setLocale(String locale) {
       this.locale = locale;
@@ -133,9 +141,6 @@ public class FSOrganization extends Organization implements XMLSerializable {
 
       node = Tool.getChildNodeByTagName(tag, "active");
       active = node == null || Boolean.parseBoolean(Tool.getValue(node));
-
-      Element elem = Tool.getChildNodeByTagName(tag, "roles");
-      NodeList list = Tool.getChildNodesByTagName(elem, "role");
    }
 
    private String[] parseList(NodeList list) {
@@ -179,18 +184,6 @@ public class FSOrganization extends Organization implements XMLSerializable {
          gen.writeBooleanField("active", value.active);
          gen.writeStringField("locale", value.locale);
          gen.writeStringField("theme", value.theme);
-         gen.writeArrayFieldStart("roles");
-
-         gen.writeEndArray();
-         gen.writeObjectFieldStart("properties");
-
-         if(value.properties != null) {
-            for(Map.Entry<String, String> entry : value.properties.entrySet()) {
-               gen.writeStringField(entry.getKey(), entry.getValue());
-            }
-         }
-
-         gen.writeEndObject();
       }
    }
 
@@ -215,7 +208,7 @@ public class FSOrganization extends Organization implements XMLSerializable {
             }
             catch(Exception e) {
                throw new JsonMappingException(
-                  p, "Failed to create instance of user class " + className, e);
+                  p, "Failed to create instance of Organization class " + className, e);
             }
          }
 
@@ -224,21 +217,6 @@ public class FSOrganization extends Organization implements XMLSerializable {
          value.active = root.get("active").asBoolean(false);
          value.locale = root.get("locale").asText(null);
          value.theme = root.get("theme").asText(null);
-         JsonNode node = root.get("properties");
-
-         if(node != null && node.isObject()) {
-            ObjectNode objectNode = (ObjectNode)node;
-            Iterator<String> fieldsIterator = objectNode.fieldNames();
-
-            while(fieldsIterator.hasNext()) {
-               String propertyName = fieldsIterator.next();
-               String propertyValue = objectNode.get(propertyName).asText();
-
-               if(!Tool.isEmptyString(propertyValue) && !Tool.isEmptyString(propertyValue)) {
-                  value.setProperty(propertyName, propertyValue);
-               }
-            }
-         }
 
          return value;
       }

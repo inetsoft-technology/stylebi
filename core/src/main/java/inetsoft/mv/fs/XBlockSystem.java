@@ -44,6 +44,11 @@ public interface XBlockSystem {
    NBlock rename(XBlock from, XBlock to);
 
    /**
+    * Copy one XBlock.
+    */
+   NBlock copy(XBlock from, String fromOrgId, XBlock to, String toOrgId);
+
+   /**
     * Check if contains the specified block for the given block id.
     */
    boolean contains(String id);

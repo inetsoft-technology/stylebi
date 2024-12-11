@@ -29,16 +29,13 @@ import { Tool } from "../../../../../../../shared/util/tool";
 })
 export class AddThemeDialogComponent implements OnInit {
    form: UntypedFormGroup;
-   private id: string;
    private ids: string[];
    private jar: FileData;
 
    constructor(private dialogRef: MatDialogRef<AddThemeDialogComponent>,
                @Inject(MAT_DIALOG_DATA) data: any, fb: UntypedFormBuilder)
    {
-      this.id = data.id;
       this.ids = data.ids;
-      this.jar = data.jar;
       const initialJar = data.jar ? [data.jar] : [];
       this.form = fb.group({
          name: [data.name, [Validators.required, FormValidators.duplicateName(() => data.names)]],
@@ -62,11 +59,13 @@ export class AddThemeDialogComponent implements OnInit {
    }
 
    private createId(): string {
-      if(!!this.id) {
-         return this.id;
+      const nameValue = this.form.get("name").value;
+
+      if(!this.ids.includes(nameValue)) {
+         return nameValue;
       }
 
-      const base = this.form.get("name").value.replace(/[^a-zA-Z0-9]/, "");
+      const base = nameValue.replace(/[^a-zA-Z0-9]/, "");
 
       if(!base) {
          // name contains only non-alphanumeric characters, need to generate an ID

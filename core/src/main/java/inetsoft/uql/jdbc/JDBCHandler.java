@@ -429,7 +429,7 @@ public class JDBCHandler extends XHandler {
             xds1 = xds;
          }
 
-         JDBCDataSource xds2 = (JDBCDataSource) XUtil.getDatasource(user, xds1);
+         JDBCDataSource xds2 = (JDBCDataSource) ConnectionProcessor.getInstance().getDatasource(user, xds1);
 
          if(!xds2.equals(xds1) || !xds2.equals(xds) ||
             xds2.isAnsiJoin() != xds.isAnsiJoin() ||
@@ -782,7 +782,7 @@ public class JDBCHandler extends XHandler {
                   }
                }
 
-               if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+               if("true".equals(SreeEnv.getProperty("mv.debug"))) {
                   @SuppressWarnings("MalformedFormatString")
                   String msg = String.format(
                      "%1$tF %1$tT: execute \"%s\"", new STime(), sql.trim());
@@ -1411,7 +1411,7 @@ public class JDBCHandler extends XHandler {
          this.xds = (JDBCDataSource) datasource.clone();
       }
       else {
-         this.xds =  (JDBCDataSource) XUtil.getDatasource(
+         this.xds =  (JDBCDataSource) ConnectionProcessor.getInstance().getDatasource(
             ThreadContext.getContextPrincipal(), datasource).clone();
       }
 
@@ -1651,6 +1651,10 @@ public class JDBCHandler extends XHandler {
       return xds.getDatabaseType() == JDBCDataSource.JDBC_DREMIO;
    }
 
+   private boolean isPostgres() {
+      return xds.getDatabaseType() == JDBCDataSource.JDBC_POSTGRESQL;
+   }
+
    /**
     * Gets the table types supported by the database.
     *
@@ -1672,6 +1676,10 @@ public class JDBCHandler extends XHandler {
 
       if(isVertica()) {
          all.add("SYSTEM TABLE");
+      }
+
+      if(isPostgres()) {
+         all.add("PARTITIONED TABLE");
       }
 
       try(ResultSet results = meta.getTableTypes()) {
@@ -3276,6 +3284,30 @@ public class JDBCHandler extends XHandler {
    public static Connection connect(JDBCDataSource xds, VariableTable params)
       throws Exception
    {
+      Connection conn = null;
+
+      try {
+         conn = connect0(xds, params);
+      }
+      catch(Exception e) {
+         // For databases using Vault database secrets engine,
+         // credentials may have expired, so refresh credentials and retry.
+         if(Tool.isVaultDatabaseSecretsEngine(SQLHelper.getProductName(xds))) {
+            Tool.refreshDatabaseCredentials(xds);
+            conn = connect0(xds, params);
+         }
+      }
+
+      return conn;
+   }
+
+   /**
+    * Connect to a database.
+    */
+   @SuppressWarnings("MagicConstant")
+   public static Connection connect0(JDBCDataSource xds, VariableTable params)
+      throws Exception
+   {
       if(!isDriverAvailable(Tool.convertUserClassName(xds.getDriver()))) {
          throw new ClassNotFoundException(Catalog.getCatalog().getString(
             "common.datasource.classNotFound" ,xds.getDriver()));
@@ -3359,23 +3391,6 @@ public class JDBCHandler extends XHandler {
          }
       }
       catch(SQLException sqle) {
-         if(xds.isRequireLogin()) {
-            if(LOG.isDebugEnabled()) {
-               LOG.warn("Failed to connect to database (" + xds.getFullName() + "): " +
-                           sqle.getMessage(), sqle);
-            }
-            else {
-               LOG.warn("Failed to connect to database (" + xds.getFullName() + "): " +
-                           sqle.getMessage());
-            }
-
-            throw new SQLException(
-               "Failed to connect to datasource[" + xds.getFullName() + "]: " +
-               sqle.getMessage(), sqle);
-         }
-
-         Tool.addUserMessage(sqle.getMessage());
-
          throw sqle;
       }
 
@@ -3411,7 +3426,7 @@ public class JDBCHandler extends XHandler {
       throws Exception
    {
       Connection connection;
-      xds = (JDBCDataSource) XUtil.getDatasource(user, xds, additional).clone();
+      xds = (JDBCDataSource) ConnectionProcessor.getInstance().getDatasource(user, xds, additional).clone();
 
       if(xds.isRequireLogin()) {
          if(StringUtils.isEmpty(xds.getUser())) {

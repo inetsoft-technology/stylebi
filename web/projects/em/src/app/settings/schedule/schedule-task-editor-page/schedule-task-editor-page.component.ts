@@ -165,7 +165,7 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
 
    ngOnInit() {
       this.route.params.subscribe(params => {
-         let taskParams = new HttpParams().set("taskName", encodeURIComponent(params.task));
+         let taskParams = new HttpParams().set("taskName", params.task);
 
          this.http.get(EDIT_TASKS_URI, {params: taskParams}).subscribe(
             (model: ScheduleTaskDialogModel) => {

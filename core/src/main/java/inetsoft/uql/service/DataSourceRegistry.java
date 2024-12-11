@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.service;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
@@ -40,6 +41,7 @@ import java.beans.PropertyChangeListener;
 import java.io.Serializable;
 import java.lang.SecurityException;
 import java.lang.reflect.Method;
+import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.*;
@@ -260,6 +262,18 @@ public class DataSourceRegistry implements MessageListener {
       return getDataSourceFullNames0(unfilteredNames);
    }
 
+   /**
+    * Get full names of all the data sources in this repository.
+    * @return full names of all the data sources.
+    */
+   public String[] getDataSourceFullNames(IdentityID orgID) {
+      // need to filter out names of jdbc additional connections,
+      // which aren't presented as datasources on their own.
+      String[] unfilteredNames = getFullNames(AssetEntry.Type.DATA_SOURCE, orgID.orgID).values().stream()
+         .flatMap(List::stream).toArray(String[]::new);
+      return getDataSourceFullNames0(unfilteredNames);
+   }
+
    public String[] getDataSourceFullNames(String path) {
       // need to filter out names of jdbc additional connections,
       // which aren't presented as datasources on their own.
@@ -268,6 +282,23 @@ public class DataSourceRegistry implements MessageListener {
 
       if(key.isEmpty() || key.equals("/")) {
          return getDataSourceFullNames();
+      }
+
+      if(names != null) {
+         String[] unfilteredNames = names.toArray(new String[0]);
+         return getDataSourceFullNames0(unfilteredNames);
+      }
+
+      return new String[0];
+   }
+
+   public String[] getDataSourceFullNames(String path, String orgID) {
+      String key = getFirstFolder(path);
+      List<String> names = getFullNames(AssetEntry.Type.DATA_SOURCE, orgID).get(key);
+
+      if(key.isEmpty() || key.equals("/")) {
+         return getFullNames(AssetEntry.Type.DATA_SOURCE, orgID).values().stream()
+            .flatMap(List::stream).toArray(String[]::new);
       }
 
       if(names != null) {
@@ -333,6 +364,19 @@ public class DataSourceRegistry implements MessageListener {
       return names != null ? names.toArray(new String[0]) : new String[0];
    }
 
+   public String[] getDataSourceFolderFullNames(String prefix, String orgID) {
+      String key = getFirstFolder(prefix);
+      Map<String, List<String>> allFolders = getFullNames(AssetEntry.Type.DATA_SOURCE_FOLDER, orgID);
+
+      if(key.isEmpty() || key.equals("/")) {
+         return getFullNames(AssetEntry.Type.DATA_SOURCE_FOLDER, orgID).values().stream()
+            .flatMap(List::stream).toArray(String[]::new);
+      }
+
+      List<String> names = allFolders.get(key);
+      return names != null ? names.toArray(new String[0]) : new String[0];
+   }
+
    private static String getFirstFolder(String prefix) {
       int slash = prefix.indexOf('/');
       return slash > 0 ? prefix.substring(0, slash) : prefix;
@@ -354,7 +398,7 @@ public class DataSourceRegistry implements MessageListener {
       try {
          AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                            AssetEntry.Type.DATA_SOURCE, dsname, null, orgID);
-         XDataSourceWrapper wrapper = (XDataSourceWrapper) getObject(entry, true);
+         XDataSourceWrapper wrapper = (XDataSourceWrapper) getObject(entry, true, true, orgID);
 
          if(wrapper != null) {
             result = wrapper.getSource();
@@ -854,6 +898,15 @@ public class DataSourceRegistry implements MessageListener {
     * @return the children data source folder of the specified data source
     * folder.
     */
+   public List<String> getSubfolderNames(String path, boolean allChild, String orgID) {
+      path = path == null ? "" : path.endsWith("/") ? path : path + "/";
+
+      String[] folderFullNames = getDataSourceFolderFullNames(path, orgID);
+      List<String> names = allChild ? getAllSubChildren(path, folderFullNames) : getChildren(path, folderFullNames);
+
+      return names;
+   }
+
    public List<String> getSubfolderNames(String path, boolean allChild) {
       path = path == null ? "" : path.endsWith("/") ? path : path + "/";
 
@@ -881,6 +934,12 @@ public class DataSourceRegistry implements MessageListener {
    public List<String> getSubDataSourceNames(String path, boolean allChild) {
       path = path == null ? "" : path.endsWith("/") ? path :  path + "/";
       String[] fullNames = getDataSourceFullNames(path);
+      return allChild ? getAllSubChildren(path, fullNames) : getChildren(path, fullNames);
+   }
+
+   public List<String> getSubDataSourceNames(String path, boolean allChild, String orgID) {
+      path = path == null ? "" : path.endsWith("/") ? path :  path + "/";
+      String[] fullNames = getDataSourceFullNames(path, orgID);
       return allChild ? getAllSubChildren(path, fullNames) : getChildren(path, fullNames);
    }
 
@@ -1199,17 +1258,20 @@ public class DataSourceRegistry implements MessageListener {
     */
    public void setObject(AssetEntry entry, XMLSerializable obj) {
       try {
-         AssetFolder root = getRoot();
+         AssetFolder root = getRoot(entry.getOrgID());
 
-         if(root.containsEntry(entry)) {
+         if(root != null && root.containsEntry(entry)) {
             entry = root.getEntry(entry);
             root.removeEntry(entry);
          }
 
          AssetUtil.updateMetaData(
             entry, ThreadContext.getContextPrincipal(), System.currentTimeMillis());
-         root.addEntry(entry);
-         setRoot(root);
+
+         if(root != null) {
+            root.addEntry(entry);
+            setRoot(root);
+         }
 
          indexedStorage.putXMLSerializable(entry.toIdentifier(), obj);
          clearCache2();
@@ -1420,6 +1482,12 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    public XMLSerializable getObject(AssetEntry entry, boolean closeIndex, boolean cloneIt) {
+      return getObject(entry, closeIndex, cloneIt, null);
+   }
+
+   public XMLSerializable getObject(AssetEntry entry, boolean closeIndex, boolean cloneIt,
+                                    String orgId)
+   {
       CachedObject obj = getCachedObject(entry, true);
 
       if(obj == null) {
@@ -1427,7 +1495,7 @@ public class DataSourceRegistry implements MessageListener {
          String identifier = entry.toIdentifier();
 
          try {
-            result = indexedStorage.getXMLSerializable(identifier, null);
+            result = indexedStorage.getXMLSerializable(identifier, null, orgId);
          }
          catch(Exception e) {
             LOG.error("Failed to get object: {}", entry.getPath(), e);
@@ -1438,6 +1506,26 @@ public class DataSourceRegistry implements MessageListener {
             }
          }
 
+         //if object is null, retry with host-org when global default visible
+         if(result == null && SUtil.isDefaultVSGloballyVisible() && !isCheckingDuplicate() &&
+                              !Tool.equals(orgId, Organization.getDefaultOrganizationID())) {
+            orgId = Organization.getDefaultOrganizationID();
+            AssetEntry hentry = (AssetEntry) entry.clone();
+            hentry.setOrgID(orgId);
+
+            try {
+               result = indexedStorage.getXMLSerializable(hentry.toIdentifier(true), null, orgId);
+            }
+            catch(Exception e) {
+               LOG.error("Failed to get object: {}", entry.getPath(), e);
+            }
+            finally {
+               if(closeIndex) {
+                  indexedStorage.close();
+               }
+            }
+         }
+
          if(result != null) {
             obj = new CachedObject(System.currentTimeMillis(), result);
             cachemap.put(entry, obj);
@@ -1445,6 +1533,12 @@ public class DataSourceRegistry implements MessageListener {
       }
 
       return obj == null ? null : obj.getObject(cloneIt);
+   }
+
+   private boolean isCheckingDuplicate() {
+      XPrincipal principal = (XPrincipal) (ThreadContext.getContextPrincipal());
+      String isCheckingDuplicate = principal.getProperty("datasource.isCheckingDuplicate");
+      return isCheckingDuplicate != null && Boolean.parseBoolean(isCheckingDuplicate);
    }
 
    /**
@@ -1578,12 +1672,26 @@ public class DataSourceRegistry implements MessageListener {
 
    public void clearCache() {
       cachemap.clear();
-      clearCache2();
+      clearCache2(null);
+   }
+
+   public void clearCache(String orgId) {
+      clearCache2(orgId);
    }
 
    private void clearCache2() {
-      allFolders.clear();
-      allDataSources.clear();
+      clearCache2(null);
+   }
+
+   private void clearCache2(String orgId) {
+      if(orgId != null) {
+         allFolders.remove(orgId);
+         allDataSources.remove(orgId);
+      }
+      else {
+         allFolders.clear();
+         allDataSources.clear();
+      }
    }
 
    /**
@@ -1643,6 +1751,24 @@ public class DataSourceRegistry implements MessageListener {
    }
 
    /**
+    * Get the AssetFolder that stores all the AssetEntries of assets stored in
+    * this registry.
+    */
+   private AssetFolder getRoot(String orgID) {
+      // avoid loading root in parallel (multiple threads).
+      rootLock.lock();
+
+      try {
+         AssetEntry entry = getRootEntry();
+         entry.setOrgID(orgID);
+         return (AssetFolder) getObject(entry, true, false, orgID);
+      }
+      finally {
+         rootLock.unlock();
+      }
+   }
+
+   /**
     * Change the root folder.
     */
    private void setRoot(AssetFolder root) throws Exception {
@@ -1676,9 +1802,18 @@ public class DataSourceRegistry implements MessageListener {
     * @param type the type of the entries to be returned - see AssetEntry
     */
    private Map<String, List<String>> getFullNames(AssetEntry.Type type) {
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      return getFullNames(type, orgID);
+   }
+
+   /**
+    * Helper method. Get the full paths of all assets stored in this registry
+    * that match the AssetEntry type given.
+    * @param type the type of the entries to be returned - see AssetEntry
+    */
+   private Map<String, List<String>> getFullNames(AssetEntry.Type type, String orgID) {
       ResourceType resourceType;
       Map<String, List<String>> cachedNames;
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(type == AssetEntry.Type.DATA_SOURCE_FOLDER) {
          resourceType = ResourceType.DATA_SOURCE_FOLDER;
@@ -1708,7 +1843,7 @@ public class DataSourceRegistry implements MessageListener {
             return cachedNames;
          }
 
-         AssetFolder root = getRoot();
+         AssetFolder root = getRoot(orgID);
 
          try {
             List<AssetEntry> entries = root != null ? root.getEntries(type) : Collections.emptyList();

@@ -27,7 +27,7 @@ import inetsoft.util.SingletonManager;
 import inetsoft.util.config.InetsoftConfig;
 import org.slf4j.LoggerFactory;
 
-import java.util.ServiceLoader;
+import java.util.*;
 import java.util.stream.Stream;
 
 /**
@@ -110,6 +110,31 @@ public interface KeyValueEngine extends AutoCloseable {
 
    @Override
    default void close() throws Exception {
+   }
+
+   /**
+    * Puts a list of key values into a key-value store.
+    *
+    * @param <T>         the value type.
+    * @param id          the unique identifier of the key-value store.
+    * @param keyValueMap the key value map
+    */
+   default <T> void putAll(String id, Map<String, T> keyValueMap) {
+      for(Map.Entry<String, T> entry : keyValueMap.entrySet()) {
+         put(id, entry.getKey(), entry.getValue());
+      }
+   }
+
+   /**
+    * Removes a set of keys from a key-value store.
+    *
+    * @param id   the unique identifier of the key-value store.
+    * @param keys the keys
+    */
+   default void removeAll(String id, Set<String> keys) {
+      for(String key : keys) {
+         remove(id, key);
+      }
    }
 
    /**

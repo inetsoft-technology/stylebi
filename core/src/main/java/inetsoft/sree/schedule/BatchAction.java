@@ -44,7 +44,7 @@ public class BatchAction extends AbstractAction {
    @Override
    public void run(Principal principal) throws Throwable {
       ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
-      ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+      ScheduleTask task = scheduleManager.getScheduleTask(taskId);
 
       if(task != null) {
          runScheduleTaskWithEmbeddedParameters(task, principal);
@@ -85,6 +85,7 @@ public class BatchAction extends AbstractAction {
 
       if(tableAssembly != null) {
          AssetQuerySandbox box = new AssetQuerySandbox(sheet);
+         box.setBaseUser(principal);
          AssetQuery query = AssetQuery.createAssetQuery(
             tableAssembly, AssetQuerySandbox.RUNTIME_MODE, box, false,
             -1L, true, false);
@@ -192,12 +193,12 @@ public class BatchAction extends AbstractAction {
       action.setMessage(XUtil.replaceVariable(action.getMessage(), vars));
    }
 
-   public String getTaskName() {
-      return taskName;
+   public String getTaskId() {
+      return taskId;
    }
 
-   public void setTaskName(String taskName) {
-      this.taskName = taskName;
+   public void setTaskId(String taskId) {
+      this.taskId = taskId;
    }
 
    public AssetEntry getQueryEntry() {
@@ -229,7 +230,7 @@ public class BatchAction extends AbstractAction {
       writer.print("<Action type=\"Batch\" class=\"");
       writer.print(getClass().getName());
       writer.print("\" ");
-      writer.print("taskName=\"" + byteEncode(taskName) + "\" ");
+      writer.print("taskId=\"" + byteEncode(taskId) + "\" ");
       writer.println(">");
 
       if(queryEntry != null) {
@@ -255,8 +256,8 @@ public class BatchAction extends AbstractAction {
 
    @Override
    public void parseXML(Element tag) throws Exception {
-      taskName = Tool.getAttribute(tag, "taskName");
-      taskName = byteDecode(taskName);
+      taskId = Tool.getAttribute(tag, "taskId");
+      taskId = byteDecode(taskId);
 
       Element queryEntryElem = Tool.getChildNodeByTagName(tag, "queryEntry");
 
@@ -377,7 +378,7 @@ public class BatchAction extends AbstractAction {
       }
 
       BatchAction that = (BatchAction) o;
-      return Objects.equals(taskName, that.taskName) &&
+      return Objects.equals(taskId, that.taskId) &&
          Objects.equals(queryEntry, that.queryEntry) &&
          Objects.equals(queryParameters, that.queryParameters) &&
          Objects.equals(embeddedParameters, that.embeddedParameters);
@@ -385,10 +386,10 @@ public class BatchAction extends AbstractAction {
 
    @Override
    public String toString() {
-      return "BatchAction: " + SUtil.getTaskNameWithoutOrg(taskName);
+      return "BatchAction: " + SUtil.getTaskNameWithoutOrg(taskId);
    }
 
-   private String taskName;
+   private String taskId;
    private AssetEntry queryEntry;
    private Map<String, Object> queryParameters = new LinkedHashMap<>();
    private List<Map<String, Object>> embeddedParameters = new ArrayList<>();

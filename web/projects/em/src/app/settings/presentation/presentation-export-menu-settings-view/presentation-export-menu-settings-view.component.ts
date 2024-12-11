@@ -31,7 +31,7 @@ import { ContextHelp } from "../../../context-help";
 })
 @ContextHelp({
    route: "/settings/presentation/settings#export-menu",
-   link: "EMPresentationExportMenu"
+   link: "EMExportMenu"
 })
 @Component({
    selector: "em-presentation-report-export-menu-settings-view",

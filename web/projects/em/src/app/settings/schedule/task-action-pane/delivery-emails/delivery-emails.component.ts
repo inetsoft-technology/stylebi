@@ -43,6 +43,8 @@ export interface DeliveryEmails {
    burstEmails: string;
    burstQueryType: string;
    bundledAsZip: boolean;
+   useCredential: boolean;
+   secretId: string;
    zipPassword: string;
    attachmentName: string;
    format: string;
@@ -77,6 +79,7 @@ export class DeliveryEmailsComponent implements OnInit {
    @Input() tableDataAssemblies: string[];
    @Input() hasPrintLayout: boolean = false;
    @Input() fipsMode: boolean;
+   @Input() cloudSecrets: boolean;
    @Output() deliveryChanged = new EventEmitter<DeliveryEmails>();
 
    @Input()
@@ -142,11 +145,16 @@ export class DeliveryEmailsComponent implements OnInit {
 
    @Input()
    get format(): string {
+      if(this.enabled && !this.form.get("format").value) {
+         this.form.get("format").setValue(this.mailFormats[0].type);
+      }
+
       return this.form.get("format").value;
    }
 
    set format(val: string) {
       this.form.get("format").setValue(val);
+      this.togglePasswordForm(false);
    }
 
    @Input()
@@ -192,6 +200,24 @@ export class DeliveryEmailsComponent implements OnInit {
 
    set exportAllTabbedTables(val: boolean) {
       this.form.get("exportAllTabbedTables").setValue(val);
+   }
+
+   @Input()
+   get useCredential(): boolean {
+      return this.form.get("useCredential").value;
+   }
+
+   set useCredential(val: boolean) {
+      this.form.get("useCredential").setValue(val);
+   }
+
+   @Input()
+   get secretId(): string {
+      return this.form.get("secretId").value;
+   }
+
+   set secretId(val: string) {
+      this.form.get("secretId").setValue(val);
    }
 
    @Input()
@@ -270,6 +296,8 @@ export class DeliveryEmailsComponent implements OnInit {
             emailOnlyDataComponents: [false],
             exportAllTabbedTables: [false],
             bundledAsZip: [false],
+            useCredential: [false],
+            secretId: [""],
             zipPassword: [""],
             verifyZipPassword: [""],
             attachment: ["", FormValidators.isValidWindowsFileName],
@@ -347,12 +375,25 @@ export class DeliveryEmailsComponent implements OnInit {
 
    togglePasswordForm(changed: boolean) {
       if(this.passwordVisible) {
+         this.form.get("useCredential").enable();
+         this.form.get("secretId").enable();
          this.form.get("zipPassword").enable();
          this.form.get("verifyZipPassword").enable();
       }
       else {
+         this.form.get("useCredential").disable();
+         this.form.get("secretId").disable();
          this.form.get("zipPassword").disable();
          this.form.get("verifyZipPassword").disable();
+      }
+
+      if(this.bundledDisabled) {
+         this.form.get("bundledAsZip").disable();
+         this.form.get("useCredential").disable();
+      }
+      else {
+         this.form.get("bundledAsZip").enable();
+         this.form.get("useCredential").enable();
       }
 
       if(changed) {
@@ -403,6 +444,8 @@ export class DeliveryEmailsComponent implements OnInit {
          burstQueryType: this.burstQueryType,
          subject: this.subject,
          bundledAsZip: this.bundledAsZip,
+         useCredential: this.useCredential,
+         secretId: this.secretId == null ? null : this.secretId.trim(),
          zipPassword: this.zipPassword,
          attachmentName: this.attachmentName,
          format: this.format,

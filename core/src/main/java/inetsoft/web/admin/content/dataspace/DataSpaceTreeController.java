@@ -20,17 +20,24 @@ package inetsoft.web.admin.content.dataspace;
 import inetsoft.util.MessageException;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.admin.content.dataspace.model.*;
-import inetsoft.web.security.DeniedMultiTenancyOrgUser;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
-@DeniedMultiTenancyOrgUser
 public class DataSpaceTreeController {
    @Autowired
    public DataSpaceTreeController(DataSpaceContentSettingsService dataSpaceContentSettingsService) {
       this.dataSpaceContentSettingsService = dataSpaceContentSettingsService;
+   }
+
+   @PostMapping("/api/em/content/data-space/tree")
+   public DataSpaceTreeModel getDataSpaceTree(
+      @DecodeParam(value = "path", required = false) String parentPath,
+      @RequestBody List<String> expandPaths) throws Exception {
+      return dataSpaceContentSettingsService.getTree(parentPath, expandPaths);
    }
 
    /**

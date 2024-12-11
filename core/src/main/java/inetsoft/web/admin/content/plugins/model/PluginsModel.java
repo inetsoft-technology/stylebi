@@ -32,6 +32,8 @@ public interface PluginsModel {
       return false;
    }
 
+   boolean supportUploadDriver();
+
    List<PluginModel> plugins();
 
    static Builder builder() {

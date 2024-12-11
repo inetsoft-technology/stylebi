@@ -20,7 +20,7 @@ The `/var/lib/inetsoft/config/inetsoft.yaml` file contains the static configurat
 
 > There are more configuration settings than are documented here, but they are only used for Enterprise features.
 
-An example configuration file can be found at [community-examples/inetsoft.yaml](./community-examples/inetsoft.yaml) in this repository. This contains the configuration equivalent to the environment variables in the [sample Docker compose file](./community-examples/docker-compose.yaml).
+An example configuration file can be found at [community-examples/inetsoft.yaml](./inetsoft.yaml) in this repository. This contains the configuration equivalent to the environment variables in the [sample Docker compose file](./docker-compose.yaml).
 
 #### Top Level Properties
 
@@ -174,7 +174,7 @@ The storage container also sets the initial administrator password if run with t
 
 This container will set the initial value of application properties specified in the environment variables. See the [Application Properties](#application-properties) section for details.
 
-For an example, see the `storage` service in the [example Docker Compose file](./community-examples/docker-compose.yaml).
+For an example, see the `storage` service in the [example Docker Compose file](./docker-compose.yaml).
 
 ### Server Container
 
@@ -182,7 +182,7 @@ This container runs the main application server. It should only be started after
 
 The container must be started with a [configuration file](#yaml-configuration) mounted at `/var/lib/inetsoft/config/inetsoft.yaml` or have the equivalent configuration contained in [environment variables](#environment-variable-configuration). It should also have the `INETSOFT_MASTER_PASSWORD` environment variable set to some secret token shared with the other containers.
 
-For an example, see the `server` service in the [example Docker Compose file](./community-examples/docker-compose.yaml).
+For an example, see the `server` service in the [example Docker Compose file](./docker-compose.yaml).
 
 ### Scheduler Container
 
@@ -190,4 +190,4 @@ THis container runs the scheduler that handles the execution of scheduled tasks 
 
 The container must be started with a [configuration file](#yaml-configuration) mounted at `/var/lib/inetsoft/config/inetsoft.yaml` or have the equivalent configuration contained in [environment variables](#environment-variable-configuration). It should also have the `INETSOFT_MASTER_PASSWORD` environment variable set to some secret token shared with the other containers.
 
-For an example, see the `scheduler` service in the [example Docker Compose file](./community-examples/docker-compose.yaml).
+For an example, see the `scheduler` service in the [example Docker Compose file](./docker-compose.yaml).

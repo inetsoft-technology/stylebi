@@ -59,8 +59,8 @@ import { ShowHyperlinkService } from "../../show-hyperlink.service";
 import { DetailDndInfo } from "./detail-dnd-info";
 import { SortInfo } from "./sort-info";
 
-const CHART_DETAIL_COLWIDTH_URI: string = "../vs/showdetails/colwidth";
-const CHART_DATA_COLWIDTH_URI: string = "../vs/showdata/colwidth";
+const CHART_DETAIL_COLWIDTH_URI: string = "../api/vs/showdetails/colwidth";
+const CHART_DATA_COLWIDTH_URI: string = "../api/vs/showdata/colwidth";
 const INITIAL_COLUMN_WIDTH: number = 80;
 
 @Component({
@@ -316,7 +316,7 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    public touchVScroll(delta: number) {
       this.scrollY = Math.max(0, this.scrollY - delta);
       this.scrollY = Math.min(this.scrollY,
-         this.tableContainer.nativeElement.scrollHeight -
+         this.tableHeight -
          this.tableContainer.nativeElement.clientHeight);
    }
 
@@ -659,7 +659,7 @@ export class PreviewTableComponent implements OnDestroy, AfterViewChecked, After
    getTarget(cell: BaseTableCellModel): string {
       const _model = HyperlinkViewModel.fromHyperlinkModel(cell.hyperlinks[0], this.linkUri,
                                                            null, this.runtimeId, false);
-      return _model.target;
+      return _model == null ? null : _model.target;
    }
 
    isForceTab(): boolean {

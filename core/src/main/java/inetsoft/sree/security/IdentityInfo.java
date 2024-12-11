@@ -18,6 +18,7 @@
 package inetsoft.sree.security;
 
 import inetsoft.sree.internal.HttpXMLSerializable;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.security.IdentityModel;
@@ -79,10 +80,10 @@ public class IdentityInfo implements HttpXMLSerializable {
             members = new ArrayList<>();
 
 
-            for(int i = 0; i < groups.length; i++) {
+            for(String group : groups) {
                members.add(IdentityModel.builder()
                               .type(Identity.GROUP)
-                              .identityID(new IdentityID(groups[i], user.getOrganization()))
+                              .identityID(new IdentityID(group, user.getOrganizationID()))
                               .build());
             }
 
@@ -90,23 +91,22 @@ public class IdentityInfo implements HttpXMLSerializable {
             Arrays.sort(roles0);
             roles = new ArrayList<>();
 
-            for(int i = 0; i < roles0.length; i++) {
+            for(IdentityID id : roles0) {
                roles.add(IdentityModel.builder()
                             .type(Identity.ROLE)
-                            .identityID(roles0[i])
+                            .identityID(id)
                             .build());
             }
          }
          else if(type == Identity.GROUP) {
             Group group = (Group) identity;
             locale = group.getLocale();
-            Identity[] identities = Arrays.stream(provider.getGroupMembers(identityID)).filter(id -> id.getOrganization().equals(identity.getOrganization())).toArray(Identity[]::new);
+            Identity[] identities = Arrays.stream(provider.getGroupMembers(identityID)).filter(id -> id.getOrganizationID().equals(identity.getOrganizationID())).toArray(Identity[]::new);
 
             Arrays.sort(identities, new IdentityComparator());
             members = new ArrayList<>();
 
-            for(int i = 0; i < identities.length; i++) {
-               Identity member = identities[i];
+            for(Identity member : identities) {
                members.add(IdentityModel.builder()
                               .type(member.getType() == Identity.USER ?
                                        Identity.USER : Identity.GROUP)
@@ -118,10 +118,10 @@ public class IdentityInfo implements HttpXMLSerializable {
             Arrays.sort(roles0);
             roles = new ArrayList<>();
 
-            for(int i = 0; i < roles0.length; i++) {
+            for(IdentityID id : roles0) {
                roles.add(IdentityModel.builder()
                             .type(Identity.ROLE)
-                            .identityID(roles0[i])
+                            .identityID(id)
                             .build());
             }
          }
@@ -129,22 +129,21 @@ public class IdentityInfo implements HttpXMLSerializable {
             Organization organization = (Organization) identity;
             locale = organization.getLocale();
 
-            String[] identitiesNames = provider.getOrganizationMembers(identityID.name);
+            String[] identitiesNames = provider.getOrganizationMembers(identityID.orgID);
             AuthenticationProvider finalProvider = provider;
             List<IdentityModel> identities = Arrays.stream(identitiesNames)
                   .map(n ->
                           IdentityModel.builder()
-                     .type((finalProvider.getUser(new IdentityID(n,identityID.name)) == null) ?
-                              (finalProvider.getGroup(new IdentityID(n,identityID.name)) == null) ?
+                     .type((finalProvider.getUser(new IdentityID(n, identityID.orgID)) == null) ?
+                              (finalProvider.getGroup(new IdentityID(n, identityID.orgID)) == null) ?
                         Identity.ROLE : Identity.GROUP : Identity.USER)
-                     .identityID(new IdentityID(n,identityID.name))
+                     .identityID(new IdentityID(n, identityID.orgID))
                      .build())
                   .collect(Collectors.toList());
 
             members = new ArrayList<>();
 
-            for(int i = 0; i < identities.size(); i++) {
-               IdentityModel member = identities.get(i);
+            for(IdentityModel member : identities) {
                members.add(IdentityModel.builder()
                               .type(member.type())
                               .identityID(member.identityID())
@@ -155,10 +154,10 @@ public class IdentityInfo implements HttpXMLSerializable {
             Arrays.sort(roles0);
             roles = new ArrayList<>();
 
-            for(int i = 0; i < roles0.length; i++) {
+            for(IdentityID id : roles0) {
                roles.add(IdentityModel.builder()
                             .type(Identity.ROLE)
-                            .identityID(roles0[i])
+                            .identityID(id)
                             .build());
             }
          }
@@ -174,8 +173,7 @@ public class IdentityInfo implements HttpXMLSerializable {
             Arrays.sort(identities, new IdentityComparator());
             members = new ArrayList<>();
 
-            for(int i = 0; i < identities.length; i++) {
-               Identity member = identities[i];
+            for(Identity member : identities) {
                members.add(IdentityModel.builder()
                               .type(member.getType() == Identity.USER ?
                                        Identity.USER : member.getType() == Identity.GROUP ?
@@ -188,10 +186,10 @@ public class IdentityInfo implements HttpXMLSerializable {
             Arrays.sort(roles0);
             roles = new ArrayList<>();
 
-            for(int i = 0; i < roles0.length; i++) {
+            for(IdentityID id : roles0) {
                roles.add(IdentityModel.builder()
                             .type(Identity.ROLE)
-                            .identityID(roles0[i])
+                            .identityID(id)
                             .build());
             }
          }
@@ -252,13 +250,14 @@ public class IdentityInfo implements HttpXMLSerializable {
     * Get roles assigned to the identity.
     */
    public IdentityID[] getRoles() {
-      IdentityID[] arr = new IdentityID[roles.size()];
+      boolean isMultiTenant = SUtil.isMultiTenant();
 
-      for(int i = 0; i < roles.size(); i++) {
-         arr[i] = roles.get(i).identityID();
-      }
+      return roles.stream()
+         .map( r -> r.identityID())
+         .filter(r -> isMultiTenant ||
+                      !SecurityEngine.getSecurity().getSecurityProvider().isOrgAdministratorRole(r))
+         .toArray(IdentityID[]::new);
 
-      return arr;
    }
 
    /**
@@ -320,6 +319,10 @@ public class IdentityInfo implements HttpXMLSerializable {
          role.setSysAdmin(this.sysAdmin);
          return role;
       }
+   }
+
+   public String getLocale() {
+      return locale;
    }
 
    /**

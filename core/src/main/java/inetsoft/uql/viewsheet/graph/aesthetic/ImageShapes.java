@@ -19,7 +19,8 @@ package inetsoft.uql.viewsheet.graph.aesthetic;
 
 import inetsoft.graph.aesthetic.GShape;
 import inetsoft.graph.aesthetic.SVGShape;
-import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.DataSpace;
 import inetsoft.util.Tool;
@@ -41,14 +42,28 @@ public class ImageShapes {
     * Get the name of the color palettes.
     */
    public static Collection<String> getShapeNames() {
+     return getShapeNames(getKey());
+   }
+
+   public static Collection<String> getShapeNames(String orgID) {
       synchronized(ImageShapes.class) {
-         singleton.loadShapes();
-         return singleton.getShapes().keySet();
+         singleton.loadShapes(orgID);
+         return singleton.getShapes(orgID).keySet();
       }
    }
 
    private static Map<String, GShape> getShapes() {
       return singleton.cache.get(getKey());
+   }
+
+   private static Map<String, GShape> getShapes(String orgID) {
+      return singleton.cache.get(orgID);
+   }
+
+   public static void clearShapes() {
+      if(singleton.cache.get(getKey()) != null) {
+         singleton.cache.remove(getKey());
+      }
    }
 
    /**
@@ -57,7 +72,17 @@ public class ImageShapes {
    public static GShape getShape(String name) {
       synchronized(ImageShapes.class) {
          singleton.loadShapes();
-         return singleton.getShapes().get(name);
+         Map<String, GShape> shapeMap = singleton.getShapes();
+         GShape shape = shapeMap == null ? null : shapeMap.get(name);
+
+         //retry for host org if Global Default visible
+         if(shape == null && SUtil.isDefaultVSGloballyVisible()) {
+            singleton.loadShapes(Organization.getDefaultOrganizationID());
+            shapeMap = singleton.getShapes(Organization.getDefaultOrganizationID());
+            shape = shapeMap == null ? null : shapeMap.get(name);
+         }
+
+         return shape;
       }
    }
 
@@ -78,25 +103,44 @@ public class ImageShapes {
    }
 
    public static String getShapesDirectory() {
-      return "portal/" + OrganizationManager.getInstance().getCurrentOrgID() + "/shapes";
+     return getShapesDirectory(OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   public static String getShapesDirectory(String orgID) {
+      boolean multiTenant = SUtil.isMultiTenant();
+
+      return multiTenant ? "portal/" + orgID + "/shapes" :
+         getGlobalShapesDirectory();
+   }
+
+   public static String getGlobalShapesDirectory() {
+      return "portal/shapes";
    }
 
    private static String getKey() {
-      return OrganizationManager.getCurrentOrgName();
+      return OrganizationManager.getInstance().getCurrentOrgID();
    }
 
    /**
     * Load shapes from portal/shapes.
     */
    private synchronized void loadShapes() {
+      loadShapes(getKey());
+   }
+
+   private synchronized void loadShapes(String orgID) {
       try {
-         String key = getKey();
-         Map<String, GShape> shapes = cache.get(key);
+         Map<String, GShape> shapes = cache.get(orgID);
          boolean init = shapes == null;
-         String dir = getShapesDirectory();
+         DataSpace dataspace = DataSpace.getDataSpace();
+         String dir = getShapesDirectory(orgID);
+
+         if(!dataspace.exists(null, dir)) {
+            dir = getGlobalShapesDirectory();
+         }
+
          int idx = dir.lastIndexOf("/");
          String orgDir = dir.substring(0, idx);
-         DataSpace dataspace = DataSpace.getDataSpace();
          long last0 = dataspace.getLastModified(orgDir, "shapes");
 
          // here use != instead of use >
@@ -105,8 +149,15 @@ public class ImageShapes {
             shapes = new LinkedHashMap<>();
             loadBuiltins(shapes);
             last = last0;
-            loadShapeFromFolder(dir, shapes);
-            cache.put(key, shapes);
+            //load the shapes of the global
+            loadShapeFromFolder(getGlobalShapesDirectory(), shapes);
+
+            if(!Tool.equals(dir, getGlobalShapesDirectory())) {
+               //load the shapes of the organization
+               loadShapeFromFolder(dir, shapes);
+            }
+
+            cache.put(orgID, shapes);
          }
       }
       catch(Exception ex) {

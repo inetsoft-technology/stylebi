@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.util.Identity;
 
 import java.util.*;
@@ -45,27 +46,28 @@ public class AuthenticationChain
    }
 
    @Override
-   public Organization getOrganization(String name) {
+   public Organization getOrganization(String id) {
       return stream()
-         .map(p -> p.getOrganization(name))
+         .map(p -> p.getOrganization(id))
          .filter(Objects::nonNull)
          .findFirst()
          .orElse(null);
    }
 
    @Override
-   public String getOrgId(String name) {
-      return getOrganization(name).getId();
+   public String getOrgIdFromName(String name) {
+      for(String oid : getOrganizationIDs()) {
+         if(getOrganization(oid).getName().equals(name)) {
+            return oid;
+         }
+      }
+      return null;
    }
 
    @Override
    public String getOrgNameFromID(String id) {
-      for(String org : getOrganizations()) {
-         if(getOrganization(org).getId().equalsIgnoreCase(id)) {
-            return org;
-         }
-      }
-      return null;
+      return getOrganization(id) == null ? null : getOrganization(id).name;
+
    }
 
    private User getExternalUser(IdentityID name) {
@@ -87,15 +89,29 @@ public class AuthenticationChain
    }
 
 @Override
-   public String[] getOrganizations() {
+   public String[] getOrganizationIDs() {
       List<AuthenticationProvider> providers = getProviders();
 
-      if(providers == null || providers.size() == 0) {
+      if(providers == null || providers.isEmpty()) {
          return new String[0];
       }
 
       return stream()
-         .flatMap(p -> Arrays.stream(p.getOrganizations()))
+         .flatMap(p -> Arrays.stream(p.getOrganizationIDs()))
+         .distinct()
+         .toArray(String[]::new);
+   }
+
+   @Override
+   public String[] getOrganizationNames() {
+      List<AuthenticationProvider> providers = getProviders();
+
+      if(providers == null || providers.isEmpty()) {
+         return new String[0];
+      }
+
+      return stream()
+         .flatMap(p -> Arrays.stream(p.getOrganizationNames()))
          .distinct()
          .toArray(String[]::new);
    }
@@ -151,12 +167,21 @@ public class AuthenticationChain
       if(roles.isPresent()) {
          return roles.stream().flatMap(Arrays::stream)
             .distinct()
+            .filter(role -> isRoleVisible(role))
             .toArray(IdentityID[]::new);
       }
       else {
          User externalUser = getExternalUser(roleIdentity);
          return externalUser == null ? new IdentityID[0] : externalUser.getRoles();
       }
+   }
+
+   private boolean isRoleVisible(IdentityID role) {
+      if(!SUtil.isMultiTenant() && "Organization Administrator".equals(role.name)) {
+         return false;
+      }
+
+      return true;
    }
 
    @Override
@@ -196,10 +221,18 @@ public class AuthenticationChain
 
    @Override
    public String[] getUserGroups(IdentityID userId) {
-      return stream()
+      String[] groups = stream()
          .flatMap(p -> Arrays.stream(p.getUserGroups(userId)))
          .distinct()
          .toArray(String[]::new);
+
+      if(groups.length > 0) {
+         return groups;
+      }
+      else {
+         User externalUser = getExternalUser(userId);
+         return externalUser == null ? new String[0] : externalUser.getGroups();
+      }
    }
 
    @Override

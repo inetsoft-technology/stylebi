@@ -305,7 +305,7 @@ public final class XTableFragment extends XSwappable {
          fout = new RandomAccessFile(file, "rw");
          channel = fout.getChannel();
 
-         channel.position(file.length() - columns.length * 16);
+         channel.position(file.length() - columns.length * 16L);
          ByteBuffer footer = ByteBuffer.allocate(columns.length * 16);
          channel.read(footer);
          XSwapUtil.flip(footer);

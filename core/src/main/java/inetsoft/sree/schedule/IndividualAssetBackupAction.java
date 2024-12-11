@@ -85,14 +85,14 @@ public class IndividualAssetBackupAction implements ScheduleAction, HttpXMLSeria
          String backupFileName;
 
          if(pathInfo != null && pathInfo.isFTP()) {
-            int index = str.lastIndexOf("/");
+            int index = Tool.replaceAll(str, "\\", "/").lastIndexOf("/");
             backupFileName = "backup/" + str.substring(index + 1);
          }
          else {
             backupFileName = str;
          }
 
-         ExternalStorageService.getInstance().write(backupFileName, srcFile.toPath());
+         ExternalStorageService.getInstance().write(backupFileName, srcFile.toPath(), principal);
 
          if(pathInfo != null && pathInfo.isFTP()) {
             FTPUtil.uploadToFTP(str, srcFile, pathInfo, append);

@@ -23,6 +23,7 @@ import { BehaviorSubject, combineLatest, Observable, Subject } from "rxjs";
 import { flatMap, map, takeUntil, tap } from "rxjs/operators";
 import { FormValidators } from "../../../../../../../../shared/util/form-validators";
 import { DataSourceDefinitionModel } from "../../../../../../../../shared/util/model/data-source-definition-model";
+import { Tool } from "../../../../../../../../shared/util/tool";
 import { TabularButton } from "../../../../../common/data/tabular/tabular-button";
 import { TabularView } from "../../../../../common/data/tabular/tabular-view";
 import {
@@ -33,6 +34,7 @@ import { DebounceService } from "../../../../../widget/services/debounce.service
 import { TreeNodeModel } from "../../../../../widget/tree/tree-node-model";
 
 const DATASOURCES_URI: string = "../api/portal/data/datasources";
+const PORTAL_DATABASE_REFRESH: string = "../api/portal/data/datasource/refresh-metadata";
 
 @Component({
    selector: "datasources-datasource-editor",
@@ -47,6 +49,7 @@ export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {
 
    set datasource(value: DataSourceDefinitionModel) {
       this._datasource = value;
+      this.originalDatasource = Tool.clone(value);
       this.initView();
    }
 
@@ -67,12 +70,14 @@ export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {
    @Output() datasourceChanged = new EventEmitter<DataSourceDefinitionModel>();
    @Output() datasourceValid = new EventEmitter<boolean>();
    @Output() onWarning = new EventEmitter<string>();
+   @Output() onSuccess = new EventEmitter<string>();
    nameGroup: FormGroup;
    private dependsOn: Set<string>;
    private refreshButtonExists: boolean;
    cancelButtonExists: boolean;
    private sequenceNumber = 0;
    private _datasource: DataSourceDefinitionModel;
+   private originalDatasource: DataSourceDefinitionModel;
    private _usedNames: string[] = [];
    private datasourceValid$ = new BehaviorSubject<boolean>(true);
    private nameValid$ = new BehaviorSubject<boolean>(true);
@@ -317,5 +322,20 @@ export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {
 
          this.clearButtonLoading(view.views);
       }
+   }
+
+   refreshMetadata() {
+      const databasePath = !this.originalDatasource.parentPath ? this.originalDatasource.name :
+         this.originalDatasource.parentPath + "/" + this.originalDatasource.name;
+      const params = new HttpParams().set("dataSource", databasePath);
+
+      this.httpClient.get<boolean>(PORTAL_DATABASE_REFRESH, {params}).subscribe(success => {
+         if(success) {
+            this.onSuccess.emit("_#(js:data.databases.refreshSuccess)");
+         }
+         else {
+            this.onSuccess.emit("_#(js:data.databases.refreshFailed)");
+         }
+      });
    }
 }

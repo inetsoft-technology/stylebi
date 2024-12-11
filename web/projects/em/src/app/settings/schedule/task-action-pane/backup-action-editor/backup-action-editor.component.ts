@@ -71,6 +71,8 @@ export class BackupActionEditorComponent {
       let serverPathModel: ServerPathInfoModel = {
          path: change.path,
          ftp: change.ftp,
+         useCredential: change.useCredential,
+         secretId: change.secretId,
          username: change.username,
          password: change.password,
       };

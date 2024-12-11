@@ -91,24 +91,27 @@ public class FreeHelper extends LabelHelper {
       Line2D leftLine = new Line2D.Double(bLeft, bTop, bLeft, bBottom);
       Line2D bottomLine = new Line2D.Double(bLeft, bBottom, bRight, bBottom);
       Line2D rightLine = new Line2D.Double(bRight, bTop, bRight, bBottom);
+      // layout may place text 'on' the edge of the bounding box. if we move it inside it may
+      // overlap/touch the bar. ignore 1/2 pixel to avoid this (68364).
+      final double OVERLAP_ADJ = 0.5;
 
       edgedists[0] = edgedists[1] = edgedists[2] = edgedists[3] = 0;
 
       // 0 degrees
       resistances[0] = getEdgeResistance(rightLine.ptSegDistSq(right),
-                                         right.getX(), bTop - 1,
+                                         right.getX() - OVERLAP_ADJ, bTop - 1,
                                          GraphConstants.RIGHT);
       // 90 degrees
       resistances[1] = getEdgeResistance(topLine.ptSegDistSq(top),
-                                         bLeft + 1, top.getY(),
+                                         bLeft + 1, top.getY() - OVERLAP_ADJ,
                                          GraphConstants.TOP);
       // 180 degrees
       resistances[2] = getEdgeResistance(leftLine.ptSegDistSq(left),
-                                         left.getX(), bTop - 1,
+                                         left.getX() + OVERLAP_ADJ, bTop - 1,
                                          GraphConstants.LEFT);
       // 270 degrees
       resistances[3] = getEdgeResistance(bottomLine.ptSegDistSq(bottom),
-                                         bLeft + 1, bottom.getY(),
+                                         bLeft + 1, bottom.getY() + OVERLAP_ADJ,
                                          GraphConstants.BOTTOM);
 
       boolean topOut = resistances[1] >= MAX_RESISTANCE;

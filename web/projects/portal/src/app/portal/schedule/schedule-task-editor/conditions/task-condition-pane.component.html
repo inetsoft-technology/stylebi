@@ -46,15 +46,14 @@
               [serverTimeZone]="serverTimeZone"
               [showMeridian]="showMeridian"
               formControlName="startTime"
-              (modelChange)="onStartTimeDataChanged($event)"
-            >
+              (modelChange)="onStartTimeDataChanged($event)">
               <ng-container>
                 <div class="form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col">
                     <div class="form-floating">
                       <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="changeNonATConditionTimeZone($event)"
                               formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
+                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                       </select>
                       <label>_#(Time Zone)</label>
                     </div>
@@ -322,8 +321,7 @@
                 <ng-container>
                   <div class="form-row-float-label row">
                     <div class="col form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="changeNonATConditionTimeZone($event)"
-                              formControlName="timeZone">
+                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="changeNonATConditionTimeZone($event)" formControlName="timeZone">
                         <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                       </select>
                       <label>_#(Time Zone)</label>
@@ -420,8 +418,7 @@
                     <input class="form-control" placeholder="yyyy-mm-dd"
                            formControlName="date"
                            id="date" [ngModel]="date" (ngModelChange)="dateChange($event, true, startTime)"
-                           ngbDatepicker #startDatePicker="ngbDatepicker" placement="bottom-right"
-                           readonly>
+                           ngbDatepicker #startDatePicker="ngbDatepicker" placement="bottom-right">
                     <button class="input-group-btn-addon btn icon-hover-bg" (click)="startDatePicker.toggle()" type="button">
                       <span class="calendar-icon icon-size-medium align-middle"></span>
                     </button>

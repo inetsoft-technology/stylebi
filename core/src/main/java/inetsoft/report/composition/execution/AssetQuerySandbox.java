@@ -53,7 +53,6 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 /**
  * Asset query sandbox, the box contains all data in a worksheet, and refreshes
@@ -303,7 +302,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
 
       if(vpmUser != null) {
          vpmUser.setProperty(SUtil.VPM_USER, "true");
-         SUtil.setAdditionalDatasource(vpmUser);
+         ConnectionProcessor.getInstance().setAdditionalDatasource(vpmUser);
          VariableTable vars = getVariableTable();
 
          if(vars != null) {
@@ -943,7 +942,9 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
                base =  getColumnLimitTableLens(base, table instanceof UnpivotTableAssembly);
             }
 
-            base = new TextSizeLimitTableLens(base, Util.getOrganizationMaxCellSize());
+            if(base != null) {
+               base = new TextSizeLimitTableLens(base, Util.getOrganizationMaxCellSize());
+            }
 
             if(vars != null) {
                vars.removeBaseTable(this.vars);
@@ -1323,7 +1324,7 @@ public class AssetQuerySandbox implements Serializable, Cloneable, ActionListene
             }
          }
 
-         XDataSource xds = XUtil.getDatasource(principal, xds0);
+         XDataSource xds = ConnectionProcessor.getInstance().getDatasource(principal, xds0);
          SQLTypes stypes = SQLTypes.getSQLTypes((JDBCDataSource) xds);
          Object session = getSession();
          XNode meta = new XNode();

@@ -61,11 +61,14 @@ export class StompClient {
             this.pendingConnections = null;
          },
          (error: any) => {
-            if(this.pendingConnections) {
+            if(this.pendingConnections || (this.customElement && this.connected)) {
                console.error("Disconnected from server: ", error);
-               this.pendingConnections.forEach((sub) => {
-                  sub.error(error);
-               });
+
+               if(this.pendingConnections != null) {
+                  this.pendingConnections.forEach((sub) => {
+                     sub.error(error);
+                  });
+               }
 
                this.connected = false;
                this.pendingConnections = [];

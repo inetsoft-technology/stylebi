@@ -57,7 +57,7 @@ public abstract class MockMessageExtension implements BeforeEachCallback, AfterE
    }
 
    protected <T, R> R mockMessage(T t, Function<T, R> action) {
-      Principal principal = SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getCurrentOrgName()), null, false);
+      Principal principal = SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false);
       GenericMessage<String> message = new GenericMessage<>("test");
       MessageAttributes messageAttributes = new MessageAttributes(message);
 

@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.portal.PortalWelcomePage;
 import inetsoft.sree.security.*;
@@ -54,7 +55,12 @@ public class ReportController {
       boolean searchEnabled = manager.isButtonVisible(PortalThemesManager.SEARCH_BUTTON);
 
       String welcomePageUri = null;
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       PortalWelcomePage welcomePage = manager.getWelcomePage();
+
+      if(SUtil.isMultiTenant() && orgId != null && manager.getWelcomePage(orgId) != null) {
+         welcomePage = manager.getWelcomePage(orgId);
+      }
 
       if(welcomePage.getType() == PortalWelcomePage.URI) {
          welcomePageUri = welcomePage.getData();

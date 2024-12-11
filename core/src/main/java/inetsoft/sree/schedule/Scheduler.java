@@ -19,7 +19,6 @@ package inetsoft.sree.schedule;
 
 import inetsoft.mv.MVTool;
 import inetsoft.report.internal.LicenseException;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.DataCycleManager;
@@ -277,11 +276,18 @@ public class Scheduler {
                               Catalog catalog)
    {
       long nextRunStart = Long.MAX_VALUE;
+      long currentTimeMillis = System.currentTimeMillis();
 
       for(Trigger trigger : triggers) {
-         if(trigger.getNextFireTime() != null) {
-            nextRunStart = Math.min(
-               nextRunStart, trigger.getNextFireTime().getTime());
+         JobDataMap jobDataMap = trigger.getJobDataMap();
+         boolean runNow = jobDataMap != null && jobDataMap.getBoolean("runNow");
+         Date nextFireTime = trigger.getNextFireTime();
+         Date endTime = trigger.getEndTime();
+
+         if(nextFireTime != null && (endTime == null || nextFireTime.getTime() < endTime.getTime())
+            && !runNow && nextFireTime.getTime() > currentTimeMillis)
+         {
+            nextRunStart = Math.min(nextRunStart, nextFireTime.getTime());
          }
       }
 
@@ -532,13 +538,8 @@ public class Scheduler {
          // a single instance is included with a valid server key, more than one
          // instance require supplemental keys
          if(schedulerCount > 1) {
-            int schedulerLicenses = LicenseManager.getInstance().getSchedulerCount();
-
-            if(schedulerCount > schedulerLicenses) {
-               throw new LicenseException(
-                  "There are not sufficient scheduler licenses to start " +
-                  "another instance.");
-            }
+            throw new LicenseException(
+               "Only one scheduler instance is allowed with the Community Edition");
          }
       }
       finally {
@@ -573,7 +574,10 @@ public class Scheduler {
       lock.lock();
 
       try {
-         if(getSchedulerCount() == 1) {
+         boolean isCloudRun = InetsoftConfig.getInstance().getCloudRunner() != null;
+         boolean scheduleServer = "true".equals(System.getProperty("ScheduleServer"));
+
+         if(isCloudRun ? !scheduleServer && !cloudRunnerScheduleTaskLoaded() : getSchedulerCount() == 1) {
             scheduler.clear();
             // ensure that data cycle tasks have been loaded
             DataCycleManager.getDataCycleManager();
@@ -583,8 +587,12 @@ public class Scheduler {
                   addTask(task, true);
                }
                catch(Exception ex) {
-                  LOG.error("Failed to load task: " + task.getName(), ex);
+                  LOG.error("Failed to load task: " + task.getTaskId(), ex);
                }
+            }
+
+            if(isCloudRun) {
+               cluster.setLocalNodeProperty(CLOUD_RUNNER_SCHEDULER_TASK_LOADED, "true");
             }
          }
       }
@@ -593,11 +601,48 @@ public class Scheduler {
       }
    }
 
+   private boolean cloudRunnerScheduleTaskLoaded() {
+      if(InetsoftConfig.getInstance().getCloudRunner() == null) {
+         return false;
+      }
+
+      Cluster cluster = Cluster.getInstance();
+      Set<String> clusterNodes = cluster.getClusterNodes();
+
+      if(clusterNodes == null) {
+         return false;
+      }
+
+      for(String clusterNode : clusterNodes) {
+         if("true".equals(cluster.getClusterNodeProperty(clusterNode, CLOUD_RUNNER_SCHEDULER_TASK_LOADED))) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
    /**
     * Main worker for the scheduler.
     */
    private void run() throws Exception {
       scheduler.start();
+   }
+
+   /**
+    * Check whether scheduler is running.
+    */
+   public boolean isRunning() {
+      if(scheduler == null) {
+         return false;
+      }
+
+      try {
+         return scheduler.isStarted();
+      }
+      catch(SchedulerException e) {
+         return false;
+      }
    }
 
    /**
@@ -616,7 +661,7 @@ public class Scheduler {
       if(scheduler != null && task != null) {
          Set<Trigger> triggers = new HashSet<>();
          long now = System.currentTimeMillis();
-         long lastRun = getLastScheduledRunTime(task.getName());
+         long lastRun = getLastScheduledRunTime(task.getTaskId());
 
          for(int i = 0; i < task.getConditionCount(); i++) {
             ScheduleCondition condition = task.getCondition(i);
@@ -624,19 +669,19 @@ public class Scheduler {
             if(condition instanceof TimeCondition) {
                if(loading && ((TimeCondition) condition).getType() == TimeCondition.AT) {
                   ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
-                  ScheduleStatusDao.Status status = dao.getStatus(task.getName());
+                  ScheduleStatusDao.Status status = dao.getStatus(task.getTaskId());
 
                   if(status != null && status.getStatus() == Status.FINISHED) {
                      // run once that has already finished, skip it
                      LOG.debug(
                         "Run Once job skipped since it's already done: " +
-                           task.getName());
+                           task.getTaskId());
                      continue;
                   }
                }
 
                TimeConditionTriggerImpl trigger = new TimeConditionTriggerImpl();
-               trigger.setName(String.format("%s-%d",task.getName(), i + 1));
+               trigger.setName(String.format("%s-%d",task.getTaskId(), i + 1));
                trigger.setCondition((TimeCondition) condition);
 
                long next = (lastRun > 0) ? ((TimeCondition) condition).getRetryTime(now, lastRun)
@@ -648,13 +693,13 @@ public class Scheduler {
                }
                else {
                   LOG.debug("Time condition skipped: " +
-                               task.getName() + " " + condition +
+                               task.getTaskId() + " " + condition +
                                " current time: " + (new Date(now)));
                }
             }
             else if(condition instanceof TaskBalancerCondition) {
                TaskBalancerConditionTriggerImpl trigger = new TaskBalancerConditionTriggerImpl();
-               trigger.setName(String.format("%s-%d", task.getName(), i + 1));
+               trigger.setName(String.format("%s-%d", task.getTaskId(), i + 1));
                trigger.setCondition((TaskBalancerCondition) condition);
                long next = condition.getRetryTime(now);
 
@@ -663,7 +708,7 @@ public class Scheduler {
                   triggers.add(trigger);
                }
                else {
-                  LOG.debug("Task balancer skipped: " + task.getName());
+                  LOG.debug("Task balancer skipped: " + task.getTaskId());
                }
             }
          }
@@ -672,9 +717,20 @@ public class Scheduler {
          dataMap.put(ScheduleTask.class.getName(), task);
 
          CloudRunnerConfig cloudRunnerConfig = InetsoftConfig.getInstance().getCloudRunner();
+         Class <? extends Job> jobClass;
+
+         if(cloudRunnerConfig == null ||
+            InternalScheduledTaskService.BALANCE_TASKS.equals(task.getTaskId()))
+         {
+            jobClass = ScheduleTaskJob.class;
+         }
+         else {
+            jobClass = ScheduleTaskCloudJob.class;
+         }
+
          JobDetail job = JobBuilder
-            .newJob(cloudRunnerConfig != null ? ScheduleTaskCloudJob.class : ScheduleTaskJob.class)
-            .withIdentity(task.getName(), GROUP_NAME)
+            .newJob(jobClass)
+            .withIdentity(task.getTaskId(), GROUP_NAME)
             .storeDurably(task.isDurable() || triggers.isEmpty() || !task.isDeleteIfNoMoreRun())
             .usingJobData(dataMap)
             .build();
@@ -689,14 +745,14 @@ public class Scheduler {
             }
          }
          else {
-            scheduler.resumeJob(new JobKey(task.getName(), GROUP_NAME));
+            scheduler.resumeJob(new JobKey(task.getTaskId(), GROUP_NAME));
          }
 
          try {
             Catalog catalog = Catalog.getCatalog();
             ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
             ScheduleTaskMessage taskMessage = new ScheduleTaskMessage();
-            taskMessage.setTaskName(task.getName());
+            taskMessage.setTaskName(task.getTaskId());
             taskMessage.setAction(
                modified ?
                   ScheduleTaskMessage.Action.MODIFIED :
@@ -704,11 +760,11 @@ public class Scheduler {
             taskMessage.setTask(task);
             Cluster.getInstance().sendMessage(taskMessage);
 
-            TaskActivity activity = new TaskActivity(task.getName());
+            TaskActivity activity = new TaskActivity(task.getTaskId());
             updateNextRun(activity, task, false, triggers, catalog);
-            updateLastRun(activity, dao.getStatus(task.getName()), catalog);
+            updateLastRun(activity, dao.getStatus(task.getTaskId()), catalog);
             TaskActivityMessage activityMessage = new TaskActivityMessage();
-            activityMessage.setTaskName(task.getName());
+            activityMessage.setTaskName(task.getTaskId());
             activityMessage.setActivity(activity);
             Cluster.getInstance().sendMessage(activityMessage);
          }
@@ -738,7 +794,7 @@ public class Scheduler {
          ConditionTrigger.MISFIRE_INSTRUCTION_FIRE_ONCE_NOW);
       LOG.debug(
          "Task scheduled at " + startDate + ": " +
-            task.getName());
+            task.getTaskId());
    }
 
    /**
@@ -793,9 +849,9 @@ public class Scheduler {
    /**
     * Get the last scheduled (ignore run-now) start time for the task.
     */
-   long getLastScheduledRunTime(String taskName) {
+   long getLastScheduledRunTime(String taskId) {
       ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
-      ScheduleStatusDao.Status status = dao.getStatus(taskName);
+      ScheduleStatusDao.Status status = dao.getStatus(taskId);
       return status != null ? status.getLastScheduledStartTime() : 0;
    }
 
@@ -824,4 +880,5 @@ public class Scheduler {
       LoggerFactory.getLogger("inetsoft.scheduler_test");
    public static final String GROUP_NAME = "inetsoft";
    public static final String INIT_LOCK = Scheduler.class.getName() + ".initLock";
+   public static final String CLOUD_RUNNER_SCHEDULER_TASK_LOADED = "CLOUD_RUNNER_SCHEDULER_TASK_LOADED";
 }

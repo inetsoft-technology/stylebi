@@ -28,14 +28,15 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.*;
-import inetsoft.uql.jdbc.JDBCDataSource;
-import inetsoft.uql.jdbc.JDBCHandler;
+import inetsoft.uql.jdbc.*;
 import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
+import inetsoft.util.credential.Credential;
+import inetsoft.util.credential.PasswordCredential;
 import inetsoft.web.admin.content.database.*;
 import inetsoft.web.admin.content.database.types.AccessDatabaseType;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
@@ -182,6 +183,11 @@ public class DatabaseDatasourcesService {
    {
       String newPath = path;
 
+      Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
+      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
+          ActionRecord.ACTION_NAME_EDIT, auditPath, ActionRecord.OBJECT_TYPE_FOLDER,
+          actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE, null);
+
       if(model.root()) {
          securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE_FOLDER, "/", ResourceAction.ADMIN);
@@ -220,12 +226,6 @@ public class DatabaseDatasourcesService {
             if(permission != null) {
                securityEngine.setPermission(ResourceType.DATA_SOURCE_FOLDER, newPath, permission);
             }
-
-            Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
-            ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
-               ActionRecord.ACTION_NAME_RENAME, model.name(), ActionRecord.OBJECT_TYPE_FOLDER,
-               actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE, null);
-            Audit.getInstance().auditAction(actionRecord, principal);
          }
       }
 
@@ -235,6 +235,10 @@ public class DatabaseDatasourcesService {
 
       resourcePermissionService.setResourcePermissions(
          newPath, ResourceType.DATA_SOURCE_FOLDER, auditPath, model.permissions(), principal);
+      actionRecord.setActionError("new name: " + model.name());
+      actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
+      Audit.getInstance().auditAction(actionRecord, principal);
+
       return newPath;
    }
 
@@ -306,6 +310,7 @@ public class DatabaseDatasourcesService {
    public ConnectionStatus saveDatabase(String path, DataSourceSettingsModel model,
                                         @AuditActionName String actionName,
                                         @SuppressWarnings("unused") @AuditObjectName String objectName,
+                                        @SuppressWarnings("unused") @AuditActionError String actionError,
                                         Principal principal) throws Exception
    {
       return saveDatabase(path, model, actionName, principal);
@@ -452,8 +457,8 @@ public class DatabaseDatasourcesService {
       jdbcDataSource.setCustomEditMode(newSrc.isCustomEditMode());
       jdbcDataSource.setCustomUrl(newSrc.getCustomUrl());
       jdbcDataSource.setRequireLogin(newSrc.isRequireLogin());
-      jdbcDataSource.setUser(newSrc.getUser());
-      jdbcDataSource.setPassword(newSrc.getPassword());
+      jdbcDataSource.setCredential((PasswordCredential) Tool.clone(newSrc.getCredential()));
+      jdbcDataSource.setDBType(newSrc.getDBType());
       jdbcDataSource.setCustom(newSrc.isCustom());
       jdbcDataSource.setUnasgn(newSrc.isUnasgn());
       jdbcDataSource.setPoolProperties(newSrc.getPoolProperties());
@@ -492,6 +497,7 @@ public class DatabaseDatasourcesService {
             oldPermission.setUserGrants(ResourceAction.READ, users);
             oldPermission.setUserGrants(ResourceAction.WRITE, users);
             oldPermission.setUserGrants(ResourceAction.DELETE, users);
+            oldPermission.updateGrantAllByOrg(orgId, true);
          }
 
          securityEngine.setPermission(
@@ -943,8 +949,9 @@ public class DatabaseDatasourcesService {
       database.setDriver("");
       database.setName(targetPath);
       database.setRequireLogin(false);
-      database.setCreatedBy(IdentityID.getIdentityIDFromKey(principal.getName()));
-      database.setLastModifiedBy(principal.getName());
+      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      database.setCreatedBy(pId.getName());
+      database.setLastModifiedBy(pId.getName());
       database.setCreated(System.currentTimeMillis());
       database.setLastModified(System.currentTimeMillis());
 
@@ -1032,13 +1039,24 @@ public class DatabaseDatasourcesService {
       }
 
       if(definition.getAuthentication().isRequired()) {
-         xds.setUser(definition.getAuthentication().getUserName());
-
-         if(definition.getAuthentication().getPassword() == null) {
-            xds.setPassword("");
+         if(!Tool.isCloudSecrets() || !definition.getAuthentication().isUseCredentialId()) {
+            xds.initCredential(true);
+            xds.setUser(definition.getAuthentication().getUserName());
+            xds.setPassword(definition.getAuthentication().getPassword());
          }
          else {
-            xds.setPassword(definition.getAuthentication().getPassword());
+            String credentialId = definition.getAuthentication().getCredentialId();
+            String dbType = SQLHelper.getProductName(xds);
+            Credential credential =
+               Tool.decryptPasswordToCredential(credentialId, xds.getCredential().getClass(), dbType);
+
+            if(credential instanceof PasswordCredential && !credential.isEmpty()) {
+               xds.setUser(((PasswordCredential) credential).getUser());
+               xds.setPassword(((PasswordCredential) credential).getPassword());
+            }
+
+            xds.setCredentialId(credentialId);
+            xds.setDBType(dbType);
          }
       }
 

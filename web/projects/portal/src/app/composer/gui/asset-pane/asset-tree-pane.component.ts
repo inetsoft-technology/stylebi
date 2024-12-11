@@ -733,6 +733,7 @@ export class AssetTreePane implements OnChanges, OnInit {
       dialog.title = "_#(js:Rename Asset)";
       dialog.label = "_#(js:Asset Name)";
       dialog.value = node.label;
+      dialog.helpLinkKey = "RenameAsset";
       dialog.validators = [
          FormValidators.required,
          FormValidators.assetEntryBannedCharacters,

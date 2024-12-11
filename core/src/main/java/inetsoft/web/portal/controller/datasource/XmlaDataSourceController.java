@@ -41,7 +41,7 @@ public class XmlaDataSourceController {
    public void saveNewDatasource(@RequestBody DataSourceXmlaDefinition model, Principal principal)
       throws Exception
    {
-      xmlaDatasourceService.createNewDataSource(model, principal);
+      xmlaDatasourceService.createNewDataSource(model, true, principal);
    }
 
    @GetMapping("api/portal/data/datasource/xmla/new")

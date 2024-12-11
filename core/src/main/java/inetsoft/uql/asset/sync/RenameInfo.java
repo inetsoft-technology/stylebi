@@ -18,6 +18,7 @@
 package inetsoft.uql.asset.sync;
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
 import org.w3c.dom.Element;
@@ -187,6 +188,7 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
       this.type = type;
       this.source = source;
       this.table = table;
+      this.organizationId = OrganizationManager.getInstance().getCurrentOrgID();
    }
 
    /**
@@ -467,6 +469,10 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
       this.modelFolder = folder;
    }
 
+   public String getOrganizationId() {
+      return organizationId;
+   }
+
    public boolean isAlias() {
       return alias;
    }
@@ -510,6 +516,10 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
 
       if(bookmarkUser != null) {
          writer.print(" bookmarkUser=\"" + bookmarkUser.convertToKey() + "\"");
+      }
+
+      if(organizationId != null) {
+         writer.print(" organizationId=\"" +organizationId + "\"");
       }
 
       writer.print(" alias=\"" + alias + "\"");
@@ -558,6 +568,7 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
       npath = Tool.getAttribute(elem, "npath");
       modelFolder = Tool.getAttribute(elem, "modelFolder");
       bookmarkVS = Tool.getAttribute(elem, "bookmarkVS");
+      organizationId = Tool.getAttribute(elem, "organizationId");
       bookmarkUser = IdentityID.getIdentityIDFromKey(Tool.getAttribute(elem, "bookmarkUser"));
       String val = Tool.getAttribute(elem, "type");
 
@@ -635,4 +646,5 @@ public class RenameInfo implements Serializable, XMLSerializable, Cloneable {
    protected int sourceIndex;
    protected RenameInfo parentRenameInfo; // which caused the current rename info.
    protected boolean alias = false;
+   private String organizationId = null;
 }

@@ -4226,12 +4226,6 @@ public class CrossTabFilter extends AbstractTableLens
             }
 
             Objects.requireNonNull(tformula).reset();
-            rv = new ArrayList<>(rvec);
-            cv = new ArrayList<>(cvec);
-
-            // remove none-detail tuple
-            rv.removeAll(ndrv);
-            cv.removeAll(ndcv);
 
             for(Tuple ctuple : cv) {
                for(Tuple rtuple : rv) {

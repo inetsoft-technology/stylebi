@@ -16,12 +16,8 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div>
-   <div class="modal-header">
-      <h3 class="modal-title">_#(Delete Bookmarks)</h3>
-      <button type="button" class="btn-close" aria-label="Close" [attr.title]="'_#(Delete Bookmarks)'"
-              (click)="cancelChanges()">
-      </button>
-   </div>
+  <modal-header [title]="'_#(Delete Bookmarks)'" (onCancel)="cancelChanges()">
+  </modal-header>
 
    <div class="modal-body">
       <form [formGroup]="form">

@@ -19,6 +19,7 @@ package inetsoft.util.config;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.util.config.crd.CRDProperty;
 import inetsoft.util.config.json.PasswordDeserializer;
 import inetsoft.util.config.json.PasswordSerializer;
 
@@ -122,12 +123,20 @@ public class MongoConfig implements Serializable {
       this.replicaSet = replicaSet;
    }
 
+   @CRDProperty(description = "The hostname:port pairs for the database hosts")
    private String[] hosts;
+   @CRDProperty(description = "The name of the database")
    private String database;
+   @CRDProperty(description = "The name of the collection")
    private String collection;
+   @CRDProperty(description = "The username", secret = true)
    private String username;
+   @CRDProperty(description = "The password", secret = true)
    private String password;
+   @CRDProperty(description = "The name of the authorization database")
    private String authDatabase;
+   @CRDProperty(description = "A flag that indicates if SSL should be used")
    private boolean sslEnabled = false;
+   @CRDProperty(description = "The name of the required replica set")
    private String replicaSet;
 }

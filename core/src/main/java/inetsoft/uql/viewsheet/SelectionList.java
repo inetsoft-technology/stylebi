@@ -52,6 +52,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       super();
 
       list = new ArrayList<>();
+      writeAllValues = true;
    }
 
    /**
@@ -455,6 +456,11 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       writeXML(writer, Integer.MAX_VALUE);
    }
 
+   public void writeXML(PrintWriter writer, boolean writeAll) {
+      writeAllValues = writeAll;
+      writeXML(writer, Integer.MAX_VALUE);
+   }
+
    /**
     * Write the xml segment to print writer.
     * @param writer the destination print writer.
@@ -496,26 +502,28 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
                                 int levels, int limit,
                                 boolean containsFormat) throws IOException
    {
-      // write selection values
-      int skipped = 0;
-      ArrayList<SelectionValue> values = new ArrayList<>();
-      List<SelectionValue> list = getList();
+      if(writeAllValues) {
+         // write selection values
+         int skipped = 0;
+         ArrayList<SelectionValue> values = new ArrayList<>();
+         List<SelectionValue> list = getList();
 
-      for(int i = start; i < list.size(); i++) {
-         SelectionValue value = list.get(i);
+         for(int i = start; i < list.size(); i++) {
+            SelectionValue value = list.get(i);
 
-         if(i >= start + limit && !value.isSelected() && !value.isIncluded()) {
-            skipped++;
-            continue;
+            if(i >= start + limit && !value.isSelected() && !value.isIncluded()) {
+               skipped++;
+               continue;
+            }
+
+            values.add(value);
          }
 
-         values.add(value);
+         writeSelectionList(output, values, levels, containsFormat);
+
+         output.writeInt(start + limit);
+         output.writeInt(skipped);
       }
-
-      writeSelectionList(output, values, levels, containsFormat);
-
-      output.writeInt(start + limit);
-      output.writeInt(skipped);
 
       if(containsFormat) {
          // don't write format again in loadMore
@@ -556,50 +564,52 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    protected void writeContents(DataOutputStream output, int levels, int start,
       int count, int max, boolean showOthers) throws IOException
    {
-      // write selection values
-      List<SelectionValue> values = new ArrayList<>();
-      List<SelectionValue> list = getList();
+      if(writeAllValues) {
+         // write selection values
+         List<SelectionValue> values = new ArrayList<>();
+         List<SelectionValue> list = getList();
 
-      for(int i = 0; i < list.size(); i++) {
-         SelectionValue value = list.get(i);
+         for(int i = 0; i < list.size(); i++) {
+            SelectionValue value = list.get(i);
 
-         if(i >= max && !value.isSelected()) {
-            continue;
-         }
+            if(i >= max && !value.isSelected()) {
+               continue;
+            }
 
-         if(showOthers) {
-            if(value.isExcluded() && !value.isSelected() && i < max) {
+            if(showOthers) {
+               if(value.isExcluded() && !value.isSelected() && i < max) {
+                  values.add(value);
+               }
+            }
+            else {
                values.add(value);
             }
          }
-         else {
-            values.add(value);
+
+         if(!showOthers) {
+            try {
+               values = values.subList(start, Math.min(values.size(), start + count));
+            }
+            catch(Exception ex) {
+               values = new ArrayList<>();
+            }
          }
+
+         writeSelectionList(output, values, levels, false);
+
+         int skipped = 0;
+
+         for(int i = 0; i < list.size(); i++) {
+            SelectionValue value = list.get(i);
+
+            if(i >= max && !value.isSelected()) {
+               skipped++;
+            }
+         }
+
+         output.writeInt(start + count);
+         output.writeInt(skipped);
       }
-
-      if(!showOthers) {
-         try {
-            values = values.subList(start, Math.min(values.size(), start + count));
-         }
-         catch(Exception ex) {
-            values = new ArrayList<>();
-         }
-      }
-
-      writeSelectionList(output, values, levels, false);
-
-      int skipped = 0;
-
-      for(int i = 0; i < list.size(); i++) {
-         SelectionValue value = list.get(i);
-
-         if(i >= max && !value.isSelected()) {
-            skipped++;
-         }
-      }
-
-      output.writeInt(start + count);
-      output.writeInt(skipped);
    }
 
    /**
@@ -609,30 +619,32 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     * @param limit the maximum number of items to write out.
     */
    protected void writeContents(PrintWriter writer, int levels, int start, int limit) {
-      int skipped = 0;
-      List<SelectionValue> list = getList();
+      if(writeAllValues) {
+         int skipped = 0;
+         List<SelectionValue> list = getList();
 
-      writer.print("<selectionValues>");
+         writer.print("<selectionValues>");
 
-      for(int i = 0; i < list.size(); i++) {
-         SelectionValue value = list.get(i);
+         for(int i = 0; i < list.size(); i++) {
+            SelectionValue value = list.get(i);
 
-         if(i >= limit && !value.isSelected()) {
-            skipped++;
-            continue;
+            if(i >= limit && !value.isSelected()) {
+               skipped++;
+               continue;
+            }
+
+            value.writeXML(writer, levels, this);
          }
 
-         value.writeXML(writer, levels, this);
+         writer.println("</selectionValues>");
+         writer.print("<loaded>" + (start + limit) + "</loaded>");
+
+         if(skipped > 0) {
+            writer.print("<omitted>" + skipped + "</omitted>");
+         }
+
+         writeFormats(writer);
       }
-
-      writer.println("</selectionValues>");
-      writer.print("<loaded>" + (start + limit) + "</loaded>");
-
-      if(skipped > 0) {
-         writer.print("<omitted>" + skipped + "</omitted>");
-      }
-
-      writeFormats(writer);
    }
 
    /**
@@ -671,14 +683,17 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
     */
    protected void parseContents(Element elem) throws Exception {
       Element valuesNode = Tool.getChildNodeByTagName(elem, "selectionValues");
-      NodeList valuesList = Tool.getChildNodesByTagName(valuesNode, "VSValue");
 
-      for(int i = 0; i < valuesList.getLength(); i++) {
-         Element vnode = (Element) valuesList.item(i);
-         String cls = Tool.getAttribute(vnode, "class");
-         SelectionValue value = (SelectionValue) Class.forName(cls).newInstance();
-         value.parseXML(vnode);
-         list.add(value);
+      if(valuesNode != null) {
+         NodeList valuesList = Tool.getChildNodesByTagName(valuesNode, "VSValue");
+
+         for(int i = 0; i < valuesList.getLength(); i++) {
+            Element vnode = (Element) valuesList.item(i);
+            String cls = Tool.getAttribute(vnode, "class");
+            SelectionValue value = (SelectionValue) Class.forName(cls).newInstance();
+            value.parseXML(vnode);
+            list.add(value);
+         }
       }
    }
 
@@ -790,7 +805,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       }
 
       // allow SelectionList to be swapped. but don't do it unless really necessary.
-      return getAgePriority(XSwapper.cur - lastAccess, alive * 3);
+      return getAgePriority(XSwapper.cur - lastAccess, alive * 3L);
    }
 
    @Override
@@ -1164,6 +1179,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    private long lastAccess = 0;
    private List<Format> defFmtDict;
    private List<VSCompositeFormat> fmtDict;
+   private boolean writeAllValues = true;
 
    private static final Logger LOG = LoggerFactory.getLogger(SelectionList.class);
 }

@@ -16,10 +16,8 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <!-- Modal Header -->
-<div class="modal-header">
-  <h3 class="modal-title">_#(Name)</h3>
-  <button type="button" class="btn-close" aria-label="Close" (click)="cancel()"></button>
-</div>
+<modal-header [title]="'_#(Name)'" (onCancel)="cancel()">
+</modal-header>
 <!-- Modal Body -->
 <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="form">
   <form [formGroup]="form" class="form-horizontal">

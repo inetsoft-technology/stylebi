@@ -114,6 +114,7 @@ public class SSOSettingsService {
    public OpenIdAttributesModel buildOpenIdModel() {
       try {
          return new OpenIdAttributesModel.Builder()
+            .secretId(openIDConfig.getSecretId())
             .clientId(openIDConfig.getClientId())
             .clientSecret(openIDConfig.getClientSecret())
             .scopes(openIDConfig.getScopes())
@@ -134,6 +135,7 @@ public class SSOSettingsService {
       }
 
       return new OpenIdAttributesModel.Builder()
+         .secretId("")
          .clientId("")
          .clientSecret("")
          .issuer("")
@@ -168,12 +170,12 @@ public class SSOSettingsService {
                return true;
             }
 
-            return r.getOrganization() == null && !securityProvider.isOrgAdministratorRole(r) ||
-               Tool.equals(Organization.getDefaultOrganizationName(), r.getOrganization());
+            return r.getOrgID() == null && !securityProvider.isOrgAdministratorRole(r) ||
+               Tool.equals(Organization.getDefaultOrganizationID(), r.getOrgID());
          })
          .map(role -> NameLabelTuple.builder()
             .name(role.convertToKey())
-            .label(multiTenant ? role.convertToKey() : role.getName()).build())
+            .label(role.getName()).build())
          .toArray(NameLabelTuple[]::new);
    }
 
@@ -207,8 +209,6 @@ public class SSOSettingsService {
       else if(ssoType == SSOType.OPENID) {
          final OpenIdAttributesModel openIdAttributesModel = model.openIdAttributesModel();
          assert openIdAttributesModel != null;
-         openIDConfig.setClientId(openIdAttributesModel.clientId());
-         openIDConfig.setClientSecret(openIdAttributesModel.clientSecret());
          openIDConfig.setScopes(openIdAttributesModel.scopes());
          openIDConfig.setIssuer(openIdAttributesModel.issuer());
          openIDConfig.setAudience(openIdAttributesModel.audience());
@@ -220,6 +220,15 @@ public class SSOSettingsService {
          openIDConfig.setRoleClaim(openIdAttributesModel.roleClaim());
          openIDConfig.setGroupClaim(openIdAttributesModel.groupClaim());
          openIDConfig.setOrgIDClaim(openIdAttributesModel.orgIDClaim());
+
+         if(Tool.isCloudSecrets()) {
+            openIDConfig.setSecretId(openIdAttributesModel.secretId());
+         }
+         else {
+            openIDConfig.setClientId(openIdAttributesModel.clientId());
+            openIDConfig.setClientSecret(openIdAttributesModel.clientSecret());
+         }
+
          publisher.changeSSOFilterType(SSOType.OPENID);
       }
       else if(ssoType == SSOType.CUSTOM) {

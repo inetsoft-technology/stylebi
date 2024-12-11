@@ -17,14 +17,23 @@
  */
 import { SelectionModel } from "@angular/cdk/collections";
 import { HttpClient, HttpErrorResponse } from "@angular/common/http";
-import { AfterViewInit, Component, Input, OnInit, ViewChild } from "@angular/core";
+import {
+   AfterViewInit,
+   Component,
+   Input,
+   NgZone,
+   OnDestroy,
+   OnInit,
+   ViewChild
+} from "@angular/core";
 import { MatDialog, MatDialogRef } from "@angular/material/dialog";
 import { MatSnackBar, MatSnackBarConfig } from "@angular/material/snack-bar";
 import { MatSort } from "@angular/material/sort";
 import { MatTableDataSource } from "@angular/material/table";
 import { Observable, throwError } from "rxjs";
 import { catchError, finalize } from "rxjs/operators";
-import { FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
+import { StompClientConnection } from "../../../../../../../shared/stomp/stomp-client-connection";
+import { StompClientService } from "../../../../../../../shared/stomp/stomp-client.service";
 import { PluginModel, PluginsModel } from "../../../../../../../shared/util/model/plugins-model";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { StagedFileChooserComponent } from "../../../../common/util/file-chooser/staged-file-chooser/staged-file-chooser.component";
@@ -37,10 +46,11 @@ const PLUGIN_URI = "../api/em/settings/content/plugins";
    templateUrl: "./plugins-view.component.html",
    styleUrls: ["./plugins-view.component.scss"]
 })
-export class PluginsViewComponent implements OnInit, AfterViewInit {
+export class PluginsViewComponent implements OnInit, AfterViewInit, OnDestroy {
    @ViewChild("fileChooser") fileChooser: StagedFileChooserComponent;
    @ViewChild(MatSort) sort: MatSort;
-   FeatureFlags = FeatureFlagValue;
+   private connecting = false;
+   private connection: StompClientConnection;
 
    @Input()
    get model(): PluginsModel {
@@ -70,7 +80,10 @@ export class PluginsViewComponent implements OnInit, AfterViewInit {
 
    private _model: PluginsModel;
 
-   constructor(private http: HttpClient, public snackBar: MatSnackBar, public dialog: MatDialog) {
+   constructor(private http: HttpClient, public snackBar: MatSnackBar, public dialog: MatDialog,
+               private client: StompClientService, private zone: NgZone)
+   {
+      this.connectSocket();
    }
 
    ngOnInit() {
@@ -78,6 +91,10 @@ export class PluginsViewComponent implements OnInit, AfterViewInit {
 
    ngAfterViewInit() {
       this.dataSource.sort = this.sort;
+   }
+
+   ngOnDestroy(): void {
+      this.disconnectSocket();
    }
 
    /**
@@ -173,6 +190,37 @@ export class PluginsViewComponent implements OnInit, AfterViewInit {
       this.model = model;
       this.snackBar.open(message, null, {duration: Tool.SNACKBAR_DURATION});
    }
+
+   private connectSocket(): void {
+      if(!this.connecting && !this.connection) {
+         this.client.connect("../vs-events").subscribe(
+            (connection) => {
+               this.connecting = false;
+               this.connection = connection;
+               this.subscribeSocket();
+            },
+            (error: any) => {
+               this.connecting = false;
+               console.error("Failed to connect to server: ", error);
+            }
+         );
+      }
+   }
+
+   private subscribeSocket(): void {
+      this.connection.subscribe("/user/em-plugin-changed", () => {
+         this.zone.run(() => this.http.get<PluginsModel>("../api/data/plugins")
+            .subscribe(model => this.model = model));
+      });
+   }
+
+   private disconnectSocket(): void {
+      if(this.connection) {
+         this.connection.disconnect();
+         this.connection = null;
+      }
+   }
+
 
    private handleInstallPluginsError(error: HttpErrorResponse): Observable<PluginsModel> {
       let message: string;

@@ -1090,6 +1090,7 @@ export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, On
       dialog.title = "_#(js:Group Name)";
       dialog.label = "_#(js:Group Name)";
       dialog.value = dialogName;
+      dialog.helpLinkKey = "AddCrosstabCreateNamedGroups";
       dialog.validators = [
          Validators.required
       ];
@@ -1100,7 +1101,7 @@ export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, On
       dialog.hasDuplicateCheck = (value: string) => {
          const event = new GroupFieldsEvent(
             this.model.absoluteName, row, col, null, cells, value.trim());
-         return this.modelService.sendModel<boolean>("../" + GROUP_URI + "/checkDuplicates/"
+         return this.modelService.sendModel<boolean>("../api/" + GROUP_URI + "/checkDuplicates/"
             + Tool.encodeURIPath(this.viewsheetClient.runtimeId), event).pipe(
             map((res) => res.body));
       };
@@ -1519,7 +1520,8 @@ export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, On
       if(model.selectedHeaders) {
          model.selectedHeaders.forEach((values, key) => {
             values.forEach((value) => {
-               let cellmodel = model.cells[key][value];
+               let rowNumber = Math.max(0, key - this.loadedRows.start);
+               let cellmodel = model.cells[rowNumber][value];
                let colspan = cellmodel.colSpan;
 
                for(let i = 0; i < colspan; i++) {

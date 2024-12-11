@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
 import { LogSettingsModel } from "../log-settings-model";
@@ -36,6 +37,7 @@ export class LoggingSettingsViewComponent {
    private _model: LogSettingsModel;
    form: UntypedFormGroup;
    enterprise: boolean;
+   isMultiTenant: boolean = false;
 
    @Input()
    set model(value: LogSettingsModel) {
@@ -59,7 +61,8 @@ export class LoggingSettingsViewComponent {
    }
 
    constructor(formBuilder: UntypedFormBuilder,
-               private appInfoService: AppInfoService) {
+               private appInfoService: AppInfoService, private http: HttpClient)
+   {
       this.form = formBuilder.group({
          provider: ["", [Validators.required]],
          outputToStd: [false],
@@ -81,8 +84,7 @@ export class LoggingSettingsViewComponent {
             password: ["", [Validators.required]],
             tlsEnabled: [false],
             caCertificateFile: [""],
-            logViewUrl: [""],
-            auditViewUrl: [""]
+            logViewUrl: [""]
          })
       });
 
@@ -97,6 +99,11 @@ export class LoggingSettingsViewComponent {
       });
 
       appInfoService.isEnterprise().subscribe(info => this.enterprise = info);
+
+      this.http.get("../api/em/navbar/isMultiTenant").subscribe((isMultiTenant: boolean) =>
+      {
+         this.isMultiTenant = isMultiTenant;
+      });
    }
 
    changeLoggingLevels(logLevels: LogLevelDTO[]) {
@@ -109,6 +116,18 @@ export class LoggingSettingsViewComponent {
          changes: this.model,
          valid: this.form.valid
       });
+   }
+
+   getLevels(levels: LogLevelDTO[]) {
+      let defaultLevels = [];
+
+      for(let level of levels) {
+         if(level != null && level.name != "inetsoft_audit" && level.name != "org.apache.ignite") {
+            defaultLevels.push(level);
+         }
+      }
+
+      return defaultLevels;
    }
 
    private updateEnabled(): void {

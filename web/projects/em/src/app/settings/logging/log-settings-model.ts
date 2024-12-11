@@ -36,7 +36,6 @@ export interface FluentdLogSettingsModel {
    tlsEnabled: boolean;
    caCertificateFile: string;
    logViewUrl: string;
-   auditViewUrl: string;
 }
 
 export interface LogSettingsModel {

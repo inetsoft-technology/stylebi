@@ -20,6 +20,7 @@ package inetsoft.uql.rest.datasource.gsearchconsole;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.credential.CredentialType;
 
 @View(vertical = true, value = {
    @View1(
@@ -42,6 +43,16 @@ public class GoogleSearchConsoleDataSource
    public GoogleSearchConsoleDataSource() {
       super(TYPE, GoogleSearchConsoleDataSource.class);
       setAuthType(AuthType.NONE);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.AUTH_TOKENS;
+   }
+
+   @Override
+   protected boolean supportCredentialId() {
+      return false;
    }
 
    @Override

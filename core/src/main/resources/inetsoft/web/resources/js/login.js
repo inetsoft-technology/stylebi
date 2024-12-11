@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, currentUser) {
+function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, currentUser, onloadError) {
    var $userNameField = $("#loginUserName");
    var $userNameError = $("#userNameError");
 
@@ -116,8 +116,8 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, curren
 
                    for(var i = 0; i < data.users.length; i++) {
                       $("<option/>")
-                          .val(data.users[i])
-                          .html(data.users[i])
+                          .val(data.users[i].name)
+                          .html(data.users[i].label)
                           .appendTo($loginAsNameField);
                    }
                 }
@@ -232,6 +232,11 @@ function initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, curren
    }
 
    validateForm();
+
+   if(onloadError) {
+      $notifications.html(onloadError);
+      $notifications.show();
+   }
 }
 
 function authenticateUser(userName, password, loginAsName, requestedUrl, firstLogin, callBack, errorCallBack,

@@ -108,9 +108,6 @@ public class ViewsheetTransformer implements Transformer {
          {
             properties.removeChild(property);
          }
-         else if("entry.paths".equals(key)) {
-            properties.removeChild(property);
-         }
       }
    }
 

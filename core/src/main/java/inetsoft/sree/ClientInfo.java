@@ -288,7 +288,7 @@ public class ClientInfo implements Cloneable, Serializable, XMLSerializable {
 
    // for backward compatibility
    private static final long serialVersionUID = 5676785387536905773L;
-   private IdentityID userID = new IdentityID(ANONYMOUS, Organization.getDefaultOrganizationName());
+   private IdentityID userID = new IdentityID(ANONYMOUS, Organization.getDefaultOrganizationID());
    private IdentityID loginUser = null;
    private String addr = LOCALHOST;
    private Locale locale = null;

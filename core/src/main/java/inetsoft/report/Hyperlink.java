@@ -650,7 +650,7 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
       // if link has :// or starts with /, treat as http link
       if(link != null && !(link.indexOf("://") > 0 || link.startsWith("/"))) {
          try {
-            if(!link.contains(".com") && link.contains(".net") && link.contains(".org")) {
+            if(!link.contains(".com") && !link.contains(".net") && !link.contains(".org")) {
                return Hyperlink.VIEWSHEET_LINK;
             }
          }
@@ -907,7 +907,9 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
 
          if(type == VIEWSHEET_LINK && !ASSET_ID_PATTERN.matcher(link).matches() && !isGuessed) {
             // default to global viewsheet
-            link = "1^128^__NULL__^" + link;
+            if(!link.startsWith("1^128^__NULL__^")) {
+               link = "1^128^__NULL__^" + link;
+            }
          }
 
          setLink(link);

@@ -660,9 +660,7 @@ public class TableDataVSAScriptable extends DataVSAScriptable implements Composi
          return "[][]";
       }
 
-      if("colFormat".equals(prop) || "highlighted".equals(prop) ||
-         get(prop + "", this) instanceof ArrayObject)
-      {
+      if("colFormat".equals(prop) || get(prop + "", this) instanceof ArrayObject) {
          return "[]";
       }
 

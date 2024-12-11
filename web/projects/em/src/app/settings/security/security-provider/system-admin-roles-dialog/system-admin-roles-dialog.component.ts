@@ -82,7 +82,7 @@ export class SystemAdminRolesDialogComponent implements OnInit, OnDestroy {
          .filter(role => {
             return !this.adminRoles.includes(role) && role.toLowerCase().startsWith(input);
          }));
-      return Array.from(roleSet);
+      return Array.from(roleSet).sort();
    }
 
    removeRole(role: string): void {

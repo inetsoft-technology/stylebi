@@ -82,7 +82,12 @@ public enum LogContext {
    /**
     * Indicates that the logging context refers to a worksheet table assembly.
     */
-   TABLE("table:");
+   TABLE("table:"),
+
+   /**
+    * Indicates that the logging context refers to an organization.
+    */
+   ORGANIZATION("organization:");
 
    private final String prefix;
 

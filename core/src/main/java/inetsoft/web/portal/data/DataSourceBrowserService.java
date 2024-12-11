@@ -200,7 +200,7 @@ public class DataSourceBrowserService {
       }
 
       String label = Catalog.getCatalog().getString("DATA SOURCE FOLDER");
-      LocalDateTime cdate = dsFolder == null ? null : dsFolder.getCreatedDate();
+      LocalDateTime cdate = dsFolder.getCreatedDate();
       long createDate = cdate == null ? 0 : Tool.getTimestampOfDateTime(cdate);
       String fmt = SreeEnv.getProperty("format.date.time");
       DateTimeFormatter df = DateTimeFormatter.ofPattern(fmt);
@@ -214,7 +214,8 @@ public class DataSourceBrowserService {
       return DataSourceInfo.builder()
             .name(dsFolder.getName())
             .path(dsFolder.getFullName())
-            .createdBy(SUtil.getUserAlias(dsFolder.getCreatedUsername()))
+            .createdBy(SUtil.getUserAlias(new IdentityID(dsFolder.getCreatedUsername(),
+                                                         OrganizationManager.getInstance().getCurrentOrgID())))
             .createdDate(createDate)
             .createdDateLabel(dateLabel)
             .type(type)
@@ -339,8 +340,9 @@ public class DataSourceBrowserService {
          .name(dataSource.getName())
          .path(dataSource.getFullName())
          .type(type)
-         .createdBy(SUtil.getUserAlias(dataSource.getCreatedBy()))
-         .createdDate(cdate == 0 ? 0 : cdate)
+         .createdBy(SUtil.getUserAlias(
+            new IdentityID(dataSource.getCreatedBy(), OrganizationManager.getInstance().getCurrentOrgID())))
+         .createdDate(cdate)
          .createdDateLabel(dateLabel)
          .editable(securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE, dataSource.getFullName(), ResourceAction.WRITE))
@@ -688,10 +690,11 @@ public class DataSourceBrowserService {
    {
       LocalDateTime time = LocalDateTime.now();
       IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
-      DataSourceFolder dsFolder = new DataSourceFolder(path, time, user);
+      String userName = user != null ? user.getName() : null;
+      DataSourceFolder dsFolder = new DataSourceFolder(path, time, userName);
 
       if(userScope) {
-         Set<String> users = Collections.singleton(user.getName());
+         Set<String> users = Collections.singleton(userName);
          Permission permission = new Permission();
          String orgId = OrganizationManager.getInstance().getCurrentOrgID();
          permission.setUserGrantsForOrg(ResourceAction.READ, users, orgId);
@@ -887,7 +890,7 @@ public class DataSourceBrowserService {
    private DataSourceFolder getRootFolder(Principal principal) {
       LocalDateTime time = LocalDateTime.now();
       IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
-      return new DataSourceFolder("/", time, user);
+      return new DataSourceFolder("/", time, user != null ? user.getName() : null);
    }
 
    private static class DataSourceStatusKey {

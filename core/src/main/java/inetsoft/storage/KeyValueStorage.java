@@ -17,6 +17,7 @@
  */
 package inetsoft.storage;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.SingletonManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.Future;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -108,6 +110,15 @@ public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
     * @return the value that was associated with the key or {@code null} if there was none.
     */
    Future<T> remove(String key);
+
+   /**
+    * Removes a set of keys from the store.
+    *
+    * @param keys the keys.
+    *
+    * @return a future that can be used to determine the outcome of the operation.
+    */
+   Future<?> removeAll(Set<String> keys);
 
    /**
     * Renames a key in the store atomically. This removes the value associated with <i>oldKey</i>
@@ -308,18 +319,32 @@ public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
          KeyValueStorage<?> storage = storages.get(storeID);
 
          if(storage == null || storage.isClosed()) {
-            Supplier<LoadKeyValueTask<?>> createTask = parameters.length == 2 ?
-               (Supplier<LoadKeyValueTask<?>>) parameters[1] : null;
+            String lockId = "kv." + storeID;
+            Lock lock = Cluster.getInstance().getLock(lockId);
+            lock.lock();
 
-            if(createTask == null) {
-               storage = KeyValueStorage.newInstance(storeID);
-            }
-            else {
-               storage = KeyValueStorage
-                  .newInstance(storeID, createTask.get());
-            }
+            try {
+               storage = storages.get(storeID);
 
-            storages.put(storeID, storage);
+               if(storage == null || storage.isClosed()) {
+                  Supplier<LoadKeyValueTask<?>> createTask = parameters.length == 2 ?
+                     (Supplier<LoadKeyValueTask<?>>) parameters[1] : null;
+
+
+                  if(createTask == null) {
+                     storage = KeyValueStorage.newInstance(storeID);
+                  }
+                  else {
+                     storage = KeyValueStorage
+                        .newInstance(storeID, createTask.get());
+                  }
+
+                  storages.put(storeID, storage);
+               }
+            }
+            finally {
+               lock.unlock();
+            }
          }
 
          return storage;

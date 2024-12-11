@@ -19,6 +19,7 @@ package inetsoft.uql.sharepoint;
 
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -26,11 +27,13 @@ import java.time.Instant;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("username"),
-   @View1("password"),
-   @View1("clientId"),
-   @View1("tenantId"),
-   @View1("clientSecret")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "password", visibleMethod = "useCredential"),
+   @View1(value = "clientId", visibleMethod = "useCredential"),
+   @View1(value = "tenantId", visibleMethod = "useCredential"),
+   @View1(value = "clientSecret", visibleMethod = "useCredential")
 })
 public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnlineDataSource> {
    public static final String TYPE = "SharepointOnline";
@@ -39,70 +42,122 @@ public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnli
       super(TYPE, SharepointOnlineDataSource.class);
    }
 
-   @Property(label = "Username", required = true)
-   public String getUsername() {
-      return username;
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.ROPC;
+   }
+
+   @Property(label = "User", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
+   public String getUser() {
+      if(getCredential() instanceof PasswordCredential) {
+         return ((PasswordCredential) getCredential()).getUser();
+      }
+
+      return null;
    }
 
    @SuppressWarnings("unused")
-   public void setUsername(String username) {
-      this.username = username;
+   public void setUser(String username) {
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setUser(username);
+      }
    }
 
    @Property(label = "Password", password = true, required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getPassword() {
-      return password;
+      if(getCredential() instanceof PasswordCredential) {
+         return ((PasswordCredential) getCredential()).getPassword();
+      }
+
+      return null;
    }
 
    @SuppressWarnings("unused")
    public void setPassword(String password) {
-      this.password = password;
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setPassword(password);
+      }
    }
 
    @Property(label = "Client ID", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getClientId() {
-      return clientId;
+      if(getCredential() instanceof ClientCredentials) {
+         return ((ClientCredentials) getCredential()).getClientId();
+      }
+
+      return null;
    }
 
    @SuppressWarnings("unused")
    public void setClientId(String clientId) {
-      this.clientId = clientId;
+      if(getCredential() instanceof ClientCredentials) {
+         ((ClientCredentials) getCredential()).setClientId(clientId);
+      }
    }
 
    @Property(label = "Tenant ID", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getTenantId() {
-      return tenantId;
+      if(getCredential() instanceof ResourceOwnerPasswordCredentials) {
+         return ((ResourceOwnerPasswordCredentials) getCredential()).getTenantId();
+      }
+
+      return null;
    }
 
    @SuppressWarnings("unused")
    public void setTenantId(String tenantId) {
-      this.tenantId = tenantId;
+      if(getCredential() instanceof ResourceOwnerPasswordCredentials) {
+         ((ResourceOwnerPasswordCredentials) getCredential()).setTenantId(tenantId);
+      }
    }
 
    @Property(label = "Client Secret", password = true, required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getClientSecret() {
-      return clientSecret;
+      if(getCredential() instanceof ClientCredentials) {
+         return ((ClientCredentials) getCredential()).getClientSecret();
+      }
+
+      return null;
    }
 
    @SuppressWarnings("unused")
    public void setClientSecret(String clientSecret) {
-      this.clientSecret = clientSecret;
+      if(getCredential() instanceof ClientCredentials) {
+         ((ClientCredentials) getCredential()).setClientSecret(clientSecret);
+      }
    }
 
    String getAccessToken() {
-      return accessToken;
+      if(getCredential() instanceof AccessTokenCredential) {
+         return ((AccessTokenCredential) getCredential()).getAccessToken();
+      }
+
+      return null;
    }
 
    void setAccessToken(String accessToken) {
-      this.accessToken = accessToken;
+      if(getCredential() instanceof AccessTokenCredential) {
+         ((AccessTokenCredential) getCredential()).setAccessToken(accessToken);
+      }
    }
 
    String getRefreshToken() {
-      return refreshToken;
+      if(getCredential() instanceof RefreshTokenCredential) {
+         return ((RefreshTokenCredential) getCredential()).getRefreshToken();
+      }
+
+      return null;
    }
 
    void setRefreshToken(String refreshToken) {
-      this.refreshToken = refreshToken;
+      if(getCredential() instanceof RefreshTokenCredential) {
+         ((RefreshTokenCredential) getCredential()).setRefreshToken(refreshToken);
+      }
    }
 
    Instant getTokenExpires() {
@@ -117,38 +172,6 @@ public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnli
    protected void writeContents(PrintWriter writer) {
       super.writeContents(writer);
 
-      if(username != null) {
-         writer.format("<username><![CDATA[%s]]></username>%n", username);
-      }
-
-      if(password != null) {
-         writer.format(
-            "<password><![CDATA[%s]]></password>%n", Tool.encryptPassword(password));
-      }
-
-      if(clientId != null) {
-         writer.format("<client-id><![CDATA[%s]]></client-id>%n", clientId);
-      }
-
-      if(tenantId != null) {
-         writer.format("<tenant-id><![CDATA[%s]]></tenant-id>%n", tenantId);
-      }
-
-      if(clientSecret != null) {
-         writer.format(
-            "<client-secret><![CDATA[%s]]></client-secret>%n", Tool.encryptPassword(clientSecret));
-      }
-
-      if(accessToken != null) {
-         writer.format(
-            "<access-token><![CDATA[%s]]></access-token>%n", Tool.encryptPassword(accessToken));
-      }
-
-      if(refreshToken != null) {
-         writer.format(
-            "<refresh-token><![CDATA[%s]]></refresh-token>%n", Tool.encryptPassword(refreshToken));
-      }
-
       if(tokenExpires != null) {
          writer.format("<token-expires>%s</token-expires>%n", tokenExpires);
       }
@@ -157,14 +180,6 @@ public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnli
    @Override
    protected void parseContents(Element element) throws Exception {
       super.parseContents(element);
-      username = Tool.getChildValueByTagName(element, "username");
-      password = Tool.decryptPassword(Tool.getChildValueByTagName(element, "password"));
-      clientId = Tool.getChildValueByTagName(element, "client-id");
-      tenantId = Tool.getChildValueByTagName(element, "tenant-id");
-      clientSecret = Tool.decryptPassword(Tool.getChildValueByTagName(element, "client-secret"));
-      accessToken = Tool.decryptPassword(Tool.getChildValueByTagName(element, "access-token"));
-      refreshToken = Tool.decryptPassword(Tool.getChildValueByTagName(element, "refresh-token"));
-
       String expires = Tool.getChildValueByTagName(element, "token-expires");
 
       if(expires != null) {
@@ -177,26 +192,13 @@ public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnli
       try {
          SharepointOnlineDataSource ds = (SharepointOnlineDataSource) obj;
 
-         return Objects.equals(username, ds.username) &&
-            Objects.equals(password, ds.password) &&
-            Objects.equals(clientId, ds.clientId) &&
-            Objects.equals(tenantId, ds.tenantId) &&
-            Objects.equals(clientSecret, ds.clientSecret) &&
-            Objects.equals(accessToken, ds.accessToken) &&
-            Objects.equals(refreshToken, ds.refreshToken) &&
-            Objects.equals(tokenExpires, ds.tokenExpires);
+         return Objects.equals(tokenExpires, ds.tokenExpires) &&
+            Objects.equals(getCredential(), ds.getCredential());
       }
       catch(Exception ex) {
          return false;
       }
    }
 
-   private String username;
-   private String password;
-   private String clientId;
-   private String tenantId;
-   private String clientSecret;
-   private String accessToken;
-   private String refreshToken;
    private Instant tokenExpires;
 }

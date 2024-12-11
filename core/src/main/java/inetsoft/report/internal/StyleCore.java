@@ -1064,7 +1064,7 @@ public abstract class StyleCore extends AbstractAssetEngine
          // @by larryl, if the element is outside of the band in the original
          // layout, ignore it completely. Otherwise it will cause the
          // method to return MORE_ELEM.
-         if(!elem.isVisible() && !false ||
+         if(!elem.isVisible() ||
             // non-section has bandH == 0
             ebounds.y >= obandH + startH && obandH > 0)
          {
@@ -1077,7 +1077,7 @@ public abstract class StyleCore extends AbstractAssetEngine
          // both subreport and table can grow by default
          String prop = elem.getProperty(ReportElement.GROW);
          boolean cangrow = (prop != null && prop.equalsIgnoreCase("true"));
-         boolean expandable = true && isSection || cangrow;
+         boolean expandable = isSection || cangrow;
 
          // if this element is below all previous elements in the original
          // layout, and there are elements in the already printed element that
@@ -1172,27 +1172,25 @@ public abstract class StyleCore extends AbstractAssetEngine
 
             // if an image can grow, set the size to it's preferred size
             if(cangrow) {
-               if(!false) {
-                  // if painter can grow, force it to be breakable
-                  pe.setLayout(ReportSheet.PAINTER_BREAKABLE);
-                  // clear fixed size
-                  pe.setSize(null);
-                  Size psize = pe.getPreferredSize();
-                  int pwidth = (int) psize.width;
+               // if painter can grow, force it to be breakable
+               pe.setLayout(ReportSheet.PAINTER_BREAKABLE);
+               // clear fixed size
+               pe.setSize(null);
+               Size psize = pe.getPreferredSize();
+               int pwidth = (int) psize.width;
 
-                  // for textbased element, just use the width of print bounds
-                  if(pe instanceof TextBoxElementDef) {
-                     Size size = new Size(obounds.width, obounds.height, 72);
-                     pwidth = (int) size.width;
+               // for textbased element, just use the width of print bounds
+               if(pe instanceof TextBoxElementDef) {
+                  Size size = new Size(obounds.width, obounds.height, 72);
+                  pwidth = (int) size.width;
 
-                     TextPainter tpainter = (TextPainter) pe.getPainter();
-                     tpainter.setWidth(obounds.width);
-                  }
-
-                  printBox.width = Math.max(printBox.width, pwidth);
-                  // make sure it does not extend outside of band
-                  printBox.width = Math.min(printBox.width, right - printBox.x);
+                  TextPainter tpainter = (TextPainter) pe.getPainter();
+                  tpainter.setWidth(obounds.width);
                }
+
+               printBox.width = Math.max(printBox.width, pwidth);
+               // make sure it does not extend outside of band
+               printBox.width = Math.min(printBox.width, right - printBox.x);
             }
             // fit painter in the area
             else {
@@ -1778,7 +1776,7 @@ public abstract class StyleCore extends AbstractAssetEngine
                   new DefaultTableLens((Object[][]) data));
             }
          }
-         else if(!false) {
+         else {
             throw new IllegalArgumentException("Only TableLens or FormLens " +
                "can be used in a Table: " + data.getClass());
          }
@@ -1791,7 +1789,7 @@ public abstract class StyleCore extends AbstractAssetEngine
             ((SectionElement) elem).setTable(
                new DefaultTableLens((Object[][]) data));
          }
-         else if(!false) {
+         else {
             throw new IllegalArgumentException("Only TableLens can" +
                " be used in a Section: " + data.getClass());
          }
@@ -1809,7 +1807,7 @@ public abstract class StyleCore extends AbstractAssetEngine
                   new XTableDataSet((TableLens) data));
             }
          }
-         else if(!false) {
+         else {
             throw new IllegalArgumentException("Only DataSet can" +
                " be used in a Chart: " + data.getClass());
          }
@@ -1841,13 +1839,13 @@ public abstract class StyleCore extends AbstractAssetEngine
          else if(data == null || data.equals("")) {
             ((PainterElement) elem).setPainter(new EmptyPainter(null, 1, 1));
          }
-         else if(!false) {
+         else {
             throw new IllegalArgumentException("Only Image, Component, or " +
                " Painter can" + " be used in a Painter: " + data + "(" +
                data.getClass() + ")");
          }
       }
-      else if(!false) {
+      else {
          throw new IllegalArgumentException(elem + ":" + data);
       }
    }

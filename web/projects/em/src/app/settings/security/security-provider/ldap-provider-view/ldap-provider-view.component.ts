@@ -49,6 +49,7 @@ export class LdapProviderViewComponent implements OnInit, OnDestroy {
    @Input() userList: string[];
    @Input() groupList: string[];
    @Input() roleList: string[];
+   @Input() isCloudSecrets: boolean;
    @Output() changed = new EventEmitter<void>();
    private _model: LdapAuthenticationProviderModel;
    private _status: string = "_#(js:em.security.testlogin.note4)";
@@ -152,15 +153,37 @@ export class LdapProviderViewComponent implements OnInit, OnDestroy {
          hostName: new UntypedFormControl("", [Validators.required]),
          hostPort: new UntypedFormControl("", [Validators.required]),
          rootDN: new UntypedFormControl("", [Validators.required]),
-         adminID: new UntypedFormControl("", [Validators.required]),
-         password: new UntypedFormControl("", [Validators.required]),
-         confirmPassword: new UntypedFormControl("", [Validators.required]),
+         useCredential: new UntypedFormControl(false),
+         secretId: new UntypedFormControl("", this.model?.useCredential ? [Validators.required] : []),
+         adminID: new UntypedFormControl("", !this.model?.useCredential ? [Validators.required] : []),
+         password: new UntypedFormControl("", !this.model?.useCredential ? [Validators.required] : []),
+         confirmPassword: new UntypedFormControl("", !this.model?.useCredential ? [Validators.required] : []),
          userRoleFilter: new UntypedFormControl(),
          roleRoleFilter: new UntypedFormControl(),
          groupRoleFilter: new UntypedFormControl(),
          searchTree: new UntypedFormControl(),
          sysAdminRoles: new UntypedFormControl(),
       }, FormValidators.passwordsMatch("password", "confirmPassword")));
+
+      this.ldapForm.controls["useCredential"].valueChanges.subscribe(val => {
+         if(val) {
+            this.ldapForm.controls["secretId"].setValidators([Validators.required]);
+            this.ldapForm.controls["adminID"].clearValidators();
+            this.ldapForm.controls["password"].clearValidators();
+            this.ldapForm.controls["confirmPassword"].clearValidators();
+         }
+         else {
+            this.ldapForm.controls["adminID"].setValidators([Validators.required]);
+            this.ldapForm.controls["password"].setValidators([Validators.required]);
+            this.ldapForm.controls["confirmPassword"].setValidators([Validators.required]);
+            this.ldapForm.controls["secretId"].clearValidators();
+         }
+
+         this.ldapForm.controls["secretId"].updateValueAndValidity();
+         this.ldapForm.controls["adminID"].updateValueAndValidity();
+         this.ldapForm.controls["password"].updateValueAndValidity();
+         this.ldapForm.controls["confirmPassword"].updateValueAndValidity();
+      });
 
       const userSearchForm = new UntypedFormGroup({
          userFilter: new UntypedFormControl("", [Validators.required]),

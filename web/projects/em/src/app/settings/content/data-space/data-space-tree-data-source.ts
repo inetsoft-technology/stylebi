@@ -52,12 +52,17 @@ export class DataSpaceTreeDataSource extends FlatTreeDataSource<FlatTreeNode<Dat
          });
    }
 
-   public refresh(): void {
-      const expanded = this.treeControl.expansionModel.selected.slice();
+   public refresh(currentNode: FlatTreeNode<DataSpaceTreeNode>): void {
+      const expanded: string[] = this.treeControl.expansionModel.selected.slice()
+         .map(node => node.data.path) || [];
       this.data = [];
       this.treeControl.collapseAll();
 
-      this.http.get<any>("../api/em/content/data-space/tree")
+      if(currentNode != null) {
+         expanded.push(currentNode.data.path)
+      }
+
+      this.http.post<any>("../api/em/content/data-space/tree", expanded)
          .pipe(map(model => this.transform(model, 0)))
          .subscribe(nodes => {
             this.data = nodes;
@@ -74,7 +79,7 @@ export class DataSpaceTreeDataSource extends FlatTreeDataSource<FlatTreeNode<Dat
                }
                else {
                   this.treeControl.dataNodes.forEach(node => {
-                     if(expanded.findIndex(n => n.data.path === node.data.path) !== -1) {
+                     if((expanded.findIndex(n => n === node.data.path) !== -1)) {
                         this.treeControl.expand(node);
                      }
                   });
@@ -230,8 +235,8 @@ export class DataSpaceTreeDataSource extends FlatTreeDataSource<FlatTreeNode<Dat
             node.data.label = change.newName;
             const newNode = this.transform({nodes: [node.data]}, node.level)[0];
             this.data[index] = newNode;
-            // this.data = this.data;
-            this.nodeSelectedSubject.next(newNode);
+            this.deleteNode(node.data);
+            this.fetchAndSelectNode(node.data.path);
          }
       }
    }

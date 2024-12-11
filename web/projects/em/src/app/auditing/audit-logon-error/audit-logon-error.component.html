@@ -17,13 +17,13 @@
   -->
 <em-audit-table-view [displayedColumns]="displayedColumns" [columnRenderers]="columnRenderers" [parameterForm]="form" [fetchParameters]="fetchParameters" [fetchData]="fetchData">
   <section class="flex-row" [formGroup]="form">
-    <mat-form-field appearance="outline" color="primary" class="flex">
+    <mat-form-field appearance="outline" color="accent" class="flex">
       <mat-label>_#(Users)</mat-label>
       <mat-select formControlName="selectedUsers" multiple>
         <mat-option *ngFor="let user of users" [value]="user">{{user}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Hosts)</mat-label>
       <mat-select formControlName="selectedHosts" multiple>
         <mat-option *ngFor="let host of hosts" [value]="host">{{host}}</mat-option>

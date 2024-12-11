@@ -281,7 +281,16 @@ public class EmbeddedTableAssembly extends AbstractTableAssembly {
 
             for(int i = 0; i < encodedFragments.size(); i++) {
                boolean last = metadata || i == encodedFragments.size() - 1;
-               parseFragment(data, encodedFragments.get(i), !fullFragment, last);
+               String fragment = encodedFragments.get(i);
+
+               if(fragment != null) {
+                  parseFragment(data, fragment, !fullFragment, last);
+               }
+               else {
+                  LOG.debug("Failed to load fragment {} / {}, disposed: {}. Assembly name: {}", i,
+                            encodedFragments.size(), encodedFragments.isDisposed(i),
+                            getAbsoluteName());
+               }
 
                // no need to load full data for metadata
                if(metadata) {

@@ -25,5 +25,6 @@ export interface PluginModel {
 
 export interface PluginsModel {
    clustered?: boolean;
+   supportUploadDriver: boolean;
    plugins: PluginModel[];
 }

@@ -19,7 +19,7 @@ import { EventEmitter, Injectable, NgZone, OnDestroy } from "@angular/core";
 import { Subscription } from "rxjs";
 import { StompClientConnection } from "../../../../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../../../../shared/stomp/stomp-client.service";
-import { ScheduleTaskChange } from "../model/schedule-task-change";
+import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
 
 @Injectable()
 export class EmScheduleChangeService implements OnDestroy {

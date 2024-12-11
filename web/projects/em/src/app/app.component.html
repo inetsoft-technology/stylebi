@@ -17,7 +17,7 @@
   -->
 <em-navbar class="mat-elevation-z6" [permissions]="permissions" [name]="name" [scrollDirection]="scrollDirection" (transitioning)="navbarTransitioning = $event" (visibilityChanged)="onVisibilityChanged($event)"></em-navbar>
 <router-outlet></router-outlet>
-<dl-download-target (downloadStarted)="downloadStarted($event)"></dl-download-target>
+<dl-download-target (downloadStarted)="downloadStarted($event)" [emitError]="true" (onError)="notify({message:$event})"></dl-download-target>
 <ng-template #notificationDialog>
   <em-modal-header [title]="'_#(Notification)'"></em-modal-header>
   <div mat-dialog-content>

@@ -56,7 +56,7 @@ public interface UserEmailModel {
             List<String> groupNames = new ArrayList<>();
 
             for(int i = 0; i < groups.length; i++) {
-               Group group = provider.getGroup(new IdentityID(groups[i], user.organization));
+               Group group = provider.getGroup(new IdentityID(groups[i], user.orgID));
 
                if(group != null && group.getName() != null) {
                   groupNames.add(group.getName());

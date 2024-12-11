@@ -111,7 +111,7 @@ public class DataSpaceFileSettingsController {
       Catalog catalog = Catalog.getCatalog();
       String objectType = ActionRecord.OBJECT_TYPE_FILE;
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
-      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), null, null,
+      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), ActionRecord.ACTION_NAME_EDIT, path,
                                                    objectType, actionTimestamp,
                                                    ActionRecord.ACTION_STATUS_SUCCESS, null);
 
@@ -182,7 +182,7 @@ public class DataSpaceFileSettingsController {
       this.dataSpaceContentSettingsService.updateFolder(path);
    }
 
-   @PostMapping("/em/content/data-space/file/content")
+   @PostMapping("/api/em/content/data-space/file/content")
    public void saveFileContent(@RequestBody DataSpaceFileContentModel model) {
       DataSpace dataSpace = DataSpace.getDataSpace();
       InputStream in = new ByteArrayInputStream(model.content().getBytes(StandardCharsets.UTF_8));
@@ -195,7 +195,7 @@ public class DataSpaceFileSettingsController {
       }
    }
 
-   @GetMapping("/em/content/data-space/file/content")
+   @GetMapping("/api/em/content/data-space/file/content")
    public DataSpaceFileContentModel getFileContent(@DecodeParam("path") String path,
                                                    @RequestParam(value = "preview", required = false, defaultValue = "true") boolean preview)
    {

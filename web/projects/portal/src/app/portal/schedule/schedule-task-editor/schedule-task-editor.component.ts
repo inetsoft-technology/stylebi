@@ -20,10 +20,8 @@ import { Component, OnInit, ViewChild } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { Observable, Subject } from "rxjs";
 import { switchMap } from "rxjs/operators";
 import {
-   convertToKey,
    IdentityId
 } from "../../../../../../em/src/app/settings/security/users/identity-id";
 import { ScheduleConditionModel } from "../../../../../../shared/schedule/model/schedule-condition-model";
@@ -43,7 +41,6 @@ import { Tool } from "../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { GuiTool } from "../../../common/util/gui-tool";
 import { NotificationsComponent } from "../../../widget/notifications/notifications.component";
-import { AssetChangeEvent } from "../../../common/asset-client/asset-change-event";
 
 const EDIT_TASKS_URI = "../api/portal/schedule/edit";
 const SAVE_TASKS_URI = "../api/portal/schedule/save";
@@ -84,7 +81,7 @@ export class ScheduleTaskEditorComponent implements OnInit {
       this.route.paramMap.pipe(
          switchMap((params: ParamMap) => {
             const options = {
-               params: new HttpParams().set("name", encodeURIComponent(params.get("task")))
+               params: new HttpParams().set("name", params.get("task"))
             };
             return this.http.get(EDIT_TASKS_URI, options);
          })
@@ -98,9 +95,9 @@ export class ScheduleTaskEditorComponent implements OnInit {
             param = GuiTool.getQueryParameters().get("newTask");
             this.newTask = param[0] == "true";
             this.resetConditionListView();
-            this.originalModel = Tool.clone(model);
             this.form.patchValue({name: model.label});
             this.model.timeZoneOptions[0].timeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            this.originalModel = Tool.clone(model);
          },
          (error) => {
             if(error.statusText && error.statusText.toLowerCase() == "forbidden") {
@@ -179,7 +176,8 @@ export class ScheduleTaskEditorComponent implements OnInit {
 
             resolve(m);
       }).catch((error: any) => {
-            ComponentTool.showConfirmDialog(this.modalService, "_#(js:Error)", error.error, {"ok": "OK"});
+            ComponentTool.showConfirmDialog(this.modalService, "_#(js:Error)",
+               error.error.message, {"ok": "OK"});
          }));
    };
 
@@ -208,7 +206,7 @@ export class ScheduleTaskEditorComponent implements OnInit {
          (result: string) => {
             if(result === "ok") {
                const idx = this.model.name.indexOf(":");
-               const owner: IdentityId = idx > -1 ? {name: this.model.name.substring(0, idx), organization: null} : {name: "", organization: ""};
+               const owner: IdentityId = idx > -1 ? {name: this.model.name.substring(0, idx), orgID: null} : {name: "", orgID: ""};
                const taskModel = <ScheduleTaskModel> {
                   name: this.model.name,
                   label: this.model.label,

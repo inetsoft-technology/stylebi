@@ -19,12 +19,11 @@ import { HttpClient } from "@angular/common/http";
 import { inject, NgModule } from "@angular/core";
 import { CanActivateFn, Router, RouterModule, Routes, UrlTree } from "@angular/router";
 import { Observable, of } from "rxjs";
-import { map, switchMap } from "rxjs/operators";
+import { switchMap } from "rxjs/operators";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { AuthorizationGuard } from "../authorization/authorization-guard.service";
-import { LogViewLinks } from "../monitoring/log/log-view-links";
-import { AuditingSidenavComponent } from "./auditing-sidenav/auditing-sidenav.component";
 import { AuditingResolverService } from "./auditing-resolver.service";
+import { AuditingSidenavComponent } from "./auditing-sidenav/auditing-sidenav.component";
 
 export const canActivateAuditViewer: CanActivateFn = (): Observable<boolean | UrlTree> => {
    const http = inject(HttpClient);
@@ -35,20 +34,10 @@ export const canActivateAuditViewer: CanActivateFn = (): Observable<boolean | Ur
       switchMap((enterprise) => {
          if(!enterprise) {
             router.navigate(["/"]);
-
             return of(false);
          }
 
-         return http.get<LogViewLinks>("../api/em/monitoring/audit/links").pipe(
-            map(links => {
-               if(!links.fluentdLogging || !links.auditViewUrl) {
-                  return true;
-               }
-
-               window.open(links.auditViewUrl, "_blank");
-               return false;
-            })
-         );
+         return of(true);
       }));
 };
 

@@ -54,23 +54,23 @@ export class BurstEmailEmbeddedPaneComponent implements OnInit {
 
          let user: string = items[0];
          let userIdx = this.users.findIndex(u => u.userID.name == user);
-         let organization = userIdx >= 0 ? this.users[userIdx].userID.organization : null;
+         let organization = userIdx >= 0 ? this.users[userIdx].userID.orgID : null;
 
          for(let i = 1; i < items.length; i++) {
             const addr: string = items[i];
 
             if(i == items.length - 1 && !this.emails.endsWith(":")) {
-               this.selectedUsers.push(<UserEmailModel> {userID: {name: user, organization: organization}, email: addr});
+               this.selectedUsers.push(<UserEmailModel> {userID: {name: user, orgID: organization}, email: addr});
             }
             else {
                const email = addr.substring(0, addr.lastIndexOf(","));
-               this.selectedUsers.push(<UserEmailModel> {userID: {name: user, organization: organization}, email: email});
+               this.selectedUsers.push(<UserEmailModel> {userID: {name: user, orgID: organization}, email: email});
                user = addr.substring(addr.lastIndexOf(",") + 1);
             }
          }
 
          if(this.emails.endsWith(":")) {
-            this.selectedUsers.push(<UserEmailModel> {userID: {name: user, organization: organization}, email: null});
+            this.selectedUsers.push(<UserEmailModel> {userID: {name: user, orgID: organization}, email: null});
          }
 
          this.tableDataSource.data = this.selectedUsers;

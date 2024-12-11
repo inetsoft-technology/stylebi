@@ -44,6 +44,7 @@ export class QueryLinkGraphPaneComponent implements OnInit, OnDestroy {
    @Input() selectedGraphNodePath: string;
    @Output() onNodeSelected: EventEmitter<string> = new EventEmitter<string>();
    @Output() onQueryPropertiesChanged: EventEmitter<void> = new EventEmitter<void>();
+   @Output() editingJoinChanged = new EventEmitter<boolean>();
 
    graphPaneModel: JoinGraphModel;
    loadingGraphPane: boolean = true;
@@ -87,6 +88,7 @@ export class QueryLinkGraphPaneComponent implements OnInit, OnDestroy {
             this.restoreJoinEditPaneModel(pgm, this.graphPaneModel);
             this.restoreGraphViewModel(pgm, this.graphPaneModel);
             this.graphPaneModel = pgm;
+            this.editingJoinChanged.emit(this.graphPaneModel.joinEdit);
          }, () => this.loadingGraphPane = false);
    }
 

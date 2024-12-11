@@ -20,14 +20,12 @@ package inetsoft.uql.rest.datasource.gitlab;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
-import org.w3c.dom.Element;
-
-import java.io.PrintWriter;
-import java.util.Objects;
+import inetsoft.util.credential.*;
 
 @View(vertical = true, value = {
-   @View1("token"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "token", visibleMethod = "useCredential")
 })
 public class GitLabDataSource extends EndpointJsonDataSource<GitLabDataSource> {
    public static final String TYPE = "Rest.GitLab";
@@ -37,13 +35,24 @@ public class GitLabDataSource extends EndpointJsonDataSource<GitLabDataSource> {
       setAuthType(AuthType.NONE);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.TOKEN;
+   }
+
    @Property(label = "Token", required = true, password = true)
    public String getToken() {
-      return token;
+      if(getCredential() instanceof TokenCredential) {
+         return ((TokenCredential) getCredential()).getToken();
+      }
+
+      return null;
    }
 
    public void setToken(String token) {
-      this.token = token;
+      if(getCredential() instanceof TokenCredential) {
+         ((TokenCredential) getCredential()).setToken(token);
+      }
    }
 
    @Override
@@ -62,7 +71,7 @@ public class GitLabDataSource extends EndpointJsonDataSource<GitLabDataSource> {
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)
             .name("Private-Token")
-            .value(token)
+            .value(getToken())
             .build()
       };
    }
@@ -73,21 +82,6 @@ public class GitLabDataSource extends EndpointJsonDataSource<GitLabDataSource> {
    }
 
    @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(token != null) {
-         writer.format("<token><![CDATA[%s]]></token>%n", Tool.encryptPassword(token));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      token = Tool.decryptPassword(Tool.getChildValueByTagName(root, "token"));
-   }
-
-   @Override
    protected String getTestSuffix() {
       return "/v4/user";
    }
@@ -95,14 +89,10 @@ public class GitLabDataSource extends EndpointJsonDataSource<GitLabDataSource> {
    @Override
    public boolean equals(Object obj) {
       try {
-         GitLabDataSource ds = (GitLabDataSource) obj;
-
-         return Objects.equals(token, ds.token);
+         return obj instanceof GitLabDataSource && super.equals(obj);
       }
       catch(Exception ex) {
          return false;
       }
    }
-
-   private String token;
 }

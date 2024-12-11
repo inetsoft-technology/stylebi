@@ -27,6 +27,7 @@ import javax.annotation.Nullable;
 @JsonSerialize(as = ImmutableOpenIdAttributesModel.class)
 @JsonDeserialize(as = ImmutableOpenIdAttributesModel.class)
 public interface OpenIdAttributesModel {
+   @Nullable String secretId();
    @Nullable String clientId();
    @Nullable String clientSecret();
    @Nullable String scopes();

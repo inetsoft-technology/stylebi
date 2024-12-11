@@ -44,7 +44,7 @@
 <span *ngIf="enableBrowseData && type != XSchema.BOOLEAN">
   <button class="btn btn-sm btn-light h-100"
           (click)="browseData()"
-          [ngbTooltip]="'_#(Browse Data)'"
+          title="_#(Browse Data)"
           [fixedDropdown]="dropdownMenu"
           [autoClose]="!isOneOf">
     <i class="value-list-icon icon-size-small align-middle"></i>
@@ -52,8 +52,8 @@
 </span>
 <ng-template #dropdownMenu>
   <div class="dropdown-pane browse-data-dropdown" *ngIf="!isOneOf">
-    <a *ngFor="let choice of dataList" role="menuitem" class="dropdown-item" [title]="choice"
-       (click)="selectData(choice)">{{choice}}</a>
+    <a *ngFor="let choice of dataList;let i = index" role="menuitem" class="dropdown-item" [title]="choice"
+       [class.disable-link]="i === 1000" (click)="selectData(choice)" >{{choice}}</a>
     <a *ngIf="(!dataList || dataList.length === 0) && !error && !loadingDataList"
        role="menuitem" class="dropdown-item disable-link">_#(No Data)</a>
     <div *ngIf="loadingDataList && (!dataList || dataList.length == 0)"

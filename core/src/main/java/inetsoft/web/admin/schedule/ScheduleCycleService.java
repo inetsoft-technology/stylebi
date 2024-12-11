@@ -134,7 +134,7 @@ public class ScheduleCycleService {
 
       return builder
          .timeProp(timeProp.trim())
-         .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12-hours"))
+         .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12hours"))
          .build();
    }
 
@@ -153,7 +153,9 @@ public class ScheduleCycleService {
             }
          }
 
+         IdentityID identity = IdentityID.getIdentityIDFromKey(principal.getName());
          actionRecord.setObjectName(cycleName);
+         actionRecord.setObjectUser(identity.name);
          ScheduleCondition condition = TimeCondition.at(1, 30, 0);
          ((TimeCondition) condition).setInterval(1);
 
@@ -189,7 +191,9 @@ public class ScheduleCycleService {
          String oldName = model.name();
          String newName = model.label();
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+         IdentityID identity = IdentityID.getIdentityIDFromKey(principal.getName());
          actionRecord.setObjectName(newName);
+         actionRecord.setObjectUser(identity.name);
 
          if(oldName == null || "".equals(oldName) ||
             newName == null || "".equals(newName)) {
@@ -232,6 +236,10 @@ public class ScheduleCycleService {
 
          if(cycleInfo.getLastModifiedBy() == null) {
             cycleInfo.setLastModifiedBy(principal.getName());
+         }
+
+         if(!cycleInfo.getName().equals(newName)) {
+            cycleInfo.setName(newName);
          }
 
          dataCycleManager.setCycleInfo(newName, orgId, cycleInfo);
@@ -288,6 +296,8 @@ public class ScheduleCycleService {
       ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_DELETE,
                                                         cycleName, ActionRecord.OBJECT_TYPE_CYCLE);
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      IdentityID identity = IdentityID.getIdentityIDFromKey(principal.getName());
+      actionRecord.setObjectUser(identity.name);
 
       try {
          if(cycleName != null) {
@@ -326,6 +336,7 @@ public class ScheduleCycleService {
       perm.setUserGrantsForOrg(ResourceAction.READ, users, orgId);
       perm.setUserGrantsForOrg(ResourceAction.WRITE, users, orgId);
       perm.setUserGrantsForOrg(ResourceAction.DELETE, users, orgId);
+      perm.updateGrantAllByOrg(orgId, true);
       securityEngine.setPermission(ResourceType.SCHEDULE_CYCLE, cycleName, perm);
    }
 

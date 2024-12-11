@@ -141,7 +141,7 @@ public class VSChartShowDetailsController extends VSChartController<VSChartShowD
       return format;
    }
 
-   @PutMapping("/vs/showdetails/colwidth")
+   @PutMapping("/api/vs/showdetails/colwidth")
    @ResponseBody
    public void setColWidth(@DecodeParam("vsId") String vsId,
                              @RequestParam("assemblyName") String assemblyName,
@@ -504,7 +504,8 @@ public class VSChartShowDetailsController extends VSChartController<VSChartShowD
          }
 
          if(style != null) {
-            TableStyle styleTable = VSUtil.getTableStyle(style);
+            String orgID = box != null && box.getAssetEntry() != null ? box.getAssetEntry().getOrgID() : null;
+            TableStyle styleTable = VSUtil.getTableStyle(style, orgID);
 
             if(styleTable != null) {
                styleTable = styleTable.clone();

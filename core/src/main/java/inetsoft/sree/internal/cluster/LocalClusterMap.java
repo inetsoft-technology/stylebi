@@ -113,6 +113,12 @@ public class LocalClusterMap<K, V>
    }
 
    @Override
+   public void removeAll(Set<? extends K> keys) {
+      local.keySet().removeAll(keys);
+      distributedMap.removeAll(keys);
+   }
+
+   @Override
    public void putAll(Map<? extends K, ? extends V> m) {
       local.putAll(m);
       distributedMap.putAll(m);

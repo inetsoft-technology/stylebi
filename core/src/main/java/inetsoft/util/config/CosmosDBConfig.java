@@ -19,6 +19,7 @@ package inetsoft.util.config;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.util.config.crd.CRDProperty;
 import inetsoft.util.config.json.PasswordDeserializer;
 import inetsoft.util.config.json.PasswordSerializer;
 
@@ -112,11 +113,17 @@ public class CosmosDBConfig implements Serializable {
       this.emulated = emulated;
    }
 
+   @CRDProperty(description = "The account host")
    private String accountHost;
+   @CRDProperty(description = "The account key", secret = true)
    private String accountKey;
+   @CRDProperty(description = "The name of the default region")
    private String region;
+   @CRDProperty(description = "The name of the database")
    private String database;
+   @CRDProperty(description = "The name of the container")
    private String container;
+   @CRDProperty(description = "The throughput configured for the container if it is provisioned by the storage provider")
    private int throughput = 0;
    private boolean emulated = false;
 }

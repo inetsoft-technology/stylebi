@@ -33,15 +33,28 @@
           <mat-error *ngIf="form.controls.path?.errors?.required">_#(em.schedule.serverLocation.pathRequired)</mat-error>
           <mat-error *ngIf="form.controls.path?.errors?.duplicatePath">_#(em.schedule.serverLocation.duplicatePath)</mat-error>
         </mat-form-field>
-        <mat-checkbox formControlName="ftp" (change)="toggleFtp($event)">_#(FTP/SFTP)</mat-checkbox>
-        <mat-form-field>
-          <mat-label>_#(Username)</mat-label>
-          <input matInput formControlName="username" placeholder="_#(Username)"/>
-        </mat-form-field>
-        <mat-form-field>
-          <mat-label>_#(Password)</mat-label>
-          <input matInput type="password" formControlName="password" placeholder="_#(Password)"/>
-        </mat-form-field>
+        <div>
+          <mat-checkbox formControlName="ftp" (change)="toggleFtp($event)">_#(FTP/SFTP)</mat-checkbox>
+        </div>
+        <div>
+          <mat-checkbox *ngIf="cloudSecrets" formControlName="useSecretId">_#(Use Secret ID)</mat-checkbox>
+        </div>
+        <ng-container *ngIf="cloudSecrets && form.controls.useSecretId?.value">
+          <mat-form-field>
+            <mat-label>_#(Secret ID)</mat-label>
+            <input matInput formControlName="secretId" placeholder="_#(Secret ID)"/>
+          </mat-form-field>
+        </ng-container>
+        <ng-container *ngIf="!cloudSecrets || !form.controls.useSecretId?.value">
+          <mat-form-field>
+            <mat-label>_#(Username)</mat-label>
+            <input matInput formControlName="username" placeholder="_#(Username)"/>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>_#(Password)</mat-label>
+            <input matInput type="password" formControlName="password" placeholder="_#(Password)"/>
+          </mat-form-field>
+        </ng-container>
       </mat-card-content>
     </mat-card>
   </div>

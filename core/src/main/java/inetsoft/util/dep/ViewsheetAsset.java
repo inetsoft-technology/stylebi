@@ -554,6 +554,13 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
             }
          }
       }
+
+      AssetEntry baseEntry = vs.getBaseEntry();
+
+      if(baseEntry != null) {
+         vs.setBaseEntry(baseEntry.cloneAssetEntry(
+            OrganizationManager.getInstance().getCurrentOrgID(), ""));
+      }
    }
 
    protected void getDeviceDependency(Viewsheet sheet, List<XAssetDependency> dependencies) {
@@ -739,7 +746,7 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
          LOG.warn("Failed to get security provider", e);
       }
 
-      return provider != null ? provider.getUsers() : new IdentityID[]{ new IdentityID("anonymous", OrganizationManager.getCurrentOrgName()) };
+      return provider != null ? provider.getUsers() : new IdentityID[]{ new IdentityID("anonymous", OrganizationManager.getInstance().getCurrentOrgID()) };
    }
 
    /**

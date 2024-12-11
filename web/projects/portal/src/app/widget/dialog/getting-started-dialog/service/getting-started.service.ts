@@ -18,6 +18,7 @@
 import { Injectable } from "@angular/core";
 import { ActivatedRoute, ActivatedRouteSnapshot, Params, Router } from "@angular/router";
 import { ComponentTool } from "../../../../common/util/component-tool";
+import { GuiTool } from "../../../../common/util/gui-tool";
 import { GettingStartedDialog } from "../getting-started-dialog.component";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { WhetherStayComposerDialog } from "../whether-stay-composer-dialog.component";
@@ -101,7 +102,7 @@ export class GettingStartedService {
    }
 
    start(force: boolean): void {
-      if(!force && LocalStorage.getItem("started.noshow") == "true") {
+      if(!force && LocalStorage.getItem("started.noshow") == "true" || GuiTool.isMobileDevice()) {
          return;
       }
 

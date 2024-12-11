@@ -3,4 +3,4 @@ Plugin-Id: inetsoft.tabular.onedrive
 Plugin-Requires: inetsoft.uql.tabular:>=13.3.0 & <13.4.0
 Plugin-Provider: InetSoft Technology
 Plugin-Version: 14.0.${plugin.build.number}
-Plugin-Name: One Drive Data Connector
+Plugin-Name: OneDrive Data Connector

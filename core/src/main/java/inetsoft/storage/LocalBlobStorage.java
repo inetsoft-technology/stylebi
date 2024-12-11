@@ -103,6 +103,23 @@ public final class LocalBlobStorage<T extends Serializable> extends BlobStorage<
       return false;
    }
 
+   @Override
+   public void deleteBlobStorage() throws Exception {
+      super.deleteBlobStorage();
+
+      File file = tempDir.toFile();
+
+      if(file.exists()) {
+         Tool.deleteFile(file);
+      }
+
+      File baseFile = base.toFile();
+
+      if(baseFile.exists()) {
+         Tool.deleteFile(baseFile);
+      }
+   }
+
    private final Path base;
    private final Path tempDir;
 }

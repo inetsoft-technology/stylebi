@@ -26,6 +26,9 @@ export interface DatasourceXmlaDefinitionModel extends BaseDatasourceDefinition{
    url: string;
    user: string;
    password: string;
+   useCredential: boolean;
+   credentialId: string;
+   credentialVisible: boolean;
    login: boolean;
    domain: DomainModel;
 }

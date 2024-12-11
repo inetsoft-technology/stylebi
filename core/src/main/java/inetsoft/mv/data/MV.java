@@ -18,6 +18,7 @@
 package inetsoft.mv.data;
 
 import inetsoft.mv.*;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.BlobChannel;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.XMetaInfo;
@@ -109,8 +110,15 @@ public final class MV implements Cloneable {
     * Check if this sub mv is valid.
     */
    public boolean isValid() {
+      return isValid(null);
+   }
+
+   /**
+    * Check if this sub mv is valid.
+    */
+   public boolean isValid(String orgId) {
       try {
-         return file != null && MVStorage.getInstance().getLastModified(file) == modified;
+         return file != null && MVStorage.getInstance().getLastModified(file, orgId) == modified;
       }
       catch(Exception ignore) {
          return false;
@@ -285,7 +293,15 @@ public final class MV implements Cloneable {
     * @param fill true to fill meta info.
     */
    public MVDef getDef(boolean fill) {
-      loadContent();
+      return getDef(fill, null);
+   }
+
+   /**
+    * Get the mv def.
+    * @param fill true to fill meta info.
+    */
+   public MVDef getDef(boolean fill, String orgID) {
+      loadContent(orgID);
 
       if(fill) {
          List<MVColumn> cols = def.getColumns();
@@ -440,6 +456,10 @@ public final class MV implements Cloneable {
    }
 
    private void loadContent() {
+      loadContent(null);
+   }
+
+   private void loadContent(String orgId) {
       if(contentPos < 0) {
          return;
       }
@@ -449,9 +469,9 @@ public final class MV implements Cloneable {
             return;
          }
 
-         try(BlobChannel channel = MVStorage.getInstance().openReadChannel(file)) {
+         try(BlobChannel channel = MVStorage.getInstance().openReadChannel(file, orgId)) {
             channel.position(contentPos);
-            loadContent0(channel);
+            loadContent0(channel, orgId);
          }
          catch(Exception ex) {
             LOG.error(
@@ -464,7 +484,7 @@ public final class MV implements Cloneable {
       }
    }
 
-   private void loadContent0(ReadableByteChannel channel) throws IOException {
+   private void loadContent0(ReadableByteChannel channel, String orgId) throws IOException {
       ByteBuffer buf = ByteBuffer.allocate(4);
       channel.read(buf);
       XSwapUtil.flip(buf);
@@ -480,7 +500,7 @@ public final class MV implements Cloneable {
       def = new MVDef();
       def.read(channel);
 
-      ChannelProvider channelProvider = MVStorage.getInstance().createChannelProvider(file);
+      ChannelProvider channelProvider = MVStorage.getInstance().createChannelProvider(file, orgId);
 
       //read block dictionarys.
       int ccnt = dcnt + mcnt;
@@ -521,7 +541,11 @@ public final class MV implements Cloneable {
    }
 
    private void readBreakValues() {
-      loadContent();
+      readBreakValues(null);
+   }
+
+   private void readBreakValues(String orgId) {
+      loadContent(orgId);
 
       if(breakValuePos == -1) {
          return;
@@ -532,7 +556,7 @@ public final class MV implements Cloneable {
             return;
          }
 
-         try(BlobChannel channel = MVStorage.getInstance().openReadChannel(file)) {
+         try(BlobChannel channel = MVStorage.getInstance().openReadChannel(file, orgId)) {
             channel.position(breakValuePos);
             breakValuePos = -1;
             ByteBuffer buf = ByteBuffer.allocate(4);
@@ -557,20 +581,52 @@ public final class MV implements Cloneable {
    /**
     * Save to file.
     */
-   public void save(String file) throws IOException {
-      try(BlobTransaction<MVStorage.Metadata> tx = MVStorage.getInstance().beginTransaction();
+   public void save(String file, String orgId) throws IOException {
+      save(file, orgId, true);
+   }
+
+   /**
+    * Save to file.
+    */
+   public void save(String file, String orgId, boolean reload) throws IOException {
+      try(BlobTransaction<MVStorage.Metadata> tx =
+             MVStorage.getInstance().getStorage(orgId).beginTransaction();
           BlobChannel channel = tx.newChannel(file, new MVStorage.Metadata()))
       {
-         save(channel);
+         save(channel, orgId, reload);
          tx.commit();
       }
+   }
+
+   /**
+    * Save to file.
+    */
+   public void save(String file) throws IOException {
+      save(file, OrganizationManager.getInstance().getCurrentOrgID());
    }
 
    /**
     * Save to binary storage.
     */
    public void save(WritableByteChannel channel) throws IOException {
-      readBreakValues();
+      save(channel, null);
+   }
+
+   /**
+    * Save to binary storage.
+    */
+   public void save(WritableByteChannel channel, String orgId) throws IOException {
+      save(channel, orgId, true);
+   }
+
+   /**
+    * Save to binary storage.
+    */
+   public void save(WritableByteChannel channel, String orgId, boolean reload) throws IOException {
+      if(reload) {
+         readBreakValues(orgId);
+      }
+
       ByteBuffer buf = ByteBuffer.allocate(6);
       buf.putInt(-2);
       buf.put((byte) (success ? 1 : 0));
@@ -950,7 +1006,14 @@ public final class MV implements Cloneable {
     */
    @Override
    public Object clone() {
-      loadContent();
+      return clone(null);
+   }
+
+   /**
+    * Clone MV.
+    */
+   public Object clone(String mvOrgId) {
+      loadContent(mvOrgId);
 
       try {
          MV mv = (MV) super.clone();

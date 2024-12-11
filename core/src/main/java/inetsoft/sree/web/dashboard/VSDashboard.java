@@ -18,7 +18,11 @@
 package inetsoft.sree.web.dashboard;
 
 import inetsoft.sree.ViewsheetEntry;
+import inetsoft.sree.security.Organization;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Tool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -149,6 +153,32 @@ public class VSDashboard implements Dashboard {
       this.modifiedBy = modifiedBy;
    }
 
+   public VSDashboard cloneVSDashboard(Organization organization) {
+      try {
+         VSDashboard cloned = (VSDashboard) super.clone();
+
+         if(viewsheet != null) {
+            cloned.viewsheet = viewsheet.clone();
+            ViewsheetEntry viewsheetEntry = cloned.viewsheet;
+            AssetEntry assetEntry = viewsheetEntry.getAssetEntry();
+
+            if(viewsheetEntry.getAssetEntry() != null) {
+               viewsheetEntry.setAssetEntry(assetEntry.cloneAssetEntry(organization));
+            }
+
+            String identifier = viewsheetEntry.getIdentifier();
+            viewsheetEntry.setIdentifier(
+               AssetEntry.createAssetEntry(identifier).cloneAssetEntry(organization)
+                  .toIdentifier(true));
+         }
+
+         return cloned;
+      }
+      catch(Exception ex) {
+         return null;
+      }
+   }
+
    /**
     * Writes the viewsheet dashboard to a xml writer.
     */
@@ -240,4 +270,6 @@ public class VSDashboard implements Dashboard {
    private long modified;
    private String createdBy;
    private String modifiedBy;
+   private static final Logger LOG =
+      LoggerFactory.getLogger(VSDashboard.class);
 }

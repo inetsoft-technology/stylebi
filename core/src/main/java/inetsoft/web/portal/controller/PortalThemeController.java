@@ -19,8 +19,10 @@ package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.HTMLUtil;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.portal.PortalWelcomePage;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.web.HttpServiceRequest;
 import inetsoft.sree.web.HttpServiceResponse;
 import inetsoft.util.*;
@@ -45,10 +47,15 @@ public class PortalThemeController {
       PortalThemesManager manager = PortalThemesManager.getManager();
 
       // For modern tab style, use the theme path
-      String logoPath = manager.getLogo();
-      String logoClassPath = "/inetsoft/sree/portal/images/modern/logo.png";
+      String org = OrganizationManager.getInstance().getCurrentOrgID();
+      String logoPath = manager.getLogoEntries().get(org);
 
-      getIcon(response, logoPath, manager.getLogoStyle(), logoClassPath, principal);
+      if(logoPath == null || logoPath.isEmpty()) {
+         logoPath = manager.getLogo();
+      }
+
+      String logoClassPath = "/inetsoft/sree/portal/images/modern/logo.png";
+      getIcon(response, logoPath, manager.hasCustomLogo(org), logoClassPath, principal);
    }
 
    /**
@@ -102,8 +109,13 @@ public class PortalThemeController {
    {
       PortalThemesManager manager = PortalThemesManager.getManager();
       response.addHeader("Cache-Control", "public, max-age=2592000");
+
+      String curOrg = OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal);
+      boolean orgScopedOrCustom = manager.getFaviconEntries().get(curOrg) != null || manager.isFaviconStyle();
+      String orgFaviPath = orgScopedOrCustom ? manager.getFaviconEntries().get(curOrg) : null;
       getIcon(
-         response, manager.getFavicon(), manager.getFaviconStyle(),
+         response, orgFaviPath == null || orgFaviPath.isEmpty() ? manager.getFavicon() :
+                  orgFaviPath, orgScopedOrCustom,
          "/inetsoft/sree/adm/markup/favicon.ico", principal);
    }
 
@@ -114,6 +126,12 @@ public class PortalThemeController {
    {
       PortalThemesManager manager = PortalThemesManager.getManager();
       PortalWelcomePage welcomePage = manager.getWelcomePage();
+      String org = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(SUtil.isMultiTenant() && org != null && manager.getWelcomePage(org) != null) {
+         welcomePage = manager.getWelcomePage(org);
+      }
+
       String sourceName = welcomePage.getData();
       String fontFamily = manager.getFontFamily();
       String theme = PortalThemesManager.getColorTheme();
@@ -143,13 +161,13 @@ public class PortalThemeController {
    /**
     * Get logo image.
     */
-   private void getIcon(HttpServletResponse response, String logo, String logoStyle, String cpath,
+   private void getIcon(HttpServletResponse response, String logo, boolean logoStyle, String cpath,
                         Principal principal) throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
       logo = logo != null ? logo : "portal/" + cpath.substring(cpath.lastIndexOf("/") + 1);
 
-      if(PortalThemesManager.DEFAULT_LOGO.equals(logoStyle) ||
+      if(!logoStyle ||
          logo.toLowerCase().endsWith(".gif"))
       {
          response.setContentType("image/gif");
@@ -172,7 +190,7 @@ public class PortalThemeController {
 
       DataSpace space = DataSpace.getDataSpace();
 
-      if(PortalThemesManager.DEFAULT_LOGO.equals(logoStyle) ||
+      if(!logoStyle ||
          !space.exists(null, logo))
       {
          try(InputStream res = SreeEnv.class.getResourceAsStream(cpath)) {

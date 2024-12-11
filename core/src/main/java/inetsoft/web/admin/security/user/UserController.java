@@ -65,10 +65,6 @@ public class UserController {
    }
 
    @PostMapping("/api/em/security/users/edit-user/{provider}")
-   @Audited(
-      actionName = ActionRecord.ACTION_NAME_EDIT,
-      objectType = ActionRecord.OBJECT_TYPE_USERPERMISSION
-   )
    @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SECURITY_USER,

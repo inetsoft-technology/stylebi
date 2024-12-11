@@ -426,13 +426,13 @@ public class TimeSeriesRow implements CalcRow {
           case TimeScale.HOUR:
              return getPart(obj, TimeScale.DAY) * 100 + cal.get(Calendar.HOUR_OF_DAY);
           case TimeScale.DAY:
-             return cal.get(Calendar.YEAR) * 1000 + cal.get(Calendar.DAY_OF_YEAR);
+             return cal.get(Calendar.YEAR) * 1000L + cal.get(Calendar.DAY_OF_YEAR);
           case TimeScale.WEEK:
-             return cal.get(Calendar.YEAR) * 100 + cal.get(Calendar.WEEK_OF_YEAR);
+             return cal.get(Calendar.YEAR) * 100L + cal.get(Calendar.WEEK_OF_YEAR);
           case TimeScale.MONTH:
-             return cal.get(Calendar.YEAR) * 100 + cal.get(Calendar.MONTH);
+             return cal.get(Calendar.YEAR) * 100L + cal.get(Calendar.MONTH);
           case TimeScale.QUARTER:
-             return cal.get(Calendar.YEAR) * 100 + cal.get(Calendar.MONTH) / 3;
+             return cal.get(Calendar.YEAR) * 100L + cal.get(Calendar.MONTH) / 3;
           case TimeScale.YEAR:
           default:
              return cal.get(TimeScale.YEAR);

@@ -1,0 +1,25 @@
+:host {
+  .mat-mdc-dialog-content {
+    overflow: hidden;
+    height: 100px;
+  }
+
+  .warning-icon {
+    fill: var(--inet-em-accent-500);
+    margin: 12px;
+  }
+
+  .warning-message-container {
+    flex: 1;
+  }
+
+  .warning-message {
+    margin-bottom: 12px;
+  }
+
+  .countdown-timer {
+    font-size: 28px;
+    font-weight: bold;
+    color: var(--inet-em-accent-500);
+  }
+}

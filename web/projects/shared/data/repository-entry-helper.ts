@@ -72,7 +72,7 @@ export class RepositoryEntryHelper {
          return "_#(js:Worksheets)";
       case RepositoryEntryType.DATA_SOURCE:
          if((parentType & RepositoryEntryType.DATA_SOURCE) == RepositoryEntryType.DATA_SOURCE) {
-            return "_#(js:Addional Sources)"
+            return "_#(js:Additional Sources)"
          }
 
          return "_#(js:Data Sources)";

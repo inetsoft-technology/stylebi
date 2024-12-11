@@ -201,7 +201,7 @@ public class GraphLayout {
    {
       List<GraphModel> standardRow = rows.get(maxDepthIndex);
       final int maxColCount = standardRow.size();
-      final long maxRowWidth = sumWidth(standardRow) + (maxColCount - 1) * ROW_PRIORITY_NODE_X_GAP;
+      final long maxRowWidth = sumWidth(standardRow) + (long) (maxColCount - 1) * ROW_PRIORITY_NODE_X_GAP;
       double top = DEFAULT_GRAPH_TOP_GAP;
 
       for(int r = 0; r < rows.size(); r++) {
@@ -210,7 +210,7 @@ public class GraphLayout {
          double left = ROW_PRIORITY_LEFT_GAP;
 
          if(row != standardRow) {
-            long currentColWidth = sumWidth(row) + (currentColCount - 1) * ROW_PRIORITY_NODE_X_GAP;
+            long currentColWidth = sumWidth(row) + (long) (currentColCount - 1) * ROW_PRIORITY_NODE_X_GAP;
             left = (maxRowWidth - currentColWidth) * 1.0 / 2 + ROW_PRIORITY_LEFT_GAP;
          }
 

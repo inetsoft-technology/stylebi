@@ -84,7 +84,7 @@ public class LocaleService {
 
             //overwrite default user locale with set organization locale
             if(locale == null || "".equals(locale) || defaultLocale.equals(locale)) {
-              Organization userOrg = provider.getOrganization(user.getOrganization());
+              Organization userOrg = provider.getOrganization(user.getOrganizationID());
 
               if(userOrg != null && userOrg.getLocale() != null && !"".equals(userOrg.getLocale())) {
                  locale = userOrg.getLocale();

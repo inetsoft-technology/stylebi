@@ -21,16 +21,19 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.internal.LicenseException;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
+import inetsoft.util.MessageException;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.ws.event.OpenSheetEventValidator;
+import inetsoft.web.embed.EmbedErrorCommand;
 import inetsoft.web.service.LicenseService;
 import inetsoft.web.viewsheet.HandleAssetExceptions;
 import inetsoft.web.viewsheet.LoadingMask;
@@ -137,9 +140,32 @@ public class OpenViewsheetController {
       }
 
       boolean existing = event.getRuntimeViewsheetId() != null;
-      String id = vsLifecycleService.openViewsheet(
-         event, principal, commandDispatcher, runtimeViewsheetRef, runtimeViewsheetManager,
-         linkUri);
+      String id = null;
+
+      try {
+         AssetEntry assetEntry = AssetEntry.createAssetEntry(event.getEntryId());
+         String orgId = assetEntry.getOrgID();
+
+         id = OrganizationManager.runInOrgScope(orgId, () -> {
+            try {
+               return vsLifecycleService.openViewsheet(
+                  event, principal, commandDispatcher, runtimeViewsheetRef, runtimeViewsheetManager,
+                  linkUri);
+            }
+            catch(Exception e) {
+               throw new RuntimeException(e.getMessage());
+            }
+         });
+      }
+      catch(Exception e) {
+         // embed web component failed to load
+         if(event.getEmbedAssemblyName() != null) {
+            commandDispatcher.sendCommand(
+               EmbedErrorCommand.builder().message(e.getMessage()).build());
+         }
+
+         throw e;
+      }
 
       if(!existing && !event.isViewer()) {
          AssetEntry entry = AssetEntry.createAssetEntry(event.getEntryId());

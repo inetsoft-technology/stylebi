@@ -157,7 +157,7 @@ public class DashboardAsset extends AbstractXAsset {
     */
    @Override
    public String toIdentifier() {
-      return getClass().getName() + "^" + dashboard + "^" + (user == null ? NULL : user);
+      return getClass().getName() + "^" + dashboard + "^" + (user == null ? NULL : user.convertToKey());
    }
 
    /**

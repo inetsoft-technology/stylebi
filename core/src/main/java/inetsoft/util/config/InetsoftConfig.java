@@ -167,6 +167,22 @@ public class InetsoftConfig implements Serializable {
       return secrets;
    }
 
+   public MetricsConfig getMetrics() {
+      return metrics;
+   }
+
+   public void setMetrics(MetricsConfig metrics) {
+      this.metrics = metrics;
+   }
+
+   public NodeProtectionConfig getNodeProtection() {
+      return nodeProtection;
+   }
+
+   public void setNodeProtection(NodeProtectionConfig nodeProtection) {
+      this.nodeProtection = nodeProtection;
+   }
+
    @Override
    public String toString() {
       ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
@@ -219,37 +235,48 @@ public class InetsoftConfig implements Serializable {
       config.setPluginDirectory(home.resolve("plugins").toFile().getAbsolutePath());
       config.setCluster(ClusterConfig.createDefault());
 
-      KeyValueConfig keyValue = new KeyValueConfig();
-      keyValue.setType("mapdb");
-      MapDBConfig mapdb = new MapDBConfig();
-      mapdb.setDirectory(home.resolve("kv").toFile().getAbsolutePath());
-      keyValue.setMapdb(mapdb);
-      config.setKeyValue(keyValue);
-
-      BlobConfig blob = new BlobConfig();
-      blob.setType("local");
-      FilesystemConfig filesystem = new FilesystemConfig();
-      filesystem.setDirectory(home.resolve("blob").toFile().getAbsolutePath());
-      blob.setFilesystem(filesystem);
-      config.setBlob(blob);
-
-      ExternalStorageConfig external = new ExternalStorageConfig();
-      external.setType("filesystem");
-      filesystem = new FilesystemConfig();
-      filesystem.setDirectory(home.resolve("external-storage").toFile().getAbsolutePath());
-      external.setFilesystem(filesystem);
-      config.setExternalStorage(external);
-
-      SecretsConfig secretsConfig = new SecretsConfig();
-      secretsConfig.setType("local");
-      secretsConfig.setFipsComplianceMode(false);
-      config.setSecrets(secretsConfig);
-
-      AuditConfig auditConfig = new AuditConfig();
-      auditConfig.setType("mapdb");
-      config.setAudit(auditConfig);
-
       new PropertyProcessor().applyProperties(config);
+
+      if(config.getKeyValue() == null || config.getKeyValue().getType() == null) {
+         KeyValueConfig keyValue = new KeyValueConfig();
+         keyValue.setType("mapdb");
+         MapDBConfig mapdb = new MapDBConfig();
+         mapdb.setDirectory(home.resolve("kv").toFile().getAbsolutePath());
+         keyValue.setMapdb(mapdb);
+         config.setKeyValue(keyValue);
+      }
+
+      if(config.getBlob() == null || config.getBlob().getType() == null) {
+         BlobConfig blob = new BlobConfig();
+         blob.setType("local");
+         FilesystemConfig filesystem = new FilesystemConfig();
+         filesystem.setDirectory(home.resolve("blob").toFile().getAbsolutePath());
+         blob.setFilesystem(filesystem);
+         config.setBlob(blob);
+      }
+
+      if(config.getExternalStorage() == null || config.getExternalStorage().getType() == null) {
+         ExternalStorageConfig external = new ExternalStorageConfig();
+         external.setType("filesystem");
+         FilesystemConfig filesystem = new FilesystemConfig();
+         filesystem.setDirectory(home.resolve("external-storage").toFile().getAbsolutePath());
+         external.setFilesystem(filesystem);
+         config.setExternalStorage(external);
+      }
+
+      if(config.getSecrets() == null) {
+         SecretsConfig secretsConfig = new SecretsConfig();
+         secretsConfig.setType("local");
+         secretsConfig.setFipsComplianceMode(false);
+         config.setSecrets(secretsConfig);
+      }
+
+      if(config.getAudit() == null) {
+         AuditConfig auditConfig = new AuditConfig();
+         auditConfig.setType("mapdb");
+         config.setAudit(auditConfig);
+      }
+
       return config;
    }
 
@@ -348,6 +375,8 @@ public class InetsoftConfig implements Serializable {
    private CloudRunnerConfig cloudRunner;
    private SecretsConfig secrets;
    private AuditConfig audit;
+   private MetricsConfig metrics;
+   private NodeProtectionConfig nodeProtection;
    private Map<String, Object> additionalProperties;
 
    @SingletonManager.ShutdownOrder(after = FileSystemService.class)

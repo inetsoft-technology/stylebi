@@ -72,9 +72,9 @@
                 <i *ngIf="isFirst" [ngClass]="iconFunction(asset)"></i>
                 <span class="content-ellipse px-1">{{column.value(asset)}}</span>
               </span>
-              <div *ngIf="isFirst" class="d-flex align-items-center action-style truncate-addon" ngbDropdown>
+              <div *ngIf="isFirst" class="d-flex align-items-center action-style truncate-addon">
                 <i class="menu-vertical-icon action-color no-caret" title="_#(More Options)"
-                   ngbDropdownToggle (click)="onContextmenu.emit([asset, $event])"></i>
+                   (click)="onContextmenu.emit([asset, $event])"></i>
               </div>
             </div>
           </div>

@@ -27,7 +27,7 @@ import { MapboxStyle } from "../../../../../../portal/src/app/graph/model/dialog
 import { Tool } from "../../../../../../shared/util/tool";
 
 @Searchable({
-   route: "/settings/general#webmap",
+   route: "/settings/presentation/settings#webmap",
    title: "Web Map Configuration",
    keywords: [
       "em.settings", "em.settings.general", "em.settings.webmap",
@@ -35,8 +35,8 @@ import { Tool } from "../../../../../../shared/util/tool";
    ]
 })
 @ContextHelp({
-   route: "/settings/general#webmap",
-   link: "EMWebMap"
+   route: "/settings/presentation/settings#webmap",
+   link: "EMPresentationDashboardSettingsWebMap"
 })
 @Component({
    selector: "em-webmap-settings-view",

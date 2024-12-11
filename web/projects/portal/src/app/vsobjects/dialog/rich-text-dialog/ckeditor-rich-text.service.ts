@@ -15,23 +15,40 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { Injectable } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
-import { Observable } from "rxjs";
+import { BehaviorSubject, combineLatest, Observable } from "rxjs";
 import { map } from "rxjs/operators";
 import { ComponentTool } from "../../../common/util/component-tool";
+import { CurrentUser } from "../../../portal/current-user";
 import { FontService } from "../../../widget/services/font.service";
 import { RichTextDialog } from "./rich-text-dialog.component";
 import { RichTextService } from "./rich-text.service";
 
 @Injectable()
 export class CKEditorRichTextService extends RichTextService {
-   constructor(private fontService: FontService, private modalService: NgbModal) {
+   private readonly languages = [
+      "af", "ar", "ast", "az", "bg", "bs", "ca", "cs", "da", "de", "de-ch", "el", "en-au", "en-gb",
+      "eo", "es", "et", "eu", "fa", "fi", "fr", "gl", "gu", "he", "hi", "hr", "hu", "id", "it",
+      "ja", "jv", "kk", "km", "kn", "ko", "ku", "lt", "lv", "ms", "nb", "ne", "nl", "no", "oc",
+      "pl", "pt", "pt-br", "ro", "ru", "si", "sk", "sl", "sq", "sr", "sr-latn", "sv", "th", "tk",
+      "tr", "tt", "ug", "uk", "ur", "uz", "vi", "zh", "zh-cn"
+   ];
+
+   private language$: BehaviorSubject<string> = new BehaviorSubject<string>(null);
+
+   constructor(private fontService: FontService, private modalService: NgbModal, http: HttpClient) {
       super();
+
+      http.get<CurrentUser>("../api/portal/get-current-user")
+         .pipe(map(user => this.getUserLanguage(user)))
+         .subscribe(language => this.language$.next(language));
    }
 
    showAnnotationDialog(onCommit: (content: string) => void, bgColor: string = null): Observable<RichTextDialog> {
-      return this.fontService.getAllFonts().pipe(map((fonts) => {
+      const fonts$ = this.fontService.getAllFonts();
+      return combineLatest([fonts$, this.language$]).pipe(map(([fonts, language]) => {
          let modalOptions: NgbModalOptions = {
             backdrop: "static",
             size: "lg"
@@ -41,7 +58,27 @@ export class CKEditorRichTextService extends RichTextService {
          dialog.dialogTitle = "_#(js:Annotation)";
          dialog.fonts = fonts;
          dialog.bgColor = bgColor;
+         dialog.language = language;
          return dialog;
       }));
+   }
+
+   private getUserLanguage(user: CurrentUser): string {
+      const { localeLanguage, localeCountry } = user;
+      let language: string;
+
+      if(!!localeLanguage) {
+         if(!!localeCountry) {
+            const test = `${localeLanguage.toLowerCase()}-${localeCountry.toLowerCase()}`;
+            language = this.languages.find(l => l === test);
+         }
+
+         if(!language) {
+            const test = localeLanguage.toLowerCase();
+            language = this.languages.find(l => l === test);
+         }
+      }
+
+      return language;
    }
 }

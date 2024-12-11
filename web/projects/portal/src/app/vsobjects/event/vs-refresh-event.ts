@@ -15,6 +15,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { Dimension } from "../../common/data/dimension";
+
 export class VSRefreshEvent {
    private tableMetaData: boolean = false;
    private userRefresh: boolean = false;
@@ -28,6 +30,7 @@ export class VSRefreshEvent {
    private parameters?: {[name: string]: string[]};
    private name?: string = "";
    private confirmed: boolean = false;
+   private embedAssemblySize: Dimension = null;
 
    public setTableMetaData(value: boolean) {
       this.tableMetaData = value;
@@ -75,5 +78,9 @@ export class VSRefreshEvent {
 
    public setConfirmed(value: boolean) {
       this.confirmed = value;
+   }
+
+   public setEmbedAssemblySize(value: Dimension) {
+      this.embedAssemblySize = value;
    }
 }

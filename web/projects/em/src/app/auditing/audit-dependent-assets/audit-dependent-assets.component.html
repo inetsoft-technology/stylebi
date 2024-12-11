@@ -17,31 +17,31 @@
   -->
 <em-audit-table-view [dateRangeVisible]="false" [displayedColumns]="getDisplayedColumns()" [columnRenderers]="columnRenderers" [parameterForm]="form" [fetchParameters]="fetchParameters" [fetchData]="fetchData">
   <section class="flex-row" [formGroup]="form">
-    <mat-form-field appearance="outline" color="primary" class="flex">
+    <mat-form-field appearance="outline" color="accent" class="flex">
       <mat-label>_#(Target Asset Type)</mat-label>
       <mat-select formControlName="selectedTargetType">
         <mat-option *ngFor="let type of targetTypes" [value]="type.value">{{type.label}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Target Asset User)</mat-label>
       <mat-select formControlName="selectedTargetUser">
         <mat-option *ngFor="let user of targetUsers" [value]="user.value">{{user.label}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Target Asset Names)</mat-label>
       <mat-select formControlName="selectedTargetAssets" multiple>
         <mat-option *ngFor="let asset of targetAssets" [value]="asset.assetId">{{asset.label}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Dependent Asset Types)</mat-label>
       <mat-select formControlName="selectedDependentTypes" multiple>
         <mat-option *ngFor="let type of dependentTypes" [value]="type.value">{{type.label}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Dependent Asset Users)</mat-label>
       <mat-select formControlName="selectedDependentUsers" multiple>
         <mat-option *ngFor="let user of dependentUsers" [value]="user.value">{{user.label}}</mat-option>

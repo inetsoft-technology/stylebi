@@ -224,7 +224,7 @@ const CANCEL_VS_URI: string = "/events/composer/viewsheet/cancelViewsheet";
 const VS_FORMAT_URI: string = "/events/composer/viewsheet/format";
 const VS_GET_FORMAT_URI: string = "/events/composer/viewsheet/getFormat";
 const CLOSE_VIEWSHEET_SOCKET_URI: string = "/events/composer/viewsheet/close";
-const GET_PROFILE_TABLE_URL = "../portal/profile/table";
+const GET_PROFILE_TABLE_URL = "../api/portal/profile/table";
 
 const BOOKMARK_URIS = {
    "save": "vs/bookmark/save-bookmark",
@@ -426,6 +426,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    public zoomOptions = ZoomOptions;
    public cancelled = false;
    private clickOnVS: boolean = false;
+   private currOrgID: string = null;
 
    // Keyboard nav - Section 508 compliance
    keyNavigation: Subject<FocusObjectEventModel> =
@@ -448,6 +449,9 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
    textLimitConfirmed: boolean = false;
    columnLimitConfirmed: boolean = false;
+   selectedPopComponent: string = null;
+   selectedDataTipView: string = null;
+   isDefaultOrgAsset: boolean = false;
 
    constructor(public viewsheetClient: ViewsheetClientService,
                private stompClientService: StompClientService,
@@ -506,6 +510,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       // Need to set a default min and max date otherwise the range is only 20 years.
       ngbDatepickerConfig.minDate = {year: 1900, month: 1, day: 1};
       ngbDatepickerConfig.maxDate = {year: 2099, month: 12, day: 31};
+
+      this.http.get<string>("../api/em/navbar/organization").subscribe((org)=>{this.currOrgID = org;});
    }
 
    getAssemblyName(): string {
@@ -695,7 +701,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    get mobileToolbarVisible(): boolean {
-      return this.touchDevice && this.selectedActions != null;
+      return this.touchDevice && this.selectedActions != null &&
+         (this.selectedPopComponent == null && this.selectedDataTipView == null ||
+         this.popComponentService.isPopComponentShow(this.selectedPopComponent) ||
+         this.dataTipService.isDataTipShow(this.selectedDataTipView));
    }
 
    @HostListener("window:pointerup", ["$event"])
@@ -1027,7 +1036,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
    selectAssembly(payload: [number, AbstractVSActions<any>, MouseEvent]): void {
       const [index, actions, event] = payload;
+      let name: string = this.vsInfo.vsObjects[index].absoluteName;
       this.selectedActions = actions;
+      this.selectedPopComponent = this.popComponentService.getPopComponent() == name ? name : null;
+      this.selectedDataTipView = this.dataTipService.dataTipName == name ? name : null;
 
       if(this.isMobile() && !!this.selectedActions) {
          this.latestMobileMouseEvent = event;
@@ -1428,7 +1440,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             let formData: FormData = new FormData();
             formData.append("file", file);
             const extension: string = file.name.split(".").pop();
-            this.http.post("../" + IMPORT_XLS_URI + "/upload/" + extension
+            this.http.post("../api/" + IMPORT_XLS_URI + "/upload/" + extension
                + "/" + Tool.byteEncode(this.runtimeId), formData)
                .subscribe(
                   (data: any) => {
@@ -1456,6 +1468,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    }
 
    showBookmarks(): void {
+      this.http.get<boolean>("../api/vs/bookmark/isDefaultOrgAsset/" + Tool.byteEncode(this.runtimeId)).subscribe( (isDefaultOrgAsset) => this.isDefaultOrgAsset = isDefaultOrgAsset);
+
       let bookmarkName: string = null;
       let bookmarkUser: string = null;
 
@@ -1781,9 +1795,9 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          name: dateName,
          owner: {
             name: ownerName,
-            organization: orgId
+            orgID: orgId
          },
-         readOnly: true,
+         readOnly: false,
          type: VSBookmarkType.PRIVATE
       };
 
@@ -2135,7 +2149,15 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    processSetExportTypesCommand(command: SetExportTypesCommand): void {
       this.exportTypes = [];
 
+      const asset: AssetEntry = createAssetEntry(this.assetId);
+      let orgID = asset.organization;
+
       for(let i = 0; i < command.exportTypes.length; i++) {
+         if(!(orgID == this.currOrgID) && command.exportTypes[i] == "Snapshot") {
+            //skip export as snapshot when vs does not match current org, globally visible
+            continue;
+         }
+
          this.exportTypes.push({label: command.exportLabels[i], value: command.exportTypes[i]});
       }
    }
@@ -2397,6 +2419,12 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.accessible = command.info["accessible"];
       this.fitToWidth = command.info["fitToWidth"];
       this.balancePadding = command.info["balancePadding"];
+
+      if(command.info["hasWatermark"]) {
+         const imageUrl = "url('assets/elastic_watermark.png')";
+         this.backgroundImage = this.sanitizer.bypassSecurityTrustStyle(imageUrl);
+         this.backgroundImageRepeat = "repeat";
+      }
 
       if(this.vsInfo.linkUri != command.linkUri) {
          this.vsInfo = new ViewsheetInfo(this.vsObjects, command.linkUri, false, this.runtimeId);
@@ -3118,6 +3146,10 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
       if(this.scaleToScreen && elementRect) {
          draggableRestrictionRect.right -= elementRect.width;
+
+         if(!this.fitToWidth) {
+            draggableRestrictionRect.bottom -= elementRect.height;
+         }
       }
 
       return draggableRestrictionRect;

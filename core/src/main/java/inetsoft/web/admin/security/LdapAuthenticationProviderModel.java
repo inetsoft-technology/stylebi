@@ -41,8 +41,16 @@ public interface LdapAuthenticationProviderModel {
 
    String rootDN();
 
+   @Value.Default
+   default boolean useCredential() { return false; }
+
+   @Nullable
    String adminID();
 
+   @Nullable
+   String secretId();
+
+   @Nullable
    String password();
 
    @Nullable

@@ -389,6 +389,7 @@ import { SaveScriptDialog } from "./dialog/script/save-script-dialog.component";
 import { EditCustomPatternsDialog } from "./gui/tablestyle/editor/edit-custom-patterns-dialog.component";
 import { TableStyleBorderRegionComponent } from "./gui/tablestyle/editor/table-style-border-region.component";
 import { ScriptPropertyDialogComponent } from "./dialog/script/script-property-dialog.component";
+import { ScrollingModule } from "@angular/cdk/scrolling";
 
 @NgModule({
    imports: [
@@ -460,6 +461,7 @@ import { ScriptPropertyDialogComponent } from "./dialog/script/script-property-d
       ScriptModule,
       VSObjectDirectivesModule,
       CodemirrorModule,
+      ScrollingModule ,
    ],
    declarations: [
       ComposerAppComponent,

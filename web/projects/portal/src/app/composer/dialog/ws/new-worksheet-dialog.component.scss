@@ -15,21 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-button.dropdown-item {
-  display: flex;
-  border-radius: 0.25rem;
-  border-color: var(--inet-default-border-color);
-  border-style: solid;
-  border-width: 1px;
-  margin-top: 0.5rem;
-  padding: 6px;
+:host {
+  button.dropdown-item {
+    display: flex;
+    background-color: rgba(0, 0, 0, 0.01);
+    border-radius: 0.25rem;
+    border-color: var(--inet-default-border-color);
+    border-style: solid;
+    border-width: 1px;
+    margin-top: 0.5rem;
+    padding: 6px;
 
-  span {
-    padding-left: 6px;
+    span {
+      padding-left: 6px;
+    }
   }
-}
 
-.item-list {
-  max-height: 50vh;
-  overflow: auto;
+  .item-list {
+    max-height: 50vh;
+    overflow: auto;
+  }
 }

@@ -43,7 +43,7 @@ public class DefaultIdentity extends AbstractIdentity {
     * Constructor.
     */
    public DefaultIdentity(Identity identity) {
-      this(identity.getName(), identity.getOrganization(), identity.getType());
+      this(identity.getName(), identity.getOrganizationID(), identity.getType());
 
       if(identity instanceof DefaultIdentity) {
          isChanged = ((DefaultIdentity) identity).isChanged();
@@ -61,7 +61,7 @@ public class DefaultIdentity extends AbstractIdentity {
     * Constructor.
     */
    public DefaultIdentity(IdentityID identityID, int type) {
-      this(identityID.name, identityID.organization, type);
+      this(identityID.name, identityID.orgID, type);
    }
 
    public DefaultIdentity(String name, String orgID, int type) {
@@ -132,9 +132,12 @@ public class DefaultIdentity extends AbstractIdentity {
       this.name = name;
    }
 
-   @Override
-   public String getOrganization() {
+   public String getOrganizationID() {
       return orgID;
+   }
+
+   public void setOrganization(String orgID) {
+      this.orgID = orgID;
    }
 
    /**

@@ -21,6 +21,7 @@ import inetsoft.uql.XFactory;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -30,8 +31,10 @@ import java.time.Instant;
 import java.util.*;
 
 @View(vertical = true, value = {
-   @View1("clientId"),
-   @View1("clientSecret"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "clientId", visibleMethod = "useCredential"),
+   @View1(value = "clientSecret", visibleMethod = "useCredential"),
    @View1(type = ViewType.LABEL, text = "redirect.uri.description", colspan = 2),
    @View1(type = ViewType.PANEL,
       align = ViewAlign.RIGHT,
@@ -42,7 +45,7 @@ import java.util.*;
             button = @Button(
                type = ButtonType.OAUTH,
                method = "updateTokens",
-               dependsOn = { "clientId", "clientSecret" },
+               dependsOn = { "clientId", "clientSecret", "credentialId" },
                enabledMethod = "authorizeEnabled",
                oauth = @Button.OAuth
             )
@@ -59,24 +62,31 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
       super(TYPE, OneDriveDataSource.class);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.CLINET;
+   }
+
    @Property(label = "Client ID", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getClientId() {
-      return clientId;
+      return ((ClientCredentials) getCredential()).getClientId();
    }
 
    @SuppressWarnings("unused")
    public void setClientId(String clientId) {
-      this.clientId = clientId;
+      ((ClientCredentials) getCredential()).setClientId(clientId);
    }
 
    @Property(label = "Client Secret", password = true, required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getClientSecret() {
-      return clientSecret;
+      return ((ClientCredentials) getCredential()).getClientSecret();
    }
 
    @SuppressWarnings("unused")
    public void setClientSecret(String clientSecret) {
-      this.clientSecret = clientSecret;
+      ((ClientCredentials) getCredential()).setClientSecret(clientSecret);
    }
 
    @Override
@@ -176,26 +186,13 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
    }
 
    protected boolean isTokenExpired() {
-      return tokenExpiration == 0L || refreshToken == null || refreshToken.isEmpty() ||
+      return tokenExpiration == 0L || getRefreshToken() == null || getRefreshToken().isEmpty() ||
          Instant.now().isAfter(Instant.ofEpochMilli(tokenExpiration));
-   }
-
-   public boolean authorizeEnabled() {
-      return clientId != null && clientSecret != null;
    }
 
    @Override
    protected void writeContents(PrintWriter writer) {
       super.writeContents(writer);
-
-      if(username != null) {
-         writer.format("<username><![CDATA[%s]]></username>%n", username);
-      }
-
-      if(password != null) {
-         writer.format(
-            "<password><![CDATA[%s]]></password>%n", Tool.encryptPassword(password));
-      }
 
       if(clientId != null) {
          writer.format("<client-id><![CDATA[%s]]></client-id>%n", clientId);
@@ -203,11 +200,6 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
 
       if(tenantId != null) {
          writer.format("<tenant-id><![CDATA[%s]]></tenant-id>%n", tenantId);
-      }
-
-      if(clientSecret != null) {
-         writer.format(
-            "<client-secret><![CDATA[%s]]></client-secret>%n", Tool.encryptPassword(clientSecret));
       }
 
       if(accessToken != null) {
@@ -226,14 +218,10 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
    @Override
    protected void parseContents(Element element) throws Exception {
       super.parseContents(element);
-      username = Tool.getChildValueByTagName(element, "username");
-      password = Tool.decryptPassword(Tool.getChildValueByTagName(element, "password"));
       clientId = Tool.getChildValueByTagName(element, "client-id");
       tenantId = Tool.getChildValueByTagName(element, "tenant-id");
-      clientSecret = Tool.decryptPassword(Tool.getChildValueByTagName(element, "client-secret"));
       accessToken = Tool.decryptPassword(Tool.getChildValueByTagName(element, "access-token"));
       refreshToken = Tool.decryptPassword(Tool.getChildValueByTagName(element, "refresh-token"));
-
       String expires = Tool.getChildValueByTagName(element, "tokenExpiration");
 
       if(expires != null) {
@@ -251,11 +239,9 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
       try {
          OneDriveDataSource ds = (OneDriveDataSource) obj;
 
-         return Objects.equals(username, ds.username) &&
-            Objects.equals(password, ds.password) &&
+         return Objects.equals(getCredential(), ds.getCredential()) &&
             Objects.equals(clientId, ds.clientId) &&
             Objects.equals(tenantId, ds.tenantId) &&
-            Objects.equals(clientSecret, ds.clientSecret) &&
             Objects.equals(accessToken, ds.accessToken) &&
             Objects.equals(refreshToken, ds.refreshToken) &&
             Objects.equals(tokenExpiration, ds.tokenExpiration);
@@ -265,11 +251,8 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
       }
    }
 
-   private String username;
-   private String password;
    private String clientId;
    private String tenantId;
-   private String clientSecret;
    private String accessToken;
    private String refreshToken;
    private long tokenExpiration;

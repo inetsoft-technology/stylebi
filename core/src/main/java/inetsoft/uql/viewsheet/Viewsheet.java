@@ -62,6 +62,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static inetsoft.util.Tool.byteEncode;
+
 /**
  * Viewsheet is a visualization of a worksheet. It contains view assemblies
  * and provides additional properties on selection and binding definitions.
@@ -3956,11 +3958,11 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          " modified=\"" + getLastModified() + "\"");
 
       if(getLastModifiedBy() != null) {
-         writer.print(" modifiedBy=\"" + getLastModifiedBy() + "\"");
+         writer.print(" modifiedBy=\"" + byteEncode(getLastModifiedBy()) + "\"");
       }
 
       if(getCreatedBy() != null) {
-         writer.print(" createdBy=\"" + getCreatedBy() + "\"");
+         writer.print(" createdBy=\"" + byteEncode(getCreatedBy()) + "\"");
          writer.print(" created=\"" + getCreated() + "\"");
       }
 
@@ -4381,7 +4383,20 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                double height;
 
                if(isHead) {
-                  int[] headerHeights = tinfo.getHeaderRowHeights();
+                  int[] headerHeights;
+
+                  if(assembly instanceof CrosstabVSAssembly) {
+                     VSCrosstabInfo vsinfo =
+                        ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
+                     int hrow = vsinfo != null ?
+                        Math.max(1, vsinfo.getRuntimeColHeaders().length) : 0;
+                     headerHeights = ((CrossBaseVSAssemblyInfo) tinfo).getHeaderRowHeights(false,
+                        hrow);
+                  }
+                  else {
+                     headerHeights = tinfo.getHeaderRowHeights();
+                  }
+
                   height = headerHeights.length > 0 ?
                      headerHeights[headerRowIndex] : AssetUtil.defh;
                }
@@ -4903,6 +4918,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       for(Assembly assembly : getAssemblies()) {
          if(assembly instanceof SelectionVSAssembly) {
             final SelectionVSAssembly sassembly = (SelectionVSAssembly) assembly;
+            DataRef[] dataRefs = sassembly.getDataRefs();
 
             if(sassembly.isSelectionUnion()) {
                final List<String> tableNames = sassembly.getTableNames();
@@ -4914,7 +4930,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
                   final String tableName = tableNames.get(i);
                   final String selectionTableName = selectionTableNames.get(i);
                   final TableAssembly selectionTable =
-                     createSelectionTable(tableName, selectionTableName, resetVS);
+                     createSelectionTable(tableName, selectionTableName, resetVS, dataRefs);
 
                   if(selectionTable != null) {
                      used.add(selectionTable.getName());
@@ -4922,7 +4938,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
                   final String subtableName = subtableNames.get(i);
                   final TableAssembly subtable =
-                     createSelectionTable(tableName, subtableName, resetVS);
+                     createSelectionTable(tableName, subtableName, resetVS, dataRefs);
 
                   if(subtable != null) {
                      subtables.add(subtable);
@@ -4949,7 +4965,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
 
             final String table = sassembly.getTableName();
             final String stable = sassembly.getSelectionTableName();
-            final TableAssembly tassembly = createSelectionTable(table, stable, resetVS);
+            final TableAssembly tassembly = createSelectionTable(table, stable, resetVS, dataRefs);
 
             if(tassembly != null) {
                used.add(tassembly.getName());
@@ -5052,7 +5068,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
     */
    private TableAssembly createSelectionTable(String boundTableName,
                                               String selectionTableName,
-                                              boolean resetVS)
+                                              boolean resetVS,
+                                              DataRef[] dataRefs)
    {
       TableAssembly selectionTable = null;
 
@@ -5062,12 +5079,21 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          // we need regenerate the selection table
          // because the table structure may be changed
          // see bug1357442251751
-         final TableAssembly boundTable = (TableAssembly) ws.getAssembly(boundTableName);
+         TableAssembly boundTable = (TableAssembly) ws.getAssembly(boundTableName);
 
          if(boundTable != null) {
-            addCalcRefs(boundTable);
+            boolean boundToCalcRef = isBoundToCalcRef(boundTable, dataRefs);
+
+            if(boundToCalcRef) {
+               addCalcRefs(boundTable);
+            }
 
             if(selectionTable == null || resetVS) {
+               if(!boundToCalcRef) {
+                  boundTable = (TableAssembly) boundTable.clone();
+                  addCalcRefs(boundTable);
+               }
+
                selectionTable = (TableAssembly) boundTable.copyAssembly(selectionTableName);
 
                // do not change selection for consistency
@@ -5088,6 +5114,25 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       }
 
       return selectionTable;
+   }
+
+   private boolean isBoundToCalcRef(TableAssembly table, DataRef[] dataRefs) {
+      final List<CalculateRef> calculateRefs = calcmap.get(table.getName());
+
+      if(calculateRefs == null) {
+         return false;
+      }
+
+      for(DataRef ref : dataRefs) {
+         boolean found = calculateRefs.stream()
+            .anyMatch((calcRef) -> Tool.equals(calcRef.getName(), ref.getName()));
+
+         if(found) {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    /**

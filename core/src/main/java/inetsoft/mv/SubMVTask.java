@@ -22,6 +22,13 @@ import inetsoft.mv.fs.BlockFile;
 import inetsoft.mv.fs.XBlockSystem;
 import inetsoft.mv.mr.AbstractMapTask;
 import inetsoft.mv.mr.XMapResult;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
+import inetsoft.util.ThreadContext;
+
+import java.security.Principal;
+import java.util.Arrays;
 
 /**
  * SubMVTask, the map task to be executed at one data node. It will execute
@@ -77,21 +84,63 @@ public final class SubMVTask extends AbstractMapTask {
    @Override
    public XMapResult run(XBlockSystem sys) throws Exception {
       String bid = getXBlock();
-      BlockFile file = sys.getFile(bid);
+      String mvOrgId = getMVOrgId(bid);
 
-      if(file == null) {
-         throw new Exception("The file of the block not found: " + bid);
-      }
+      return OrganizationManager.runInOrgScope(mvOrgId, () -> {
+         try {
+            BlockFile file = sys.getFile(bid);
 
-      SubMV mv = SubMV.get(file);
+            if(file == null) {
+               throw new Exception("The file of the block not found: " + bid);
+            }
 
-      if(mv == null) {
-         throw new Exception("The sub mv of the block not found: " + bid);
-      }
+            SubMV mv = SubMV.get(file);
 
-      query = getQuery();
-      SubTableBlock data = query.execute(mv);
-      return new SubMVResult(this, data);
+            if(mv == null) {
+               throw new Exception("The sub mv of the block not found: " + bid);
+            }
+
+            query = getQuery();
+            SubTableBlock data = null;
+
+            try {
+               data = query.execute(mv);
+            }
+            catch(Exception e) {
+               if(SUtil.isDefaultVSGloballyVisible()) {
+                  Principal oPrincipal = ThreadContext.getContextPrincipal();
+                  IdentityID pId = IdentityID.getIdentityIDFromKey(oPrincipal.getName());
+                  pId.setOrgID(Organization.getDefaultOrganizationID());
+                  XPrincipal tmpPrincipal = new XPrincipal(pId);
+                  tmpPrincipal.setOrgId(Organization.getDefaultOrganizationID());
+                  ThreadContext.setContextPrincipal(tmpPrincipal);
+
+                  try {
+                     data = query.execute(mv);
+                  }
+                  finally {
+                     ThreadContext.setContextPrincipal(oPrincipal);
+                  }
+               }
+            }
+
+            return new SubMVResult(this, data);
+         }
+         catch(Exception e) {
+            throw new RuntimeException(e);
+         }
+      });
+   }
+
+   private String getMVOrgId(String bid) {
+      String[] paths = bid.split("\\_");
+      String path = paths[paths.length-1];
+
+      SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
+      String[] organizationIDs = securityProvider.getOrganizationIDs();
+
+      return Arrays.stream(organizationIDs).filter(id -> path.startsWith(id + "-"))
+         .findFirst().get();
    }
 
    /**
@@ -105,6 +154,17 @@ public final class SubMVTask extends AbstractMapTask {
          query.cancel();
       }
    }
+
+   @Override
+   public String getOrgID() {
+      return null;
+   }
+
+   @Override
+   public void setOrgID(String orgID) {
+      //
+   }
+
 
    private SubMVQuery query;
 }

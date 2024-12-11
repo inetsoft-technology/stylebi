@@ -22,6 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.lang.ref.SoftReference;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -208,10 +209,12 @@ public final class NameTable implements Serializable {
    public final void accept(NameVisitor visitor) {
       load();
 
-      List<IdValues> entries = this.sortedData;
+      CachedData cdata = cachedData.get();
+      List<IdValues> entries;
+      Map<String, String> name2Id;
 
-      if(entries == null) {
-         entries = this.sortedData = data.entrySet().stream()
+      if(cdata == null) {
+         entries = data.entrySet().stream()
             .map(e -> new IdValues(e)).collect(Collectors.toList());
          entries.sort(getEntryComparator());
 
@@ -222,6 +225,12 @@ public final class NameTable implements Serializable {
                name2Id.put(entry.values[0], entry.id);
             }
          }
+
+         cachedData = new SoftReference<>(new CachedData(entries, name2Id));
+      }
+      else {
+         entries = cdata.sortedData;
+         name2Id = cdata.name2Id;
       }
 
       if(visitor.getNameForId() != null) {
@@ -349,18 +358,27 @@ public final class NameTable implements Serializable {
       private String[] values;
    }
 
+   private static class CachedData {
+      List<IdValues> sortedData; // optimization
+      Map<String, String> name2Id; // optimization
+
+      public CachedData(List<IdValues> sortedData, Map<String, String> name2Id) {
+         this.sortedData = sortedData;
+         this.name2Id = name2Id;
+      }
+   }
+
    private final String name;
    private int columnCount = 0;
    private String[] columnNames;
    private final int[] labelColumns;
    private final String file;
    private final Map<String, String[]> data;
-   private List<IdValues> sortedData; // optimization
-   private Map<String, String> name2Id; // optimization
    private final int capitalColumn;
    private final Set<String> primary = new HashSet<>(); // national capital
    private final Set<String> admin = new HashSet<>(); // state/province capital
    private final Set<String> minor = new HashSet<>(); // state/province capital
+   private SoftReference<CachedData> cachedData = new SoftReference<>(null);
 
    /**
     * Interface for classes that visit each map feature in a <tt>NameTable</tt>.

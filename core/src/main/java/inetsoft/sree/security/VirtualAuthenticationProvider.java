@@ -44,8 +44,8 @@ public class VirtualAuthenticationProvider
    public VirtualAuthenticationProvider() {
       load();
       system = new FSUser(new IdentityID(XPrincipal.SYSTEM, null));
-      system.setRoles(new IdentityID[] { new IdentityID("Administrator", Organization.getDefaultOrganizationName())});
-      anonymous = new FSUser(new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationName()));
+      system.setRoles(new IdentityID[] { new IdentityID("Administrator", Organization.getDefaultOrganizationID())});
+      anonymous = new FSUser(new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID()));
    }
 
    /**
@@ -55,8 +55,8 @@ public class VirtualAuthenticationProvider
     */
    @Override
    public IdentityID[] getRoles() {
-      return new IdentityID[] {new IdentityID("Everyone", Organization.getDefaultOrganizationName()),
-                           new IdentityID("Administrator", Organization.getDefaultOrganizationName())};
+      return new IdentityID[] {new IdentityID("Everyone", Organization.getDefaultOrganizationID()),
+                           new IdentityID("Administrator", Organization.getDefaultOrganizationID())};
    }
 
    /**
@@ -104,17 +104,27 @@ public class VirtualAuthenticationProvider
     */
    @Override
    public IdentityID[] getUsers() {
-      return new IdentityID[]{new IdentityID("admin", Organization.getDefaultOrganizationName()),
-                              new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationName())};
+      return new IdentityID[]{new IdentityID("admin", Organization.getDefaultOrganizationID()),
+                              new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID())};
    }
 
    /**
-    * Get a list of all Organizations in the system.
+    * Get a list of all Organization ids in the system.
     *
     * @return list of Organizations.
     */
    @Override
-   public String[] getOrganizations() {
+   public String[] getOrganizationIDs() {
+      return new String[]{Organization.getDefaultOrganizationID()};
+   }
+
+   /**
+    * Get a list of all Organization names in the system.
+    *
+    * @return list of Organizations.
+    */
+   @Override
+   public String[] getOrganizationNames() {
       return new String[]{Organization.getDefaultOrganizationName()};
    }
 
@@ -143,8 +153,8 @@ public class VirtualAuthenticationProvider
    }
 
    @Override
-   public Organization getOrganization(String name) {
-      if(Organization.getDefaultOrganizationName().equals(name)) {
+   public Organization getOrganization(String id) {
+      if(Organization.getDefaultOrganizationID().equals(id)) {
          return Organization.getDefaultOrganization();
       }
       else {
@@ -153,18 +163,18 @@ public class VirtualAuthenticationProvider
    }
 
    @Override
-   public String getOrgId(String name) {
-      return getOrganization(name).getId();
+   public String getOrgIdFromName(String name) {
+      for(String oid : getOrganizationIDs()) {
+         if(getOrganization(oid).getName().equals(name)) {
+            return oid;
+         }
+      }
+      return null;
    }
 
    @Override
    public String getOrgNameFromID(String id) {
-      for(String org : getOrganizations()) {
-         if(getOrganization(org).getId().equalsIgnoreCase(id)) {
-            return org;
-         }
-      }
-      return null;
+      return getOrganization(id) == null ? null : getOrganization(id).name;
    }
 
    @Override
@@ -214,7 +224,7 @@ public class VirtualAuthenticationProvider
       DataSpace space = DataSpace.getDataSpace();
 
       if(!space.exists(null, fileName)) {
-         admin = new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationName()));
+         admin = new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
          SUtil.setPassword(admin, "admin");
          admin.setRoles(new IdentityID[] { new IdentityID("Administrator", null) });
          save();

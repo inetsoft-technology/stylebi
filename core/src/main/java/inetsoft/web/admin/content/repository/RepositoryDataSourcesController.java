@@ -23,6 +23,8 @@ import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.util.Config;
+import inetsoft.util.Tool;
+import inetsoft.web.admin.content.database.DatabaseDefinition;
 import inetsoft.web.admin.content.database.DriverAvailability;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
 import inetsoft.web.admin.security.ConnectionStatus;
@@ -123,8 +125,16 @@ public class RepositoryDataSourcesController {
       if(model.dataSource() != null) {
          String actionName = databaseDatasourcesService.getActionName(path,
             model.dataSource().getName());
+         DatabaseDefinition database = model.dataSource();
+         String actionError = null;
+
+         if(database != null) {
+            actionError = Tool.equals(database.getName(), database.getOldName()) ? null :
+            "new Name:" + database.getName();
+         }
+
          status = databaseDatasourcesService.saveDatabase(path,
-            model, actionName, fullPath, principal);
+            model, actionName, fullPath, actionError, principal);
       }
 
       if(model.permissions() != null && model.permissions().changed()) {

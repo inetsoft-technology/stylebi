@@ -112,6 +112,7 @@ public class QueryRecord implements AuditRecord {
     * Get the execution session ID.
     * @return the specified execution session ID.
     */
+   @AuditRecordProperty
    public String getExecSessionID() {
       return this.execSessionID;
    }
@@ -128,6 +129,7 @@ public class QueryRecord implements AuditRecord {
     * Get the user session ID.
     * @return the specified user session ID.
     */
+   @AuditRecordProperty
    public String getUserSessionID() {
       return this.userSessionID;
    }
@@ -144,6 +146,7 @@ public class QueryRecord implements AuditRecord {
     * Get the object name.
     * @return the specified object name.
     */
+   @AuditRecordProperty
    public String getObjectName() {
       return this.objectName;
    }
@@ -160,6 +163,7 @@ public class QueryRecord implements AuditRecord {
     * Get the object type.
     * @return the specified object type.
     */
+   @AuditRecordProperty
    public String getObjectType() {
       return this.objectType;
    }
@@ -176,6 +180,7 @@ public class QueryRecord implements AuditRecord {
     * Get the execution type.
     * @return the specified execution type.
     */
+   @AuditRecordProperty
    public String getExecType() {
       return this.execType;
    }
@@ -192,6 +197,7 @@ public class QueryRecord implements AuditRecord {
     * Get the execution timestamp.
     * @return the specified execution timestamp.
     */
+   @AuditRecordProperty
    public Timestamp getExecTimestamp() {
       return this.execTimestamp;
    }
@@ -208,6 +214,7 @@ public class QueryRecord implements AuditRecord {
     * Get the execution status.
     * @return the specified execution status.
     */
+   @AuditRecordProperty
    public String getExecStatus() {
       return this.execStatus;
    }
@@ -224,6 +231,7 @@ public class QueryRecord implements AuditRecord {
     * Get the execution error.
     * @return the specified execution error.
     */
+   @AuditRecordProperty
    public String getExecError() {
       return this.execError;
    }
@@ -236,6 +244,7 @@ public class QueryRecord implements AuditRecord {
       this.execError = execError;
    }
 
+   @AuditRecordProperty
    public String getServerHostName() {
       return serverHostName;
    }
@@ -244,13 +253,15 @@ public class QueryRecord implements AuditRecord {
       this.serverHostName = serverHostName;
    }
 
+   @AuditRecordProperty
    public String getOrganizationId() {
       return organizationId;
    }
+
    public void setOrganizationId(String organizationId) {
       this.organizationId = organizationId;
-
    }
+
    /**
     * Determines if this object is equivilent to another.
     * @param obj the object to compare.

@@ -78,6 +78,9 @@
           <span class="visually-hidden">_#(Custom Tabs)</span>
         </a>
       </li>
+      <li *ngIf="model.elasticLicenseExhausted" class="nav-item portal-nav-item">
+        <span>_#(elastic.license.exhausted)</span>
+      </li>
     </ul>
     <ul class="navbar-nav ms-auto">
       <li *ngIf="!mobile && (model.newDatasourceEnabled || model.newWorksheetEnabled

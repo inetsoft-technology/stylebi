@@ -307,7 +307,7 @@ public class BaseElement implements ReportElement, Cacheable {
    public boolean checkVisible() {
       // visibility control ignored in designer
       getReport();
-      return isVisible() || !(report == null || true);
+      return isVisible() || report != null;
    }
 
    /**

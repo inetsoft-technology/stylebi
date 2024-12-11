@@ -168,7 +168,7 @@ public class XUnaryCondition extends XFilterNode {
    public void writeXML(PrintWriter writer) {
       writer.print("<");
       writer.print(XML_TAG);
-      writer.print(" isnot=" + (isIsNot() == true ? "\"true\"" : "\"false\""));
+      writer.print(" isnot=" + (isIsNot() ? "\"true\"" : "\"false\""));
       writer.print(" clause= " + "\"" + getClause() + "\"");
       writer.println(">");
 

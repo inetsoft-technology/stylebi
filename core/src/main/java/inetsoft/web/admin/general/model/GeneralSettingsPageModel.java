@@ -28,9 +28,6 @@ import javax.annotation.Nullable;
 @JsonDeserialize(as = ImmutableGeneralSettingsPageModel.class)
 public interface GeneralSettingsPageModel {
    @Nullable
-   ClusterSettingsModel clusterSettingsModel();
-
-   @Nullable
    LicenseKeySettingsModel licenseKeySettingsModel();
 
    @Nullable

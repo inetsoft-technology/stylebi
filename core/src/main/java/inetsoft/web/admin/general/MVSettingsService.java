@@ -45,7 +45,6 @@ public class MVSettingsService {
 
    public MVSettingsModel getModel(Principal principal) throws Exception {
       DataCycleManager dmgr = DataCycleManager.getDataCycleManager();
-      MVType type = MVType.BASIC;
       Set<String> cycleNames = new TreeSet<>(Comparator.naturalOrder());
       String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
       boolean isEnterprise = LicenseManager.getInstance().isEnterprise();
@@ -66,7 +65,6 @@ public class MVSettingsService {
       cycle = cycle == null ? "" : cycle;
 
       return MVSettingsModel.builder()
-         .type(type)
          .onDemand("true".equals(SreeEnv.getProperty("mv.ondemand")))
          .onDemandDefault("true".equals(SreeEnv.getProperty("mv.enabled.all")))
          .defaultCycle(cycle)

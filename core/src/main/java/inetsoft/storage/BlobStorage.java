@@ -37,6 +37,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.locks.Lock;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -368,8 +369,8 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
     *
     * @throws Exception if an error occurs.
     */
-   public final void deleteBlobStorage() throws Exception {
-      storage.deleteStore();
+   public void deleteBlobStorage() throws Exception {
+      storage.deleteStore().get();
       this.close();
    }
 
@@ -845,17 +846,30 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
          BlobStorage<?> storage = (BlobStorage<?>) storages.get(storeID);
 
          if(storage == null || storage.isClosed()) {
-            try {
-               storage = BlobStorage.createBlobStorage(storeID, preload);
-               storages.put(storeID, storage);
+            String lockId = "blob." + storeID;
+            Lock lock = Cluster.getInstance().getLock(lockId);
+            lock.lock();
 
-               if(parameters.length == 3) {
-                  Listener listener = (Listener) parameters[2];
-                  storage.addListener(listener);
+            try {
+               storage = storages.get(storeID);
+
+               if(storage == null || storage.isClosed()) {
+                  try {
+                     storage = BlobStorage.createBlobStorage(storeID, preload);
+                     storages.put(storeID, storage);
+
+                     if(parameters.length == 3) {
+                        Listener listener = (Listener) parameters[2];
+                        storage.addListener(listener);
+                     }
+                  }
+                  catch(IOException e) {
+                     LOG.error("Failed to create blob storage with storeID " + storeID, e);
+                  }
                }
             }
-            catch(IOException e) {
-               LOG.error("Failed to create blob storage with storeID " + storeID, e);
+            finally {
+               lock.unlock();
             }
          }
 

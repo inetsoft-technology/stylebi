@@ -847,6 +847,7 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
    @Override
    public void setSelectionList(SelectionList list) {
       getTimeSliderInfo().setSelectionList(list);
+      runtimeMin = runtimeMax = null;
    }
 
    /**
@@ -1571,6 +1572,22 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
       }
    }
 
+   public Object getRuntimeMin() {
+      return runtimeMin;
+   }
+
+   public void setRuntimeMin(Object runtimeMin) {
+      this.runtimeMin = runtimeMin;
+   }
+
+   public Object getRuntimeMax() {
+      return runtimeMax;
+   }
+
+   public void setRuntimeMax(Object runtimeMax) {
+      this.runtimeMax = runtimeMax;
+   }
+
    /**
     * Represents the underlying "raw value" of a shared filter. It is a result of a user interaction
     * with a time slider.
@@ -1647,6 +1664,9 @@ public class TimeSliderVSAssembly extends AbstractSelectionVSAssembly
    private SelectionList slist;
    private SharedFilterBounds sharedBounds;
    private transient Format dfmt = null;
+
+   // script set values
+   private transient Object runtimeMin, runtimeMax;
 
    private static final Logger LOG = LoggerFactory.getLogger(TimeSliderVSAssembly.class);
 }

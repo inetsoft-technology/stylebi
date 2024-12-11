@@ -22,6 +22,8 @@
 <div class="modal-body restrict-vertical" enterSubmit [enterSubmitEnable]="true" (onEnter)="ok()" *ngIf="model?.sortColumnEditorModel">
   <sort-column-editor [(model)]="model.sortColumnEditorModel" [showColumnName]="showColumnName"></sort-column-editor>
 </div>
+<vs-loading-display *ngIf="!model?.sortColumnEditorModel">
+</vs-loading-display>
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()">_#(OK)</button>
   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>

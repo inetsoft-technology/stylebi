@@ -20,6 +20,7 @@ package inetsoft.uql.rest.datasource.hubspot;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.credential.CredentialType;
 
 @View(vertical = true, value = {
    @View1(
@@ -38,6 +39,16 @@ public class HubSpotDataSource extends OAuthEndpointJsonDataSource<HubSpotDataSo
 
    public HubSpotDataSource() {
       super(TYPE, HubSpotDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.AUTH_TOKENS;
+   }
+
+   @Override
+   protected boolean supportCredentialId() {
+      return false;
    }
 
    @Override

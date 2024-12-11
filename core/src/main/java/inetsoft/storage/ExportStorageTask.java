@@ -22,14 +22,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SingletonCallableTask;
 import inetsoft.util.FileSystemService;
+import inetsoft.web.admin.general.DataSpaceSettingsService;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -66,11 +66,12 @@ public class ExportStorageTask implements SingletonCallableTask<String> {
       generator.writeStartObject();
       generator.writeArrayFieldStart("pairs");
 
+      Set<String> blobIncludedKeys = DataSpaceSettingsService.getBlobIncludedKeys(id);
       Set<String> created = new HashSet<>();
       KeyValueEngine.getInstance().stream(id)
          .forEach(pair -> {
             try {
-               exportPair(pair, generator, zip, created);
+               exportPair(pair, generator, zip, created, blobIncludedKeys);
             }
             catch(RuntimeException e) {
                LoggerFactory.getLogger(ExportStorageTask.class).error(e.getMessage(), e);
@@ -89,8 +90,14 @@ public class ExportStorageTask implements SingletonCallableTask<String> {
    }
 
    private void exportPair(KeyValuePair<?> pair, JsonGenerator generator, ZipOutputStream zip,
-                           Set<String> created)
+                           Set<String> created, Set<String> blobIncludedKeys)
    {
+      if(pair.getValue() instanceof Blob && blobIncludedKeys != null &&
+         !blobIncludedKeys.isEmpty() && !blobIncludedKeys.contains(pair.getKey()))
+      {
+         return;
+      }
+
       try {
          generator.writeObject(pair);
 

@@ -19,13 +19,14 @@
   <mat-drawer [class.data-space-tree]="!isScreenSmall() "
               mode="side" disableClose [opened]="!isScreenSmall() || !editing">
     <em-data-space-tree-view [dataSource]="dataSource"
-                             (nodesSelected)="handleNodeSelected($event)"
                              [smallDevice]="isScreenSmall()"
+                             [selectedNodes]="selectedNodes"
+                             [currentNode]="currentNode"
+                             (nodesSelected)="handleNodeSelected($event)"
                              (editNode)="editing = true"
                              (deleteSelectedNodes)="deleteSelectedNodes()"
                              emMultiSelectTree
                              [tree]="dataSource"
-                             [selectedNodes]="selectedNodes"
                              [currentSelection]="selectedNodes">
     </em-data-space-tree-view>
   </mat-drawer>

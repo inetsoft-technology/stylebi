@@ -35,12 +35,15 @@ import {
 import { Router } from "@angular/router";
 import { NgbModal, NgbModalOptions, NgbModalRef } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
+import { KEY_DELIMITER } from "../../../../../em/src/app/settings/security/users/identity-id";
 import { AssetEntry, createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../shared/data/asset-type";
 import { Tool } from "../../../../../shared/util/tool";
 import { RefreshBindingTreeEvent } from "../../binding/event/refresh-binding-tree-event";
+import { AssetConstants } from "../../common/data/asset-constants";
 import { AssetEntryHelper } from "../../common/data/asset-entry-helper";
 import { DataRef } from "../../common/data/data-ref";
+import { Dimension } from "../../common/data/dimension";
 import { Notification } from "../../common/data/notification";
 import { Point } from "../../common/data/point";
 import { VSObjectFormatInfoModel } from "../../common/data/vs-object-format-info-model";
@@ -48,22 +51,37 @@ import { UIContextService } from "../../common/services/ui-context.service";
 import { ComponentTool } from "../../common/util/component-tool";
 import { GuiTool } from "../../common/util/gui-tool";
 import { LocalStorage } from "../../common/util/local-storage.util";
+import { TableStyleUtil } from "../../common/util/table-style-util";
 import { ViewsheetClientService } from "../../common/viewsheet-client";
+import { MessageCommand } from "../../common/viewsheet-client/message-command";
 import { NewViewsheetDialog } from "../../vs-wizard/gui/new-viewsheet-dialog.component";
 import { CloseWizardModel } from "../../vs-wizard/model/close-wizard-model";
+import { AssemblyChangedCommand } from "../../vs-wizard/model/command/assembly-changed-command";
 import { NewViewsheetDialogModel } from "../../vs-wizard/model/new-viewsheet-dialog-model";
 import { VsWizardEditModes } from "../../vs-wizard/model/vs-wizard-edit-modes";
 import { VsWizardModel, WizardOriginalInfo } from "../../vs-wizard/model/vs-wizard-model";
 import { SetPrincipalCommand } from "../../vsobjects/command/set-principal-command";
+import { CheckBaseWsChangedEvent } from "../../vsobjects/event/check-base-ws-changed-event";
 import { FormatVSObjectEvent } from "../../vsobjects/event/format-vs-object-event";
 import { OpenViewsheetEvent } from "../../vsobjects/event/open-viewsheet-event";
+import { RefreshVsAssemblyEvent } from "../../vsobjects/event/refresh-vs-assembly-event";
 import { VSRefreshEvent } from "../../vsobjects/event/vs-refresh-event";
+import { VSFormatsPane } from "../../vsobjects/format/vs-formats-pane.component";
 import { GuideBounds } from "../../vsobjects/model/layout/guide-bounds";
 import { VSObjectModel } from "../../vsobjects/model/vs-object-model";
 import { VSTabModel } from "../../vsobjects/model/vs-tab-model";
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 import { VSUtil } from "../../vsobjects/util/vs-util";
-import { loadingScriptTreeModel, ScriptPaneTreeModel } from "../../widget/dialog/script-pane/script-pane-tree-model";
+import { AssetTreeService } from "../../widget/asset-tree/asset-tree.service";
+import {
+   GettingStartedService,
+   GettingStartedStep,
+   StepIndex
+} from "../../widget/dialog/getting-started-dialog/service/getting-started.service";
+import {
+   loadingScriptTreeModel,
+   ScriptPaneTreeModel
+} from "../../widget/dialog/script-pane/script-pane-tree-model";
 import { NotificationsComponent } from "../../widget/notifications/notifications.component";
 import { PresenterPropertyDialogModel } from "../../widget/presenter/data/presenter-property-dialog-model";
 import { ModelService } from "../../widget/services/model.service";
@@ -71,8 +89,22 @@ import { ScaleService } from "../../widget/services/scale/scale-service";
 import { VSScaleService } from "../../widget/services/scale/vs-scale.service";
 import { SplitPane } from "../../widget/split-pane/split-pane.component";
 import { OpenComposerAssetCommand } from "../command/open-composer-asset-command";
+import { LibraryAsset } from "../data/library-asset";
+import { OpenLibraryAssetEvent } from "../data/open-libraryAsset-event";
 import { OpenSheetEvent } from "../data/open-sheet-event";
-import { Sheet, SheetType } from "../data/sheet";
+import { SaveScriptDialogModel } from "../data/script/save-script-dialog-model";
+import { SaveScriptDialogValidator } from "../data/script/SaveScriptDialogValidator";
+import { ScriptModel } from "../data/script/script";
+import {
+   loadingScriptTreePaneModel,
+   ScriptTreePaneModel
+} from "../data/script/script-tree-pane-model";
+import { Sheet } from "../data/sheet";
+import { CSSTableStyleModel } from "../data/tablestyle/css/css-table-style-model";
+import { SaveLibraryDialogModelValidator } from "../data/tablestyle/save-library-dialog-model-validator";
+import { SaveTableStyleDialogModel } from "../data/tablestyle/save-table-style-dialog-model";
+import { SpecificationModel } from "../data/tablestyle/specification-model";
+import { TableStyleModel } from "../data/tablestyle/table-style-model";
 import { AssetRepositoryPaneModel } from "../data/vs/asset-respository-pane-model";
 import { SaveViewsheetDialogModel } from "../data/vs/save-viewsheet-dialog-model";
 import { Viewsheet } from "../data/vs/viewsheet";
@@ -82,46 +114,21 @@ import { VSLayoutObjectModel } from "../data/vs/vs-layout-object-model";
 import { SaveWorksheetDialogModel } from "../data/ws/save-worksheet-dialog-model";
 import { SaveWSConfirmationModel } from "../data/ws/save-ws-confirmation-model";
 import { Worksheet } from "../data/ws/worksheet";
+import { ScriptPropertyDialogComponent } from "../dialog/script/script-property-dialog.component";
+import { WSObjectType } from "../dialog/ws/new-worksheet-dialog.component";
 import { ClipboardService } from "./clipboard.service";
 import { ComponentsPane } from "./components-pane/components-pane.component";
 import { ComposerClientService } from "./composer-client.service";
+import { ComposerRecentService } from "./composer-recent.service";
+import { ComposerTabModel } from "./composer-tab-model";
 import { ResizeHandlerService } from "./resize-handler.service";
+import { ScriptEditPaneComponent } from "./script/editor/script-edit-pane.component";
+import { ScriptService } from "./script/script.service";
+import { StylePaneComponent } from "./tablestyle/editor/style-pane.component";
 import { ComposerToolbarComponent } from "./toolbar/composer-toolbar.component";
 import { ComposerObjectService } from "./vs/composer-object.service";
 import { CloseSheetEvent } from "./vs/event/close-sheet-event";
 import { SaveSheetEvent } from "./ws/socket/save-sheet-event";
-import { WSObjectType } from "../dialog/ws/new-worksheet-dialog.component";
-import { MessageCommand } from "../../common/viewsheet-client/message-command";
-import { RefreshVsAssemblyEvent } from "../../vsobjects/event/refresh-vs-assembly-event";
-import { AssemblyChangedCommand } from "../../vs-wizard/model/command/assembly-changed-command";
-import { AssetConstants } from "../../common/data/asset-constants";
-import { AssetTreeService } from "../../widget/asset-tree/asset-tree.service";
-import { CheckBaseWsChangedEvent } from "../../vsobjects/event/check-base-ws-changed-event";
-import { VSFormatsPane } from "../../vsobjects/format/vs-formats-pane.component";
-import { ComposerRecentService } from "./composer-recent.service";
-import { Dimension } from "../../common/data/dimension";
-import {
-   GettingStartedService,
-   GettingStartedStep,
-   StepIndex
-} from "../../widget/dialog/getting-started-dialog/service/getting-started.service";
-import { LibraryAsset } from "../data/library-asset";
-import { TableStyleModel } from "../data/tablestyle/table-style-model";
-import { loadingScriptTreePaneModel, ScriptTreePaneModel } from "../data/script/script-tree-pane-model";
-import { ScriptModel } from "../data/script/script";
-import { OpenLibraryAssetEvent } from "../data/open-libraryAsset-event";
-import { ComposerTabModel } from "./composer-tab-model";
-import { SaveTableStyleDialogModel } from "../data/tablestyle/save-table-style-dialog-model";
-import { SpecificationModel } from "../data/tablestyle/specification-model";
-import { CSSTableStyleModel } from "../data/tablestyle/css/css-table-style-model";
-import { ScriptService } from "./script/script.service";
-import { TableStyleUtil } from "../../common/util/table-style-util";
-import { SaveScriptDialogModel } from "../data/script/save-script-dialog-model";
-import { SaveLibraryDialogModelValidator } from "../data/tablestyle/save-library-dialog-model-validator";
-import { ScriptPropertyDialogComponent } from "../dialog/script/script-property-dialog.component";
-import { StylePaneComponent } from "./tablestyle/editor/style-pane.component";
-import { ScriptEditPaneComponent } from "./script/editor/script-edit-pane.component";
-import { SaveScriptDialogValidator } from "../data/script/SaveScriptDialogValidator";
 
 export enum SidebarTab {
    ASSET_TREE,
@@ -258,7 +265,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       oldAbsoluteName: null,
       wizardOriginalInfo: null
    };
-   principal: String;
+   principal: string;
+   currOrgID: string = null;
    securityEnabled: boolean;
    viewsheetPermission: boolean;
    worksheetPermission: boolean;
@@ -349,6 +357,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          this.queryParameters = linkModel.queryParameters;
          this.showLinkVSInTab(linkModel.id);
       }));
+
+      this.http.get<string>("../api/em/navbar/organization").subscribe((org)=>{this.currOrgID = org;});
    }
 
    ngOnInit(): void {
@@ -1862,7 +1872,7 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
             this.http.post<string>(URI_SAVE_AS_TABLESTYLE, request).subscribe((styleId) => {
                this.focusedTab.asset.isModified = false;
                this.focusedTab.asset.label = result.name;
-               this.focusedTab.asset.id = TableStyleUtil.styleIdentifier(result.folder, result.name);
+               this.focusedTab.asset.id = TableStyleUtil.styleIdentifier(result.folder, result.name, entry.organization);
                library.newAsset = false;
                library.styleId = styleId;
                library.undoRedoList[index].origianlIndex = index;
@@ -2109,6 +2119,22 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
       const entry = createAssetEntry(sheet.id);
       this.defaultFolder = entry ? AssetEntryHelper.getParent(entry) : null;
+
+      if(this.currOrgID == "SELF" && entry.organization == "host-org") {
+         let idx = this.principal.lastIndexOf(KEY_DELIMITER);
+         let ownerName = idx != -1 ? this.principal.substring(0, idx) : this.principal;
+
+         this.defaultFolder = {
+            scope: 4,
+            type: AssetType.FOLDER,
+            user: ownerName,
+            path: "/",
+            organization: "SELF",
+            alias: null,
+            identifier: null,
+            properties: {}
+         };
+      }
 
       sheet.onSave();
       this.modelService.getModel(modelUri).toPromise().then(

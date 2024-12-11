@@ -219,7 +219,7 @@ public class DatabaseDefinition {
    private String description;
    private boolean unasgn;
    private boolean ansiJoin;
-   private int isolation;
+   private int isolation = -1;
    private int option;
    private String defaultdb = null; // set the default database
    private boolean changeDefaultDB;

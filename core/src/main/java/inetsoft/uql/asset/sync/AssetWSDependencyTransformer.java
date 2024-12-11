@@ -19,9 +19,8 @@ package inetsoft.uql.asset.sync;
 
 import inetsoft.report.Hyperlink;
 import inetsoft.report.internal.Util;
-import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.asset.AssetRepository;
-import inetsoft.uql.asset.DependencyHandler;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.FunctionIterator;
 import inetsoft.uql.asset.internal.ScriptIterator;
 import inetsoft.uql.util.XNamedGroupInfo;
@@ -63,8 +62,9 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
          String opath = oentry.getPath();
          String npath = nentry.getPath();
+         String oldUser = oentry.getUser() == null ? null : oentry.getUser().convertToKey();
 
-         if(Tool.equals(val, opath) && Tool.equals(user, oentry.getUser()) &&
+         if(Tool.equals(val, opath) && Tool.equals(user, oldUser) &&
             Tool.equals(scope, oentry.getScope() + ""))
          {
             replaceChildValue(elem, "path", opath, npath, true);
@@ -112,7 +112,8 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
          Element node = Tool.getChildNodeByTagName(elem, "user");
 
          if(node != null) {
-            replaceCDATANode(node, nentry.getUser().convertToKey());
+            IdentityID user = nentry.getUser();
+            replaceCDATANode(node, user != null ? user.convertToKey() : null);
          }
       }
    }
@@ -261,8 +262,10 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
          String oname = rinfo.getOldName();
          String nname = rinfo.getNewName();
-         AssetEntry oentry = AssetEntry.createAssetEntry(oname);
-         AssetEntry nentry = AssetEntry.createAssetEntry(nname);
+         AssetEntry oentry = AssetEntry.createAssetEntry(rinfo.isWorksheet() ?
+                                                            "ws:" + oname : oname);
+         AssetEntry nentry = AssetEntry.createAssetEntry(rinfo.isWorksheet() ?
+                                                            "ws:" + nname : nname);
 
          if((Hyperlink.VIEWSHEET_LINK + "").equals(Tool.getAttribute(elem, "linkType"))) {
             replaceAttribute(elem, "link", oname, nname, true);
@@ -312,8 +315,8 @@ public class AssetWSDependencyTransformer extends AssetHyperlinkDependencyTransf
 
          if(info.isTable() || info.isColumn()) {
             if(scriptEle != null) {
-               String nscript = Util.renameScriptDepended(info.getOldName(),
-                  info.getNewName(), Tool.getValue(scriptEle));
+               String nscript = Util.renameScriptRefDepended(info.getOldName(),
+                   info.getNewName(), Tool.getValue(scriptEle));
 
                if(nscript != null) {
                   replaceCDATANode(scriptEle, nscript);

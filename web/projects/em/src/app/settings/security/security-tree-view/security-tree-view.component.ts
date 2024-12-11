@@ -234,7 +234,7 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
    }
 
    private isIdentityFolder(node: SecurityTreeNode): boolean {
-      return ["_#(js:Users)", "_#(js:Groups)", "_#(js:Roles)"].includes(node.identityID.name);
+      return ["Users", "Groups", "Roles"].includes(node.identityID.name);
    }
 
    trackByFn(index, node: FlatSecurityTreeNode) {
@@ -254,7 +254,7 @@ export class SecurityTreeViewComponent implements OnInit, OnChanges, OnDestroy,
 
       if(dragNodes.length > 0) {
          const dragModels = dragNodes.filter(dragNode => !this.isIdentityFolder(dragNode))
-            .map(dragNode => <IdentityModel>{identityID: {name: dragNode.identityID.name, organization: dragNode.organization}, type: dragNode.type});
+            .map(dragNode => <IdentityModel>{identityID: {name: dragNode.identityID.name, orgID: dragNode.identityID.orgID}, type: dragNode.type, identityIDLabel: dragNode.organization});
          event.dataTransfer.setData("text", JSON.stringify(dragModels));
          return true;
       }

@@ -20,6 +20,7 @@ package inetsoft.web.security;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.web.admin.model.NameLabelTuple;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -30,7 +31,7 @@ import java.util.List;
 @JsonDeserialize(as = ImmutableAuthenticationResponse.class)
 public interface AuthenticationResponse {
    @Nullable String message();
-   @Nullable List<IdentityID> users();
+   @Nullable List<NameLabelTuple> users();
 
    @Value.Default
    default boolean logInAs() {

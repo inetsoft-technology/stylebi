@@ -26,6 +26,10 @@
   width: 32px;
 }
 
+.modal-header {
+  justify-content: space-between;
+}
+
 .preview-btn-left {
   @include preview-btn;
 }

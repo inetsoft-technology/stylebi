@@ -20,10 +20,13 @@ package inetsoft.web.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.web.admin.model.ImmutableNameLabelTuple;
+import inetsoft.web.admin.model.NameLabelTuple;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.apache.commons.codec.binary.Base64;
@@ -34,9 +37,7 @@ import java.io.PrintWriter;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -93,7 +94,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
       boolean authorized = true;
       String message = null;
       int status = HttpServletResponse.SC_UNAUTHORIZED;
-      List<IdentityID> loginAsUsers = null;
+      List<NameLabelTuple> loginAsUsers = null;
       boolean authenticationFailure = false;
 
       if(header != null && header.toLowerCase().startsWith("basic ") &&
@@ -109,8 +110,8 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
             String password = header.substring(index + 1);
 
             try {
-               userKey = URLDecoder.decode(userKey, "UTF-8");
-               password = URLDecoder.decode(header.substring(index + 1), "UTF-8");
+               userKey = URLDecoder.decode(userKey, StandardCharsets.UTF_8);
+               password = URLDecoder.decode(header.substring(index + 1), StandardCharsets.UTF_8);
             }
             catch(Exception ignore) {
             }
@@ -118,7 +119,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
             String loginAsUserKey = httpRequest.getHeader("LoginAsUser");
 
             try {
-               loginAsUserKey = URLDecoder.decode(loginAsUserKey, "UTF-8");
+               loginAsUserKey = URLDecoder.decode(loginAsUserKey, StandardCharsets.UTF_8);
             }
             catch(Exception ignore) {
             }
@@ -133,10 +134,9 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
 
                IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
-               if(pId != null &&
-                  (pId.name.equals(userKey) &&
-                   (loginAsUserKey == null || loginAsUserKey.isEmpty() ||
-                    loginAsUserKey.equals(pId.name))))
+               if(pId != null && (pId.name.equals(userKey) &&
+                  (loginAsUserKey == null || loginAsUserKey.isEmpty() ||
+                     loginAsUserKey.equals(pId.convertToKey()))))
                {
                   authorized = true;
                }
@@ -152,50 +152,56 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                   boolean loginAs = "on".equals(SreeEnv.getProperty("login.loginAs"))
                      && !provider.isVirtual();
                   Cookie[] cookies = ((HttpServletRequest) request).getCookies();
-                  String recordedOrgID = Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
-                                                .map(Cookie::getValue).findFirst().orElse(null);
-                  String recordedOrgName = recordedOrgID == null ? null : provider.getOrgNameFromID(recordedOrgID);
+                  String recordedOrgID = cookies == null ? null :
+                     Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
+                        .map(Cookie::getValue).findFirst().orElse(Organization.getDefaultOrganizationID());
 
-                  if(recordedOrgName == null) {
-                     recordedOrgName = Organization.getDefaultOrganizationName();
+                  if(!SUtil.isMultiTenant()) {
+                     recordedOrgID = Organization.getDefaultOrganizationID();
                   }
 
                   //check all equalsIgnoreCase to ensure found organization is correct
-                  IdentityID properUserID = new IdentityID(userKey, recordedOrgName);
+                  IdentityID properUserID = new IdentityID(userKey, recordedOrgID);
                   AuthenticationChain authc = SecurityEngine.getSecurity().getAuthenticationChain().orElse(null);
                   String providerName = "";
 
                   if(authc != null && SecurityEngine.getSecurity().isSecurityEnabled()) {
                      for(AuthenticationProvider p : authc.getProviders()) {
-
                         if(p.getUser(properUserID) != null) {
                            providerName = p.getProviderName();
                            break;
                         }
 
-                        String originalOrg = properUserID.organization;
+                        String originalOrg = properUserID.orgID;
 
-                        for(String sameOrg : p.getOrganizations()) {
-
+                        for(String sameOrg : p.getOrganizationIDs()) {
                            if(sameOrg.equalsIgnoreCase(originalOrg)) {
                               IdentityID userID = new IdentityID(properUserID.name, sameOrg);
 
                               if(provider.getUser(userID) != null) {
                                  properUserID = userID;
-                                 recordedOrgName = sameOrg;
+                                 recordedOrgID = sameOrg;
                                  providerName = p.getProviderName();
                                  break;
                               }
                            }
                         }
+
+                        if(!providerName.isEmpty()) {
+                           break;
+                        }
                      }
                   }
 
-                  Principal principal = null;
+                  XPrincipal principal = null;
 
                   //check if user belongs to self org if not provided an organization via redirect
-                  if(SecurityEngine.getSecurity().isSelfSignupEnabled() && recordedOrgName.equalsIgnoreCase(Organization.getDefaultOrganizationName())) {
-                     IdentityID selfUser = new IdentityID(userKey, Organization.getSelfOrganizationName());
+                  if(SecurityEngine.getSecurity().isSelfSignupEnabled() &&
+                     recordedOrgID.equalsIgnoreCase(Organization.getDefaultOrganizationID()))
+                  {
+                     IdentityID selfUser = SUtil.isMultiTenant() ?
+                        new IdentityID(userKey, Organization.getSelfOrganizationID()) :
+                        new IdentityID(userKey, Organization.getDefaultOrganizationID());
 
                      principal =
                         authenticate(request, selfUser, password, null, locale, true);
@@ -206,9 +212,13 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                         authenticate(request, properUserID, password, null, locale, true);
                   }
 
-                  if(principal != null) {
+                  IdentityID loginAsUser = IdentityID.getIdentityIDFromKey(loginAsUserKey);
+                  boolean isSelfUser = Tool.equals(loginAsUser.orgID, Organization.getSelfOrganizationID());
+                  boolean selfLogin = isSelfUser && SecurityEngine.getSecurity().isSelfSignupEnabled();
+
+                  if(principal != null && (!isSelfUser || selfLogin)) {
                      authorized = true;
-                     ((XPrincipal) principal).setProperty("curr_provider_name", providerName);
+                     principal.setProperty("curr_provider_name", providerName);
 
 
                      if(provider.checkPermission(
@@ -219,17 +229,20 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                            message = "showLoginAs";
                            status = HttpServletResponse.SC_OK;
                            authorized = false;
-                           loginAsUsers = getLoginAsUsers(principal, provider);
+                           loginAsUsers = getLoginAsUsers(principal, provider, recordedOrgID);
 
                         }
-                        else if(loginAsUserKey != null && loginAsUserKey.trim().length() > 0 &&
-                           provider.getUser(new IdentityID(loginAsUserKey, recordedOrgName)) == null) {
+                        else if(loginAsUserKey != null && !loginAsUserKey.trim().isEmpty() &&
+                           provider.getUser(loginAsUser) == null)
+                        {
                            message = catalog.getString("Invalid login name");
                            authorized = false;
                         }
                         else {
-                           if(checkLoginAs(principal, provider, new IdentityID(loginAsUserKey, recordedOrgName))) {
-                              authenticate(request, new IdentityID(userKey, recordedOrgName), password, new IdentityID(loginAsUserKey, recordedOrgName), locale, true);
+                           if(checkLoginAs(principal, provider, loginAsUser)) {
+                              authenticate(
+                                 request, new IdentityID(userKey, recordedOrgID), password,
+                                 loginAsUser, locale, true);
                            }
                            else {
                               message = catalog.getString("viewer.securityexception");
@@ -305,18 +318,39 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
       }
    }
 
-   private List<IdentityID> getLoginAsUsers(Principal principal, SecurityProvider provider) {
+   private List<NameLabelTuple> getLoginAsUsers(Principal principal, SecurityProvider provider,
+                                                String orgId)
+   {
+      boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
+
       return Arrays.stream(provider.getUsers())
          .filter(u -> !u.equals(IdentityID.getIdentityIDFromKey(principal.getName())))
          .filter(u -> checkLoginAs(principal, provider, u))
-         .sorted()
+         .map(u -> new NameLabelTuple.Builder()
+            .label(siteAdmin ? (provider.getOrgNameFromID(u.getOrgID()) + ":" + u.getName()) : u.getName())
+            .name(u.convertToKey())
+            .build()
+         )
+         .sorted(Comparator.comparing(ImmutableNameLabelTuple::label))
          .collect(Collectors.toList());
    }
 
    private boolean checkLoginAs(Principal principal, SecurityProvider provider, IdentityID user) {
+      boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
+      String userOrgId = OrganizationManager.getInstance().getUserOrgId(principal);
+
+      if(!siteAdmin && !Tool.equals(userOrgId, user.getOrgID())) {
+         return false;
+      }
+
+      if(!siteAdmin && OrganizationManager.getInstance().isSiteAdmin(user)) {
+         return false;
+      }
+
       return provider.checkPermission(
          principal, ResourceType.SECURITY_USER, user.convertToKey(), ResourceAction.ADMIN);
    }
 
    private static final String ORG_COOKIE = "X-INETSOFT-ORGID";
+   private SecurityProvider provider;
 }

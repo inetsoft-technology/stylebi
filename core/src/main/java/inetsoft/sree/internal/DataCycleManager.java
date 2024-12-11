@@ -35,7 +35,6 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 
@@ -58,15 +57,6 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    public DataCycleManager() {
       ScheduleManager.getScheduleManager().addScheduleExt(this);
       init();
-
-      try {
-         RepletRegistry.getRegistry().addPropertyChangeListener(this);
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to add property change listener to replet registry", ex);
-      }
-
-      MVManager.getManager().addPropertyChangeListener(this);
    }
 
    /**
@@ -85,7 +75,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       // read in the properties specified for cycles in the EM
       try {
          load();
-         generateTasks();
+         generateTasks(false);
       }
       catch(Exception ex) {
          LOG.error("Failed to initialize data cycle manager", ex);
@@ -184,10 +174,10 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       String name = evt.getPropertyName();
 
       if(RepletRegistry.CHANGE_EVENT.equals(name)) {
-         generateTasks();
+         generateTasks(true);
       }
       else if(MVManager.MV_CHANGE_EVENT.equals(name)) {
-         generateTasks();
+         generateTasks(true);
       }
    }
 
@@ -263,10 +253,14 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       return pregeneratedTasks.iterator();
    }
 
+   private void generateTasks(boolean reloadExtensions) {
+      generateTasks(null, null, reloadExtensions);
+   }
+
    /**
     * Internal method used to set pregeneratedTasks.
     */
-   private void generateTasks() {
+   private void generateTasks(Organization oorg, Organization norg, boolean reloadExtensions) {
       // don't load in secondary schedulers
       if(Scheduler.getSchedulerCount() != 1 &&
          "true".equals(System.getProperty("ScheduleServer")))
@@ -281,8 +275,9 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       while(cycles.hasMoreElements()) {
          DataCycleId cycle = cycles.nextElement();
          String orgId = cycle.orgId;
-         IdentityID identityID = new IdentityID(XPrincipal.SYSTEM, getOrgName(orgId));
-         ScheduleTask task = new ScheduleTask(identityID.convertToKey() + "__" + TASK_PREFIX + cycle.name);
+         IdentityID identityID = new IdentityID(XPrincipal.SYSTEM, orgId);
+         ScheduleTask task = new ScheduleTask(
+            TASK_PREFIX + cycle.name, ScheduleTask.Type.CYCLE_TASK);
          task.setEditable(false);
          task.setRemovable(false);
 
@@ -297,7 +292,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
             task.addCondition(getCondition(cycle.name, cycle.orgId, i));
          }
 
-         generateMVActions(task, cycle.name, tasks);
+         generateMVActions(task, cycle.name, tasks, oorg, norg);
 
          if(task.getActionCount() == 0) {
             continue;
@@ -317,21 +312,9 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          }
       }
 
-      ScheduleManager.getScheduleManager().reloadExtensions();
-   }
-
-   private String getOrgName(String orgID) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-
-      for(String orgName : provider.getOrganizations()) {
-         Organization organization = provider.getOrganization(orgName);
-
-         if(organization != null && Tool.equals(organization.getOrganizationID(), orgID)) {
-            return orgName;
-         }
+      if(reloadExtensions) {
+         ScheduleManager.getScheduleManager().reloadExtensions();
       }
-
-      return null;
    }
 
    /**
@@ -339,7 +322,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     */
    private void taskAdded(ScheduleTask task) {
       ScheduleTaskMessage message = new ScheduleTaskMessage();
-      message.setTaskName(task.getName());
+      message.setTaskName(task.getTaskId());
       message.setTask(task);
       message.setAction(ScheduleTaskMessage.Action.ADDED);
 
@@ -354,19 +337,28 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    /**
     * Generate emv actions.
     */
-   private void generateMVActions(ScheduleTask task, String cycle,
-                                  List<ScheduleTask> tasks)
+   private void generateMVActions(ScheduleTask task, String cycle, List<ScheduleTask> tasks,
+                                  Organization oorg, Organization norg)
    {
       MVManager manager = MVManager.getManager();
-      MVDef[] mvs = manager.list(false);
-      ScheduleTask task2 = new ScheduleTask(task.getOwner().convertToKey() + "__" + TASK_PREFIX + cycle + " Stage 2");
+      MVDef[] mvs = null;
+
+      if(oorg == null && norg == null) {
+         mvs = manager.list(false);
+      }
+      else {
+         mvs = manager.list(getNewOrgIds(oorg.getId(), norg.getId())).toArray(MVDef[]::new);
+      }
+
+      ScheduleTask task2 = new ScheduleTask(
+         TASK_PREFIX + cycle + " Stage 2", ScheduleTask.Type.CYCLE_TASK);
       task2.setEditable(false);
       task2.setRemovable(false);
       task2.setEnabled(task.isEnabled());
       task2.setOwner(task.getOwner());
       CycleInfo cycleInfo = task.getCycleInfo();
       task2.setCycleInfo(cycleInfo);
-      task2.addCondition(new CompletionCondition(task.getName()));
+      task2.addCondition(new CompletionCondition(task.getTaskId()));
 
       for(MVDef def : mvs) {
          String vsId = def.getVsId();
@@ -393,6 +385,17 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       if(task2.getActionCount() > 0) {
          tasks.add(task2);
       }
+   }
+
+   private String[] getNewOrgIds(String oldId, String newId) {
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      List<String> orgIds = new ArrayList<>();
+
+      for(String orgId : provider.getOrganizationIDs()) {
+         orgIds.add(Tool.equals(oldId, orgId) ? newId : orgId);
+      }
+
+      return orgIds.toArray(new String[orgIds.size()]);
    }
 
    /**
@@ -438,10 +441,14 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       return SreeEnv.getProperty("cycle.file");
    }
 
+   public synchronized void save() throws Exception {
+      save(null, null);
+   }
+
    /**
     * Save a list of cycles to the 'cycle.file'.
     */
-   public synchronized void save() throws Exception {
+   public synchronized void save(Organization oorg, Organization norg) throws Exception {
       String afile = getCycleFileName();
       DataSpace space = DataSpace.getDataSpace();
       dmgr.removeChangeListener(space, null, afile, changeListener);
@@ -515,7 +522,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          }
       }
 
-      generateTasks();
+      generateTasks(oorg, norg, true);
    }
 
    private PrintWriter createWriter(OutputStream output) {
@@ -525,9 +532,9 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    /**
     * Find the task by name.
     */
-   private ScheduleTask findTask(String name, String orgId) {
+   private ScheduleTask findTask(String taskId, String orgId) {
       for(ScheduleTask task : pregeneratedTasks) {
-         if(task.getName().equals(name)) {
+         if(task.getTaskId().equals(taskId)) {
             if(task.getCycleInfo() == null || task.getCycleInfo().getOrgId().equals(orgId)) {
                return task;
             }
@@ -549,6 +556,19 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       }
 
       conds.add(sc);
+   }
+
+   public void copyCycleInfo(String name, String orgId, String fromOrgId, boolean replace) {
+      CycleInfo cycleInfo = (CycleInfo) (cycleInfoMap.get(new DataCycleId(name, fromOrgId))).clone();
+
+      if(cycleInfo != null) {
+         cycleInfo.setOrgId(orgId);
+         cycleInfoMap.put(new DataCycleId(name, orgId), cycleInfo);
+
+         if(replace) {
+            cycleInfoMap.remove(new DataCycleId(name, fromOrgId));
+         }
+      }
    }
 
    public void setConditions(String name, String orgId, List<ScheduleCondition> conditions) {
@@ -578,8 +598,10 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * Remove the data cycle with specified name from the data cycle map.
     */
    public void removeDataCycle(String name, String orgId) {
-      dataCycleMap.remove(new DataCycleId(name, orgId));
-      cycleStatusMap.remove(new DataCycleId(name, orgId));
+      DataCycleId id = new DataCycleId(name, orgId);
+      dataCycleMap.remove(id);
+      cycleStatusMap.remove(id);
+      cycleInfoMap.remove(id);
    }
 
    /**
@@ -591,8 +613,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    {
       if(name != null && !name.trim().equals("") && checkDependency) {
          if(!hasPregeneratedDependency(name)) {
-            dataCycleMap.remove(new DataCycleId(name, orgId));
-            cycleStatusMap.remove(new DataCycleId(name, orgId));
+            removeDataCycle(name, orgId);
          }
          // warning if some replet uses the cycle
          else {
@@ -615,10 +636,11 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       }
 
       MVManager manager = MVManager.getManager();
+      String orgid = OrganizationManager.getInstance().getCurrentOrgID();
       MVDef[] mvs = manager.list(false);
 
       for(MVDef mv : mvs) {
-         if(cycle.equals(mv.getCycle())) {
+         if(cycle.equals(mv.getCycle()) && orgid.equals(mv.getEntry().getOrgID())) {
             return true;
          }
       }
@@ -697,18 +719,66 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    /**
     * Moves data cycles from one organization to another
     */
-   public void migrateDataCycles(String oorg, String norg) throws Exception {
+   public void migrateDataCycles(Organization oorg, Organization norg) throws Exception {
       List<DataCycleId> oldIds = dataCycleMap.keySet().stream()
-         .filter(id -> id.orgId.equals(oorg))
+         .filter(id -> id.orgId.equals(oorg.getId()))
          .toList();
+      boolean idChanged = !Tool.equals(oorg.getId(), norg.getId());
 
       for(DataCycleId oid : oldIds) {
-         DataCycleId nid = new DataCycleId(oid.name, norg);
-         dataCycleMap.put(nid, dataCycleMap.get(oid));
-         dataCycleMap.remove(oid);
+         DataCycleId nid = idChanged ? new DataCycleId(oid.name, norg.getId()) : oid;
+
+         if(idChanged) {
+            Vector<ScheduleCondition> conditions = dataCycleMap.remove(oid);
+            dataCycleMap.put(nid, conditions);
+            Boolean value = cycleStatusMap.remove(oid);
+            cycleStatusMap.put(nid, value);
+
+            CycleInfo cycleInfo = cycleInfoMap.get(oid);
+            migrateCycleInfo(cycleInfoMap.get(oid), oorg, norg);
+            cycleInfoMap.put(nid, cycleInfo);
+
+            cycleInfoMap.remove(oid);
+         }
       }
 
-      save();
+      save(oorg, norg);
+   }
+
+   private void migrateCycleInfo(CycleInfo cycleInfo, Organization oorg, Organization norg) {
+      if(cycleInfo == null) {
+         return;
+      }
+
+      cycleInfo.setOrgId(norg.getId());
+      String createdBy = cycleInfo.getCreatedBy();
+      boolean idChanged = !Tool.equals(oorg.getId(), norg.getId());
+
+      if(!Tool.isEmptyString(createdBy) && idChanged) {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(createdBy);
+         identityID.setOrgID(norg.getId());
+      }
+
+      String lastModifiedBy = cycleInfo.getLastModifiedBy();
+
+      if(!Tool.isEmptyString(lastModifiedBy) && idChanged) {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(lastModifiedBy);
+         identityID.setOrgID(norg.getId());
+      }
+   }
+
+   public void clearDataCycles(String orgId) {
+      Iterator<DataCycleId> iterator = dataCycleMap.keySet().iterator();
+
+      while(iterator.hasNext()) {
+         DataCycleId id = iterator.next();
+
+         if(Tool.equals(orgId, id.orgId)) {
+            iterator.remove();
+            cycleInfoMap.remove(id);
+            cycleStatusMap.remove(id);
+         }
+      }
    }
 
    /**
@@ -767,7 +837,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       return dcycle;
    }
 
-   public static class CycleInfo implements XMLSerializable, Serializable {
+   public static class CycleInfo implements Cloneable, XMLSerializable, Serializable {
       public CycleInfo() {
       }
 
@@ -1009,6 +1079,17 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          writer.print("<CycleInfo " + infos + "/>");
       }
 
+      @Override
+      public Object clone() {
+         try {
+            return super.clone();
+         }
+         catch(CloneNotSupportedException e) {
+            LOG.error("Clone failed: " + e);
+            return null;
+         }
+      }
+
       private boolean startNotify;
       private String startEmail;
       private boolean endNotify;
@@ -1055,6 +1136,16 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
             try {
                if(manager == null) {
                   manager = new DataCycleManager();
+                  ScheduleManager.getScheduleManager().reloadExtensions();
+
+                  try {
+                     RepletRegistry.getRegistry().addPropertyChangeListener(manager);
+                  }
+                  catch(Exception ex) {
+                     LOG.error("Failed to add property change listener to replet registry", ex);
+                  }
+
+                  MVManager.getManager().addPropertyChangeListener(manager);
                }
             }
             finally {

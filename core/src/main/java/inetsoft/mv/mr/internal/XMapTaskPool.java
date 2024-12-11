@@ -19,6 +19,7 @@ package inetsoft.mv.mr.internal;
 
 import inetsoft.mv.fs.*;
 import inetsoft.mv.mr.*;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.ThreadPool;
 import org.slf4j.Logger;
@@ -142,13 +143,13 @@ public final class XMapTaskPool {
       public void run() {
          try {
             XMapResult result = task.run(sys);
-            XJobPool.addResult(result);
+            XJobPool.addResult(result, task.getOrgID());
          }
          catch(Throwable ex) {
             LOG.error("Failed to add result to pool", ex);
             XMapFailure failure = XMapFailure.create(task);
             failure.setReason(ex.getMessage());
-            XJobPool.addFailure(failure);
+            XJobPool.addFailure(failure, task.getOrgID());
          }
       }
 
@@ -177,6 +178,7 @@ public final class XMapTaskPool {
 
          try {
             ThreadContext.setContextPrincipal(user);
+            String orgID = IdentityID.getIdentityIDFromKey(user.getName()).orgID;
 
             while(!tasks.isEmpty()) {
                XMapTask task = tasks.remove();
@@ -184,7 +186,7 @@ public final class XMapTaskPool {
 
                try {
                   XMapResult result = task.run(sys);
-                  boolean fulfilled = XJobPool.addResult(result);
+                  boolean fulfilled = XJobPool.addResult(result, orgID);
 
                   // check if subsequence tasks need to be executed
                   if(fulfilled) {
@@ -195,7 +197,7 @@ public final class XMapTaskPool {
                   LOG.error("Failed to add result to stream", ex);
                   XMapFailure failure = XMapFailure.create(task);
                   failure.setReason(ex.toString());
-                  XJobPool.addFailure(failure);
+                  XJobPool.addFailure(failure, orgID);
                }
                finally {
                   streamlock.lock();

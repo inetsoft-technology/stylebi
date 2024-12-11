@@ -17,6 +17,8 @@
  */
 package inetsoft.util;
 
+import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.Organization;
 import inetsoft.storage.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -342,12 +344,16 @@ public class DataSpace implements AutoCloseable {
 
    /**
     * returns a list of org scoped paths in the dataspace
-    * @param orgID, the orgID used to construct the org scoped paths
+    * @param oorg, the oorg used to construct the org scoped paths
     * @return String[] containing org scoped paths
     */
-   public static String[] getOrgScopedPaths(String orgID) {
-      //currently limited to portal/orgID
-      return new String[]{("portal/"+orgID)};
+   public String[] getOrgScopedPaths(Organization oorg) {
+      return blobStorage.paths().filter(p -> p.equals("portal/" + oorg.getId()) ||
+         p.startsWith("portal/" + oorg.getId() + "/") || p.startsWith(oorg.getId() + "__") ||
+         p.equals(oorg.getId()) || p.startsWith(oorg.getId() + "/") ||
+         p.startsWith("sreeUserData/") &&
+         Tool.equals(IdentityID.getIdentityIDFromKey(p).getOrgID(), oorg.getId() + ".xml"))
+         .toArray(String[]::new);
    }
 
    /**

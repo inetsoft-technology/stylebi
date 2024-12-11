@@ -742,15 +742,6 @@ public class MergedJoinTableLens extends AbstractBinaryTableFilter
    }
 
    /**
-    * Finalize the merged join table lens.
-    */
-   @Override
-   protected void finalize() throws Throwable {
-      super.finalize();
-      dispose();
-   }
-
-   /**
     * Dispose the merged join lens.
     */
    @Override

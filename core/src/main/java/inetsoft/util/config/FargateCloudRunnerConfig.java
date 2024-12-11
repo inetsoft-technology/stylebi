@@ -23,7 +23,7 @@ import inetsoft.util.config.json.PasswordDeserializer;
 import inetsoft.util.config.json.PasswordSerializer;
 
 import java.io.Serializable;
-import java.util.Objects;
+import java.util.*;
 
 @InetsoftConfigBean
 public class FargateCloudRunnerConfig implements Serializable {
@@ -60,6 +60,14 @@ public class FargateCloudRunnerConfig implements Serializable {
 
    public void setSecretAccessKey(String secretAccessKey) {
       this.secretAccessKey = secretAccessKey;
+   }
+
+   public String getTaskDefinitionArn() {
+      return taskDefinitionArn;
+   }
+
+   public void setTaskDefinitionArn(String taskDefinitionArn) {
+      this.taskDefinitionArn = taskDefinitionArn;
    }
 
    /**
@@ -171,16 +179,44 @@ public class FargateCloudRunnerConfig implements Serializable {
       this.vpcSecurityGroups = vpcSecurityGroups;
    }
 
+   public String getLogGroup() {
+      return logGroup;
+   }
+
+   public void setLogGroup(String logGroup) {
+      this.logGroup = logGroup;
+   }
+
+   public String getLogRegion() {
+      return logRegion;
+   }
+
+   public void setLogRegion(String logRegion) {
+      this.logRegion = logRegion;
+   }
+
+   public String getLogStreamPrefix() {
+      return logStreamPrefix;
+   }
+
+   public void setLogStreamPrefix(String logStreamPrefix) {
+      this.logStreamPrefix = logStreamPrefix;
+   }
+
    private String region;
    private String accessKeyId;
    private String secretAccessKey;
+   private String taskDefinitionArn;
    private String dockerImageUri;
    private String family = "inetsoft";
    private String cluster;
    private String executionRoleArn;
    private String containerName = "inetsoft-cloud-runner";
-   private String cpu = ".5 vcpu";
-   private String memory = "1GB";
+   private String cpu = "1 vcpu";
+   private String memory = "2GB";
    private String[] vpcSubnets;
    private String[] vpcSecurityGroups;
+   private String logGroup;
+   private String logRegion;
+   private String logStreamPrefix;
 }

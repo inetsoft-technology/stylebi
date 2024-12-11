@@ -972,17 +972,17 @@ public class RestJsonQuery extends AbstractRestQuery {
       }
 
       if(!lookupUrls.isEmpty()) {
-         writer.println("<lookupEndpoints>");
+         writer.println("<lookupUrls>");
 
          for(int i = 0; i < lookupUrls.size(); i ++) {
-            writer.println("<lookupEndpoint ignoreBaseUrl=\"" + lookupIgnoreBaseUrl.get(i) + "\" >");
+            writer.println("<lookupUrl ignoreBaseUrl=\"" + lookupIgnoreBaseUrl.get(i) + "\" >");
             writer.print("<url><![CDATA[" + lookupUrls.get(i) + "]]></url>");
             writer.print("<jsonpath><![CDATA[" + lookupJsonPaths.get(i) + "]]></jsonpath>");
             writer.print("<key><![CDATA[" + lookupKeys.get(i) + "]]></key>");
-            writer.println("</lookupEndpoint>");
+            writer.println("</lookupUrl>");
          }
 
-         writer.println("</lookupEndpoints>");
+         writer.println("</lookupUrls>");
       }
    }
 
@@ -997,8 +997,8 @@ public class RestJsonQuery extends AbstractRestQuery {
       Element node = Tool.getChildNodeByTagName(root, "jsonpath");
       jsonpath = Tool.getValue(node);
 
-      if((node = Tool.getChildNodeByTagName(root, "lookupEndpoints")) != null) {
-         NodeList endpoints = Tool.getChildNodesByTagName(node, "lookupEndpoint");
+      if((node = Tool.getChildNodeByTagName(root, "lookupUrls")) != null) {
+         NodeList endpoints = Tool.getChildNodesByTagName(node, "lookupUrl");
          lookupEndpoints = new ArrayList<>(EndpointJsonQuery.LOOKUP_QUERY_LIMIT);
 
          for(int i = 0; i < endpoints.getLength(); i++) {

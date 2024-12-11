@@ -34,6 +34,7 @@ import { Format } from "../../../../../../../../common/util/format";
 export class AttributeFormattingPane implements OnChanges {
    @Input() popup: boolean = true;
    @Input() formatModel: AttributeFormatInfoModel;
+   @Input() userDecimalFmts: any[];
    @Output() onApply: EventEmitter<boolean> = new EventEmitter<boolean>();
    formats: any[];
    dateFormats: any[];
@@ -76,6 +77,16 @@ export class AttributeFormattingPane implements OnChanges {
       if(this.formatModel && this.formatModel.decimalFmts) {
          for(let i = 0; i < this.formatModel.decimalFmts.length; i++) {
             ufmt = "#,###" + this.formatModel.decimalFmts[i];
+
+            if(this.decimalFmts.indexOf(ufmt) == -1) {
+               this.decimalFmts.push(ufmt);
+            }
+         }
+      }
+
+      if(this.userDecimalFmts) {
+         for(let i = 0; i < this.userDecimalFmts.length; i++) {
+            ufmt = "#,###" + this.userDecimalFmts[i];
 
             if(this.decimalFmts.indexOf(ufmt) == -1) {
                this.decimalFmts.push(ufmt);

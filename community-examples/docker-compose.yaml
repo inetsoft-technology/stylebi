@@ -21,6 +21,14 @@ x-shared-config: &sharedenv
   INETSOFTCONFIG_EXTERNALSTORAGE_FILESYSTEM_DIRECTORY: "/var/lib/inetsoft/files"
 
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: inetsoft
+      POSTGRES_PASSWORD: inetsoft
+      POSTGRES_DB: orders
+    volumes:
+      - "./orders.sql:/docker-entrypoint-initdb.d/orders.sql:ro"
   storage_perms:
     # this container changes the owner of the shared volumes
     image: busybox:latest
@@ -73,6 +81,8 @@ services:
     depends_on:
       storage:
         condition: service_completed_successfully
+      postgres:
+        condition: service_started
     healthcheck:
       test: "curl --fail http://localhost:8081/health/readiness || exit 1"
       interval: 20s

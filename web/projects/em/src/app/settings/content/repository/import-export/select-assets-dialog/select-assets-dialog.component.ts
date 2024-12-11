@@ -192,6 +192,7 @@ export class SelectAssetsDialogComponent implements OnInit {
    }
 
    private assetsEqual(a: SelectedAssetModel, b: SelectedAssetModel): boolean {
-      return a.path == b.path && a.type === b.type && Tool.isEquals(a.user, b.user);
+      return a.path == b.path && a.type === b.type &&
+         ((!!a.user || !!b.user) && Tool.isEquals(a.user, b.user) || !a.user && !b.user);
    }
 }

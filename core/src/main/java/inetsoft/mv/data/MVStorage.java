@@ -17,6 +17,7 @@
  */
 package inetsoft.mv.data;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.*;
 import inetsoft.util.SingletonManager;
@@ -70,12 +71,22 @@ public class MVStorage implements AutoCloseable {
          .collect(Collectors.toList());
    }
 
+   public List<String> listFiles(String orgID) {
+      return getStorage(orgID).stream()
+         .map(Blob::getPath)
+         .collect(Collectors.toList());
+   }
+
    public boolean exists(String name) {
       return getStorage().exists(name);
    }
 
-   public MV get(String name) throws IOException {
+   public MV get(String name, String orgID) throws IOException {
       MV mv = cache.get(name);
+
+      if(orgID == null) {
+         orgID = SUtil.getOrgIDFromMVPath(name.toString());
+      }
 
       if(mv == null) {
          lock.lock();
@@ -84,7 +95,7 @@ public class MVStorage implements AutoCloseable {
             mv = cache.get(name);
 
             if(mv == null) {
-               mv = load(name);
+               mv = load(name, orgID);
                cache.put(name, mv);
             }
          }
@@ -93,7 +104,7 @@ public class MVStorage implements AutoCloseable {
          }
       }
 
-      if(!mv.isValid()) {
+      if(!mv.isValid(orgID)) {
          lock.lock();
 
          try {
@@ -103,15 +114,23 @@ public class MVStorage implements AutoCloseable {
             lock.unlock();
          }
 
-         mv = get(name);
+         mv = get(name, orgID);
       }
 
       return mv;
    }
 
+   public MV get(String name) throws IOException {
+      return get(name, null);
+   }
+
    public long getLastModified(String name) {
+      return getLastModified(name, null);
+   }
+
+   public long getLastModified(String name, String orgID) {
       try {
-         return getStorage().getLastModified(name).toEpochMilli();
+         return getStorage(orgID).getLastModified(name).toEpochMilli();
       }
       catch(Exception e) {
          return 0L;
@@ -180,7 +199,11 @@ public class MVStorage implements AutoCloseable {
    }
 
    BlobChannel openReadChannel(String name) throws IOException {
-      return getStorage().getReadChannel(name);
+      return openReadChannel(name, null);
+   }
+
+   BlobChannel openReadChannel(String name, String orgId) throws IOException {
+      return getStorage(orgId).getReadChannel(name);
    }
 
    BlobTransaction<Metadata> beginTransaction() {
@@ -188,7 +211,11 @@ public class MVStorage implements AutoCloseable {
    }
 
    ChannelProvider createChannelProvider(String name) {
-      return new BlobChannelProvider(name, getStorage(), n -> new Metadata());
+      return createChannelProvider(name, null);
+   }
+
+   ChannelProvider createChannelProvider(String name, String orgId) {
+      return new BlobChannelProvider(name, getStorage(orgId), n -> new Metadata());
    }
 
    @Override
@@ -196,8 +223,8 @@ public class MVStorage implements AutoCloseable {
       getStorage().close();
    }
 
-   private MV load(String name) throws IOException {
-      BlobStorage<Metadata> storage = getStorage();
+   private MV load(String name, String orgID) throws IOException {
+      BlobStorage<Metadata> storage = getStorage(orgID);
       MV mv = new MV(name, storage.getLastModified(name).toEpochMilli());
 
       try(BlobChannel channel = storage.getReadChannel(name)) {
@@ -208,8 +235,15 @@ public class MVStorage implements AutoCloseable {
    }
 
    private BlobStorage<Metadata> getStorage() {
-      String storeID = OrganizationManager.getInstance().getCurrentOrgID() + "__" + "mv";
-      return SingletonManager.getInstance(BlobStorage.class, storeID, true);
+      return getStorage(OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   public BlobStorage<Metadata> getStorage(String orgId) {
+      if(orgId == null) {
+         orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      }
+
+      return SingletonManager.getInstance(BlobStorage.class, orgId.toLowerCase() + "__mv", true);
    }
 
    private final Map<String, MV> cache = new ConcurrentHashMap<>();

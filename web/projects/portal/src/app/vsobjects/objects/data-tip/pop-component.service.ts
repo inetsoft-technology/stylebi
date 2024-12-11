@@ -200,6 +200,10 @@ export class PopComponentService {
       return this._getComponentModelFunc;
    }
 
+   isPopComponentShow(name: string): boolean {
+      return this._popComponent != null && name != null && this._popComponent == name;
+   }
+
    /**
     * Check if a pop component has been registered
     * @param name          the name of the data tip

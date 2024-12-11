@@ -111,14 +111,17 @@ public class ShareController {
          .leaf(false)
          .build();
 
-      TreeNodeModel groupTree = TreeNodeModel.builder()
-         .label(Catalog.getCatalog().getString("Groups"))
-         .data("")
-         .type(IdentityNode.GROUPS + "")
-         .leaf(false)
-         .build();
       nodes.add(userTree);
-      nodes.add(groupTree);
+
+      if(!(user instanceof SRPrincipal) || !((SRPrincipal) user).isSelfOrganization()) {
+         TreeNodeModel groupTree = TreeNodeModel.builder()
+            .label(Catalog.getCatalog().getString("Groups"))
+            .data("")
+            .type(IdentityNode.GROUPS + "")
+            .leaf(false)
+            .build();
+         nodes.add(groupTree);
+      }
 
       TreeNodeModel rootTree = TreeNodeModel.builder()
          .label(Catalog.getCatalog().getString("Root"))

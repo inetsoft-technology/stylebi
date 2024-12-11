@@ -124,9 +124,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       ["localization", "_#(js:Localization)"],
       ["mv", "_#(js:Materialized Views)"],
       ["audit", "_#(js:Audit)"],
-      ["printers", "_#(js:Printers)"],
       ["cache", "_#(js:Caching)"],
-      ["disk-quota", "_#(js:Disk Quota)"],
       ["email", "_#(js:Email)"],
       ["performance", "_#(js:Performance)"],
       ["general-format", "_#(js:General Format)"],
@@ -140,8 +138,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       ["export-menu", "_#(js:Export Menu)"],
       ["dashboard-settings", "_#(js:Dashboard Settings)"],
       ["viewsheet-toolbar", "_#(js:Viewsheet Toolbar)"],
-      ["sharing", "_#(js:Social Sharing)"],
-      ["adhoc-settings", "_#(js:Adhoc Settings)"]
+      ["sharing", "_#(js:Social Sharing)"]
    ]);
 
    constructor(private favoritesService: FavoritesService,
@@ -250,8 +247,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
                return this.currentRoute.startsWith(link.route.substring(0, link.route.length - 1));
             }
             else {
+               let currentRoute = this.currentRoute.includes("org-setting") ?
+                  this.currentRoute.replace("org-setting", "setting") : this.currentRoute;
+
                return link.route === this.currentRoute ||
-                  link.route === this.currentRoute.substring(0, this.currentRoute.indexOf("?"));
+                  link.route === this.currentRoute.substring(0, this.currentRoute.indexOf("?")) ||
+                  link.route === currentRoute;
             }
          });
 

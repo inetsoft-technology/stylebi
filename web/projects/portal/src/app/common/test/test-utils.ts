@@ -825,6 +825,7 @@ export namespace TestUtils {
 
    export function createMockStompClientService(): any {
       const stompMessages = new Subject<StompMessage>();
+      const whenDisconnected = new Subject<void>();
       const stompConnection = {
          subscribe: jest.fn(),
          send: jest.fn(),
@@ -834,7 +835,10 @@ export namespace TestUtils {
       stompConnection.subscribe.mockImplementation((destination: string, next?: (value: StompMessage) => void, error?: (error: any) => void, complete?: () => void) => {
          return stompMessages.subscribe(next, error, complete);
       });
-      return {connect: jest.fn(() => observableOf(stompConnection))};
+      return {
+         connect: jest.fn(() => observableOf(stompConnection)),
+         whenDisconnected: jest.fn(() => observableOf(whenDisconnected))
+      };
    }
 
    export function createMockVSComboBoxModel(name: string): VSComboBoxModel {

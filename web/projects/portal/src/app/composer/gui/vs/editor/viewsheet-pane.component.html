@@ -134,7 +134,7 @@
   </div>
 
   <status-bar [status]="getStatusForStatusBar()" [status2]="getStatus2ForStatusBar()"
-              [editWorksheetPermission]="worksheetPermission">
+              [editWorksheetPermission]="worksheetPermission && !isDefaultOrgAsset()">
     <div class="d-flex align-items-center status-bar-component" status-bar-component>
       <ng-container *ngIf="!isSearchMode()">
         <i class="javascript-icon me-1" *ngIf="hasScript" (click)="onOpenScript.emit(vs)"></i>

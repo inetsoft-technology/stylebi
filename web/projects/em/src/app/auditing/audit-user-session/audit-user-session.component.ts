@@ -18,7 +18,8 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { FormBuilder, FormGroup } from "@angular/forms";
-import { tap } from "rxjs/operators";
+import { catchError, tap } from "rxjs/operators";
+import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
@@ -26,7 +27,7 @@ import { Secured } from "../../secured";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 import { UserSession, UserSessionList, UserSessionParameters } from "./user-session";
 import { ActivatedRoute } from "@angular/router";
-import { Subscription } from "rxjs";
+import { of, Subscription } from "rxjs";
 
 @Secured({
    route: "/auditing/user-session",
@@ -39,7 +40,7 @@ import { Subscription } from "rxjs";
 })
 @ContextHelp({
    route: "/auditing/user-session",
-   link: "EMAuditingUserSession"
+   link: "EMViewAudit"
 })
 @Component({
    selector: "em-audit-user-session",
@@ -59,7 +60,7 @@ export class AuditUserSessionComponent implements OnInit, OnDestroy {
       { name: "duration", label: "_#(js:Duration)", value: (r: UserSession) => r.duration },
       { name: "server", label: "_#(js:Server)", value: (r: UserSession) => r.server },
       { name: "userName", label: "_#(js:User Name)", value: (r: UserSession) => r.userName },
-      { name: "logonTime", label: "_#(js:Logon Time)", value: (r: UserSession) => AuditTableViewComponent.getDisplayDate(r.logonTime) },
+      { name: "logonTime", label: "_#(js:Logon Time)", value: (r: UserSession) => AuditTableViewComponent.getDisplayDate(r.logonTime, r.dateFormat) },
       { name: "organizationId", label: "_#(js:Organization ID)", value: (r: UserSession) => r.organizationId }
    ];
 
@@ -86,7 +87,8 @@ export class AuditUserSessionComponent implements OnInit, OnDestroy {
    }
 
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
-               private pageTitle: PageHeaderService, fb: FormBuilder)
+               private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
+               fb: FormBuilder)
    {
       this.form = fb.group({
          selectedUsers: [[]],
@@ -103,14 +105,23 @@ export class AuditUserSessionComponent implements OnInit, OnDestroy {
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchParameters = () => {
       return this.http.get<UserSessionParameters>("../api/em/monitoring/audit/userSessionParameters")
-         .pipe(tap(params => {
-            this.users = params.users;
-            this.minDuration = params.minDuration;
-            this.maxDuration = params.maxDuration;
-            this.systemAdministrator = params.systemAdministrator;
-            this.form.get("minDuration").setValue(this.minDuration, {emitEvent: false});
-            this.form.get("maxDuration").setValue(this.maxDuration, {emitEvent: false});
-         }));
+         .pipe(
+            catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
+               users: [],
+               systemAdministrator: false,
+               maxDuration: 0,
+               startTime: 0,
+               endTime: 0
+            }))),
+            tap(params => {
+               this.users = params.users;
+               this.systemAdministrator = params.systemAdministrator;
+
+               if(params.maxDuration > this.maxDuration && this.form.get("maxDuration").value == this.maxDuration) {
+                  this.maxDuration = params.maxDuration;
+                  this.form.get("maxDuration").setValue(this.maxDuration, {emitEvent: false});
+               }
+            }));
    };
 
    // use arrow function instead of member method to hold the right context (i.e. this)
@@ -134,7 +145,11 @@ export class AuditUserSessionComponent implements OnInit, OnDestroy {
          params = params.set("maxDuration", duration);
       }
 
-      return this.http.get<UserSessionList>("../api/em/monitoring/audit/userSessions", {params});
+      return this.http.get<UserSessionList>("../api/em/monitoring/audit/userSessions", {params})
+         .pipe(catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to run query)", () => of({
+            totalRowCount: 0,
+            rows: []
+         }))));
    };
 
    ngOnDestroy(): void {

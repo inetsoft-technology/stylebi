@@ -17,6 +17,8 @@
  */
 package inetsoft.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.jna.Platform;
 import com.veracode.annotation.CRLFCleanser;
 import com.veracode.annotation.XSSCleanser;
@@ -25,13 +27,20 @@ import inetsoft.report.filter.ReversedComparer;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.XDataSource;
 import inetsoft.uql.asset.DateRangeRef;
 import inetsoft.uql.asset.internal.AssemblyInfo;
+import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.schema.XSchema;
+import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.viewsheet.VSCrosstabInfo;
 import inetsoft.uql.viewsheet.internal.CrosstabVSAssemblyInfo;
+import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.affinity.AffinitySupport;
+import inetsoft.util.config.*;
+import inetsoft.util.credential.*;
 import inetsoft.util.css.*;
+import inetsoft.util.encrypt.HcpVaultSecretsPasswordEncryption;
 import inetsoft.util.swap.XSwapUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import net.jpountz.lz4.LZ4BlockInputStream;
@@ -60,7 +69,7 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.InvalidPathException;
+import java.nio.file.*;
 import java.security.*;
 import java.sql.Timestamp;
 import java.text.*;
@@ -1981,14 +1990,142 @@ public final class Tool extends CoreTool {
     * Encrypt a password by using a base password and salt.
     */
    public static String encryptPassword(String pw) {
+      return encryptPassword(pw, true);
+   }
+
+   /**
+    * Encrypt a password by using a base password and salt.
+    */
+   public static String encryptPassword(String pw, boolean forceLocal) {
+      if(forceLocal) {
+         // use local PasswordEncryption, when user force to user detail secret value insteadof a secret id.
+         return PasswordEncryption.newLocalInstance().encryptPassword(pw);
+      }
+
       return PasswordEncryption.newInstance().encryptPassword(pw);
+   }
+
+   /**
+    * Decrypt a password to a PasswordCredential obj.
+    */
+   public static Credential decryptPasswordToCredential(
+      String encryptedPassword, Class<? extends Credential> aClass, String dbType)
+   {
+      ObjectMapper mapper = new ObjectMapper();
+
+      try {
+         String result = null;
+
+         if(isVaultDatabaseSecretsEngine(dbType)) {
+            result = decryptDBPassword(encryptedPassword, dbType);
+         }
+         else {
+            result = decryptPassword(encryptedPassword, false);
+         }
+
+         if(result != null) {
+            return mapper.convertValue(mapper.readTree(result), aClass);
+         }
+
+         return null;
+      }
+      catch(Exception e) {
+         return null;
+      }
    }
 
    /**
     * Decrypt a password.
     */
    public static String decryptPassword(String encryptedPassword) {
+      return decryptPassword(encryptedPassword, true);
+   }
+
+   /**
+    * Decrypt a password.
+    */
+   public static String decryptPassword(String encryptedPassword, boolean local) {
+      if(local) {
+         return PasswordEncryption.newLocalInstance().decryptPassword(encryptedPassword);
+      }
+
       return PasswordEncryption.newInstance().decryptPassword(encryptedPassword);
+   }
+
+   /**
+    * Decrypt a password.
+    */
+   public static String decryptDBPassword(String encryptedPassword, String dbType) {
+      if(!(PasswordEncryption.newInstance() instanceof HcpVaultSecretsPasswordEncryption)) {
+         return encryptedPassword;
+      }
+
+      return PasswordEncryption.newInstance().decryptDBPassword(encryptedPassword, dbType);
+   }
+
+   public static boolean isVaultDatabaseSecretsEngine(String dbType) {
+      return dbType != null && !dbType.isEmpty() &&
+         PasswordEncryption.newInstance() instanceof HcpVaultSecretsPasswordEncryption;
+   }
+
+   public static void refreshDatabaseCredentials(XDataSource ds) {
+      Credential credential = null;
+
+      if(ds instanceof JDBCDataSource) {
+         credential = ((JDBCDataSource) ds).getCredential();
+      }
+      else if(ds instanceof TabularDataSource) {
+         credential = ((TabularDataSource) ds).getCredential();
+      }
+      else if(ds instanceof XMLADataSource) {
+         credential = ((XMLADataSource) ds).getCredential();
+      }
+
+      if(credential instanceof CloudCredential) {
+         Credential newCredential = Tool.decryptPasswordToCredential(
+            credential.getId(), credential.getClass(), credential.getDBType());
+
+         if(newCredential != null) {
+            newCredential.setId(credential.getId());
+            ((CloudCredential) credential).refreshCredential(newCredential);
+         }
+      }
+   }
+
+   public static JsonNode loadCredentials(String secretId) {
+      return Tool.loadCredentials(secretId, false);
+   }
+
+   public static JsonNode loadCredentials(String secretId, boolean local) {
+      if(Tool.isEmptyString(secretId)) {
+         return null;
+      }
+
+      try {
+         ObjectMapper mapper = new ObjectMapper();
+         String credential = Tool.decryptPassword(secretId.trim(), local);
+         return mapper.readTree(credential);
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to load credential by secret ID '" + secretId + "'");
+      }
+   }
+
+   public static String getClientSecretRealValue(String value, String secretKey) {
+      if(Tool.isCloudSecrets()) {
+         try {
+            JsonNode credentials = Tool.loadCredentials(value);
+
+            if(credentials != null && credentials.has(secretKey)) {
+               return credentials.get(secretKey).asText();
+            }
+         }
+         catch(Exception e) {
+            return value;
+         }
+      }
+
+      return value;
    }
 
    /**
@@ -2751,7 +2888,7 @@ public final class Tool extends CoreTool {
    public static SimpleDateFormat getTimeFormat(Locale locale, boolean schedule) {
       String prop = SreeEnv.getProperty("format.time");
       String key = locale + ":time:" + prop;
-      boolean twelveHourSystem = SreeEnv.getBooleanProperty("schedule.time.12-hours");
+      boolean twelveHourSystem = SreeEnv.getBooleanProperty("schedule.time.12hours");
 
       if(schedule) {
          key += ":schedule:" + twelveHourSystem;
@@ -4078,30 +4215,10 @@ public final class Tool extends CoreTool {
       String uri = SreeEnv.getProperty("help.url");
 
       if(uri == null || uri.equals("")) {
-         uri = "https://www.inetsoft.com/docs/2023/";
-      }
-      else if(!uri.endsWith("/")) {
-         uri += "/";
+         uri = "https://www.inetsoft.com/docs/stylebi/index.html";
       }
 
       return uri;
-   }
-
-   /**
-    * Gets the URL used to load the online help documentation.
-    *
-    * @param user <tt>true</tt> to get the link for the end-user portal
-    *             documentation; <tt>false</tt> to get the link for the
-    *             administrator Enterprise Manager documentation.
-    *
-    * @return the help URL.
-    */
-   public static String getHelpURL(boolean user) {
-      String uri = getHelpBaseURL();
-      StringBuilder url = new StringBuilder().append(uri);
-
-      url.append(user ? "userhelp" : "devhelp");
-      return url.toString();
    }
 
    /**
@@ -4853,6 +4970,46 @@ public final class Tool extends CoreTool {
       return builder.toString();
    }
 
+   /**
+    * Determine whether current environment uses cloud service to store secrets.
+    */
+   public static boolean isCloudSecrets() {
+      return !SecretsType.LOCAL.getName().equals(InetsoftConfig.getInstance().getSecrets().getType());
+   }
+
+   /**
+    * Try to decrypt a password using local encryption.
+    */
+   public static String decryptPasswordWithLocal(String encryptedPassword) {
+      if(Tool.isEmptyString(encryptedPassword)) {
+         return encryptedPassword;
+      }
+
+      try {
+         return new JcePasswordEncryption().decryptPassword(encryptedPassword);
+      }
+      catch(Exception e1) {
+         try {
+            return new FipsPasswordEncryption().decryptPassword(encryptedPassword);
+         }
+         catch(Exception e2) {
+            return encryptedPassword;
+         }
+      }
+   }
+
+   public static boolean isRunningInDocker() {
+      try {
+         try(Stream<String> lines = Files.lines(Paths.get("/proc/1/cgroup"))) {
+            return lines.anyMatch(l -> l.contains("/docker/"));
+         }
+      }
+      catch(Exception ignore) {
+      }
+
+      return false;
+   }
+
    private static final int[][] dateLevel = {
       {DateRangeRef.YEAR_INTERVAL, DateRangeRef.QUARTER_OF_YEAR_PART},
       {DateRangeRef.QUARTER_INTERVAL, DateRangeRef.MONTH_OF_YEAR_PART},
@@ -4976,7 +5133,7 @@ public final class Tool extends CoreTool {
 
       secureRandom = random;
 
-      Package pkg = Package.getPackage("inetsoft.util");
+      Package pkg = Tool.class.getClassLoader().getDefinedPackage("inetsoft.util");
 
       if(pkg != null) {
          buildNumber = pkg.getImplementationVersion();

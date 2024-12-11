@@ -299,18 +299,19 @@ public class SchedulerMonitoringService
 
       ScheduleClient client = ScheduleClient.getScheduleClient();
       boolean running = client.isReady();
+      String curOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       Map<String, ScheduleTask> tasks = new HashMap<>();
 
-      for(ScheduleTask task : scheduleManager.getScheduleTasks()) {
+      for(ScheduleTask task : scheduleManager.getScheduleTasks(curOrgID)) {
          if(checkPermission(task, principal, all)) {
-            tasks.put(task.getName(), task);
+            tasks.put(task.getTaskId(), task);
          }
       }
 
       List<ScheduleTaskInfo> infos = new ArrayList<>();
 
       tasks.values().stream()
-         .map(t -> createTaskInfo(t, activities.get(t.getName()), running))
+         .map(t -> createTaskInfo(t, activities.get(t.getTaskId()), running))
          .forEach(infos::add);
 
       activities.entrySet().stream()
@@ -334,7 +335,7 @@ public class SchedulerMonitoringService
                               new Date(activity.getLastRunStart()));
       info.setLastRunStatus(activity  == null ? null :
                                activity.getLastRunStatus());
-      info.setName(task.getName());
+      info.setName(task.getTaskId());
       info.setNextRunStart((activity == null || !running ||
          !task.isEnabled()) ? null :
                               new Date(activity.getNextRunStart()));
@@ -513,7 +514,7 @@ public class SchedulerMonitoringService
    }
 
    private Principal getSystemPrincipal() {
-      return SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getCurrentOrgName()), null, false);
+      return SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false);
    }
 
    public List<CpuHistory> getCpuHistory(String server) {

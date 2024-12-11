@@ -381,6 +381,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          UniformSQL nsql = getUniformSQL();
          ConditionListHandler handler = new PreConditionListHandler();
          XUtil.convertDateCondition(conds, vars);
+         conds = ConditionUtil.splitOneOfCondition(conds, getSQLHelper(nsql));
          XFilterNode fnode = createXFilterNode(handler, conds, nsql, vars);
          XFilterNode oroot = nsql.getWhere();
 
@@ -2435,19 +2436,24 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
    {
       boolean aliased = column instanceof AliasDataRef;
       ColumnSelection cols = getTable().getColumnSelection();
+      UniformSQL sql = getUniformSQL();
+      SQLHelper helper = getSQLHelper(sql);
 
       if(column instanceof SQLExpressionRef) {
-         UniformSQL sql = getUniformSQL();
          SQLExpressionRef sexp = (SQLExpressionRef) column;
 
          if(sql != null) {
-            SQLHelper helper = getSQLHelper(sql);
             sexp.setDBType(helper.getSQLHelperType());
             sexp.setDBVersion(helper.getProductVersion());
          }
       }
 
       String exp = ExpressionRef.getSQLExpression(true, column.getExpression());
+
+      if(helper != null) {
+         exp = helper.fixSQLExpression(exp);
+      }
+
       StringBuilder expstr = new StringBuilder();
       int start;
       int end;
@@ -2484,7 +2490,6 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
             format.format(attribute);
 
          if(columnLength > 0) {
-            SQLHelper helper = getSQLHelper(getUniformSQL());
             String table = name.substring(0, name.length() - columnLength - 1);
             String col = name.substring(name.length() - columnLength);
             name = table + "." + helper.getQuote() + col + helper.getQuote();
@@ -3080,7 +3085,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
       for(int i = 0; i < groups.length; i++) {
          if(!isGroupMergeable(groups[i])) {
-            if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+            if("true".equals(SreeEnv.getProperty("mv.debug"))) {
                LOG.debug("Group {} is not mergeable", groups[i]);
             }
 
@@ -3092,7 +3097,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
 
       for(int i = 0; i < aggregates.length; i++) {
          if(!isAggregateMergeable(aggregates[i])) {
-            if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+            if("true".equals(SreeEnv.getProperty("mv.debug"))) {
                LOG.debug("Aggregate {} is not mergeable", aggregates[i]);
             }
 
@@ -3107,7 +3112,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          GroupRef ref = info.getGroup(attr);
 
          if(ref == null) {
-            if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+            if("true".equals(SreeEnv.getProperty("mv.debug"))) {
                LOG.debug("Specified column is not a group column: " + attr);
             }
 
@@ -3170,7 +3175,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       }
 
       if(!isAttributeMergeable(group)) {
-         if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+         if("true".equals(SreeEnv.getProperty("mv.debug"))) {
             LOG.debug("Group attribute is not mergeable: {}", group);
          }
 
@@ -3178,7 +3183,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
       }
 
       if(!isGroupOrderMergeable(group)) {
-         if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+         if("true".equals(SreeEnv.getProperty("mv.debug"))) {
             LOG.error("Group order not mergeable: {}", group);
          }
 
@@ -3192,7 +3197,7 @@ public abstract class PreAssetQuery implements Serializable, Cloneable {
          SQLHelper helper = sql == null ? null : getSQLHelper(sql);
 
          if(helper != null && !helper.supportsOperation(SQLHelper.EXPRESSION_GROUPBY)) {
-            if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+            if("true".equals(SreeEnv.getProperty("mv.debug"))) {
                LOG.error("Expression group not supported: {}", attr);
             }
 

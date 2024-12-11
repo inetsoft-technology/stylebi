@@ -79,7 +79,7 @@ public final class XJobStatus {
       this.started = System.currentTimeMillis();
       this.state = STARTED;
       this.reducer = job.createReducer();
-      this.server = FSService.getServer();
+      this.server = job.get("mvOrg") == null ? FSService.getServer() : FSService.getServer((String) job.get("mvOrg"));
       this.wperiod = FSService.getConfig().getJobTimeout();
       mmap = new HashMap<>();
    }
@@ -193,7 +193,7 @@ public final class XJobStatus {
             warned = true;
          }
 
-         if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+         if("true".equals(SreeEnv.getProperty("mv.debug"))) {
             LOG.debug("MV job detail: {}", job);
          }
       }

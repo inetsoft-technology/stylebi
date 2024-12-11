@@ -67,6 +67,23 @@
             _#(em.security.ldap.rootDNRequired)
           </mat-error>
         </mat-form-field>
+      </div>
+      <div class="flex-row" *ngIf="isCloudSecrets">
+        <mat-checkbox class="mat-checkbox-field salt-checkbox" formControlName="useCredential">
+          _#(Use Secret ID)
+        </mat-checkbox>
+      </div>
+      <div class="flex-row" *ngIf="ldapForm.get('useCredential').value && isCloudSecrets">
+        <mat-form-field appearance="outline" color="accent">
+          <mat-label>_#(Secret ID)</mat-label>
+          <input matInput placeholder="_#(Secret ID)" formControlName="secretId" required>
+          <mat-hint>_#(em.security.database.secretIdDesc)</mat-hint>
+          <mat-error *ngIf="ldapForm.controls['secretId']?.errors?.required">
+            _#(em.security.database.secretIdRequired)
+          </mat-error>
+        </mat-form-field>
+      </div>
+      <div class="flex-row" *ngIf="!ldapForm.get('useCredential').value || !isCloudSecrets">
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(Administrator ID)</mat-label>
           <input matInput placeholder="_#(Administrator ID)" formControlName="adminID" required>
@@ -76,7 +93,7 @@
           </mat-error>
         </mat-form-field>
       </div>
-      <div class="flex-row">
+      <div class="flex-row" *ngIf="!ldapForm.get('useCredential').value || !isCloudSecrets">
         <mat-form-field appearance="outline" color="accent">
           <mat-label>_#(Password)</mat-label>
           <input matInput type="password" placeholder="_#(Password)" formControlName="password" required>

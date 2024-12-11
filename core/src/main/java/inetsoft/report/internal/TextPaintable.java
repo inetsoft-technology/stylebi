@@ -403,7 +403,7 @@ public class TextPaintable extends BasePaintable {
       ReportSheet report = ((BaseElement) elem).getReport();
       ParameterTool ptool = new ParameterTool();
 
-       if (report != null && !false && ptool.containsParameter(rtext)) {
+       if (report != null && ptool.containsParameter(rtext)) {
            rtext = ptool.parseParameters(report.getVariableTable(), rtext);
        }
 

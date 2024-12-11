@@ -20,15 +20,15 @@ package inetsoft.uql.rest.datasource.harvest;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
-import org.w3c.dom.Element;
+import inetsoft.util.credential.CredentialType;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("accountId"),
-   @View1("accessToken")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "accountId", visibleMethod = "useCredential"),
+   @View1(value = "accessToken", visibleMethod = "useCredential")
 })
 public class HarvestDataSource extends EndpointJsonDataSource<HarvestDataSource> {
    static final String TYPE = "Rest.Harvest";
@@ -38,22 +38,25 @@ public class HarvestDataSource extends EndpointJsonDataSource<HarvestDataSource>
       setAuthType(AuthType.NONE);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.CLIENT_TOKEN;
+   }
+
    @Property(label = "Account ID", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getAccountId() {
-      return accountId;
+      return super.getClientId();
    }
 
    public void setAccountId(String accountId) {
-      this.accountId = accountId;
+      super.setClientId(accountId);
    }
 
    @Property(label = "Personal Access Token", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getAccessToken() {
-      return accessToken;
-   }
-
-   public void setAccessToken(String accessToken) {
-      this.accessToken = accessToken;
+      return super.getAccessToken();
    }
 
    @Override
@@ -70,12 +73,13 @@ public class HarvestDataSource extends EndpointJsonDataSource<HarvestDataSource>
    public HttpParameter[] getQueryHttpParameters() {
       HttpParameter accountParam = new HttpParameter();
       accountParam.setName("Harvest-Account-ID");
-      accountParam.setValue(accountId);
+      accountParam.setValue(getAccountId());
       accountParam.setType(HttpParameter.ParameterType.HEADER);
 
       HttpParameter authParam = new HttpParameter();
       authParam.setName("Authorization");
-      authParam.setValue("Bearer " + accessToken);
+      authParam.setSecret(true);
+      authParam.setValue("Bearer " + getAccessToken());
       authParam.setType(HttpParameter.ParameterType.HEADER);
 
       HttpParameter agentParam = new HttpParameter();
@@ -89,27 +93,6 @@ public class HarvestDataSource extends EndpointJsonDataSource<HarvestDataSource>
    @Override
    public void setQueryHttpParameters(HttpParameter[] parameters) {
       // no-op
-   }
-
-   @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(accountId != null) {
-         writer.format("<accountId><![CDATA[%s]]></accountId>%n", accountId);
-      }
-
-      if(accessToken != null) {
-         writer.format(
-            "<accessToken><![CDATA[%s]]></accessToken>%n", Tool.encryptPassword(accessToken));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      accountId = Tool.getChildValueByTagName(root, "accountId");
-      accessToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "accessToken"));
    }
 
    @Override
@@ -127,20 +110,11 @@ public class HarvestDataSource extends EndpointJsonDataSource<HarvestDataSource>
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      HarvestDataSource that = (HarvestDataSource) o;
-      return Objects.equals(accountId, that.accountId) &&
-         Objects.equals(accessToken, that.accessToken);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), accountId, accessToken);
+      return Objects.hash(super.hashCode(), getAccountId(), getAccessToken());
    }
-
-   private String accountId;
-   private String accessToken;
 }

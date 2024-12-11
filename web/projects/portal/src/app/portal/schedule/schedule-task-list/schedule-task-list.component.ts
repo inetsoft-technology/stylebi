@@ -31,6 +31,7 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { KEY_DELIMITER, IdentityId } from "../../../../../../em/src/app/settings/security/users/identity-id";
 import { ScheduleConditionModel } from "../../../../../../shared/schedule/model/schedule-condition-model";
+import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { AssemblyAction } from "../../../common/action/assembly-action";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
@@ -127,12 +128,8 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
 
    ngOnInit(): void {
       this.subscriptions = this.scheduleChangeService.onChange.subscribe(
-         (task) => {
-            for(let i = 0; i < this.tasks.length; i++) {
-               if(this.tasks[i].name === task.name) {
-                  this.tasks[i] = task;
-               }
-            }
+         (change) => {
+            this.mergeChange(change);
          }
       );
 
@@ -181,6 +178,31 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
 
    get selectAllChecked() {
       return this._selectAllChecked && this.selectedItems.length == this.tasks.length;
+   }
+
+   private mergeChange(change: ScheduleTaskChange): void {
+      const list = this.tasks.slice();
+      const index = list.findIndex(t => t.name === change.name);
+
+      if(index >= 0) {
+         if(change.type === "REMOVED") {
+            list.splice(index, 1);
+         }
+         else {
+            list[index] = change.task;
+         }
+      }
+      else if(change.type === "ADDED") {
+         if(this.showTasksAsList || (!this.currentFolder || !this.currentFolder.path ||
+               this.currentFolder.path == "/") &&
+            (!change?.task?.path || change?.task?.path == "/") ||
+            this.currentFolder.path == change?.task?.path)
+         {
+            list.push(change.task);
+         }
+      }
+
+      this.tasks = list;
    }
 
    loadTasks(freshListAndTree?: boolean): void {
@@ -307,7 +329,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
          folderName: "",
          oldPath: (parentFolder.path ? parentFolder.path + "/" : "") + "x",
          securityEnabled: true,
-         owner: {name: "null", organization: null}
+         owner: {name: "null", orgID: null}
       };
 
 
@@ -344,8 +366,16 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    getTaskName(task: ScheduleTaskModel): string {
-      return !!task.owner && task.owner.name !== SYSTEM_USER && !task.name.startsWith(task.owner.name) ?
-         task.owner.name + KEY_DELIMITER + task.owner.organization + ":" + task.name : task.name;
+      if(!!task.owner) {
+         if(task.owner.name == SYSTEM_USER) {
+            return task.owner.name + KEY_DELIMITER + task.owner.orgID + "__" + task.name;
+         }
+         else if(!task.name.startsWith(task.owner.name)) {
+            return task.owner.name + KEY_DELIMITER + task.owner.orgID + ":" + task.name
+         }
+      }
+
+      return task.name;
    }
 
    removeItems(): void {
@@ -487,7 +517,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    {
       let path = !!this.selectedNodes && this.selectedNodes.length != 0 ?
          this.selectedNodes[0].data.path : "";
-      this.router.navigate(["/portal/tab/schedule/tasks", name],
+      this.router.navigate(["/portal/tab/schedule/tasks", Tool.byteEncode(name)],
          { queryParams: { taskDefaultTime: taskDefaultTime, path: path, newTask: newTask}});
    }
 
@@ -891,7 +921,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    isToggleTasksEnabledDisabled(task: ScheduleTaskModel): boolean {
-      return !(task.editable && task.removable);
+      return !(task.editable && task.removable && task.canDelete);
    }
 
    openTreeContextmenu(event: [MouseEvent | TouchEvent, TreeNodeModel, TreeNodeModel[]]) {

@@ -1,6 +1,6 @@
 {
-  "name": "inetsoft",
-  "version": "0.0.0",
+  "name": "stylebi-portal",
+  "version": "1.0.0",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -13,7 +13,8 @@
     "lint": "ng lint",
     "lint:prod": "npm run-script --silent -- ng lint --project=portal --format=checkstyle >portal-lint-results.xml && npm run-script --silent -- ng lint --project=em --format=checkstyle >em-lint-results.xml",
     "verify": "ng lint && ng test",
-    "verify:prod": "npm run-script lint:prod && ng test"
+    "verify:prod": "npm run-script lint:prod && ng test",
+    "generate-sbom": "cyclonedx-npm --package-lock-only --omit dev --omit optional --omit peer --output-format XML --output-file target/bom.xml --mc-type application"
   },
   "private": true,
   "dependencies": {
@@ -34,7 +35,7 @@
     "@thebespokepixel/es-tinycolor": "^2.1.1",
     "approx-string-match": "^2.0.0",
     "bootstrap": "^5.2.3",
-    "ckeditor5": "^42.0.1",
+    "ckeditor5": "^43.1.1",
     "codemirror": "^5.38.0",
     "css-element-queries": "^1.2.3",
     "dayjs": "^1.11.10",
@@ -64,6 +65,7 @@
     "@angular/cli": "~15.2.10",
     "@angular/compiler-cli": "^15.2.0",
     "@cyclonedx/bom": "^3.10.6",
+    "@cyclonedx/cyclonedx-npm": "^1.19.3",
     "@types/geojson": "^7946.0.14",
     "@types/jasmine": "~4.3.0",
     "@types/jest": "^29.5.12",
@@ -101,6 +103,6 @@
     "ng-packagr": "^15.2.2",
     "typescript": "~4.9.4",
     "undertaker-forward-reference": "^2.0.0",
-    "xml2js": "^0.4.22"
+    "xml2js": "^0.5.0"
   }
 }

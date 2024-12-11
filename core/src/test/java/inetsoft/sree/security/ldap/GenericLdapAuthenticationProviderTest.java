@@ -126,7 +126,7 @@ class GenericLdapAuthenticationProviderTest {
       assertNotNull(actualRoles);
       Arrays.sort(actualRoles);
       assertArrayEquals(expectedRoles, actualRoles);
-      assertEquals(expectedOrg,actual.getOrganization());
+      assertEquals(expectedOrg,actual.getOrganizationID());
 
       // test loading from cache
       actual = provider.getUser(uid);
@@ -144,7 +144,7 @@ class GenericLdapAuthenticationProviderTest {
       assertNotNull(actualRoles);
       Arrays.sort(actualRoles);
       assertArrayEquals(expectedRoles, actualRoles);
-      assertEquals(expectedOrg,actual.getOrganization());
+      assertEquals(expectedOrg,actual.getOrganizationID());
    }
 
    @Test
@@ -185,7 +185,7 @@ class GenericLdapAuthenticationProviderTest {
       String[] expected = { "ismaelhogan", "kurtgill", "lloydwilson", "stevecurry" };
 
       // test loading directly from LDAP
-      IdentityID groupID = new IdentityID("Sales",Organization.getDefaultOrganizationName());
+      IdentityID groupID = new IdentityID("Sales",Organization.getDefaultOrganizationID());
       String[] actual = Arrays.stream(provider.getUsers(groupID)).map(id -> id.name).toArray(String[]::new);
       assertNotNull(actual);
       Arrays.sort(actual);
@@ -333,13 +333,13 @@ class GenericLdapAuthenticationProviderTest {
       Role actual = provider.getRole(roleID);
       assertEquals(expectedName, actual.getName());
       assertArrayEquals(expectedRoles, actual.getRoles());
-      assertEquals(expectedOrganization, actual.getOrganization());
+      assertEquals(expectedOrganization, actual.getOrganizationID());
 
       // test loading from cache
       actual = provider.getRole(roleID);
       assertEquals(expectedName, actual.getName());
       assertArrayEquals(expectedRoles, actual.getRoles());
-      assertEquals(expectedOrganization, actual.getOrganization());
+      assertEquals(expectedOrganization, actual.getOrganizationID());
    }
 
    @Test
@@ -376,7 +376,7 @@ class GenericLdapAuthenticationProviderTest {
       String[] expected = { "IT", "Support" };
 
       // test loading directly from LDAP
-      IdentityID uid = new IdentityID("mariejones", Organization.getDefaultOrganizationName());
+      IdentityID uid = new IdentityID("mariejones", Organization.getDefaultOrganizationID());
       String[] actual = provider.getUserGroups(uid);
       assertNotNull(actual);
       Arrays.sort(actual);
@@ -400,22 +400,22 @@ class GenericLdapAuthenticationProviderTest {
       String expectedName = "Support";
       String[] expectedGroups = { "IT" };
       String[] expectedRoles = { "Support Engineer" };
-      String expectedOrg = Organization.getDefaultOrganizationName();
+      String expectedOrg = Organization.getDefaultOrganizationID();
 
       // test loading directly from LDAP
-      IdentityID groupID = new IdentityID("Support", Organization.getDefaultOrganizationName());
+      IdentityID groupID = new IdentityID("Support", Organization.getDefaultOrganizationID());
       Group actual = provider.getGroup(groupID);
       assertEquals(expectedName, actual.getName());
       assertArrayEquals(expectedGroups, actual.getGroups());
       assertArrayEquals(expectedRoles, actual.getRoles());
-      assertEquals(expectedOrg, actual.getOrganization());
+      assertEquals(expectedOrg, actual.getOrganizationID());
 
       // test loading from cache
       provider.getGroup(groupID);
       assertEquals(expectedName, actual.getName());
       assertArrayEquals(expectedGroups, actual.getGroups());
       assertArrayEquals(expectedRoles, actual.getRoles());
-      assertEquals(expectedOrg, actual.getOrganization());
+      assertEquals(expectedOrg, actual.getOrganizationID());
    }
 
    @Test

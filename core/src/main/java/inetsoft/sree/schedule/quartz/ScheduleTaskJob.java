@@ -59,12 +59,10 @@ public class ScheduleTaskJob implements InterruptableJob {
          try {
             Identity identity = task.getIdentity();
             String addr = Tool.getIP();
-            JobDataMap jobDataMap = context.getMergedJobDataMap();
-            Principal principal = jobDataMap.get("principal") == null ?
-               null : (Principal) jobDataMap.get("principal");
+            Principal principal = null;
 
             // Bug #40798, don't audit logins for internal tasks
-            if(principal == null && !ScheduleManager.isInternalTask(taskName)) {
+            if(!ScheduleManager.isInternalTask(taskName)) {
                if(identity == null) {
                   principal = SUtil.getPrincipal(task.getOwner(), addr, true);
                }

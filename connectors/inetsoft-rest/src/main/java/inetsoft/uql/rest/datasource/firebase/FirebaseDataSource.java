@@ -20,6 +20,7 @@ package inetsoft.uql.rest.datasource.firebase;
 import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.CredentialType;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -43,6 +44,16 @@ public class FirebaseDataSource extends OAuthEndpointJsonDataSource<FirebaseData
 
    public FirebaseDataSource() {
       super(TYPE, FirebaseDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.AUTH_TOKENS;
+   }
+
+   @Override
+   protected boolean supportCredentialId() {
+      return false;
    }
 
    @Property(label = "Project ID", required = true)

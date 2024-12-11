@@ -17,9 +17,11 @@
  */
 package inetsoft.analytic.composition;
 
+import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 
 import java.security.Principal;
 
@@ -33,7 +35,17 @@ public class SheetLibraryEngine implements SheetLibraryService {
          prefix = prefix + "-" + (counter++);
       }
 
-      return new AssetEntry(AssetRepository.TEMPORARY_SCOPE, type, prefix, null);
+      IdentityID identityID = null;
+      int scope = AssetRepository.TEMPORARY_SCOPE;
+
+      if(Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(),
+                     Organization.getSelfOrganizationID()))
+      {
+         identityID = IdentityID.getIdentityIDFromKey(user.getName());
+         scope = AssetRepository.USER_SCOPE;
+      }
+
+      return new AssetEntry(scope, type, prefix, identityID);
    }
 
    private static int counter = 1;

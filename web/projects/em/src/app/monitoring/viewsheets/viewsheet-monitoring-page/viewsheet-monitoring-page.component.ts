@@ -168,7 +168,7 @@ export class ViewsheetMonitoringPageComponent implements OnInit, OnDestroy {
             if(confirmation) {
                const ids: string[] =
                   selected.map((model: ViewsheetMonitoringTableModel) => model.id);
-               const URL = "../em/monitoring/viewsheets/remove/"
+               const URL = "../api/em/monitoring/viewsheets/remove/"
                   + this.monitoringDataService.nonNullCluster;
                this.subscriptions.add(this.http.post(URL, ids).subscribe(() => {
                   this.removeOpenViewsheet(selected);

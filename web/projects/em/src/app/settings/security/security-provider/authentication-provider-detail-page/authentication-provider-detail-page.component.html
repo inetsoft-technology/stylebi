@@ -18,6 +18,7 @@
 <em-authentication-provider-detail-view
   [model]="model | async"
   [isMultiTenant]="isMultiTenant"
+  [isCloudSecrets]="isCloudSecrets"
   (onChanged)="onChanged($event)"
   (onSubmit)="submit($event)">
 </em-authentication-provider-detail-view>

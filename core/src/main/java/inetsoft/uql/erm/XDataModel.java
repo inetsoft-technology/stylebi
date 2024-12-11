@@ -24,7 +24,7 @@ import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.erm.vpm.VpmCondition;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.util.XUtil;
+import inetsoft.uql.util.ConnectionProcessor;
 import inetsoft.util.*;
 import inetsoft.util.xml.XMLStorage.Filter;
 import inetsoft.util.xml.XMLStorage.XMLFragment;
@@ -504,6 +504,10 @@ public class XDataModel implements Cloneable, Serializable,
     * @param isImport
     */
    public void addPartition(XPartition partition, boolean isImport) {
+      if(partition == null) {
+         return;
+      }
+
       partition.setDataModel(this);
       String path = getDataSource() + "/" + partition.getName();
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
@@ -579,7 +583,7 @@ public class XDataModel implements Cloneable, Serializable,
       XPartition extended = null;
 
       if(partition != null) {
-         String ds = XUtil.getAdditionalDatasource(user, getDataSource());
+         String ds = ConnectionProcessor.getInstance().getAdditionalDatasource(user, getDataSource(), null);
          extended = partition.getPartitionByConnection(ds);
       }
 

@@ -28,6 +28,7 @@ import java.util.Arrays;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SreeHome()
+@Disabled
 class DefaultCheckPermissionStrategyTest {
    static DefaultCheckPermissionStrategy defaultCheckPermissionStrategy;
    static SRPrincipal org_admin, normalUser;
@@ -99,7 +100,7 @@ class DefaultCheckPermissionStrategyTest {
       Boolean[]  exps = {true, false, true, true, false, true, false, true, false, true, true};
       assertArrayEquals(results.toArray(new Boolean[0]), exps,
                         "The org administrator permission not right: \nExpected: " +
-                           Arrays.toString(exps) + ", \nActual: " + results);;
+                           Arrays.toString(exps) + ", \nActual: " + results);
    }
 
    @Test

@@ -301,8 +301,7 @@ public abstract class GraphGenerator {
                   .stream().filter(a -> a.getVisualFrame() instanceof CategoricalColorFrame)
                   .findFirst()
                   .ifPresent(colorField -> {
-                     String name = XSchema.isDateType(colorField.getDataType()) ?
-                        colorField.getFullName() : colorField.getFullName();
+                     String name = colorField.getFullName();
                      context.setDimensionColors(vs.getDimensionColors(name));
                   });
             }

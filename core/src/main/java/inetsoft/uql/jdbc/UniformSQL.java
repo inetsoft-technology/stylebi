@@ -753,11 +753,6 @@ public class UniformSQL implements SQLDefinition, Cloneable, XMLSerializable {
             else if(firstElement.getTagName().equals(XUnaryCondition.XML_TAG)) {
                whereNode = new XUnaryCondition();
             }
-            else if(firstElement.getTagName().equals(
-               XExpressionCondition.XML_TAG))
-            {
-               whereNode = new XExpressionCondition();
-            }
             else if(firstElement.getTagName().equals(XBinaryCondition.XML_TAG)){
                whereNode = new XBinaryCondition();
             }

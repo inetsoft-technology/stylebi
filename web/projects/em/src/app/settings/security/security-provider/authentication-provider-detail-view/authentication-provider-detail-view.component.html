@@ -60,6 +60,7 @@
       </em-custom-provider-view>
       <em-ldap-provider-view [class.form-hidden]="form.value.providerType !== SecurityProviderType.LDAP"
                              [form]="form"
+                             [isCloudSecrets]="isCloudSecrets"
                              [model]="model ? model.ldapProviderModel : null"
                              (changed)="changed = true">
       </em-ldap-provider-view>
@@ -68,6 +69,7 @@
         [form]="form"
         [model]="model?.dbProviderModel"
         [isMultiTenant]="isMultiTenant"
+        [isCloudSecrets]="isCloudSecrets"
         (changed)="changed = true">
       </em-database-provider-view>
     </section>

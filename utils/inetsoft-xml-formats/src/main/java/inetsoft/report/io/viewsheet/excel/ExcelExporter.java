@@ -18,6 +18,7 @@
 package inetsoft.report.io.viewsheet.excel;
 
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 /**
@@ -27,6 +28,13 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
  * @author InetSoft Technology Corp
  */
 public class ExcelExporter implements ExcelContext {
+   public ExcelExporter() {
+
+   }
+
+   public ExcelExporter(int memoryCacheRowCount) {
+      this.memoryCacheRowCount = memoryCacheRowCount;
+   }
    /**
     * Get work book.
     * If other people got workbook, they can made uncontrollerable change to it.
@@ -41,10 +49,11 @@ public class ExcelExporter implements ExcelContext {
     * Create a workbook.
     */
    public boolean setUp() {
-      book = new XSSFWorkbook();
+      book = memoryCacheRowCount > 0 ? new SXSSFWorkbook(memoryCacheRowCount) : new XSSFWorkbook();
 
       return true;
    }
 
    private Workbook book = null;
+   private int memoryCacheRowCount = -1;
 }

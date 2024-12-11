@@ -262,7 +262,7 @@ public class TaskBalancer {
                AssetEntry.Type.SCHEDULE_TASK_FOLDER, task.getPath(), null);
          }
 
-         scheduleManager.setScheduleTask(task.getName(), task, folderEntry, true,
+         scheduleManager.setScheduleTask(task.getTaskId(), task, folderEntry, true,
             ThreadContext.getContextPrincipal());
       }
    }
@@ -325,7 +325,7 @@ public class TaskBalancer {
    private void updateCondition(TimeCondition condition, int slot, int interval, LocalTime start,
                                 BitSet slots, TimeRange range)
    {
-      LocalTime time = start.plusMinutes(slot * interval);
+      LocalTime time = start.plusMinutes((long) slot * interval);
       condition.setHour(time.getHour());
       condition.setMinute(time.getMinute());
       condition.setSecond(time.getSecond());

@@ -18,7 +18,7 @@
 import { inject, TestBed } from "@angular/core/testing";
 import { of as observableOf, Subject } from "rxjs";
 import { StompClientService } from "../../../../../../shared/stomp/stomp-client.service";
-import { ScheduleTaskChange } from "../model/schedule-task-change";
+import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
 import { EmScheduleChangeService } from "./em-schedule-change.service";
 
 describe("EmScheduleChangeService", () => {

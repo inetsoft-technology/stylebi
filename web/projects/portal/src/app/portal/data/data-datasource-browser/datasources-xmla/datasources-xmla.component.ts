@@ -208,7 +208,8 @@ export class DatasourcesXmlaComponent implements OnInit, OnDestroy, CanComponent
             Validators.required
          ]),
          requiresLogin: new UntypedFormControl(this._model?.login, []),
-         saveUserPassword: new UntypedFormControl(!!this._model?.user, []),
+         useCredential: new UntypedFormControl(this._model?.useCredential, []),
+         credentialId: new UntypedFormControl(this._model?.credentialId, []),
          user: new UntypedFormControl(this._model?.user, []),
          password: new UntypedFormControl(this._model?.password, []),
       });
@@ -221,18 +222,18 @@ export class DatasourcesXmlaComponent implements OnInit, OnDestroy, CanComponent
    }
 
    private updateEnable() {
-      if(this.form.get("requiresLogin").value) {
-         this.form.get("saveUserPassword").enable({emitEvent: false});
-      }
-      else {
-         this.form.get("saveUserPassword").disable({emitEvent: false});
-      }
+      let disabled =
+         !this.form.get("requiresLogin").value || this.form.get("requiresLogin").disabled
 
-      if(!this.form.get("saveUserPassword").value || this.form.get("saveUserPassword").disabled) {
+      if(disabled) {
+         this.form.get("useCredential").disable({emitEvent: false});
+         this.form.get("credentialId").disable({emitEvent: false});
          this.form.get("user").disable({emitEvent: false});
          this.form.get("password").disable({emitEvent: false});
       }
       else {
+         this.form.get("useCredential").enable({emitEvent: false});
+         this.form.get("credentialId").enable({emitEvent: false});
          this.form.get("user").enable({emitEvent: false});
          this.form.get("password").enable({emitEvent: false});
       }
@@ -245,15 +246,10 @@ export class DatasourcesXmlaComponent implements OnInit, OnDestroy, CanComponent
       this._model.datasourceInfo = this.form.get("datasourceInfo").value;
       this._model.catalogName = this.form.get("catalog").value;
       this._model.login = this.form.get("requiresLogin").value;
-
-      if(this.form.get("saveUserPassword").value) {
-         this._model.user = this.form.get("user").value;
-         this._model.password = this.form.get("password").value;
-      }
-      else {
-         this._model.user = null;
-         this._model.password = null;
-      }
+      this._model.useCredential = this.form.get("useCredential").value;
+      this._model.credentialId = this.form.get("credentialId").value;
+      this._model.user = this.form.get("user").value;
+      this._model.password = this.form.get("password").value;
    }
 
    /**

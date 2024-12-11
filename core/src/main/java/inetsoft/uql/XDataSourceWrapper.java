@@ -90,11 +90,13 @@ public class XDataSourceWrapper implements XMLSerializable {
       }
 
       Class<?> dxClass = Config.getClass(type, cls);
-      XDataSource dx = (XDataSource) dxClass.getConstructor().newInstance();
-      dx.setName(name);
-      dx.parseXML((Element) dsNode);
 
-      setSource(dx);
+      if(dxClass != null) {
+         XDataSource dx = (XDataSource) dxClass.getConstructor().newInstance();
+         dx.setName(name);
+         dx.parseXML((Element) dsNode);
+         setSource(dx);
+      }
    }
 
    /**

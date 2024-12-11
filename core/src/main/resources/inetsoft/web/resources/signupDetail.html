@@ -46,14 +46,23 @@
       </div>
       <div class="card-body">
         <form novalidate>
-          <div id="signupUserNameGroup" class="form-group">
-            <label class="required-field" for="signupUserName" data-th-text="#{signup.username.label}">User name</label>
-            <input type="text" class="form-control" id="signupUserName" autocomplete="username"
+          <div id="signupUserFirstNameGroup" class="form-group">
+            <label class="required-field" for="signupUserFirstName" data-th-text="#{signup.firstname.label}">First name</label>
+            <input type="text" class="form-control" id="signupUserFirstName" autocomplete="username"
                    name="signupUserName" autofocus/>
-            <div id="userNameError" class="invalid-feedback" style="display: none;">
-              <span id="userNameRequiredError" data-th-text="#{signup.username.required}">User name is required.</span>
-              <span id="userNameFormatError" data-th-text="#{signup.username.contains.special}">Name cannot include special characters.</span>
-              <span id="userNameTooLongError" data-th-text="#{signup.username.tooLong}">Username is too long (maximum is 39 characters).</span>
+            <div id="userFirstNameError" class="invalid-feedback" style="display: none;">
+              <span id="userFirstNameRequiredError" data-th-text="#{signup.firstname.required}">First Name is required.</span>
+              <span id="userFirstNameFormatError" data-th-text="#{signup.username.contains.special}">Name cannot include special characters.</span>
+              <span id="userFirstNameTooLongError" data-th-text="#{signup.username.tooLong}">Name is too long (maximum is 39 characters).</span>
+            </div>
+          </div><div id="signupUserLastNameGroup" class="form-group">
+            <label class="required-field" for="signupUserLastName" data-th-text="#{signup.lastname.label}">Last name</label>
+            <input type="text" class="form-control" id="signupUserLastName" autocomplete="username"
+                   name="signupUserLastName" autofocus/>
+            <div id="userLastNameError" class="invalid-feedback" style="display: none;">
+              <span id="userLastNameRequiredError" data-th-text="#{signup.username.required}">Last name is required.</span>
+              <span id="userLastNameFormatError" data-th-text="#{signup.username.contains.special}">Name cannot include special characters.</span>
+              <span id="userLastNameTooLongError" data-th-text="#{signup.username.tooLong}">Last Name is too long (maximum is 39 characters).</span>
             </div>
           </div>
           <div id="signupPasswordGroup" class="form-group">

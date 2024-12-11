@@ -16,7 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 export interface MVSettingsModel {
-   type: MVType;
    onDemand: boolean;
    onDemandDefault: boolean;
    defaultCycle: string;

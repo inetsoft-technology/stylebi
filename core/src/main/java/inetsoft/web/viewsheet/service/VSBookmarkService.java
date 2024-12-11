@@ -19,6 +19,7 @@ package inetsoft.web.viewsheet.service;
 
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
@@ -101,7 +102,7 @@ public class VSBookmarkService {
 
       vs.getRuntimeEntry().setProperty("keepAnnonVis", "true");
       rvs.addBookmark(bookmarkName, type,
-                      principal.getName() == null ? new IdentityID("admin", OrganizationManager.getCurrentOrgName()) :
+                      principal.getName() == null ? new IdentityID("admin", OrganizationManager.getInstance().getCurrentOrgID()) :
                       IdentityID.getIdentityIDFromKey(principal.getName()), readOnly);
       vs.getRuntimeEntry().setProperty("keepAnnoVis", null);
       return messageCommand;
@@ -114,10 +115,20 @@ public class VSBookmarkService {
       SecurityEngine engine = SecurityEngine.getSecurity();
       MessageCommand messageCommand = new MessageCommand();
 
+      boolean isGlobalVSPermDenied = SUtil.isDefaultVSGloballyVisible(principal) &&
+                                     !Tool.equals(rvs.getEntry() == null ? "" :
+                                     rvs.getEntry().getOrgID(),((XPrincipal)principal).getOrgId());
+
       if(!engine.checkPermission(principal, ResourceType.VIEWSHEET_TOOLBAR_ACTION,
          "AddBookmark", ResourceAction.READ))
       {
          messageCommand.setMessage(catalog.getString("viewer.viewsheet.security.addbookmark"));
+         messageCommand.setType(MessageCommand.Type.WARNING);
+         return messageCommand;
+      }
+
+      if(isGlobalVSPermDenied) {
+         messageCommand.setMessage(catalog.getString("common.writeAuthority", rvs.getEntry().getName()));
          messageCommand.setType(MessageCommand.Type.WARNING);
          return messageCommand;
       }

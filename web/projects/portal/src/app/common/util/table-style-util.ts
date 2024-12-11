@@ -224,12 +224,12 @@ export class TableStyleUtil {
       return root;
    }
 
-   public static styleIdentifier(folder: string, name: string) {
+   public static styleIdentifier(folder: string, name: string, orgId: string) {
       let path = folder == null ? "Table Style/" +
          name : folder + "/" + name;
 
       return AssetConstants.COMPONENT_SCOPE + "^" + this.ASSET_TABLE_STYLE +
-         "^" + this.ASSET_NULL + "^" + path + "^" + this.ASSET_ORGID;
+         "^" + this.ASSET_NULL + "^" + path + "^" + orgId;
    }
 
    private static UNDO_REDO_COUNT: number = 10;
@@ -259,7 +259,6 @@ export class TableStyleUtil {
    public static COLUMN_GROUP_TOTAL: string = "Column Group Total";
    public static ASSET_TABLE_STYLE: string = "524288";
    public static ASSET_NULL: string = "__NULL__";
-   public static ASSET_ORGID: string = "default_org";
 
    public static GROUP_LEVELS = [
       { label: "_#(js:Level 1)", value: 1 },

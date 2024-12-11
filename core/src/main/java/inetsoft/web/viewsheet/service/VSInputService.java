@@ -32,6 +32,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.internal.VariableProvider;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.UserVariable;
@@ -136,7 +137,7 @@ public class VSInputService {
       RuntimeViewsheet rvs =
          vsObjectService.getRuntimeViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
       final ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      int hint = 0;
+      int hint;
 
       rvs.setSocketSessionId(dispatcher.getSessionId());
       rvs.setSocketUserName(dispatcher.getUserName());
@@ -167,11 +168,10 @@ public class VSInputService {
       rvs.resetMVOptions();
       VSAssembly vsAssembly = vs.getAssembly(assemblyName);
 
-      if(vsAssembly == null || !(vsAssembly instanceof InputVSAssembly)) {
+      if(!(vsAssembly instanceof InputVSAssembly assembly)) {
          return 0;
       }
 
-      final InputVSAssembly assembly = (InputVSAssembly) vsAssembly;
       Object[] values;
 
       if(selectedObject == null) {
@@ -325,7 +325,7 @@ public class VSInputService {
          Worksheet ws = assembly.getViewsheet().getBaseWorksheet();
          String tname = assembly.getTableName();
 
-         if(assembly.isVariable() && tname != null && tname.indexOf("$(") != -1) {
+         if(assembly.isVariable() && tname != null && tname.contains("$(")) {
             tname = tname.substring(2, tname.length() - 1);
          }
 
@@ -453,14 +453,19 @@ public class VSInputService {
          }
       }
 
-      for(int i = 0; i < assemblies.length; i ++) {
-         InputVSAssembly assembly = assemblies[i];
+      for(InputVSAssembly assembly : assemblies) {
          InputVSAssemblyInfo info = (InputVSAssemblyInfo) assembly.getVSAssemblyInfo();
 
          // fix bug1368262989004, fix this bug same as bug1366884826731, now
          // no matter process share filter whether success or not, we should
          // also execute, or some dependency assembly will not refresh.
          if(info.isSubmitOnChange()) {
+            for(Assembly a : vs.getAssemblies()) {
+               if(isAssemblyReferenced(assembly, a)) {
+                  clist.getDataList().add(a.getAssemblyEntry());
+               }
+            }
+
             vsObjectService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher, true);
             vsObjectService.layoutViewsheet(rvs, linkUri, dispatcher);
          }
@@ -474,6 +479,46 @@ public class VSInputService {
             }
          }
       }
+   }
+
+   private boolean isAssemblyReferenced(InputVSAssembly input, Assembly assembly) {
+      if(input.getAbsoluteName().equals(assembly.getAbsoluteName())) {
+         return false;
+      }
+
+      String inputName = input.getName();
+
+      if(assembly instanceof VariableProvider provider) {
+         for(UserVariable var : provider.getAllVariables()) {
+            if(Objects.equals(var.getName(), inputName)) {
+               return true;
+            }
+         }
+      }
+
+      if(assembly instanceof VSAssembly vsAssembly) {
+         String inputVar = "$(" + inputName + ")";
+
+         if(isAssemblyReferenced(inputVar, vsAssembly.getDynamicValues())) {
+            return true;
+         }
+
+         if(isAssemblyReferenced(inputVar, vsAssembly.getViewDynamicValues(true))) {
+            return true;
+         }
+
+         if(isAssemblyReferenced(inputVar, vsAssembly.getHyperlinkDynamicValues())) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private boolean isAssemblyReferenced(String varName, List<DynamicValue> list) {
+      return list != null && list.stream()
+         .map(DynamicValue::getDValue)
+         .anyMatch(v -> Objects.equals(varName, v));
    }
 
    private Map<String, VSAssemblyInfo> getOldCrosstabInfo(Principal principal) throws Exception {
@@ -493,8 +538,8 @@ public class VSInputService {
 
       for(Assembly casembly : assemblyList) {
          if(casembly instanceof CrosstabVSAssembly) {
-            oldCrosstabInfo.put(casembly.getName(), (VSAssemblyInfo)
-               ((CrosstabVSAssembly) casembly).getVSAssemblyInfo().clone());
+            oldCrosstabInfo.put(
+               casembly.getName(), ((CrosstabVSAssembly) casembly).getVSAssemblyInfo().clone());
          }
       }
 
@@ -607,13 +652,12 @@ public class VSInputService {
       if(ws != null && ignoreToCheckPerm ||
          VSEventUtil.checkBaseWSPermission(vs, principal, viewsheetService.getAssetRepository(), ResourceAction.READ))
       {
-         Assembly wsobj = ws.getAssembly(table);
+         Assembly wsobj = Objects.requireNonNull(ws).getAssembly(table);
 
-         if(!(wsobj instanceof TableAssembly)) {
+         if(!(wsobj instanceof TableAssembly tableAssembly)) {
             return new ColumnSelection();
          }
 
-         TableAssembly tableAssembly = (TableAssembly) wsobj;
          TableAssembly tableAssembly0 = tableAssembly;
 
          while(tableAssembly0 instanceof MirrorTableAssembly) {
@@ -624,7 +668,7 @@ public class VSInputService {
          // still get the original column selection, otherwise the column selection will not match
          // the runtime column selection and things like TableVSAQuery.getQueryData() may fail
          selection = table == null ? new ColumnSelection() :
-            (ColumnSelection) tableAssembly.getColumnSelection(true).clone();
+            tableAssembly.getColumnSelection(true).clone();
          XUtil.addDescriptionsFromSource(tableAssembly0, selection);
          AggregateInfo dimonly = null;
 
@@ -890,8 +934,7 @@ public class VSInputService {
             }
 
             if(embedded) {
-               if(!onlyVars && assembly instanceof TableAssembly) {
-                  TableAssembly tableAssembly = (TableAssembly) assembly;
+               if(!onlyVars && assembly instanceof TableAssembly tableAssembly) {
                   TableAssembly embeddedAssembly = getBaseEmbedded(tableAssembly);
 
                   if(embeddedAssembly != null && tableAssembly.isVisibleTable()) {
@@ -900,8 +943,7 @@ public class VSInputService {
                   }
                }
 
-               if(assembly instanceof VariableAssembly) {
-                  VariableAssembly va = (VariableAssembly) assembly;
+               if(assembly instanceof VariableAssembly va) {
                   VariableEntry ve = new VariableEntry(va.getVariable().getAlias(),
                                                        va.getVariable().getName());
 
@@ -963,8 +1005,7 @@ public class VSInputService {
       if(table instanceof EmbeddedTableAssembly) {
          embedded = table;
       }
-      else if(table instanceof MirrorTableAssembly) {
-         MirrorTableAssembly mtable = (MirrorTableAssembly) table;
+      else if(table instanceof MirrorTableAssembly mtable) {
          String bname = mtable.getAssemblyName();
 
          if((bname.equals(tname + "_VSO") || bname.equals(tname + "_O")) &&
@@ -1152,11 +1193,10 @@ public class VSInputService {
    private void refreshVariable(VSAssembly assembly, AssetQuerySandbox wbox, Worksheet ws,
                                 Viewsheet vs) throws Exception
    {
-      if(!(assembly instanceof InputVSAssembly) || wbox == null || ws == null) {
+      if(!(assembly instanceof InputVSAssembly iassembly) || wbox == null || ws == null) {
          return;
       }
 
-      InputVSAssembly iassembly = (InputVSAssembly) assembly;
       Object cdata;
       Object mdata = null;
 
@@ -1177,7 +1217,7 @@ public class VSInputService {
       String tname = iassembly.getTableName();
       VariableTable vt = wbox.getVariableTable();
 
-      if(iassembly.isVariable() && tname != null && tname.indexOf("$(") != -1) {
+      if(iassembly.isVariable() && tname != null && tname.contains("$(")) {
          tname = tname.substring(2, tname.length() - 1);
       }
 
@@ -1228,11 +1268,9 @@ public class VSInputService {
       }
 
       for(Assembly wsAssembly : ws.getAssemblies()) {
-         if(!(wsAssembly instanceof TableAssembly)) {
+         if(!(wsAssembly instanceof TableAssembly tableAssembly)) {
             continue;
          }
-
-         TableAssembly tableAssembly = (TableAssembly) wsAssembly;
 
          // loop through the table's variables
          for(UserVariable var : tableAssembly.getAllVariables()) {

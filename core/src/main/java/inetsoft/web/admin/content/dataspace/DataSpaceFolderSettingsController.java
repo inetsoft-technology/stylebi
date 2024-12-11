@@ -79,14 +79,15 @@ public class DataSpaceFolderSettingsController {
       String newPath = model.path();
       String objectType = ActionRecord.OBJECT_TYPE_FOLDER;
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
-      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), null, null,
+      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
+                                                   ActionRecord.ACTION_NAME_CREATE, model.name(),
                                                    objectType, actionTimestamp,
                                                    ActionRecord.ACTION_STATUS_SUCCESS, null);
 
       if(model.newFolder()) {
          newPath = dataSpaceContentSettingsService.getPath(model.path(), model.newName());
          actionRecord.setActionName(ActionRecord.ACTION_NAME_CREATE);
-         actionRecord.setObjectName(newPath);
+         actionRecord.setObjectName(model.newName());
 
          if(space.exists(null, newPath)) {
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -131,13 +132,20 @@ public class DataSpaceFolderSettingsController {
                                     Principal principal)
       throws Exception
    {
-      String dir = "portal/shapes".equals(model.path()) ?
-         ImageShapes.getShapesDirectory() : model.path();
+      String dir = model.path();
+
+      if("portal/shapes".equals(model.path())) {
+         dir = model.global() ? ImageShapes.getGlobalShapesDirectory() :
+            ImageShapes.getShapesDirectory();
+      }
+
       boolean extract = model.extractArchives();
       String uploadId = model.files();
       List<UploadedFile> uploadedFiles = uploadService.get(uploadId)
          .orElseThrow(() -> new IllegalArgumentException("No uploaded files"));
       DataSpace space = DataSpace.getDataSpace();
+      ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE,
+          model.path(), ActionRecord.OBJECT_TYPE_FILE);
 
       try {
          for(UploadedFile uploadedFile : uploadedFiles) {
@@ -153,6 +161,8 @@ public class DataSpaceFolderSettingsController {
                      dataSpaceFolderSettingsService.writeArchiveEntry(entry,
                         archive.getInputStream(entry), dir);
                   }
+
+                  dataSpaceContentSettingsService.updateFolder(dir);
                }
             }
             else {
@@ -166,6 +176,7 @@ public class DataSpaceFolderSettingsController {
       }
       finally {
          uploadService.remove(uploadId);
+         Audit.getInstance().auditAction(actionRecord, principal);
       }
    }
 

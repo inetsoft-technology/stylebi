@@ -24,11 +24,13 @@ import {
    Renderer2,
    ViewChild
 } from "@angular/core";
-import { MatDialog } from "@angular/material/dialog";
+import { MatDialog, MatDialogRef } from "@angular/material/dialog";
 import { Router } from "@angular/router";
 import { Observable, Subscription } from "rxjs";
-import { withLatestFrom } from "rxjs/operators";
+import { switchMap, tap, withLatestFrom } from "rxjs/operators";
 import { DownloadService } from "../../../../../../shared/download/download.service";
+import { LogoutService } from "../../../../../../shared/util/logout.service";
+import { SessionInactivityService } from "../../../../../../shared/util/session-inactivity.service";
 import { AuthorizationService } from "../../../authorization/authorization.service";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { TableInfo } from "../../../common/util/table/table-info";
@@ -36,7 +38,9 @@ import { ContextHelp } from "../../../context-help";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
+import { MoveCopyTreeNodesRequest } from "../../../settings/content/repository/model/move-copy-tree-nodes-request";
 import { SecurityEnabledEvent } from "../../../settings/security/security-settings-page/security-enabled-event";
+import { SessionExpirationDialog } from "../../../widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
 import { ClusterNodesService } from "../../cluster/cluster-nodes.service";
 import { MonitorLevel } from "../../monitor-level.service";
 import { MonitoringDataService } from "../../monitoring-data.service";
@@ -45,6 +49,7 @@ import { ReverseProxyModel } from "../summary-monitoring-view/reverse-proxy-mode
 import { ServerModel } from "../summary-monitoring-view/server-model";
 import { SummaryChartInfo } from "../summary-monitoring-view/summary-monitoring-chart-view/summary-chart-info";
 import { SummaryChartLegend } from "../summary-monitoring-view/summary-monitoring-chart-view/summary-chart-legend";
+import { HeapDumpRequest } from "./heap-dump-request";
 import { ServerSummaryModel } from "./server-summary-model";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
@@ -86,7 +91,8 @@ export interface ChartInfo {
 @Component({
    selector: "em-summary-monitoring-page",
    templateUrl: "./summary-monitoring-page.component.html",
-   styleUrls: ["./summary-monitoring-page.component.scss"]
+   styleUrls: ["./summary-monitoring-page.component.scss"],
+   providers: [SessionInactivityService]
 })
 export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterContentChecked {
    @ViewChild("summaryPageContainer", { static: true }) pageContainer;
@@ -176,6 +182,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
    swappingVisible = false;
    top5UsersVisible = false;
    securitySettingsEnabled = false;
+   sessionExpirationDialogRef: MatDialogRef<SessionExpirationDialog>;
 
    constructor(private pageTitle: PageHeaderService,
                private downloadService: DownloadService,
@@ -185,34 +192,40 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
                private authzService: AuthorizationService,
                private renderer: Renderer2,
                private router: Router,
-               private dialog: MatDialog) {
+               private dialog: MatDialog,
+               private sessionInactivity: SessionInactivityService,
+               private logoutService: LogoutService)
+   {
    }
 
    ngOnInit() {
       this.pageTitle.title = "_#(js:Monitoring)";
       this.clusterNodesService.getClusterNodes()
-         .pipe(withLatestFrom(this.authzService.getPermissions("monitoring/summary")))
-         .subscribe(([nodes, permissions]) => {
-            this.heapMemoryVisible = permissions.permissions.heapMemory;
-            this.cpuUsageVisible = permissions.permissions.cpuUsage;
-            this.gcCountVisible = permissions.permissions.gcCount;
-            this.gcTimeVisible = permissions.permissions.gcTime;
-            this.memoryCacheVisible = permissions.permissions.memoryCache;
-            this.executionVisible = permissions.permissions.execution;
-            this.diskCacheVisible = permissions.permissions.diskCache;
-            this.swappingVisible = permissions.permissions.swapping;
-            this.top5UsersVisible = permissions.permissions.top5Users;
+         .pipe(
+            switchMap(nodes => {
+               this.clusterNodes = nodes;
 
-            this.clusterNodes = nodes;
-
-            if(this.clusterEnabled) {
-               if(!this.selectedClusterNode) {
+               if(this.clusterEnabled && !this.selectedClusterNode) {
                   this.selectedClusterNode = this.clusterNodes[0];
                }
-            }
 
-            this.selectedNodeChange();
-         });
+               return this.authzService.getPermissions("monitoring/summary");
+            }),
+            tap(permissions => {
+               this.heapMemoryVisible = permissions.permissions.heapMemory;
+               this.cpuUsageVisible = permissions.permissions.cpuUsage;
+               this.gcCountVisible = permissions.permissions.gcCount;
+               this.gcTimeVisible = permissions.permissions.gcTime;
+               this.memoryCacheVisible = permissions.permissions.memoryCache;
+               this.executionVisible = permissions.permissions.execution;
+               this.diskCacheVisible = permissions.permissions.diskCache;
+               this.swappingVisible = permissions.permissions.swapping;
+               this.top5UsersVisible = permissions.permissions.top5Users;
+
+               this.selectedNodeChange();
+            })
+         )
+         .subscribe();
 
       this.refreshLegends();
 
@@ -221,6 +234,31 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
             this.serverModel = serverModel;
             this.refreshLegends();
          }));
+
+      this.subscriptions.add(this.sessionInactivity.onInactivity()
+         .subscribe((remainingTime)=>{
+            this.sessionExpirationDialogRef = this.dialog.open(SessionExpirationDialog, {
+               width: "500px",
+               data: {
+                  remainingTime: remainingTime,
+               }
+            });
+
+            this.sessionExpirationDialogRef.componentInstance.onLogout.subscribe(() => {
+               this.logoutService.logout(false, true);
+            });
+
+            this.sessionExpirationDialogRef.componentInstance.onTimerFinished.subscribe(() => {
+               this.logoutService.logout(false, true);
+            });
+         }));
+
+      this.subscriptions.add(this.sessionInactivity.onActivity().subscribe(() => {
+         if(this.sessionExpirationDialogRef != null) {
+            this.sessionExpirationDialogRef.close();
+            this.sessionExpirationDialogRef = null;
+         }
+      }));
    }
 
    private refreshLegends(): void {
@@ -293,22 +331,25 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
    }
 
    getHeapDump() {
-      let url = "../em/monitoring/server/get-heap-dump";
+      const url = "../api/em/monitoring/server/get-heap-dump";
+      const body = <HeapDumpRequest>{
+         clusterNode: this.clusterEnabled && this.selectedClusterNode ? this.selectedClusterNode : null
+      };
 
-      if(this.clusterEnabled && this.selectedClusterNode) {
-         url += "?clusterNode=" + encodeURIComponent(this.selectedClusterNode);
-      }
+      const storagePath = this.serverModel == null ?
+         "_#(js:em.confirm.heapDump.storageLocation)" : this.serverModel.externalStoragePath;
 
       this.dialog.open(MessageDialog, {
          width: "500px",
          data: {
             title: "_#(js:Confirm)",
-            content: "_#(js:em.confirm.heapDump)",
+            content: "_#(js:em.confirm.heapDump.prefix)" + storagePath +"_#(js:em.confirm.heapDump.suffix)",
             type: MessageDialogType.CONFIRMATION
          }
       }).afterClosed().subscribe(value => {
          if(value) {
-            this.downloadService.download(url);
+            this.http.post(url, body)
+               .subscribe(() => {});
          }
       });
    }

@@ -19,6 +19,7 @@ package inetsoft.web.admin.security;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.PasswordEncryption;
+import inetsoft.util.Tool;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -60,6 +61,21 @@ public class OpenIDConfig implements OpenIDSSOConfig {
       }
    }
 
+   public String getSecretId() {
+      String id = getClientId();
+
+      if(!Tool.isEmptyString(id)) {
+         return id;
+      }
+
+      return getClientSecret();
+   }
+
+   public void setSecretId(String secretId) {
+      setClientId(secretId);
+      setClientSecret(secretId);
+   }
+
    public String getClientId() {
       return SreeEnv.getProperty("openid.client.id");
    }
@@ -69,14 +85,19 @@ public class OpenIDConfig implements OpenIDSSOConfig {
    }
 
    public String getClientSecret() {
-      return PasswordEncryption.newInstance()
-         .decryptPassword(SreeEnv.getProperty("openid.client.secret"));
+      String clientSecret = SreeEnv.getProperty("openid.client.secret");
+
+      if(Tool.isCloudSecrets()) {
+         return clientSecret;
+      }
+      else {
+         return Tool.decryptPassword(clientSecret);
+      }
    }
 
    public void setClientSecret(String clientSecret) {
-      SreeEnv.setProperty(
-         "openid.client.secret",
-         PasswordEncryption.newInstance().encryptPassword(clientSecret));
+      SreeEnv.setProperty("openid.client.secret",
+                          PasswordEncryption.newInstance().encryptPassword(clientSecret));
    }
 
    public String getScopes() {
@@ -96,7 +117,7 @@ public class OpenIDConfig implements OpenIDSSOConfig {
    }
 
    public String getAudience() {
-      return SreeEnv.getProperty("openid.audience", getClientId());
+      return SreeEnv.getProperty("openid.audience", getClientIdRealValue());
    }
 
    public void setAudience(String audience) {

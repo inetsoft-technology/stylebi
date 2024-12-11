@@ -18,7 +18,8 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { FormBuilder, FormGroup } from "@angular/forms";
-import { tap } from "rxjs/operators";
+import { catchError, tap } from "rxjs/operators";
+import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
@@ -30,8 +31,9 @@ import {
    InactiveResourceParameters
 } from "./inactive-resource";
 import { ActivatedRoute } from "@angular/router";
-import { Subscription } from "rxjs";
+import { of, Subscription } from "rxjs";
 import { Tool } from "../../../../../shared/util/tool";
+import { ResourceType } from "./resource-type";
 
 @Secured({
    route: "/auditing/inactive-resource",
@@ -44,7 +46,7 @@ import { Tool } from "../../../../../shared/util/tool";
 })
 @ContextHelp({
    route: "/auditing/inactive-resource",
-   link: "EMAuditingInactiveResource"
+   link: "EMViewAudit"
 })
 @Component({
    selector: "em-audit-inactive-resource",
@@ -52,9 +54,9 @@ import { Tool } from "../../../../../shared/util/tool";
    styleUrls: ["./audit-inactive-resource.component.scss"]
 })
 export class AuditInactiveResourceComponent implements OnInit, OnDestroy {
-   objectTypes: string[] = [];
+   objectTypes: ResourceType[] = [];
    hosts: string[] = [];
-   organizations: string[] = [];
+   organizationNames: string[] = [];
    organizationFilter: boolean = false;
    minDuration = 0;
    maxDuration = 30;
@@ -66,7 +68,7 @@ export class AuditInactiveResourceComponent implements OnInit, OnDestroy {
    columnRenderers = [
       { name: "objectName", label: "_#(js:Object Name)", value: (r: InactiveResource) => r.objectName },
       { name: "objectType", label: "_#(js:Object Type)", value: (r: InactiveResource) => r.objectType },
-      { name: "lastAccessTime", label: "_#(js:Last Access Time)", value: (r: InactiveResource) => AuditTableViewComponent.getDisplayDate(r.lastAccessTime) },
+      { name: "lastAccessTime", label: "_#(js:Last Access Time)", value: (r: InactiveResource) => AuditTableViewComponent.getDisplayDate(r.lastAccessTime, r.dateFormat) },
       { name: "duration", label: "_#(js:Duration)", value: (r: InactiveResource) => r.duration },
       { name: "server", label: "_#(js:Server)", value: (r: InactiveResource) => r.server },
       { name: "organizationId", label: "_#(js:Organization ID)", value: (r: InactiveResource) => r.organizationId }
@@ -87,7 +89,8 @@ export class AuditInactiveResourceComponent implements OnInit, OnDestroy {
    }
 
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
-               private pageTitle: PageHeaderService, fb: FormBuilder)
+               private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
+               fb: FormBuilder)
    {
       this.form = fb.group({
          selectedTypes: [[]],
@@ -100,7 +103,7 @@ export class AuditInactiveResourceComponent implements OnInit, OnDestroy {
 
    ngOnInit(): void {
       this.pageTitle.title = "_#(js:Inactive Resources)";
-      this.http.get<string[]>("../api/em/security/users/get-all-organizations/").subscribe(
+      this.http.get<string[]>("../api/em/security/users/get-all-organization-names/").subscribe(
          (orgList => this.orgNames = orgList)
       );
       this.http.get<boolean>("../api/em/navbar/isSiteAdmin").subscribe(
@@ -111,14 +114,27 @@ export class AuditInactiveResourceComponent implements OnInit, OnDestroy {
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchParameters = () => {
       return this.http.get<InactiveResourceParameters>("../api/em/monitoring/audit/inactiveResourceParameters")
-         .pipe(tap(params => {
-            this.objectTypes = params.objectTypes;
-            this.hosts = params.hosts;
-            this.organizations = params.organizations;
-            this.organizationFilter = params.organizationFilter;
-            this.form.get("minDuration").setValue(params.minDuration, {emitEvent: false});
-            this.form.get("maxDuration").setValue(params.maxDuration, {emitEvent: false});
-         }));
+         .pipe(
+            catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
+               objectTypes: [],
+               hosts: [],
+               organizationNames: [],
+               organizationFilter: true,
+               maxDuration: 0,
+               startTime: 0,
+               endTime: 0
+            }))),
+            tap(params => {
+               this.objectTypes = params.objectTypes;
+               this.hosts = params.hosts;
+               this.organizationNames = params.organizationNames;
+               this.organizationFilter = params.organizationFilter;
+
+               if(this.maxDuration < params.maxDuration && this.form.get("maxDuration").value == this.maxDuration) {
+                  this.maxDuration = params.maxDuration;
+                  this.form.get("maxDuration").setValue(params.maxDuration, {emitEvent: false});
+               }
+            }));
    };
 
    // use arrow function instead of member method to hold the right context (i.e. this)
@@ -153,7 +169,11 @@ export class AuditInactiveResourceComponent implements OnInit, OnDestroy {
          selectedOrgs.forEach(h => params = params.append("organizations", h));
       }
 
-      return this.http.get<InactiveResourceList>("../api/em/monitoring/audit/inactiveResource", {params});
+      return this.http.get<InactiveResourceList>("../api/em/monitoring/audit/inactiveResource", {params})
+         .pipe(catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to run query)", () => of({
+            totalRowCount: 0,
+            rows: []
+         }))));
    };
 
    getDisplayedColumns() {

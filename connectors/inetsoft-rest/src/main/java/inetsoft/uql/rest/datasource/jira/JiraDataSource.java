@@ -21,6 +21,7 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -31,9 +32,11 @@ import java.util.Objects;
    @View1(value = "cloudDomain", visibleMethod = "isCloudServer"),
    @View1(value = "URL", visibleMethod = "isCloudServer"),
    @View1(value = "localUrl", visibleMethod = "isLocalServer"),
-   @View1("user"),
-   @View1(value = "apiToken", visibleMethod = "isCloudServer"),
-   @View1(value = "localPassword", visibleMethod = "isLocalServer")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "apiToken", visibleMethod = "useCredentialForCloudServer"),
+   @View1(value = "localPassword", visibleMethod = "useCredentialForLocalServer")
 })
 public class JiraDataSource extends EndpointJsonDataSource<JiraDataSource> {
    static final String TYPE = "Rest.Jira";
@@ -41,6 +44,11 @@ public class JiraDataSource extends EndpointJsonDataSource<JiraDataSource> {
    public JiraDataSource() {
       super(TYPE, JiraDataSource.class);
       setAuthType(AuthType.BASIC);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD_APITOKEN;
    }
 
    @Property(label = "Server Type", required = true)
@@ -108,31 +116,31 @@ public class JiraDataSource extends EndpointJsonDataSource<JiraDataSource> {
    @Property(label = "Password", required = true, password = true)
    @PropertyEditor(dependsOn = "serverType")
    public String getLocalPassword() {
-      return localPassword;
+      return ((PasswordAndApiTokenCredential) getCredential()).getPassword();
    }
 
    public void setLocalPassword(String localPassword) {
-      this.localPassword = localPassword;
+      ((PasswordAndApiTokenCredential) getCredential()).setPassword(localPassword);
    }
 
    @Override
    public String getPassword() {
       if(isCloudServer()) {
-         return apiToken;
+         return getApiToken();
       }
       else {
-         return localPassword;
+         return getLocalPassword();
       }
    }
 
    @Property(label = "Api Token", required = true, password = true)
    @PropertyEditor(dependsOn = "serverType")
    public String getApiToken() {
-      return apiToken;
+      return ((PasswordAndApiTokenCredential) getCredential()).getApiToken();
    }
 
    public void setApiToken(String apiToken) {
-      this.apiToken = apiToken;
+      ((PasswordAndApiTokenCredential) getCredential()).setApiToken(apiToken);
    }
 
    public String[][] getServerTypes() {
@@ -140,6 +148,14 @@ public class JiraDataSource extends EndpointJsonDataSource<JiraDataSource> {
          { "Jira Cloud", "cloud" },
          { "Local Installation", "local" }
       };
+   }
+
+   public boolean useCredentialForCloudServer() {
+      return super.useCredential() && isCloudServer();
+   }
+
+   public boolean useCredentialForLocalServer() {
+      return super.useCredential() && isLocalServer();
    }
 
    public boolean isCloudServer() {
@@ -165,15 +181,6 @@ public class JiraDataSource extends EndpointJsonDataSource<JiraDataSource> {
       if(localUrl != null) {
          writer.format("<localUrl><![CDATA[%s]]></localUrl>%n", localUrl);
       }
-
-      if(apiToken != null) {
-         writer.format("<apiToken><![CDATA[%s]]></apiToken>%n", apiToken);
-      }
-
-      if(localPassword != null) {
-         writer.format("<localPassword><![CDATA[%s]]></localPassword>%n",
-                       Tool.encryptPassword(localPassword));
-      }
    }
 
    @Override
@@ -182,8 +189,6 @@ public class JiraDataSource extends EndpointJsonDataSource<JiraDataSource> {
       serverType = Tool.getChildValueByTagName(root, "serverType");
       cloudDomain = Tool.getChildValueByTagName(root, "cloudDomain");
       localUrl = Tool.getChildValueByTagName(root, "localUrl");
-      apiToken = Tool.getChildValueByTagName(root, "apiToken");
-      localPassword = Tool.decryptPassword(Tool.getChildValueByTagName(root, "localPassword"));
    }
 
    @Override
@@ -208,18 +213,15 @@ public class JiraDataSource extends EndpointJsonDataSource<JiraDataSource> {
       final JiraDataSource that = (JiraDataSource) o;
       return Objects.equals(serverType, that.serverType) &&
          Objects.equals(cloudDomain, that.cloudDomain) &&
-         Objects.equals(localUrl, that.localUrl) &&
-         Objects.equals(apiToken, that.apiToken);
+         Objects.equals(localUrl, that.localUrl);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), serverType, cloudDomain, localUrl, apiToken);
+      return Objects.hash(super.hashCode(), serverType, cloudDomain, localUrl, getApiToken());
    }
 
    private String serverType = "cloud";
    private String cloudDomain;
    private String localUrl;
-   private String apiToken;
-   private String localPassword;
 }

@@ -19,6 +19,7 @@ package inetsoft.uql.datagov;
 
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -32,12 +33,14 @@ import java.util.Objects;
 @SuppressWarnings("unused")
 @View(vertical = true, value = {
    @View1("URL"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
    @View1(type = ViewType.LABEL,
           text = "authentication.required.text",
           col = 1,
           paddingLeft = 3),
-   @View1("user"),
-   @View1("password")
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "password", visibleMethod = "useCredential")
 })
 public class DatagovDataSource extends TabularDataSource<DatagovDataSource> {
    public static final String TYPE = "Datagov";
@@ -47,6 +50,11 @@ public class DatagovDataSource extends TabularDataSource<DatagovDataSource> {
     */
    public DatagovDataSource() {
       super(TYPE, DatagovDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD;
    }
 
    /**
@@ -74,8 +82,9 @@ public class DatagovDataSource extends TabularDataSource<DatagovDataSource> {
     * @return the user name or <tt>null</tt> if not required.
     */
    @Property(label="User")
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getUser() {
-      return user;
+      return getCredential() == null ? null : ((PasswordCredential) getCredential()).getUser();
    }
 
    /**
@@ -84,7 +93,9 @@ public class DatagovDataSource extends TabularDataSource<DatagovDataSource> {
     * @param user the user name or <tt>null</tt> if not required.
     */
    public void setUser(String user) {
-      this.user = user;
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setUser(user);
+      }
    }
 
    /**
@@ -93,8 +104,9 @@ public class DatagovDataSource extends TabularDataSource<DatagovDataSource> {
     * @return the password or <tt>null</tt> if not required.
     */
    @Property(label="Password", password=true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getPassword() {
-      return password;
+      return getCredential() == null ? null : ((PasswordCredential) getCredential()).getPassword();
    }
 
    /**
@@ -103,7 +115,9 @@ public class DatagovDataSource extends TabularDataSource<DatagovDataSource> {
     * @param password the password or <tt>null</tt> if not required.
     */
    public void setPassword(String password) {
-      this.password = password;
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setPassword(password);
+      }
    }
 
    @Override
@@ -118,25 +132,12 @@ public class DatagovDataSource extends TabularDataSource<DatagovDataSource> {
       if(url != null) {
          writer.format("<url><![CDATA[%s]]></url>%n", url);
       }
-
-      if(user != null) {
-         writer.format("<user><![CDATA[%s]]></user>%n", user);
-      }
-
-      if(password != null) {
-         writer.format(
-            "<password><![CDATA[%s]]></password>%n",
-            Tool.encryptPassword(password));
-      }
    }
 
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       url = Tool.getChildValueByTagName(root, "url");
-      user = Tool.getChildValueByTagName(root, "user");
-      password =
-         Tool.decryptPassword(Tool.getChildValueByTagName(root, "password"));
    }
 
    @Override
@@ -144,9 +145,7 @@ public class DatagovDataSource extends TabularDataSource<DatagovDataSource> {
       try {
          DatagovDataSource ds = (DatagovDataSource) obj;
 
-         return Objects.equals(url, ds.url) &&
-            Objects.equals(user, ds.user) &&
-            Objects.equals(password, ds.password);
+         return Objects.equals(url, ds.url) && Objects.equals(getCredential(), ds.getCredential());
       }
       catch(Exception ex) {
          return false;
@@ -154,8 +153,6 @@ public class DatagovDataSource extends TabularDataSource<DatagovDataSource> {
    }
 
    private String url;
-   private String user;
-   private String password;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(DatagovDataSource.class.getName());

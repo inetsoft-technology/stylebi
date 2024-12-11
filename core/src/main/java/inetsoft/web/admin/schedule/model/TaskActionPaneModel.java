@@ -75,6 +75,11 @@ public interface TaskActionPaneModel {
       return false;
    }
 
+   @Value.Default
+   default boolean cloudSecrets() {
+      return false;
+   }
+
    static Builder builder() {
       return new Builder();
    }

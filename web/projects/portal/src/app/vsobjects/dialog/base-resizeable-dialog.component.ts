@@ -42,6 +42,26 @@ export class BaseResizeableDialogComponent implements AfterViewInit {
          this.renderer.addClass(resizeHandle, "dialog-resize-handle");
          this.renderer.addClass(resizeHandle, "resize-bottom-right-icon");
          this.renderer.appendChild(this.element.nativeElement, resizeHandle);
+
+         if(!this.resizeInited) {
+            let modalContent: any = this.getDialogContent("modal-content");
+            let modal = this.getDialogContent("modal");
+            let modalBody = this.element.nativeElement.querySelector(".modal-body");
+
+            if(!modalContent || !modal || !modalBody) {
+               return;
+            }
+            else {
+               this.renderer.setStyle(modalContent, "height", "100%");
+               this.renderer.setStyle(modalContent, "max-height", "100%");
+               this.renderer.setStyle(modalContent, "width", "100%");
+               this.renderer.setStyle(modalContent, "max-width", "100%");
+               this.renderer.setStyle(modalBody, "overflow", "auto");
+               this.maxWidth = modal.getBoundingClientRect().width - 30;
+               this.resizeInited = true;
+            }
+         }
+
          this.renderer.listen(resizeHandle, "mousedown",
             (evt: MouseEvent) => this.startResize(evt));
 
@@ -63,25 +83,6 @@ export class BaseResizeableDialogComponent implements AfterViewInit {
       this.resizeW = explicitWidth;
       this.resizeH = explicitHeight;
       let dialogContent: any = this.getDialogContent("modal-dialog");
-
-      if(!this.resizeInited) {
-         let modalContent: any = this.getDialogContent("modal-content");
-         let modal = this.getDialogContent("modal");
-         let modalBody = this.element.nativeElement.querySelector(".modal-body");
-
-         if(!modalContent || !modal || !modalBody) {
-            return;
-         }
-         else {
-            this.renderer.setStyle(modalContent, "height", "100%");
-            this.renderer.setStyle(modalContent, "max-height", "100%");
-            this.renderer.setStyle(modalContent, "width", "100%");
-            this.renderer.setStyle(modalContent, "max-width", "100%");
-            this.renderer.setStyle(modalBody, "overflow", "auto");
-            this.maxWidth = modal.getBoundingClientRect().width - 30;
-            this.resizeInited = true;
-         }
-      }
 
       this.changeSize(dialogContent, explicitWidth, explicitHeight);
       this.resizeListener = this.renderer.listen("document", "mousemove", (evt: MouseEvent) => {

@@ -17,6 +17,8 @@
  */
 package inetsoft.util.config;
 
+import inetsoft.util.config.crd.CRDProperty;
+
 import java.io.Serializable;
 import java.util.Objects;
 
@@ -63,9 +65,14 @@ public class ExternalStorageConfig implements Serializable {
       this.gcs = gcs;
    }
 
+   @CRDProperty(description = "The type of external storage", allowedValues = { "azure", "filesystem", "gcs", "s3" })
    private String type;
+   @CRDProperty(description = "The shared filesystem storage configuration")
    private FilesystemConfig filesystem;
+   @CRDProperty(description = "The S3 storage configuration")
    private S3Config s3;
+   @CRDProperty(description = "The Azure Blob storage configuration")
    private AzureBlobConfig azure;
+   @CRDProperty(description = "The GCS storage configuration")
    private GCSConfig gcs;
 }

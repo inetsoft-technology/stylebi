@@ -96,7 +96,8 @@ public class AssetTreeRefreshController {
                .newIdentifier(event.getAssetEntry().toIdentifier())
                .build();
 
-            debouncer.debounce("change", 1, TimeUnit.SECONDS, () ->
+            debouncer.debounce("change" + (event.getAssetEntry().getParent() != null ?
+               event.getAssetEntry().getParent().toIdentifier() : ""), 1, TimeUnit.SECONDS, () ->
                messagingTemplate.convertAndSendToUser(destination, "/asset-changed", eventModel)
             );
          }

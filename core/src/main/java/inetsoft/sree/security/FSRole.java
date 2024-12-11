@@ -97,7 +97,7 @@ public class FSRole extends Role implements XMLSerializable {
     * Set the assigned organization name.
     */
    public void setOrganization(String organization) {
-      this.organization = organization;
+      this.organizationID = organization;
    }
 
    /**
@@ -139,8 +139,8 @@ public class FSRole extends Role implements XMLSerializable {
          writer.print("<description><![CDATA[" + desc + "]]></description>");
       }
 
-      if(organization != null) {
-         writer.print("<organization><![CDATA[" + organization + "]]></organization>");
+      if(organizationID != null) {
+         writer.print("<organization><![CDATA[" + organizationID + "]]></organization>");
       }
 
       writer.print("<defaultRole><![CDATA[" + defaultRole + "]]></defaultRole>");
@@ -171,7 +171,7 @@ public class FSRole extends Role implements XMLSerializable {
       elem = Tool.getChildNodeByTagName(tag, "organization");
 
       if(elem != null) {
-         organization = Tool.getValue(elem);
+         organizationID = Tool.getValue(elem);
       }
 
       elem = Tool.getChildNodeByTagName(tag, "description");
@@ -226,7 +226,7 @@ public class FSRole extends Role implements XMLSerializable {
          gen.writeBooleanField("defaultRole", value.defaultRole);
          gen.writeBooleanField("sysAdmin", value.isSysAdmin());
          gen.writeBooleanField("orgAdmin", value.isOrgAdmin());
-         gen.writeStringField("organization", value.organization);
+         gen.writeStringField("organization", value.organizationID);
          gen.writeArrayFieldStart("roles");
 
          for(IdentityID role : value.roles) {
@@ -271,7 +271,7 @@ public class FSRole extends Role implements XMLSerializable {
          value.orgAdmin = orgAdminNode == null ?
             value.sysAdmin : orgAdminNode.asBoolean(false);
          JsonNode orgNode = root.get("organization");
-         value.organization = orgNode == null ? null : orgNode.asText(null);
+         value.organizationID = orgNode == null ? null : orgNode.asText(null);
 
          JsonNode node = root.get("roles");
 

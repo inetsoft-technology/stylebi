@@ -17,6 +17,7 @@
  */
 package inetsoft.uql;
 
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.sync.RenameDependencyInfo;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.erm.XDataModel;
@@ -50,6 +51,12 @@ public interface XRepository extends XDataService, XQueryRepository {
    String[] getDataSourceFullNames() throws RemoteException;
 
    /**
+    * Get full names of all the data sources in this repository.
+    * @return full names of all the data sources.
+    */
+   String[] getDataSourceFullNames(IdentityID organizationId) throws RemoteException;
+
+   /**
     * Get all data source folder names in repository.
     * @return names of all the data source folders.
     */
@@ -81,6 +88,12 @@ public interface XRepository extends XDataService, XQueryRepository {
     * Get the named data source.
     */
    XDataSource getDataSource(String dsname) throws RemoteException;
+
+   /**
+    * Get the named data source.
+    */
+   XDataSource getDataSource(String dsname, String orgId)
+      throws RemoteException;
 
    /**
     * Get the named data source folder.

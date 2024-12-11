@@ -37,7 +37,8 @@
               _#(repository.tree.SpecialChar)
             </span>
             <span class="invalid-feedback"
-                  *ngIf="nameControl.getError('assetNameStartWithCharDigit')">
+                  *ngIf="!nameControl.getError('assetEntryBannedCharacters') &&
+                  nameControl.getError('assetNameStartWithCharDigit')">
               _#(common.autodrill.parameter.name.startCharDigitError)
             </span>
             <span class="invalid-feedback"

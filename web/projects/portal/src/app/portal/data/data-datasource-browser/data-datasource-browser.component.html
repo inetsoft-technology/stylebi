@@ -86,8 +86,8 @@
                  [checked]="selectAllChecked"
                  (change)="selectAllChanged($event.target.checked)"/>
         </div>
-        <div class="table-cell-padding-sm" [ngClass]="{'col-xl-4 col-lg-3 col-xs-3': !searchView && !selectionOn,
-                                             'col-xl-3 col-sm-3 col-3 ': !searchView && selectionOn,
+        <div class="table-cell-padding-sm" [ngClass]="{'col-xl-3 col-lg-3 col-xs-3 col-md-2': !searchView && !selectionOn,
+                                             'col-xl-3 col-sm-3 col-3': !searchView && selectionOn,
                                              'col-sm-2 col-2': searchView && !selectionOn,
                                              'col-xl-3 col-sm-2': searchView && selectionOn}">
           <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('path')">
@@ -125,7 +125,7 @@
                [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
           </div>
         </div>
-        <div class="table-cell-padding-sm col-xl-2 col-lg-1">
+        <div class="table-cell-padding-sm col-xl-2 col-lg-2 col-md-2">
           <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('createdBy')">
             <span class="pe-1">_#(data.datasources.createdBy)</span>
             <i class="action-color blank-icon" *ngIf="!sortOptions.keys.includes('createdBy')"></i>
@@ -134,7 +134,7 @@
                [class.sort-ascending-icon]="sortOptions.type === SortTypes.ASCENDING"></i>
           </div>
         </div>
-        <div class="table-cell-padding-sm col-xl-2 col-lg-1">
+        <div class="table-cell-padding-sm col-xl-2 col-lg-2 col-md-2">
           <div class="d-flex align-items-center font-weight-bold action-style" (click)="updateSortOptions('createdDate')">
             <span class="pe-1">_#(data.datasources.creationDate)</span>
             <i class="action-color blank-icon" *ngIf="!sortOptions.keys.includes('createdDate')"></i>
@@ -166,8 +166,8 @@
                    (change)="updateSelection(datasource)"
                    (click)="$event.stopPropagation()"/>
           </div>
-          <div class="table-cell-padding-sm" [ngClass]="{'col-xl-4 col-lg-3 col-xs-3': !searchView && !selectionOn,
-                                             'col-xl-3 col-sm-3 col-3 ': !searchView && selectionOn,
+          <div class="table-cell-padding-sm" [ngClass]="{'col-xl-3 col-lg-3 col-xs-3 col-md-2': !searchView && !selectionOn,
+                                             'col-xl-3 col-sm-3 col-3': !searchView && selectionOn,
                                              'col-xl-3 col-sm-2 col-2': searchView && !selectionOn,
                                              'col-xl-3 col-sm-2': searchView && selectionOn}">
             <div class="d-flex align-items-center truncate-parent">
@@ -242,10 +242,10 @@
               <span class="content-ellipse px-1">{{datasource.statusMessage}}</span>
             </div>
           </div>
-          <div class="table-cell-padding-sm col-xl-2 col-lg-1">
+          <div class="table-cell-padding-sm col-xl-2 col-lg-2 col-md-2">
             <span class="content-ellipse">{{datasource.createdBy}}</span>
           </div>
-          <div class="table-cell-padding-sm col-xl-2 col-lg-1">
+          <div class="table-cell-padding-sm col-xl-2 col-lg-2 col-md-2">
             <span class="content-ellipse">{{datasource.createdDateLabel}}</span>
           </div>
         </div>

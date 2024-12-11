@@ -81,11 +81,12 @@
     <ignite.version>2.16.0</ignite.version>
     <jackson.version>2.17.1</jackson.version>
     <junit.version>5.10.2</junit.version>
-    <logback.version>1.5.6</logback.version>
+    <logback.version>1.5.11</logback.version>
     <lucene.version>8.11.3</lucene.version>
-    <slf4j.version>2.0.13</slf4j.version>
-    <spring-boot.version>3.3.0</spring-boot.version>
-    <spring.version>6.1.9</spring.version>
+    <protobuf.version>3.25.5</protobuf.version>
+    <slf4j.version>2.0.16</slf4j.version>
+    <spring-boot.version>3.3.6</spring-boot.version>
+    <spring.version>6.1.15</spring.version>
     <testcontainers.version>1.19.8</testcontainers.version>
     <thymeleaf.version>3.1.2.RELEASE</thymeleaf.version>
   </properties>
@@ -231,7 +232,7 @@
       <dependency>
         <groupId>org.wiremock</groupId>
         <artifactId>wiremock</artifactId>
-        <version>3.6.0</version>
+        <version>3.9.2</version>
       </dependency>
 
       <dependency>
@@ -267,7 +268,19 @@
       <dependency>
         <groupId>com.google.guava</groupId>
         <artifactId>guava</artifactId>
-        <version>25.1-jre</version>
+        <version>33.1.0-jre</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java</artifactId>
+        <version>${protobuf.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java-util</artifactId>
+        <version>${protobuf.version}</version>
       </dependency>
 
       <dependency>
@@ -816,6 +829,13 @@
       </dependency>
 
       <dependency>
+        <groupId>org.apache.santuario</groupId>
+        <artifactId>xmlsec</artifactId>
+        <!-- CVE-2023-44483 -->
+        <version>2.2.6</version>
+      </dependency>
+
+      <dependency>
         <groupId>org.eclipse.angus</groupId>
         <artifactId>jakarta.mail</artifactId>
         <version>2.0.2</version>
@@ -1071,8 +1091,8 @@
 
       <dependency>
         <groupId>org.springdoc</groupId>
-        <artifactId>springdoc-openapi-ui</artifactId>
-        <version>1.7.0</version>
+        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        <version>2.6.0</version>
       </dependency>
 
       <dependency>
@@ -1234,7 +1254,7 @@
       <dependency>
         <groupId>org.webjars</groupId>
         <artifactId>bootstrap</artifactId>
-        <version>4.6.1</version>
+        <version>5.3.3</version>
       </dependency>
 
       <dependency>
@@ -1252,7 +1272,7 @@
       <dependency>
         <groupId>org.xmlunit</groupId>
         <artifactId>xmlunit-matchers</artifactId>
-        <version>2.9.1</version>
+        <version>2.10.0</version>
       </dependency>
 
       <dependency>
@@ -1285,6 +1305,12 @@
         <!-- version matches dependency of groovy-cli-picocli -->
         <version>4.7.5</version>
       </dependency>
+
+      <dependency>
+        <groupId>io.github.jopenlibs</groupId>
+        <artifactId>vault-java-driver</artifactId>
+        <version>6.2.0</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -1300,6 +1326,27 @@
           <groupId>org.springframework.boot</groupId>
           <artifactId>spring-boot-maven-plugin</artifactId>
           <version>3.2.3</version>
+        </plugin>
+        <plugin>
+          <groupId>org.cyclonedx</groupId>
+          <artifactId>cyclonedx-maven-plugin</artifactId>
+          <version>2.9.0</version>
+          <configuration>
+            <outputFormat>xml</outputFormat>
+            <includeProvidedScope>false</includeProvidedScope>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>io.github.pmckeown</groupId>
+          <artifactId>dependency-track-maven-plugin</artifactId>
+          <version>1.7.0</version>
+          <configuration>
+            <dependencyTrackBaseUrl>${env.DEPENDENCY_TRACK_URL}</dependencyTrackBaseUrl>
+            <apiKey>${env.DEPENDENCY_TRACK_KEY}</apiKey>
+            <pollingConfig>
+              <enabled>false</enabled>
+            </pollingConfig>
+          </configuration>
         </plugin>
       </plugins>
     </pluginManagement>
@@ -1380,6 +1427,7 @@
       </build>
       <modules>
         <module>build-tools</module>
+        <module>enterprise-build-tools</module>
         <module>utils</module>
         <module>core</module>
         <module>enterprise</module>
@@ -1387,8 +1435,10 @@
         <module>shell</module>
         <module>integration</module>
         <module>connectors</module>
+        <module>enterprise-connectors</module>
         <module>web</module>
         <module>docker</module>
+        <module>enterprise-server</module>
       </modules>
     </profile>
     <profile>

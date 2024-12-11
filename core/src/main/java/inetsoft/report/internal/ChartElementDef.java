@@ -231,7 +231,7 @@ public class ChartElementDef extends PainterElementDef
 
       ReportSheet report = getReport();
 
-      if(report != null && true) {
+      if(report != null) {
          LOG.debug("Chart " + getID() + " finished processing " +
                       (topchart.getRowCount() + 1) + " rows");
       }

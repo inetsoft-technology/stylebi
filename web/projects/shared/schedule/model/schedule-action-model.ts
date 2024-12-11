@@ -22,4 +22,6 @@ export interface ScheduleActionModel {
    actionType: string;
    actionClass?: string;
    parameters?: AddParameterDialogModel[];
+   useCredential?: boolean;
+   secretId?: string;
 }

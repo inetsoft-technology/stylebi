@@ -21,6 +21,7 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -29,9 +30,11 @@ import java.util.Objects;
 @View(vertical = true, value = {
    @View1("URL"),
    @View1("authScheme"),
-   @View1(value = "user", visibleMethod = "isBasicAuth"),
-   @View1(value = "password", visibleMethod = "isBasicAuth"),
-   @View1(value = "apiToken", visibleMethod = "isTokenAuth")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "user", visibleMethod = "useCredentialForBasicAuth"),
+   @View1(value = "password", visibleMethod = "useCredentialForBasicAuth"),
+   @View1(value = "apiToken", visibleMethod = "useCredentialForAuth")
 })
 public class InfluxDBDataSource extends EndpointJsonDataSource<InfluxDBDataSource> {
    static final String TYPE = "Rest.InfluxDB";
@@ -40,6 +43,11 @@ public class InfluxDBDataSource extends EndpointJsonDataSource<InfluxDBDataSourc
       super(TYPE, InfluxDBDataSource.class);
       AuthType authType = authScheme.equals("BASIC") ? AuthType.BASIC : AuthType.NONE;
       setAuthType(authType);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD_APITOKEN;
    }
 
    @Property(label = "Authentication Scheme")
@@ -58,15 +66,19 @@ public class InfluxDBDataSource extends EndpointJsonDataSource<InfluxDBDataSourc
    @Property(label = "API Token", required = true, password = true)
    @PropertyEditor(dependsOn="authScheme")
    public String getApiToken() {
-      return apiToken;
+      return ((ApiTokenCredential) getCredential()).getApiToken();
    }
 
    public void setApiToken(String apiToken) {
-      this.apiToken = apiToken;
+      ((ApiTokenCredential) getCredential()).setApiToken(apiToken);
    }
 
    public boolean isTokenAuth() {
       return getAuthType() == AuthType.NONE;
+   }
+
+   public boolean useCredentialForAuth() {
+      return super.useCredential() && isTokenAuth();
    }
 
    @Override
@@ -76,7 +88,7 @@ public class InfluxDBDataSource extends EndpointJsonDataSource<InfluxDBDataSourc
             HttpParameter.builder()
                .type(HttpParameter.ParameterType.HEADER)
                .name("Authorization")
-               .value("Token " + apiToken)
+               .value("Token " + getApiToken())
                .build()
          };
       }
@@ -97,17 +109,12 @@ public class InfluxDBDataSource extends EndpointJsonDataSource<InfluxDBDataSourc
       if(authScheme != null) {
          writer.format("<authScheme><![CDATA[%s]]></authScheme>%n", authScheme);
       }
-
-      if(apiToken != null) {
-         writer.format("<apiToken><![CDATA[%s]]></apiToken>%n", Tool.encryptPassword(apiToken));
-      }
    }
 
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       authScheme = Tool.getChildValueByTagName(root, "authScheme");
-      apiToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiToken"));
    }
 
    @Override
@@ -130,9 +137,8 @@ public class InfluxDBDataSource extends EndpointJsonDataSource<InfluxDBDataSourc
       }
 
       InfluxDBDataSource that = (InfluxDBDataSource) o;
-      return Objects.equals(authScheme, that.authScheme) && Objects.equals(apiToken, that.apiToken);
+      return Objects.equals(authScheme, that.authScheme);
    }
 
    private String authScheme = "BASIC";
-   private String apiToken;
 }

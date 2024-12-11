@@ -494,7 +494,8 @@ public class MVService {
       AssetEntry.Type type = node.type() == RepositoryEntry.WORKSHEET ?
                              AssetEntry.Type.WORKSHEET : AssetEntry.Type.VIEWSHEET;
       return new AssetEntry(treeService.getAssetScope(node.path()), type,
-                                        treeService.getUnscopedPath(node.path()), node.owner());
+                            treeService.getUnscopedPath(node.path()), node.owner(),
+                            node.organization());
    }
 
    private static final long ONE_MINUTE = 60 * 1000L;

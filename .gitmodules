@@ -28,3 +28,8 @@
 	url = https://repo.inetsoft.com/stylebi/stylebi-enterprise-connectors
 	update = merge
 	branch = master
+[submodule "enterprise-server"]
+	path = enterprise-server
+	url = https://repo.inetsoft.com/stylebi/stylebi-enterprise-server
+	update = merge
+	branch = master

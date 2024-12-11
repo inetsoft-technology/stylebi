@@ -40,6 +40,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Stream;
 
 @Controller
 public class SortColumnDialogController extends WorksheetController {
@@ -64,12 +65,13 @@ public class SortColumnDialogController extends WorksheetController {
       if(table != null) {
          AggregateInfo ainfo = table.getAggregateInfo();
          ColumnSelection cs = table.getColumnSelection();
-         List<String> availableColumns = new ArrayList<>();
          List<String> columnDescriptions = new ArrayList<>();
          List<String> originalNames = new ArrayList<>();
          List<String> rangeColumns = new ArrayList<>();
          ColumnSelection sorted = VSUtil.sortColumns(cs);
          Enumeration attributes = sorted.getAttributes();
+         List<String> selectColumns = new ArrayList<>();
+         List<String> noSelectColumns = new ArrayList<>();
 
          for(int i = 0; attributes.hasMoreElements(); i++) {
             ColumnRef column = (ColumnRef) attributes.nextElement();
@@ -80,13 +82,20 @@ public class SortColumnDialogController extends WorksheetController {
                String refName = column.getDataRef().getName();
 
                if(!colName.equals(refName) && !map.containsKey(refName)) {
-                  availableColumns.add(refName);
                   map.put(refName, colName);
+                  colName = refName;
                }
                else {
-                  colName = "".equals(colName) ? "Column[" + i + "]" : colName;
-                  availableColumns.add(colName);
+                  colName = colName.isEmpty() ? "Column[" + i + "]" : colName;
                }
+
+               boolean selected = Stream.concat(
+                     Arrays.stream(ainfo.getAggregates()).map(AggregateRef::getName),
+                     Arrays.stream(ainfo.getGroups()).map(GroupRef::getName)
+                  )
+                  .anyMatch(colName::equals);
+
+               (selected ? selectColumns : noSelectColumns).add(colName);
 
                columnDescriptions.add(column.getDescription());
                originalNames.add(ColumnRef.getAttributeView(column));
@@ -102,6 +111,10 @@ public class SortColumnDialogController extends WorksheetController {
             sortinfo = new SortInfo();
          }
 
+         Collections.sort(noSelectColumns);
+         Collections.sort(selectColumns);
+         List<String> availableColumns = new ArrayList<>(selectColumns);
+         availableColumns.addAll(noSelectColumns);
          sortinfo = (SortInfo) sortinfo.clone();
          sortinfo.validate(cs);
          model = new SortColumnDialogModel();

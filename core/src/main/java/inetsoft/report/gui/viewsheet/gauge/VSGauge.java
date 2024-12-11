@@ -18,8 +18,7 @@
 package inetsoft.report.gui.viewsheet.gauge;
 
 import inetsoft.report.StyleFont;
-import inetsoft.report.gui.viewsheet.VSFaceUtil;
-import inetsoft.report.gui.viewsheet.VSImageable;
+import inetsoft.report.gui.viewsheet.*;
 import inetsoft.uql.viewsheet.VSCompositeFormat;
 import inetsoft.uql.viewsheet.internal.GaugeVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
@@ -217,7 +216,8 @@ public abstract class VSGauge extends VSImageable implements Cloneable {
    /**
     * Adjust scale and margin according to new size.
     */
-   protected void adjust(boolean export) {
+   protected void adjust() {
+      Boolean export = VSFloatable.isExport.get();
       double dwidth = defaultSize.width;
       double dheight = defaultSize.height;
 
@@ -230,7 +230,7 @@ public abstract class VSGauge extends VSImageable implements Cloneable {
       int width = size.width;
       int height = size.height;
 
-      if(export) {
+      if(export != null && export) {
          Insets padding = getGaugeAssemblyInfo().getPadding();
          width = size.width - padding.left - padding.right;
          height = size.height - padding.top - padding.bottom;

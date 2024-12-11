@@ -21,6 +21,7 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.CredentialType;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -29,8 +30,10 @@ import java.util.Objects;
 @View(vertical = true, value = {
    @View1("instance"),
    @View1("URL"),
-   @View1("user"),
-   @View1("password")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "password", visibleMethod = "useCredential")
 })
 public class ServiceNowDataSource extends EndpointJsonDataSource<ServiceNowDataSource> {
    static final String TYPE = "Rest.ServiceNow";
@@ -38,6 +41,11 @@ public class ServiceNowDataSource extends EndpointJsonDataSource<ServiceNowDataS
    public ServiceNowDataSource() {
       super(TYPE, ServiceNowDataSource.class);
       setAuthType(AuthType.BASIC);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD;
    }
 
    @Property(label = "Instance", required = true)

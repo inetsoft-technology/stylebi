@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
@@ -55,7 +56,7 @@ public class SignupController {
 
       PortalThemesManager manager = PortalThemesManager.getManager();
       CustomThemesManager themes = CustomThemesManager.getManager();
-      boolean customLogo = PortalThemesManager.CUSTOM_LOGO.equals(manager.getLogoStyle());
+      boolean customLogo = manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID());
 
       model.addObject("customLogo", customLogo);
       model.addObject("customTheme", !"default".equals(themes.getSelectedTheme()));
@@ -65,6 +66,8 @@ public class SignupController {
       if(googleSignInEnabled) {
          model.addObject("gClientId", SreeEnv.getProperty("styleBI.google.openid.client.id"));
          model.addObject("gLoginUri", linkUri + "login/googleSSO");
+         model.addObject("gScopes",
+            SreeEnv.getProperty("styleBI.google.openid.scopes", "openid email profile"));
       }
 
       String header = CacheControl.noCache()
@@ -98,7 +101,7 @@ public class SignupController {
       ModelAndView model = new ModelAndView("signupDetail");
       PortalThemesManager manager = PortalThemesManager.getManager();
       CustomThemesManager themes = CustomThemesManager.getManager();
-      boolean customLogo = PortalThemesManager.CUSTOM_LOGO.equals(manager.getLogoStyle());
+      boolean customLogo = manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID());
 
       model.addObject("customLogo", customLogo);
       model.addObject("linkUri", linkUri);
@@ -173,12 +176,13 @@ public class SignupController {
     */
    @GetMapping("/signup/userDetail")
    @ResponseBody
-   public SignupResponseModel submitSignupDetail(@RequestParam(name = "name") String userName,
+   public SignupResponseModel submitSignupDetail(@RequestParam(name = "SignUpFirstName") String firstName,
+                                                 @RequestParam(name = "SignUpLastName") String lastName,
                                                  @RequestParam(name = "password") String password,
                                                  @RequestParam(name = "code") String code,
                                                  HttpServletRequest request)
    {
-      IdentityID userID = new IdentityID(userName, Organization.getSelfOrganizationName());
+
       SignupResponseModel result = new SignupResponseModel();
       HttpSession session = request.getSession(false);
       Object currentEmailCode = session.getAttribute(SIGNUP_EMAIL_CODE);
@@ -189,6 +193,19 @@ public class SignupController {
 
          return result;
       }
+
+      String email = (String) emailObj;
+      result.setEmail(email);
+
+      IdentityID userID;
+
+      if(SUtil.isMultiTenant()) {
+         userID = new IdentityID(email, Organization.getSelfOrganizationID());
+      }
+      else {
+         userID = new IdentityID(email, Organization.getDefaultOrganizationID());
+      }
+
 
       Catalog catalog = Catalog.getCatalog();
 
@@ -208,6 +225,17 @@ public class SignupController {
          return result;
       }
 
+      Object codeTime = session.getAttribute(SIGNUP_EMAIL_CODE_TIME);
+
+      if(!(codeTime instanceof Number) ||
+         new Date().getTime() - ((Number) codeTime).longValue() > 3600000)
+      {
+         result.setSuccess(false);
+         result.setErrorMessage(catalog.getString("signup.lunchCode.timeout"));
+
+         return result;
+      }
+
       if(!(currentEmailCode instanceof String) ||
          !userSignupService.isValidEmailCode((String) currentEmailCode) ||
          !Objects.equals(session.getAttribute(SIGNUP_EMAIL_CODE), code))
@@ -217,8 +245,6 @@ public class SignupController {
 
          return result;
       }
-
-      String email = (String) emailObj;
 
       if(!userSignupService.existAuthenticationChain()) {
          result.setSuccess(false);
@@ -237,7 +263,11 @@ public class SignupController {
                return result;
             }
 
-            User newUser = userSignupService.createUser(userID, password, email);
+            SRPrincipal principal = new SRPrincipal(userID);
+            principal.setProperty("SignUpFirstName", firstName);
+            principal.setProperty("SignUpLastName", lastName);
+
+            User newUser = userSignupService.createUser(userID, password, email, principal);
 
             if(newUser == null) {
                result.setSuccess(false);

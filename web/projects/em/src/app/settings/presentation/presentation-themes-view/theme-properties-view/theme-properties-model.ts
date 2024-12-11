@@ -20,7 +20,8 @@ import { FileData } from "../../../../../../../shared/util/model/file-data";
 export interface ThemePropertiesModel {
    id: string;
    name: string;
-   defaultTheme: boolean;
+   defaultThemeGlobal: boolean;
+   defaultThemeOrg: boolean;
    globalTheme: boolean;
    jar?: FileData;
    valid: boolean;

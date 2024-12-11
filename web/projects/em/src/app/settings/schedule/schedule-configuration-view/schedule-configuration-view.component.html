@@ -59,7 +59,7 @@
         <mat-checkbox formControlName="autoStop">_#(Auto Stop)</mat-checkbox>
         <mat-checkbox *ngIf="model?.securityEnable" formControlName="shareTaskInSameGroup">_#(em.schedule.option.shareTasksInGroup)</mat-checkbox>
         <mat-checkbox *ngIf="model?.securityEnable && model?.shareTaskInSameGroup" formControlName="deleteTaskOnlyByOwner" class="mat-checkbox-field">
-          _#(em.schedule.option.deleteTasksByOwner)
+          _#(em.schedule.option.modifyTasksByOwner)
         </mat-checkbox>
         <mat-form-field appearance="outline" color="accent" class="save-auto-suffix">
           <mat-label>_#(Save File Suffix)</mat-label>
@@ -118,6 +118,7 @@
   </em-time-ranges-view>
   <em-server-locations-view
     [serverLocations]="model?.serverLocations"
+    [cloudSecrets]="model?.cloudSecrets"
     (serverLocationsChange)="onServerLocationsChanged($event)"
   ></em-server-locations-view>
 </form>

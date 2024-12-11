@@ -40,7 +40,7 @@
             <mat-label>_#(Provider Type)</mat-label>
             <mat-select placeholder="_#(Provider Type)" formControlName="providerType">
               <mat-option [value]="'FILE'">_#(em.common.security.defaultProvider)</mat-option>
-              <mat-option [value]="'CUSTOM'">_#(Custom)</mat-option>
+              <mat-option *ngIf="isEnterprise" [value]="'CUSTOM'">_#(Custom)</mat-option>
             </mat-select>
           </mat-form-field>
         </div>

@@ -368,4 +368,17 @@ export class EmailListDialogComponent implements OnInit, OnDestroy {
       console.error("Failed to list email addresses: ", error);
       return throwError(error);
    }
+
+   public onSelection(event: any) {
+      const newEmail = event.option.value;
+
+      if(newEmail.endsWith(Tool.GROUP_SUFFIX)) {
+         this.addGroup(newEmail);
+      }
+      else if(!this.emails.includes(newEmail)) {
+         this.emails.push(newEmail);
+      }
+
+      this.sortIdentities();
+   }
 }

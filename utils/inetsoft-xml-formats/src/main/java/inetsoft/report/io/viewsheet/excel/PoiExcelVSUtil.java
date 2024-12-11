@@ -186,7 +186,22 @@ public class PoiExcelVSUtil {
          xfont.setBold(txtFont.isBold());
 
          if(color != null) {
-            xfont.setColor(new XSSFColor(color, null));
+            CTFont ctFont = xfont.getCTFont();
+            CTColor ctColor = null;
+
+            if(ctFont.sizeOfColorArray() == 0) {
+               ctColor = ctFont.addNewColor();
+            }
+            else {
+               ctColor = ctFont.getColorArray(0);
+            }
+
+            if(ctColor != null) {
+               byte[] rgb = new byte[] { (byte) color.getRed(),
+                                         (byte) color.getGreen(),
+                                         (byte) color.getBlue() };
+               ctColor.setRgb(rgb);
+            }
          }
 
          xfont.setFontHeight((short) (size * 20));

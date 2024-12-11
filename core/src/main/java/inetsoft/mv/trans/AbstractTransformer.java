@@ -857,7 +857,7 @@ public abstract class AbstractTransformer {
          }
          */
 
-         if(info && "true".equals(SreeEnv.getProperty("mv_info_warning"))) {
+         if(info && "true".equals(SreeEnv.getProperty("mv.info.warning"))) {
             desc.addInfo(TransformationInfo.moveUp(pcolumn));
          }
       }
@@ -960,7 +960,7 @@ public abstract class AbstractTransformer {
     * @param block child data block.
     */
    public static String normalizeBlockName(String block) {
-      if(!"true".equals(SreeEnv.getProperty("mv_info_warning"))) {
+      if(!"true".equals(SreeEnv.getProperty("mv.info.warning"))) {
          block = VSUtil.stripOuter(block);
       }
 

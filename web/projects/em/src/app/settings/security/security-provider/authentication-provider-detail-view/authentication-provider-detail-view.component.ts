@@ -42,6 +42,7 @@ export class AuthenticationProviderDetailViewComponent implements OnInit, OnDest
    private _model: AuthenticationProviderModel;
    private _original: AuthenticationProviderModel;
    @Input() isMultiTenant = false;
+   @Input() isCloudSecrets = false;
 
    @Input()
    set model(model: AuthenticationProviderModel) {

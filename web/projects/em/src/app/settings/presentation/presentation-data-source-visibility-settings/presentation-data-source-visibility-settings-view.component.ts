@@ -34,7 +34,7 @@ import { ContextHelp } from "../../../context-help";
 })
 @ContextHelp({
    route: "/settings/presentation/settings#data-source-visibility",
-   link: "EMPresentationDataSourceVisibility"
+   link: "EMDataSourceVisibility"
 })
 @Component({
    selector: "em-presentation-data-source-visibility-settings-view",
@@ -53,7 +53,8 @@ export class PresentationDataSourceVisibilitySettingsViewComponent {
    addVisible() {
       this.openDataSourceTypeDialog(true).subscribe(result => {
          if(result) {
-            this.model.visibleDataSources.push(result);
+            const entry = this.model.dataSourceListings.find(entry => entry.key === result);
+            this.model.visibleDataSources.push(entry);
             this.emitModel();
          }
       });
@@ -62,7 +63,8 @@ export class PresentationDataSourceVisibilitySettingsViewComponent {
    addHidden() {
       this.openDataSourceTypeDialog(false).subscribe(result => {
          if(result) {
-            this.model.hiddenDataSources.push(result);
+            const entry = this.model.dataSourceListings.find(entry => entry.key === result);
+            this.model.hiddenDataSources.push(entry);
             this.emitModel();
          }
       });

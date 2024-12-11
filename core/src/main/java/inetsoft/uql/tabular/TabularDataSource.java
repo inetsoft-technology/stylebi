@@ -20,6 +20,8 @@ package inetsoft.uql.tabular;
 import inetsoft.uql.AdditionalConnectionDataSource;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.util.ThreadContext;
+import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -36,6 +38,30 @@ public abstract class TabularDataSource<SELF extends TabularDataSource<SELF>>
 {
    public TabularDataSource(String type, Class<SELF> selfClass) {
       super(type, selfClass);
+      credential = createCredential(!supportCredentialId());
+   }
+
+   protected boolean supportCredentialId() {
+      return true;
+   }
+
+   protected abstract CredentialType getCredentialType();
+
+   private Credential createCredential() {
+      return createCredential(false);
+   }
+
+   protected Credential createCredential(boolean forceLocal) {
+      CredentialType type = getCredentialType();
+      return type == null ? null : CredentialService.newCredential(type, forceLocal);
+   }
+
+   public Credential getCredential() {
+      return credential;
+   }
+
+   public void setCredential(Credential credential) {
+      this.credential = credential;
    }
 
    @Override
@@ -116,6 +142,9 @@ public abstract class TabularDataSource<SELF extends TabularDataSource<SELF>>
     * Write the contents of the XML tag.
     */
    protected void writeContents(PrintWriter writer) {
+      if(credential != null) {
+         credential.writeXML(writer);
+      }
    }
 
    /**
@@ -129,5 +158,86 @@ public abstract class TabularDataSource<SELF extends TabularDataSource<SELF>>
     * Parse the contents of the XML tag.
     */
    protected void parseContents(Element tag) throws Exception {
+      Element credentialNode = Tool.getChildNodeByTagName(tag, "PasswordCredential");
+
+      if(credentialNode != null) {
+         boolean cloud = "true".equals(credentialNode.getAttribute("cloud"));
+
+         // if force use local credential.
+         if(credential instanceof CloudCredential && !cloud) {
+            credential = createCredential(true);
+         }
+         // if local secret config, ignore the saved cloud credential.
+         else if(!(credential instanceof CloudCredential) && cloud) {
+            return;
+         }
+
+         credential.parseXML(credentialNode);
+      }
    }
+
+   public boolean supportToggleCredential() {
+      return supportCredentialId() && Tool.isCloudSecrets();
+   }
+
+   public boolean useCredential() {
+      return !isUseCredentialId();
+   }
+
+   public boolean authorizeEnabled() {
+      if(credential != null && credential instanceof ClientCredentials client) {
+         return !Tool.isEmptyString(client.getClientId()) && !Tool.isEmptyString(client.getClientSecret());
+      }
+
+      return false;
+   }
+
+   /**
+    * Check whether the authentication credential is used.
+    */
+   @Property(label="Use Secret ID")
+   public boolean isUseCredentialId() {
+      return credential != null && credential instanceof AbstractCloudCredential;
+   }
+
+   /**
+    * Set whether the authentication credential is used.
+    */
+   public void setUseCredentialId(boolean useCredentialId) {
+      useCredentialId = useCredentialId && supportToggleCredential();
+
+      if(!Tool.equals(isUseCredentialId(), useCredentialId)) {
+         credential = createCredential(!useCredentialId);
+      }
+   }
+
+   /**
+    * get credential id
+    *
+    * @return credential id
+    */
+   @Property(label="Secret ID", required=true)
+   @PropertyEditor(dependsOn = "useCredentialId")
+   public String getCredentialId() {
+      return credential == null ? null : credential.getId();
+   }
+
+   /**
+    * set credential id
+    *
+    * @param credentialId credential id
+    */
+   public void setCredentialId(String credentialId) {
+      if(credential == null) {
+         return;
+      }
+
+      credential.setId(credentialId);
+
+      if(credential instanceof CloudCredential) {
+         ((CloudCredential) credential).fetchCredential();
+      }
+   }
+
+   private Credential credential;
 }

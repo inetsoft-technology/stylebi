@@ -24,7 +24,7 @@
   <mat-card class="mat-elevation-z0">
     <mat-card-content [class.ignore-padding]="ignorePadding">
       <div class="flex-col">
-        <mat-checkbox class="mat-checkbox-field" [checked]="model.permissions == null || (!model.hasOrgEdited)"
+        <mat-checkbox class="mat-checkbox-field" [checked]="model.permissions == null && (!model.hasOrgEdited)"
                       (change)="derivePermissionChange($event.checked)">
           {{model.derivePermissionLabel}}
         </mat-checkbox>

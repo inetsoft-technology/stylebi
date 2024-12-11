@@ -17,6 +17,7 @@
  */
 package inetsoft.mv.mr;
 
+import inetsoft.mv.MVJob;
 import inetsoft.mv.comm.XTransferable;
 
 import java.util.*;
@@ -139,6 +140,7 @@ public abstract class AbstractJob implements XJob {
    public final XMapTask createMapper(String host, String bid) {
       XMapTask task = createMapper0();
       task.setID(id);
+      task.setOrgID(((MVJob)this).getOrgId());
       task.setHost(host);
       task.setXBlock(bid);
 

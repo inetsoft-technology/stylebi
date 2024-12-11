@@ -33,6 +33,7 @@
     <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
     <inetsoft.storage.type>mapdb</inetsoft.storage.type>
   </properties>
 
@@ -41,7 +42,7 @@
       <dependency>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-dependencies</artifactId>
-        <version>3.3.0</version>
+        <version>${spring-boot.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -305,9 +306,39 @@
         </configuration>
       </plugin>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.3.0</version>
+        <configuration>
+          <archive>
+            <manifestSections>
+              <manifestSection>
+                <name>inetsoft/web/</name>
+                <manifestEntries>
+                  <Specification-Title>InetSoft Server Classes</Specification-Title>
+                  <Specification-Version>${project.version}</Specification-Version>
+                  <Specification-Vendor>InetsoftTechnology</Specification-Vendor>
+                  <Implementation-Title>inetsoft.server</Implementation-Title>
+                  <Implementation-Version>${maven.build.timestamp}</Implementation-Version>
+                  <Implementation-Vendor>InetSoft Technology</Implementation-Vendor>
+                </manifestEntries>
+              </manifestSection>
+            </manifestSections>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
-        <version>3.2.3</version>
+        <version>${spring-boot.version}</version>
+        <executions>
+          <execution>
+            <id>process-aot</id>
+            <goals>
+              <goal>process-aot</goal>
+            </goals>
+          </execution>
+        </executions>
         <configuration>
           <workingDirectory>${project.build.directory}/server</workingDirectory>
           <mainClass>inetsoft.web.InetsoftApplication</mainClass>
@@ -321,9 +352,11 @@
             <java.io.tmpdir>${project.build.directory}/server/temp</java.io.tmpdir>
             <java.net.preferIPv4Stack>true</java.net.preferIPv4Stack>
             <inetsoftClusterDir>${project.build.directory}/server/cluster</inetsoftClusterDir>
+            <spring.aot.enabled>true</spring.aot.enabled>
           </systemPropertyVariables>
           <jvmArguments>
-            -Xmx2g -XX:ReservedCodeCacheSize=100m -XX:+UseCodeCacheFlushing
+            -server -Xmx2g -Xmx2g -XX:ReservedCodeCacheSize=100m -XX:+UseCodeCacheFlushing
+            -XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX:+DisableExplicitGC
             -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005
             --add-opens=java.base/jdk.internal.access=ALL-UNNAMED
             --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED
@@ -351,7 +384,6 @@
           </jvmArguments>
           <additionalClasspathElements>
             <element>${basedir}/../core/target/classes</element>
-            <element>${basedir}/../enterprise/target/classes</element>
             <element>${basedir}/../web/target/generated-resources/gulp</element>
             <element>${basedir}/../web/target/generated-resources/ng</element>
             <element>${basedir}/src/test/config/orders.jar</element>
@@ -406,155 +438,10 @@
               <backupFile>${basedir}/src/test/config/storage.zip</backupFile>
               <configDirectory>${project.build.directory}/server/config</configDirectory>
               <properties>
-                <license.key>${inetsoft.license.key}</license.key>
                 <log.level.org.apache.ignite>WARN</log.level.org.apache.ignite>
                 <security.login.orgLocation>domain</security.login.orgLocation>
               </properties>
             </configuration>
-          </plugin>
-        </plugins>
-      </build>
-    </profile>
-    <profile>
-      <id>enterprise</id>
-      <dependencies>
-        <dependency>
-          <groupId>com.inetsoft.stylebi</groupId>
-          <artifactId>inetsoft-enterprise</artifactId>
-          <version>${project.version}</version>
-          <scope>compile</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi</groupId>
-          <artifactId>inetsoft-shell</artifactId>
-          <version>${project.version}</version>
-          <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi</groupId>
-          <artifactId>inetsoft-integration-aws</artifactId>
-          <version>${project.version}</version>
-          <classifier>shaded</classifier>
-          <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi</groupId>
-          <artifactId>inetsoft-integration-azure</artifactId>
-          <version>${project.version}</version>
-          <classifier>shaded</classifier>
-          <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi</groupId>
-          <artifactId>inetsoft-integration-google</artifactId>
-          <version>${project.version}</version>
-          <classifier>shaded</classifier>
-          <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi</groupId>
-          <artifactId>inetsoft-integration-mapdb</artifactId>
-          <version>${project.version}</version>
-          <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi</groupId>
-          <artifactId>inetsoft-integration-mongo</artifactId>
-          <version>${project.version}</version>
-          <classifier>shaded</classifier>
-          <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi</groupId>
-          <artifactId>inetsoft-integration-kubernetes</artifactId>
-          <version>${project.version}</version>
-          <classifier>shaded</classifier>
-          <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi</groupId>
-          <artifactId>inetsoft-integration-docker</artifactId>
-          <version>${project.version}</version>
-          <classifier>shaded</classifier>
-          <scope>runtime</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi.connectors</groupId>
-          <artifactId>inetsoft-facebook-insights</artifactId>
-          <version>${project.version}</version>
-          <type>zip</type>
-          <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi.connectors</groupId>
-          <artifactId>inetsoft-google-analytics-ga4</artifactId>
-          <version>${project.version}</version>
-          <type>zip</type>
-          <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi.connectors</groupId>
-          <artifactId>inetsoft-google-analytics</artifactId>
-          <version>${project.version}</version>
-          <type>zip</type>
-          <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi.connectors</groupId>
-          <artifactId>inetsoft-salesforce</artifactId>
-          <version>${project.version}</version>
-          <type>zip</type>
-          <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-          <groupId>com.inetsoft.stylebi.connectors</groupId>
-          <artifactId>inetsoft-sap</artifactId>
-          <version>${project.version}</version>
-          <type>zip</type>
-          <scope>provided</scope>
-        </dependency>
-      </dependencies>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>com.inetsoft.stylebi.build</groupId>
-            <artifactId>keygen-maven-plugin</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
-            <configuration>
-              <type>SESSION</type>
-              <standalone>true</standalone>
-              <days>30</days>
-              <version>13.2</version>
-              <count>10</count>
-              <components>
-                <component>REPORT</component>
-                <component>DASHBOARD</component>
-                <component>WORKSHEET</component>
-                <component>ADHOC</component>
-                <component>FORM</component>
-              </components>
-            </configuration>
-            <executions>
-              <execution>
-                <id>keygen</id>
-                <goals>
-                  <goal>keygen</goal>
-                </goals>
-              </execution>
-            </executions>
           </plugin>
         </plugins>
       </build>
@@ -582,6 +469,37 @@
       <properties>
         <inetsoft.storage.type>azure</inetsoft.storage.type>
       </properties>
+    </profile>
+    <profile>
+      <id>sbom</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.cyclonedx</groupId>
+            <artifactId>cyclonedx-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <phase>package</phase>
+                <goals>
+                  <goal>makeBom</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>io.github.pmckeown</groupId>
+            <artifactId>dependency-track-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <phase>deploy</phase>
+                <goals>
+                  <goal>upload-bom</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
   </profiles>
 

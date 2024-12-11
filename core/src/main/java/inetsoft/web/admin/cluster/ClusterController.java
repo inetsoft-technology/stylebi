@@ -68,22 +68,22 @@ public class ClusterController {
          .addSubscriber(stompHeaderAccessor, clusterService::getClusterStatus);
    }
 
-   @GetMapping("/em/monitoring/cluster/cluster-status")
+   @GetMapping("/api/em/monitoring/cluster/cluster-status")
    public List<ReportClusterNodeModel> getClusterStatus() {
       return clusterService.getClusterStatus();
    }
 
-   @GetMapping("/em/monitoring/cluster/cluster-enabled")
+   @GetMapping("/api/em/monitoring/cluster/cluster-enabled")
    public ClusterEnabledModel getClusterEnabled() {
       return clusterService.getClusterEnabled();
    }
 
-   @PostMapping("/em/monitoring/cluster/pause-server")
+   @PostMapping("/api/em/monitoring/cluster/pause-server")
    public void pauseServer(@RequestBody String[] servers) {
       clusterService.pauseServers(servers);
    }
 
-   @PostMapping("/em/monitoring/cluster/resume-server")
+   @PostMapping("/api/em/monitoring/cluster/resume-server")
    public void resumeServer(@RequestBody String[] servers) {
       clusterService.resumeServers(servers);
    }

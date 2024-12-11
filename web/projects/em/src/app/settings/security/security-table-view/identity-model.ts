@@ -22,4 +22,5 @@ export interface IdentityModel {
    identityID: IdentityId;
    parentNode?: string;
    alias?: string;
+   identityIDLabel?: string;
 }

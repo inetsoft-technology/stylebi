@@ -38,3 +38,7 @@
 .flex-spacer {
   flex-grow: 1;
 }
+
+.disabled-item {
+  pointer-events: none
+}

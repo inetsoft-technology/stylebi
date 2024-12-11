@@ -24,6 +24,7 @@ import inetsoft.uql.util.Identity;
 import inetsoft.util.Tool;
 import inetsoft.web.MapSession;
 import inetsoft.web.MapSessionRepository;
+import inetsoft.web.admin.server.NodeProtectionService;
 import inetsoft.web.security.AbstractLogoutFilter;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -36,8 +37,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.io.IOException;
+import java.io.*;
 import java.lang.ref.WeakReference;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.security.Principal;
 import java.util.*;
 
@@ -45,9 +48,12 @@ import java.util.*;
 public class SessionConnectionService implements MapSessionRepository.SessionExpirationListener {
 
    @Autowired
-   public SessionConnectionService(MapSessionRepository sessionRepository, AuthenticationService authenticationService) {
+   public SessionConnectionService(MapSessionRepository sessionRepository,
+                                   AuthenticationService authenticationService,
+                                   NodeProtectionService nodeProtectionService) {
       this.sessionRepository = sessionRepository;
       this.authenticationService = authenticationService;
+      this.nodeProtectionService = nodeProtectionService;
    }
 
    @PostConstruct
@@ -64,6 +70,7 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
 
    public void webSocketConnected(WebSocketSession session) {
       cleanReferences();
+      nodeProtectionService.updateNodeProtection(true);
 
       String wsSessionId = session.getId();
       String httpSessionId = (String) session.getAttributes().get("SPRING.SESSION.ID");
@@ -92,6 +99,10 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
             }
 
             webSocketSessions.remove(wsSessionId);
+
+            if(webSocketSessions.isEmpty()) {
+               nodeProtectionService.updateNodeProtection(false);
+            }
          }
       }
    }
@@ -146,6 +157,10 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
                   }
                }
             }
+
+            if(webSocketSessions.isEmpty()) {
+               nodeProtectionService.updateNodeProtection(false);
+            }
          }
       }
    }
@@ -192,7 +207,7 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
 
    private void logoutOutSessionUsersContainingOrg(String oldOrgName, String oldOrgId) {
       for(SRPrincipal principal : sessionRepository.getActiveSessions()) {
-         if(principal != null && (Tool.equals(oldOrgName, principal.getIdentityID().organization) ||
+         if(principal != null && (Tool.equals(oldOrgName, principal.getIdentityID().orgID) ||
                                   Tool.equals(oldOrgId, principal.getOrgId()))) {
             Map<String, MapSession> map = sessionRepository.findByIndexNameAndIndexValue(
                FindByIndexNameSessionRepository.PRINCIPAL_NAME_INDEX_NAME, principal.getName());
@@ -201,7 +216,7 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
                SRPrincipal sessionPrincipal =
                   e.getValue().getAttribute(RepletRepository.PRINCIPAL_COOKIE);
 
-               if(sessionPrincipal != null && Tool.equals(oldOrgName, sessionPrincipal.getIdentityID().organization)) {
+               if(sessionPrincipal != null && Tool.equals(oldOrgName, sessionPrincipal.getIdentityID().orgID)) {
                   authenticationService.logout(sessionPrincipal, sessionPrincipal.getHost(), "", false);
                }
             }
@@ -210,6 +225,7 @@ public class SessionConnectionService implements MapSessionRepository.SessionExp
    }
 
    private final AuthenticationService authenticationService;
+   private final NodeProtectionService nodeProtectionService;
    private final MapSessionRepository sessionRepository;
    private final Map<String, WebSocketSessionRef> webSocketSessions = new HashMap<>();
    private final Map<String, Set<String>> httpSessions = new HashMap<>();

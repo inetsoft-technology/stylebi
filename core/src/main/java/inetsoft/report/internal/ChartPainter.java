@@ -805,7 +805,7 @@ public class ChartPainter implements LinkedShapePainter, Cloneable {
          }
 
          // underline for hyperlink text, the report could be null after swapped
-         if(report == null || true) {
+         if(report == null) {
             GraphUtil.processHyperlink(info, vgraph, data);
          }
 

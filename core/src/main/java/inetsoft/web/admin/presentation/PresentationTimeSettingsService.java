@@ -18,7 +18,9 @@
 package inetsoft.web.admin.presentation;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.PresentationTimeSettingsModel;
+import inetsoft.web.viewsheet.Audited;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -30,20 +32,30 @@ public class PresentationTimeSettingsService {
       return PresentationTimeSettingsModel.builder()
          .weekStart(SreeEnv.getProperty("week.start", false, !globalProperty))
          .localTimezone(SreeEnv.getProperty("local.timezone",  false, !globalProperty))
-         .scheduleTime12Hours(Boolean.parseBoolean(SreeEnv.getProperty("schedule.time.12-hours", false, !globalProperty)))
+         .scheduleTime12Hours(Boolean.parseBoolean(SreeEnv.getProperty("schedule.time.12hours", false, !globalProperty)))
          .build();
    }
 
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_EDIT,
+      objectName = "Presentation-Time Setting",
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
    public void setModel(PresentationTimeSettingsModel model, boolean globalSettings) throws IOException {
       SreeEnv.setProperty("week.start", model.weekStart(), !globalSettings);
-      SreeEnv.setProperty("schedule.time.12-hours", model.scheduleTime12Hours()+"", !globalSettings);
+      SreeEnv.setProperty("schedule.time.12hours", model.scheduleTime12Hours()+"", !globalSettings);
       SreeEnv.setProperty("local.timezone", model.localTimezone(), !globalSettings);
       SreeEnv.save();
    }
 
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_EDIT,
+      objectName = "Presentation-Time Setting",
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
    public void resetSettings(boolean globalSettings) throws IOException {
       SreeEnv.resetProperty("week.start", !globalSettings);
-      SreeEnv.resetProperty("schedule.time.12-hours", !globalSettings);
+      SreeEnv.resetProperty("schedule.time.12hours", !globalSettings);
       SreeEnv.resetProperty("local.timezone", !globalSettings);
       SreeEnv.save();
    }

@@ -319,7 +319,7 @@ public class TestCluster implements Cluster {
    }
 
    @Override
-   public <T> Future<T> submit(Callable<T> task) {
+   public <T> Future<T> submit(Callable<T> task, boolean scheduler) {
       return executor.submit(task);
    }
 
@@ -723,6 +723,11 @@ public class TestCluster implements Cluster {
       }
 
       @Override
+      public void removeAll(Set<? extends K> keys) {
+         delegate.keySet().removeAll(keys);
+      }
+
+      @Override
       public void putAll(@NotNull Map<? extends K, ? extends V> m) {
          for(Map.Entry<? extends K, ? extends V> e : m.entrySet()) {
             put(e.getKey(), e.getValue());
@@ -1103,8 +1108,8 @@ public class TestCluster implements Cluster {
       }
 
       @Override
-      public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
-         return delegate.scheduleAtFixedRate(command, initialDelay, period, unit);
+      public void scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit) {
+         delegate.scheduleAtFixedRate(command, initialDelay, period, unit);
       }
 
       @Override

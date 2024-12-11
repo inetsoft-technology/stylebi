@@ -18,16 +18,16 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { FormBuilder, FormGroup } from "@angular/forms";
-import { tap } from "rxjs/operators";
+import { ActivatedRoute } from "@angular/router";
+import { of, Subscription } from "rxjs";
+import { catchError, tap } from "rxjs/operators";
+import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
 import { Secured } from "../../secured";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 import { LogonHistory, LogonHistoryList, LogonHistoryParameters } from "./logon-history";
-import { Subscription } from "rxjs";
-import { ActivatedRoute } from "@angular/router";
-import {convertToKey, IdentityId} from "../../settings/security/users/identity-id";
 
 @Secured({
    route: "/auditing/logon-history",
@@ -40,7 +40,7 @@ import {convertToKey, IdentityId} from "../../settings/security/users/identity-i
 })
 @ContextHelp({
    route: "/auditing/logon-history",
-   link: "EMAuditingLogonHistory"
+   link: "EMViewAudit"
 })
 @Component({
    selector: "em-audit-logon-history",
@@ -58,7 +58,7 @@ export class AuditLogonHistoryComponent implements OnInit, OnDestroy {
    columnRenderers = [
       { name: "userId", label: "_#(js:User)", value: (r: LogonHistory) => r.userId },
       { name: "userHost", label: "_#(js:User Host)", value: (r: LogonHistory) => r.userHost },
-      { name: "logonTime", label: "_#(js:Logon Time)", value: (r: LogonHistory) => AuditTableViewComponent.getDisplayDate(r.logonTime) },
+      { name: "logonTime", label: "_#(js:Logon Time)", value: (r: LogonHistory) => AuditTableViewComponent.getDisplayDate(r.logonTime, r.dateFormat) },
       { name: "opStatus", label: "_#(js:Status)", value: (r: LogonHistory) => r.opStatus },
       { name: "opError", label: "_#(js:Error)", value: (r: LogonHistory) => r.opError },
       { name: "serverHostName", label: "_#(js:Server)", value: (r: LogonHistory) => r.serverHostName },
@@ -70,7 +70,8 @@ export class AuditLogonHistoryComponent implements OnInit, OnDestroy {
    }
 
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
-               private pageTitle: PageHeaderService, fb: FormBuilder)
+               private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
+               fb: FormBuilder)
    {
       this.form = fb.group({
          selectedUsers: [[]],
@@ -94,12 +95,21 @@ export class AuditLogonHistoryComponent implements OnInit, OnDestroy {
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchParameters = () => {
       return this.http.get<LogonHistoryParameters>("../api/em/monitoring/audit/logonHistoryParameters")
-         .pipe(tap(params => {
-            this.users = params.users;
-            this.groups = params.groups;
-            this.roles = params.roles;
-            this.systemAdministrator = params.systemAdministrator;
-         }));
+         .pipe(
+            catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
+               users: [],
+               groups: [],
+               roles: [],
+               systemAdministrator: false,
+               startTime: 0,
+               endTime: 0
+            }))),
+            tap(params => {
+               this.users = params.users;
+               this.groups = params.groups;
+               this.roles = params.roles;
+               this.systemAdministrator = params.systemAdministrator;
+            }));
    };
 
    // use arrow function instead of member method to hold the right context (i.e. this)
@@ -123,7 +133,11 @@ export class AuditLogonHistoryComponent implements OnInit, OnDestroy {
          selectedRoles.forEach(r => params = params.append("roles", r));
       }
 
-      return this.http.get<LogonHistoryList>("../api/em/monitoring/audit/logonHistory", {params});
+      return this.http.get<LogonHistoryList>("../api/em/monitoring/audit/logonHistory", {params})
+         .pipe(catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to run query)", () => of({
+            totalRowCount: 0,
+            rows: []
+         }))));
    };
 
    ngOnDestroy(): void {

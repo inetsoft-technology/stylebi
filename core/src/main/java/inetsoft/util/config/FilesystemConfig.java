@@ -17,6 +17,8 @@
  */
 package inetsoft.util.config;
 
+import inetsoft.util.config.crd.CRDProperty;
+
 import java.io.Serializable;
 import java.util.Objects;
 
@@ -37,5 +39,6 @@ public class FilesystemConfig implements Serializable {
       this.directory = directory;
    }
 
+   @CRDProperty(description = "The persistent volume claim for the shared filesystem", mountPoint = true)
    private String directory;
 }

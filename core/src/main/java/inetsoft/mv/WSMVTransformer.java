@@ -64,7 +64,7 @@ public final class WSMVTransformer {
          }
       }
 
-      if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+      if("true".equals(SreeEnv.getProperty("mv.debug"))) {
          LOG.debug("Transformation info: " + desc.getInfo());
       }
 

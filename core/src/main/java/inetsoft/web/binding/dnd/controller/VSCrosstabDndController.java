@@ -17,9 +17,11 @@
  */
 package inetsoft.web.binding.dnd.controller;
 
+import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.VSModelTrapContext;
 import inetsoft.report.composition.graph.calc.MovingCalc;
 import inetsoft.report.composition.graph.calc.PercentCalc;
 import inetsoft.report.composition.graph.calc.RunningTotalCalc;
@@ -28,6 +30,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.uql.XConstants;
 import inetsoft.uql.asset.AggregateInfo;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.erm.AbstractModelTrapContext;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.AbstractCalc;
@@ -35,11 +38,13 @@ import inetsoft.uql.viewsheet.graph.Calculator;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Tool;
+import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.binding.dnd.BindingDropTarget;
 import inetsoft.web.binding.dnd.TableTransfer;
 import inetsoft.web.binding.event.VSDndEvent;
 import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.SourceInfo;
+import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.binding.service.*;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.viewsheet.LoadingMask;
@@ -55,6 +60,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.*;
@@ -208,6 +214,78 @@ public class VSCrosstabDndController extends VSAssemblyDndController {
                          ": " + assembly.getVSCrosstabInfo());
          }
       }
+   }
+
+   @PutMapping("/api/vscrosstab/dnd/checktrap")
+   @ResponseBody
+   public boolean checktrap(@DecodeParam("vsId") String vsId, @RequestBody VSDndEvent event,
+                            Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = ViewsheetEngine.getViewsheetEngine().getViewsheet(vsId, principal);
+
+      if(rvs == null) {
+         return false;
+      }
+
+      CrosstabVSAssembly assembly = (CrosstabVSAssembly)getVSAssembly(rvs, event.name());
+      CrosstabVSAssembly clone = assembly.clone();
+      CrosstabVSAssembly old = assembly.clone();
+      TableTransfer transfer = (TableTransfer) event.getTransfer();
+      BindingDropTarget dropTarget = (BindingDropTarget) event.getDropTarget();
+      inetsoft.uql.asset.SourceInfo sinfo = assembly.getSourceInfo();
+      SourceInfo sourceInfo = new SourceInfo();
+      sourceInfo.setType(sinfo.getType());
+      sourceInfo.setSource(sinfo.getSource());
+      String dragType = transfer.getDragType();
+      String dropType = dropTarget.getDropType();
+
+      // Only should check trap when rows/cols to aggregates. other cases will not cause trap.
+      if(CrosstabConstants.AGGREGATE.equals(dragType) ||
+         !CrosstabConstants.AGGREGATE.equals(dropType))
+      {
+         return false;
+      }
+
+      DataRef ref = crosstabHandler.getDataRef(assembly, dragType, transfer.getDragIndex());
+      int convertType = CrosstabConstants.AGGREGATE.equals(dropType) ?
+         VSEventUtil.CONVERT_TO_MEASURE : VSEventUtil.CONVERT_TO_DIMENSION;
+
+      crosstabHandler.addRemoveColumns(rvs, clone, transfer.getDragType(), transfer.getDragIndex(),
+                                       dropTarget.getDropType(), dropTarget.getDropIndex(), dropTarget.getReplace(), null,
+                                       null);
+      clearRuntimeInfo(old);
+      clearRuntimeInfo(clone);
+
+      rvs.getViewsheet().getAssembly(event.name()).setVSAssemblyInfo(clone.getVSAssemblyInfo());
+      rvs.getViewsheetSandbox().updateAssembly(event.name());
+
+      if(("rows".equals(dragType) || "cols".equals(dragType)) &&
+         "aggregates".equals(dropType) ||
+         ("rows".equals(dropType) || "cols".equals(dropType)) &&
+            "aggregates".equals(dragType))
+      {
+         if(ref != null) {
+            String[] refNames = new String[]{ ref.getName() };
+            convertTableRefService.convertTableRef0(refNames, convertType, sourceInfo, false,
+                                                    assembly.getName(), rvs, null,
+                                                    null, false);
+         }
+         else {
+            LOG.error("Crosstab dnd failed: " + transfer.getDragIndex() + " of " + dragType +
+                         ": " + assembly.getVSCrosstabInfo());
+         }
+      }
+
+      AbstractModelTrapContext.TrapInfo trap = new VSModelTrapContext(rvs).checkTrap(old.getVSAssemblyInfo(), clone.getVSAssemblyInfo());
+      rvs.getViewsheet().getAssembly(event.name()).setVSAssemblyInfo(old.getVSAssemblyInfo());
+
+      return trap.showWarning();
+   }
+
+   private void clearRuntimeInfo(CrosstabVSAssembly crosstab) {
+      crosstab.getVSCrosstabInfo().setRuntimeRowHeaders(null);
+      crosstab.getVSCrosstabInfo().setRuntimeColHeaders(null);
+      crosstab.getVSCrosstabInfo().setRuntimeAggregates(null);
    }
 
    @Undoable

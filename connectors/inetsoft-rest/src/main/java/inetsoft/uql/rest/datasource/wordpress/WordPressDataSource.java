@@ -20,13 +20,16 @@ package inetsoft.uql.rest.datasource.wordpress;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.credential.CredentialType;
 
 import java.util.HashMap;
 import java.util.Map;
 
 @View(vertical = true, value = {
-   @View1("clientId"),
-   @View1("clientSecret"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "clientId", visibleMethod = "useCredential"),
+   @View1(value = "clientSecret", visibleMethod = "useCredential"),
    @View1(type = ViewType.LABEL, text = "redirect.uri.description", colspan = 2),
    @View1(type = ViewType.PANEL,
       align = ViewAlign.RIGHT,
@@ -37,7 +40,7 @@ import java.util.Map;
             button = @Button(
                type = ButtonType.OAUTH,
                method = "updateTokens",
-               dependsOn = { "clientId", "clientSecret" },
+               dependsOn = { "clientId", "clientSecret", "credentialId" },
                enabledMethod = "authorizeEnabled",
                oauth = @Button.OAuth
             )
@@ -53,6 +56,11 @@ public class WordPressDataSource extends OAuthEndpointJsonDataSource<WordPressDa
    public WordPressDataSource() {
       super(TYPE, WordPressDataSource.class);
       setAuthType(AuthType.NONE);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.CLINET;
    }
 
    @Override

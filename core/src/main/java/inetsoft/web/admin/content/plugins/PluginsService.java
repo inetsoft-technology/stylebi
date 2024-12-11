@@ -17,20 +17,17 @@
  */
 package inetsoft.web.admin.content.plugins;
 
-import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.jdbc.drivers.DriverPluginGenerator;
 import inetsoft.uql.jdbc.drivers.DriverScanner;
 import inetsoft.uql.util.Config;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
-import inetsoft.util.audit.*;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.plugins.model.*;
 import inetsoft.web.admin.upload.UploadService;
 import inetsoft.web.admin.upload.UploadedFile;
@@ -59,7 +56,11 @@ public class PluginsService {
 
    public PluginsModel getModel(Principal principal) throws Exception {
       checkPermission(principal);
+      boolean supportUploadDriver = securityEngine.checkPermission(
+         principal, ResourceType.UPLOAD_DRIVERS, "*", ResourceAction.ACCESS);
+
       return PluginsModel.builder()
+         .supportUploadDriver(supportUploadDriver)
          .clustered(isCluster())
          .plugins(getPlugins())
          .build();
@@ -116,7 +117,6 @@ public class PluginsService {
     */
    void installPlugins(String uploadId, Principal principal) throws Exception {
       checkPermission(principal);
-      checkCluster();
       List<UploadedFile> pluginFiles = uploadService.get(uploadId)
          .orElseThrow(() -> new IllegalArgumentException("No uploaded files"));
       int installedPlugins = 0;
@@ -146,7 +146,6 @@ public class PluginsService {
     */
    public boolean installPluginFile(UploadedFile fileInfo, Principal principal) throws Exception {
       checkPermission(principal);
-      checkCluster();
       String name = fileInfo.fileName();
 
       // for IE11 full path
@@ -166,7 +165,6 @@ public class PluginsService {
     */
    void uninstallPlugins(PluginsModel model, Principal principal) throws Exception {
       checkPermission(principal);
-      checkCluster();
       ArrayList<PluginModel> pluginsList = new ArrayList<>(model.plugins());
       String actionName = ActionRecord.ACTION_NAME_DELETE;
       String objectType = ActionRecord.OBJECT_TYPE_PLUG;
@@ -219,7 +217,6 @@ public class PluginsService {
       throws Exception
    {
       checkPermission(principal);
-      checkCluster();
       Optional<List<UploadedFile>> files = uploadService.get(request.uploadId());
 
       if(files.isPresent()) {
@@ -266,14 +263,6 @@ public class PluginsService {
    private boolean isCluster() {
       return "server_cluster".equals(SreeEnv.getProperty("server.type")) ||
          ScheduleClient.getScheduleClient().isCluster();
-   }
-
-   private void checkCluster() {
-      if(isCluster()) {
-         throw new IllegalStateException(
-            "Plugins cannot be installed at runtime in a clustered environment, you will need " +
-            "to do this manually on each instance.");
-      }
    }
 
    private final Plugins plugins;

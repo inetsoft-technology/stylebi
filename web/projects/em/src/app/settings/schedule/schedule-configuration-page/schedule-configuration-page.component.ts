@@ -69,7 +69,9 @@ export class ScheduleConfigurationPageComponent implements OnInit {
    }
 
    onConfigurationChange(config: ScheduleConfiguration) {
+      const cloudSecrets = this.model.cloudSecrets;
       this.model = config.model;
+      this.model.cloudSecrets = cloudSecrets;
       this.valid = config.valid;
       this.changed = true;
    }

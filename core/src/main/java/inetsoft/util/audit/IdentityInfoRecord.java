@@ -19,6 +19,7 @@ package inetsoft.util.audit;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SecurityEngine;
 import inetsoft.util.Tool;
 import org.apache.commons.lang3.StringUtils;
 
@@ -107,12 +108,13 @@ public class IdentityInfoRecord implements AuditRecord {
       super();
 
       this.identityName = identityId.name;
-      this.identityOrganization = identityId.organization;
+      this.identityOrganization = identityId.orgID;
+      this.identityOrganizationName = SecurityEngine.getSecurity().getSecurityProvider().getOrgNameFromID(identityId.orgID);
       this.identityType = identityType;
       this.actionType = actionType;
       this.actionTimestamp = actionTimestamp;
       this.actionDesc = actionDesc;
-      this.state = state;
+      this.identityState = state;
       this.serverHostName = Tool.getHost();
    }
 
@@ -131,6 +133,7 @@ public class IdentityInfoRecord implements AuditRecord {
     * Get the action Timestamp.
     * @return the specified action timestamp.
     */
+   @AuditRecordProperty
    public Timestamp getActionTimestamp() {
       return actionTimestamp;
    }
@@ -147,6 +150,7 @@ public class IdentityInfoRecord implements AuditRecord {
     * Get the action type.
     * @return the specified action type.
     */
+   @AuditRecordProperty
    public String getActionType() {
       return actionType;
    }
@@ -164,6 +168,7 @@ public class IdentityInfoRecord implements AuditRecord {
     *
     * @return the specified identity name.
     */
+   @JsonIgnore
    public IdentityID getIdentityID() {
       return new IdentityID(identityName, identityOrganization);
    }
@@ -175,21 +180,43 @@ public class IdentityInfoRecord implements AuditRecord {
     */
    public void setIdentityID(IdentityID identityID) {
       this.identityName = identityID.name;
-      this.identityOrganization = identityID.organization;
+      this.identityOrganization = identityID.orgID;
+      this.identityOrganizationName = SecurityEngine.getSecurity().getSecurityProvider()
+                                       .getOrgNameFromID(identityID.orgID);
    }
 
+   @AuditRecordProperty
    public String getIdentityName() {
       return identityName;
    }
 
+   public void setIdentityName(String identityName) {
+      this.identityName = identityName;
+   }
+
+   @AuditRecordProperty
    public String getIdentityOrganization() {
       return identityOrganization;
+   }
+
+   @AuditRecordProperty
+   public String getIdentityOrganizationName() {
+      return identityOrganizationName;
+   }
+
+   public void setIdentityOrganization(String identityOrganization) {
+      this.identityOrganization = identityOrganization;
+   }
+
+   public void setIdentityOrganizationName(String identityOrganizationName) {
+      this.identityOrganizationName = identityOrganizationName;
    }
 
    /**
     * Get the identity type.
     * @return the specified identity type.
     */
+   @AuditRecordProperty
    public String getIdentityType() {
       return identityType;
    }
@@ -206,8 +233,9 @@ public class IdentityInfoRecord implements AuditRecord {
     * Get the action description.
     * @return the specified action description.
     */
+   @AuditRecordProperty
    public String getActionDesc() {
-      return actionDesc;
+      return actionDesc == null ? "" : actionDesc;
    }
 
    /**
@@ -222,8 +250,9 @@ public class IdentityInfoRecord implements AuditRecord {
     * Get the identity state.
     * @return the specified action description.
     */
+   @AuditRecordProperty
    public String getIdentityState() {
-      return state;
+      return identityState;
    }
 
    /**
@@ -231,17 +260,10 @@ public class IdentityInfoRecord implements AuditRecord {
     * @param state the identity state.
     */
    public void setIdentityState(String state) {
-      this.state = state;
+      this.identityState = state;
    }
 
-   public String getState() {
-      return state;
-   }
-
-   public void setState(String state) {
-      this.state = state;
-   }
-
+   @AuditRecordProperty
    public String getServerHostName() {
       return serverHostName;
    }
@@ -250,21 +272,23 @@ public class IdentityInfoRecord implements AuditRecord {
       this.serverHostName = serverHostName;
    }
 
+   @AuditRecordProperty
    public String getOrganizationId() {
       return organizationId;
    }
+
    public void setOrganizationId(String organizationId) {
       this.organizationId = organizationId;
-
    }
 
    private String identityName;
    private String identityOrganization;
+   private String identityOrganizationName;
    private String identityType;
    private String actionType;
    private Timestamp actionTimestamp;
    private String actionDesc;
-   private String state;
+   private String identityState;
    private String serverHostName;
    private String organizationId;
 }

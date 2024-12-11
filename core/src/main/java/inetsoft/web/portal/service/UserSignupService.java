@@ -21,7 +21,10 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.Mailer;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.util.Tool;
+import inetsoft.util.audit.Audit;
+import inetsoft.util.audit.IdentityInfoRecord;
 import inetsoft.web.admin.security.AuthenticationProviderService;
 
 import java.text.MessageFormat;
@@ -151,6 +154,10 @@ public class UserSignupService {
    }
 
    public void autoRegisterUser(String googleUserId, String userEmail) {
+      autoRegisterUser(googleUserId, userEmail, null);
+   }
+
+   public void autoRegisterUser(String googleUserId, String userEmail, SRPrincipal principal) {
       AuthenticationChain authenticationChain = getAuthenticationChain();
 
       if(authenticationChain == null || Tool.isEmptyString(googleUserId)) {
@@ -159,6 +166,8 @@ public class UserSignupService {
 
       User existUser = null;
       AuthenticationProvider userProvider = null;
+      String autoRegisterOrg = SUtil.isMultiTenant() ? Organization.getSelfOrganizationID() :
+         Organization.getDefaultOrganizationID();
 
       for(AuthenticationProvider provider : authenticationChain.getProviders()) {
          IdentityID[] users = provider.getUsers();
@@ -170,8 +179,9 @@ public class UserSignupService {
          for(IdentityID userName : users) {
             User user = provider.getUser(userName);
 
-            if(Tool.equals(user.getGoogleSSOId(), googleUserId) ||
-               Tool.equals(user.getName(), userEmail))
+            if((Tool.equals(user.getGoogleSSOId(), googleUserId) ||
+               Tool.equals(user.getName(), userEmail)) &&
+               Tool.equals(userName.getOrgID(), autoRegisterOrg))
             {
                existUser = user;
                break;
@@ -199,16 +209,17 @@ public class UserSignupService {
          }
       }
       else {
-         createUser(new IdentityID(userEmail, OrganizationManager.getCurrentOrgName()), null, userEmail, true, googleUserId);
+         createUser(new IdentityID(userEmail, autoRegisterOrg), null, userEmail,
+            true, googleUserId, principal);
       }
    }
 
-   public User createUser(IdentityID userName, String password, String email) {
-      return createUser(userName, password, email, false, null);
+   public User createUser(IdentityID userName, String password, String email, SRPrincipal principal) {
+      return createUser(userName, password, email, false, null, principal);
    }
 
    public User createUser(IdentityID userID, String password, String email, boolean googleSSO,
-                          String ssoUserId)
+                          String ssoUserId, SRPrincipal principal)
    {
       AuthenticationChain authenticationChain = getAuthenticationChain();
 
@@ -231,7 +242,7 @@ public class UserSignupService {
          .filter(roleName -> {
             Role role = editProvider.getRole(roleName);
             return role != null && role.isDefaultRole() &&
-               Organization.getSelfOrganizationName().equals(role.getOrganization());
+               userID.orgID.equals(role.getOrganizationID());
          })
          .collect(Collectors.toList());
 
@@ -244,7 +255,25 @@ public class UserSignupService {
          SUtil.setPassword(identity, password);
       }
 
+      String[] names = SUtil.parseSignUpUserNames(userID, principal);
+
+      PostSignUpUserData postUserData = new PostSignUpUserData(email, names[0], names[1]);
+      postUserData.sendUserData();
+
+      if(!names[0].contains("@")) {
+         //alias cannot be email because no special characters
+         identity.setAlias((names[0] + " " + names[1]).trim());
+      }
+
       editProvider.addUser(identity);
+
+      IdentityInfoRecord identityInfoRecord = SUtil.getIdentityInfoRecord(identity.getIdentityID(),
+         identity.getType(), IdentityInfoRecord.ACTION_TYPE_CREATE, null,
+         IdentityInfoRecord.STATE_ACTIVE);
+      XPrincipal user = new SRPrincipal(identity.getIdentityID());
+      user.setOrgId(identity.getIdentityID().orgID);
+
+      Audit.getInstance().auditIdentityInfo(identityInfoRecord, user);
 
       return identity;
    }

@@ -23,6 +23,7 @@ import { DownloadService } from "../../../../../../shared/download/download.serv
 import { Tool } from "../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { ContextHelp } from "../../../context-help";
+import { HeapDumpRequest } from "../../../monitoring/summary/summary-monitoring-page/heap-dump-request";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
@@ -41,7 +42,7 @@ const SCHEDULER_STATUS_URL = "../api/em/settings/schedule/status";
 })
 @ContextHelp({
    route: "/settings/schedule/status",
-   link: "EMSettingsScheduleStatus"
+   link: "EMSchedulerStatus"
 })
 @Component({
    selector: "em-schedule-status-page",
@@ -155,22 +156,27 @@ export class ScheduleStatusPageComponent implements OnChanges, OnInit {
    }
 
    getHeapDump() {
-      let url = "../em/monitoring/scheduler/get-heap-dump";
+      const url = "../api/em/monitoring/scheduler/get-heap-dump";
+      const body = <HeapDumpRequest>{
+         clusterNode: this.model?.clusterStatusTable?.length > 0 && this.selectedClusterServer ?
+            this.selectedClusterServer : null
+      };
 
-      if(this.model?.clusterStatusTable?.length > 0 && this.selectedClusterServer) {
-         url += "?clusterNode=" + encodeURIComponent(this.selectedClusterServer);
-      }
+
+      const storagePath = this.model == null ?
+         "_#(js:em.confirm.heapDump.storageLocation)" : this.model.externalStoragePath;
 
       this.dialog.open(MessageDialog, {
          width: "500px",
          data: {
             title: "_#(js:Confirm)",
-            content: "_#(js:em.confirm.heapDump)",
+            content: "_#(js:em.confirm.heapDump.prefix)" + storagePath +"_#(js:em.confirm.heapDump.suffix)",
             type: MessageDialogType.CONFIRMATION
          }
       }).afterClosed().subscribe(value => {
          if(value) {
-            this.downloadService.download(url);
+            this.http.post(url, body)
+               .subscribe(() => {});
          }
       });
    }

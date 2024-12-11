@@ -20,6 +20,8 @@ package inetsoft.mv;
 import inetsoft.mv.data.*;
 import inetsoft.mv.mr.*;
 import inetsoft.mv.mr.internal.XMapTaskPool;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.TableAssembly;
@@ -54,12 +56,14 @@ public final class MVJob extends AbstractJob {
    private void init() throws Exception {
       try {
          String name = getMV();
+         String orgID = SUtil.getOrgIDFromMVPath(name);
          String file = MVStorage.getFile(name);
-         MV mv = MVStorage.getInstance().get(file);
-         MVQueryBuilder builder = new MVQueryBuilder(table, mv, vars, user);
+         MV mv = MVStorage.getInstance().get(file, orgID);
+         MVQueryBuilder builder = new MVQueryBuilder(table, mv, vars, user, orgID);
          MVQuery query = builder.getQuery();
          SubMVQuery squery = builder.getSubQuery();
          query.setJob(this);
+         set("mvOrg",orgID);
          set("query", query);
          set("squery", squery);
       }
@@ -97,6 +101,14 @@ public final class MVJob extends AbstractJob {
    }
 
    /**
+    * Get the org id of trigger user.
+    */
+   public String getOrgId() {
+      return get("mvOrg") != null ? (String) get("mvOrg") : user != null ? user.getOrgId() :
+         OrganizationManager.getInstance().getCurrentOrgID();
+   }
+
+   /**
     * Create a map tack.
     */
    @Override
@@ -126,7 +138,7 @@ public final class MVJob extends AbstractJob {
    @Override
    public void cancel() {
       super.cancel();
-      XJobPool.cancel(getID());
+      XJobPool.cancel(getID(), getOrgId());
       XMapTaskPool.cancel(getID());
    }
 

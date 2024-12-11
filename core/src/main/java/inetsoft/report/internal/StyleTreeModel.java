@@ -107,6 +107,10 @@ public class StyleTreeModel implements XMLSerializable {
       return LibManager.getManager().getTableStyle(name);
    }
 
+   public static TableStyle get(String name, String orgID) {
+      return LibManager.getManager().getTableStyle(name, orgID);
+   }
+
    /**
     * Write the xml segment to print writer.
     * @param writer the destination print writer.

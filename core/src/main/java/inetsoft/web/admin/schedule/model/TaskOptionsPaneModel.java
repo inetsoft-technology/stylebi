@@ -19,7 +19,6 @@ package inetsoft.web.admin.schedule.model;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import inetsoft.sree.security.IdentityID;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -50,7 +49,7 @@ public abstract class TaskOptionsPaneModel {
    public abstract String adminName();
 
    @Nullable
-   public abstract String organizationName();
+   public abstract String organizationID();
 
    public abstract boolean securityEnabled();
 

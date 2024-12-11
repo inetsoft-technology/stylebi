@@ -49,6 +49,8 @@ interface OpenIdDiscovery {
    styleUrls: ["./openid-settings-form.component.scss"]
 })
 export class OpenidSettingsFormComponent implements OnDestroy {
+   @Input() googleSignIn: boolean = false;
+   @Input() cloudSecrets: boolean = false;
    supportedScopes: string[] = [];
    filteredScopes: Observable<string[]>;
    selectedScopes: string[] = [];
@@ -73,6 +75,7 @@ export class OpenidSettingsFormComponent implements OnDestroy {
    }
 
    set model(value: OpenIdAttributesModel) {
+      this.form.get("secretId").setValue(value?.secretId, { emitEvent: false });
       this.form.get("clientId").setValue(value?.clientId, { emitEvent: false });
       this.form.get("clientSecret").setValue(value?.clientSecret, { emitEvent: false });
       this.selectedScopes = !!value?.scopes ? value.scopes.split(" ") : [];
@@ -92,6 +95,7 @@ export class OpenidSettingsFormComponent implements OnDestroy {
    constructor(private dialog: MatDialog, private zone: NgZone, fb: UntypedFormBuilder) {
       this.form = fb.group({
          discoveryUrl: [""],
+         secretId: [""],
          clientId: [""],
          clientSecret: [""],
          scopeInput: [""],
@@ -108,7 +112,7 @@ export class OpenidSettingsFormComponent implements OnDestroy {
       });
 
       [
-         "clientId", "clientSecret", "issuer", "audience", "authorizationEndpoint", "tokenEndpoint",
+         "secretId", "clientId", "clientSecret", "issuer", "audience", "authorizationEndpoint", "tokenEndpoint",
          "jwksUri", "jwkCertificate", "nameClaim", "roleClaim", "groupClaim", "orgIDClaim"
       ].forEach(key => this.form.get(key).valueChanges
          .pipe(takeUntil(this.destroy$))

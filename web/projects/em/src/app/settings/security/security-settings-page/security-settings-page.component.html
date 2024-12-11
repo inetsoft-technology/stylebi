@@ -18,15 +18,16 @@
 <div class="page-container">
   <div class="security-nav mat-elevation-z2">
     <div class="button-row" *ngIf="!isOrgAdminOnly">
-      <mat-slide-toggle
-        [checked]="securityEnabled"
-        [disabled]="securityToggleDisabled"
-        (change)="toggleSecurityEnabled($event)"
-      >
-        _#(Enable Security)
-      </mat-slide-toggle>
-    </div>
-    <div class="button-row" *ngIf="enterprise && !isOrgAdminOnly">
+      <div class="button-row">
+        <mat-slide-toggle
+          [checked]="securityEnabled"
+          [disabled]="securityToggleDisabled"
+          (change)="toggleSecurityEnabled($event)"
+        >
+          _#(Enable Security)
+        </mat-slide-toggle>
+      </div>
+    <div class="button-row" *ngIf="enterprise">
       <div>
         <mat-slide-toggle *ngIf="isRefreshed"
                           [checked]="multiTenancyEnabled"
@@ -38,21 +39,22 @@
           </mat-hint>
         </mat-slide-toggle>
       </div>
-      <div>
-        <mat-slide-toggle [checked]="selfSignupEnabled"
-                          [disabled]="securityToggleDisabled || !securityEnabled "
-                          (change)="toggleSelfSignupEnabled($event)">
-          _#(Enable Self Signup)
-        </mat-slide-toggle>
+    </div>
+      <div class="button-row" *ngIf="enterprise">
+        <mat-form-field *ngIf="multiTenancyEnabled">
+          <mat-label>_#(Pass Organization by)</mat-label>
+          <mat-select [(value)]="passOrgIdAs" (valueChange)="updatePassOption($event)" [disabled]="cloudPlatform">
+            <mat-option *ngFor="let passOption of orgIDPassOptions;" [value]=passOption>{{passOptionLabel(passOption)}}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <div>
+          <mat-slide-toggle [checked]="selfSignupEnabled"
+                            [disabled]="securityToggleDisabled || !securityEnabled "
+                            (change)="toggleSelfSignupEnabled($event)">
+            _#(Enable Self Signup)
+          </mat-slide-toggle>
+        </div>
       </div>
-
-      <mat-form-field *ngIf="multiTenancyEnabled">
-        <mat-label>_#(Pass Organization by)</mat-label>
-        <mat-select [(value)]="passOrgIdAs" (valueChange)="updatePassOption($event)">
-          <mat-option *ngFor="let passOption of orgIDPassOptions;" [value]=passOption>{{passOptionLabel(passOption)}}</mat-option>
-        </mat-select>
-      </mat-form-field>
-
     </div>
     <div class="tab-container" *ngIf="securityEnabled && isRefreshed">
       <nav mat-tab-nav-bar mat-stretch-tabs class="nav-tab" [tabPanel]="tabPanel">
@@ -79,6 +81,12 @@
            routerLinkActive #ssoActive="routerLinkActive"
            [active]="ssoActive.isActive">
           _#(em.security.sso)
+        </a>
+        <a mat-tab-link *ngIf="googleSsoVisible"
+           [routerLink]="['/settings/security/googleSignIn']"
+           routerLinkActive #googleActive="routerLinkActive"
+           [active]="googleActive.isActive">
+          _#(Sign In With Google)
         </a>
       </nav>
     </div>

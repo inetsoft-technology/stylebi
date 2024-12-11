@@ -35,6 +35,7 @@ export interface ExportHistory {
    objectName: string;
    exportType: string;
    organizationId: string;
+   dateFormat: string;
 }
 
 export interface ExportHistoryList extends AuditRecordList<ExportHistory> {

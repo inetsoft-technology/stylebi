@@ -30,35 +30,13 @@
   <artifactId>build-tools-parent</artifactId>
   <packaging>pom</packaging>
 
-  <profiles>
-    <profile>
-      <id>community</id>
-      <activation>
-        <activeByDefault>true</activeByDefault>
-      </activation>
-      <modules>
-        <module>antlr2-maven-plugin</module>
-        <module>inetsoft-runner-maven-plugin</module>
-        <module>maven-shade-transformers</module>
-        <module>node-maven-plugin</module>
-        <module>tern-annotations</module>
-        <module>path-utils-maven-plugin</module>
-      </modules>
-    </profile>
-    <profile>
-      <id>enterprise</id>
-      <modules>
-        <module>antlr2-maven-plugin</module>
-        <module>inetsoft-runner-maven-plugin</module>
-        <module>inetsoft-shell-maven-plugin</module>
-        <module>key-generator</module>
-        <module>keygen-maven-plugin</module>
-        <module>maven-shade-transformers</module>
-        <module>node-maven-plugin</module>
-        <module>tern-annotations</module>
-        <module>path-utils-maven-plugin</module>
-      </modules>
-    </profile>
-  </profiles>
+  <modules>
+    <module>antlr2-maven-plugin</module>
+    <module>inetsoft-runner-maven-plugin</module>
+    <module>maven-shade-transformers</module>
+    <module>node-maven-plugin</module>
+    <module>tern-annotations</module>
+    <module>path-utils-maven-plugin</module>
+  </modules>
 
 </project>

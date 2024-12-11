@@ -328,6 +328,10 @@ public class RepletEngine extends AbstractAssetEngine
          licenseManager.startDuplicateLicenseServer();
       }
 
+      if(licenseManager.isElasticLicense()) {
+         licenseManager.startElasticPolling();
+      }
+
       if(!scriptEnvInitialized) {
          scriptEnvInitialized = true;
       }
@@ -391,7 +395,8 @@ public class RepletEngine extends AbstractAssetEngine
    @Override
    public String[] getScheduleTasks(Principal principal) throws IOException {
       ScheduleManager manager = ScheduleManager.getScheduleManager();
-      return getScheduleTasks(principal, manager.getScheduleTasks());
+      String curOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      return getScheduleTasks(principal, manager.getScheduleTasks(curOrgID));
    }
 
    /**
@@ -410,15 +415,15 @@ public class RepletEngine extends AbstractAssetEngine
 
          for(ScheduleTask task : allTasks) {
             if(hasTaskPermission(task, principal)) {
-               vec.add(task.getName());
+               vec.add(task.getTaskId());
             }
-            else if(!ScheduleManager.isInternalTask(task.getName())){
+            else if(!ScheduleManager.isInternalTask(task.getTaskId())){
                IdentityID owner = task.getOwner();
                boolean adminUser = adminUsers.computeIfAbsent(owner, u -> provider.checkPermission(
                   principal, ResourceType.SECURITY_USER, owner.convertToKey(), ResourceAction.ADMIN));
 
                if(adminUser) {
-                  vec.add(task.getName());
+                  vec.add(task.getTaskId());
                }
             }
          }
@@ -439,20 +444,20 @@ public class RepletEngine extends AbstractAssetEngine
    public boolean hasTaskPermission(ScheduleTask task, Principal principal) {
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       boolean principalHasPermission =
-         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getName(), ResourceAction.READ) &&
-         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getName(), ResourceAction.WRITE) &&
-         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getName(), ResourceAction.DELETE) &&
-         pId != null && pId.organization.equals(task.getOwner().organization);
-      boolean isOwner = Tool.equals(principal.getName(), task.getOwner().toString());
-      boolean internalTaskPermission = ScheduleManager.isInternalTask(task.getName()) &&
-         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getName(), ResourceAction.READ) &&
+         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.READ) &&
+         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.WRITE) &&
+         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.DELETE) &&
+         pId != null && pId.orgID.equals(task.getOwner().orgID);
+      boolean isOwner = Tool.equals(principal.getName(), task.getOwner().convertToKey());
+      boolean internalTaskPermission = ScheduleManager.isInternalTask(task.getTaskId()) &&
+         checkPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.READ) &&
          XPrincipal.SYSTEM.equals(task.getOwner().name);
       boolean isOwnerAdmin = task.getOwner() != null && checkPermission(
          principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
       boolean isShareRole = ScheduleManager.getScheduleManager()
          .hasShareGroupPermission(task, principal);
 
-      if(ScheduleManager.isInternalTask(task.getName())) {
+      if(ScheduleManager.isInternalTask(task.getTaskId())) {
          return internalTaskPermission;
       }
 
@@ -467,18 +472,18 @@ public class RepletEngine extends AbstractAssetEngine
     * {@inheritDoc}
     */
    @Override
-   public ScheduleTask getScheduleTask(String taskName) {
-      return getScheduleTask(taskName, null);
+   public ScheduleTask getScheduleTask(String taskId) {
+      return getScheduleTask(taskId, null);
    }
 
    @Override
-   public ScheduleTask getScheduleTask(String taskName, String orgId) {
-      if(taskName == null) {
+   public ScheduleTask getScheduleTask(String taskId, String orgId) {
+      if(taskId == null) {
          return null;
       }
 
       ScheduleManager manager = ScheduleManager.getScheduleManager();
-      return manager.getScheduleTask(taskName, orgId);
+      return manager.getScheduleTask(taskId, orgId);
    }
 
    /**
@@ -647,18 +652,20 @@ public class RepletEngine extends AbstractAssetEngine
    @Override
    @SuppressWarnings("unchecked")
    public RepositoryEntry[] getRepositoryEntries(String folder, Principal user,
-      ResourceAction action, int selector) throws RemoteException
+      ResourceAction action, int selector, boolean isDefaultOrgAsset) throws RemoteException
    {
       return getRepositoryEntries(
-         folder, user, action == null ? null : EnumSet.of(action), selector);
+         folder, user, action == null ? null : EnumSet.of(action), selector, isDefaultOrgAsset);
    }
 
    @Override
    public RepositoryEntry[] getRepositoryEntries(String folder, Principal user,
                                                  EnumSet<ResourceAction> actions,
-                                                 int selector) throws RemoteException
+                                                 int selector, boolean isDefaultOrgAsset)
+      throws RemoteException
    {
       IdentityID pId = user == null ? null : IdentityID.getIdentityIDFromKey(user.getName());
+
       if(folder == null) {
          folder = "/";
       }
@@ -683,14 +690,20 @@ public class RepletEngine extends AbstractAssetEngine
          throw new RemoteException("Failed to reset repository folder", ex);
       }
 
+      String orgId = ((XPrincipal) user).getProperty("curr_org_id") != null
+         ? ((XPrincipal) user).getProperty("curr_org_id") : ((XPrincipal) user).getOrgId();
+
+      if(SUtil.isDefaultVSGloballyVisible(user) && isDefaultOrgAsset) {
+         orgId = Organization.getDefaultOrganizationID();
+      }
+
       // get folders
-      if((selector & RepositoryEntry.FOLDER) != 0) {
-         String[] repletFolders;
-         boolean noMyreports = user == null ||
+      if((selector & RepositoryEntry.FOLDER) != 0 || isDefaultOrgAsset) {
+         boolean noMyreports = user == null || isDefaultOrgAsset ||
             !checkPermission(user, ResourceType.MY_DASHBOARDS, "*", ResourceAction.READ);
 
-         repletFolders = noMyreports ? registry.getFolders(folder, noMyreports) :
-            registry.getFolders(folder);
+         String[] repletFolders = noMyreports ? registry.getFolders(folder, noMyreports, orgId) :
+            registry.getFolders(folder, orgId);
          List<String> addedFolders = new ArrayList<>();
 
          for(String repletFolder : repletFolders) {
@@ -698,22 +711,25 @@ public class RepletEngine extends AbstractAssetEngine
                RepletFolderEntry entry =
                   new RepletFolderEntry(repletFolder, myreport ? pId : null);
                entry.setDescription(registry.getFolderDescription(repletFolder));
-               entry.setAlias(registry.getFolderAlias(repletFolder));
+               entry.setAlias(registry.getFolderAlias(repletFolder, orgId));
+
+               if(SUtil.isDefaultVSGloballyVisible(user) && !Tool.equals(((XPrincipal)user).getOrgId(), orgId)) {
+                  entry.setDefaultOrgAsset(true);
+               }
+
                result.add(entry);
-               addedFolders.add(repletFolder);
             }
          }
       }
 
       // get viewsheets
-      if((selector & RepositoryEntry.VIEWSHEET) != 0) {
+      if((selector & RepositoryEntry.VIEWSHEET) != 0 || isDefaultOrgAsset) {
          AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
          int scope = myreport ? AssetRepository.USER_SCOPE : AssetRepository.GLOBAL_SCOPE;
          String ppath = myreport ? Tool.MY_DASHBOARD.equals(folder) ? "/" :
             folder.substring(Tool.MY_DASHBOARD.length() + 1): folder;
          AssetEntry pentry = new AssetEntry(scope,
-            AssetEntry.Type.REPOSITORY_FOLDER, ppath,
-            myreport ? pId : null, ((XPrincipal) user).getOrgId());
+            AssetEntry.Type.REPOSITORY_FOLDER, ppath, myreport ? pId : null, orgId);
          AssetEntry[] assets = new AssetEntry[0];
 
          try {
@@ -750,6 +766,14 @@ public class RepletEngine extends AbstractAssetEngine
             }
             else {
                onReport = "true".equals(asset.getProperty("onReport"));
+            }
+
+            if(isDefaultOrgAsset || asset.getType() == AssetEntry.Type.VIEWSHEET &&
+               SUtil.isDefaultVSGloballyVisible(user) &&
+               Tool.equals(asset.getOrgID(), Organization.getDefaultOrganizationID()) &&
+               !Tool.equals(asset.getOrgID(), orgId))
+            {
+               ventry.setDefaultOrgAsset(true);
             }
 
             String desc =
@@ -791,6 +815,17 @@ public class RepletEngine extends AbstractAssetEngine
       result.toArray(entries);
 
       return entries;
+   }
+
+   public RepositoryEntry[] getDefaultOrgRepositoryEntries(Principal principal) {
+      try {
+         return getRepositoryEntries("/", principal, (ResourceAction) null, RepositoryEntry.ALL, true);
+      }
+      catch(Exception e) {
+         LOG.error("Error getting default org's repository assets: "+e);
+      }
+
+      return new RepositoryEntry[0];
    }
 
    /**
@@ -885,7 +920,7 @@ public class RepletEngine extends AbstractAssetEngine
          if(entry.isFolder()) {
             try {
                RepletRegistry registry = getRegistry(entry.getPath(), user);
-               String msg = registry.changeFolder(entry.getPath(), npath);
+               String msg = registry.changeFolder(entry.getPath(), npath, user);
 
                if("true".equals(msg)) {
                   registry.save();
@@ -1002,7 +1037,7 @@ public class RepletEngine extends AbstractAssetEngine
                registry.setFolderAlias(entry.getPath(), nalias, true);
             }
             else {
-               String msg = registry.changeFolder(entry.getPath(), nname);
+               String msg = registry.changeFolder(entry.getPath(), nname, user);
 
                if(!"true".equals(msg)) {
                   throw new RuntimeException(msg);
@@ -1122,10 +1157,11 @@ public class RepletEngine extends AbstractAssetEngine
                             final List<String> order,
                             DeploymentInfo info,
                             boolean desktop, Principal principal,
-                            List<String> ignoreList)
+                            List<String> ignoreList,
+                            List<String> ignoreUserAsset)
       throws Exception
    {
-      importAssets(overwriting, order, info, desktop, principal,ignoreList, null);
+      importAssets(overwriting, order, info, desktop, principal, ignoreList, null, ignoreUserAsset);
    }
 
    /**
@@ -1136,11 +1172,12 @@ public class RepletEngine extends AbstractAssetEngine
                                     DeploymentInfo info,
                                     boolean desktop, Principal principal,
                                     List<String> ignoreList,
-                                    ActionRecord actionRecord)
+                                    ActionRecord actionRecord,
+                                    List<String> ignoreUserAssets)
       throws Exception
    {
       return importAssets(overwriting, order, info, desktop, principal,
-         ignoreList, null, actionRecord);
+                          ignoreList, null, actionRecord, ignoreUserAssets);
    }
 
    /**
@@ -1152,7 +1189,8 @@ public class RepletEngine extends AbstractAssetEngine
                                     boolean desktop, Principal principal,
                                     List<String> ignoreList,
                                     ImportTargetFolderInfo targetFolderInfo,
-                                    ActionRecord actionRecord)
+                                    ActionRecord actionRecord,
+                                    List<String> ignoreUserAssets)
       throws Exception
    {
       writeLock.lock();
@@ -1161,7 +1199,7 @@ public class RepletEngine extends AbstractAssetEngine
          List<String> failedList = new ArrayList<>();
          DeployManagerService.importAssets(
             overwriting, order, info, desktop, principal,
-            ignoreList, actionRecord, failedList, targetFolderInfo);
+            ignoreList, actionRecord, failedList, targetFolderInfo, ignoreUserAssets);
          return failedList;
       }
       finally {
@@ -1577,10 +1615,10 @@ public class RepletEngine extends AbstractAssetEngine
 
       if(changeType == AssetChangeEvent.ASSET_RENAMED) {
          AssetEntry oentry = AssetEntry.createAssetEntry(oldName, assetEntry.getOrgID());
-         manager.assetRenamed(oentry, assetEntry);
+         manager.assetRenamed(oentry, assetEntry, assetEntry.getOrgID());
       }
       else if(changeType == AssetChangeEvent.ASSET_DELETED) {
-         manager.assetRemoved(assetEntry);
+         manager.assetRemoved(assetEntry, assetEntry.getOrgID());
       }
    }
 
@@ -1659,7 +1697,8 @@ public class RepletEngine extends AbstractAssetEngine
          // renamed, therefore renaming nested folders is redundant.
          if(directChange) {
             ScheduleManager manager = ScheduleManager.getScheduleManager();
-            manager.folderRenamed(oname, nname, user == null ? null : user.name);
+            String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+            manager.folderRenamed(oname, nname, user == null ? null : user.name, orgID);
          }
       }
       else if(name.equals(RepletRegistry.ADD_FOLDER_EVENT)) {

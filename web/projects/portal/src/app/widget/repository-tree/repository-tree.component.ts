@@ -94,6 +94,7 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
    _root: TreeNodeModel;
    pendingRoot: TreeNodeModel; // root holding tree during loading of branches
    loading: boolean = false;
+   globalRepositoryName = "Host Organization Global Repository";
 
    @Input() set root(root: TreeNodeModel) {
       this._root = root;
@@ -112,7 +113,7 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
 
       if(this.autoExpandToSelectedNode && !!node) {
          let nodePath = node.data.path;
-         this.selectAndExpandToPath(nodePath, this.root);
+         this.selectAndExpandToPath(nodePath, this.root, node.data.defaultOrgAsset);
       }
    }
 
@@ -172,7 +173,7 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
 
       this.repositoryTreeService.getFolder(node.data.path, this.permission, this.selector,
          this.detailType, this.isFavoritesTree, this.isArchive(node), this.checkDetailType,
-         this.isReport, false, this.isPortalData, this.showVS, this.showBurstReport)
+         this.isReport, false, this.isPortalData, this.showVS, this.showBurstReport, undefined, node?.data?.defaultOrgAsset)
          .subscribe(
             (data) => {
                node.children = data.children;
@@ -190,28 +191,45 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
       }
    }
 
-   public selectAndExpandToPath(path: string, node: TreeNodeModel = this.root): void {
+   public selectAndExpandToPath(path: string, node: TreeNodeModel = this.root,
+                                defaultAsset: boolean = false): void
+   {
+      if(node != null && node.children != null && node.type == "None") {
+         for(let i = 0; i < node.children.length; i++) {
+            let child = node.children[i];
+
+            if(defaultAsset && GuiTool.isHostGlobalNode(child?.data)) {
+               node = child;
+            }
+            else if(!defaultAsset && child.data.path == "/") {
+               node = child;
+            }
+         }
+      }
+
       let index: number = -1;
 
       // if root
-      if(node.data.path === "/") {
+      if(node.data.path === "/" || GuiTool.isHostGlobalNode(node?.data))
+      {
          index = path.indexOf("/");
       }
       else {
-         index = path.indexOf("/", node.data.path.length + 1);
+         index = path.indexOf("/", node.data.path?.length + 1);
       }
 
       let nextPath = index != -1 ? path.substring(0, index) : path;
 
       for(let child of node.children) {
          if(child.data.path === nextPath) {
+
             if(this.tree && nextPath === path) {
                this.tree.selectAndExpandToNode(child);
                this._selectedNode = child;
             }
             else {
                if(child.children && child.children.length > 0) {
-                  this.selectAndExpandToPath(path, child);
+                  this.selectAndExpandToPath(path, child, defaultAsset);
                }
                else {
                   this.repositoryTreeService.getFolder(
@@ -220,7 +238,7 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
                      false, this.isPortalData, this.showVS, this.showBurstReport)
                      .subscribe((data) => {
                         child.children = data.children;
-                        this.selectAndExpandToPath(path, child);
+                        this.selectAndExpandToPath(path, child, defaultAsset);
                      });
                }
             }
@@ -337,6 +355,12 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
          return;
       }
 
+      if(GuiTool.isHostGlobalNode(node?.data) || this.tree.isHostGlobalParent(node)) {
+         ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+            "_#(js:deny.edit.default.organization)");
+         return;
+      }
+
       let parent: RepositoryEntry = <RepositoryEntry> node.data;
 
       // if the entry on which the drop happened is not a folder then get the parent entry
@@ -366,6 +390,12 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
             for(let entry of dragEntries) {
                if(Tool.isEquals(parent, entry) || this.getParentPath(entry) === parent.path) {
                   continue;
+               }
+
+               if(entry.defaultOrgAsset) {
+                  ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+                     "_#(js:deny.edit.default.organization)");
+                  return;
                }
 
                const entryPath = entry.path.endsWith("/") ? entry.path : entry.path + "/";
@@ -432,7 +462,7 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
          }
 
          ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", confirm).then((buttonClicked) =>
-             {
+         {
                if(buttonClicked === "ok") {
                   if(!node.leaf) {
                      node.expanded = true;
@@ -476,7 +506,7 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
    private fetchNode(expandedQueue: TreeNodeModel[], pendingNode: TreeNodeModel): void {
       let node = expandedQueue.shift();
 
-      if(!node) {
+      if(!node || node.type === "Node") {
          return;
       }
 
@@ -486,12 +516,14 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
          pendingNode = Tool.clone(this.root);
       }
 
+      let defaultOrgAsset = node.data.defaultOrgAsset;
+
       this.repositoryTreeService.getFolder(node.data.path, this.permission, this.selector,
          this.detailType, this.isFavoritesTree, null, this.checkDetailType,
-         this.isReport, false, this.isPortalData, this.showVS, this.showBurstReport)
+         this.isReport, false, this.isPortalData, this.showVS, this.showBurstReport, undefined, defaultOrgAsset)
          .subscribe(
             (data) => {
-               let treeNode = GuiTool.getNodeByPath(data.data.path, pendingNode);
+               let treeNode = GuiTool.getNodeByPath(data.data.path, pendingNode, defaultOrgAsset);
 
                if(treeNode) {
                   treeNode.children = data.children;
@@ -532,12 +564,13 @@ export class RepositoryTreeComponent extends RepositoryBaseComponent implements 
 
       for(let child of node.children) {
          if(!child.leaf) {
+            let portalRepo = GuiTool.isHostGlobalNode(child.data);
             this.repositoryTreeService.getFolder(child.data.path, this.permission,
                this.selector, this.detailType, this.isFavoritesTree, null, this.checkDetailType,
-               this.isReport, false, this.isPortalData, this.showVS, this.showBurstReport)
+               this.isReport, false, this.isPortalData, this.showVS, this.showBurstReport, portalRepo, GuiTool.isHostGlobalNode(node.data))
                .subscribe((data) => {
-                     child.children = data.children;
-                     this.expandAllNodes(child);
+                  child.children = data.children;
+                  this.expandAllNodes(child);
                });
          }
       }

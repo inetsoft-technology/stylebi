@@ -21,7 +21,7 @@
 <mat-card appearance="outlined" class="editor-panel-actions" [ngStyle]="actionsStyle" [ngClass]="actionsClass">
   <mat-card-content>
     <button mat-raised-button color="primary" *ngIf="applyVisible"
-            [disabled]="applyDisabled" (click)="applyClicked.emit($event)">{{applyLabel}}</button>
+            [disabled]="applyDisabled" (click)="handleClick($event)">{{applyLabel}}</button>
     <ng-content select="[em-editor-panel-actions]"></ng-content>
     <button mat-button *ngIf="resetVisible" (click)="resetClicked.emit($event)"
             [disabled]="!isScreenSmall() && resetDisabled">

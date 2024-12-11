@@ -25,7 +25,6 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.*;
@@ -86,16 +85,21 @@ public class ScheduleTaskService {
       throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
-      String taskName = principal.getName() + ":" + catalog.getString("newTaskName");
+      IdentityID currentUser = IdentityID.getIdentityIDFromKey(principal.getName());
+      IdentityID owner = SUtil.getOwnerForNewTask(currentUser);
+      String taskId = (owner != null ? owner.convertToKey() : principal.getName()) + ":" +
+         catalog.getString("newTaskName");
       ScheduleCondition condition;
+      int duplicateNameIndex;
 
-      for(int i = 1; i < Integer.MAX_VALUE; i++) {
-         if(scheduleManager.getScheduleTask(taskName + i) == null) {
-            taskName += i;
+      for(duplicateNameIndex = 1; duplicateNameIndex < Integer.MAX_VALUE; duplicateNameIndex++) {
+         if(scheduleManager.getScheduleTask(taskId + duplicateNameIndex) == null) {
+            taskId += duplicateNameIndex;
             break;
          }
       }
 
+      String taskName = catalog.getString("newTaskName") + duplicateNameIndex;
       String defaultTimeProp = SreeEnv.getProperty("schedule.condition.taskDefaultTime");
       boolean taskDefaultTime = !"false".equals(defaultTimeProp);
 
@@ -110,6 +114,16 @@ public class ScheduleTaskService {
 
       if(model != null) {
          condition = scheduleConditionService.getConditionFromModel(model);
+
+         if(condition instanceof TimeCondition) {
+            TimeCondition timeCondition = (TimeCondition) condition;
+
+            if(timeCondition.getTimeRange() != null) {
+               timeCondition.setTimeZone(null);
+               timeCondition.setHour(1);
+               timeCondition.setMinute(30);
+            }
+         }
       }
       else {
          condition = TimeCondition.at(1, 30, 0);
@@ -121,6 +135,7 @@ public class ScheduleTaskService {
 
       ScheduleTask task = new ScheduleTask(taskName);
       task.addCondition(condition);
+      task.setOwner(owner);
 
       if(save) {
          // log create task action
@@ -128,14 +143,13 @@ public class ScheduleTaskService {
          String actionName = ActionRecord.ACTION_NAME_CREATE;
          String objectType = ActionRecord.OBJECT_TYPE_TASK;
          Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
-         actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, taskName,
+         actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, taskId,
                                          objectType, actionTimestamp,
                                          ActionRecord.ACTION_STATUS_FAILURE,
                                          null);
 
          try {
-            scheduleManager.setScheduleTask(taskName, task, parent, principal);
-
+            scheduleManager.setScheduleTask(taskId, task, parent, principal);
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
          }
          catch(Exception ex) {
@@ -149,7 +163,7 @@ public class ScheduleTaskService {
          }
       }
 
-      return getDialogModel(taskName, principal, taskDefaultTime, em);
+      return getDialogModel(taskId, principal, taskDefaultTime, em);
    }
 
    /**
@@ -202,10 +216,9 @@ public class ScheduleTaskService {
       boolean startTimeEnabled = securityProvider.checkPermission(
          principal, ResourceType.SCHEDULE_OPTION, "startTime", ResourceAction.READ);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      String userOrgName = pId.organization;
-      String userOrgId = securityProvider.getOrganizationId(userOrgName);
-      boolean enterprise = LicenseManager.getInstance().isEnterprise();
-      boolean timeRangeEnabled = (!enterprise || OrganizationManager.getInstance().isSiteAdmin(principal) &&
+      String userOrgId = pId.orgID;
+      boolean multitenant = SUtil.isMultiTenant();
+      boolean timeRangeEnabled = (!multitenant || OrganizationManager.getInstance().isSiteAdmin(principal) &&
          Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), userOrgId)) && securityProvider.checkPermission(
       principal, ResourceType.SCHEDULE_OPTION, "timeRange", ResourceAction.READ);
       List<TimeZoneModel> timeZoneOptions = TimeZoneModel.getTimeZoneOptions();
@@ -226,21 +239,21 @@ public class ScheduleTaskService {
          .build();
    }
 
-   public TaskConditionPaneModel getTaskConditions(@RequestParam("name") String taskName,
+   public TaskConditionPaneModel getTaskConditions(@RequestParam("name") String taskId,
                                                    Principal principal)
       throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
 
-      if(taskName == null || "".equals(taskName)) {
+      if(taskId == null || "".equals(taskId)) {
          throw new Exception(catalog.getString("em.scheduler.emptyTaskName"));
       }
 
-      ScheduleTask task = scheduleManager.getScheduleTask(taskName);
+      ScheduleTask task = scheduleManager.getScheduleTask(taskId);
 
       if(task == null) {
          throw new Exception(catalog.getString(
-            "em.scheduler.taskNotFound", taskName));
+            "em.scheduler.taskNotFound", taskId));
       }
 
       TaskConditionPaneModel.Builder builder = TaskConditionPaneModel.builder();
@@ -254,7 +267,7 @@ public class ScheduleTaskService {
          scheduleService.getScheduleTasks(null, null, true, principal);
 
       tasks.stream()
-         .filter(t -> !taskName.equals(t.getName()))
+         .filter(t -> !taskId.equals(t.getTaskId()))
          .map(this::createTaskTuple)
          .forEach(builder::addAllTasks);
 
@@ -268,34 +281,14 @@ public class ScheduleTaskService {
 
       return builder
          .timeProp(timeProp)
-         .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12-hours"))
+         .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12hours"))
          .build();
    }
 
    private NameLabelTuple createTaskTuple(ScheduleTask task) {
-      String name = task.getName();
-      String label;
-
-      if(SecurityEngine.getSecurity().isSecurityEnabled()) {
-         int index = name.indexOf(":");
-
-         if(index != -1) {
-            String userId = name.substring(0, index);
-            IdentityID identityID = IdentityID.getIdentityIDFromKey(userId);
-            label = identityID.getName() + ":" + name.substring(index + 1);
-         }
-         else {
-            label = name;
-         }
-      }
-      else {
-         int index = name.indexOf(':');
-         label = index != -1 ? name.substring(index + 1) : name;
-      }
-
       return NameLabelTuple.builder()
-         .name(name)
-         .label(label)
+         .name(task.getTaskId())
+         .label(task.toView(SecurityEngine.getSecurity().isSecurityEnabled()))
          .build();
    }
 
@@ -407,6 +400,7 @@ public class ScheduleTaskService {
             ResourceAction.READ))
          .mailHistoryEnabled(historyEnabled)
          .fipsMode(PasswordEncryption.isFipsCompliant())
+         .cloudSecrets(Tool.isCloudSecrets())
          .build();
    }
 
@@ -482,14 +476,6 @@ public class ScheduleTaskService {
          task.removeCondition(i);
       }
 
-      if(!ranges.isEmpty()) {
-         TaskBalancer balancer = new TaskBalancer();
-
-         for(TimeRange range : ranges) {
-            balancer.updateTask(task, range);
-         }
-      }
-
       if(!internalTask) {
          for(int i = 0; i < model.actions().size(); i++) {
             ScheduleAction action =
@@ -519,6 +505,16 @@ public class ScheduleTaskService {
 
       // Save task
       scheduleService.saveTask(taskName, task, principal);
+
+      // Balance tasks after saving
+      if(!ranges.isEmpty()) {
+         TaskBalancer balancer = new TaskBalancer();
+
+         for(TimeRange range : ranges) {
+            balancer.updateTask(task, range);
+         }
+      }
+
       return getDialogModel(taskName, principal, true, em);
    }
 
@@ -731,7 +727,7 @@ public class ScheduleTaskService {
          }
 
          if(modified) {
-            scheduleService.saveTask(task.getName(), task, principal);
+            scheduleService.saveTask(task.getTaskId(), task, principal);
          }
       }
 
@@ -849,7 +845,7 @@ public class ScheduleTaskService {
 
          IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
          if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
-            model.organizationName(((SRPrincipal) principal).getOrganizationName());
+            model.organizationID(((SRPrincipal) principal).getOrgId());
          }
       }
 
@@ -935,14 +931,14 @@ public class ScheduleTaskService {
          return new ArrayList<>();
       }
 
-      String currOrgId = OrganizationManager.getCurrentOrgName();
+      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       List<IdentityID> executeAsUsers =  Arrays.stream(securityProvider.getUsers())
-         .filter(identityId -> Tool.equals(currOrgId, identityId.getOrganization()) && securityProvider.checkPermission(
+         .filter(identityId -> Tool.equals(currOrgId, identityId.getOrgID()) && securityProvider.checkPermission(
             principal, ResourceType.SECURITY_USER, identityId.convertToKey(), ResourceAction.ADMIN))
          .sorted()
          .collect(Collectors.toList());
 
-      if(!executeAsUsers.contains(user) && Tool.equals(user.getOrganization(), currOrgId)) {
+      if(!executeAsUsers.contains(user) && Tool.equals(user.getOrgID(), currOrgId)) {
          executeAsUsers.add(user);
       }
 
@@ -959,7 +955,7 @@ public class ScheduleTaskService {
 
       String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       return Arrays.stream(securityProvider.getGroups())
-         .filter(group -> Tool.equals(currOrgId, group.getOrganization()) && securityProvider.checkPermission(
+         .filter(group -> Tool.equals(currOrgId, group.getOrgID()) && securityProvider.checkPermission(
             principal, ResourceType.SECURITY_GROUP, group.convertToKey(), ResourceAction.ADMIN))
          .sorted()
          .collect(Collectors.toList());
@@ -1165,7 +1161,7 @@ public class ScheduleTaskService {
          return null;
       }
 
-      return new IdentityID(name, OrganizationManager.getInstance().getCurrentOrgName(principal));
+      return new IdentityID(name, OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal));
    }
 
    private final AnalyticRepository analyticRepository;

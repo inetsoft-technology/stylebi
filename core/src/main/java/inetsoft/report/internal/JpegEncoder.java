@@ -1362,7 +1362,7 @@ class JpegInfo {
       }
 
       try {
-         if(grabber.grabPixels() != true) {
+         if(!grabber.grabPixels()) {
             try {
                throw new AWTException("Grabber returned false: " +
                   grabber.status());

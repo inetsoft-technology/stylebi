@@ -110,7 +110,7 @@
               <tr *ngFor="let identity of addedIdentities; let i = index; trackBy:trackByIndex"
                   (click)="select(identity, $event)"
                   [class.selected]="isSelectedIdentity(identity)">
-                <td>{{ identity.alias || identity.identityID }}</td>
+                <td>{{ identity.alias || identity.identityID.name }}</td>
                 <td><input class="form-control form-control-sm" type="text" [ngModel]="addedEmails[i]"
                            (ngModelChange)="changeEmail(i, $event)" [ngModelOptions]="{standalone: true}"></td>
               </tr>

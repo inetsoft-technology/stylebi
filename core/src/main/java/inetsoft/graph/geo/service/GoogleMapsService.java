@@ -133,7 +133,7 @@ public class GoogleMapsService extends WebMapService {
                                                double minLongitude, double maxLongitude,
                                                int widthPx, int heightPx, int zoom)
    {
-      final long scale = 1 << zoom;
+      final long scale = 1L << zoom;
       final LatitudeLongitude centerLatLng =
          new LatitudeLongitude((maxLatitude + minLatitude) / 2, (maxLongitude + minLongitude) / 2);
       final Point.Double centerPx = MercatorProjection.fromLatLngToPoint(centerLatLng);

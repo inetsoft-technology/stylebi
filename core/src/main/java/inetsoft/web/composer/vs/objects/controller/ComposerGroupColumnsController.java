@@ -430,7 +430,7 @@ public class ComposerGroupColumnsController {
     *
     * @return whether the name is a duplicate
     */
-   @PostMapping("/composer/viewsheet/groupFields/checkDuplicates/**")
+   @PostMapping("/api/composer/viewsheet/groupFields/checkDuplicates/**")
    @ResponseBody
    public boolean checkVSTableTrap(
       @RequestBody() GroupFieldsEvent event,

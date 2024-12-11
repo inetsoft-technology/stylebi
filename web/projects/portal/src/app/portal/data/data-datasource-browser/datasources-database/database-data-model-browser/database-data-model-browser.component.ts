@@ -55,6 +55,7 @@ import {
 import { AssetEntry } from "../../../../../../../../shared/data/asset-entry";
 import { ComponentTool } from "../../../../../common/util/component-tool";
 import {DataModelBrowserModel} from "./data-model-browser-model";
+import { AppInfoService } from "../../../../../../../../shared/util/app-info.service";
 
 const LOGICAL_MODEL_ASSET: string = "logical_model";
 const PHYSICAL_VIEW_ASSET: string = "physical_model";
@@ -95,6 +96,7 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
    isdisableAction: boolean = true;
    rootLabel: string = "_#(js:Data Model)";
    fetchChildren = (item) => this.getChildren(item);
+   private enterprise: boolean;
    private subscriptions: Subscription = new Subscription();
    private columns: ListColumn[]  = [
       {
@@ -153,11 +155,13 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
                private dataModelBrowserService: DataModelBrowserService,
                private zone: NgZone,
                private dragService: DragService,
+               private appInfoService: AppInfoService,
                private domService: DomService)
    {
    }
 
    ngOnInit(): void {
+      this.appInfoService.isEnterprise().subscribe(info => this.enterprise = info);
       // subscribe to route parameters and refresh models based on current params
       this.subscriptions.add(this.route.queryParamMap.subscribe((params: ParamMap) => {
          this.searchView = params.has("query");
@@ -768,7 +772,7 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
             label: () => " _#(js:Add Extended View)",
             icon: () => "",
             visible: () => this.isPhysicalView(model) && this.pageModel.dbEditable &&
-               this.listModel.editable && !this.isExtend(model),
+               this.listModel.editable && !this.isExtend(model) && this.enterprise,
             enabled: () => true,
             action: () => this.addExtendModel(model)
          },
@@ -777,7 +781,7 @@ export class DatabaseDataModelBrowserComponent implements OnDestroy, OnInit {
             label: () => "_#(js:Add Extended Model)",
             icon: () => "",
             visible: () => this.isLogicalModel(model) && this.pageModel.dbEditable &&
-               this.listModel.editable && model.editable && !this.isExtend(model),
+               this.listModel.editable && model.editable && !this.isExtend(model) && this.enterprise,
             enabled: () => true,
             action: () => this.addExtendModel(model)
          },

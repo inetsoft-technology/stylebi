@@ -19,8 +19,9 @@ import { HttpErrorResponse } from "@angular/common/http";
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup } from "@angular/forms";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { Observable, throwError } from "rxjs";
+import { Observable, Subscription, throwError } from "rxjs";
 import { catchError } from "rxjs/operators";
+import { AppInfoService } from "../../../../../shared/util/app-info.service";
 import { ComponentTool } from "../../common/util/component-tool";
 import { ShareEmailModel } from "./share-email-model";
 import { ShareService } from "./share.service";
@@ -47,8 +48,10 @@ export class ShareEmailDialogComponent implements OnInit {
    form: UntypedFormGroup;
    formValid = () => !!this.form && this.form.valid;
    isIE = GuiTool.isIE();
+   private subscriptions = new Subscription();
 
-   constructor(private shareService: ShareService, private modalService: NgbModal, fb: UntypedFormBuilder)
+   constructor(private shareService: ShareService, private modalService: NgbModal, fb: UntypedFormBuilder,
+               private appInfoService: AppInfoService)
    {
       this.form = fb.group({
          emailForm: fb.group({})
@@ -58,19 +61,21 @@ export class ShareEmailDialogComponent implements OnInit {
    ngOnInit() {
       this.shareService.getEmailModel().subscribe(model => {
          this.model = model;
+         this.subscriptions.add(this.appInfoService.isEnterprise().subscribe((isEnterprise) => {
+            if(this.viewsheetId) {
+               if(this.username.endsWith("host-org") && !isEnterprise) { //get Organization.getDefaultOrgID() instead of hard coding
+                  this.username = this.username.substring(0, this.username.length - 11);
+               }
 
-         if(this.viewsheetId) {
-            if(this.username.endsWith(" - Host Organization")) {
-               this.username = this.username.substring(0, this.username.length - 20);
+               var messageUserName = this.username.replace("~;~", " of ")
+               this.model.emailModel.message =
+                  `${messageUserName} _#(js:em.settings.share.message.dashboard) ${this.viewsheetName}.`;
+
+               if(!this.isIE) {
+                  this.model.emailModel.message = "<p>" + this.model.emailModel.message + "</p>";
+               }
             }
-
-            this.model.emailModel.message =
-               `${this.username} _#(js:em.settings.share.message.dashboard) ${this.viewsheetName}.`;
-
-            if(!this.isIE) {
-               this.model.emailModel.message = "<p>" + this.model.emailModel.message + "</p>";
-            }
-         }
+         }));
 
          this.historyEmails = Tool.getHistoryEmails(this.model.historyEnabled);
       });

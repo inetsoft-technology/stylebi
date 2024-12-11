@@ -24,6 +24,7 @@ import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.*;
 import inetsoft.util.CoreTool;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -36,17 +37,19 @@ import java.util.*;
 @View(vertical=true, value={
    @View1("URL"),
    @View1("authType"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
    @View1(
       type = ViewType.PANEL,
       vertical = true,
       colspan = 2,
       elements = {
-         @View2(value = "clientId", visibleMethod = "isOauth"),
-         @View2(value = "clientSecret", visibleMethod = "isOauth"),
-         @View2(value = "authorizationUri", visibleMethod = "isOauth"),
-         @View2(value = "tokenUri", visibleMethod = "isOauth"),
-         @View2(value = "scope", visibleMethod = "isOauth"),
-         @View2(value = "oauthFlags", visibleMethod = "isOauth"),
+         @View2(value = "clientId", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "clientSecret", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "authorizationUri", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "tokenUri", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "scope", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "oauthFlags", visibleMethod = "useCredentialForOauth"),
          @View2(
             type = ViewType.BUTTON,
             text = "Authorize",
@@ -61,9 +64,9 @@ import java.util.*;
          @View2(value = "refreshToken", visibleMethod = "isOauth")
       }
    ),
-   @View1(value="user", visibleMethod="isBasicAuth"),
-   @View1(value="password", visibleMethod="isBasicAuth"),
-   @View1(value="authURL", visibleMethod="isTwoStepAuth"),
+   @View1(value="user", visibleMethod="useCredentialForBasicAuth"),
+   @View1(value="password", visibleMethod="useCredentialForBasicAuth"),
+   @View1(value="authURL", visibleMethod="useCredentialForTwoStepAuth"),
    @View1(value="authenticationHttpParameters", visibleMethod="isTwoStepAuth",
           verticalAlign= ViewAlign.TOP),
    @View1(value="authMethod", visibleMethod="isTwoStepAuth"),
@@ -85,6 +88,33 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
 {
    public AbstractRestDataSource(String type, Class<SELF> selfClass) {
       super(type, selfClass);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD_OAUTH2_WITH_FLAGS;
+   }
+
+   @Property(label="Credential", required=true)
+   @PropertyEditor(dependsOn = "useCredentialId")
+   public String getCredentialId() {
+      return Objects.requireNonNullElse(getCredential().getId(), "");
+   }
+
+   @Property(label="Use Secret ID")
+   @PropertyEditor(dependsOn = "authType")
+   public boolean isUseCredentialId() {
+      return super.isUseCredentialId();
+   }
+
+   @Override
+   protected boolean supportCredentialId() {
+      if(getCredentialType() != CredentialType.PASSWORD_OAUTH2_WITH_FLAGS) {
+         return true;
+      }
+
+      AuthType type = getAuthType();
+      return type == AuthType.BASIC || type == AuthType.OAUTH;
    }
 
    @Override
@@ -110,6 +140,10 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
 
    public void setAuthType(AuthType authType) {
       this.authType = authType;
+
+      if(!supportToggleCredential() && getCredential() instanceof CloudCredential) {
+         setCredential(createCredential(true));
+      }
    }
 
    @Property(label = "Service Principal Name")
@@ -168,7 +202,6 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
 
    public boolean isKerberos() {
       return authType == AuthType.KERBEROS;
-//      return true;
    }
 
    /**
@@ -181,31 +214,55 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
    @Property(label="User", required = true)
    @PropertyEditor(dependsOn="authType")
    public String getUser() {
-      return user;
+      if(getCredential() instanceof PasswordCredential) {
+         return ((PasswordCredential) getCredential()).getUser();
+      }
+      else if(getCredential() instanceof ApiKeyCredential) {
+         return ((ApiKeyCredential) getCredential()).getApiKey();
+      }
+
+      return null;
    }
 
    public void setUser(String user) {
-      this.user = user;
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setUser(user);
+      }
+      else if(getCredential() instanceof ApiKeyCredential) {
+         ((ApiKeyCredential) getCredential()).setApiKey(user);
+      }
    }
 
    @Property(label="Password", password=true)
    @PropertyEditor(dependsOn = "authType")
    public String getPassword() {
-      return password;
+      if(getCredential() instanceof PasswordCredential) {
+         return ((PasswordCredential) getCredential()).getPassword();
+      }
+
+      return null;
    }
 
    public void setPassword(String password) {
-      this.password = password;
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setPassword(password);
+      }
    }
 
    @Property(label="Authentication URI")
    @PropertyEditor(dependsOn="authType")
    public String getAuthURL() {
-      return authURL;
+      if(getCredential() instanceof OAuth2CredentialsGrant) {
+         return ((OAuth2CredentialsGrant) getCredential()).getAuthorizationUri();
+      }
+
+      return null;
    }
 
    public void setAuthURL(String authURL) {
-      this.authURL = authURL;
+      if(getCredential() instanceof OAuth2CredentialsGrant) {
+         ((OAuth2CredentialsGrant) getCredential()).setAuthorizationUri(authURL);
+      }
    }
 
    @Property(label="Authentication HTTP Parameters")
@@ -293,6 +350,18 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       return getAuthType() == AuthType.OAUTH;
    }
 
+   public boolean useCredentialForOauth() {
+      return super.useCredential() && isOauth();
+   }
+
+   public boolean useCredentialForBasicAuth() {
+      return super.useCredential() && isBasicAuth();
+   }
+
+   public boolean useCredentialForTwoStepAuth() {
+      return super.useCredential() && isTwoStepAuth();
+   }
+
    @SuppressWarnings("unused")
    public boolean isBodyVisible() {
       return isTwoStepAuth() && authMethod == AuthMethod.POST;
@@ -330,24 +399,44 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
    }
 
    @Property(label = "Client ID", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getClientId() {
-      return clientId;
+      if(getCredential() instanceof ClientCredentials) {
+         return ((ClientCredentials) getCredential()).getClientId();
+      }
+      else if(getCredential() instanceof ClientTokenCredential) {
+         return ((ClientTokenCredential) getCredential()).getClientId();
+      }
+
+      return null;
    }
 
    public void setClientId(String clientId) {
-      this.clientId = clientId;
+      if(getCredential() instanceof ClientCredentials) {
+         ((ClientCredentials) getCredential()).setClientId(clientId);
+      }
+      else if(getCredential() instanceof ClientTokenCredential) {
+         ((ClientTokenCredential) getCredential()).setClientId(clientId);
+      }
    }
 
    @Property(label = "Client Secret", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getClientSecret() {
-      return clientSecret;
+      if(getCredential() instanceof ClientCredentials) {
+         return ((ClientCredentials) getCredential()).getClientSecret();
+      }
+
+      return null;
    }
 
    public void setClientSecret(String clientSecret) {
-      this.clientSecret = clientSecret;
+     if(getCredential() instanceof ClientCredentials) {
+         ((ClientCredentials) getCredential()).setClientSecret(clientSecret);
+     }
    }
 
-   @PropertyEditor(enabled = false)
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
    @Property(label = "Authorization URI", required = true)
    public String getAuthorizationUri() {
       return authorizationUri;
@@ -357,54 +446,95 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       this.authorizationUri = authorizationUri;
    }
 
-   @PropertyEditor(enabled = false)
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
    @Property(label = "Token URI", required = true)
    public String getTokenUri() {
-      return tokenUri;
+      if(getCredential() instanceof OAuth2CredentialsGrant) {
+         return ((OAuth2CredentialsGrant) getCredential()).getTokenUri();
+      }
+
+      return null;
    }
 
    public void setTokenUri(String tokenUri) {
-      this.tokenUri = tokenUri;
+      if(getCredential() instanceof OAuth2CredentialsGrant) {
+         ((OAuth2CredentialsGrant) getCredential()).setTokenUri(tokenUri);
+      }
    }
 
-   @PropertyEditor(enabled = false)
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
    @Property(label = "Scope", required = true)
    public String getScope() {
-      return scope;
+      if(getCredential() instanceof OAuth2CredentialsGrant) {
+         return ((OAuth2CredentialsGrant) getCredential()).getScope();
+      }
+
+      return null;
    }
 
    public void setScope(String scope) {
-      this.scope = scope;
+      if(getCredential() instanceof OAuth2CredentialsGrant) {
+         ((OAuth2CredentialsGrant) getCredential()).setScope(scope);
+      }
    }
 
-   @PropertyEditor(enabled = false)
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
    @Property(label = "OAuth Flags")
    public String getOauthFlags() {
-      return oauthFlags;
+      if(getCredential() instanceof PassworkAndOAuth2WithFlagCredentialsGrant) {
+         return ((PassworkAndOAuth2WithFlagCredentialsGrant) getCredential()).getOauthFlags();
+      }
+
+      return null;
    }
 
    public void setOauthFlags(String oauthFlags) {
-      this.oauthFlags = oauthFlags;
+      if(getCredential() instanceof PassworkAndOAuth2WithFlagCredentialsGrant) {
+         ((PassworkAndOAuth2WithFlagCredentialsGrant) getCredential()).setOauthFlags(oauthFlags);
+      }
    }
 
    @PropertyEditor(enabled = false)
    @Property(label = "Access Token", required = true, password = true)
    public String getAccessToken() {
+      if(getCredential() instanceof AccessTokenCredential) {
+         return ((AccessTokenCredential) getCredential()).getAccessToken();
+      }
+      else if(getCredential() instanceof ClientTokenCredential) {
+         return ((ClientTokenCredential) getCredential()).getAccessToken();
+      }
+
       return accessToken;
    }
 
    public void setAccessToken(String accessToken) {
+      if(getCredential() instanceof AccessTokenCredential) {
+         ((AccessTokenCredential) getCredential()).setAccessToken(accessToken);
+      }
+      else if(getCredential() instanceof ClientTokenCredential) {
+         ((ClientTokenCredential) getCredential()).setAccessToken(accessToken);
+      }
+
       this.accessToken = accessToken;
    }
 
    @PropertyEditor(enabled = false)
    @Property(label = "Refresh Token", required = true, password = true)
    public String getRefreshToken() {
+      if(getCredential() instanceof RefreshTokenCredential) {
+         return ((RefreshTokenCredential) getCredential()).getRefreshToken();
+      }
+
       return refreshToken;
    }
 
    public void setRefreshToken(String refreshToken) {
-      this.refreshToken = refreshToken;
+      if(getCredential() instanceof RefreshTokenCredential) {
+         ((RefreshTokenCredential) getCredential()).setRefreshToken(refreshToken);
+      }
+      else {
+         this.refreshToken = refreshToken;
+      }
    }
 
    @PropertyEditor(enabled = false)
@@ -423,24 +553,12 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       setTokenExpiration(tokens.expiration());
    }
 
-   public boolean authorizeEnabled() {
-      return clientId != null && clientSecret != null;
-   }
-
    @Override
    public void writeContents(PrintWriter writer) {
       super.writeContents(writer);
 
       if(url != null) {
          writer.format("<url><![CDATA[%s]]></url>%n", url);
-      }
-
-      if(user != null) {
-         writer.format("<user><![CDATA[%s]]></user>%n", user);
-      }
-
-      if(password != null) {
-         writer.format("<password><![CDATA[%s]]></password>%n", Tool.encryptPassword(password));
       }
 
       writer.format("<authType><![CDATA[%s]]></authType>%n", authType);
@@ -504,15 +622,6 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
          writer.format("<configurationServiceName>%s</configurationServiceName>%n", configurationServiceName);
       }
 
-      if(clientId != null) {
-         writer.format("<clientId><![CDATA[%s]]></clientId>%n", clientId);
-      }
-
-      if(clientSecret != null) {
-         writer.format(
-            "<clientSecret><![CDATA[%s]]></clientSecret>%n", Tool.encryptPassword(clientSecret));
-      }
-
       if(authorizationUri != null) {
          writer.format(
             "<authorizationUri><![CDATA[%s]]></authorizationUri>%n", authorizationUri);
@@ -547,9 +656,11 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       url = Tool.getChildValueByTagName(root, "url");
-      user = Optional.ofNullable(Tool.getChildValueByTagName(root, "user")).orElse("");
-      password = Optional.ofNullable(
-         Tool.decryptPassword(Tool.getChildValueByTagName(root, "password"))).orElse("");
+      Element credentialNode = Tool.getChildNodeByTagName(root, "PasswordCredential");
+
+      if(credentialNode != null) {
+         getCredential().parseXML(credentialNode);
+      }
 
       final String authTypeString = Tool.getChildValueByTagName(root, "authType");
 
@@ -606,15 +717,22 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
       }
 
       configurationServiceName = CoreTool.getChildValueByTagName(root, "configurationServiceName");
-
-      clientId = Tool.getChildValueByTagName(root, "clientId");
-      clientSecret = Tool.decryptPassword(Tool.getChildValueByTagName(root, "clientSecret"));
       authorizationUri = Tool.getChildValueByTagName(root, "authorizationUri");
       tokenUri = Tool.getChildValueByTagName(root, "tokenUri");
       scope = Tool.getChildValueByTagName(root, "scope");
       oauthFlags = Tool.getChildValueByTagName(root, "oauthFlags");
-      accessToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "accessToken"));
-      refreshToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "refreshToken"));
+      String val = Tool.getChildValueByTagName(root, "accessToken");
+
+      if(val != null) {
+         accessToken = Tool.decryptPassword(val);
+      }
+
+      val = Tool.getChildValueByTagName(root, "refreshToken");
+
+      if(val != null) {
+         refreshToken = Tool.decryptPassword(val);
+      }
+
       String value = Tool.getChildValueByTagName(root, "tokenExpiration");
 
       if(value != null) {
@@ -680,9 +798,19 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
 
       final AbstractRestDataSource that = (AbstractRestDataSource) o;
 
+      if(getCredential() instanceof AccessTokenCredential &&
+         !Objects.equals(getCredential(), that.getCredential()))
+      {
+         return false;
+      }
+      else if(!Objects.equals(getAccessToken(), that.getAccessToken()) ||
+         !Objects.equals(getRefreshToken(), that.getRefreshToken()))
+      {
+         return false;
+      }
+
       return Objects.equals(url, that.url) &&
-         Objects.equals(user, that.user) &&
-         Objects.equals(password, that.password) &&
+         Objects.equals(getCredential(), that.getCredential()) &&
          authType == that.authType &&
          authMethod == that.authMethod &&
          Objects.equals(authURL, that.authURL) &&
@@ -697,14 +825,10 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
          Objects.equals(impersonationType, that.impersonationType) &&
          Objects.equals(configurationServiceName, that.configurationServiceName) &&
          tokenExpiration == that.tokenExpiration &&
-         Objects.equals(clientId, that.clientId) &&
-         Objects.equals(clientSecret, that.clientSecret) &&
          Objects.equals(authorizationUri, that.authorizationUri) &&
          Objects.equals(tokenUri, that.tokenUri) &&
          Objects.equals(scope, that.scope) &&
-         Objects.equals(oauthFlags, that.oauthFlags) &&
-         Objects.equals(accessToken, that.accessToken) &&
-         Objects.equals(refreshToken, that.refreshToken);
+         Objects.equals(oauthFlags, that.oauthFlags);
    }
 
    @Override
@@ -723,6 +847,10 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
             .toArray(HttpParameter[]::new);
       }
 
+      if(getCredential() != null) {
+         ds.setCredential((Credential) Tool.clone(getCredential()));
+      }
+
       return ds;
    }
 
@@ -730,13 +858,11 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
     * @return true if the refresh token is valid and the token expiration is passed
     */
    protected boolean isTokenValid() {
-      return tokenExpiration == 0L || refreshToken == null || refreshToken.isEmpty() ||
+      return tokenExpiration == 0L || getRefreshToken() == null || getRefreshToken().isEmpty() ||
          Instant.now().isBefore(Instant.ofEpochMilli(tokenExpiration));
    }
 
    private String url = "";
-   private String user = "";
-   private String password;
    private AuthType authType = AuthType.NONE;
    private AuthMethod authMethod = AuthMethod.GET;
    private String authURL;
@@ -750,8 +876,6 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
    private String impersonatePrincipal;
    private String configurationServiceName;
    private KerberosImpersonationType impersonationType;
-   private String clientId;
-   private String clientSecret;
    private String authorizationUri;
    private String tokenUri;
    private String scope;

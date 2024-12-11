@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.TimeZone;
 
 /**
  * Controller that provides a REST endpoint used for the scheduled tasks dialog conditions.
@@ -113,6 +114,15 @@ public class ScheduleTaskConditionController {
       IdentityID ownerID = IdentityID.getIdentityIDFromKey(owner);
       return scheduleTaskConditionService
          .saveTaskCondition(taskName, oldTaskName, ownerID, index, model, principal);
+   }
+
+   @RequestMapping(
+      value = "/api/portal/schedule/task/condition/serverOffset",
+      method = RequestMethod.GET
+   )
+   @ResponseBody
+   public long getServerOffset() {
+      return TimeZone.getDefault().getOffset(System.currentTimeMillis());
    }
 
    private final ScheduleTaskConditionService scheduleTaskConditionService;

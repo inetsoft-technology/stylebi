@@ -21,15 +21,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.uql.*;
-import org.apache.commons.io.IOUtils;
-import org.junit.jupiter.api.BeforeEach;
+import inetsoft.util.credential.*;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.*;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -40,10 +39,19 @@ public class OneDriveRuntimeTests {
    private OneDriveDataSource dataSource;
    private OneDriveRuntime runtime;
 
+   @BeforeAll
+   static void mockService() {
+      MockedStatic<CredentialService> mockedCredentialService = Mockito.mockStatic(CredentialService.class);
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.CLIENT_GRANT))
+         .thenReturn(mock(LocalClientCredentialsGrant.class));
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.CLIENT_GRANT, false))
+         .thenReturn(mock(LocalClientCredentialsGrant.class));
+   }
+
    @BeforeEach
    void setupDataSource() {
       dataSource = new OneDriveDataSource();
-      dataSource.setName("One Drive Test");
+      dataSource.setName("OneDrive Test");
       dataSource.setAccessToken("AnyAccessToken");
       runtime = new OneDriveRuntime();
    }
@@ -55,7 +63,7 @@ public class OneDriveRuntimeTests {
       OneDriveQuery query0 = new OneDriveQuery();
       OneDriveQuery query = spy(query0);
       query.setDataSource(dataSource);
-      query.setName("One Drive Test Query");
+      query.setName("OneDrive Test Query");
       query.setPath("Test/TestCSV.csv");
 
       doAnswer((invocation) -> readFile("TestCSV.csv")).when(query).getFile();
@@ -79,7 +87,7 @@ public class OneDriveRuntimeTests {
       OneDriveQuery query0 = new OneDriveQuery();
       OneDriveQuery query = spy(query0);
       query.setDataSource(dataSource);
-      query.setName("One Drive Test Query");
+      query.setName("OneDrive Test Query");
       query.setPath("Test/TestExcel.xlsx");
 
       doAnswer((invocation) -> readFile("TestExcel.xlsx")).when(query).getFile();

@@ -21,6 +21,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.commons.lang3.StringUtils;
 
 import java.sql.Timestamp;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * SessionRecord is a in memory representation of a record in SR_Session table.
@@ -82,8 +84,8 @@ public class SessionRecord implements AuditRecord {
     * @param opError the specified operation error.
     * @param logoffReason the specified logoff reason.
     */
-   public SessionRecord(String userID, String userHost, String userGroup,
-                        String userRole, String userSessionID, String opType,
+   public SessionRecord(String userID, String userHost, List<String> userGroup,
+                        List<String> userRole, String userSessionID, String opType,
                         Timestamp opTimestamp, String opStatus, String opError, String logoffReason)
    {
       super();
@@ -112,8 +114,8 @@ public class SessionRecord implements AuditRecord {
     * @param opStatus the specified operation status.
     * @param opError the specified operation error.
     */
-   public SessionRecord(String userID, String userHost, String userGroup,
-                        String userRole, String userSessionID, String opType,
+   public SessionRecord(String userID, String userHost, List<String> userGroup,
+                        List<String> userRole, String userSessionID, String opType,
                         Timestamp opTimestamp, String opStatus, String opError)
    {
       this(userID, userHost, userGroup, userRole, userSessionID, opType, opTimestamp, opStatus,
@@ -135,8 +137,9 @@ public class SessionRecord implements AuditRecord {
     * Get the operation error.
     * @return the specified operation error.
     */
+   @AuditRecordProperty
    public String getOpError() {
-      return opError;
+      return opError == null ? "" : opError;
    }
 
    /**
@@ -151,6 +154,7 @@ public class SessionRecord implements AuditRecord {
     * Get the operation status.
     * @return the specified operation status.
     */
+   @AuditRecordProperty
    public String getOpStatus() {
       return opStatus;
    }
@@ -167,6 +171,7 @@ public class SessionRecord implements AuditRecord {
     * Get the operation Timestamp.
     * @return the specified operation timestamp.
     */
+   @AuditRecordProperty
    public Timestamp getOpTimestamp() {
       return opTimestamp;
    }
@@ -183,6 +188,7 @@ public class SessionRecord implements AuditRecord {
     * Get the operation type.
     * @return the specified operation type.
     */
+   @AuditRecordProperty
    public String getOpType() {
       return opType;
    }
@@ -199,7 +205,8 @@ public class SessionRecord implements AuditRecord {
     * Get the User Group (dilimited).
     * @return the specified user group.
     */
-   public String getUserGroup() {
+   @AuditRecordProperty
+   public List<String> getUserGroup() {
       return userGroup;
    }
 
@@ -207,7 +214,7 @@ public class SessionRecord implements AuditRecord {
     * Set the User Group (dilimited).
     * @param userGroup the specified userGroup.
     */
-   public void setUserGroup(String userGroup) {
+   public void setUserGroup(List<String> userGroup) {
       this.userGroup = userGroup;
    }
 
@@ -215,6 +222,7 @@ public class SessionRecord implements AuditRecord {
     * Get the user host.
     * @return the specified user host.
     */
+   @AuditRecordProperty
    public String getUserHost() {
       return userHost;
    }
@@ -238,6 +246,7 @@ public class SessionRecord implements AuditRecord {
     * Get the user id.
     * @return the specified user ID.
     */
+   @AuditRecordProperty
    public String getUserID() {
       return userID;
    }
@@ -254,7 +263,8 @@ public class SessionRecord implements AuditRecord {
     * Get the User Role.
     * @return the specified user role.
     */
-   public String getUserRole() {
+   @AuditRecordProperty
+   public List<String> getUserRole() {
       return userRole;
    }
 
@@ -262,7 +272,7 @@ public class SessionRecord implements AuditRecord {
     * Set the User Role.
     * @param userRole the specified user role.
     */
-   public void setUserRole(String userRole) {
+   public void setUserRole(List<String> userRole) {
       this.userRole = userRole;
    }
 
@@ -270,6 +280,7 @@ public class SessionRecord implements AuditRecord {
     * Get the User SessionID.
     * @return the specified user session ID.
     */
+   @AuditRecordProperty
    public String getUserSessionID() {
       return userSessionID;
    }
@@ -285,6 +296,7 @@ public class SessionRecord implements AuditRecord {
    /**
     * Get the Logoff reason.
     */
+   @AuditRecordProperty
    public String getLogoffReason() {
       return logoffReason;
    }
@@ -296,6 +308,7 @@ public class SessionRecord implements AuditRecord {
       this.logoffReason = logoffReason;
    }
 
+   @AuditRecordProperty
    public String getServerHostName() {
       return serverHostName;
    }
@@ -304,6 +317,16 @@ public class SessionRecord implements AuditRecord {
       this.serverHostName = serverHostName;
    }
 
+   @AuditRecordProperty
+   public Timestamp getLogonTime() {
+      return logonTime;
+   }
+
+   public void setLogonTime(Timestamp logonTime) {
+      this.logonTime = logonTime;
+   }
+
+   @AuditRecordProperty
    public String getOrganizationId() {
       return organizationId;
    }
@@ -312,13 +335,49 @@ public class SessionRecord implements AuditRecord {
       this.organizationId = organizationId;
    }
 
+   @AuditRecordProperty
+   public Timestamp getDuration() {
+      return duration;
+   }
+
+   public void setDuration(Timestamp duration) {
+      this.duration = duration;
+   }
+
+   @Override
+   public boolean equals(Object o) {
+      if(this == o) {
+         return true;
+      }
+
+      if(o == null || getClass() != o.getClass()) {
+         return false;
+      }
+
+      SessionRecord that = (SessionRecord) o;
+      return Objects.equals(userID, that.userID) && Objects.equals(userHost, that.userHost) &&
+         Objects.equals(userGroup, that.userGroup) && Objects.equals(userRole, that.userRole) &&
+         Objects.equals(userSessionID, that.userSessionID) && Objects.equals(opType, that.opType) &&
+         Objects.equals(opTimestamp, that.opTimestamp) && Objects.equals(opStatus, that.opStatus) &&
+         Objects.equals(opError, that.opError) && Objects.equals(logoffReason, that.logoffReason) &&
+         Objects.equals(serverHostName, that.serverHostName) &&
+         Objects.equals(organizationId, that.organizationId);
+   }
+
+   @Override
+   public int hashCode() {
+      return Objects.hash(
+         userID, userHost, userGroup, userRole, userSessionID, opType, opTimestamp, opStatus,
+         opError, logoffReason, serverHostName, organizationId);
+   }
+
    @Override
    public String toString() {
       return "SessionRecord{" +
          "userID='" + userID + '\'' +
          ", userHost='" + userHost + '\'' +
-         ", userGroup='" + userGroup + '\'' +
-         ", userRole='" + userRole + '\'' +
+         ", userGroup=" + userGroup +
+         ", userRole=" + userRole +
          ", userSessionID='" + userSessionID + '\'' +
          ", opType='" + opType + '\'' +
          ", opTimestamp=" + opTimestamp +
@@ -332,8 +391,8 @@ public class SessionRecord implements AuditRecord {
 
    private String userID;
    private String userHost;
-   private String userGroup;
-   private String userRole;
+   private List<String> userGroup;
+   private List<String> userRole;
    private String userSessionID;
    private String opType;
    private Timestamp opTimestamp;
@@ -342,4 +401,7 @@ public class SessionRecord implements AuditRecord {
    private String logoffReason = "";
    private String serverHostName;
    private String organizationId;
+
+   private Timestamp duration;
+   private Timestamp logonTime;
 }

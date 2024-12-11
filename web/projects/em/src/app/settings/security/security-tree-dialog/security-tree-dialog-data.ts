@@ -21,5 +21,6 @@ export interface SecurityTreeDialogData {
    groupsEnabled?: boolean;
    rolesEnabled?: boolean;
    organizationsEnabled?: boolean;
+   hideOrgAdminRole?: boolean;
    provider?: string;
 }

@@ -1,11 +1,5 @@
 /*
- * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Copyright (c) 2021, InetSoft Technology Corp, All Rights Reserved.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -19,11 +13,11 @@ import {
    AfterViewChecked,
    AfterViewInit,
    Component,
-   ElementRef,
+   ElementRef, EventEmitter,
    Input,
    NgZone,
    OnDestroy,
-   OnInit,
+   OnInit, Output,
    ViewChild
 } from "@angular/core";
 import {GuiTool} from "../../../../../../../portal/src/app/common/util/gui-tool";
@@ -64,6 +58,8 @@ export class CustomSsoFormComponent implements OnInit, AfterViewInit, AfterViewC
          this.codemirrorInstance.setCursor(pos);
       }
    }
+
+   @Output() modelChange = new EventEmitter();
 
    private _model: CustomSSOAttributesModel;
    private codemirrorInstance: any;
@@ -160,6 +156,7 @@ class CustomSSOFilter extends AbstractSecurityFilter {
             this.zone.run(() => {
                if(this.model) {
                   this.model.inlineGroovyClass = this.codemirrorInstance.getValue();
+                  this.modelChange.emit();
                }
             });
          });

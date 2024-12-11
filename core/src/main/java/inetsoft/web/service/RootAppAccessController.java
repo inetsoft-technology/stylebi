@@ -21,8 +21,10 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepletException;
 import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Tool;
+import inetsoft.util.data.CommonKVModel;
 import inetsoft.web.portal.model.LicenseInfo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -48,6 +50,12 @@ public class RootAppAccessController {
    @GetMapping("/api/enterprise")
    public boolean isEnterprise(@SuppressWarnings("unused") Principal principal) {
       return LicenseManager.getInstance().isEnterprise();
+   }
+
+   @GetMapping("/api/org/info")
+   public CommonKVModel getOrgInfo(@SuppressWarnings("unused") Principal principal) {
+      return new CommonKVModel(OrganizationManager.getInstance().getCurrentOrgID(),
+                               OrganizationManager.getCurrentOrgName());
    }
 
    /**

@@ -22,7 +22,9 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCQuery;
 import inetsoft.uql.jdbc.UniformSQL;
+import inetsoft.util.Catalog;
 import inetsoft.web.adhoc.model.FormatInfoModel;
+import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.condition.ConditionUtil;
 import inetsoft.web.composer.model.ws.*;
@@ -112,8 +114,14 @@ public class QueryController extends WorksheetController {
 
       UniformSQL sql = (UniformSQL) query.getSQLDefinition();
       JDBCDataSource xds = (JDBCDataSource) query.getDataSource();
+      List<String> list = queryManager.getBrowseData(sql, tableName, columnName, columnType, xds, true);
 
-      return queryManager.getBrowseData(sql, tableName, columnName, columnType, xds, true);
+      if(list.size() > BrowseDataController.MAX_ROW_COUNT) {
+         list = list.subList(0, BrowseDataController.MAX_ROW_COUNT);
+         list.add("(" + Catalog.getCatalog().getString("data.truncated") + ")");
+      }
+
+      return list;
    }
 
    @GetMapping(value = "/api/data/datasource/query/column/check/expression")

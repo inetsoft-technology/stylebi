@@ -59,24 +59,18 @@ pipeline {
           script {
             env.AWS_CODEARTIFACT_AUTH_TOKEN = sh(returnStdout: true, script: 'aws codeartifact get-authorization-token --region us-east-2 --domain maven --domain-owner 636869400126 --query authorizationToken --output text').trim()
             sh './mvnw -B clean deploy -Pcommunity,enterprise -DskipTests -f build-tools -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh './mvnw -B clean deploy -Pcommunity,enterprise -DskipTests -f enterprise-build-tools -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
           }
         }
       }
     }
 
     stage('Core') {
-//      when {
-//        anyOf {
-//          changeset 'pom.xml'
-//          changeset 'core/**'
-//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-//        }
-//      }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+        withCredentials([usernamePassword(credentialsId: 'dependency-track', usernameVariable: 'DEPENDENCY_TRACK_URL', passwordVariable: 'DEPENDENCY_TRACK_KEY'), usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
             env.AWS_CODEARTIFACT_AUTH_TOKEN = sh(returnStdout: true, script: 'aws codeartifact get-authorization-token --region us-east-2 --domain maven --domain-owner 636869400126 --query authorizationToken --output text').trim()
-            sh './mvnw -B clean deploy -Pcommunity,enterprise -pl core -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh './mvnw -B clean deploy -Pcommunity,enterprise,sbom -pl core -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
           }
         }
       }
@@ -88,19 +82,11 @@ pipeline {
     }
 
     stage('Utils') {
-//      when {
-//        anyOf {
-//          changeset 'pom.xml'
-//          changeset 'core/**'
-//          changeset 'utils/**'
-//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-//        }
-//      }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+        withCredentials([usernamePassword(credentialsId: 'dependency-track', usernameVariable: 'DEPENDENCY_TRACK_URL', passwordVariable: 'DEPENDENCY_TRACK_KEY'), usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
             env.AWS_CODEARTIFACT_AUTH_TOKEN = sh(returnStdout: true, script: 'aws codeartifact get-authorization-token --region us-east-2 --domain maven --domain-owner 636869400126 --query authorizationToken --output text').trim()
-            sh './mvnw -B clean deploy -Pcommunity,enterprise -f utils -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh './mvnw -B clean deploy -Pcommunity,enterprise,sbom -f utils -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
           }
         }
       }
@@ -112,19 +98,11 @@ pipeline {
     }
 
     stage('Enterprise') {
-//      when {
-//        anyOf {
-//          changeset 'pom.xml'
-//          changeset 'core/**'
-//          changeset 'enterprise/**'
-//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-//        }
-//      }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+        withCredentials([usernamePassword(credentialsId: 'dependency-track', usernameVariable: 'DEPENDENCY_TRACK_URL', passwordVariable: 'DEPENDENCY_TRACK_KEY'), usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
             env.AWS_CODEARTIFACT_AUTH_TOKEN = sh(returnStdout: true, script: 'aws codeartifact get-authorization-token --region us-east-2 --domain maven --domain-owner 636869400126 --query authorizationToken --output text').trim()
-            sh './mvnw -B clean deploy -Pcommunity,enterprise -pl enterprise -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh './mvnw -B clean deploy -Pcommunity,enterprise,sbom -pl enterprise -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
           }
         }
       }
@@ -136,19 +114,17 @@ pipeline {
     }
 
     stage('Integration') {
-//      when {
-//        anyOf {
-//          changeset 'pom.xml'
-//          changeset 'core/**'
-//          changeset 'integration/**'
-//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-//        }
-//      }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+        withCredentials([usernamePassword(credentialsId: 'dependency-track', usernameVariable: 'DEPENDENCY_TRACK_URL', passwordVariable: 'DEPENDENCY_TRACK_KEY'), usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
             env.AWS_CODEARTIFACT_AUTH_TOKEN = sh(returnStdout: true, script: 'aws codeartifact get-authorization-token --region us-east-2 --domain maven --domain-owner 636869400126 --query authorizationToken --output text').trim()
-            sh './mvnw -B clean deploy -Pcommunity,enterprise -f integration -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh './mvnw -B clean deploy -Pcommunity,enterprise,sbom -f integration -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh """/kaniko/executor \
+              --dockerfile=Dockerfile \
+              --context="dir://\$WORKSPACE/integration/stylebi-operator/target/docker-build" \
+              --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-operator:1.0.$dockerBuildVersion \
+              --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-operator:1.0 \
+              --cache=true --compressed-caching=false --use-new-run --snapshot-mode=redo"""
           }
         }
       }
@@ -160,19 +136,11 @@ pipeline {
     }
 
     stage('Shell') {
-//      when {
-//        anyOf {
-//          changeset 'pom.xml'
-//          changeset 'core/**'
-//          changeset 'shell/**'
-//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-//        }
-//      }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+        withCredentials([usernamePassword(credentialsId: 'dependency-track', usernameVariable: 'DEPENDENCY_TRACK_URL', passwordVariable: 'DEPENDENCY_TRACK_KEY'), usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
             env.AWS_CODEARTIFACT_AUTH_TOKEN = sh(returnStdout: true, script: 'aws codeartifact get-authorization-token --region us-east-2 --domain maven --domain-owner 636869400126 --query authorizationToken --output text').trim()
-            sh './mvnw -B clean deploy -Pcommunity,enterprise -pl shell -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh './mvnw -B clean deploy -Pcommunity,enterprise,sbom -pl shell -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
           }
         }
       }
@@ -184,19 +152,12 @@ pipeline {
     }
 
     stage('Connectors') {
-//      when {
-//        anyOf {
-//          changeset 'pom.xml'
-//          changeset 'core/**'
-//          changeset 'connectors/**'
-//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-//        }
-//      }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+        withCredentials([usernamePassword(credentialsId: 'dependency-track', usernameVariable: 'DEPENDENCY_TRACK_URL', passwordVariable: 'DEPENDENCY_TRACK_KEY'), usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
             env.AWS_CODEARTIFACT_AUTH_TOKEN = sh(returnStdout: true, script: 'aws codeartifact get-authorization-token --region us-east-2 --domain maven --domain-owner 636869400126 --query authorizationToken --output text').trim()
-            sh './mvnw -B clean deploy -Pcommunity,enterprise -f connectors -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh './mvnw -B clean deploy -Pcommunity,enterprise,sbom -f connectors -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh './mvnw -B clean deploy -Pcommunity,enterprise,sbom -f enterprise-connectors -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
           }
         }
       }
@@ -208,20 +169,14 @@ pipeline {
     }
 
     stage('Web') {
-//      when {
-//        anyOf {
-//          changeset 'web/**'
-//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-//        }
-//      }
       environment {
         NODE_OPTIONS = '--max-old-space-size=4096'
       }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+        withCredentials([usernamePassword(credentialsId: 'dependency-track', usernameVariable: 'DEPENDENCY_TRACK_URL', passwordVariable: 'DEPENDENCY_TRACK_KEY'), usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
             env.AWS_CODEARTIFACT_AUTH_TOKEN = sh(returnStdout: true, script: 'aws codeartifact get-authorization-token --region us-east-2 --domain maven --domain-owner 636869400126 --query authorizationToken --output text').trim()
-            sh './mvnw -B clean deploy -Pcommunity,enterprise,production -pl web -DskipTests -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh './mvnw -B clean deploy -Pcommunity,enterprise,production,sbom -pl web -DskipTests -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
           }
         }
       }
@@ -234,19 +189,12 @@ pipeline {
     }
 
     stage('Server') {
-//      when {
-//        anyOf {
-//          changeset 'pom.xml'
-//          changeset 'core/**'
-//          changeset 'server/**'
-//          expression { return currentBuild.previousBuild == null || currentBuild.previousBuild.result != 'SUCCESS' }
-//        }
-//      }
       steps {
-        withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+        withCredentials([usernamePassword(credentialsId: 'dependency-track', usernameVariable: 'DEPENDENCY_TRACK_URL', passwordVariable: 'DEPENDENCY_TRACK_KEY'), usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
             env.AWS_CODEARTIFACT_AUTH_TOKEN = sh(returnStdout: true, script: 'aws codeartifact get-authorization-token --region us-east-2 --domain maven --domain-owner 636869400126 --query authorizationToken --output text').trim()
-            sh './mvnw -B clean deploy -Pcommunity -pl server -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh './mvnw -B clean deploy -Pcommunity,sbom -pl server -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
+            sh './mvnw -B clean deploy -Pcommunity,enterprise,sbom -pl enterprise-server -s /home/jenkins/.m2/settings.xml -DaltReleaseDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/releases/ -DaltSnapshotDeploymentRepository=inetsoft::https://maven-636869400126.d.codeartifact.us-east-2.amazonaws.com/maven/snapshots/'
           }
         }
       }
@@ -262,19 +210,18 @@ pipeline {
         withCredentials([usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
           script {
             env.AWS_CODEARTIFACT_AUTH_TOKEN = sh(returnStdout: true, script: 'aws codeartifact get-authorization-token --region us-east-2 --domain maven --domain-owner 636869400126 --query authorizationToken --output text').trim()
-            sh "./mvnw -B clean package -DskipTests -Ddocker.build.version=$dockerBuildVersion -Pcommunity -pl docker/community -s /home/jenkins/.m2/settings.xml"
+            sh "./mvnw -B clean install -DskipTests -Ddocker.build.version=$dockerBuildVersion -Dinetsoft.community.image=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-community:1.0.$dockerBuildVersion -Pcommunity,enterprise -f docker -s /home/jenkins/.m2/settings.xml"
             sh """/kaniko/executor \
               --dockerfile=Dockerfile \
-              --context="dir://\$WORKSPACE/docker/community/target/docker" \
-              --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-community:14.0.$dockerBuildVersion \
-              --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-community:14.0 \
+              --context="dir://\$WORKSPACE/docker/community/target/docker-build" \
+              --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-community:1.0.$dockerBuildVersion \
+              --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-community:1.0 \
               --cache=true --compressed-caching=false --use-new-run --snapshot-mode=redo"""
-            sh "./mvnw -B clean package -DskipTests -Ddocker.build.version=$dockerBuildVersion -Dinetsoft.community.image=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-community:14.0.$dockerBuildVersion -Pcommunity,enterprise -pl docker/enterprise -s /home/jenkins/.m2/settings.xml"
             sh """/kaniko/executor \
               --dockerfile=Dockerfile \
-              --context="dir://\$WORKSPACE/docker/enterprise/target/docker" \
-              --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-enterprise:14.0.$dockerBuildVersion \
-              --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-enterprise:14.0 \
+              --context="dir://\$WORKSPACE/docker/enterprise/target/docker-build" \
+              --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-enterprise:1.0.$dockerBuildVersion \
+              --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-enterprise:1.0 \
               --cache=true --compressed-caching=false --use-new-run --snapshot-mode=redo"""
           }
         }

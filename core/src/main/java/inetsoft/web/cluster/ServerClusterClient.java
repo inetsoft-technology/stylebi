@@ -56,6 +56,10 @@ public class ServerClusterClient {
                String address = event.getMember();
                String server = getClusterNodeServer(address);
 
+               if(server != null && address != null) {
+                  server = address;
+               }
+
                if(server != null) {
                   setStatus(server, s -> {
                      s.setStatus(ServerClusterStatus.Status.DOWN);
@@ -70,10 +74,9 @@ public class ServerClusterClient {
          });
 
          cluster.addMessageListener(event -> {
-            if((event.getMessage() instanceof RefreshClusterMessage) &&
+            if((event.getMessage() instanceof RefreshClusterMessage message) &&
                !event.getSender().equals(cluster.getLocalMember()))
             {
-               RefreshClusterMessage message = (RefreshClusterMessage) event.getMessage();
                refresh(message.getProperty(), message.getDefaultValue(), false);
             }
          });

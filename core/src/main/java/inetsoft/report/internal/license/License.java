@@ -17,6 +17,8 @@
  */
 package inetsoft.report.internal.license;
 
+import inetsoft.sree.internal.SUtil;
+import org.apache.commons.lang.StringUtils;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -172,6 +174,16 @@ public abstract class License {
       return 0;
    }
 
+   @Value.Default
+   public boolean cloudDevelopment() {
+      return false;
+   }
+
+   @Value.Default
+   public boolean cloudTest() {
+      return false;
+   }
+
    /**
     * The licensed software components.
     */
@@ -181,7 +193,16 @@ public abstract class License {
     * A flag indicating if the license is valid and has not expired.
     */
    public final boolean valid(boolean ignoreDuplicate) {
-      return type() != LicenseType.INVALID && (ignoreDuplicate ? true : !duplicate()) &&
+      if(type() == LicenseType.NAMED_USER && SUtil.isMultiTenant()) {
+         return false;
+      }
+
+      if(type() == LicenseType.ELASTIC) {
+         ElasticLicenseService service = ElasticLicenseService.getInstance();
+         return service.getRemainingHours(this) > 0 || service.getGracePeriodHours(this) > 0;
+      }
+
+      return type() != LicenseType.INVALID && (ignoreDuplicate || !duplicate()) &&
          LocalDateTime.now().isBefore(expires());
    }
 
@@ -197,12 +218,13 @@ public abstract class License {
     */
    public String description() {
       StringBuilder description = new StringBuilder();
+      LicenseType type = type();
 
-      if(type() == null) {
+      if(type == null) {
          return null;
       }
 
-      switch(type()) {
+      switch(type) {
       case CPU:
          description.append(cpuCount()).append(" CPU(s)");
          break;
@@ -218,29 +240,32 @@ public abstract class License {
       case NAMED_USER_VIEWER:
          description.append(namedUserViewerSessionCount()).append(" Named Viewer Session(s)");
          break;
-      case SCHEDULER:
-         description.append(instanceCount()).append(" Scheduler Instance(s)");
+      case ELASTIC:
+         appendElasticDescription(description);
+         break;
+      case HOSTED:
+         description.append("Per-User Hosted");
          break;
       }
 
       Duration expires = Duration.between(LocalDateTime.now(), expires());
 
       if(expires.isNegative()) {
-         if(description.length() > 0) {
+         if(!description.isEmpty()) {
             description.append(", ");
          }
 
          description.append("Expired");
       }
       else if(expires.toDays() < 364) {
-         if(description.length() > 0) {
+         if(!description.isEmpty()) {
             description.append(", ");
          }
 
          description.append(expires.toDays() + 1).append(" Day(s)");
       }
       else if(expires.toDays() < 3649) {
-         if(description.length() > 0) {
+         if(!description.isEmpty()) {
             description.append(", ");
          }
 
@@ -251,7 +276,7 @@ public abstract class License {
       }
 
       if(!valid()) {
-         if(description.length() > 0) {
+         if(!description.isEmpty()) {
             description.append(", ");
          }
 
@@ -259,15 +284,15 @@ public abstract class License {
       }
 
       if(standalone()) {
-         if(description.length() > 0) {
+         if(!description.isEmpty()) {
             description.append(", ");
          }
 
          description.append("Standalone");
       }
 
-      if(!productName().isEmpty()) {
-         if(description.length() > 0) {
+      if(!StringUtils.isEmpty(productName())) {
+         if(!description.isEmpty()) {
             description.append(", ");
          }
 
@@ -275,6 +300,24 @@ public abstract class License {
       }
 
       return description.toString();
+   }
+
+   private void appendElasticDescription(StringBuilder description) {
+      ElasticLicenseService service = ElasticLicenseService.getInstance();
+      int remainingHours = 0;
+      int graceHours = 0;
+      String key = key();
+
+      if(key != null) {
+         remainingHours = Math.max(0, (int) service.getRemainingHours(this));
+         graceHours = Math.max(0, (int) service.getGracePeriodHours(this));
+      }
+
+      description.append("Elastic vCPU ").append(remainingHours).append(" hours remaining");
+
+      if(remainingHours == 0 && graceHours > 0) {
+         description.append(", ").append(graceHours).append(" grace period hours remaining");
+      }
    }
 
    public static Builder builder() {

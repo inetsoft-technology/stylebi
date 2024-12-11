@@ -18,6 +18,7 @@
 package inetsoft.web.portal.data;
 
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.IndexedStorage;
@@ -159,22 +160,23 @@ public class DataSetSearchService {
          this.searchResults = new TreeSet<>();
          this.storage = storage;
          this.assetRepository = assetRepository;
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID();
          IdentityID user = parentEntry.getScope() == AssetRepository.USER_SCOPE && principal != null ?
             IdentityID.getIdentityIDFromKey(principal.getName()) : null;
          AssetEntry entry = new AssetEntry(
             parentEntry.getScope(), AssetEntry.Type.WORKSHEET, parentEntry.getPath(), user);
 
-         if(parentEntry.isRoot()) {
+         if(parentEntry.isRoot() || parentEntry.toIdentifier().endsWith(orgID)) {
             folderPrefix = parentEntry.toIdentifier()
-               .substring(0, parentEntry.toIdentifier().length() - 1);
+               .substring(0, parentEntry.toIdentifier().length() - orgID.length() - 2);
          }
          else {
             folderPrefix = parentEntry.toIdentifier() + "/";
          }
 
-         if(parentEntry.isRoot()) {
+         if(parentEntry.isRoot() || parentEntry.toIdentifier().endsWith(orgID)) {
             sheetPrefix = entry.toIdentifier()
-               .substring(0, entry.toIdentifier().length() - 1);
+               .substring(0, entry.toIdentifier().length() - orgID.length() - 2);
          }
          else {
             sheetPrefix = entry.toIdentifier() + "/";

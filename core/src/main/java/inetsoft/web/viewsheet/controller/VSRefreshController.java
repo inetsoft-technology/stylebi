@@ -38,6 +38,7 @@ import inetsoft.web.binding.handler.VSChartDataHandler;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
+import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.command.UpdateUndoStateCommand;
 import inetsoft.web.viewsheet.controller.table.BaseTableController;
@@ -121,6 +122,16 @@ public class VSRefreshController {
 
       box.lockWrite();
       pending.put(id, true);
+
+      // reset embed assembly size on refresh
+      if(event.embedAssemblySize() != null) {
+         EmbedAssemblyInfo embedAssemblyInfo = rvs.getEmbedAssemblyInfo();
+
+         if(embedAssemblyInfo != null) {
+            embedAssemblyInfo.setAssemblySize(event.embedAssemblySize());
+         }
+      }
+
       AssetEntry entry = rvs.getEntry();
       String userSessionId = principal == null ?
          XSessionService.createSessionID(XSessionService.USER, null) :

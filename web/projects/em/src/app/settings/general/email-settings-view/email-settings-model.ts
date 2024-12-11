@@ -23,10 +23,12 @@ export interface EmailSettingsModel {
    smtpAuthentication: boolean;
    smtpUser: string;
    smtpPassword: string;
+   smtpSecretId: string;
    confirmSmtpPassword?: string;
    fromAddress: string;
    fromAddressEnabled: boolean;
    deliveryMailSubjectFormat: string;
    notificationMailSubjectFormat: string;
    historyEnabled: boolean;
+   secretIdVisible: boolean;
 }

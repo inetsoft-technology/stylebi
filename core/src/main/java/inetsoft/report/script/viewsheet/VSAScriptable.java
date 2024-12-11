@@ -17,6 +17,7 @@
  */
 package inetsoft.report.script.viewsheet;
 
+import inetsoft.report.composition.execution.CalcTableVSAQuery;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.BaseScriptable;
 import inetsoft.report.script.PropertyDescriptor;
@@ -346,7 +347,7 @@ public class VSAScriptable extends ScriptableObject
       VSAssembly vsobj = ViewsheetScope.VIEWSHEET_SCRIPTABLE.equals(assembly) ? vs
          : vs.getAssembly(assembly);
 
-      if(vsobj == null) {
+      if(vsobj == null && !assembly.contains(CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX)) {
          LOG.error("Script assembly is not found: " + assembly + " in " +
                       Arrays.stream(vs.getAssemblies()).map(a -> a.getName()).collect(Collectors.toSet()));
       }

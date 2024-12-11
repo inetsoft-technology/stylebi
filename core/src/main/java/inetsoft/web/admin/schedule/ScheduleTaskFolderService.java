@@ -27,7 +27,6 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -85,7 +84,7 @@ public class ScheduleTaskFolderService {
 
       String actionName = ActionRecord.ACTION_NAME_CREATE;
       String objectType = ActionRecord.OBJECT_TYPE_FOLDER;
-      String objectName = folderEntry.getDescription();
+      String objectName = "Tasks/" + folderEntry.getPath();
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
       ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, objectName,
                                                    objectType, actionTimestamp,
@@ -321,7 +320,7 @@ public class ScheduleTaskFolderService {
             = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, path, null);
          String actionName = ActionRecord.ACTION_NAME_MOVE;
          String actionError = "Target Entry: " + newEntry.getDescription();
-         String objectName = folderEntry.getDescription();
+         String objectName = "Tasks/" + folderEntry.getPath();
          String objectType = AssetEventUtil.getObjectType(folderEntry);
          Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
          ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, objectName,
@@ -364,10 +363,10 @@ public class ScheduleTaskFolderService {
 
          String taskName = taskModel.name();
 
-         if(taskModel.owner() != null && !taskModel.owner().equals(XPrincipal.SYSTEM) &&
+         if(taskModel.owner() != null && !taskModel.owner().name.equals(XPrincipal.SYSTEM) &&
             !taskModel.name().startsWith(taskModel.owner().name))
          {
-            taskName = taskModel.owner() + ":" + taskModel.name();
+            taskName = taskModel.owner().convertToKey() + ":" + taskModel.name();
          }
 
          AssetEntry taskEntry
@@ -380,7 +379,7 @@ public class ScheduleTaskFolderService {
          Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
          ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), ActionRecord.ACTION_NAME_MOVE,
             taskName, ActionRecord.OBJECT_TYPE_TASK, actionTimestamp,
-            ActionRecord.ACTION_STATUS_SUCCESS, "");
+            ActionRecord.ACTION_STATUS_SUCCESS, "Target Entry: " + targetEntry.getPath());
          Audit.getInstance().auditAction(actionRecord, principal);
       }
    }
@@ -417,7 +416,7 @@ public class ScheduleTaskFolderService {
       }
 
       String actionName = ActionRecord.ACTION_NAME_RENAME;
-      String objectName = folderEntry.getDescription();
+      String objectName = "Tasks/" + folderEntry.getPath();
       String objectType = AssetEventUtil.getObjectType(folderEntry);
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
       ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, objectName,
@@ -584,9 +583,9 @@ public class ScheduleTaskFolderService {
       String oldPath = task.getPath();
       String newPath = parentEntry.getPath();
       task.setPath(parentEntry.getPath());
-      scheduleManager.setScheduleTask(task.getName(), task, parentEntry, principal);
+      scheduleManager.setScheduleTask(task.getTaskId(), task, parentEntry, principal);
       RenameTransformHandler.getTransformHandler().addTransformTask(
-         ScheduleService.getDependencyInfo(task.getName(), task.getName(), oldPath, newPath));
+         ScheduleService.getDependencyInfo(task.getTaskId(), task.getTaskId(), oldPath, newPath));
    }
 
    /**

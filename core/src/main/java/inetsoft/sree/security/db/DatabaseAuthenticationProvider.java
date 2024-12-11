@@ -97,7 +97,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
             Query query = handle.createQuery(userQuery);
 
             if(SUtil.isMultiTenant()) {
-               query.bind(0, username.organization);
+               query.bind(0, username.orgID);
                query.bind(1, username.name);
             }
             else {
@@ -145,7 +145,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
             Query query = handle.createQuery(userQuery);
 
             if(SUtil.isMultiTenant()) {
-               query.bind(0, userid.organization);
+               query.bind(0, userid.orgID);
                query.bind(1, userid.name);
             }
             else {
@@ -178,6 +178,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    }
 
    public void testConnection() throws Exception {
+      loadCredential();
       checkConnectionProperties();
       Driver driver = JDBCHandler.getDriver(driverClass);
       Properties properties = new Properties();
@@ -187,6 +188,21 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       try(Connection connection = driver.connect(url, properties)) {
          if(connection == null) {
             throw new MessageException(Catalog.getCatalog().getString("Connection failed"));
+         }
+      }
+   }
+
+   @Override
+   public void loadCredential(String secretId) {
+      JsonNode jsonNode = Tool.loadCredentials(secretId, !isUseCredential());
+
+      if(jsonNode != null) {
+         try {
+            dbUser = jsonNode.get("user").asText();
+            dbPassword = jsonNode.get("password").asText();
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to load credentials!");
          }
       }
    }
@@ -228,7 +244,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
                users = query.mapToMap().stream()
                   .filter(map -> {
                      List<Object> values = new ArrayList<>(map.values());
-                     return values.get(0) != null && values.get(1) != null &&
+                     return values.get(0) != null && values.get(1) != null && !"null".equalsIgnoreCase(values.get(0).toString()) &&
                         !values.get(0).toString().isEmpty() && !values.get(1).toString().isEmpty();
                   })
                   .map(map -> {
@@ -239,7 +255,8 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
             }
             else {
                users = query.map(this::mapToString).filter(Objects::nonNull)
-                  .map(name -> new IdentityID(name, Organization.getDefaultOrganizationName()).convertToKey()).list().toArray(new String[0]);
+                  .map(name -> new IdentityID(name, Organization.getDefaultOrganizationID()).convertToKey())
+                  .filter(u -> !"null".equalsIgnoreCase(u)).list().toArray(new String[0]);
             }
 
             return new QueryResult(users, false);
@@ -275,16 +292,16 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    }
 
    @Override
-   public Organization getOrganization(String orgKey) {
-      if(orgKey == null) {
+   public Organization getOrganization(String id) {
+      if(id == null) {
          return null;
       }
 
-      for(String userName : getOrganizations()) {
-         if(caseSensitive && orgKey.equals(userName) ||
-            !caseSensitive && orgKey.equalsIgnoreCase(userName))
+      for(String orgID : this.getOrganizationIDs()) {
+         if(caseSensitive && id.equals(orgID) ||
+            !caseSensitive && id.equalsIgnoreCase(orgID))
          {
-            return new Organization(orgKey, getOrganizationId(orgKey), getOrganizationMembers(orgKey), "", true);
+            return new Organization(getOrganizationName(id), id, getOrganizationMembers(id), "", true);
          }
       }
 
@@ -292,22 +309,22 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    }
 
    @Override
-   public String getOrgId(String name) {
-      return getOrganization(name).getId();
+   public String getOrgIdFromName(String name) {
+      for(String orgID : getOrganizationIDs()) {
+         if(getOrganization(orgID).getName().equals(name)) {
+            return orgID;
+         }
+      }
+      return null;
    }
 
    @Override
    public String getOrgNameFromID(String id) {
-      for(String org : getOrganizations()) {
-         if(getOrganization(org).getId().equalsIgnoreCase(id)) {
-            return org;
-         }
-      }
-      return null;
+      return getOrganization(id).getName();
    }
 
    @Override
-   public String[] getOrganizations() {
+   public String[] getOrganizationIDs() {
       if(cacheEnabled && !isIgnoreCache()) {
          return getCache().getOrganizations();
       }
@@ -316,34 +333,53 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    }
 
    @Override
-   public String getOrganizationId(String name) {
+   public String[] getOrganizationNames() {
+      if(cacheEnabled && !isIgnoreCache()) {
+         return Arrays.stream(getCache().getOrganizations()).map(this::getOrgNameFromID).toArray(String[]::new);
+      }
+
+      return Arrays.stream(doGetOrganizations().result).map(this::getOrgNameFromID).toArray(String[]::new);
+   }
+
+   public String getOrganizationName(String id) {
       // global
-      if(name == null) {
+      if(id == null) {
          return null;
       }
 
       if(cacheEnabled && !isIgnoreCache()) {
-         String cacheid = getCache().getOrganizationId(name);
+         String cacheid = getCache().getOrganizationName(id);
 
          return cacheid == null || cacheid.isEmpty() ?
-                 doGetOrganizationId(name) : cacheid;
+                 doGetOrganizationName(id) : cacheid;
       }
 
-      return doGetOrganizationId(name);
+      return doGetOrganizationName(id);
    }
 
    @Override
-   public String[] getOrganizationMembers(String name) {
+   public String getOrganizationId(String name) {
+      // global
+      for(String oid : getOrganizationIDs()) {
+         if(getOrganization(oid).getName().equals(name)) {
+            return oid;
+         }
+      }
+      return null;
+   }
+
+   @Override
+   public String[] getOrganizationMembers(String organizationID) {
       if(cacheEnabled && !isIgnoreCache()) {
-         return getCache().getOrganizationMembers(name);
+         return getCache().getOrganizationMembers(organizationID);
       }
 
-      return doGetOrganizationMembers(name);
+      return doGetOrganizationMembers(organizationID);
    }
 
    private QueryResult doGetOrganizations() {
       if(organizationListQuery == null || organizationListQuery.isEmpty()) {
-         return new QueryResult(new String[]{Organization.getDefaultOrganizationName()}, false);
+         return new QueryResult(new String[]{Organization.getDefaultOrganizationID()}, false);
       }
 
       try(Connection connection = getConnection()) {
@@ -351,7 +387,9 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
 
          try(Handle handle = jdbi.open()) {
             Query query = handle.createQuery(organizationListQuery);
-            String[] orgs = query.map(this::mapToString).filter(Objects::nonNull).list().toArray(new String[0]);
+            String[] orgs = query.map(this::mapToString)
+               .filter(o -> o != null && !o.isEmpty() && !"null".equalsIgnoreCase(o))
+               .list().toArray(new String[0]);
             return new QueryResult(orgs, false);
          }
          catch(Exception ex) {
@@ -366,17 +404,17 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       return new QueryResult(new String[0], true);
    }
 
-   private String doGetOrganizationId(String name) {
-      if(organizationIdQuery == null || organizationIdQuery.isEmpty()) {
-         return Organization.getDefaultOrganizationID();
+   private String doGetOrganizationName(String id) {
+      if(organizationNameQuery == null || organizationNameQuery.isEmpty()) {
+         return Organization.getDefaultOrganizationName();
       }
 
       try(Connection connection = getConnection()) {
          Jdbi jdbi = Jdbi.create(connection);
 
          try(Handle handle = jdbi.open()) {
-            Query query = handle.createQuery(organizationIdQuery);
-            query.bind(0, name);
+            Query query = handle.createQuery(organizationNameQuery);
+            query.bind(0, id);
             return query.map(this::mapToString).stream().filter(Objects::nonNull).findFirst().orElse(null);
          }
          catch(Exception ex) {
@@ -402,7 +440,8 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          try(Handle handle = jdbi.open()) {
             Query query = handle.createQuery(organizationRolesQuery);
             query.bind(0, name);
-            return query.map(this::mapToString).stream().toArray(String[]::new);
+            return query.map(this::mapToString).stream()
+            .filter(r -> r != null && !r.isEmpty() && !"null".equalsIgnoreCase(r)).toArray(String[]::new);
          }
          catch(Exception ex) {
             LOG.warn(
@@ -416,7 +455,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       return new String[0];
    }
 
-   private String[] doGetOrganizationMembers(String name) {
+   private String[] doGetOrganizationMembers(String id) {
       if(organizationMembersQuery == null || organizationMembersQuery.isEmpty()) {
          return new String[0];
       }
@@ -428,7 +467,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
 
          try(Handle handle = jdbi.open()) {
             Query query = handle.createQuery(organizationMembersQuery);
-            query.bind(0, name);
+            query.bind(0, id);
             query.map(this::mapToList).stream().forEach(members::addAll);
 
             return members.toArray(new String[0]);
@@ -462,7 +501,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       }
 
       return Arrays.stream(doGetUsers(groupIdentity))
-         .map(name -> new IdentityID(name, groupIdentity.organization)).toArray(IdentityID[]::new);
+         .map(name -> new IdentityID(name, groupIdentity.orgID)).toArray(IdentityID[]::new);
    }
 
    private String[] doGetUsers(IdentityID group) {
@@ -473,7 +512,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
             Query query = handle.createQuery(groupUsersQuery);
 
             if(SUtil.isMultiTenant()) {
-               query.bind(0, group.organization);
+               query.bind(0, group.orgID);
                query.bind(1, group.name);
             }
             else {
@@ -528,19 +567,24 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
                roles = query.mapToMap().stream()
                   .map(map -> {
                      List<Object> values = new ArrayList<>(map.values());
-                     String roleName = values.get(0).toString();
-                     String orgName = values.get(1) == null ? null : values.get(1).toString();
-                     orgName = fixOrganization(roleName, orgName);
-                     return new IdentityID(roleName, orgName).convertToKey();
+                     String roleName = values.get(0) == null ? null : values.get(0).toString();
+                     String orgID = values.get(1) == null ? null : values.get(1).toString();
+                     orgID = handleGlobalOrganizations(roleName, orgID);
+                     return new IdentityID(roleName, orgID).convertToKey();
                   })
+                  .filter(r -> !(IdentityID.getIdentityIDFromKey(r).name.isEmpty()) &&
+                     (!"null".equalsIgnoreCase(IdentityID.getIdentityIDFromKey(r).name)))
                   .toArray(String[]::new);
             }
             else {
                roles = query.map(this::mapToString).filter(Objects::nonNull)
                   .map(name -> {
-                     String orgName = fixOrganization(name, Organization.getDefaultOrganizationName());
-                     return new IdentityID(name, orgName).convertToKey();
-                  }).list().toArray(new String[0]);
+                     String orgID = handleGlobalOrganizations(name, Organization.getDefaultOrganizationID());
+                     return new IdentityID(name, orgID).convertToKey();
+                  })
+                  .filter(r -> !(IdentityID.getIdentityIDFromKey(r).name.isEmpty()) &&
+                     (!"null".equalsIgnoreCase(IdentityID.getIdentityIDFromKey(r).name)))
+                  .list().toArray(new String[0]);
             }
 
             if(systemAdministratorRoles != null && systemAdministratorRoles.length > 0 ||
@@ -567,7 +611,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
 
    @Override
    public IdentityID[] getRoles(IdentityID userID) {
-      if(Arrays.asList(getOrganizations()).contains(userID.organization)) {
+      if(Arrays.asList(this.getOrganizationIDs()).contains(userID.orgID)) {
          if(cacheEnabled && !isIgnoreCache()) {
             return getCache().getRoles(userID);
          }
@@ -585,14 +629,14 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
             Query query = handle.createQuery(userRolesQuery);
 
             if(SUtil.isMultiTenant()) {
-               query.bind(0, user.organization);
+               query.bind(0, user.orgID);
                query.bind(1, user.name);
-               return query.map(this::mapToString).stream().map(r -> new IdentityID(r, parseOrgOrGlobalRole(r, user.organization))).toArray(IdentityID[]::new);
             }
             else {
                query.bind(0, user.name);
-               return query.map(this::mapToString).stream().map(r -> new IdentityID(r, user.organization)).toArray(IdentityID[]::new);
             }
+
+            return query.map(this::mapToString).stream().map(r -> new IdentityID(r, parseOrgOrGlobalRole(r, user.orgID))).toArray(IdentityID[]::new);
          }
          catch(Exception ex) {
             LOG.warn(
@@ -606,7 +650,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       return new IdentityID[0];
    }
 
-   private String fixOrganization(String roleName, String orgName) {
+   private String handleGlobalOrganizations(String roleName, String orgID) {
       if(systemAdministratorRoles != null) {
          int idx = Arrays.asList(systemAdministratorRoles).indexOf(roleName);
 
@@ -623,7 +667,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          }
       }
 
-      return orgName;
+      return orgID;
    }
 
    @Override
@@ -674,7 +718,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
                result = query.mapToMap().stream()
                   .filter(map -> {
                      List<Object> values = new ArrayList<>(map.values());
-                     return values.get(0) != null && values.get(1) != null &&
+                     return values.get(0) != null && values.get(1) != null && !"null".equalsIgnoreCase(values.get(0).toString()) &&
                         !values.get(0).toString().isEmpty() && !values.get(1).toString().isEmpty();
                   })
                   .map(map -> {
@@ -684,9 +728,9 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
                   .toArray(String[]::new);
             }
             else {
-               result = query.map(this::mapToString).stream().filter(Objects::nonNull)
-                  .map(n -> new IdentityID(n, Organization.getDefaultOrganizationName()).convertToKey()).toArray(String[]::new);
-
+               result = query.map(this::mapToString).stream().filter(g -> !Tool.isEmptyString(g))
+                  .map(n -> new IdentityID(n, Organization.getDefaultOrganizationID()).convertToKey())
+                  .filter(g -> !"null".equalsIgnoreCase(g)).toArray(String[]::new);
             }
             return new QueryResult(result, false);
          }
@@ -729,7 +773,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
             Query query = handle.createQuery(userEmailsQuery);
 
             if(SUtil.isMultiTenant()) {
-               query.bind(0, user.organization);
+               query.bind(0, user.orgID);
                query.bind(1, user.name);
             }
             else {
@@ -767,7 +811,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    @Override
    public boolean isOrgAdministratorRole(IdentityID roleId) {
       return isOrgAdministratorRole(roleId.name) &&
-         (roleId.organization == null || getOrganization(roleId.organization) != null);
+         (roleId.orgID == null || getOrganization(roleId.orgID) != null);
    }
 
    private boolean isOrgAdministratorRole(String roleName) {
@@ -858,12 +902,12 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       clearCache();
    }
 
-   public String getOrganizationIdQuery() {
-      return organizationIdQuery;
+   public String getOrganizationNameQuery() {
+      return organizationNameQuery;
    }
 
-   public void setOrganizationIdQuery(String organizationIdQuery) {
-      this.organizationIdQuery = organizationIdQuery;
+   public void setOrganizationNameQuery(String organizationNameQuery) {
+      this.organizationNameQuery = organizationNameQuery;
       clearCache();
    }
 
@@ -1007,8 +1051,6 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       ObjectNode config = (ObjectNode) configuration;
       driverClass = config.get("driver").asText("");
       url = config.get("url").asText("");
-      dbUser = config.get("user").asText("");
-      dbPassword = Tool.decryptPassword(config.get("password").asText(""));
       hashAlgorithm = config.get("hashAlgorithm").asText("None");
       appendSalt = config.get("appendSalt").asBoolean(true);
       requiresLogin = config.get("requiresLogin").asBoolean(true);
@@ -1020,9 +1062,11 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       roleListQuery = config.get("roleListQuery").asText("");
       userRolesQuery = config.get("userRolesQuery").asText("");
       userEmailsQuery = config.get("userEmailsQuery").asText("");
-      organizationIdQuery = config.get("organizationIdQuery").asText("");
+      organizationNameQuery = config.get("organizationNameQuery").asText("");
       organizationMembersQuery = config.get("organizationMembersQuery").asText("");
       organizationRolesQuery = config.get("organizationRolesQuery").asText("");
+      setUseCredential(config.get("useCredential").asBoolean(false));
+      readCredential(config.get("credential").asText());
 
       ArrayNode sysAdminConfig = (ArrayNode) config.get("sysAdminRoles");
       systemAdministratorRoles = new String[sysAdminConfig.size()];
@@ -1048,13 +1092,26 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       resetConnection();
    }
 
+   private void readCredential(String secretId) {
+      if(!requiresLogin || Tool.isEmptyString(secretId)) {
+         return;
+      }
+
+      if(isUseCredential()) {
+         setSecretId(secretId);
+      }
+      else {
+         loadCredential(secretId);
+      }
+   }
+
    @Override
    public JsonNode writeConfiguration(ObjectMapper mapper) {
       ObjectNode config = mapper.createObjectNode();
       config.put("driver", driverClass);
       config.put("url", url);
-      config.put("user", dbUser);
-      config.put("password", Tool.encryptPassword(dbPassword));
+      config.put("useCredential", isUseCredential());
+      config.put("credential", writeCredential());
       config.put("hashAlgorithm", getHashAlgorithm());
       config.put("appendSalt", appendSalt);
       config.put("requiresLogin", requiresLogin);
@@ -1066,7 +1123,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       config.put("roleListQuery", roleListQuery);
       config.put("userRolesQuery", userRolesQuery);
       config.put("userEmailsQuery", userEmailsQuery);
-      config.put("organizationIdQuery", organizationIdQuery);
+      config.put("organizationNameQuery", organizationNameQuery);
       config.put("organizationMembersQuery", organizationMembersQuery);
       config.put("organizationRolesQuery", organizationRolesQuery);
 
@@ -1091,6 +1148,29 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       return config;
    }
 
+   private String writeCredential() {
+      if(requiresLogin) {
+         try {
+            if(isUseCredential()) {
+               return getSecretId();
+            }
+            else {
+               ObjectMapper mapper = new ObjectMapper();
+               JsonNode credential = mapper.createObjectNode()
+                  .put("user", dbUser)
+                  .put("password", dbPassword);
+
+               return Tool.encryptPassword(mapper.writeValueAsString(credential));
+            }
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to encrypt credential!");
+         }
+      }
+
+      return null;
+   }
+
    @Override
    public void setProviderName(String providerName) {
       String oldName = getProviderName();
@@ -1106,6 +1186,8 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       poolLock.lock();
 
       try {
+         loadCredential();
+
          if(connectionValid == null || shouldRetryConnection()) {
             try {
                testConnection();
@@ -1290,7 +1372,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
    private String groupUsersQuery;
 
    private String organizationListQuery;
-   private String organizationIdQuery;
+   private String organizationNameQuery;
    private String organizationRolesQuery;
    private String organizationMembersQuery;
 
@@ -1398,7 +1480,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          super(false, 500L, TimeUnit.MILLISECONDS, 1000L, TimeUnit.MILLISECONDS,
                getCacheInterval(), TimeUnit.MILLISECONDS,
                "DatabaseSecurityCache:" + getProviderName() + ".",
-               USER_ROLES, USER_EMAILS, GROUP_USERS, LISTS, ORGANIZATION_ID, ORGANIZATION_MEMBERS, ORGANIZATION_ROLES);
+               USER_ROLES, USER_EMAILS, GROUP_USERS, LISTS, ORGANIZATION_NAME, ORGANIZATION_MEMBERS, ORGANIZATION_ROLES);
       }
 
       @Override
@@ -1413,21 +1495,21 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
          }
 
          Map<String, Map> maps = new HashMap<>();
-         Map<String, String> orgIds = new HashMap<>();
+         Map<String, String> orgNames = new HashMap<>();
          Map<String, String[]> orgMembers = new HashMap<>();
          Map<String, String[]> orgRoles = new HashMap<>();
 
          for(int i = 0; i < organizations.result.length; i++) {
-            String name = organizations.result[i];
-            String orgid = doGetOrganizationId(name);
-            String[] orgMember = doGetOrganizationMembers(name);
-            String[] orgRole = doGetOrganizationRoles(name);
-            orgIds.put(name,orgid);
-            orgMembers.put(name,orgMember);
-            orgRoles.put(name,orgRole);
+            String id = organizations.result[i];
+            String orgName = doGetOrganizationName(id);
+            String[] orgMember = doGetOrganizationMembers(id);
+            String[] orgRole = doGetOrganizationRoles(id);
+            orgNames.put(id,orgName);
+            orgMembers.put(id,orgMember);
+            orgRoles.put(id,orgRole);
          }
 
-         maps.put(ORGANIZATION_ID, orgIds);
+         maps.put(ORGANIZATION_NAME, orgNames);
          maps.put(ORGANIZATION_MEMBERS, orgMembers);
          maps.put(ORGANIZATION_ROLES, orgRoles);
          Map<String, String[]> lists = new HashMap<>();
@@ -1507,7 +1589,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       IdentityID[] getUsers(IdentityID group) {
          String[] userNames = getGroupUsers().computeIfAbsent(
             group, DatabaseAuthenticationProvider.this::doGetUsers);
-         return Arrays.stream(userNames).map(name -> new IdentityID(name, group.organization)).toArray(IdentityID[]::new);
+         return Arrays.stream(userNames).map(name -> new IdentityID(name, group.orgID)).toArray(IdentityID[]::new);
       }
 
       IdentityID[] getRoles() {
@@ -1539,9 +1621,9 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
 
       String[] getOrganizations() {return get(LISTS, ORGANIZATIONS);}
 
-      String getOrganizationId(String name) {
-         return getMap(ORGANIZATION_ID).values().isEmpty() ? null :
-                 getMap(ORGANIZATION_ID).get(name) == null ? null : getMap(ORGANIZATION_ID).get(name).toString();
+      String getOrganizationName(String id) {
+         return getMap(ORGANIZATION_NAME).values().isEmpty() ? null :
+                 getMap(ORGANIZATION_NAME).get(id) == null ? null : getMap(ORGANIZATION_NAME).get(id).toString();
       }
 
       String[] getOrganizationMembers(String orgName) {
@@ -1576,7 +1658,7 @@ public class DatabaseAuthenticationProvider extends AbstractAuthenticationProvid
       private static final String GROUPS = "groups";
       private static final String ROLES = "roles";
       private static final String ORGANIZATIONS = "organizations";
-      private static final String ORGANIZATION_ID = "organizationId";
+      private static final String ORGANIZATION_NAME = "organizationName";
       private static final String ORGANIZATION_ROLES = "organizationRoles";
       private static final String ORGANIZATION_MEMBERS = "organizationMembers";
    }

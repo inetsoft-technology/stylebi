@@ -17,19 +17,15 @@
  */
 package inetsoft.web.portal.data;
 
-import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.RenameInfo;
 import inetsoft.uql.asset.sync.RenameTransformHandler;
-import inetsoft.uql.util.XSessionService;
-import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -53,6 +49,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static inetsoft.uql.asset.AssetRepository.USER_SCOPE;
 
 @Service
 public class DataSetService {
@@ -130,7 +128,7 @@ public class DataSetService {
                  .name(Catalog.getCatalog(principal).getString("User Worksheet"))
                  .path("/")
                  .type(AssetEntry.Type.FOLDER)
-                 .scope(AssetRepository.USER_SCOPE)
+                 .scope(USER_SCOPE)
                  .id("")
                  .createdDate(-1)
                  .createdDateLabel("")
@@ -223,7 +221,7 @@ public class DataSetService {
          .name(Catalog.getCatalog(principal).getString("User Worksheet"))
          .path("/")
          .type(AssetEntry.Type.FOLDER)
-         .scope(AssetRepository.USER_SCOPE)
+         .scope(USER_SCOPE)
          .id("")
          .createdDate(-1)
          .createdDateLabel("")
@@ -345,8 +343,8 @@ public class DataSetService {
 
          if(isShearWS(entry)) {
             AssetEntry privateWS = new AssetEntry(
-               AssetRepository.USER_SCOPE, AssetEntry.Type.FOLDER, "/",
-               getUser(principal, AssetRepository.USER_SCOPE));
+               USER_SCOPE, AssetEntry.Type.FOLDER, "/",
+               getUser(principal, USER_SCOPE));
 
             children = (AssetEntry[]) ArrayUtils.add(children, privateWS);
          }
@@ -389,7 +387,7 @@ public class DataSetService {
       boolean admin = checkAssetPermission(principal, entry, ResourceAction.ADMIN);
       String parentPath = entry.getParentPath();
 
-      if(entry.getScope() == AssetRepository.USER_SCOPE && parentPath != null) {
+      if(entry.getScope() == USER_SCOPE && parentPath != null) {
          if("/".equals(parentPath)) {
             parentPath = Catalog.getCatalog(principal).getString("User Worksheet");
          }
@@ -469,7 +467,7 @@ public class DataSetService {
 
       String parentPath = entry.getParentPath();
 
-      if(entry.getScope() == AssetRepository.USER_SCOPE && parentPath != null) {
+      if(entry.getScope() == USER_SCOPE && parentPath != null) {
          if("/".equals(parentPath)) {
             parentPath = Catalog.getCatalog(principal).getString("User Worksheet");
          }
@@ -543,7 +541,7 @@ public class DataSetService {
       if(entry0.getCreatedUsername() != null) {
          IdentityID identityID = entry0.getUser();
          User user = identityID == null ? null :
-            securityProvider.getUser(new IdentityID(entry0.getCreatedUsername(), identityID.organization));
+            securityProvider.getUser(new IdentityID(entry0.getCreatedUsername(), identityID.orgID));
 
          if(user != null) {
             entry.setCreatedUsername(user.getAlias() == null ? user.getName() : user.getAlias());
@@ -561,7 +559,8 @@ public class DataSetService {
       actionName = ActionRecord.ACTION_NAME_RENAME,
       objectType = ActionRecord.OBJECT_TYPE_WORKSHEET
    )
-   public void renameWorksheet(@AuditObjectName("path()") WorksheetBrowserInfo info, String newName,
+   public void renameWorksheet(@AuditObjectName("'Data Worksheet/' + path()") WorksheetBrowserInfo info,
+                               String newName,
                                int scope, Principal principal,
                                @SuppressWarnings("unused") @AuditActionError String message)
       throws Exception
@@ -1088,8 +1087,12 @@ public class DataSetService {
                   new Timestamp(System.currentTimeMillis()), ActionRecord.ACTION_STATUS_SUCCESS,
                   actionMessage);
 
+            boolean userPermission = assetScope == USER_SCOPE && targetScope == USER_SCOPE &&
+               securityProvider.checkPermission(principal, ResourceType.MY_DASHBOARDS,
+                                                items[i].getPath(), ResourceAction.READ);
+
             if(!securityProvider.checkPermission(principal, ResourceType.ASSET, items[i].getPath(),
-                                                ResourceAction.WRITE))
+                                                ResourceAction.WRITE) && !userPermission)
             {
                String label = items[i].getPath();
 
@@ -1304,7 +1307,7 @@ public class DataSetService {
    }
 
    private IdentityID getUser(Principal principal, int scope) {
-      return scope == AssetRepository.USER_SCOPE && principal != null ?
+      return scope == USER_SCOPE && principal != null ?
          IdentityID.getIdentityIDFromKey(principal.getName()) : null;
    }
 

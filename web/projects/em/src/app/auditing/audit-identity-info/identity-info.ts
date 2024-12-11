@@ -19,9 +19,6 @@ import { AuditRecordList, AuditRecordParameters } from "../audit-table-view/audi
 import {IdentityId} from "../../settings/security/users/identity-id";
 
 export interface IdentityInfoParameters extends AuditRecordParameters {
-   users: string[];
-   groups: string[];
-   roles: string[];
    hosts: string[];
    organizations: string[];
    organizationFilter: boolean;
@@ -37,6 +34,7 @@ export interface IdentityInfo {
    actionDescription: string;
    state: string;
    organizationId: string;
+   dateFormat: string;
 }
 
 export interface IdentityInfoList extends AuditRecordList<IdentityInfo> {

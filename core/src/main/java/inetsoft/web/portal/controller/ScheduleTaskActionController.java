@@ -79,12 +79,13 @@ public class ScheduleTaskActionController {
     */
    @PostMapping("/api/portal/schedule/task/action/delete")
    public void deleteTaskActions(@RequestParam("name") String taskName,
+                                 @RequestParam("owner") String taskOwner,
                                  @RequestBody int[] items,
                                  Principal principal)
       throws Exception
    {
       try{
-         scheduleTaskActionService.deleteTaskActions(taskName, items, principal);
+         scheduleTaskActionService.deleteTaskActions(taskName, taskOwner, items, principal);
       }
       catch(ArrayIndexOutOfBoundsException e) {
          //delete action that is unsaved, ignore.

@@ -37,11 +37,19 @@ public class BlockFileStorage implements AutoCloseable {
    }
 
    public BlobChannel openReadChannel(String name) throws IOException {
-      return getStorage().getReadChannel(name);
+      return openReadChannel(name, null);
+   }
+
+   public BlobChannel openReadChannel(String name, String orgId) throws IOException {
+      return getStorage(orgId).getReadChannel(name);
    }
 
    public BlobTransaction<Metadata> beginTransaction() {
-      return getStorage().beginTransaction();
+      return beginTransaction(null);
+   }
+
+   public BlobTransaction<Metadata> beginTransaction(String orgId) {
+      return getStorage(orgId).beginTransaction();
    }
 
    public long lastModified(String name) {
@@ -54,8 +62,13 @@ public class BlockFileStorage implements AutoCloseable {
    }
 
    public long length(String name) {
+      return length(name, null);
+   }
+
+   public long length(String name, String orgId) {
       try {
-         return getStorage().getLength(name);
+         BlobStorage<Metadata> storage = orgId == null ? getStorage() : getStorage(orgId);
+         return storage.getLength(name);
       }
       catch(FileNotFoundException ignore) {
          return 0L;
@@ -91,8 +104,14 @@ public class BlockFileStorage implements AutoCloseable {
    }
 
    public void copy(BlockFile source, BlockFile target) throws IOException {
-      try(SeekableInputStream inChannel = source.openInputStream();
-          TransactionChannel outChannel = target.openWriteChannel())
+      copy(source, null, target, null);
+   }
+
+   public void copy(BlockFile source, String sourceOrgId, BlockFile target, String targetOrgId)
+      throws IOException
+   {
+      try(SeekableInputStream inChannel = source.openInputStream(sourceOrgId);
+          TransactionChannel outChannel = target.openWriteChannel(targetOrgId))
       {
          Tool.copy(inChannel, outChannel);
          outChannel.commit();
@@ -104,9 +123,14 @@ public class BlockFileStorage implements AutoCloseable {
       getStorage().close();
    }
 
-   private BlobStorage<Metadata> getStorage() {
-      String storeID = OrganizationManager.getInstance().getCurrentOrgID() + "__" + "mvBlock";
+   public BlobStorage<Metadata> getStorage(String orgID) {
+      orgID = orgID == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgID;
+      String storeID = orgID.toLowerCase() + "__" + "mvBlock";
       return SingletonManager.getInstance(BlobStorage.class, storeID, true);
+   }
+
+   public BlobStorage<Metadata> getStorage() {
+      return getStorage(OrganizationManager.getInstance().getCurrentOrgID());
    }
 
    public static final class Metadata implements Serializable {

@@ -21,13 +21,16 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("accessToken"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "accessToken", visibleMethod = "useCredential"),
    @View1("freeTrial")
 })
 public class FortyTwoMattersDataSource extends EndpointJsonDataSource<FortyTwoMattersDataSource> {
@@ -38,23 +41,44 @@ public class FortyTwoMattersDataSource extends EndpointJsonDataSource<FortyTwoMa
       setAuthType(AuthType.NONE);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.ACCESS_TOKEN;
+   }
+
    @Property(label = "Access Token", password = true, required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getAccessToken() {
+      String accessToken = null;
+
+      if(getCredential() instanceof AccessTokenCredential &&
+         !Tool.isEmptyString(((AccessTokenCredential) getCredential()).getAccessToken()))
+      {
+         accessToken = ((AccessTokenCredential) getCredential()).getAccessToken();
+      }
+
       HttpParameter[] parameters = getQueryHttpParameters();
 
       if(parameters != null) {
          for(HttpParameter parameter : parameters) {
             if("access_token".equals(parameter.getName())) {
-               return parameter.getValue();
+               if(accessToken == null) {
+                  return parameter.getValue();
+               }
+               else if(!Tool.equals(parameter.getValue(), accessToken)) {
+                  parameter.setValue(accessToken);
+                  return accessToken;
+               }
             }
          }
       }
 
-      return null;
+      return accessToken;
    }
 
    public void setAccessToken(String accessToken) {
       HttpParameter token = new HttpParameter();
+      token.setSecret(true);
       token.setName("access_token");
       token.setValue(accessToken);
       token.setType(HttpParameter.ParameterType.QUERY);

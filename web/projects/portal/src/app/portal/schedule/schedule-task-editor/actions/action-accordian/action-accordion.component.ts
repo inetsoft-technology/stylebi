@@ -36,7 +36,7 @@ import {
 } from "@angular/forms";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Observable, Subscription } from "rxjs";
-import { debounceTime, map } from "rxjs/operators";
+import { debounceTime, map, tap } from "rxjs/operators";
 import { DashboardOptions } from "../../../../../../../../em/src/app/settings/schedule/model/dashboard-options";
 import { ReportOptions } from "../../../../../../../../em/src/app/settings/schedule/model/reports-options";
 import { IdentityId } from "../../../../../../../../em/src/app/settings/security/users/identity-id";
@@ -119,23 +119,22 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    private _model: TaskActionPaneModel;
    private _action: GeneralActionModel;
    private _parentForm: UntypedFormGroup;
+   private _isSelfUser: boolean = undefined;
    confirmPassword: string;
    emailUsers: IdentityId[] = [];
    groups: IdentityId[] = [];
-
-   selectedPrinter: string;
-   selectedPrinterIndex: number = -1;
 
    isIE = GuiTool.isIE();
    locationPath: string;
    filePath: string;
    ftp: boolean;
+   useCredential: boolean;
+   secretId: string;
    username: string;
    password: string;
    _saveFormat: string;
    selectedFormatIndex: number = -1;
    saveStrings: string[];
-   openPanels: string[] = [];
    form: UntypedFormGroup = null;
    allParameters: string[];
    formSubscriptions: Subscription = new Subscription();
@@ -334,9 +333,9 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    }
 
    public addBookmark(): void {
-      if(this.action.bookmarks
-         .findIndex(b => b.name == this.selectedBookmark.name &&
-            b.owner == this.selectedBookmark.owner) != -1)
+      if(this.action.bookmarks.findIndex(b =>
+          b.name == this.selectedBookmark.name &&
+          Tool.isEquals(b.owner, this.selectedBookmark.owner)) != -1)
       {
          ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
             "_#(js:em.scheduler.actions.bookmarkDuplicate)");
@@ -421,11 +420,14 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
          let pathModel: ServerPathInfoModel = {
             path: this.path,
             ftp: this.ftp,
+            useCredential: this.useCredential,
+            secretId: this.secretId,
             username: this.username,
             password: this.password
          };
          pathModel = this.hasLocations && !!this.locationPath ?
             this.getLocationPathInfo(this.locationPath) : pathModel;
+         pathModel.path = this.path;
 
          const addNewFile: any = () => {
             this.action.filePaths.push(this.path);
@@ -552,9 +554,12 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
          this.getLocationPathInfo(this.locationPath) : {
             path: this.path,
             ftp: this.ftp,
+            useCredential: this.useCredential,
+            secretId: this.secretId,
             username: this.username,
             password: this.password
          };
+      pathModel.path = this.path;
 
       if(fmt) {
          const modifyFile: any = () => {
@@ -581,6 +586,8 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    public editFile(index: number): void {
       this.selectedFormatIndex = index;
       this.path = this.action.filePaths[this.selectedFormatIndex];
+      this.useCredential = this.action.serverFilePaths[this.selectedFormatIndex].useCredential;
+      this.secretId = this.action.serverFilePaths[this.selectedFormatIndex].secretId;
       this.username = this.action.serverFilePaths[this.selectedFormatIndex].username;
       this.password = this.action.serverFilePaths[this.selectedFormatIndex].password;
       this.ftp = this.action.serverFilePaths[this.selectedFormatIndex].ftp;
@@ -596,7 +603,7 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
 
       if(sameFormat) {
          ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)",
-                                         "_#(js:em.schedule.task.action.duplicateFormat)")
+                                         "_#(js:portal.schedule.task.action.duplicateFormat)")
             .then((buttonClicked: string) => {
                if(buttonClicked === "ok") {
                   const existingPath = sameFormat.split(" - ")[0];
@@ -610,6 +617,8 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
                   const pathModel: ServerPathInfoModel = {
                      path: this.path,
                      ftp: this.ftp,
+                     useCredential: this.useCredential,
+                     secretId: this.secretId,
                      username: this.username,
                      password: this.password
                   };
@@ -823,16 +832,20 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
 
    public openEmailDialogNotify(): void {
       this.initialAddresses = this.action.notifications;
-      this.embeddedOnly = true;
-      this.openEmailDialog().then(
-         (result: EmailDialogData) => {
-            this.updateNotificationEmails(result.emails);
-            this.form.controls["notification"].setValue({value: result.emails});
-         },
-         () => {
-            // canceled
-         }
-      );
+
+      this.isSelfUser.then(self => {
+         this.embeddedOnly = true;
+
+         this.openEmailDialog(!self).then(
+            (result: EmailDialogData) => {
+               this.updateNotificationEmails(result.emails);
+               this.form.controls["notification"].setValue({value: result.emails});
+            },
+            () => {
+               // canceled
+            }
+         );
+      });
    }
 
    public openEmailDialogTo(): void {
@@ -841,15 +854,19 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
       }
 
       this.initialAddresses = this.action.to;
-      this.embeddedOnly = true;
-      this.openEmailDialog().then(
-         (result: EmailDialogData) => {
-            this.updateEmailTo(result);
-         },
-         () => {
-            // canceled
-         }
-      );
+
+      this.isSelfUser.then(self => {
+         this.embeddedOnly = true;
+
+         this.openEmailDialog(!self).then(
+            (result: EmailDialogData) => {
+               this.updateEmailTo(result);
+            },
+            () => {
+               // canceled
+            }
+         );
+      });
    }
 
    public openEmailDialogCC(bcc?: boolean): void {
@@ -858,25 +875,29 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
       }
 
       this.initialAddresses = bcc ? this.action.bccAddress : this.action.ccAddress;
-      this.embeddedOnly = true;
-      this.openEmailDialog().then(
-         (result: EmailDialogData) => {
-            if(bcc) {
-               this.action.bccAddress = result.emails;
-            }
-            else {
-               this.action.ccAddress = result.emails;
-            }
 
-            this.initForm();
-         },
-         () => {
-            // canceled
-         }
-      );
+      this.isSelfUser.then(self => {
+         this.embeddedOnly = true;
+
+         this.openEmailDialog(!self).then(
+            (result: EmailDialogData) => {
+               if(bcc) {
+                  this.action.bccAddress = result.emails;
+               }
+               else {
+                  this.action.ccAddress = result.emails;
+               }
+
+               this.initForm();
+            },
+            () => {
+               // canceled
+            }
+         );
+      });
    }
 
-   private openEmailDialog(): Promise<EmailDialogData> {
+   private openEmailDialog(showGroups: boolean = true): Promise<EmailDialogData> {
       const userRoot: TreeNodeModel = {
          label: "_#(js:Users)",
          data: "",
@@ -895,7 +916,7 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
          label: "_#(js:Root)",
          data: "",
          type: String(IdentityType.ROOT),
-         children: !this.embeddedOnly ? [userRoot] : [userRoot, groupRoot],
+         children: !this.embeddedOnly || !showGroups ? [userRoot] : [userRoot, groupRoot],
          leaf: false
       };
 
@@ -924,6 +945,10 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
       let controls: { [key: string]: AbstractControl;} = {
          "notification": new UntypedFormControl({value: this.action.notifications}),
          "from": new UntypedFormControl({value: this.fromEmail}),
+         "secretId": new UntypedFormControl({
+            value: this.action.secretId,
+            disabled: this.isPasswordDisable()
+         }),
          "password": new UntypedFormControl({
             value: this.action.password,
             disabled: this.isPasswordDisable()
@@ -1107,7 +1132,17 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
       this.updateBundledStatus(value);
    }
 
+   public updateUseCredentialValue(value: boolean): void {
+      this.action.useCredential = value;
+      this.updateBundledStatus(value);
+   }
+
    public updateBundledStatus(value: boolean): void {
+      this.form.controls["secretId"].reset({
+         value: this.action.secretId,
+         disabled: this.isPasswordDisable()
+      });
+
       this.form.controls["password"].reset({
          value: this.action.password,
          disabled: this.isPasswordDisable()
@@ -1119,12 +1154,15 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
       });
 
       if(value && this.action.deliverEmailsEnabled) {
+         this.form.controls["secretId"].updateValueAndValidity();
          this.form.controls["password"].updateValueAndValidity();
          this.form.controls["confirmPassword"].updateValueAndValidity();
          this.form.validator = this.passwordsMatch("password", "confirmPassword");
          this.form.updateValueAndValidity();
       }
       else {
+         this.form.controls["secretId"].setValidators(null);
+         this.form.controls["secretId"].updateValueAndValidity();
          this.form.controls["password"].setValidators(null);
          this.form.controls["password"].updateValueAndValidity();
          this.form.controls["confirmPassword"].setValidators(null);
@@ -1157,6 +1195,10 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
       if(this.action.format !== "Excel") {
          this.action.emailOnlyDataComponents = false;
       }
+
+      if(!this.model.expandEnabled) {
+         this.action.emailMatchLayout = true;
+      }
    }
 
    get formatValue(): string {
@@ -1172,7 +1214,7 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
          let passwordVal: any = group.controls[password].value;
          let confirmPasswordVal: any = group.controls[confirmPassword].value;
 
-         if(passwordVal == null && confirmPasswordVal == null) {
+         if(!passwordVal && !confirmPasswordVal) {
             return null;
          }
 
@@ -1235,6 +1277,22 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
 
    isVSCSVFormat(format: string): boolean {
       return this.isDashboard && format === "6";
+   }
+
+   get isSelfUser(): Promise<boolean> {
+      let promise: Promise<boolean> = Promise.resolve(this._isSelfUser)
+
+      return promise.then((self) => {
+         if(self == undefined) {
+            return this.http.get<boolean>("../api/portal/schedule/isSelfOrgUser")
+               .pipe(
+                  tap(self => this._isSelfUser = self),
+               ).toPromise();
+         }
+         else {
+            return self;
+         }
+      });
    }
 
    get missingParameters(): string {

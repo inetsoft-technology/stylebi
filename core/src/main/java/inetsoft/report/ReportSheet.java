@@ -2146,7 +2146,7 @@ public abstract class ReportSheet extends StyleCore {
       // print the elements until end of page or finished all elements
       while(current < elements.size() &&
             (printHead.y < printBox.height ||
-             (!false && ((BaseElement) elements.get(current)).isBreakArea())))
+             ((BaseElement) elements.get(current)).isBreakArea()))
       {
          if(printNextLine(pg, elements, flow)) {
             break;
@@ -3149,7 +3149,7 @@ public abstract class ReportSheet extends StyleCore {
       // @by billh, only when pgnum greater than zero should we print
       // header and footer elements, but if is design time, we always
       // print them for end users to design them
-      if(pgnum >= 1 || false) {
+      if(pgnum >= 1) {
          // frame is the box the current elements are in, it could be
          // different from printBox in some situations
          printBox = getHeaderBounds(pgsize);

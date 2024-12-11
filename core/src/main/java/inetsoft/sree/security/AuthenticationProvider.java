@@ -20,6 +20,7 @@ package inetsoft.sree.security;
 import inetsoft.sree.ClientInfo;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,11 +54,11 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
    /**
     * Get an organization by name.
     *
-    * @param name the unique identifier of the organization.
+    * @param id the unique identifier of the organization.
     *
     * @return the Organization object that encapsulates the properties of the organization.
     */
-   Organization getOrganization(String name);
+   Organization getOrganization(String id);
 
    /**
     * Get an organization id by name.
@@ -66,7 +67,7 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
     *
     * @return the id of the organization.
     */
-   String getOrgId(String name);
+   String getOrgIdFromName(String name);
 
    /**
     * Get an organization name by id.
@@ -78,11 +79,18 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
    String getOrgNameFromID(String id);
 
    /**
-    * Get a list of all organizations in the system.
+    * Get a list of all organization ids in the system.
     *
     * @return list of organizations.
     */
-   String[] getOrganizations();
+   String[] getOrganizationIDs();
+
+   /**
+    * Get a list of all organization names in the system.
+    *
+    * @return list of organizations.
+    */
+   String[] getOrganizationNames();
 
    /**
     * Get a list of all users in a group.
@@ -185,13 +193,13 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
       usergroupsRaw = Arrays.stream(getGroups())
          .filter(g -> Arrays.stream(getUsers(g))
             .anyMatch(u -> caseSensitive ? userID.equals(u) :
-               userID.name.equalsIgnoreCase(u.name) && userID.organization.equals(u.organization)))
+               userID.name.equalsIgnoreCase(u.name) && userID.orgID.equals(u.orgID)))
          .toArray(IdentityID[]::new);
 
       List<String> userGroupsInOrg = new ArrayList<>();
 
       for(IdentityID group : usergroupsRaw) {
-         if(!getGroup(group).getOrganization().equals(userID.organization)) {
+         if(!getGroup(group).getOrganizationID().equals(userID.orgID)) {
             LOG.warn(Catalog.getCatalog().getString("em.security.GroupNotAdded",userID,group));
          }
          else {
@@ -226,13 +234,13 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
 
       while(!queue.isEmpty()) {
          String parentGroup = queue.removeFirst();
-         IdentityID parentID = new IdentityID(parentGroup,groupObject.getOrganization());
+         IdentityID parentID = new IdentityID(parentGroup,groupObject.getOrganizationID());
          groups.add(parentID.name);
          groupObject = getGroup(parentID);
 
          if(groupObject != null) {
             for(String childGroup : groupObject.getGroups()) {
-               IdentityID childID = new IdentityID(childGroup, groupObject.getOrganization());
+               IdentityID childID = new IdentityID(childGroup, groupObject.getOrganizationID());
                if(!groups.contains(childID)) {
                   queue.addLast(childGroup);
                }
@@ -253,12 +261,14 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
    default Identity[] getGroupMembers(IdentityID groupIdentity) {
       List<Identity> list = Arrays.stream(getGroups())
          .map(this::getGroup)
-         .filter(g -> g != null && Arrays.asList(g.getGroups()).contains(groupIdentity.name))
+         .filter(g -> g != null && Arrays.asList(g.getGroups()).contains(groupIdentity.name)
+                                 && Tool.equals(groupIdentity.orgID, g.getOrganizationID()))
          .collect(Collectors.toList());
 
       list.addAll(Arrays.stream(getUsers())
             .map(this::getUser)
-            .filter(u -> u != null && Arrays.asList(u.getGroups()).contains(groupIdentity.name))
+            .filter(u -> u != null && Arrays.asList(u.getGroups()).contains(groupIdentity.name)
+                       && Tool.equals(groupIdentity.orgID, u.getOrganizationID()))
             .collect(Collectors.toList()));
 
       return list.toArray(new Identity[0]);
@@ -267,26 +277,26 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
    /**
     * Gets all members of an Organization.
     *
-    * @param organization the name of the organization.
+    * @param organizationID the name of the organizationID.
     *
-    * @return a list of users and groups that belong to the named organization.
+    * @return a list of users and groups that belong to the named organizationID.
     */
-   default String[] getOrganizationMembers(String organization) {
+   default String[] getOrganizationMembers(String organizationID) {
       List<String> list = Arrays.stream(getGroups())
          .map(name1 -> getGroup(name1))
-         .filter(g -> g != null && organization.equals(g.getOrganization()))
+         .filter(g -> g != null && organizationID.equals(g.getOrganizationID()))
          .map(g -> g.name)
          .collect(Collectors.toList());
 
       list.addAll(Arrays.stream(getUsers())
             .map(name -> getUser(name))
-            .filter(u -> u != null && organization.equals(u.getOrganization()))
+            .filter(u -> u != null && organizationID.equals(u.getOrganizationID()))
                      .map(m -> m.name)
             .collect(Collectors.toList()));
 
       list.addAll(Arrays.stream(getRoles())
             .map((IdentityID roleid) -> getRole(roleid))
-            .filter(u -> u != null && organization.equals(u.getOrganization()))
+            .filter(u -> u != null && organizationID.equals(u.getOrganizationID()))
                      .map(m -> m.name)
             .collect(Collectors.toList()));
 
@@ -296,17 +306,17 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
    default Identity[] getOrganizationMemberIdentities(String organization) {
       List<Identity> list = Arrays.stream(getGroups())
          .map(name1 -> getGroup(name1))
-         .filter(g -> g != null && organization.equals(g.getOrganization()))
+         .filter(g -> g != null && organization.equals(g.getOrganizationID()))
          .collect(Collectors.toList());
 
       list.addAll(Arrays.stream(getUsers())
                      .map(name -> getUser(name))
-                     .filter(u -> u != null && organization.equals(u.getOrganization()))
+                     .filter(u -> u != null && organization.equals(u.getOrganizationID()))
                      .collect(Collectors.toList()));
 
       list.addAll(Arrays.stream(getRoles())
                      .map((IdentityID roleid) -> getRole(roleid))
-                     .filter(u -> u != null && organization.equals(u.getOrganization()))
+                     .filter(u -> u != null && organization.equals(u.getOrganizationID()))
                      .collect(Collectors.toList()));
 
       return list.toArray(new Identity[0]);
@@ -319,11 +329,12 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
     */
    default String getOrganizationId(String name) {
       // global
-      if(name == null || getOrganization(name) == null) {
-         return null;
+      for(String oid : getOrganizationIDs()) {
+         if(getOrganization(oid).getName().equals(name)) {
+            return oid;
+         }
       }
-
-      return getOrganization(name).getId();
+      return null;
    }
 
    /**
@@ -349,7 +360,7 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
       final Map<String, List<Identity>> groupMemberMap = new HashMap<>();
 
       Arrays.stream(getGroups())
-         .filter(id -> id.organization.equals(organization))
+         .filter(id -> id.orgID.equals(organization))
          .map(name1 -> getGroup(name1))
          .forEach(group -> {
             for(String groupName : group.getGroups()) {
@@ -365,7 +376,7 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
          });
 
       Arrays.stream(getUsers())
-         .filter(id -> id.organization.equals(organization))
+         .filter(id -> id.orgID.equals(organization))
          .map(name -> getUser(name))
          .forEach(user -> {
             for(String groupName : user.getGroups()) {
@@ -401,7 +412,7 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
             .filter(u -> u != null && Arrays.asList(u.getRoles()).contains(roleIdentity))
             .collect(Collectors.toList()));
 
-      list.addAll(Arrays.stream(getOrganizations())
+      list.addAll(Arrays.stream(this.getOrganizationIDs())
             .map(o -> getOrganization(o))
             .filter(o -> o != null && Arrays.asList(o.getRoles()).contains(roleIdentity))
             .collect(Collectors.toList()));
@@ -477,7 +488,9 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
     * @return {@code true} if there is a user named "anonymous"; {@code false} otherwise.
     */
    default boolean containsAnonymousUser() {
-      return Arrays.asList(getUsers()).contains(ClientInfo.ANONYMOUS);
+      return Arrays.stream(getUsers())
+         .map(id -> id.name)
+         .anyMatch(i -> i.equals(ClientInfo.ANONYMOUS));
    }
 
    /**
@@ -507,8 +520,8 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
 
                if(group != null) {
                   for(String parent : group.getGroups()) {
-                     if(!allGroups.contains(new IdentityID(parent, group.getOrganization()))) {
-                        queue.addLast(new IdentityID(parent, group.getOrganization()));
+                     if(!allGroups.contains(new IdentityID(parent, group.getOrganizationID()))) {
+                        queue.addLast(new IdentityID(parent, group.getOrganizationID()));
                      }
                   }
                }
@@ -553,20 +566,20 @@ public interface AuthenticationProvider extends JsonConfigurableProvider, Cachab
       return allRoles.toArray(new IdentityID[0]);
    }
 
-   static Map<String, FSRole> getDefaultRoles(String orgName) {
+   static Map<String, FSRole> getDefaultRoles(String orgID) {
       Map<String, FSRole> map = new HashMap<String, FSRole>();
 
-      IdentityID roleID = new IdentityID("Designer", orgName);
+      IdentityID roleID = new IdentityID("Designer", orgID);
       FSRole role = new FSRole(roleID, new IdentityID[0], "");
       role.setDefaultRole(false);
       map.put(role.getIdentityID().convertToKey(), role);
 
-      roleID = new IdentityID("Advanced", orgName);
+      roleID = new IdentityID("Advanced", orgID);
       role = new FSRole(roleID, new IdentityID[0], "");
       role.setDefaultRole(false);
       map.put(role.getIdentityID().convertToKey(), role);
 
-      roleID = new IdentityID("Everyone", orgName);
+      roleID = new IdentityID("Everyone", orgID);
       role = new FSRole(roleID, new IdentityID[0], "");
       role.setDefaultRole(true);
       map.put(role.getIdentityID().convertToKey(), role);

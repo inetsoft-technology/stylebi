@@ -585,6 +585,8 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       let colName: string = ChartTool.getSelectedAxisColumnName(this.model);
       let secondary: boolean = (<Axis> this.model.chartSelection.chartObject).secondary;
       this.chartService.hideAxis(this.model, this.viewsheetClient, colName, secondary);
+      this.model.chartSelection.chartObject = null;
+      this.model.chartSelection.regions = null;
    }
 
    hideLegend(): void {
@@ -602,6 +604,9 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          this.model.selectedRegions = [];
          this.onLoadFormatModel.emit(this.model);
       }
+
+      this.model.chartSelection.chartObject = null;
+      this.model.chartSelection.regions = null;
    }
 
    showAnnotationDialog(event: MouseEvent): void {
@@ -992,6 +997,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
    processSetChartAreasCommand(command: SetChartAreasCommand): void {
       // need to keep the info for updateChartSelection()
+      let oldSelection = Tool.clone(this.model.chartSelection);
       let oldModel = Tool.clone(this.model);
 
       if(this.chartArea != null && (!this.dataTipService.isDataTip(this.model.absoluteName) ||
@@ -1005,11 +1011,11 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       ChartTool.fillIndex(this.model);
 
       if(this.chartSelection && this.chartSelection.chartObject && this.chartSelection.regions) {
-         const oldRegions = oldModel.chartSelection?.regions;
+         const oldRegions = oldSelection?.regions;
          const hadSelection = oldRegions && oldRegions.length > 0;
          // make sure the same values (e.g. axis labels) are selected
-         this.model.chartSelection = ChartTool.updateChartSelection(this.model, oldModel);
-         const newRegions = this.model.chartSelection?.regions;
+         this.model.chartSelection = oldSelection;
+         const newRegions = oldSelection?.regions;
          const hasSelection = newRegions && newRegions.length > 0;
 
          // if existing selection is cleared because the previous data is no longer on the chart,

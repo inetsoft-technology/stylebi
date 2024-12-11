@@ -17,6 +17,7 @@
  */
 import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
+import { ModalHeaderModule } from "../../modal-header/modal-header.module";
 import {NewAggrDialog} from "./new-aggr-dialog.component";
 import {FormsModule, ReactiveFormsModule} from "@angular/forms";
 
@@ -25,6 +26,7 @@ import {FormsModule, ReactiveFormsModule} from "@angular/forms";
       CommonModule,
       ReactiveFormsModule,
       FormsModule,
+      ModalHeaderModule,
    ],
    declarations: [
       NewAggrDialog

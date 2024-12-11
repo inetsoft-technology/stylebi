@@ -21,14 +21,17 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("domain"),
-   @View1("apiToken"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "domain", visibleMethod = "useCredential"),
+   @View1(value = "apiToken", visibleMethod = "useCredential"),
    @View1("URL")
 })
 public class PipedriveDataSource extends EndpointJsonDataSource<PipedriveDataSource> {
@@ -39,7 +42,13 @@ public class PipedriveDataSource extends EndpointJsonDataSource<PipedriveDataSou
       setAuthType(AuthType.NONE);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_TOKEN;
+   }
+
    @Property(label = "Domain", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getDomain() {
       return domain;
    }
@@ -49,12 +58,13 @@ public class PipedriveDataSource extends EndpointJsonDataSource<PipedriveDataSou
    }
 
    @Property(label = "API Token", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiToken() {
-      return apiToken;
+      return ((ApiTokenCredential) getCredential()).getApiToken();
    }
 
    public void setApiToken(String apiToken) {
-      this.apiToken = apiToken;
+      ((ApiTokenCredential) getCredential()).setApiToken(apiToken);
    }
 
    @Property(label = "URL")
@@ -84,7 +94,7 @@ public class PipedriveDataSource extends EndpointJsonDataSource<PipedriveDataSou
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.QUERY)
             .name("api_token")
-            .value(apiToken)
+            .value(getApiToken())
             .build()
       };
    }
@@ -101,17 +111,12 @@ public class PipedriveDataSource extends EndpointJsonDataSource<PipedriveDataSou
       if(domain != null) {
          writer.format("<domain><![CDATA[%s]]></domain>%n", domain);
       }
-
-      if(apiToken != null) {
-         writer.format("<apiToken><![CDATA[%s]]></apiToken>%n", Tool.encryptPassword(apiToken));
-      }
    }
 
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       domain = Tool.getChildValueByTagName(root, "domain");
-      apiToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiToken"));
    }
 
    @Override
@@ -134,15 +139,13 @@ public class PipedriveDataSource extends EndpointJsonDataSource<PipedriveDataSou
       }
 
       PipedriveDataSource that = (PipedriveDataSource) o;
-      return Objects.equals(domain, that.domain) &&
-         Objects.equals(apiToken, that.apiToken);
+      return Objects.equals(domain, that.domain);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), domain, apiToken);
+      return Objects.hash(super.hashCode(), domain, getApiToken());
    }
 
    private String domain;
-   private String apiToken;
 }

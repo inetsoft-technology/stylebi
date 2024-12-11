@@ -67,9 +67,7 @@ public class LoadKeyValueTask<T extends Serializable>
                Class<T> valueClass = initialize(temp);
 
                if(valueClass != null) {
-                  for(Map.Entry<String, T> e : temp.entrySet()) {
-                     getEngine().put(getId(), e.getKey(), e.getValue());
-                  }
+                  getEngine().putAll(getId(), temp);
                }
             }
 

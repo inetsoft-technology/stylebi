@@ -163,7 +163,7 @@ public class VSTestController {
 
       try {
          ViewsheetSandbox box = rvs.getViewsheetSandbox();
-         box.setUser(SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getCurrentOrgName()), null, false));
+         box.setUser(SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false));
 
          VSChartInfo cinfo = chartAssembly.getVSChartInfo();
          final String absoluteName = chartAssembly.getAbsoluteName();

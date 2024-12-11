@@ -20,9 +20,12 @@ package inetsoft.uql.rest.datasource.nicereply;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.credential.*;
 
 @View(vertical = true, value = {
-   @View1("apiKey")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiKey", visibleMethod = "useCredential")
 })
 public class NicereplyDataSource extends EndpointJsonDataSource<NicereplyDataSource> {
    public static final String TYPE = "Rest.Nicereply";
@@ -33,7 +36,13 @@ public class NicereplyDataSource extends EndpointJsonDataSource<NicereplyDataSou
       setAuthType(AuthType.BASIC);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD;
+   }
+
    @Property(label = "API Key", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
       return getPassword();
    }

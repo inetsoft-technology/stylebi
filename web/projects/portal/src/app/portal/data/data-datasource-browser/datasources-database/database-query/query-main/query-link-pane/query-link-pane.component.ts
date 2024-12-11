@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpHeaders, HttpParams } from "@angular/common/http";
-import { Component, Input, OnInit, ViewChild } from "@angular/core";
+import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
 import { Observable } from "rxjs";
 import { GuiTool } from "../../../../../../../common/util/gui-tool";
 import { TreeNodeModel } from "../../../../../../../widget/tree/tree-node-model";
@@ -45,6 +45,7 @@ export class QueryLinkPaneComponent implements OnInit {
    @Input() linkModel: QueryLinkPaneModel;
    @Input() databaseName: string;
    @Input() dataSourceTreeRoot: TreeNodeModel;
+   @Output() editingJoinChanged = new EventEmitter<boolean>();
    @ViewChild("graphPane") graphPane: QueryLinkGraphPaneComponent;
    readonly headers: HttpHeaders;
    editingTable: QueryTableModel;

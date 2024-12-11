@@ -32,6 +32,7 @@ import { TreeComponent } from "../tree/tree.component";
 @Component({
    selector: "tabular-file-browser",
    templateUrl: "tabular-file-browser.component.html",
+   styleUrls: ["tabular-file-browser.component.scss"]
 })
 export class TabularFileBrowser implements AfterViewInit {
    @Input() path: string;

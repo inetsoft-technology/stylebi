@@ -215,9 +215,9 @@ public interface Cluster extends AutoCloseable {
    void destroyReference(String name);
 
    /**
-    * Submit a job to schedulers (not including the master/report server).
+    * Submit a job to the ignite cluster
     */
-   <T> Future<T> submit(Callable<T> task);
+   <T> Future<T> submit(Callable<T> task, boolean scheduler);
 
    /**
     * Submit a job to all nodes.
@@ -268,6 +268,20 @@ public interface Cluster extends AutoCloseable {
     * @return a future that will resolve when the task is complete.
     */
    Future<?> submit(String serviceId, SingletonRunnableTask task);
+
+   /**
+    * Submits a task to be processed. The task will be executed on a single node in the cluster,
+    * ensuring split-brain protection.
+    *
+    * @param level     nested levels of tasks
+    * @param serviceId the identifier for the service.
+    * @param task      the task to execute.
+    *
+    * @return a future that will resolve when the task is complete.
+    */
+   default Future<?> submit(int level, String serviceId, SingletonRunnableTask task) {
+      return submit(serviceId, task);
+   }
 
    /**
     * Check if scheduler is running.

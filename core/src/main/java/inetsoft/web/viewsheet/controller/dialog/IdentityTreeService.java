@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 
 @Service
 public class IdentityTreeService {
-   @Autowired
    public IdentityTreeService() {
    }
 
@@ -52,7 +51,7 @@ public class IdentityTreeService {
       if(userTeeNode != null && userTeeNode.size() > 0) {
          TreeNodeModel users = TreeNodeModel.builder()
             .label(catalog.getString("Users"))
-             .organization(OrganizationManager.getCurrentOrgName())
+             .organization(OrganizationManager.getInstance().getCurrentOrgID())
              .children(userTeeNode)
             .expanded(true)
             .type(IdentityNode.USERS + "")
@@ -60,18 +59,20 @@ public class IdentityTreeService {
          treeNodeModels.add(users);
       }
 
-      List<TreeNodeModel> groupTreeNode =
-         getGroupTreeNode(provider, searchMode, searchString, principal, hideOrgName);
+      if(!(principal instanceof SRPrincipal) || !((SRPrincipal) principal).isSelfOrganization()) {
+         List<TreeNodeModel> groupTreeNode =
+            getGroupTreeNode(provider, searchMode, searchString, principal, hideOrgName);
 
-      if(groupTreeNode != null && groupTreeNode.size() > 0) {
-         TreeNodeModel groups = TreeNodeModel.builder()
-            .label(catalog.getString("Groups"))
-            .organization(OrganizationManager.getCurrentOrgName())
-            .children(groupTreeNode)
-            .expanded(true)
-            .type(IdentityNode.GROUPS + "")
-            .build();
-         treeNodeModels.add(groups);
+         if(groupTreeNode != null && groupTreeNode.size() > 0) {
+            TreeNodeModel groups = TreeNodeModel.builder()
+               .label(catalog.getString("Groups"))
+               .organization(OrganizationManager.getInstance().getCurrentOrgID())
+               .children(groupTreeNode)
+               .expanded(true)
+               .type(IdentityNode.GROUPS + "")
+               .build();
+            treeNodeModels.add(groups);
+         }
       }
 
       return treeNodeModels;
@@ -81,6 +82,10 @@ public class IdentityTreeService {
                                                String searchStr, Principal principal,
                                                boolean hideOrgName)
    {
+      if(principal instanceof SRPrincipal && ((SRPrincipal) principal).isSelfOrganization()) {
+         return new ArrayList<>();
+      }
+
       Set<String> childGroups = Arrays.stream(provider.getGroups())
          .map(name -> provider.getGroup(name))
          .filter(Objects::nonNull)
@@ -92,9 +97,9 @@ public class IdentityTreeService {
          .filter(group -> !childGroups.contains(group))
          .filter(group -> !StringUtils.isEmpty(group))
          .filter(group -> provider.getGroup(group) != null &&
-                 provider.getGroup(group).getOrganization().equals(OrganizationManager.getCurrentOrgName()))
+                 provider.getGroup(group).getOrganizationID().equals(OrganizationManager.getInstance().getCurrentOrgID()))
          .sorted()
-         .map(group -> getGroupNode(provider, new IdentityID("/", group.organization), group, searchMode,
+         .map(group -> getGroupNode(provider, new IdentityID("/", group.orgID), group, searchMode,
             Tool.equals(group, searchStr.toLowerCase()) ? "" : searchStr, principal, hideOrgName))
          .filter(Objects::nonNull)
          .filter(node -> node.children().size() != 0 || Tool.isEmptyString(searchStr) ||
@@ -111,7 +116,7 @@ public class IdentityTreeService {
          .map(group -> group.getIdentityID())
          .sorted()
          .map(g -> getGroupNode(provider, pGroup.name == "/" ? groupName :
-                                   new IdentityID(pGroup.name + "/" + groupName.name, pGroup.organization),
+                                   new IdentityID(pGroup.name + "/" + groupName.name, pGroup.orgID),
             g, searchMode, Tool.equals(g.name.toLowerCase(), searchStr.toLowerCase()) ?
                                    "" : searchStr, principal, hideOrgName))
          .filter(Objects::nonNull)
@@ -146,7 +151,7 @@ public class IdentityTreeService {
       return TreeNodeModel.builder()
          .label(groupName.name)
          .data(identityModel)
-         .organization(groupName.organization)
+         .organization(groupName.orgID)
          .children(groupChildren)
          .type(Identity.GROUP + "")
          .expanded(!leaf && searchMode)
@@ -217,7 +222,7 @@ public class IdentityTreeService {
          .map(n -> TreeNodeModel.builder()
             .label(n.getIdentityID().name)
             .alias(getUserAlias(provider, n.getIdentityID()))
-            .organization(n.getIdentityID().organization)
+            .organization(n.getIdentityID().orgID)
             .data(getUserEmails(n.getIdentityID()))
             .type(n.getType() + "")
             .leaf(n.getType() == Identity.USER)

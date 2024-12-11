@@ -104,5 +104,12 @@ public class ClusterStorageTransfer extends AbstractStorageTransfer {
       BlobEngine.getInstance().write(id, digest, file);
    }
 
+   @Override
+   protected Blob<?> updateRegistryBlob(Blob<?> blob, String id, String key, Path file) throws IOException {
+      return blob;
+   }
+
+
+
    private final ObjectMapper objectMapper = KeyValueEngine.createObjectMapper();
 }

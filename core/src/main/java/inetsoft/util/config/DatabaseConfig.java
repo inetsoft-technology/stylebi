@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.util.ConfigurationContext;
 import inetsoft.util.Tool;
+import inetsoft.util.config.crd.CRDProperty;
 import inetsoft.util.config.json.PasswordDeserializer;
 import inetsoft.util.config.json.PasswordSerializer;
 
@@ -198,18 +199,29 @@ public class DatabaseConfig implements Serializable {
       return config;
    }
 
+   @CRDProperty(description = "The database type", allowedValues = { "SQL_SERVER", "ORACLE", "DERBY", "DB2", "POSTGRESQL" })
    private DatabaseType type;
+   @CRDProperty(description = "The JDBC URL for the database")
    private String jdbcUrl;
+   @CRDProperty(description = "The fully-qualified class name of the JDBC driver")
    private String driverClassName;
+   @CRDProperty(description = "The classpath entries from which to load the JDBC driver. These should not be in the main application classpath as they can conflict with the drivers used for data sources.")
    private String[] driverClasspath;
+   @CRDProperty(description = "A flag that indicates if the database requires authentication")
    private boolean requiresLogin;
+   @CRDProperty(description = "The username used to authenticate with the database", secret = true)
    private String username;
+   @CRDProperty(description = "THe password used to authenticate with the database", secret = true)
    private String password;
+   @CRDProperty(description = "The name of the default database")
    private String defaultDatabase;
+   @CRDProperty(description = "The transaction isolation level for the database", allowedValues = { "NONE", "READ_COMMITTED", "READ_UNCOMMITTED", "REPEATABLE_READ", "SERIALIZABLE" })
    private IsolationLevel transactionIsolationLevel = Optional.ofNullable(getType())
       .flatMap(t -> t.getTransactionIsolationLevels().stream().findFirst())
       .orElse(null);
+   @CRDProperty(name = "poolProperties", description = "Additional properties for the Hikari connection pool")
    private Map<String, String> pool;
+   @CRDProperty(description = "The amount of time in milliseconds to wait for the database to be available")
    private long timeout = 120000L;
 
    /**

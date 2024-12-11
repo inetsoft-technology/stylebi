@@ -230,23 +230,26 @@ export class QueryFieldsPaneComponent implements OnInit, OnChanges {
    }
 
    selectField(evt: MouseEvent, idx: number): void {
-      if(!this.model || !this.model.fields || this.model.fields.length == 0) {
-         this.selectedFieldIndexes = [];
-         return;
-      }
+      //wait update alias finish.
+      setTimeout(() => {
+         if(!this.model || !this.model.fields || this.model.fields.length == 0) {
+            this.selectedFieldIndexes = [];
+            return;
+         }
 
-      if(!evt || !(evt.ctrlKey || evt.shiftKey)) {
-         this.selectedFieldIndexes = [];
-         this._shiftStartIndex = idx;
-      }
+         if(!evt || !(evt.ctrlKey || evt.shiftKey)) {
+            this.selectedFieldIndexes = [];
+            this._shiftStartIndex = idx;
+         }
 
-      if(!evt || !evt.shiftKey) {
-         this.doAddSelectedFieldIndex([idx]);
-      }
-      else {
-         this.selectedFieldIndexes = [];
-         this.doAddSelectedFieldIndex(getShiftIndexesRange(this._shiftStartIndex, idx));
-      }
+         if(!evt || !evt.shiftKey) {
+            this.doAddSelectedFieldIndex([idx]);
+         }
+         else {
+            this.selectedFieldIndexes = [];
+            this.doAddSelectedFieldIndex(getShiftIndexesRange(this._shiftStartIndex, idx));
+         }
+      });
    }
 
    doAddSelectedFieldIndex(indexes: number[]): void {
@@ -483,6 +486,8 @@ export class QueryFieldsPaneComponent implements OnInit, OnChanges {
                   if(data) {
                      if(add) {
                         this.columnsOrderMap.push({ alias: data[0], name:data[1] });
+                        this.selectedFieldName = data[1];
+                        this.selectedFieldAlias = data[0];
                      }
                      else {
                         this.columnsOrderMap.forEach(column => {

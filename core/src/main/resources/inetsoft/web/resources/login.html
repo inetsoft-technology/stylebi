@@ -89,7 +89,7 @@
         </form>
       </div>
       <div class="card-footer">
-        <button id="loginButton" class="btn btn-primary btn-block"
+        <button id="loginButton" class="btn btn-primary w-100"
                 data-th-text="#{login.signIn}">
           Sign in
         </button>
@@ -102,6 +102,7 @@
         <hr class="separator-line">
       </div>
       <div class="g_id_signin"
+           data-th-attr="data-state=${gState}"
            data-type="standard"
            data-shape="rectangular"
            data-theme="outline"
@@ -130,7 +131,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="activeSessoinTitle" data-th-text="#{Confirm}">Confirm</h5>
-        <button type="button" class="btn-close" data-dismiss="modal" aria-label="Close">
+        <button type="button" class="btn-close close" data-dismiss="modal" aria-label="Close">
         </button>
       </div>
       <div class="modal-body text-info" data-th-utext="#{login.warning.activeSession(${currentUser})}"></div>
@@ -142,11 +143,11 @@
   </div>
   </div>
   <div id="g_id_onload" data-th-if="${gClientId != null}"
-       data-th-attr="data-client_id=${gClientId}, data-login_uri=${gLoginUri}"
+       data-th-attr="data-client_id=${gClientId}, data-login_uri=${gLoginUri}, data-scope=${gScopes}"
        data-context="signin"
        data-ux_mode="redirect"
-       data-auto_select="true"
-       data-itp_support="true">
+       data-auto_select="false"
+       data-itp_support="false">
   </div>
   <script type="text/javascript" src="webjars/jquery/jquery.min.js"></script>
   <script type="text/javascript" src="webjars/bootstrap/js/bootstrap.min.js"></script>
@@ -165,7 +166,8 @@
        window.sessionStorage.setItem("inetsoftSessionExpired", "false");
        var defaultErrorMessage = /*[[#{login.error.authenticationFailed}]]*/ "Authentication failed";
        var currentUser = /*[[${currentUser}]]*/ "";
-       initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, currentUser);
+       var onloadError = /*[[${onloadError}]]*/ "";
+       initLoginView(requestedUrl, sessionExpired, defaultErrorMessage, currentUser, onloadError);
     });
     /*]]>*/
   </script>

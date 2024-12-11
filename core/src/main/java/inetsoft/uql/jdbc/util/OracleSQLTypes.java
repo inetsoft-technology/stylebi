@@ -228,8 +228,7 @@ public final class OracleSQLTypes extends SQLTypes {
             }
             else if(val.getClass().getName().equals("oracle.sql.TIMESTAMPTZ")) {
                byte[] buf = (byte[]) XUtil.call(val, "oracle.sql.TIMESTAMPTZ",
-                                                "toBytes", new Class[] {},
-                                                new Object[] {});
+                  "toBytes", new Class[] {}, new Object[] {});
 
                val = XUtil.call(val, "oracle.sql.TIMESTAMPTZ", "toTimestamp",
                   new Class[] {Connection.class, byte[].class},
@@ -239,20 +238,6 @@ public final class OracleSQLTypes extends SQLTypes {
                // toTimestamp always returns null, all subsequent calls are
                // fine. There is likely some initialization involved but
                // could not find any api or documentation for it
-               if(val == null) {
-                  val = XUtil.call(val, "oracle.sql.TIMESTAMPTZ", "toTimestamp",
-                     new Class[] {Connection.class, byte[].class},
-                     new Object[] {cs.getConnection(), buf});
-               }
-            }
-            else if(val.getClass().getName().equals("oracle.sql.TIMESTAMPTZ")) {
-               byte[] buf = (byte[]) XUtil.call(val, "oracle.sql.TIMESTAMPTZ",
-                  "toBytes", new Class[] {}, new Object[] {});
-
-               val = XUtil.call(val, "oracle.sql.TIMESTAMPTZ", "toTimestamp",
-                  new Class[] {Connection.class, byte[].class},
-                  new Object[] {cs.getConnection(), buf});
-
                if(val == null) {
                   val = XUtil.call(val, "oracle.sql.TIMESTAMPTZ", "toTimestamp",
                      new Class[] {Connection.class, byte[].class},

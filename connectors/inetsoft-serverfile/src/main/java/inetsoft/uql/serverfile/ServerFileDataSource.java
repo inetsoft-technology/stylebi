@@ -20,6 +20,7 @@ package inetsoft.uql.serverfile;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.CredentialType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -37,6 +38,11 @@ public class ServerFileDataSource extends TabularDataSource<ServerFileDataSource
 
    public ServerFileDataSource() {
       super(TYPE, ServerFileDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return null;
    }
 
    /**

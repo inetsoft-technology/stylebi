@@ -18,14 +18,16 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { FormBuilder, FormGroup } from "@angular/forms";
-import { tap } from "rxjs/operators";
+import { catchError, tap } from "rxjs/operators";
+import { Tool } from "../../../../../shared/util/tool";
+import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
 import { Secured } from "../../secured";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 import { InactiveUser, InactiveUserList, InactiveUserParameters } from "./inactive-user";
-import { Subscription } from "rxjs";
+import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 
 @Secured({
@@ -39,7 +41,7 @@ import { ActivatedRoute } from "@angular/router";
 })
 @ContextHelp({
    route: "/auditing/inactive-user",
-   link: "EMAuditingInactiveUsers"
+   link: "EMViewAudit"
 })
 @Component({
    selector: "em-audit-inactive-user",
@@ -55,7 +57,7 @@ export class AuditInactiveUserComponent implements OnInit, OnDestroy {
    displayedColumns = [ "userName", "lastAccessTime", "duration", "server" ];
    columnRenderers = [
       { name: "userName", label: "_#(js:User Name)", value: (r: InactiveUser) => r.userID.name },
-      { name: "lastAccessTime", label: "_#(js:Last Access Time)", value: (r: InactiveUser) => AuditTableViewComponent.getDisplayDate(r.lastAccessTime) },
+      { name: "lastAccessTime", label: "_#(js:Last Access Time)", value: (r: InactiveUser) => AuditTableViewComponent.getDisplayDate(r.lastAccessTime, r.dateFormat) },
       { name: "duration", label: "_#(js:Duration)", value: (r: InactiveUser) => r.duration },
       { name: "server", label: "_#(js:Server)", value: (r: InactiveUser) => r.server },
       { name: "organizationId", label: "_#(js:Organization ID)", value: (r: InactiveUser) => r.organizationId }
@@ -80,7 +82,8 @@ export class AuditInactiveUserComponent implements OnInit, OnDestroy {
    }
 
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
-               private pageTitle: PageHeaderService, fb: FormBuilder)
+               private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
+               fb: FormBuilder)
    {
       this.form = fb.group({
          selectedHosts: [[]],
@@ -96,13 +99,27 @@ export class AuditInactiveUserComponent implements OnInit, OnDestroy {
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchParameters = () => {
       return this.http.get<InactiveUserParameters>("../api/em/monitoring/audit/inactiveUserParameters")
-         .pipe(tap(params => {
-            this.hosts = params.hosts;
-            this.minDuration = params.minDuration;
-            this.maxDuration = params.maxDuration;
-            this.form.get("minDuration").setValue(this.minDuration, {emitEvent: false});
-            this.form.get("maxDuration").setValue(this.maxDuration, {emitEvent: false});
-         }));
+         .pipe(
+            catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
+               hosts: [],
+               minDuration: 0,
+               maxDuration: 0,
+               startTime: 0,
+               endTime: 0
+            }))),
+            tap(params => {
+               this.hosts = params.hosts;
+
+               if(this.maxDuration > (params.maxDuration + 1) && this.form.get("maxDuration").value == this.maxDuration) {
+                  this.maxDuration = params.maxDuration + 1;
+                  this.form.get("maxDuration").setValue(params.maxDuration + 1, {emitEvent: false});
+               }
+
+               if(this.minDuration < params.minDuration && this.form.get("minDuration").value == this.minDuration) {
+                  this.minDuration = params.minDuration;
+                  this.form.get("minDuration").setValue(params.minDuration, {emitEvent: false});
+               }
+            }));
    };
 
    // use arrow function instead of member method to hold the right context (i.e. this)
@@ -126,7 +143,11 @@ export class AuditInactiveUserComponent implements OnInit, OnDestroy {
          params = params.set("maxDuration", duration);
       }
 
-      return this.http.get<InactiveUserList>("../api/em/monitoring/audit/inactiveUsers", {params});
+      return this.http.get<InactiveUserList>("../api/em/monitoring/audit/inactiveUsers", {params})
+         .pipe(catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to run query)", () => of({
+            totalRowCount: 0,
+            rows: []
+         }))));
    };
 
    getDisplayedColumns() {
@@ -135,5 +156,10 @@ export class AuditInactiveUserComponent implements OnInit, OnDestroy {
 
    ngOnDestroy(): void {
       this.subscriptions.unsubscribe();
+   }
+
+   getRadiusError() {
+      return Tool.formatCatalogString("_#(js:em.audit.radius)",
+         [this.minDuration, this.maxDuration]);
    }
 }

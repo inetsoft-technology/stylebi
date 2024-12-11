@@ -27,6 +27,8 @@ import java.util.List;
 public interface ImportAssetResponse {
    List<String> failedAssets();
 
+   List<String> ignoreUserAssets();
+
    @Value.Default
    default boolean failed() { return false; }
 

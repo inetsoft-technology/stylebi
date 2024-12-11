@@ -55,6 +55,12 @@ public class SessionErrorController {
          case NAMED_USER_WITHOUT_SECURITY:
             error = catalog.getString("common.namedUserWithoutSecurity");
             break;
+         case GOOGLE_USER_SIGN_UP_DENIED:
+            error = catalog.getString("common.noPermission");
+            break;
+         case USER_INACTIVE:
+            error = catalog.getString("em.common.security.user.inactive");
+            break;
          default:
             error = "";
             break;
@@ -74,4 +80,6 @@ public class SessionErrorController {
    public static final String REMOTE_DEVELOPER_LICENSE = "remote-developer-license";
    public static final String SESSIONS_EXCEEDED = "sessions-exceeded";
    public static final String NAMED_USER_WITHOUT_SECURITY = "named-user-without-security";
+   public static final String GOOGLE_USER_SIGN_UP_DENIED = "google-user-sign-up-denied";
+   public static final String USER_INACTIVE = "user-inactive";
 }

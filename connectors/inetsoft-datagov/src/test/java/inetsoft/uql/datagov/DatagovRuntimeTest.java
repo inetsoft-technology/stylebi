@@ -19,10 +19,13 @@ package inetsoft.uql.datagov;
 
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
+import inetsoft.util.credential.*;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.util.ArrayList;
@@ -32,11 +35,21 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Unit test cases for <tt>DatagovRuntime</tt>.
  */
 class DatagovRuntimeTest {
+   @BeforeAll
+   static void mockService() {
+      MockedStatic<CredentialService> mockedCredentialService = Mockito.mockStatic(CredentialService.class);
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD))
+         .thenReturn(mock(LocalPasswordCredential.class));
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD, false))
+         .thenReturn(mock(LocalPasswordCredential.class));
+   }
+
    /**
     * Tests the <tt>runQuery()</tt> method for proper operation.
     *

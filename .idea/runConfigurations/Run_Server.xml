@@ -21,7 +21,10 @@
           <option name="multimoduleDir" />
           <option name="pomFileName" />
           <option name="profilesMap">
-            <map />
+            <map>
+              <entry key="enterprise" value="true" />
+              <entry key="community" value="true" />
+            </map>
           </option>
           <option name="projectsCmdOptionValues">
             <list />

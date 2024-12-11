@@ -130,7 +130,7 @@ public class ClusterJobStore implements JobStore, Serializable {
          throw new ObjectAlreadyExistsException(newJob);
       }
 
-      jobsByKey.lock(newJobKey, 5, TimeUnit.SECONDS);
+      jobsByKey.lock(newJobKey, 5, TimeUnit.MINUTES);
 
       try {
          jobsByKey.set(newJobKey, newJob);
@@ -195,7 +195,7 @@ public class ClusterJobStore implements JobStore, Serializable {
             }
          }
 
-         jobsByKey.lock(jobKey, 5, TimeUnit.MILLISECONDS);
+         jobsByKey.lock(jobKey, 5, TimeUnit.MINUTES);
 
          try {
             jobsByGroup.remove(jobKey.getGroup(), jobKey);
@@ -238,7 +238,7 @@ public class ClusterJobStore implements JobStore, Serializable {
       final OperableTrigger newTrigger = (OperableTrigger) trigger.clone();
       final TriggerKey triggerKey = newTrigger.getKey();
 
-      triggersByKey.lock(triggerKey, 5, TimeUnit.SECONDS);
+      triggersByKey.lock(triggerKey, 5, TimeUnit.MINUTES);
 
       try {
          boolean containsKey = triggersByKey.containsKey(triggerKey);
@@ -494,7 +494,7 @@ public class ClusterJobStore implements JobStore, Serializable {
 
    @Override
    public void pauseTrigger(TriggerKey triggerKey) throws JobPersistenceException {
-      triggersByKey.lock(triggerKey, 5, TimeUnit.SECONDS);
+      triggersByKey.lock(triggerKey, 5, TimeUnit.MINUTES);
 
       try {
          TriggerWrapper newTrigger = newTriggerWrapper(triggersByKey.get(triggerKey), PAUSED);
@@ -514,7 +514,7 @@ public class ClusterJobStore implements JobStore, Serializable {
    public org.quartz.Trigger.TriggerState getTriggerState(TriggerKey triggerKey)
       throws JobPersistenceException
    {
-      triggersByKey.lock(triggerKey, 5, TimeUnit.SECONDS);
+      triggersByKey.lock(triggerKey, 5, TimeUnit.MINUTES);
       org.quartz.Trigger.TriggerState result = org.quartz.Trigger.TriggerState.NONE;
 
       try {
@@ -537,7 +537,7 @@ public class ClusterJobStore implements JobStore, Serializable {
 
    @Override
    public void resumeTrigger(TriggerKey triggerKey) throws JobPersistenceException {
-      triggersByKey.lock(triggerKey, 5, TimeUnit.SECONDS);
+      triggersByKey.lock(triggerKey, 5, TimeUnit.MINUTES);
 
       try {
          if(schedulerRunning) {
@@ -629,7 +629,7 @@ public class ClusterJobStore implements JobStore, Serializable {
          return;
       }
 
-      jobsByKey.lock(jobKey, 5, TimeUnit.SECONDS);
+      jobsByKey.lock(jobKey, 5, TimeUnit.MINUTES);
 
       try {
          List<OperableTrigger> triggersForJob = getTriggersForJob(jobKey);
@@ -656,7 +656,7 @@ public class ClusterJobStore implements JobStore, Serializable {
          return;
       }
 
-      jobsByKey.lock(jobKey, 5, TimeUnit.SECONDS);
+      jobsByKey.lock(jobKey, 5, TimeUnit.MINUTES);
 
       try {
          List<OperableTrigger> triggersForJob = getTriggersForJob(jobKey);
@@ -785,7 +785,7 @@ public class ClusterJobStore implements JobStore, Serializable {
       for(TriggerWrapper tw : orderedTriggers) {
          // proceed after the other jobstore already not blocked
          TriggerKey lockKey = tw.key;
-         triggersByKey.lock(lockKey, 5, TimeUnit.SECONDS);
+         triggersByKey.lock(lockKey, 5, TimeUnit.MINUTES);
 
          // get after lock() so any changes applied before lock is acquired
          // would be present
@@ -885,7 +885,7 @@ public class ClusterJobStore implements JobStore, Serializable {
    @Override
    public void releaseAcquiredTrigger(OperableTrigger trigger) {
       TriggerKey triggerKey = trigger.getKey();
-      triggersByKey.lock(triggerKey, 5, TimeUnit.SECONDS);
+      triggersByKey.lock(triggerKey, 5, TimeUnit.MINUTES);
 
       try {
          TriggerWrapper tw = triggersByKey.get(triggerKey);
@@ -914,7 +914,7 @@ public class ClusterJobStore implements JobStore, Serializable {
       List<TriggerFiredResult> results = new ArrayList<>();
 
       for(OperableTrigger trigger : firedTriggers) {
-         triggersByKey.lock(trigger.getKey(), 5, TimeUnit.SECONDS);
+         triggersByKey.lock(trigger.getKey(), 5, TimeUnit.MINUTES);
 
          try {
             TriggerWrapper tw = triggersByKey.get(trigger.getKey());
@@ -1004,7 +1004,7 @@ public class ClusterJobStore implements JobStore, Serializable {
 
       if(jobDetail.isPersistJobDataAfterExecution()) {
          JobKey jobKey = jobDetail.getKey();
-         jobsByKey.lock(jobKey, 5, TimeUnit.SECONDS);
+         jobsByKey.lock(jobKey, 5, TimeUnit.MINUTES);
 
          try {
             jobsByKey.set(jobKey, jobDetail);
@@ -1176,7 +1176,7 @@ public class ClusterJobStore implements JobStore, Serializable {
       boolean removed;
 
       // remove from triggers by FQN map
-      triggersByKey.lock(key, 5, TimeUnit.SECONDS);
+      triggersByKey.lock(key, 5, TimeUnit.MINUTES);
 
       try {
          final TriggerWrapper tw = triggersByKey.remove(key);
@@ -1249,7 +1249,7 @@ public class ClusterJobStore implements JobStore, Serializable {
          return;
       }
 
-      triggersByKey.lock(triggerKey, 5, TimeUnit.SECONDS);
+      triggersByKey.lock(triggerKey, 5, TimeUnit.MINUTES);
 
       try {
          TriggerWrapper newTw;

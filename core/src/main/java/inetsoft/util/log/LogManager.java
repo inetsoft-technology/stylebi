@@ -30,6 +30,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -313,7 +314,8 @@ public final class LogManager implements AutoCloseable, MessageListener {
    public String getBaseLogFile(boolean scheduler) {
       if(!SreeEnv.isInitialized()) {
          // don't use file system service, initializing
-         String dir = ConfigurationContext.getContext().getHome();
+         String dir = System.getProperty(
+            "inetsoft.log.dir", ConfigurationContext.getContext().getHome());
          String file;
 
          if(scheduler) {
@@ -635,9 +637,15 @@ public final class LogManager implements AutoCloseable, MessageListener {
          };
 
          cluster.addMessageListener(listener);
+         String logFileIp = extractIPFromLogName(fileName);
 
          try {
             for(String node : selectedNodes) {
+               // Bug #68658, only rotate log file for selected node.
+               if(!Tool.equals(logFileIp, extractIpFromNodeName(node))) {
+                  continue;
+               }
+
                cluster.sendMessage(node, rotateLogMessage);
             }
 
@@ -652,6 +660,29 @@ public final class LogManager implements AutoCloseable, MessageListener {
             cluster.removeMessageListener(listener);
          }
       }
+   }
+
+   public static String extractIPFromLogName(String logFile) {
+      String ipV4Pattern = "(\\b(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?\\b)";
+      String ipV6Pattern = "(([0-9a-fA-F]{1,4}:){7}([0-9a-fA-F]{1,4}))|((([0-9a-fA-F]{1,4}:){1,7}|:):)|((:[0-9a-fA-F]{1,4}){1,7}:)";
+
+      Pattern pattern = Pattern.compile(ipV4Pattern + "|" + ipV6Pattern);
+      Matcher matcher = pattern.matcher(logFile);
+
+      if(matcher.find()) {
+         return matcher.group();
+      }
+      else {
+         return null;
+      }
+   }
+
+   public static String extractIpFromNodeName(String node) {
+      if(node == null || node.indexOf(":") == -1) {
+         return null;
+      }
+
+      return node.split(":")[0];
    }
 
    public void rotateLogFile() {

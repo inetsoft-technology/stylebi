@@ -143,7 +143,7 @@ export class TaskOptionsPane {
 
       this.http.get<string>("../api/em/navbar/organization")
          .subscribe((org) => {
-            this.owners = this.owners.filter((user) => user.organization === org)
+            this.owners = this.owners.filter((user) => user.orgID === org)
          });
 
       usersService.getAdminName().subscribe(

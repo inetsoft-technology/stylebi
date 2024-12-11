@@ -45,11 +45,7 @@ public class PutAllKeyValueTask<T extends Serializable>
    @Override
    public void run() {
       SortedMap<String, T> values = deserializeValue(data);
-
-      for(Map.Entry<String, T> e : values.entrySet()) {
-         getEngine().put(getId(), e.getKey(), e.getValue());
-      }
-
+      getEngine().putAll(getId(), values);
       getMap().putAll(values);
    }
 

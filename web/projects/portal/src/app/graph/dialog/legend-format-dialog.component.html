@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <modal-header [title]="'_#(Legend Properties)'"
-   (onCancel)="close()" [cshid]="'LegendProperties'">
+   (onCancel)="close()" [cshid]="'ChartLegendFormat'">
 </modal-header>
 <div class="modal-body" *ngIf="model">
   <ul ngbNav #nav="ngbNav" class="nav-tabs" [activeId]="defaultTab" (navChange)="defaultTab = $event.nextId">

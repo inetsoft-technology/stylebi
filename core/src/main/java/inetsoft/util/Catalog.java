@@ -593,7 +593,16 @@ public class Catalog {
          obj = id;
       }
 
-      return obj == null ? null : obj.toString();
+      String res = obj == null ? null : obj.toString();
+
+      if(res == null) {
+         return res;
+      }
+
+      int idx = res.indexOf("^--^");
+      res = idx == -1 ? res : res.substring(0, idx);
+
+      return res;
    }
 
    /**

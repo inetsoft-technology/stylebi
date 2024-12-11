@@ -17,10 +17,12 @@
   -->
 <div class="viewer-root vs-object-container viewer-container embed-chart-container"
      oncontextmenu="return false"
+     wInteractContainer
      #viewerRoot tabindex="0"
      [attr.runtime-id]="runtimeId"
-     (mouseenter)="onMouseEnter($event)">
-  <vs-chart *ngIf="vsObject && runtimeId"
+     (mouseenter)="onMouseEnter($event)"
+     (resized)="onResize()">
+  <vs-chart *ngIf="vsObject && runtimeId && !timeoutError"
             [model]="vsObject" [actions]="vsObjectActions"
             [appSize]="appSize"
             [vsInfo]="vsInfo"
@@ -28,6 +30,16 @@
             [variableValues]="variableValuesFunction"
             (contextmenu)="onOpenContextMenu($event)">
   </vs-chart>
+  <div *ngIf="showError" class="error-chart txt-danger">
+    <span class="error-label">
+      _#(Failed to generate graph)
+    </span>
+  </div>
+  <div *ngIf="!showError && timeoutError" class="error-chart txt-danger">
+    <span class="error-label">
+      _#(vs.viewsheet.chart.timeout)
+    </span>
+  </div>
 
   <mini-toolbar *ngIf="isMiniToolbarVisible()"
                 [actions]="vsObjectActions"

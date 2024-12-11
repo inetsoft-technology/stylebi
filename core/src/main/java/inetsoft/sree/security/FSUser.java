@@ -181,7 +181,7 @@ public class FSUser extends User implements XMLSerializable {
     * Set the assigned organization ID.
     */
    public void setOrganization(String organization) {
-      this.organization = organization;
+      this.organizationID = organization;
    }
 
    /**
@@ -214,8 +214,8 @@ public class FSUser extends User implements XMLSerializable {
          writer.print("<googleSSOId><![CDATA[" + googleSSOId + "]]></googleSSOId>");
       }
 
-      if(organization != null) {
-         writer.print("<organization><![CDATA[" + organization + "]]></organization>");
+      if(organizationID != null) {
+         writer.print("<organization><![CDATA[" + organizationID + "]]></organization>");
       }
 
       if(locale != null) {
@@ -271,10 +271,10 @@ public class FSUser extends User implements XMLSerializable {
       Element node = Tool.getChildNodeByTagName(tag, "organization");
 
       if(node != null) {
-         organization = Tool.getValue(node);
+         organizationID = Tool.getValue(node);
       }
       else {
-         organization = Organization.getDefaultOrganizationName();
+         organizationID = Organization.getDefaultOrganizationID();
       }
 
       node = Tool.getChildNodeByTagName(tag, "locale");
@@ -377,7 +377,7 @@ public class FSUser extends User implements XMLSerializable {
          gen.writeBooleanField("active", value.active);
          gen.writeStringField("locale", value.locale);
          gen.writeStringField("googleSSOId", value.googleSSOId);
-         gen.writeStringField("organization", value.organization);
+         gen.writeStringField("organization", value.organizationID);
 
          if(value.password != null) {
             String algorithm = value.passwordAlgorithm == null ? "none" : value.passwordAlgorithm;
@@ -456,7 +456,7 @@ public class FSUser extends User implements XMLSerializable {
          JsonNode googleSSOIdNode = root.get("googleSSOId");
          value.googleSSOId = googleSSOIdNode == null ? null : googleSSOIdNode.asText(null);
          JsonNode organization = root.get("organization");
-         value.organization = organization == null ? null : organization.asText(null);
+         value.organizationID = organization == null ? null : organization.asText(null);
          JsonNode node = root.get("password");
 
          if(node.isNull()) {

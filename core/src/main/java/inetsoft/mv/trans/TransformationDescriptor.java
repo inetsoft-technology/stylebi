@@ -1933,7 +1933,7 @@ public final class TransformationDescriptor {
     * Print the table assembly.
     */
    public void print() {
-      if(!"true".equals(SreeEnv.getProperty("mv_debug"))) {
+      if(!"true".equals(SreeEnv.getProperty("mv.debug"))) {
          return;
       }
 

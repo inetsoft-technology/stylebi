@@ -38,6 +38,16 @@ public interface XMapTask extends XTransferable {
    public void setID(String id);
 
    /**
+    * Get the job's organization id.
+    */
+   public String getOrgID();
+
+   /**
+    * Set the job's organization id.
+    */
+   public void setOrgID(String id);
+
+   /**
     * Get the value for the given key.
     */
    public String getProperty(String key);

@@ -19,21 +19,25 @@ package inetsoft.uql.rest.datasource.graphql;
 
 import inetsoft.uql.rest.AbstractRestDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.Tool;
+import inetsoft.util.credential.CredentialType;
 
 @View(value = {
    @View1("URL"),
    @View1("authType"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
    @View1(
       type = ViewType.PANEL,
       vertical = true,
       colspan = 2,
       elements = {
-         @View2(value = "clientId", visibleMethod = "isOauth"),
-         @View2(value = "clientSecret", visibleMethod = "isOauth"),
-         @View2(value = "authorizationUri", visibleMethod = "isOauth"),
-         @View2(value = "tokenUri", visibleMethod = "isOauth"),
-         @View2(value = "scope", visibleMethod = "isOauth"),
-         @View2(value = "oauthFlags", visibleMethod = "isOauth"),
+         @View2(value = "clientId", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "clientSecret", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "authorizationUri", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "tokenUri", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "scope", visibleMethod = "useCredentialForOauth"),
+         @View2(value = "oauthFlags", visibleMethod = "useCredentialForOauth"),
          @View2(
             type = ViewType.BUTTON,
             text = "Authorize",
@@ -48,9 +52,9 @@ import inetsoft.uql.tabular.*;
          @View2(value = "refreshToken", visibleMethod = "isOauth")
       }
    ),
-   @View1(value = "user", visibleMethod = "isBasicAuth"),
-   @View1(value = "password", visibleMethod = "isBasicAuth"),
-   @View1(value = "authURL", visibleMethod = "isTwoStepAuth"),
+   @View1(value = "user", visibleMethod = "useCredentialForBasicAuth"),
+   @View1(value = "password", visibleMethod = "useCredentialForBasicAuth"),
+   @View1(value = "authURL", visibleMethod = "useCredentialForTwoStepAuth"),
    @View1(value = "authenticationHttpParameters", visibleMethod = "isTwoStepAuth",
       verticalAlign = ViewAlign.TOP),
    @View1(value = "authMethod", visibleMethod = "isTwoStepAuth"),
@@ -66,6 +70,11 @@ public abstract class AbstractGraphQLDataSource<SELF extends AbstractGraphQLData
 {
    protected AbstractGraphQLDataSource(String type, Class<SELF> selfClass) {
       super(type, selfClass);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD_OAUTH2_WITH_FLAGS;
    }
 
    public static final String VARIABLE_KEY = "variables";

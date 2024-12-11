@@ -20,9 +20,9 @@ package inetsoft.uql.rest.datasource.salesforce;
 import com.github.benmanes.caffeine.cache.*;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
-import inetsoft.uql.tabular.HttpParameter;
-import inetsoft.uql.tabular.Property;
+import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
@@ -50,12 +50,13 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
    }
 
    @Property(label = "Security Token", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getSecurityToken() {
-      return securityToken;
+      return ((SecurityTokenCredential) getCredential()).getSecurityToken();
    }
 
    public void setSecurityToken(String securityToken) {
-      this.securityToken = securityToken;
+      ((SecurityTokenCredential) getCredential()).setSecurityToken(securityToken);
    }
 
    @Override
@@ -92,22 +93,6 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
    }
 
    @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(securityToken != null) {
-         writer.format(
-            "<securityToken><![CDATA[%s]]></securityToken>%n", Tool.encryptPassword(securityToken));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      securityToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "securityToken"));
-   }
-
-   @Override
    public boolean equals(Object o) {
       if(this == o) {
          return true;
@@ -117,17 +102,12 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      SalesforceDataSource that = (SalesforceDataSource) o;
-      return Objects.equals(securityToken, that.securityToken);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), securityToken);
+      return Objects.hash(super.hashCode(), getSecurityToken());
    }
 
    private SalesforceSession getSession() {
@@ -158,7 +138,7 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
          writer.writeCharacters(dataSource.getUser());
          writer.writeEndElement(); // username
          writer.writeStartElement("", "password", "urn:partner.soap.sforce.com");
-         writer.writeCharacters(dataSource.getPassword() + dataSource.securityToken);
+         writer.writeCharacters(dataSource.getPassword() + dataSource.getSecurityToken());
          writer.writeEndElement(); // password
          writer.writeEndElement(); // login
          writer.writeEndElement(); // Body
@@ -217,8 +197,6 @@ public abstract class SalesforceDataSource<SELF extends SalesforceDataSource<SEL
          throw new RuntimeException("Failed to parse login response", e);
       }
    }
-
-   private String securityToken;
 
    private static final class SalesforceSession {
       SalesforceSession(String url, String sessionId) {

@@ -18,16 +18,16 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { FormBuilder, FormGroup } from "@angular/forms";
-import { tap } from "rxjs/operators";
+import { ActivatedRoute } from "@angular/router";
+import { of, Subscription } from "rxjs";
+import { catchError, tap } from "rxjs/operators";
+import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
 import { Secured } from "../../secured";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 import { IdentityInfo, IdentityInfoList, IdentityInfoParameters } from "./identity-info";
-import { Subscription } from "rxjs";
-import { ActivatedRoute } from "@angular/router";
-import {IdentityId} from "../../settings/security/users/identity-id";
 
 @Secured({
    route: "/auditing/identity-info",
@@ -40,7 +40,7 @@ import {IdentityId} from "../../settings/security/users/identity-id";
 })
 @ContextHelp({
    route: "/auditing/identity-info",
-   link: "EMAuditingIdentityInfo"
+   link: "EMViewAudit"
 })
 @Component({
    selector: "em-audit-identity-info",
@@ -48,13 +48,14 @@ import {IdentityId} from "../../settings/security/users/identity-id";
    styleUrls: ["./audit-identity-info.component.scss"]
 })
 export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
-   users: string[] = [];
-   groups: string[] = [];
-   roles: string[] = [];
+   types = [ "u", "g", "r", "o" ];
+
+   noOrgTypes = [ "u", "g", "r"];
    actions = [ "c", "d", "m", "r" ];
    states = [ "0", "1", "2" ];
    hosts: string[] = [];
    organizations: string[] = [];
+   organizationNames: string[] = [];
    orgNames: string[] = [];
    form: FormGroup;
    systemAdministrator = false;
@@ -67,10 +68,10 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
       { name: "name", label: "_#(js:Name)", value: (r: IdentityInfo) => r.name },
       { name: "type", label: "_#(js:Type)", value: (r: IdentityInfo) => this.getTypeLabel(r.type) },
       { name: "actionType", label: "_#(js:Action Type)", value: (r: IdentityInfo) => this.getActionTypeLabel(r.actionType) },
-      { name: "actionTime", label: "_#(js:Action Time)", value: (r: IdentityInfo) => AuditTableViewComponent.getDisplayDate(r.actionTime) },
+      { name: "actionTime", label: "_#(js:Action Time)", value: (r: IdentityInfo) => AuditTableViewComponent.getDisplayDate(r.actionTime, r.dateFormat) },
       { name: "server", label: "_#(js:Server)", value: (r: IdentityInfo) => r.server },
       { name: "actionDescription", label: "_#(js:Action Description)", value: (r: IdentityInfo) => r.actionDescription },
-      { name: "state", label: "_#(js:State)", value: (r: IdentityInfo) => this.getStateLabel(r.state) },
+      { name: "state", label: "_#(js:Status)", value: (r: IdentityInfo) => this.getStateLabel(r.state) },
       { name: "organizationId", label: "_#(js:Organization ID)", value: (r: IdentityInfo) => r.organizationId }
    ];
 
@@ -78,13 +79,20 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
       return this._displayedColumns;
    }
 
+   getTypes() {
+      if(this.organizationFilter) {
+         return this.types;
+      }
+
+      return this.noOrgTypes;
+   }
+
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
-               private pageTitle: PageHeaderService, fb: FormBuilder)
+               private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
+               fb: FormBuilder)
    {
       this.form = fb.group({
-         selectedUsers: [[]],
-         selectedRoles: [[]],
-         selectedGroups: [[]],
+         selectedTypes: [[]],
          selectedActions: [[]],
          selectedStates: [[]],
          selectedHosts: [[]],
@@ -94,7 +102,7 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
 
    ngOnInit(): void {
       this.pageTitle.title = "_#(js:Identity Information)";
-      this.http.get<string[]>("../api/em/security/users/get-all-organizations/").subscribe(
+      this.http.get<string[]>("../api/em/security/users/get-all-organization-names/").subscribe(
           (orgList => this.orgNames = orgList)
        );
 
@@ -104,59 +112,39 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
 
    private onOrganizationChange(): void {
       if(!!this.form.get("selectedOrganizations").value) {
-         this.fetchParameters0().subscribe(() => {});
+         this.form.get("selectedTypes").setValue(null);
       }
    }
 
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchParameters = () => {
-      return this.http.get<IdentityInfoParameters>("../api/em/monitoring/audit/identityInfoOrganizations")
-         .pipe(tap(params => {
-            this.organizations = params.organizations;
-            this.organizationFilter = params.organizationFilter;
-
-            if(!this.organizationFilter) {
-               this.fetchParameters0().subscribe(() => {});
-            }
-         }));
+      return this.http.get<IdentityInfoParameters>("../api/em/monitoring/audit/identityInfoParameters")
+         .pipe(
+            catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
+               types: [],
+               hosts: [],
+               organizations: [],
+               organizationNames: [],
+               organizationFilter: true,
+               systemAdministrator: false,
+               startTime: 0,
+               endTime: 0
+            }))),
+            tap(params => {
+               this.organizations = params.organizations;
+               this.organizationNames = params.organizationNames;
+               this.organizationFilter = params.organizationFilter;
+               this.hosts = params.hosts;
+            }));
    };
 
-   fetchParameters0() {
-      let params = new HttpParams();
-      const organizations = this.form.get("selectedOrganizations").value;
-
-      if(!!organizations) {
-         params = params.append("organizations", organizations);
-      }
-
-      return this.http.get<IdentityInfoParameters>("../api/em/monitoring/audit/identityInfoParameters", {params})
-         .pipe(tap(params => {
-            this.users = params.users;
-            this.groups = params.groups;
-            this.roles = params.roles;
-            this.hosts = params.hosts;
-            this.systemAdministrator = params.systemAdministrator;
-         }));
-   }
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchData = (httpParams: HttpParams, additional: { [key: string]: any; }) => {
       let params = httpParams;
-      const selectedUsers: string[] = additional.selectedUsers;
+      const selectedTypes: string[] = additional.selectedTypes;
 
-      if(!!selectedUsers && selectedUsers.length > 0) {
-         selectedUsers.forEach(u => params = params.append("users", u));
-      }
-
-      const selectedRoles: string[] = additional.selectedRoles;
-
-      if(!!selectedRoles && selectedRoles.length > 0) {
-         selectedRoles.forEach(r => params = params.append("roles", r));
-      }
-
-      const selectedGroups: string[] = additional.selectedGroups;
-
-      if(!!selectedGroups && selectedGroups.length > 0) {
-         selectedGroups.forEach(g => params = params.append("groups", g));
+      if(!!selectedTypes && selectedTypes.length > 0) {
+         selectedTypes.forEach(u => params = params.append("types", u));
       }
 
       const selectedActions: string[] = additional.selectedActions;
@@ -183,7 +171,11 @@ export class AuditIdentityInfoComponent implements OnInit, OnDestroy {
          selectedOrgs.forEach(h => params = params.append("organizations", h));
       }
 
-      return this.http.get<IdentityInfoList>("../api/em/monitoring/audit/identityInfo", {params});
+      return this.http.get<IdentityInfoList>("../api/em/monitoring/audit/identityInfo", {params})
+         .pipe(catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to run query)", () => of({
+            totalRowCount: 0,
+            rows: []
+         }))));
    };
 
    getTypeLabel(type: string): string {

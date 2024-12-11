@@ -134,11 +134,12 @@ public class EMScheduleTaskActionController {
     */
    @GetMapping("/api/em/schedule/task/action/delete")
    public void deleteTaskActions(@RequestParam("name") String taskName,
+                                 @RequestParam("owner") String taskOwner,
                                  @RequestBody int[] items,
                                  Principal principal)
       throws Exception
    {
-      actionService.deleteTaskActions(taskName, items, principal);
+      actionService.deleteTaskActions(taskName, taskOwner, items, principal);
    }
 
    /**

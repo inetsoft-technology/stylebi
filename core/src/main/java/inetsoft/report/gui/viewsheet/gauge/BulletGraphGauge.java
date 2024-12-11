@@ -138,7 +138,7 @@ public class BulletGraphGauge extends VSGauge {
       paint0((Graphics2D) g, size, isShadow);
       g.dispose();
 
-      if(isShadow == true) {
+      if(isShadow) {
          img = addShadow(img, 6);
 
          BufferedImage labelImg = new BufferedImage(img.getWidth(), img.getHeight(), img.getType());

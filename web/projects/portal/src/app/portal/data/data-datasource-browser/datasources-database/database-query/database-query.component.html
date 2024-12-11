@@ -26,7 +26,8 @@
                            [runtimeID]="runtimeId"
                            [linkModel]="queryModel.linkPaneModel"
                            [databaseName]="databaseName"
-                           [dataSourceTreeRoot]="dataSourceTreeRoot">
+                           [dataSourceTreeRoot]="dataSourceTreeRoot"
+                           (editingJoinChanged)="joinEditingChanged($event)">
           </query-link-pane>
         </ng-template>
       </ng-container>
@@ -75,7 +76,7 @@
           </query-grouping-pane>
         </ng-template>
       </ng-container>
-      <ng-container *ngIf="freeFormSqlEnabled" ngbNavItem="sql-string">
+      <ng-container *ngIf="freeFormSqlEnabled" ngbNavItem="sql-string" [disabled]="isTabDisabled('sql-string')">
         <a ngbNavLink>_#(SQL String)</a>
         <ng-template ngbNavContent>
           <free-form-sql-pane class="tab-pane-content" [runtimeId]="runtimeId"
@@ -85,7 +86,7 @@
           </free-form-sql-pane>
         </ng-template>
       </ng-container>
-      <ng-container ngbNavItem="preview">
+      <ng-container ngbNavItem="preview" [disabled]="isTabDisabled('preview')">
         <a ngbNavLink>_#(Preview)</a>
         <ng-template ngbNavContent>
           <sql-query-preview-pane class="tab-pane-content"

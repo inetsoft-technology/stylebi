@@ -191,7 +191,7 @@ export class RangeSliderDataPane extends TreeDataPane implements AfterViewInit {
     */
    private addCompositeNode(selectedCompositeNode: TreeNodeModel): void {
       if(selectedCompositeNode.type === "columnNode") {
-         if(this.compositeNodes.findIndex((n) => n.label === selectedCompositeNode.label) != -1 ||
+         if(this.compositeNodes.findIndex((n) => n.column.attribute === selectedCompositeNode.data.attribute) != -1 ||
             !this.isSameSourceOfTwoNodes(selectedCompositeNode))
          {
             return;

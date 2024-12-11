@@ -19,6 +19,7 @@ package inetsoft.web.portal.controller;
 
 import inetsoft.report.internal.paging.ReportCache;
 import inetsoft.sree.AnalyticRepository;
+import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -100,7 +101,7 @@ public class ScheduleController {
       List<ScheduleTaskModel> filteredList = taskListModel.tasks().stream()
          .filter(this::isVisibleInPortal)
          .filter(t -> Objects.equals(pId, t.owner())
-            || !Objects.isNull(t.name()) && t.name().startsWith(ThreadContext.getContextPrincipal().getName() + ":") && isAdmin
+            || !Objects.isNull(t.name()) && t.name().contains(DataCycleManager.TASK_PREFIX) && isAdmin
             || scheduleService.isGroupShare(t, principal)
          )
          .collect(Collectors.toList());
@@ -262,6 +263,12 @@ public class ScheduleController {
       return scheduleService.getUsersModel(principal);
    }
 
+   @GetMapping("/api/portal/schedule/isSelfOrgUser")
+   public boolean isSelfOrgUser(Principal principal) throws Exception
+   {
+      return principal instanceof SRPrincipal && ((SRPrincipal) principal).isSelfOrganization();
+   }
+
    /**
     * Get status description.
     */
@@ -301,8 +308,8 @@ public class ScheduleController {
 
       final IdentityID owner = taskModel.owner();
 
-      if(owner != null && !taskName.startsWith(owner + ":")) {
-         taskName = owner + ":" + taskName;
+      if(owner != null && !taskName.startsWith(owner.convertToKey() + ":")) {
+         taskName = owner.convertToKey() + ":" + taskName;
       }
 
       final ScheduleTask scheduleTask = scheduleManager.getScheduleTask(taskName);

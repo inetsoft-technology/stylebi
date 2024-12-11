@@ -28,7 +28,7 @@ import java.util.*;
 /**
  * {@code CustomTheme} contains information about an installed custom theme.
  */
-public final class CustomTheme implements XMLSerializable {
+public final class CustomTheme implements XMLSerializable, Cloneable {
    /**
     * Gets the display name of the theme.
     *
@@ -177,6 +177,7 @@ public final class CustomTheme implements XMLSerializable {
       this.users = users;
    }
 
+
    /**
     * Gets the organizations that are assigned to this theme.
     *
@@ -242,6 +243,7 @@ public final class CustomTheme implements XMLSerializable {
    public void setRoles(List<String> roles) {
       this.roles = roles;
    }
+
 
    @Override
    public void writeXML(PrintWriter writer) {
@@ -366,6 +368,7 @@ public final class CustomTheme implements XMLSerializable {
       CustomTheme that = (CustomTheme) o;
       return Objects.equals(name, that.name) &&
          Objects.equals(id, that.id) &&
+         Objects.equals(orgID, that.orgID) &&
          Objects.equals(jarPath, that.jarPath) &&
          emDark == that.emDark &&
          portalScript == that.portalScript &&
@@ -377,7 +380,7 @@ public final class CustomTheme implements XMLSerializable {
 
    @Override
    public int hashCode() {
-      return Objects.hash(name, id, jarPath, emDark, portalScript, emScript,
+      return Objects.hash(name, id, orgID, jarPath, emDark, portalScript, emScript,
                           users, groups, roles);
    }
 
@@ -395,6 +398,23 @@ public final class CustomTheme implements XMLSerializable {
          ", groups=" + groups +
          ", roles=" + roles +
          '}';
+   }
+
+   @Override
+   public Object clone() throws CloneNotSupportedException {
+      CustomTheme clone = new CustomTheme();
+      clone.name = name;
+      clone.id = id;
+      clone.orgID = orgID;
+      clone.jarPath = jarPath;
+      clone.emDark = emDark;
+      clone.portalScript = portalScript;
+      clone.emScript = emScript;
+      clone.setUsers(Tool.deepCloneCollection(users));
+      clone.setGroups(Tool.deepCloneCollection(groups));
+      clone.setRoles(Tool.deepCloneCollection(roles));
+      clone.setOrganizations(Tool.deepCloneCollection(organizations));
+      return clone;
    }
 
    private String name;

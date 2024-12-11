@@ -18,7 +18,8 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { FormBuilder, FormGroup, Validators } from "@angular/forms";
-import { tap } from "rxjs/operators";
+import { catchError, tap } from "rxjs/operators";
+import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
@@ -32,7 +33,7 @@ import {
    USER_ASSET_TYPES
 } from "./dependency-util";
 import { DependentAsset, DependentAssetList, DependentAssetParameters } from "./dependent-assets";
-import { Subscription } from "rxjs";
+import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 
 @Secured({
@@ -46,7 +47,7 @@ import { ActivatedRoute } from "@angular/router";
 })
 @ContextHelp({
    route: "/auditing/dependent-assets",
-   link: "EMAuditingDependentAssets"
+   link: "EMViewAudit"
 })
 @Component({
   selector: "em-audit-dependent-assets",
@@ -78,7 +79,8 @@ export class AuditDependentAssetsComponent implements OnInit, OnDestroy {
    ];
 
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
-               private pageTitle: PageHeaderService, fb: FormBuilder)
+               private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
+               fb: FormBuilder)
    {
       this.form = fb.group({
          selectedTargetType: ["DATA_SOURCE", [Validators.required]],
@@ -118,11 +120,18 @@ export class AuditDependentAssetsComponent implements OnInit, OnDestroy {
       }
 
       return this.http.get<DependentAssetParameters>("../api/em/monitoring/audit/dependentAssetParameters", {params})
-         .pipe(tap(p => {
-            this.allUsers.push(NONE_USER);
-            this.allUsers = p.users.map(u => ({value: u, label: u}));
-            this.targetAssets = p.assets;
-         }));
+         .pipe(
+            catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
+               users: [],
+               assets: [],
+               startTime: 0,
+               endTime: 0
+            }))),
+            tap(p => {
+               this.allUsers = p.users.map(u => ({value: u, label: u}));
+               this.allUsers.push(NONE_USER);
+               this.targetAssets = p.assets;
+            }));
    };
 
    // use arrow function instead of member method to hold the right context (i.e. this)
@@ -154,7 +163,11 @@ export class AuditDependentAssetsComponent implements OnInit, OnDestroy {
          selectedDependentUsers.forEach(u => params = params.append("dependentUsers", u));
       }
 
-      return this.http.get<DependentAssetList>("../api/em/monitoring/audit/dependentAssets", {params});
+      return this.http.get<DependentAssetList>("../api/em/monitoring/audit/dependentAssets", {params})
+         .pipe(catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to run query)", () => of({
+            totalRowCount: 0,
+            rows: []
+         }))));
    };
 
    private onTargetTypeChange(): void {
@@ -162,7 +175,7 @@ export class AuditDependentAssetsComponent implements OnInit, OnDestroy {
 
       if(!!type) {
          if(USER_ASSET_TYPES.has(type)) {
-            this.targetUsers = [ NONE_USER ];
+            this.targetUsers = [];
             this.allUsers.forEach(u => this.targetUsers.push(u));
          }
          else {

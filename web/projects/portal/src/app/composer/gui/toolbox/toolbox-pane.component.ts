@@ -85,7 +85,7 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
             this.subscribeVScroll();
          }
 
-         this.cd.reattach();
+         this.cd.detectChanges();
       }
 
       if(changes["containerView"] && changes["containerView"].currentValue) {
@@ -130,8 +130,11 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
 
       combinationTree.children.push(this.toolbox);
       this.combinationTreeRoot = combinationTree;
-      this.useVirtualScroll = TreeTool.needUseVirtualScroll(this.combinationTreeRoot);
-      this.virtualScrollTreeDatasource.refreshByRoot(this.combinationTreeRoot);
+
+      setTimeout(() => {
+         this.useVirtualScroll = TreeTool.needUseVirtualScroll(this.combinationTreeRoot);
+         this.virtualScrollTreeDatasource.refreshByRoot(this.combinationTreeRoot);
+      });
    }
 
    private findLabel(dragName: string): string {

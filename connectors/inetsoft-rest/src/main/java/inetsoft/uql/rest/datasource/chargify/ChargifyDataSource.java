@@ -21,6 +21,7 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -28,7 +29,9 @@ import java.util.Objects;
 
 @View(vertical = true, value = {
    @View1("subdomain"),
-   @View1("apiKey"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiKey", visibleMethod = "useCredential"),
    @View1("URL")
 })
 public class ChargifyDataSource extends EndpointJsonDataSource<ChargifyDataSource> {
@@ -45,6 +48,11 @@ public class ChargifyDataSource extends EndpointJsonDataSource<ChargifyDataSourc
       setQueryHttpParameters(new HttpParameter[]{ contentType });
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_KEY;
+   }
+
    @Property(label = "Subdomain", required = true)
    public String getSubdomain() {
       return subdomain;
@@ -55,17 +63,18 @@ public class ChargifyDataSource extends EndpointJsonDataSource<ChargifyDataSourc
    }
 
    @Property(label = "API Key", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
-      return apiKey;
+      return ((ApiKeyCredential) getCredential()).getApiKey();
    }
 
    public void setApiKey(String apiKey) {
-      this.apiKey = apiKey;
+      ((ApiKeyCredential) getCredential()).setApiKey(apiKey);
    }
 
    @Override
    public String getUser() {
-      return apiKey;
+      return getApiKey();
    }
 
    @Override
@@ -111,17 +120,12 @@ public class ChargifyDataSource extends EndpointJsonDataSource<ChargifyDataSourc
       if(subdomain != null) {
          writer.format("<subdomain><![CDATA[%s]]></subdomain>%n", subdomain);
       }
-
-      if(apiKey != null) {
-         writer.format("<apiKey><![CDATA[%s]]></apiKey>%n", Tool.encryptPassword(apiKey));
-      }
    }
 
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       subdomain = Tool.getChildValueByTagName(root, "subdomain");
-      apiKey = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiKey"));
    }
 
    @Override
@@ -144,15 +148,13 @@ public class ChargifyDataSource extends EndpointJsonDataSource<ChargifyDataSourc
       }
 
       ChargifyDataSource that = (ChargifyDataSource) o;
-      return Objects.equals(subdomain, that.subdomain) &&
-         Objects.equals(apiKey, that.apiKey);
+      return Objects.equals(subdomain, that.subdomain);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), subdomain, apiKey);
+      return Objects.hash(super.hashCode(), subdomain, getApiKey());
    }
 
    private String subdomain;
-   private String apiKey;
 }

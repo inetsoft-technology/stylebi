@@ -20,6 +20,7 @@ package inetsoft.uql.rest.datasource.surveymonkey;
 import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.CoreTool;
+import inetsoft.util.credential.CredentialType;
 import org.apache.http.HttpHeaders;
 import org.w3c.dom.Element;
 
@@ -35,7 +36,9 @@ import java.util.Objects;
          method = "updateTokens",
          oauth = @Button.OAuth(serviceName = "survey-monkey"))
    ),
-   @View1("accessToken"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "accessToken", visibleMethod = "useCredential"),
    @View1("rowLimit")
 })
 public class SurveyMonkeyDataSource extends OAuthEndpointJsonDataSource<SurveyMonkeyDataSource> {
@@ -43,6 +46,11 @@ public class SurveyMonkeyDataSource extends OAuthEndpointJsonDataSource<SurveyMo
 
    public SurveyMonkeyDataSource() {
       super(TYPE, SurveyMonkeyDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.ACCESS_TOKEN;
    }
 
    @Property(label = "Row Limit")

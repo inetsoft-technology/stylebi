@@ -188,6 +188,22 @@ public abstract class AbstractAuthenticationProvider
       this.providerName = providerName;
    }
 
+   public boolean isUseCredential() {
+      return useCredential;
+   }
+
+   public void setUseCredential(boolean useCredential) {
+      this.useCredential = useCredential;
+   }
+
+   public String getSecretId() {
+      return secretId;
+   }
+
+   public void setSecretId(String secretId) {
+      this.secretId = secretId;
+   }
+
    /**
     * Gets the configured cache interval.
     *
@@ -208,5 +224,14 @@ public abstract class AbstractAuthenticationProvider
       return interval;
    }
 
+   protected void loadCredential() {
+      loadCredential(getSecretId());
+   }
+
+   protected void loadCredential(String secretId) {
+   }
+
    private String providerName;
+   private boolean useCredential;
+   private String secretId;
 }

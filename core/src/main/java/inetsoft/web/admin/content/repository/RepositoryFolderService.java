@@ -113,10 +113,11 @@ public class RepositoryFolderService {
       String newPath = SUtil.removeControlChars(model.newPath());
       int type = RepositoryEntry.REPOSITORY | RepositoryEntry.FOLDER;
       ActionRecord actionRecord = SUtil.getActionRecord(principal,
-         ActionRecord.ACTION_NAME_EDIT, newPath, ActionRecord.OBJECT_TYPE_FOLDER);
+         ActionRecord.ACTION_NAME_EDIT, oldPath, ActionRecord.OBJECT_TYPE_FOLDER);
 
       if(!Tool.equals(oldPath, newPath)) {
-         actionRecord.setObjectType(ActionRecord.ACTION_NAME_RENAME);
+         actionRecord.setObjectType(ActionRecord.OBJECT_TYPE_FOLDER);
+         actionRecord.setActionError("new name: " + newPath);
       }
 
       if(isWSFolder) {
@@ -174,32 +175,39 @@ public class RepositoryFolderService {
          }
       }
 
+      actionRecord.setObjectName(fullPath);
+
       //ws folder setProperty only support rename folder
       if(isWSFolder) {
-         oldPath = registryManager.splitWorksheetPath(oldPath, owner != null);
-         newPath = registryManager.splitWorksheetPath(newPath, owner != null);
-         oldPath = registryManager.splitMyReportPath(oldPath);
-         newPath = registryManager.splitMyReportPath(newPath);
+         try {
+            oldPath = registryManager.splitWorksheetPath(oldPath, owner != null);
+            newPath = registryManager.splitWorksheetPath(newPath, owner != null);
+            oldPath = registryManager.splitMyReportPath(oldPath);
+            newPath = registryManager.splitMyReportPath(newPath);
 
-         if(!Tool.equals(oldPath, newPath)) {
-            registryManager.checkPermission(oldPath, resourceType, ResourceAction.DELETE,
-                                            principal);
-         }
+            if(!Tool.equals(oldPath, newPath)) {
+               registryManager.checkPermission(oldPath, resourceType, ResourceAction.DELETE,
+                                               principal);
+            }
 
-         if(!registryManager.changeWorksheetFolder(oldPath, newPath, owner, principal)) {
-            LOG.warn(Catalog.getCatalog().getString("em.viewsheet.duplicateName"));
-            throw new MessageException(Catalog.getCatalog().getString("Duplicate Name"));
-         }
+            if(!registryManager.changeWorksheetFolder(oldPath, newPath, owner, principal)) {
+               LOG.warn(Catalog.getCatalog().getString("em.viewsheet.duplicateName"));
+               throw new MessageException(Catalog.getCatalog().getString("Duplicate Name"));
+            }
 
-         if(model.permissionTableModel() != null && model.permissionTableModel().changed()) {
-            permissionService.setResourcePermissions(newPath, ResourceType.ASSET, fullPath,
-                                                     model.permissionTableModel(), principal);
-         }
-         else {
-            permissionService.updateResourcePermissions(oldPath, newPath, resourceType);
-         }
+            if(model.permissionTableModel() != null && model.permissionTableModel().changed()) {
+               permissionService.setResourcePermissions(newPath, ResourceType.ASSET, fullPath,
+                                                        model.permissionTableModel(), principal);
+            }
+            else {
+               permissionService.updateResourcePermissions(oldPath, newPath, resourceType);
+            }
 
-         return getSettings(newPath, true, owner, principal);
+            return getSettings(newPath, true, owner, principal);
+         }
+         finally {
+            Audit.getInstance().auditAction(actionRecord, principal);
+         }
       }
 
       try {

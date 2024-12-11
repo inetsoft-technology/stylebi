@@ -17,6 +17,7 @@
  */
 import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
+import { ModalHeaderModule } from "../modal-header/modal-header.module";
 import {EditImageDialog} from "./edit-image-dialog.component";
 import {FormatPresenterPane} from "./format-presenter-pane.component";
 import {PresenterPropertyDialog} from "./presenter-property-dialog.component";
@@ -40,6 +41,7 @@ import {TreeModule} from "../tree/tree.module";
       WidgetDirectivesModule,
       ImageEditorModule,
       TreeModule,
+      ModalHeaderModule,
    ],
    declarations: [
       EditImageDialog,

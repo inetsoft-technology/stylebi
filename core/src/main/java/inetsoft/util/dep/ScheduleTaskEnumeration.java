@@ -20,6 +20,7 @@ package inetsoft.util.dep;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.SecurityEngine;
+import inetsoft.web.admin.content.repository.MVSupportService;
 
 import java.util.*;
 
@@ -51,7 +52,7 @@ public class ScheduleTaskEnumeration implements XAssetEnumeration<ScheduleTaskAs
 
          // remove illegal tasks under disabled security enviroment
          // or enabled security enviroment
-         if(task.getName().startsWith("MV Task: "))
+         if(task.getTaskId().startsWith(MVSupportService.MV_TASK_PREFIX))
          {
             it.remove();
          }
@@ -76,7 +77,7 @@ public class ScheduleTaskEnumeration implements XAssetEnumeration<ScheduleTaskAs
    @Override
    public ScheduleTaskAsset nextElement() {
       ScheduleTask task = tasks.get(currentIndex++);
-      return new ScheduleTaskAsset(task.getName(), task.getOwner());
+      return new ScheduleTaskAsset(task.getTaskId(), task.getOwner());
    }
 
    private List<ScheduleTask> tasks;

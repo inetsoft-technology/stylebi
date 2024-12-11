@@ -23,6 +23,7 @@ import {
    FeatureFlagsService,
    FeatureFlagValue
 } from "../../../../shared/feature-flags/feature-flags.service";
+import { AppInfoService } from "../../../../shared/util/app-info.service";
 import {
    HyperlinkModel,
    HyperlinkViewModel,
@@ -54,9 +55,10 @@ export class ShowHyperlinkService extends HyperlinkService implements OnDestroy 
    constructor(zone: NgZone, modelService: ModelService, modalService: NgbModal,
                @Optional() private pageTabService: PageTabService,
                viewDataService: ViewDataService, router: Router,
-               private featureFlagsService: FeatureFlagsService)
+               private featureFlagsService: FeatureFlagsService,
+               appInfoService: AppInfoService)
    {
-      super(zone, modelService, modalService, router, viewDataService);
+      super(zone, modelService, modalService, router, viewDataService, appInfoService);
    }
 
    showURL(link: HyperlinkModel, linkUri: string, runtimeId: string,

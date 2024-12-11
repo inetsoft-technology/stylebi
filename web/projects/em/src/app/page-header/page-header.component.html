@@ -21,7 +21,27 @@
   </button>
   <h1 class="em-page-title">{{getTitle()}}</h1>
   <div class="org-label" *ngIf="model?.isMultiTenant && !!model?.currOrgID && showOrgs() && isEnterprise">_#(Select Organization):</div>
-  <mat-form-field class="em-button em-org-dropdown" *ngIf="model?.isMultiTenant && !!model?.currOrgID && showOrgs() && isEnterprise">
+  <button mat-icon-button title="_#(Search)" *ngIf="orgSelectVisible" aria-label="_#(Search)" (click)="toggleSearch()">
+    <mat-icon fontSet="ineticons" fontIcon="search-icon"></mat-icon>
+  </button>
+  <ng-container *ngIf="orgSelectVisible && searchOpen">
+    <mat-form-field class="em-org-dropdown">
+      <mat-label>_#(Search)</mat-label>
+      <input matInput [(ngModel)]="searchQuery" [matAutocomplete]="auto" placeholder="_#(Search)"/>
+      <button mat-icon-button matSuffix title="_#(Clear)" aria-label="_#(Clear)"
+              (click)="searchQuery = ''" [disabled]="!searchQuery">
+        <mat-icon fontSet="ineticons" fontIcon="close-circle-icon"></mat-icon>
+      </button>
+    </mat-form-field>
+    <mat-autocomplete #auto="matAutocomplete" (optionSelected)="onSelectOrg($event)">
+      <ng-container *ngFor="let org of searchResults; let i = index">
+        <mat-option class="dropdownItem" [value]="org.name" [class.mdc-list-item--selected]="isSelected(org.name)">
+          {{ org.name }}
+        </mat-option>
+      </ng-container>
+    </mat-autocomplete>
+  </ng-container>
+  <mat-form-field class="em-button em-org-dropdown" color="accent" *ngIf="orgSelectVisible && !searchOpen">
     <mat-select [(value)]="model.currOrgID" (valueChange)="changeOrg()">
       <mat-option *ngFor="let orgID of model.orgIDs; let i = index" [value]="orgID">{{ model.orgs[i] }}</mat-option>
     </mat-select>

@@ -20,20 +20,14 @@ package inetsoft.sree.security;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.storage.*;
-import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
-import inetsoft.web.admin.security.IdentityModel;
-import inetsoft.web.admin.security.IdentityService;
-import inetsoft.web.admin.security.user.IdentityThemeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
@@ -52,6 +46,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    /**
     * Initializes this module.
     */
+   @SuppressWarnings("unchecked")
    private void init() {
       synchronized(this) {
          if(userStorage != null && groupStorage != null && roleStorage != null && organizationStorage != null) {
@@ -89,6 +84,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       return userStorage.stream()
          .map(KeyValuePair::getKey)
          .map(IdentityID::getIdentityIDFromKey)
+         .sorted()
          .toArray(IdentityID[]::new);
    }
 
@@ -96,29 +92,29 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
     * {@inheritDoc}
     */
    @Override
-   public Organization getOrganization(String name) {
+   public Organization getOrganization(String id) {
       init();
-      return organizationStorage.get(name);
+      return organizationStorage.get(id);
    }
 
    @Override
-   public void setOrganization(String oname, Organization org) {
+   public void setOrganization(String oid, Organization org) {
       init();
       lock.lock();
 
       try {
-         String oldOrgID = getOrganization(oname) != null ? getOrganization(oname).getId() : null;
-         organizationStorage.remove(oname).get();
+         String oldOrgName = getOrganization(oid) != null ? getOrganization(oid).getName() : null;
+         organizationStorage.remove(oid).get();
 
-         if(!oname.equals(org.getName()) || !org.getId().equals(oldOrgID)) {
-            processAuthenticationChange(new IdentityID(oname, oname), org.getIdentityID(),
-                                        oldOrgID, org.getId(), Identity.ORGANIZATION, false);
+         if(!oid.equals(org.getId()) || !org.getName().equals(oldOrgName)) {
+            processAuthenticationChange(new IdentityID(oldOrgName, oid), org.getIdentityID(),
+                                        oid, org.getId(), Identity.ORGANIZATION, false);
          }
 
-         organizationStorage.put(org.getName(), (FSOrganization) org).get();
+         organizationStorage.put(org.getId(), (FSOrganization) org).get();
       }
       catch(Exception e) {
-         LOG.error("Failed to update organization {}", oname, e);
+         LOG.error("Failed to update organization {}", oid, e);
       }
       finally {
          lock.unlock();
@@ -129,10 +125,22 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
     * {@inheritDoc}
     */
    @Override
-   public String[] getOrganizations() {
+   public String[] getOrganizationIDs() {
       init();
       return organizationStorage.stream()
          .map(KeyValuePair::getKey)
+         .toArray(String[]::new);
+   }
+
+   /**
+    * {@inheritDoc}
+    */
+   @Override
+   public String[] getOrganizationNames() {
+      init();
+      return organizationStorage.stream()
+         .map(KeyValuePair::getKey)
+         .map(oid -> getOrganization(oid).name)
          .toArray(String[]::new);
    }
 
@@ -145,13 +153,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       return userStorage.stream()
          .map(KeyValuePair::getValue)
          .filter(u -> isGroupMember(u, groupIdentity))
-         .map(u -> u.getIdentityID())
+         .map(User::getIdentityID)
          .toArray(IdentityID[]::new);
    }
 
    private boolean isGroupMember(User user, IdentityID group) {
       return group == null && user.getGroups().length == 0 ||
-         group != null && Arrays.asList(user.getGroups()).contains(group.name);
+         group != null && user.getOrganizationID().equals(group.orgID) &&
+            Arrays.asList(user.getGroups()).contains(group.name);
    }
 
    /**
@@ -163,7 +172,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       return userStorage.stream()
          .map(KeyValuePair::getValue)
          .filter(u -> u.getGroups().length == 0)
-         .map(u -> u.getIdentityID())
+         .map(User::getIdentityID)
          .toArray(IdentityID[]::new);
    }
 
@@ -235,7 +244,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       if(userObject != null) {
          Deque<IdentityID> queue = new ArrayDeque<>(Arrays.asList(userObject.getRoles()));
          Arrays.stream(getUserGroups(userIdentity))
-            .map(name -> getGroup(new IdentityID(name, userIdentity.organization)))
+            .map(name -> getGroup(new IdentityID(name, userIdentity.orgID)))
             .filter(Objects::nonNull)
             .flatMap(g -> Arrays.stream(g.getRoles()))
             .forEach(queue::addLast);
@@ -274,7 +283,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       if(userObject != null) {
          userGroups = Arrays.stream(getAllGroups(Arrays.stream(userObject.getGroups())
-                                    .map(g -> new IdentityID(g, userObject.getOrganization())).toArray(IdentityID[]::new)))
+                                    .map(g -> new IdentityID(g, userObject.getOrganizationID())).toArray(IdentityID[]::new)))
                                     .map(id -> id.name).toArray(String[]::new);
       }
       else {
@@ -285,18 +294,18 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    }
 
    @Override
-   public String getOrgId(String name) {
-      return getOrganization(name).getId();
+   public String getOrgIdFromName(String name) {
+      for(String oid : getOrganizationIDs()) {
+         if(getOrganization(oid).getName().equals(name)) {
+            return oid;
+         }
+      }
+      return null;
    }
 
    @Override
    public String getOrgNameFromID(String id) {
-      for(String org : getOrganizations()) {
-         if(getOrganization(org).getId().equalsIgnoreCase(id)) {
-            return org;
-         }
-      }
-      return null;
+      return getOrganization(id) == null ? null : getOrganization(id).name;
    }
 
    /**
@@ -318,8 +327,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       IdentityID userid = ((DefaultTicket) credential).getName();
       String passwd = ((DefaultTicket) credential).getPassword();
 
-      if(userid == null || userid.name.length() == 0 || passwd == null ||
-         passwd.length() == 0) {
+      if(userid == null || userid.name.isEmpty() || passwd == null || passwd.isEmpty()) {
          return false;
       }
 
@@ -441,7 +449,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       init();
 
       try {
-         organizationStorage.put(organization.getName(), (FSOrganization) organization).get();
+         organizationStorage.put(organization.getId(), (FSOrganization) organization).get();
       }
       catch(Exception e) {
          LOG.error("Failed to add organization {}", organization.getName(), e);
@@ -492,7 +500,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
          IdentityID newUserIdentity = user.getIdentityID();
 
-         if(!oldIdentity.equals(user.getName())) {
+         if(!oldIdentity.equals(user.getIdentityID())) {
             processAuthenticationChange(oldIdentity, newUserIdentity, null, null, Identity.USER, false);
          }
 
@@ -561,7 +569,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
          userRoleCache.invalidateAll();
          IdentityID newIdentity = group.getIdentityID();
 
-         if(!(oldIdentity.equals(group.getName()))) {
+         if(!(oldIdentity.equals(group.getIdentityID()))) {
             processAuthenticationChange(oldIdentity, newIdentity, null, null, Identity.GROUP, false);
          }
 
@@ -575,18 +583,23 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       }
    }
 
+   @Override
+   public void removeGroup(IdentityID groupIdentity) {
+      removeGroup(groupIdentity, true);
+   }
+
    /**
     * {@inheritDoc}
     */
    @Override
-   public void removeGroup(IdentityID groupIdentity) {
+   public void removeGroup(IdentityID groupIdentity, boolean removed) {
       init();
       lock.lock();
 
       try {
          groupStorage.remove(groupIdentity.convertToKey()).get();
          userGroupCache.invalidateAll();
-         processAuthenticationChange(groupIdentity, null, null, null, Identity.GROUP, true);
+         processAuthenticationChange(groupIdentity, null, null, null, Identity.GROUP, removed);
       }
       catch(Exception e) {
          LOG.error("Failed to remove group {}", groupIdentity, e);
@@ -662,17 +675,17 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       }
    }
 
-   public void removeOrganization(String name) {
+   public void removeOrganization(String id) {
       init();
       lock.lock();
 
       try {
-         String oldOrgID = getOrganization(name) != null ? getOrganization(name).getId() : null;
-         organizationStorage.remove(name).get();
-         processAuthenticationChange(new IdentityID(name, name), null, oldOrgID, null, Identity.ORGANIZATION, true);
+         String oldOrgID = getOrganization(id) != null ? id : null;
+         processAuthenticationChange(new IdentityID(getOrganization(id).getName(), oldOrgID), null, oldOrgID, null, Identity.ORGANIZATION, true);
+         organizationStorage.remove(id).get();
       }
       catch(Exception e) {
-         LOG.error("Failed to remove Organization {}", name, e);
+         LOG.error("Failed to remove Organization {}", id, e);
       }
       finally {
          lock.unlock();
@@ -703,8 +716,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             List<FSUser> userList = userStorage.stream()
                .map(KeyValuePair::getValue)
-               .filter(u -> Tool.equals(u.organization, oldID.organization))
-               .collect(Collectors.toList());
+               .filter(u -> Tool.equals(u.organizationID, oldID.orgID))
+               .toList();
 
             for(FSUser user : userList) {
                String[] groups = user.getGroups();
@@ -729,8 +742,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             List<FSGroup> groupList = groupStorage.stream()
                .map(KeyValuePair::getValue)
-               .filter(id -> Tool.equals(id.getOrganization(),oldID.organization))
-               .collect(Collectors.toList());
+               .filter(id -> Tool.equals(id.getOrganizationID(), oldID.orgID))
+               .toList();
 
             for(FSGroup group : groupList) {
                String[] groups = group.getGroups();
@@ -758,8 +771,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             List<FSRole> roleList = roleStorage.stream()
                .map(KeyValuePair::getValue)
-               .filter(id -> id.getOrganization() == null || Tool.equals(id.getOrganization(),oldID.organization))
-               .collect(Collectors.toList());
+               .filter(id -> id.getOrganizationID() == null || Tool.equals(id.getOrganizationID(), oldID.orgID))
+               .toList();
 
             for(FSRole role : roleList) {
                IdentityID[] roles = role.getRoles();
@@ -783,8 +796,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             List<FSGroup> groupList = groupStorage.stream()
                .map(KeyValuePair::getValue)
-               .filter(id -> Tool.equals(id.getOrganization(),oldID.organization))
-               .collect(Collectors.toList());
+               .filter(id -> Tool.equals(id.getOrganizationID(), oldID.orgID))
+               .toList();
 
             for(FSGroup group : groupList) {
                IdentityID[] roles = group.getRoles();
@@ -806,8 +819,8 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             List<FSUser> userList = userStorage.stream()
                .map(KeyValuePair::getValue)
-               .filter(id -> Tool.equals(id.getOrganization(),oldID.organization))
-               .collect(Collectors.toList());
+               .filter(id -> Tool.equals(id.getOrganizationID(), oldID.orgID))
+               .toList();
 
             for(FSUser user : userList) {
                IdentityID[] roles = user.getRoles();
@@ -839,40 +852,40 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
             List<FSOrganization> orgList = organizationStorage.stream()
                .map(KeyValuePair::getValue)
-               .collect(Collectors.toList());
+               .toList();
 
             for(FSOrganization organization : orgList) {
-               organizationStorage.put(organization.getName(), organization).get();
+               organizationStorage.put(organization.getId(), organization).get();
             }
          }
          else if(type == Identity.ORGANIZATION) {
             List<FSUser> userList = userStorage.stream()
                .map(KeyValuePair::getKey)
-               .map(key -> IdentityID.getIdentityIDFromKey(key))
-               .filter(id -> id.organization.equals(oldID.name))
+               .map(IdentityID::getIdentityIDFromKey)
+               .filter(id -> id.orgID.equals(oldID.orgID))
                .map(id -> (FSUser) getUser(id))
-               .collect(Collectors.toList());
+               .toList();
 
             List<FSGroup> groupList = groupStorage.stream()
                .map(KeyValuePair::getKey)
-               .map(key -> IdentityID.getIdentityIDFromKey(key))
-               .filter(id -> id.organization.equals(oldID.name))
+               .map(IdentityID::getIdentityIDFromKey)
+               .filter(id -> id.orgID.equals(oldID.orgID))
                .map(id -> (FSGroup) getGroup(id))
-               .collect(Collectors.toList());
+               .toList();
 
             List<FSRole> roleList = roleStorage.stream()
                .map(KeyValuePair::getKey)
-               .map(key -> IdentityID.getIdentityIDFromKey(key))
-               .filter(id -> id.organization != null && id.organization.equals(oldID.name))
+               .map(IdentityID::getIdentityIDFromKey)
+               .filter(id -> id.orgID != null && id.orgID.equals(oldID.orgID))
                .map(id -> (FSRole) getRole(id))
-               .collect(Collectors.toList());
+               .toList();
 
             for(FSUser user : userList) {
                if(removed) {
                   removeUser(user.getIdentityID());
                }
                else {
-                  user.setOrganization(newID.name);
+                  user.setOrganization(newID.orgID);
                   setUser(user.getIdentityID(),user);
                }
             }
@@ -882,18 +895,17 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
                   removeGroup(group.getIdentityID());
                }
                else {
-                  group.setOrganization(newID.name);
+                  group.setOrganization(newID.orgID);
                   setGroup(group.getIdentityID(),group);
                }
             }
 
             for(FSRole role : roleList) {
                if(removed) {
-                  role.setOrganization(Organization.getDefaultOrganizationName());
-                  setRole(role.getIdentityID(), role);
+                  removeRole(role.getIdentityID());
                }
                else {
-                  role.setOrganization(newID.name);
+                  role.setOrganization(newID.orgID);
                   setRole(role.getIdentityID(), role);
                }
             }
@@ -907,11 +919,11 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
    }
 
    private void removeOrganizationMember(IdentityID oldIdentity) {
-      Organization org = getOrganization(oldIdentity.organization);
+      Organization org = getOrganization(oldIdentity.orgID);
       List<String> members = new ArrayList<>(Arrays.asList(org.getMembers()));
-      members.remove(oldIdentity.name);
+      members.remove(oldIdentity.orgID);
       org.setMembers(members.toArray(new String[0]));
-      setOrganization(oldIdentity.organization,org);
+      setOrganization(oldIdentity.orgID,org);
    }
 
    private KeyValueStorage<FSUser> userStorage;
@@ -937,7 +949,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       @Override
       protected Class<FSUser> initialize(Map<String, FSUser> map) {
-         String defaultOrg = Organization.getDefaultOrganizationName();
+         String defaultOrg = Organization.getDefaultOrganizationID();
          FSUser user = new FSUser(new IdentityID("admin", defaultOrg));
          HashedPassword hash = Tool.hash("admin", "bcrypt");
          user.setPassword(hash.getHash());
@@ -957,7 +969,7 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       }
 
       @Override
-      protected void validate(Map<String, FSUser> map) throws Exception {
+      protected void validate(Map<String, FSUser> map) {
          LicenseManager manager = LicenseManager.getInstance();
          int namedUserCount =
             manager.getNamedUserCount() + manager.getNamedUserViewerSessionCount();
@@ -980,20 +992,14 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
       @Override
       protected Class<FSRole> initialize(Map<String, FSRole> map) {
          // set Default Organization's Roles
-         Map<String, FSRole> defaultOrgRoles = AuthenticationProvider.getDefaultRoles(Organization.getDefaultOrganizationName());
+         Map<String, FSRole> defaultOrgRoles = AuthenticationProvider.getDefaultRoles(Organization.getDefaultOrganizationID());
          for(FSRole role : defaultOrgRoles.values()) {
             map.put(role.getIdentityID().convertToKey(),role);
          }
 
          // set Self Organization's Roles
-         Map<String, FSRole> selfOrgRoles = AuthenticationProvider.getDefaultRoles(Organization.getSelfOrganizationName());
+         Map<String, FSRole> selfOrgRoles = AuthenticationProvider.getDefaultRoles(Organization.getSelfOrganizationID());
          for(FSRole role : selfOrgRoles.values()) {
-            map.put(role.getIdentityID().convertToKey(),role);
-         }
-
-         // set Template Organization's Roles
-         Map<String, FSRole> templateOrgRoles = AuthenticationProvider.getDefaultRoles(Organization.getTemplateOrganizationName());
-         for(FSRole role : templateOrgRoles.values()) {
             map.put(role.getIdentityID().convertToKey(),role);
          }
 
@@ -1019,30 +1025,27 @@ public class FileAuthenticationProvider extends AbstractEditableAuthenticationPr
 
       @Override
       protected Class<FSOrganization> initialize(Map<String, FSOrganization> map) {
-         FSOrganization organization = new FSOrganization(Organization.getDefaultOrganizationName());
-         organization.setId(Organization.getDefaultOrganizationID());
-         organization.setMembers(getDefaultMembers(Organization.getDefaultOrganizationName()));
-         map.put(organization.getName(), organization);
+         FSOrganization organization = new FSOrganization(Organization.getDefaultOrganizationID());
+         organization.setName(Organization.getDefaultOrganizationName());
+         organization.setMembers(getDefaultMembers(Organization.getDefaultOrganizationID()));
+         map.put(organization.getId(), organization);
 
-         FSOrganization selfOrganization = new FSOrganization(Organization.getSelfOrganizationName());
-         selfOrganization.setId(Organization.getSelfOrganizationID());
-         selfOrganization.setMembers(getDefaultMembers(Organization.getSelfOrganizationName()));
-         map.put(selfOrganization.getName(), selfOrganization);
-
-         FSOrganization templateOrganization = new FSOrganization(Organization.getTemplateOrganizationName());
-         templateOrganization.setId(Organization.getTemplateOrganizationID());
-         templateOrganization.setMembers(new String[0]);
-         map.put(templateOrganization.getName(), templateOrganization);
+         FSOrganization selfOrganization = new FSOrganization(Organization.getSelfOrganizationID());
+         selfOrganization.setName(Organization.getSelfOrganizationName());
+         selfOrganization.setMembers(getDefaultMembers(Organization.getSelfOrganizationID()));
+         map.put(selfOrganization.getId(), selfOrganization);
 
          return FSOrganization.class;
       }
    }
 
-   private static String[] getDefaultMembers(String orgName) {
-      List<String> members = new ArrayList<>(AuthenticationProvider.getDefaultRoles(orgName).keySet().stream()
-                            .map(IdentityID::getIdentityIDFromKey).map(id -> id.name).collect(Collectors.toList()));
+   private static String[] getDefaultMembers(String orgID) {
+      List<String> members = AuthenticationProvider.getDefaultRoles(orgID).keySet().stream()
+         .map(IdentityID::getIdentityIDFromKey)
+         .map(id -> id.name)
+         .collect(Collectors.toCollection(ArrayList::new));
 
-      if(orgName.equals(Organization.getDefaultOrganizationName())) {
+      if(orgID.equals(Organization.getDefaultOrganizationID())) {
          members.add("admin");
          members.add("guest");
       }

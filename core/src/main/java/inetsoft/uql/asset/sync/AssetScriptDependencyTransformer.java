@@ -47,12 +47,14 @@ public class AssetScriptDependencyTransformer extends AssetDependencyTransformer
          return;
       }
 
+      String oname = info.getOldName();
+      String nname = info.getNewName();
+
       for(int i = 0; i < scriptList.getLength(); i++) {
          Element scriptEle = (Element) scriptList.item(i);
 
          if(scriptEle != null) {
-            String nscript = Util.renameScriptDepended(info.getOldName(),
-               info.getNewName(), Tool.getValue(scriptEle));
+            String nscript = Util.renameScriptDepended(oname, nname, Tool.getValue(scriptEle));
 
             if(nscript != null) {
                replaceCDATANode(scriptEle, nscript);

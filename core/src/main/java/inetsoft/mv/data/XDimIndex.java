@@ -436,7 +436,7 @@ public abstract class XDimIndex extends XSwappable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.cur - accessed, alive * 2);
+      return getAgePriority(XSwapper.cur - accessed, alive * 2L);
    }
 
    /**

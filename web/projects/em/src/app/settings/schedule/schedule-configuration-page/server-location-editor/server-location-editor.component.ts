@@ -27,6 +27,7 @@ import { FormValidators } from "../../../../../../../shared/util/form-validators
 export interface ServerLocationData {
    location: ServerLocation;
    locations: ServerLocation[];
+   cloudSecrets: boolean;
 }
 
 @Component({
@@ -37,6 +38,7 @@ export interface ServerLocationData {
 export class ServerLocationEditorComponent implements OnInit {
    form: UntypedFormGroup;
    FeatureFlagValue = FeatureFlagValue;
+   cloudSecrets: boolean;
 
    constructor(private dialogRef: MatDialogRef<ServerLocationEditorComponent>,
                @Inject(MAT_DIALOG_DATA) data: ServerLocationData, fb: UntypedFormBuilder)
@@ -51,14 +53,20 @@ export class ServerLocationEditorComponent implements OnInit {
          label: [data.location.label, [Validators.required, FormValidators.duplicateName(() => labels)]],
          path: [data.location.path, [Validators.required, ServerLocationEditorComponent.duplicatePath(() => paths)]],
          ftp: [!!data.location.pathInfoModel && !!data.location.pathInfoModel.ftp],
+         useSecretId: [!!data.location.pathInfoModel && !!data.location.pathInfoModel.useCredential],
+         secretId: [!!data.location.pathInfoModel ? data.location.pathInfoModel.secretId : null],
          username: [!!data.location.pathInfoModel ? data.location.pathInfoModel.username : null],
          password: [!!data.location.pathInfoModel ? data.location.pathInfoModel.password : null]
       });
 
       if(!this.form.get("ftp").value) {
+         this.form.get("useSecretId").disable();
+         this.form.get("secretId").disable();
          this.form.get("username").disable();
          this.form.get("password").disable();
       }
+
+      this.cloudSecrets = data.cloudSecrets;
    }
 
    ngOnInit(): void {
@@ -68,8 +76,10 @@ export class ServerLocationEditorComponent implements OnInit {
       let formValue = Object.assign({}, this.form.value);
       let pathInfoModel: ServerPathInfoModel = {
          path: formValue.path,
-         username: formValue.username,
-         password: formValue.password,
+         useCredential: formValue.useSecretId,
+         secretId: formValue.useSecretId ? formValue.secretId : null,
+         username: !formValue.useSecretId ? formValue.username : null,
+         password: !formValue.useSecretId ? formValue.password : null,
          ftp: !!formValue.ftp
       };
       let result: ServerLocation = {
@@ -92,10 +102,14 @@ export class ServerLocationEditorComponent implements OnInit {
 
    toggleFtp(change: MatCheckboxChange): void {
       if(change.checked) {
+         this.form.get("useSecretId").enable();
+         this.form.get("secretId").enable();
          this.form.get("username").enable();
          this.form.get("password").enable();
       }
       else {
+         this.form.get("useSecretId").disable();
+         this.form.get("secretId").disable();
          this.form.get("username").disable();
          this.form.get("password").disable();
       }

@@ -35,6 +35,9 @@ public abstract class IdentityModel {
    @Nullable
    public abstract String parentNode();
 
+   @Nullable
+   public abstract String identityIDLabel();
+
    public static Builder builder() {
       return new Builder();
    }

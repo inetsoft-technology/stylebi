@@ -33,6 +33,11 @@ public interface DataSpaceFolderUploadModel {
       return false;
    }
 
+   @Value.Default
+   default boolean global() {
+      return false;
+   }
+
    static Builder builder() {
       return new Builder();
    }

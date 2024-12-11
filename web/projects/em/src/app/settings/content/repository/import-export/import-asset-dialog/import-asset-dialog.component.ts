@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
-import { Component, HostListener, Inject, ViewEncapsulation } from "@angular/core";
+import { Component, HostListener, Inject, OnDestroy, ViewEncapsulation } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from "@angular/material/dialog";
 import { Observable, throwError, timer } from "rxjs";
@@ -42,7 +42,7 @@ import { RepositoryTreeDataSource } from "../../repository-tree-data-source";
       "class": "import-asset-dialog"
    }
 })
-export class ImportAssetDialogComponent {
+export class ImportAssetDialogComponent implements OnDestroy {
    uploadForm: UntypedFormGroup;
    importForm: UntypedFormGroup;
    selected: RequiredAssetModel[] = [];
@@ -153,6 +153,15 @@ export class ImportAssetDialogComponent {
       });
    }
 
+   ngOnDestroy() {
+      this.clearImportCache();
+   }
+
+   private clearImportCache(): void {
+      this.http.get<ExportedAssetsModel>("../api/em/content/repository/import/clear-cache")
+         .subscribe();
+   }
+
    upload(): void {
       this.loading = true;
       const file = this.uploadForm.get("file").value[0];
@@ -165,6 +174,7 @@ export class ImportAssetDialogComponent {
    }
 
    back(): void {
+      this.clearImportCache()
       this.uploaded = false;
       this.model = null;
    }
@@ -260,6 +270,11 @@ export class ImportAssetDialogComponent {
          type = MessageDialogType.WARNING;
          title = "_#(js:Warning)";
          content = "_#(js:em.import.fail.fileList) " + response.failedAssets.join(", ");
+      }
+      else if(response.ignoreUserAssets.length > 0) {
+         type = MessageDialogType.WARNING;
+         title = "_#(js:Warning)";
+         content = "_#(js:em.import.ignoreUserAssets) " + response.ignoreUserAssets.join(", ");
       }
       else {
          if(response.failed) {

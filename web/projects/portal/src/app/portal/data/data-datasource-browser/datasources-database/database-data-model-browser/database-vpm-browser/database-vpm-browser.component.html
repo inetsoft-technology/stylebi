@@ -17,33 +17,31 @@
   -->
 <div class="container-fluid vpm-browser-container p-0 h-100 flex-row">
   <div class="d-flex flex-column align-items-stretch p-0 h-100"
-       [class.col-12]="!showDetailsItem"
-       [ngClass]="{'col-6 col-sm-8 col-md-9' : !!showDetailsItem}">
-    <div class="col-12 p-0">
-      <div class="flex-fixed-container h-100">
-        <database-data-model-toolbar [database]="databaseName" [selectedItems]="selectedItems"
-                                     [model]="model" [isvpm]="true"
-                                     [searchQuery]="searchQuery" [searchVisible]="searchVisible"
-                                     (onAddVPM)="addModel()"
-                                     (onDeleteSelected)="deleteSelected()"
-                                     (onToggleSelection)="toggleSelectionState()" (onSearch)="search($event)">
-        </database-data-model-toolbar>
-        <div class="d-flex align-items-center ps-1 py-1" *ngIf="searchView">
-          <i class="close-circle-icon icon-size-small action-style me-1" (click)="clearSearch()"></i>
-          <span>
-          <b>_#(data.datasets.searchResults):</b> {{currentSearchQuery}} <b>_#(data.datasets.searchIn)</b> {{crrentSearchFolderLabel}}
-        </span>
-        </div>
-        <div class="flex-fixed-content">
-          <asset-item-list-view [assets]="models" [columns]="listColumns" [selectedItems]="selectedItems"
-                                [iconFunction]="iconFun" [sortOptions]="sortOptions"
-                                [selectionOn]="selectionOn"
-                                (sortChanged)="sortOptionsChanged()"
-                                (onContextmenu)="openTreeContextmenu($event)"
-                                (onClickItem)="editModel($event)"
-                                (onSelectedChanged)="selectedItems = $event">
-          </asset-item-list-view>
-        </div>
+     [class.col-12]="!showDetailsItem"
+     [ngClass]="{'col-6 col-sm-8 col-md-9' : !!showDetailsItem}">
+    <div class="flex-fixed-container h-100">
+      <database-data-model-toolbar [database]="databaseName" [selectedItems]="selectedItems"
+                                   [model]="model" [isvpm]="true"
+                                   [searchQuery]="searchQuery" [searchVisible]="searchVisible"
+                                   (onAddVPM)="addModel()"
+                                   (onDeleteSelected)="deleteSelected()"
+                                   (onToggleSelection)="toggleSelectionState()" (onSearch)="search($event)">
+      </database-data-model-toolbar>
+      <div class="d-flex align-items-center ps-1 py-1" *ngIf="searchView">
+        <i class="close-circle-icon icon-size-small action-style me-1" (click)="clearSearch()"></i>
+        <span>
+        <b>_#(data.datasets.searchResults):</b> {{currentSearchQuery}} <b>_#(data.datasets.searchIn)</b> {{crrentSearchFolderLabel}}
+      </span>
+      </div>
+      <div class="flex-fixed-content">
+        <asset-item-list-view [assets]="models" [columns]="listColumns" [selectedItems]="selectedItems"
+                              [iconFunction]="iconFun" [sortOptions]="sortOptions"
+                              [selectionOn]="selectionOn"
+                              (sortChanged)="sortOptionsChanged()"
+                              (onContextmenu)="openTreeContextmenu($event)"
+                              (onClickItem)="editModel($event)"
+                              (onSelectedChanged)="selectedItems = $event">
+        </asset-item-list-view>
       </div>
     </div>
   </div>

@@ -70,7 +70,12 @@ export class DailyConditionEditorComponent implements OnInit {
          timeRange: this._condition.timeRange,
          startTimeSelected: !this.timeRangeEnabled || !this._condition.timeRange
       };
+
       this.startTimeValid = !!this.startTimeData.startTime || !!this.startTimeData.timeRange;
+
+      if(!!this.startTimeData) {
+         this.timeZoneEnabled = this.startTimeData.startTimeSelected;
+      }
    }
 
    get weekdayOnly(): boolean {

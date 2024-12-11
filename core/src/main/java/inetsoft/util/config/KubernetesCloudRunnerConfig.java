@@ -64,6 +64,14 @@ public class KubernetesCloudRunnerConfig implements Serializable {
       this.imagePullPolicy = imagePullPolicy;
    }
 
+   public String[] getImagePullSecrets() {
+      return imagePullSecrets;
+   }
+
+   public void setImagePullSecrets(String[] imagePullSecrets) {
+      this.imagePullSecrets = imagePullSecrets;
+   }
+
    public int getTtlSecondsAfterFinished() {
       return ttlSecondsAfterFinished;
    }
@@ -72,9 +80,28 @@ public class KubernetesCloudRunnerConfig implements Serializable {
       this.ttlSecondsAfterFinished = ttlSecondsAfterFinished;
    }
 
+   public int getBackoffLimit() {
+      return backoffLimit;
+   }
+
+   public void setBackoffLimit(int backoffLimit) {
+      this.backoffLimit = backoffLimit;
+   }
+
+   public String[] getVolumeMounts() {
+      return volumeMounts;
+   }
+
+   public void setVolumeMounts(String[] volumeMounts) {
+      this.volumeMounts = volumeMounts;
+   }
+
    private String configFilePath;
    private String namespace = "default";
    private String dockerImageUri;
    private String imagePullPolicy = "IfNotPresent";
+   private String[] imagePullSecrets;
    private int ttlSecondsAfterFinished = 120;
+   private int backoffLimit = 4;
+   private String[] volumeMounts;
 }

@@ -35,7 +35,6 @@ public class FormulaController {
    /**
     * Creates a new instance of <tt>FormulaController</tt>.
     */
-   @Autowired
    public FormulaController() {
    }
 

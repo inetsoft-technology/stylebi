@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.security;
 
+import inetsoft.util.Tool;
+
 public interface OpenIDSSOConfig {
    String getClientId();
 
@@ -49,4 +51,8 @@ public interface OpenIDSSOConfig {
    String getOpenIDPropertyProvider();
 
    String getOpenIDPostprocessor();
+
+   default String getClientIdRealValue() {
+      return Tool.getClientSecretRealValue(getClientId(), "client_id");
+   }
 }

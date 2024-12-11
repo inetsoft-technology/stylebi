@@ -19,6 +19,7 @@ package inetsoft.web.admin.presentation;
 
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.portal.PortalWelcomePage;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.WelcomePageSettingsModel;
 import inetsoft.web.viewsheet.Audited;
@@ -26,13 +27,18 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class WelcomePageService {
-   public WelcomePageSettingsModel getModel() {
+   public WelcomePageSettingsModel getModel(boolean global) {
       int type;
       String source;
 
       PortalThemesManager manager = PortalThemesManager.getManager();
       manager.loadThemes();
-      PortalWelcomePage welcomePage = manager.getWelcomePage();
+      PortalWelcomePage welcomePage = manager.getWelcomePage() ;
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(!global && currentOrgID != null && manager.getWelcomePage(currentOrgID) != null) {
+         welcomePage = manager.getWelcomePage(currentOrgID);
+      }
 
       source = welcomePage == null ? "" : welcomePage.getData();
       type = welcomePage == null ? PortalWelcomePage.NONE : welcomePage.getType();
@@ -48,15 +54,28 @@ public class WelcomePageService {
       objectName = "Presentation-Welcome Page",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
-   public void setModel(WelcomePageSettingsModel model) {
+   public void setModel(WelcomePageSettingsModel model, boolean globalSettings) {
       PortalThemesManager manager = PortalThemesManager.getManager();
 
-      if(manager.getWelcomePage() == null) {
-         manager.setWelcomePage(new PortalWelcomePage(model.type(), model.source()));
+      if(globalSettings) {
+         if(manager.getWelcomePage() == null) {
+            manager.setWelcomePage(new PortalWelcomePage(model.type(), model.source()));
+         }
+         else {
+            manager.getWelcomePage().setType(model.type());
+            manager.getWelcomePage().setData(model.source());
+         }
       }
       else {
-         manager.getWelcomePage().setType(model.type());
-         manager.getWelcomePage().setData(model.source());
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+
+         if(manager.getWelcomePage(orgId) == null) {
+            manager.setWelcomePage(orgId, new PortalWelcomePage(model.type(), model.source()));
+         }
+         else {
+            manager.getWelcomePage(orgId).setType(model.type());
+            manager.getWelcomePage(orgId).setData(model.source());
+         }
       }
 
       manager.save();
@@ -67,9 +86,16 @@ public class WelcomePageService {
       objectName = "Presentation-Welcome Page",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
-   public void resetSettings() {
+   public void resetSettings(boolean globalSettings) {
       PortalThemesManager manager = PortalThemesManager.getManager();
-      manager.setWelcomePage(new PortalWelcomePage(0, ""));
+
+      if(globalSettings) {
+         manager.setWelcomePage(new PortalWelcomePage(0, ""));
+      }
+      else {
+         manager.removeWelcomePage(OrganizationManager.getInstance().getCurrentOrgID());
+      }
+
       manager.save();
    }
 }

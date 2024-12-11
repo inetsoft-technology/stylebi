@@ -21,6 +21,7 @@ import inetsoft.uql.XFactory;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -31,16 +32,18 @@ import java.util.*;
 
 @View(vertical=true, value={
       @View1("URL"),
+      @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+      @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
       @View1(type=ViewType.LABEL, text="authentication.required.text", colspan = 2),
-      @View1("user"),
-      @View1("password"),
+      @View1(value = "user", visibleMethod = "useCredential"),
+      @View1(value = "password", visibleMethod = "useCredential"),
       @View1(type = ViewType.LABEL, text = "oauth.required.text", colspan = 2),
-      @View1("clientId"),
-      @View1("clientSecret"),
-      @View1("scope"),
-      @View1("authorizationUri"),
-      @View1("tokenUri"),
-      @View1(type = ViewType.LABEL, text = "redirect.uri.description", colspan = 2),
+      @View1(value = "odataClientId", visibleMethod = "useCredential"),
+      @View1(value = "odataClientSecret", visibleMethod = "useCredential"),
+      @View1(value = "odataScope", visibleMethod = "useCredential"),
+      @View1(value = "odataAuthorizationUri", visibleMethod = "useCredential"),
+      @View1(value = "odataTokenUri", visibleMethod = "useCredential"),
+      @View1(type = ViewType.LABEL, text = "redirect.uri.description", colspan = 2, visibleMethod = "useCredential"),
       @View1(type = ViewType.PANEL,
          align = ViewAlign.RIGHT,
          elements = {
@@ -50,7 +53,7 @@ import java.util.*;
                button = @Button(
                   type = ButtonType.OAUTH,
                   method = "updateTokens",
-                  dependsOn = { "clientId", "clientSecret", "user", "password", "tokenUri" },
+                  dependsOn = { "odataClientId", "odataClientSecret", "user", "password", "odataTokenUri", "credentialId"},
                   enabledMethod = "authorizeEnabled",
                   oauth = @Button.OAuth
                )
@@ -67,6 +70,11 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
       super(TYPE, ODataDataSource.class);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD_OAUTH2;
+   }
+
    @Property(label="URL")
    public String getURL() {
       return url;
@@ -80,20 +88,34 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
       this.url = url;
    }
 
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getUser() {
-      return user;
+      if(getCredential() instanceof PasswordCredential) {
+         return ((PasswordCredential) getCredential()).getUser();
+      }
+
+      return null;
    }
 
    public void setUser(String user) {
-      this.user = user;
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setUser(user);
+      }
    }
 
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getPassword() {
-      return password;
+      if(getCredential() instanceof PasswordCredential) {
+         return ((PasswordCredential) getCredential()).getPassword();
+      }
+
+      return null;
    }
 
    public void setPassword(String password) {
-      this.password = password;
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setPassword(password);
+      }
    }
 
    public String getVersion() {
@@ -104,62 +126,137 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
       this.odataVersion = version;
    }
 
+   @PropertyEditor(dependsOn = "useCredentialId")
+   @Property(label = "Client ID")
+   public String getOdataClientId() {
+      return getClientId();
+   }
+
+   public void setOdataClientId(String clientId) {
+      setClientId(clientId);
+   }
+
    public String getClientId() {
-      return clientId;
+      if(getCredential() instanceof ClientCredentials) {
+         return ((ClientCredentials) getCredential()).getClientId();
+      }
+
+      return null;
    }
 
    public void setClientId(String clientId) {
-      this.clientId = clientId;
+      if(getCredential() instanceof ClientCredentials) {
+         ((ClientCredentials) getCredential()).setClientId(clientId);
+      }
+   }
+
+   @PropertyEditor(dependsOn = "useCredentialId")
+   @Property(label = "Client Secret", password = true)
+   public String getOdataClientSecret() {
+      return getClientSecret();
+   }
+
+   public void setOdataClientSecret(String clientSecret) {
+      setClientSecret(clientSecret);
    }
 
    public String getClientSecret() {
-      return clientSecret;
+      if(getCredential() instanceof ClientCredentials) {
+         return ((ClientCredentials) getCredential()).getClientSecret();
+      }
+
+      return null;
    }
 
    public void setClientSecret(String clientSecret) {
-      this.clientSecret = clientSecret;
+      if(getCredential() instanceof ClientCredentials) {
+         ((ClientCredentials) getCredential()).setClientSecret(clientSecret);
+      }
+   }
+
+   @PropertyEditor(dependsOn = "useCredentialId")
+   @Property(label = "Authorization URI")
+   public String getOdataAuthorizationUri() {
+      return getAuthorizationUri();
+   }
+
+   public void setOdataAuthorizationUri(String authorizationUri) {
+      setAuthorizationUri(authorizationUri);
    }
 
    public String getAuthorizationUri() {
-      return authorizationUri;
+      return ((OAuth2CredentialsGrant) getCredential()).getAuthorizationUri();
    }
 
    public void setAuthorizationUri(String authorizationUri) {
+      ((OAuth2CredentialsGrant) getCredential()).setAuthorizationUri(authorizationUri);
       this.authorizationUri = authorizationUri;
    }
 
+   @PropertyEditor(dependsOn = "useCredentialId")
+   @Property(label = "Token URI")
+   public String getOdataTokenUri() {
+      return getTokenUri();
+   }
+
+   public void setOdataTokenUri(String tokenUri) {
+      setTokenUri(tokenUri);
+   }
+
    public String getTokenUri() {
-      return tokenUri;
+      return ((OAuth2CredentialsGrant) getCredential()).getTokenUri();
    }
 
    public void setTokenUri(String tokenUri) {
-      this.tokenUri = tokenUri;
+      ((OAuth2CredentialsGrant) getCredential()).setTokenUri(tokenUri);
+   }
+
+   @PropertyEditor(dependsOn = "useCredentialId")
+   @Property(label = "Scope")
+   public String getOdataScope() {
+      return getScope();
+   }
+
+   public void setOdataScope(String scope) {
+      setScope(scope);
    }
 
    public String getScope() {
-      return scope;
+      return ((OAuth2CredentialsGrant) getCredential()).getScope();
    }
 
    public void setScope(String scope) {
-      this.scope = scope;
+      ((OAuth2CredentialsGrant) getCredential()).setScope(scope);
    }
 
    public String getAccessToken() {
-      return accessToken;
+      if(getCredential() instanceof AccessTokenCredential) {
+         return ((AccessTokenCredential) getCredential()).getAccessToken();
+      }
+
+      return null;
    }
 
    public void setAccessToken(String accessToken) {
-      this.accessToken = accessToken;
+      if(getCredential() instanceof AccessTokenCredential) {
+         ((AccessTokenCredential) getCredential()).setAccessToken(accessToken);
+      }
    }
 
    public String getRefreshToken() {
-      return refreshToken;
+      if(getCredential() instanceof RefreshTokenCredential) {
+         return ((RefreshTokenCredential) getCredential()).getRefreshToken();
+      }
+
+      return null;
    }
 
    public void setRefreshToken(String refreshToken) {
-      this.refreshToken = refreshToken;
+      if(getCredential() instanceof RefreshTokenCredential) {
+         ((RefreshTokenCredential) getCredential()).setRefreshToken(refreshToken);
+      }
    }
-   
+
    public long getTokenExpiration() {
       return tokenExpiration;
    }
@@ -179,11 +276,11 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
    }
 
    private boolean hasPopulatedOIDCFields() {
-      return clientId != null && clientSecret != null;
+      return getClientId() != null && getClientSecret() != null;
    }
 
    private boolean hasPopulatedPasswordGrantFields() {
-      return user != null && password != null && tokenUri != null && authorizationUri == null;
+      return getUser() != null && getPassword() != null && tokenUri != null && authorizationUri == null;
    }
 
    @Override
@@ -194,26 +291,8 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
          writer.println("<url><![CDATA[" + url + "]]></url>");
       }
 
-      if(user != null) {
-         writer.println("<user><![CDATA[" + user + "]]></user>");
-      }
-
-      if(password != null) {
-         writer.println("<password><![CDATA[" + Tool.encryptPassword(password) +
-                        "]]></password>");
-      }
-
       if(odataVersion != null) {
          writer.println("<odataVersion><![CDATA[" + odataVersion + "]]></odataVersion>");
-      }
-
-      if(clientId != null) {
-         writer.format("<clientId><![CDATA[%s]]></clientId>%n", clientId);
-      }
-
-      if(clientSecret != null) {
-         writer.format(
-            "<clientSecret><![CDATA[%s]]></clientSecret>%n", Tool.encryptPassword(clientSecret));
       }
 
       if(authorizationUri != null) {
@@ -229,16 +308,6 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
          writer.format("<scope><![CDATA[%s]]></scope>%n", scope);
       }
 
-      if(accessToken != null) {
-         writer.format(
-            "<accessToken><![CDATA[%s]]></accessToken>%n", Tool.encryptPassword(accessToken));
-      }
-
-      if(refreshToken != null) {
-         writer.format(
-            "<refreshToken><![CDATA[%s]]></refreshToken>%n", Tool.encryptPassword(refreshToken));
-      }
-
       writer.format("<tokenExpiration>%d</tokenExpiration>%n", tokenExpiration);
    }
 
@@ -246,16 +315,10 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       url = Tool.getChildValueByTagName(root, "url");
-      user = Tool.getChildValueByTagName(root, "user");
-      password = Tool.decryptPassword(Tool.getChildValueByTagName(root, "password"));
       odataVersion = Tool.getChildValueByTagName(root, "odataVersion");
-      clientId = Tool.getChildValueByTagName(root, "clientId");
-      clientSecret = Tool.decryptPassword(Tool.getChildValueByTagName(root, "clientSecret"));
       authorizationUri = Tool.getChildValueByTagName(root, "authorizationUri");
       tokenUri = Tool.getChildValueByTagName(root, "tokenUri");
       scope = Tool.getChildValueByTagName(root, "scope");
-      accessToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "accessToken"));
-      refreshToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "refreshToken"));
       String value = Tool.getChildValueByTagName(root, "tokenExpiration");
 
       if(value != null) {
@@ -265,6 +328,12 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
          catch(NumberFormatException e) {
             LOG.warn("Invalid token expiration: {}", value, e);
          }
+      }
+
+      Element credentialNode = Tool.getChildNodeByTagName(root, "PasswordCredential");
+
+      if(credentialNode != null) {
+         getCredential().parseXML(credentialNode);
       }
    }
 
@@ -305,7 +374,7 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
     * @return true if the refresh token is valid and the token expiration is passed
     */
    protected boolean isTokenExpired() {
-      return tokenExpiration == 0L || refreshToken == null || refreshToken.isEmpty() ||
+      return tokenExpiration == 0L || getRefreshToken() == null || getRefreshToken().isEmpty() ||
          Instant.now().isBefore(Instant.ofEpochMilli(tokenExpiration));
    }
 
@@ -327,29 +396,18 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
 
       return tokenExpiration == that.tokenExpiration &&
          Objects.equals(url, that.url) &&
-         Objects.equals(user, that.user) &&
-         Objects.equals(password, that.password) &&
          Objects.equals(odataVersion, that.odataVersion) &&
-         Objects.equals(clientId, that.clientId) &&
-         Objects.equals(clientSecret, that.clientSecret) &&
          Objects.equals(authorizationUri, that.authorizationUri) &&
          Objects.equals(tokenUri, that.tokenUri) &&
          Objects.equals(scope, that.scope) &&
-         Objects.equals(accessToken, that.accessToken) &&
-         Objects.equals(refreshToken, that.refreshToken);
+         Objects.equals(getCredential(), that.getCredential());
    }
 
    private String url;
-   private String user;
-   private String password;
    private String odataVersion;
-   private String clientId;
-   private String clientSecret;
    private String authorizationUri;
    private String tokenUri;
    private String scope;
-   private String accessToken;
-   private String refreshToken;
    private long tokenExpiration;
 
    private static final Logger LOG =

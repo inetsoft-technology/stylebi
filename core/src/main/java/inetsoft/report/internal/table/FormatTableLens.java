@@ -820,10 +820,8 @@ public abstract class FormatTableLens extends AttributeTableLens
          }
       }
 
-      if(top == null && !fcol) {
-         if(top == null && colf != null) {
-            top = row ? colf.bottomBorderColor : colf.rightBorderColor;
-         }
+      if (top == null && !fcol && colf != null) {
+         top = row ? colf.bottomBorderColor : colf.rightBorderColor;
       }
 
       if(next2 != null) {

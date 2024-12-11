@@ -39,30 +39,36 @@ public class Organization extends AbstractIdentity {
     * Constructor.
     */
    public Organization() {
-      this(null);
+      this((String) null);
    }
 
    /**
     * Constructor.
     */
-   public Organization(String name) {
-      this(name, "", true);
+   public Organization(String id) {
+      this(id, "", true);
    }
 
    /**
     * Constructor.
-    * @param name organization's name.
+    */
+   public Organization(IdentityID id) {
+      this(id.orgID, "", true);
+      this.name = id.name;
+   }
+
+   /**
+    * Constructor.
+    * @param id organization's id.
     * @param locale organization's locale.
     */
-   public Organization(String name, String locale, boolean active)
+   public Organization(String id, String locale, boolean active)
    {
       super();
 
       this.locale = locale;
-      this.name = name;
+      this.id = id;
       this.active = active;
-
-      properties = new HashMap<>();
    }
 
    /**
@@ -79,8 +85,6 @@ public class Organization extends AbstractIdentity {
       this.id = id;
       this.members = members;
       this.active = active;
-
-      properties = new HashMap<>();
    }
 
 
@@ -97,7 +101,7 @@ public class Organization extends AbstractIdentity {
     */
    @Override
    public IdentityID getIdentityID() {
-      return new IdentityID(this.name, this.name);
+      return new IdentityID(this.name, this.id);
    }
 
    /**
@@ -109,10 +113,10 @@ public class Organization extends AbstractIdentity {
    public String getOrganizationID() {return this.id;}
 
    /**
-    * set organization id
-    * @param id, the new id for the organization
+    * set organization name
+    * @param name, the new name for the organization
     */
-   public void setId(String id) {this.id = id;}
+   public void setName(String name) {this.name = name;}
 
    /**
     * Get the active of the organization.
@@ -131,14 +135,6 @@ public class Organization extends AbstractIdentity {
     */
    public void setMembers(String[] members) {this.members = members;}
 
-   public HashMap<String, String> getProperties() {
-      return this.properties;
-   }
-
-   public void setProperties(HashMap<String, String> properties) {
-      this.properties = properties;
-   }
-
    /**
     * Get the locale of the organization.
     */
@@ -150,17 +146,6 @@ public class Organization extends AbstractIdentity {
       return theme;
    }
 
-   public String getProperty(String name) {
-      if(this.properties != null) {
-         return this.properties.get(name);
-      }
-      return null;
-   }
-
-   public void setProperty(String name, String value) {
-      this.properties.put(name, value);
-   }
-
    /**
     * Clone the object.
     */
@@ -170,7 +155,6 @@ public class Organization extends AbstractIdentity {
          String[] cmembers = new String[members.length];
          System.arraycopy(members, 0, cmembers, 0, members.length);
          Organization newOrg = new Organization(name, id, cmembers, locale, active);
-         newOrg.properties = new HashMap<>(properties);
 
          return newOrg;
       }
@@ -186,6 +170,19 @@ public class Organization extends AbstractIdentity {
    @Override
    public int getType() {
       return Identity.ORGANIZATION;
+   }
+
+
+   @Override
+   public boolean equals(Object obj) {
+      if(!(obj instanceof Organization)) {
+         return false;
+      }
+
+      Organization organization = (Organization) obj;
+
+      return getName() != null && getName().equals(organization.getName()) &&
+         getId() != null && getId().equals(organization.getId());
    }
 
    /**
@@ -211,22 +208,21 @@ public class Organization extends AbstractIdentity {
    public static String getSelfOrganizationName() {return selfOrganizationName;}
    public static String getSelfOrganizationID() {return selfOrganizationID;}
 
-   public static String getTemplateOrganizationName() {return templateOrganizationName;}
-   public static String getTemplateOrganizationID() {return templateOrganizationID;}
-
    public static Organization getDefaultOrganization() {
-      Organization defaultOrg = new Organization(defaultOrganizationName);
-      defaultOrg.setId(defaultOrganizationID);
+      Organization defaultOrg = new Organization(defaultOrganizationID);
+      defaultOrg.setName(defaultOrganizationName);
 
       return defaultOrg;
    }
 
    public static String getRootOrgRoleName(Principal principal) {
-      return  new IdentityID(Catalog.getCatalog(principal).getString("Organization Roles"), OrganizationManager.getCurrentOrgName()).convertToKey();
+      return new IdentityID("Organization Roles",
+                            OrganizationManager.getInstance().getCurrentOrgID()).convertToKey();
    }
 
    public static String getRootRoleName(Principal principal) {
-      return  new IdentityID(Catalog.getCatalog(principal).getString("Roles"), OrganizationManager.getCurrentOrgName()).convertToKey();
+      return new IdentityID("Roles",
+                            OrganizationManager.getInstance().getCurrentOrgID()).convertToKey();
    }
 
    /**
@@ -243,16 +239,12 @@ public class Organization extends AbstractIdentity {
    protected String locale;
    protected String theme;
    protected boolean active;
-   protected HashMap<String, String> properties; // null properties, needs to be filled properly
 
    protected static String defaultOrganizationName = "Host Organization";
    protected static String defaultOrganizationID = "host-org";
 
    protected static String selfOrganizationName = "Self Organization";
    protected static String selfOrganizationID = "SELF";
-
-   protected static String templateOrganizationName = "Organization Template";
-   protected static String templateOrganizationID = "template-org";
 
    private static final Logger LOG =
       LoggerFactory.getLogger(Organization.class);

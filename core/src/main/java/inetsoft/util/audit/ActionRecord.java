@@ -18,12 +18,14 @@
 package inetsoft.util.audit;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.util.Tool;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import java.sql.Timestamp;
 
 /**
@@ -111,6 +113,10 @@ public class ActionRecord implements AuditRecord {
     */
    public static final String OBJECT_TYPE_DATASOURCE = "datasource";
    /**
+    * Object type device.
+    */
+   public static final String OBJECT_TYPE_DEVICE = "device";
+   /**
     * Object type view.
     */
    public static final String OBJECT_TYPE_VIEW = "viewsheet";
@@ -122,6 +128,10 @@ public class ActionRecord implements AuditRecord {
     * Object type scheduler task.
     */
    public static final String OBJECT_TYPE_TASK = "task";
+   /**
+    * Object type themes.
+    */
+   public static final String OBJECT_TYPE_THEME = "theme";
    /**
     * Object type scheduler cycle.
     */
@@ -141,7 +151,7 @@ public class ActionRecord implements AuditRecord {
    /**
     * Object type EM Property.
     */
-   public static final String OBJECT_TYPE_USERPERMISSION = "user";
+   public static final String OBJECT_TYPE_USERPERMISSION = "identity";
    /**
     * Object type object permission.
     */
@@ -149,7 +159,7 @@ public class ActionRecord implements AuditRecord {
    /**
     * Object type object plug.
     */
-   public static final String OBJECT_TYPE_PLUG = "plug";
+   public static final String OBJECT_TYPE_PLUG = "plugin";
    /**
     * Object type object worksheet.
     */
@@ -214,17 +224,34 @@ public class ActionRecord implements AuditRecord {
       this.setActionStatus(actionStatus);
       this.setActionError(actionError);
       this.setServerHostName(Tool.getHost());
-      this.setResourceOrganization(OrganizationManager.getCurrentOrgName());
-      IdentityID sessionID = new IdentityID(userSessionID, OrganizationManager.getCurrentOrgName());
+      this.setResourceOrganization(OrganizationManager.getInstance().getCurrentOrgID());
+      this.setResourceOrganizationName(OrganizationManager.getCurrentOrgName());
+      IdentityID sessionID = new IdentityID(this.userName, OrganizationManager.getInstance().getCurrentOrgID());
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
       String orgId;
+
       if(provider.getUser(sessionID) != null) {
-         orgId = provider.getOrganization(provider.getUser(sessionID).getOrganization()).getId();
+         orgId = provider.getUser(sessionID).getOrganizationID();
       }
       else {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
+
       this.setOrganizationId(orgId);
+      this.setScheduleUser();
+   }
+
+   public void setScheduleUser() {
+      if(OBJECT_TYPE_TASK.equals(this.objectType)) {
+         String user = SUtil.getTaskUser(objectName);
+
+         if(Tool.isEmptyString(user)) {
+            user = getUserName();
+         }
+
+         setObjectUser(user);
+         setObjectName(SUtil.getTaskNameWithoutOrg(objectName));
+      }
    }
 
    /**
@@ -273,6 +300,7 @@ public class ActionRecord implements AuditRecord {
     * Get the user session ID.
     * @return the specified user session ID.
     */
+   @AuditRecordProperty
    public String getUserSessionID(){
       return this.userSessionID;
    }
@@ -283,12 +311,44 @@ public class ActionRecord implements AuditRecord {
     */
    public void setUserSessionID(String userSessionID) {
       this.userSessionID = userSessionID;
+
+      if(userSessionID == null) {
+         this.userName = null;
+      }
+      else {
+         int index = userSessionID.indexOf(IdentityID.KEY_DELIMITER);
+
+         if(index < 0) {
+            this.userName = userSessionID;
+         }
+         else {
+            this.userName = userSessionID.substring(0, index);
+         }
+      }
+   }
+
+   /**
+    * Get the owner.
+    * @return the owner of the object
+    */
+   @AuditRecordProperty
+   public String getObjectUser(){
+      return this.objectUser;
+   }
+
+   /**
+    * Set the owner.
+    * @param objectUser the owner of the object
+    */
+   public void setObjectUser(String objectUser) {
+      this.objectUser = objectUser;
    }
 
    /**
     * Get the action name.
     * @return the specified action name.
     */
+   @AuditRecordProperty
    public String getActionName() {
       return this.actionName;
    }
@@ -305,6 +365,7 @@ public class ActionRecord implements AuditRecord {
     * Get the object name.
     * @return the specified object name.
     */
+   @AuditRecordProperty
    public String getObjectName() {
       return this.objectName;
    }
@@ -321,6 +382,7 @@ public class ActionRecord implements AuditRecord {
     * Get the object type.
     * @return the specified object type.
     */
+   @AuditRecordProperty
    public String getObjectType() {
       return this.objectType;
    }
@@ -337,6 +399,7 @@ public class ActionRecord implements AuditRecord {
     * Get the action timestamp.
     * @return the specified action timestamp.
     */
+   @AuditRecordProperty
    public Timestamp getActionTimestamp() {
       return this.actionTimestamp;
    }
@@ -353,6 +416,7 @@ public class ActionRecord implements AuditRecord {
     * Get the action status.
     * @return the specified action status.
     */
+   @AuditRecordProperty
    public String getActionStatus() {
       return this.actionStatus;
    }
@@ -369,8 +433,9 @@ public class ActionRecord implements AuditRecord {
     * Get the action error.
     * @return the specified action error.
     */
+   @AuditRecordProperty
    public String getActionError() {
-      return this.actionError;
+      return this.actionError == null ? "" : this.actionError;
    }
 
    /**
@@ -381,6 +446,7 @@ public class ActionRecord implements AuditRecord {
       this.actionError = actionError;
    }
 
+   @AuditRecordProperty
    public String getServerHostName() {
       return serverHostName;
    }
@@ -389,19 +455,41 @@ public class ActionRecord implements AuditRecord {
       this.serverHostName = serverHostName;
    }
 
+   @AuditRecordProperty
+   public String getUserName() {
+      return userName;
+   }
+
+   public void setUserName(String userName) {
+      this.userName = userName;
+   }
+
+   @AuditRecordProperty
    public String getOrganizationId() {
       return organizationId;
    }
+
    public void setOrganizationId(String organizationId) {
       this.organizationId = organizationId;
    }
 
+   @AuditRecordProperty
    public String getResourceOrganization() {
       return resourceOrganization;
    }
 
    public void setResourceOrganization(String resourceOrganization) {
       this.resourceOrganization = resourceOrganization;
+   }
+
+   @Nullable
+   @AuditRecordProperty
+   public String getResourceOrganizationName() {
+      return resourceOrganizationName;
+   }
+
+   public void setResourceOrganizationName(String resourceOrganizationName) {
+      this.resourceOrganizationName = resourceOrganizationName;
    }
 
    @Override
@@ -418,6 +506,8 @@ public class ActionRecord implements AuditRecord {
          record.serverHostName = this.serverHostName;
          record.organizationId = this.organizationId;
          record.resourceOrganization = this.resourceOrganization;
+         record.resourceOrganizationName = this.resourceOrganizationName;
+         record.objectUser = this.objectUser;
 
          return record;
       }
@@ -445,12 +535,15 @@ public class ActionRecord implements AuditRecord {
    private String actionName;
    private String objectName;
    private String objectType;
+   private String objectUser;
    private Timestamp actionTimestamp;
    private String actionStatus;
    private String actionError;
    private String serverHostName;
+   private String userName;
    private String organizationId;
    private String resourceOrganization;
+   private String resourceOrganizationName;
 
    private static final Logger LOG = LoggerFactory.getLogger(ActionRecord.class);
 }

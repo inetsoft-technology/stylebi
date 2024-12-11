@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<em-editor-panel [contentStyle]="editorStyle" [applyDisabled]="selection === ssoTypes.SAML && !samlForm?.valid"
+<em-editor-panel [contentStyle]="editorStyle" [applyDisabled]="!changed || (selection === ssoTypes.SAML && !samlForm?.valid)"
                  (applyClicked)="submit()" (resetClicked)="reset()">
   <div class="em-content-container">
     <mat-card appearance="outlined" class="em-card">
@@ -37,6 +37,7 @@
                 <mat-label>_#(em.security.sso.roles)</mat-label>
                 <mat-select aria-labelledby="sso-option-label"
                             [(value)]="selectedRoles"
+                            (valueChange)="setChanged()"
                             placeholder="_#(None)"
                             #roleSelection
                             multiple>
@@ -49,17 +50,17 @@
             </div>
             <mat-form-field>
               <mat-label>_#(em.security.sso.logoutUrl)</mat-label>
-              <input matInput [(ngModel)]="logoutUrl"/>
+              <input matInput [(ngModel)]="logoutUrl" (change)="setChanged()"/>
             </mat-form-field>
             <mat-form-field>
               <mat-label>_#(em.security.sso.logoutPath)</mat-label>
-              <input matInput [(ngModel)]="logoutPath"/>
+              <input matInput [(ngModel)]="logoutPath" (change)="setChanged()"/>
             </mat-form-field>
             <mat-checkbox class="fallback-login-check" [(ngModel)]="fallbackLogin">_#(em.security.sso.fallbackLogin)</mat-checkbox>
           </ng-container>
           <em-sso-settings-form *ngIf="selection === ssoTypes.SAML" [form]="samlForm"></em-sso-settings-form>
-          <em-openid-settings-form *ngIf="selection === ssoTypes.OPENID" [(model)]="openIdModel"></em-openid-settings-form>
-          <em-custom-sso-form *ngIf="selection === ssoTypes.CUSTOM" [model]="customModel"></em-custom-sso-form>
+          <em-openid-settings-form *ngIf="selection === ssoTypes.OPENID" [(model)]="openIdModel" [cloudSecrets]="cloudSecrets" (modelChange)="setChanged()"></em-openid-settings-form>
+          <em-custom-sso-form *ngIf="selection === ssoTypes.CUSTOM" [model]="customModel" (modelChange)="setChanged()"></em-custom-sso-form>
         </div>
       </mat-card-content>
     </mat-card>

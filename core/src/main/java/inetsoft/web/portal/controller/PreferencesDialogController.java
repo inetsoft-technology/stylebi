@@ -22,6 +22,7 @@ import inetsoft.report.io.ExportType;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.util.MessageException;
 import inetsoft.util.Tool;
 import inetsoft.web.portal.model.PreferencesDialogModel;
 import org.apache.commons.lang.StringUtils;
@@ -74,10 +75,15 @@ public class PreferencesDialogController {
          String[] emails = fsUser.getEmails();
          model.setEmail(emails == null ? null : StringUtils.join(emails, ","));
       }
+      else if(user instanceof User) {
+         String[] emails = user.getEmails();
+         model.setEmail(emails == null ? null : StringUtils.join(emails, ","));
+         model.setdisable(true);
+      }
       else {
          String SSOName = IdentityID.getIdentityIDFromKey(principal.getName()).name; //SSO users email claim stored as name
          model.setEmail(SSOName);
-         model.setSSOUser(true);
+         model.setdisable(true);
       }
 
       model.setChangePasswordAvailable(canChangePWD(principal));
@@ -98,6 +104,10 @@ public class PreferencesDialogController {
       EditableAuthenticationProvider eprovider = SUtil.getEditableAuthenticationProvider(provider);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       User user = eprovider.getUser(pId);
+
+      if(user == null && SUtil.isInternalUser(principal)) {
+         throw new MessageException("The authentication provider is not editable!");
+      }
 
       if(user instanceof FSUser) {
          FSUser fsUser = (FSUser) user;
@@ -128,7 +138,7 @@ public class PreferencesDialogController {
       return securityEnabled &&
          "true".equals(SreeEnv.getProperty("enable.changePassword")) &&
          !"anonymous".equals(principal.getName()) &&
-         userExistsInEditableSecurityProvider(principal);
+         userExistsInEditableSecurityProvider(principal) && SUtil.isInternalUser(principal);
    }
 
    private List<Integer> getInvisibleFormats() {

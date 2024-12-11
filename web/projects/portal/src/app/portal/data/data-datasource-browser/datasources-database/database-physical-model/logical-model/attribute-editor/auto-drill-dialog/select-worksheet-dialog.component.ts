@@ -48,6 +48,7 @@ export class SelectWorksheetDialog {
    _selectedSubQuery: DrillSubQueryModel;
    selectedEntry: AssetEntry;
    queryParams: string[];
+   closeMenu: boolean;
 
    @Input() set selectedSubQuery(model: DrillSubQueryModel) {
       this._selectedSubQuery = model;
@@ -126,7 +127,7 @@ export class SelectWorksheetDialog {
       for(let i = 0; i < this.entities.length; i++) {
          if(this.entities[i].name == entityName) {
             let entity = this.entities[i];
-            info.selectedItem.entity = i;
+            info.selectedItem = {entity: i, attribute: -1};
             info.expanded = [entity];
 
             for(let j = 0; j < entity.attributes.length; j++) {
@@ -148,6 +149,7 @@ export class SelectWorksheetDialog {
 
    selectItem(field: string, paramName: string) {
       if(!field) {
+         this.closeMenu = false;
          return;
       }
 
@@ -164,6 +166,8 @@ export class SelectWorksheetDialog {
             this.selectedSubQuery.params[index] = {key: paramName, value: field};
          }
       }
+
+      this.closeMenu = true;
    }
 
    ok() {

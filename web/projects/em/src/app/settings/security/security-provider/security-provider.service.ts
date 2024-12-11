@@ -25,7 +25,7 @@ import { NEVER, Observable, of, of as observableOf } from "rxjs";
 import { catchError, map, switchMap } from "rxjs/operators";
 import { MapModel } from "../../../../../../portal/src/app/common/data/map-model";
 import { ErrorHandlerService } from "../../../common/util/error/error-handler.service";
-import { convertKeyToID, convertToKey, IdentityId } from "../users/identity-id";
+import { convertToKey, IdentityId } from "../users/identity-id";
 import { BaseQueryResult } from "./base-query-result/base-query-result.component";
 import { InputQueryParamsDialogComponent } from "./input-query-params-dialog/input-query-params-dialog.component";
 import { AuthenticationProviderModel } from "./security-provider-model/authentication-provider-model";
@@ -200,12 +200,13 @@ export class SecurityProviderService {
       return !rolesList ? "" : rolesList.join(", ");
    }
 
-   openQueryResults(queryResult: string[], label?: string): MatBottomSheetRef {
+   openQueryResults(queryResult: string[], label?: string, isPreSorted?: boolean): MatBottomSheetRef {
       return this.bottomSheet.open(BaseQueryResult, {
          data: {
             queryResult,
             label,
-            selectable: !!label
+            selectable: !!label,
+            isPreSorted: isPreSorted
          }
       });
    }
@@ -213,30 +214,30 @@ export class SecurityProviderService {
    getUser(authenticationForm: UntypedFormGroup, userName: IdentityId): Observable<MapModel<string, string>> {
       const model = this.getAuthenticationModel(authenticationForm);
       return this.http.post<MapModel<string, string>>(
-         "../api/em/security/get-user/" + convertToKey(userName), model);
+         "../api/em/security/get-user/" + encodeURIComponent(convertToKey(userName)), model);
    }
 
    getUserEmails(authenticationForm: UntypedFormGroup, userName: IdentityId): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
       return this.http.post<IdentityListModel>(
-         "../api/em/security/get-user-emails/" + convertToKey(userName), model);
+         "../api/em/security/get-user-emails/" + encodeURIComponent(convertToKey(userName)), model);
    }
 
    getUserRoles(authenticationForm: UntypedFormGroup, userName: IdentityId): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
       return this.http.post<IdentityListModel>(
-         "../api/em/security/get-roles/" + convertToKey(userName), model);
+         "../api/em/security/get-roles/" + encodeURIComponent(convertToKey(userName)), model);
    }
 
    getGroupUsers(authenticationForm: UntypedFormGroup, group: IdentityId): Observable<IdentityListModel> {
       const model = this.getAuthenticationModel(authenticationForm);
       return this.http.post<IdentityListModel>(
-         "../api/em/security/group/users/" + convertToKey(group), model);
+         "../api/em/security/group/users/" + encodeURIComponent(convertToKey(group)), model);
    }
 
-   getOrganizationId(authenticationForm: UntypedFormGroup, organization: string): Observable<string> {
+   getOrganizationName(authenticationForm: UntypedFormGroup, organization: string): Observable<string> {
       const model = this.getAuthenticationModel(authenticationForm);
-      return this.http.post<string>("../api/em/security/get-organizationId/" + organization, model);
+      return this.http.post<string>("../api/em/security/get-organizationName/" + organization, model);
    }
 
    getOrganizationMembers(authenticationForm: UntypedFormGroup, organization: string): Observable<IdentityListModel> {
@@ -269,7 +270,7 @@ export class SecurityProviderService {
 
    triggerUserListQuery(form: UntypedFormGroup, isMulti: boolean): void {
       this.getUsers(form).subscribe(users => {
-         this.openQueryResults(isMulti ? this.getDistinctIdentityIDLabels(users.ids) : this.getDistinctIdentityNames(users.ids));
+         this.openQueryResults(isMulti ? this.getDistinctIdentityIDLabels(users.ids) : this.getDistinctIdentityNames(users.ids), null, true);
       });
    }
 
@@ -277,16 +278,16 @@ export class SecurityProviderService {
       //get organization, then user name only, send request for get user id=name, org
       if(isMulti && !!form.value.dbForm.userListQuery?.trim() && !!form.value.dbForm.organizationListQuery?.trim()) {
          this.getOrganizations(form).subscribe(orgs => {
-            this.openQueryResults(this.getDistinctIdentityNames(orgs.ids), "_#(js:em.security.database.userQueryHint)")
-               .afterDismissed().subscribe(orgName =>
+            this.openQueryResults(this.getDistinctIdentityNames(orgs.ids), "_#(js:em.security.database.userQueryHint)", true)
+               .afterDismissed().subscribe(orgID =>
             {
-               if(!!orgName) {
+               if(!!orgID) {
                   this.getUsers(form).subscribe(users => {
-                     this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgName), "_#(js:em.security.database.userQueryHint)")
+                     this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgID), "_#(js:em.security.database.userQueryHint)", true)
                         .afterDismissed().subscribe(userName =>
                      {
                         if(!!userName) {
-                           this.doUsersQuery(form, {name: userName, organization: orgName});
+                           this.doUsersQuery(form, {name: userName, orgID: orgID});
                         }
                      });
                   });
@@ -295,42 +296,42 @@ export class SecurityProviderService {
          });
       }
       else if(!isMulti && !!form.value.dbForm.userListQuery?.trim()){
-         this.getDefaultOrganization().subscribe(orgName => {
+         this.getDefaultOrganization().subscribe(orgID => {
             this.getUsers(form).subscribe(users => {
-               this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgName), "_#(js:em.security.database.userQueryHint)")
+               this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgID), "_#(js:em.security.database.userQueryHint)", true)
                   .afterDismissed().subscribe(userName =>
                {
                   if(!!userName) {
-                     this.doUsersQuery(form, {name: userName, organization: orgName});
+                     this.doUsersQuery(form, {name: userName, orgID: orgID});
                   }
                });
             });
          });
       }
       else {
-         this.showInputQueryParmasDialog("_#(js:Organization)", (orgName: string) => {
+         this.showInputQueryParmasDialog("_#(js:Organization)", (orgID: string) => {
             this.showInputQueryParmasDialog("_#(js:Username)", (userName: string) => {
-               this.doUsersQuery(form, {name: userName, organization: orgName});
+               this.doUsersQuery(form, {name: userName, orgID: orgID});
             });
          });
       }
    }
 
-   triggerOrganizationIdQuery(form: UntypedFormGroup): void {
+   triggerOrganizationNameQuery(form: UntypedFormGroup): void {
       if(!!form.value.dbForm.organizationListQuery?.trim()) {
          this.getOrganizations(form).subscribe(users => {
             this.openQueryResults(users.ids.map(id => id.name), "_#(js:em.security.database.userQueryHint)")
-               .afterDismissed().subscribe(orgName =>
+               .afterDismissed().subscribe(orgID =>
             {
-               if(!!orgName) {
-                  this.doOrgIdQuery(form, orgName);
+               if(!!orgID) {
+                  this.doOrgNameQuery(form, orgID);
                }
             });
          });
       }
       else {
-         this.showInputQueryParmasDialog("_#(js:OrganizationId)", (orgName: string) => {
-            this.doOrgIdQuery(form, orgName);
+         this.showInputQueryParmasDialog("_#(js:OrganizationId)", (orgID: string) => {
+            this.doOrgNameQuery(form, orgID);
          });
       }
    }
@@ -347,15 +348,15 @@ export class SecurityProviderService {
       if(isMulti && !!form.value.dbForm.userListQuery?.trim() && !!form.value.dbForm.organizationListQuery?.trim()) {
          this.getOrganizations(form).subscribe(orgs => {
             this.openQueryResults(this.getDistinctIdentityNames(orgs.ids), "_#(js:em.security.database.userQueryHint)")
-               .afterDismissed().subscribe(orgName =>
+               .afterDismissed().subscribe(orgID =>
             {
-               if(!!orgName) {
+               if(!!orgID) {
                   this.getUsers(form).subscribe(users => {
-                     this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgName), "_#(js:em.security.database.userQueryHint)")
+                     this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgID), "_#(js:em.security.database.userQueryHint)", true)
                         .afterDismissed().subscribe(userName =>
                      {
                         if(!!userName) {
-                           this.doUserRolesQuery(form, {name: userName, organization: orgName});
+                           this.doUserRolesQuery(form, {name: userName, orgID: orgID});
                         }
                      });
                   });
@@ -364,13 +365,13 @@ export class SecurityProviderService {
          });
       }
       else if(!isMulti && !!form.value.dbForm.userListQuery?.trim()) {
-         this.getDefaultOrganization().subscribe(orgName => {
+         this.getDefaultOrganization().subscribe(orgID => {
             this.getUsers(form).subscribe(users => {
-               this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgName), "_#(js:em.security.database.userQueryHint)")
+               this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgID), "_#(js:em.security.database.userQueryHint)", true)
                   .afterDismissed().subscribe(userName =>
                {
                   if(!!userName) {
-                     this.doUserRolesQuery(form, {name: userName, organization: orgName});
+                     this.doUserRolesQuery(form, {name: userName, orgID: orgID});
                   }
                });
             });
@@ -379,7 +380,7 @@ export class SecurityProviderService {
       else {
          this.showInputQueryParmasDialog("_#(js:Organization)", (orgValue: string) => {
             this.showInputQueryParmasDialog("_#(js:Username)", (paramValue: string) => {
-               this.doUserRolesQuery(form, {name: paramValue, organization: orgValue});
+               this.doUserRolesQuery(form, {name: paramValue, orgID: orgValue});
             });
 
          });
@@ -388,13 +389,13 @@ export class SecurityProviderService {
 
    private doUserRolesQuery(form: UntypedFormGroup, userName: IdentityId): void {
       this.getUserRoles(form, userName).subscribe(roles => {
-         this.openQueryResults(roles.ids.map(id => id.name));
+         this.openQueryResults(roles.ids.map(id => id.name), null, true);
       });
    }
 
-   private doOrgIdQuery(form: UntypedFormGroup, name: string): void {
-      this.getOrganizationId(form, name).subscribe(id => {
-            this.openQueryResults([id]);
+   private doOrgNameQuery(form: UntypedFormGroup, id: string): void {
+      this.getOrganizationName(form, id).subscribe(name => {
+            this.openQueryResults([name]);
          });
    }
 
@@ -402,15 +403,15 @@ export class SecurityProviderService {
       if(isMulti && !!form.value.dbForm.userListQuery?.trim() && !!form.value.dbForm.organizationListQuery?.trim()) {
          this.getOrganizations(form).subscribe(orgs => {
             this.openQueryResults(this.getDistinctIdentityNames(orgs.ids), "_#(js:em.security.database.userQueryHint)")
-               .afterDismissed().subscribe(orgName =>
+               .afterDismissed().subscribe(orgID =>
             {
-               if(!!orgName) {
+               if(!!orgID) {
                   this.getUsers(form).subscribe(users => {
-                     this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgName), "_#(js:em.security.database.userQueryHint)")
+                     this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgID), "_#(js:em.security.database.userQueryHint)", true)
                         .afterDismissed().subscribe(userName =>
                      {
                         if(!!userName) {
-                           this.doUserEmailsQuery(form, {name: userName, organization: orgName});
+                           this.doUserEmailsQuery(form, {name: userName, orgID: orgID});
                         }
                      });
                   });
@@ -419,22 +420,22 @@ export class SecurityProviderService {
          });
       }
       else if(!isMulti && !!form.value.dbForm.userListQuery?.trim()) {
-         this.getDefaultOrganization().subscribe(orgName => {
+         this.getDefaultOrganization().subscribe(orgID => {
             this.getUsers(form).subscribe(users => {
-               this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgName), "_#(js:em.security.database.userQueryHint)")
+               this.openQueryResults(this.getOrganizationIdentityNames(users.ids, orgID), "_#(js:em.security.database.userQueryHint)", true)
                   .afterDismissed().subscribe(userName =>
                {
                   if(!!userName) {
-                     this.doUserEmailsQuery(form, {name: userName, organization: orgName});
+                     this.doUserEmailsQuery(form, {name: userName, orgID: orgID});
                   }
                });
             });
          });
       }
       else {
-         this.showInputQueryParmasDialog("_#(js:Organization)", (orgName: string) => {
+         this.showInputQueryParmasDialog("_#(js:Organization)", (orgID: string) => {
             this.showInputQueryParmasDialog("_#(js:Username)", (userName: string) => {
-               this.doUserEmailsQuery(form, {name: userName, organization: orgName});
+               this.doUserEmailsQuery(form, {name: userName, orgID: orgID});
             });
          });
       }
@@ -448,18 +449,18 @@ export class SecurityProviderService {
 
    triggerRoleListQuery(form: UntypedFormGroup, isMulti: boolean): void {
       this.getRoles(form).subscribe(roles => {
-         this.openQueryResults(isMulti ? this.getDistinctIdentityIDLabels(roles.ids) : this.getDistinctIdentityNames(roles.ids));
+         this.openQueryResults(isMulti ? this.getDistinctIdentityIDLabels(roles.ids) : this.getDistinctIdentityNames(roles.ids), null, true);
       });
    }
 
    triggerGroupListQuery(form: UntypedFormGroup, isMulti: boolean): void {
       this.getGroups(form).subscribe(groups => {
-         this.openQueryResults(isMulti ? this.getDistinctIdentityIDLabels(groups.ids) : this.getDistinctIdentityNames(groups.ids));
+         this.openQueryResults(isMulti ? this.getDistinctIdentityIDLabels(groups.ids) : this.getDistinctIdentityNames(groups.ids), null, true);
       });
    }
 
    getDistinctIdentityIDLabels(ids: IdentityId[]): string[] {
-      let groupNames = new Set(ids.map(id => id.name + " : " + id.organization));
+      let groupNames = new Set(ids.map(id => id.name + " : " + (!!id.orgID ? id.orgID : "__GLOBAL__")));
       return Array.from(groupNames);
    }
 
@@ -469,7 +470,7 @@ export class SecurityProviderService {
    }
 
    getOrganizationIdentityNames(ids: IdentityId[], org: string): string[] {
-      let groupNames = new Set(ids.filter(id => id.organization == org).map(id => id.name));
+      let groupNames = new Set(ids.filter(id => id.orgID == org).map(id => id.name));
       return Array.from(groupNames);
    }
 
@@ -483,15 +484,15 @@ export class SecurityProviderService {
       if(isMulti && !!form.value.dbForm.groupListQuery?.trim() && !!form.value.dbForm.organizationListQuery?.trim()) {
          this.getOrganizations(form).subscribe(orgs => {
             this.openQueryResults(this.getDistinctIdentityNames(orgs.ids), "_#(js:em.security.database.userQueryHint)")
-               .afterDismissed().subscribe(orgName =>
+               .afterDismissed().subscribe(orgID =>
             {
-               if(!!orgName) {
+               if(!!orgID) {
                   this.getGroups(form).subscribe(groups => {
-                     this.openQueryResults(this.getOrganizationIdentityNames(groups.ids, orgName), "_#(js:em.security.database.userQueryHint)")
+                     this.openQueryResults(this.getOrganizationIdentityNames(groups.ids, orgID), "_#(js:em.security.database.userQueryHint)", true)
                         .afterDismissed().subscribe(group =>
                      {
                         if(!!group) {
-                           this.doGroupUsersQuery(form, {name: group, organization: orgName});
+                           this.doGroupUsersQuery(form, {name: group, orgID: orgID});
                         }
                      });
                   });
@@ -500,22 +501,22 @@ export class SecurityProviderService {
          });
       }
       else if(!isMulti && !!form.value.dbForm.userListQuery?.trim()) {
-         this.getDefaultOrganization().subscribe(orgName => {
+         this.getDefaultOrganization().subscribe(orgID => {
             this.getGroups(form).subscribe(groups => {
-               this.openQueryResults(this.getOrganizationIdentityNames(groups.ids, orgName), "_#(js:em.security.database.userQueryHint)")
+               this.openQueryResults(this.getOrganizationIdentityNames(groups.ids, orgID), "_#(js:em.security.database.userQueryHint)", true)
                   .afterDismissed().subscribe(group =>
                {
                   if(!!group) {
-                     this.doGroupUsersQuery(form, {name: group, organization: orgName});
+                     this.doGroupUsersQuery(form, {name: group, orgID: orgID});
                   }
                });
             });
          });
       }
       else {
-         this.showInputQueryParmasDialog("_#(js:Organization)", (orgName: string) => {
+         this.showInputQueryParmasDialog("_#(js:Organization)", (orgID: string) => {
             this.showInputQueryParmasDialog("_#(js:Group Name)", (groupName: string) => {
-               this.doGroupUsersQuery(form, {name: groupName, organization: orgName});
+               this.doGroupUsersQuery(form, {name: groupName, orgID: orgID});
             });
          });
       }

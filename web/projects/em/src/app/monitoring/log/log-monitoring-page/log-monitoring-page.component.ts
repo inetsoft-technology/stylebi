@@ -88,7 +88,10 @@ export class LogMonitoringPageComponent implements OnInit, OnDestroy {
          )
          .subscribe(data => {
             this.model = data;
-            this.updateSubscription();
+
+            if(!this.fluentdLogging) {
+               this.updateSubscription();
+            }
          });
    }
 

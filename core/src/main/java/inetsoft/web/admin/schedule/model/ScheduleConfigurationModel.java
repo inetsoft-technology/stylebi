@@ -91,6 +91,11 @@ public abstract class ScheduleConfigurationModel {
       return false;
    }
 
+   @Value.Default
+   public boolean cloudSecrets() {
+      return false;
+   }
+
    public static ScheduleConfigurationModel.Builder builder() {
       return new ScheduleConfigurationModel.Builder();
    }

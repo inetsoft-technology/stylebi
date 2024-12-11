@@ -48,17 +48,17 @@ public class LookAndFeelService {
     * @return LookAndFeelSettingsModel
     */
    public LookAndFeelSettingsModel getModel(Principal principal, boolean globalProperty) {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+      final PortalThemesManager manager = PortalThemesManager.getManager();
       manager.loadThemes(); // to get past change listener bug
+      final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       boolean asc = "Ascending".equals(SreeEnv.getProperty("repository.tree.sort"));
       boolean customLogoEnabled = SreeEnv.getBooleanProperty("portal.customLogo.enabled");
       boolean repositoryTree = manager.getReportListType() == 0;
       boolean expand = manager.isAutoExpand();
-      boolean defaultLogo = !customLogoEnabled || manager.getLogoStyle() == null ||
-         "null".equals(manager.getLogoStyle()) || manager.getLogoStyle().equals(PortalThemesManager.DEFAULT_LOGO); // "default"
-      boolean defaultFavicon = !customLogoEnabled || manager.getFaviconStyle() == null ||
-         manager.getFaviconStyle().equals(PortalThemesManager.DEFAULT_LOGO);
+      boolean defaultLogo = !customLogoEnabled ||
+         !manager.hasCustomLogo(globalProperty ? null : orgID);
+      boolean defaultFavicon = !customLogoEnabled || !manager.isFaviconStyle();
       boolean defaultViewsheet = !manager.getCSSStyle(); // method returns true for custom
       boolean defaultFont = !manager.getFontStyle(); // method returns true for custom
 
@@ -68,26 +68,41 @@ public class LookAndFeelService {
       List<String> userfonts = new ArrayList<>();
       List<FontFaceModel> fontFaces = new ArrayList<>();
 
-      if(!defaultLogo) {
-         logo = manager.getLogo();
-      }
-
-      if(!defaultFavicon) {
-         favicon = manager.getFavicon();
-      }
-
       if(globalProperty) {
          if(!defaultViewsheet) {
             viewsheet = manager.getCSSFile();
          }
+
+         if(!defaultLogo) {
+            logo = manager.getLogo();
+         }
+
+         if(!defaultFavicon) {
+            favicon = manager.getFavicon();
+         }
       }
       else {
-         String org = OrganizationManager.getCurrentOrgName();
-         viewsheet = manager.getCssEntries().get(org);
+         viewsheet = manager.getCssEntries().get(orgID);
          defaultViewsheet = viewsheet == null;
 
          if(defaultViewsheet) {
             viewsheet = "";
+         }
+
+         //getLogoEntry
+         logo = manager.getLogoEntries().get(orgID);
+         defaultLogo = logo == null;
+
+         if(defaultLogo) {
+            logo = "";
+         }
+
+         //getFaviconEntry
+         favicon = manager.getFaviconEntries().get(orgID);
+         defaultFavicon = favicon == null;
+
+         if(defaultFavicon) {
+            favicon = "";
          }
       }
 
@@ -113,8 +128,8 @@ public class LookAndFeelService {
          .fontFaces(fontFaces)
          .viewsheetCSSEntries(
             manager.getCssEntries().entrySet().stream()
-                   .map(this::createViewsheetCSSEntry)
-                   .collect(Collectors.toList())
+               .map(this::createViewsheetCSSEntry)
+               .collect(Collectors.toList())
          )
          .vsEnabled(true)
          .build();
@@ -139,33 +154,23 @@ public class LookAndFeelService {
       PortalThemesManager manager = PortalThemesManager.getManager();
 
       String sort = model.ascending() ? "Ascending" : "Descending";
-      String logoStyle = model.defaultLogo() ? PortalThemesManager.DEFAULT_LOGO : PortalThemesManager.CUSTOM_LOGO;
-      String faviconStyle = model.defaultFavicon() ? PortalThemesManager.DEFAULT_LOGO : PortalThemesManager.CUSTOM_LOGO;
       int repoTree = model.repositoryTree() ? 0 : 1;
 
       SreeEnv.setProperty("repository.tree.sort", sort);
       manager.setReportListType(repoTree);
       manager.setAutoExpand(model.expand());
-      manager.setLogoStyle(logoStyle);
-      manager.setFaviconStyle(faviconStyle);
 
       String dir = "portal";
       DataSpace dataSpace = DataSpace.getDataSpace();
 
-      if(!model.defaultLogo() && model.logoFile() != null && model.logoFile().content() != null) {
-         setLogo(model.logoFile(), dataSpace, dir);
-      }
-
-      if(!model.defaultFavicon() && model.faviconFile() != null &&
-         model.faviconFile().content() != null)
-      {
-         setFavicon(model.faviconFile(), dataSpace, dir);
-      }
-
       final boolean defaultViewsheet = model.defaultViewsheet();
+      final boolean defaultLogo = model.defaultLogo();
+      final boolean defaultFavicon = model.defaultFavicon();
 
       if(globalSettings) {
          manager.setCSSStyle(!defaultViewsheet);
+         manager.setLogoStyle(!defaultLogo);
+         manager.setFaviconStyle(!defaultFavicon);
       }
 
       if(model.userformatFile() != null && model.userformatFile().content() != null) {
@@ -186,6 +191,24 @@ public class LookAndFeelService {
       }
       else if(defaultViewsheet) {
          setViewsheet(null, dataSpace, dir, globalSettings);
+      }
+
+      if(!defaultLogo && model.logoFile() != null &&
+         model.logoFile().content() != null)
+      {
+         setLogo(model.logoFile(), dataSpace, dir, globalSettings);
+      }
+      else if(defaultLogo) {
+         setLogo(null, dataSpace, dir, globalSettings);
+      }
+
+      if(!defaultFavicon && model.faviconFile() != null &&
+         model.faviconFile().content() != null)
+      {
+         setFavicon(model.faviconFile(), dataSpace, dir, globalSettings);
+      }
+      else if(defaultFavicon) {
+         setFavicon(null, dataSpace, dir, globalSettings);
       }
 
       // need to reset here so new entries can be rebuilt over any existing ones
@@ -213,22 +236,21 @@ public class LookAndFeelService {
       Properties defaultProp = SreeEnv.getDefaultProperties();
 
       if(globalSettings) {
-         String logoStyle = PortalThemesManager.DEFAULT_LOGO;
-         String faviconStyle =PortalThemesManager.DEFAULT_LOGO;
          int repoTree = 0;
 
          SreeEnv.setProperty("repository.tree.sort", defaultProp.getProperty("repository.tree.sort"));
          manager.setReportListType(repoTree);
          manager.setAutoExpand(false);
-         manager.setLogoStyle(logoStyle);
-         manager.setFaviconStyle(faviconStyle);
-
+         manager.setLogoStyle(false);
+         manager.setFaviconStyle(false);
          manager.setCSSStyle(false);
       }
 
       String dir = "portal";
       DataSpace dataSpace = DataSpace.getDataSpace();
       setViewsheet(null, dataSpace, dir, globalSettings);
+      setLogo(null, dataSpace, dir, globalSettings);
+      setFavicon(null, dataSpace, dir, globalSettings);
 
       if(globalSettings) {
          // need to reset here so new entries can be rebuilt over any existing ones
@@ -240,6 +262,9 @@ public class LookAndFeelService {
             true, dataSpace);
          dataSpace.delete(null, "userformat.xml");
          resetUserFormatFile();
+      }
+      else {
+         CSSDictionary.resetDictionaryCache();
       }
 
       manager.save();
@@ -347,6 +372,10 @@ public class LookAndFeelService {
 
          if(space.exists(fontPath, fontName + ".svg")) {
             space.delete(fontPath, fontName + ".svg");
+         }
+
+         if(fontName.contains("^")) {
+            fontName = fontName.substring(0, fontName.indexOf("^"));
          }
 
          if(space.exists(fontPath, fontName + ".css")) {
@@ -458,59 +487,103 @@ public class LookAndFeelService {
       }
    }
 
-   private void setLogo(FileData logo, DataSpace space, String directory) throws Exception {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+   private void setLogo(FileData logo, DataSpace space, String directory, boolean globalSettings) throws Exception {
+      final PortalThemesManager manager = PortalThemesManager.getManager();
+      final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
-      if(logo != null) {
+      if(logo == null) { // in the case that the logo file does not exist, clear logo
+         if(globalSettings) {
+            manager.setLogo(null);
+         }
+         else {
+            final String file = manager.getLogoEntries().get(orgID);
+
+            if(file != null) {
+               manager.removeLogoEntry(orgID);
+               space.delete(directory, file);
+            }
+         }
+      }
+      else {
          byte[] logoData = Base64.getDecoder().decode(logo.content());
-
          int dotIndex = logo.name().lastIndexOf(".");
          String logoName = "logo" + (dotIndex >= 0 ? logo.name().substring(dotIndex) : ".gif");
-
          InputStream in = new ByteArrayInputStream(logoData);
 
-         try {
-            space.withOutputStream(directory, logoName, out -> Tool.copyTo(in, out));
-         }
-         catch(Throwable ex) {
-            throw new Exception("Failed to write logo", ex);
-         }
+         if(globalSettings) {
+            try {
+               space.withOutputStream(directory, logoName, out -> Tool.copyTo(in, out));
+            }
+            catch(Throwable ex) {
+               throw new Exception("Failed to write logo", ex);
+            }
 
-         manager.setLogo(directory + "/" + logoName);
-      }
-      else { // in the case that the logo file does not exist, we go back to default logo style and gif
-         String modernDir = "portal/images/modern";
+            writeStyleFile(logoData, space, directory, logoName);
+            manager.setLogo(directory + "/" + logoName);
+         }
+         else {
+            directory += "/" + orgID;
 
-         manager.setLogoStyle(PortalThemesManager.DEFAULT_LOGO);
-         manager.setLogo(modernDir + "/logo.gif");
+            try {
+               space.withOutputStream(directory, logoName, out -> Tool.copyTo(in, out));
+            }
+            catch(Throwable ex) {
+               throw new Exception("Failed to write logo", ex);
+            }
+
+            writeStyleFile(logoData, space, directory, logoName);
+            manager.addLogoEntry(orgID, directory + "/" + logoName);
+         }
       }
    }
 
-   private void setFavicon(FileData favi, DataSpace space, String directory) throws Exception {
-      PortalThemesManager manager = PortalThemesManager.getManager();
+   private void setFavicon(FileData favi, DataSpace space, String directory, boolean globalSettings) throws Exception {
+      final PortalThemesManager manager = PortalThemesManager.getManager();
+      final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(favi != null) {
          byte[] faviData = Base64.getDecoder().decode(favi.content());
-
          int dotIndex = favi.name().lastIndexOf(".");
          String faviconName = "favicon" + (dotIndex >= 0 ? favi.name().substring(dotIndex) : ".gif");
-
          InputStream in = new ByteArrayInputStream(faviData);
 
-         try {
-            space.withOutputStream(directory, faviconName, out -> Tool.copyTo(in, out));
-         }
-         catch(Throwable ex) {
-            throw new Exception("Failed to write icon", ex);
-         }
+         if(globalSettings) {
+            try {
+               space.withOutputStream(directory, faviconName, out -> Tool.copyTo(in, out));
+            }
+            catch(Throwable ex) {
+               throw new Exception("Failed to write icon", ex);
+            }
 
-         manager.setFavicon(directory + "/" + faviconName);
+            writeStyleFile(faviData, space, directory, faviconName);
+            manager.setFavicon(directory + "/" + faviconName);
+         }
+         else {
+            directory += "/" + orgID;
+
+            try {
+               space.withOutputStream(directory, faviconName, out -> Tool.copyTo(in, out));
+            }
+            catch(Throwable ex) {
+               throw new Exception("Failed to write logo", ex);
+            }
+
+            writeStyleFile(faviData, space, directory, faviconName);
+            manager.addFaviconEntry(orgID, directory + "/" + faviconName);
+         }
       }
       else { // in the case that the favicon file does not exist, we go back to default favicon style
-         String modernDir = "portal/images/modern";
+         if(globalSettings) {
+            manager.setFavicon(null);
+         }
+         else {
+            final String file = manager.getFaviconEntries().get(orgID);
 
-         manager.setFaviconStyle(PortalThemesManager.DEFAULT_LOGO);
-         manager.setFavicon(modernDir + "/favicon.png");
+            if(file != null) {
+               manager.removeFaviconEntry(orgID);
+               space.delete(directory, file);
+            }
+         }
       }
    }
 
@@ -531,19 +604,20 @@ public class LookAndFeelService {
          manager.setCSSFile(directory + "/" + cssName);
       }
       else {
+         final String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+
          if(vs != null) {
             cssName = vs.name();
-            directory += "/" + OrganizationManager.getCurrentOrgName();
+            directory += "/" + orgID;
             writeStyleFile(cssData, space, directory, cssName);
             CSSDictionary.parseCSSFile(cssName, cssData);
-            manager.addCSSEntry(OrganizationManager.getCurrentOrgName(), OrganizationManager.getCurrentOrgName() + "/" + cssName);
+            manager.addCSSEntry(orgID, orgID + "/" + cssName);
          }
          else {
-            final String org = OrganizationManager.getCurrentOrgName();
-            final String file = manager.getCssEntries().get(org);
+            final String file = manager.getCssEntries().get(orgID);
 
             if(file != null) {
-               manager.removeCSSEntry(org);
+               manager.removeCSSEntry(orgID);
                space.delete(directory, file);
             }
          }

@@ -416,7 +416,7 @@ public class RenameColumnController extends WorksheetController {
 
       ScriptIterator.ScriptListener listener = (ScriptIterator.Token token, ScriptIterator.Token pref, ScriptIterator.Token cref) -> {
          if(pref != null && Tool.equals(pref.val, changedTable) && token.isRef() &&
-            token.val.equals(ocolumn.getName()) && (cref == null || !"[".equals(cref)))
+            token.val.equals(ocolumn.getName()) && (cref == null || !"[".equals(cref.val)))
          {
             sb.append(new ScriptIterator.Token(token.type, ncolumn.getName(), token.length));
          }
@@ -915,6 +915,6 @@ public class RenameColumnController extends WorksheetController {
                                         Function<String, Boolean> acceptFunc)
    {
       String exp = column.getExpression();
-      column.setExpression(Util.renameScriptDepended(oname, nname, exp, acceptFunc));
+      column.setExpression(Util.renameScriptRefDepended(oname, nname, exp, acceptFunc));
    }
 }

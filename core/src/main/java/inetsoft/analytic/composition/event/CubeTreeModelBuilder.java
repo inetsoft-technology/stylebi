@@ -148,7 +148,7 @@ public class CubeTreeModelBuilder extends BaseTreeModelBuilder {
 
       model.vs = vs;
       model.baseWS = vs.getBaseWorksheet();
-      model.baseEntry = vs.getBaseEntry();
+      model.baseEntry = (AssetEntry) Tool.clone(vs.getBaseEntry());
       return model;
    }
 

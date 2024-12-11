@@ -20,14 +20,14 @@ package inetsoft.uql.rest.datasource.mixpanel;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
-import org.w3c.dom.Element;
+import inetsoft.util.credential.*;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("apiSecret")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiSecret", visibleMethod = "useCredential")
 })
 public class MixpanelDataSource extends EndpointJsonDataSource<MixpanelDataSource> {
    static final String TYPE = "Rest.Mixpanel";
@@ -37,13 +37,18 @@ public class MixpanelDataSource extends EndpointJsonDataSource<MixpanelDataSourc
       setAuthType(AuthType.BASIC);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_SECRET;
+   }
+
    @Property(label = "API Secret", required = true, password = true)
    public String getApiSecret() {
-      return apiSecret;
+      return ((ApiSecretCredential) getCredential()).getApiSecret();
    }
 
    public void setApiSecret(String apiSecret) {
-      this.apiSecret = apiSecret;
+      ((ApiSecretCredential) getCredential()).setApiSecret(apiSecret);
    }
 
    @Override
@@ -66,7 +71,7 @@ public class MixpanelDataSource extends EndpointJsonDataSource<MixpanelDataSourc
 
    @Override
    public String getUser() {
-      return apiSecret;
+      return getApiSecret();
    }
 
    @Override
@@ -90,21 +95,6 @@ public class MixpanelDataSource extends EndpointJsonDataSource<MixpanelDataSourc
    }
 
    @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(apiSecret != null) {
-         writer.format("<apiSecret><![CDATA[%s]]></apiSecret>%n", Tool.encryptPassword(apiSecret));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      apiSecret = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiSecret"));
-   }
-
-   @Override
    public boolean equals(Object o) {
       if(this == o) {
          return true;
@@ -114,19 +104,13 @@ public class MixpanelDataSource extends EndpointJsonDataSource<MixpanelDataSourc
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      MixpanelDataSource that = (MixpanelDataSource) o;
-      return Objects.equals(apiSecret, that.apiSecret);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), apiSecret);
+      return Objects.hash(super.hashCode(), getApiSecret());
    }
 
-   private String apiSecret;
    private boolean dataPipelineApi;
 }

@@ -244,7 +244,7 @@ export class ImportCSVDialog implements OnInit, AfterViewChecked, OnDestroy {
             // client not receiving a meaningful message.
             let msg = "_#(js:common.csvmax2)";
 
-            if(res) {
+            if(res && !res.toString().includes("MaxUploadSizeExceededException")) {
                const error = JSON.parse(res);
                msg = error.message || res;
             }

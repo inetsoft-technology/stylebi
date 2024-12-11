@@ -1,0 +1,50 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<em-modal-header class="em-page-title" [cshid]="'EMSettingsSecurityUsers'" [title]="'_#(js:New Organization)'">
+</em-modal-header>
+<button mat-icon-button title="_#(Search)" aria-label="_#(Search)" (click)="toggleSearch()">
+  <mat-icon fontSet="ineticons" fontIcon="search-icon"></mat-icon>
+</button>
+<ng-container *ngIf="searchOpen">
+  <mat-form-field class="em-org-dropdown">
+    <mat-label>_#(Search)</mat-label>
+    <input matInput [(ngModel)]="searchQuery" [matAutocomplete]="auto" placeholder="_#(Search)"/>
+    <button mat-icon-button matSuffix title="_#(Clear)" aria-label="_#(Clear)"
+            (click)="searchQuery = ''" [disabled]="!searchQuery">
+      <mat-icon fontSet="ineticons" fontIcon="close-circle-icon"></mat-icon>
+    </button>
+  </mat-form-field>
+  <mat-autocomplete #auto="matAutocomplete" (optionSelected)="onSelectOrg($event)">
+    <ng-container *ngFor="let org of searchResults; let i = index">
+      <mat-option class="dropdownItem" [value]="org.id" [class.mdc-list-item--selected]="isSelected(org.id)">
+        {{org.name}}
+      </mat-option>
+    </ng-container>
+  </mat-autocomplete>
+</ng-container>
+<mat-form-field class="em-button" *ngIf="!searchOpen">
+  <mat-label> _#(js:Clone From Existing Organization):</mat-label>
+  <mat-select [(value)]="copyFromOrgID">
+    <mat-option [value]="''">_#(None)</mat-option>
+    <mat-option *ngFor="let orgID of existingOrganizations; let i = index" [value]="orgID">{{existingOrganizationNames[i]}}</mat-option>
+  </mat-select>
+</mat-form-field>
+<div mat-dialog-actions>
+  <button mat-raised-button color="primary" (click)="submit()">_#(OK)</button>
+  <button mat-button (click)="cancel()">_#(Cancel)</button>
+</div>

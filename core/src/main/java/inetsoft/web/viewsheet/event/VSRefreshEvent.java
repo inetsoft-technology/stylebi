@@ -23,6 +23,7 @@ import inetsoft.sree.security.IdentityID;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
+import java.awt.Dimension;
 import java.util.Map;
 
 @Value.Immutable
@@ -74,6 +75,8 @@ public abstract class VSRefreshEvent implements ViewsheetEvent {
    public abstract @Nullable String bookmarkName();
 
    public abstract @Nullable Map<String, String[]> parameters();
+
+   public abstract @Nullable Dimension embedAssemblySize();
 
    public static Builder builder() {
       return new Builder();

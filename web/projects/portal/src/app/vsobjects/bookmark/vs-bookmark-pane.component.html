@@ -16,14 +16,14 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <ul role="menu" class="dropdown-pane bookmark-dropdown" [class.mobile-dropdown]="mobileDevice">
-   <li class="dropdown-item icon-with-dropdown-item"
+   <li *ngIf="!isDefaultOrgAsset" class="dropdown-item icon-with-dropdown-item"
        [class.disabled]="addBookmarkDisabled"
        tabindex="0" aria-labelledby="save-as-bookmark" defaultFocus [autoSelect]="false" [preventScroll]="true"
        (click)="addBookmark()" enterClick>
       <i class="save-as-icon viewer-toolbar-icon-align me-1 icon-size-small icon-hover-bg" aria-hidden="true"></i>
       <span id="save-as-bookmark">_#(Save as New Bookmark)</span>
    </li>
-   <li class="dropdown-item icon-with-dropdown-item"
+   <li *ngIf="!isDefaultOrgAsset" class="dropdown-item icon-with-dropdown-item"
        [class.disabled]="saveCurrentBookmarkDisabled"
        tabindex="0" aria-labelledby="save-current-bookmark"
        (click)="saveBookmark()" enterClick>

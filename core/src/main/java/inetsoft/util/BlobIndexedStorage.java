@@ -17,19 +17,15 @@
  */
 package inetsoft.util;
 
-import inetsoft.report.Hyperlink;
-import inetsoft.report.TableDataPath;
-import inetsoft.report.internal.table.TableHyperlinkAttr;
+import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.AssemblyInfo;
 import inetsoft.uql.asset.internal.AssetFolder;
-import inetsoft.uql.viewsheet.VSDataRef;
+import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.internal.*;
+import inetsoft.util.migrate.*;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -49,6 +45,7 @@ import java.nio.file.NoSuchFileException;
 import java.security.Principal;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -155,7 +152,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
                new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
             writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
             writer.println("<?inetsoft-asset classname=\"" + metadata.getClassName() +
-                              "\" identifier=\"" + key + "\"?>");
+                              "\" identifier=\"" + Tool.escape(key) + "\"?>");
             value.writeXML(writer);
             writer.flush();
             tx.commit();
@@ -164,9 +161,9 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    @Override
-   public Document getDocument(String key) {
+   public Document getDocument(String key, String orgID) {
       try {
-         Metadata metadata = getMetadataStorage(null).getMetadata(key);
+         Metadata metadata = getMetadataStorage(orgID).getMetadata(key);
 
          if(metadata.getFolder() != null) {
             StringWriter buffer = new StringWriter();
@@ -176,7 +173,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
             return Tool.parseXML(new StringReader(buffer.toString()));
          }
 
-         try(InputStream input = getMetadataStorage(null).getInputStream(key)) {
+         try(InputStream input = getMetadataStorage(orgID).getInputStream(key)) {
             return Tool.parseXML(input);
          }
       }
@@ -190,7 +187,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    @Override
-   public void putDocument(String key, Document doc, String className) {
+   public void putDocument(String key, Document doc, String className, String orgID) {
       Metadata metadata = new Metadata();
       metadata.setClassName(className);
       metadata.setIdentifier(key);
@@ -202,14 +199,14 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
             AssetFolder folder = (AssetFolder) valueClass.getConstructor().newInstance();
             folder.parseXML(doc.getDocumentElement());
             metadata.setFolder(folder);
-            getMetadataStorage(null).createDirectory(key, metadata);
+            getMetadataStorage(orgID).createDirectory(key, metadata);
          }
          else {
-            ProcessingInstruction pi = doc.createProcessingInstruction(
-               "inetsoft-asset", "classname=\"" + className + "\" identifier=\"" + key + "\"");
+            ProcessingInstruction pi = doc.createProcessingInstruction("inetsoft-asset",
+               "classname=\"" + className + "\" identifier=\"" + Tool.escape(key) + "\"");
             doc.insertBefore(pi, doc.getDocumentElement());
 
-            try(BlobTransaction<Metadata> tx = getMetadataStorage(null).beginTransaction();
+            try(BlobTransaction<Metadata> tx = getMetadataStorage(orgID).beginTransaction();
                 OutputStream out = tx.newStream(key, metadata))
             {
                TransformerFactory factory = TransformerFactory.newInstance();
@@ -242,9 +239,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       }
    }
 
-   @Override
-   public byte[] get(String key) throws Exception {
-      try(InputStream input = getMetadataStorage(null).getInputStream(key)) {
+   public byte[] get(String key, String orgID) throws Exception {
+      try(InputStream input = getMetadataStorage(orgID).getInputStream(key)) {
          return IOUtils.toByteArray(input);
       }
       catch(FileNotFoundException ignore) {
@@ -253,8 +249,8 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    @Override
-   protected void put(String key, byte[] value) throws Exception {
-      try(BlobTransaction<Metadata> tx = getMetadataStorage(null).beginTransaction();
+   protected void put(String key, byte[] value, String orgID) throws Exception {
+      try(BlobTransaction<Metadata> tx = getMetadataStorage(orgID).beginTransaction();
           OutputStream out = tx.newStream(key, new Metadata()))
       {
          out.write(value);
@@ -383,9 +379,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
       ArrayList<BlobStorage<Metadata>> storages = new ArrayList<>();
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
-      for(String orgName : provider.getOrganizations()) {
-         String orgID = provider.getOrganization(orgName).getId();
-
+      for(String orgID : provider.getOrganizationIDs()) {
          String storeID = orgID.toLowerCase() + "__" + "indexedStorage";
          storages.add(SingletonManager.getInstance(BlobStorage.class, storeID,
                                              true, changeListener));
@@ -438,126 +432,182 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
    }
 
    @Override
-   public void migrateStorageData(Organization oorg, Organization norg) throws Exception  {
-      String oId = oorg.getId();
-      String nId = norg.getId();
+   public void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg) throws Exception  {
+      migrateStorageData(oorg, norg, true);
+   }
 
-      for(String key : getKeys(null, oId)) {
-         AssetEntry entry = AssetEntry.createAssetEntry(key);
-         entry = entry.cloneAssetEntry(nId);
-         IdentityID user = entry.getUser();
+   @Override
+   public void migrateStorageData(String oname, String nname) throws Exception {
+      int numThreads = Runtime.getRuntime().availableProcessors();
+      ExecutorService executor = Executors.newFixedThreadPool(numThreads);
 
-         if(user != null && !Tool.equals(oorg.getName(), norg.getName())) {
-            user.setOrganization(norg.getName());
+      for(String key : getKeys(null)) {
+         final AssetEntry entry = AssetEntry.createAssetEntry(key);
+
+         if(entry.isScheduleTask() && !ScheduleManager.isInternalTask(entry.getName())) {
+            executor.submit(() -> new MigrateScheduleTask(entry, oname, nname).updateNameProcess());
          }
 
-         String identifier = entry.toIdentifier();
+         if(entry.getUser() != null && entry.getUser().name.equals(oname)) {
+            if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+               executor.submit(() -> new MigrateViewsheetTask(entry, oname, nname).updateNameProcess());
+            }
+            else if(entry.isWorksheet()) {
+               executor.submit(() -> new MigrateWorksheetTask(entry, oname, nname).updateNameProcess());
+            }
+            else if(entry.isLogicModel()) {
+               executor.submit(() -> new MigrateLogicalModelTask(entry, oname, nname).updateNameProcess());
+            }
+            else if(entry.isDomain()) {
+               executor.submit(() -> new MigrateCubeTask(entry, oname, nname).updateNameProcess());
+            }
+            else if(entry.getType() == AssetEntry.Type.MV_DEF) {
+               // done by mv manager.
+            }
+            else {
+               XMLSerializable data = getXMLSerializable(key, null);
+               AssetEntry nentry = entry.cloneAssetEntry(entry.getOrgID(), nname);
+               fixRightUser(oname, nname, nentry);
+               String identifier = nentry.toIdentifier();
 
-         XMLSerializable data = getXMLSerializable(key, null, oId);
+               if(entry.isFolder() && data instanceof AssetFolder folder) {
+                  List<AssetEntry> newEntries = new ArrayList<>();
 
-         if(entry.getType() == AssetEntry.Type.VIEWSHEET) {
-            migrateViewsheet(oorg, norg, ((Viewsheet) data));
+                  for(AssetEntry folderEntry : folder.getEntries()) {
+                     newEntries.add(folderEntry.cloneAssetEntry(folderEntry.getOrgID(), nname));
+                     folder.removeEntry(folderEntry);
+                  }
+
+                  for(AssetEntry newEntry : newEntries) {
+                     fixRightUser(oname, nname, newEntry);
+                     folder.addEntry(newEntry);
+                  }
+
+                  data = folder;
+               }
+
+               putXMLSerializable(identifier, data);
+            }
          }
-         else if(entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
-            String path = entry.getPath();
-            int index = path.lastIndexOf("__");
+         else if((entry.getType().id() & AssetEntry.Type.FOLDER.id()) == AssetEntry.Type.FOLDER.id()) {
+            XMLSerializable data = getXMLSerializable(key, null);
 
-            if(index != -1) {
-               String str = path.substring(index + 2);
-
-               if(Tool.equals(str, oId)) {
-                  path = path .substring(0, index) + "__" + nId;
+            if(entry.isFolder() && data instanceof AssetFolder folder) {
+               for(AssetEntry folderEntry : folder.getEntries()) {
+                  for(String favoriteUser : folderEntry.getFavoritesUsers()) {
+                     if(favoriteUser.startsWith(oname + IdentityID.KEY_DELIMITER)) {
+                        String newFavoriteUser = favoriteUser.replace(oname + IdentityID.KEY_DELIMITER,
+                                                                      nname + IdentityID.KEY_DELIMITER);
+                        folderEntry.deleteFavoritesUser(favoriteUser);
+                        folderEntry.addFavoritesUser(newFavoriteUser);
+                     }
+                  }
                }
             }
 
-            entry.setPath(path);
-            identifier = entry.toIdentifier(true);
+            putXMLSerializable(entry.toIdentifier(), data);
          }
-         else if(entry.getType() == AssetEntry.Type.REPOSITORY_FOLDER ||
-            entry.getType() == AssetEntry.Type.SCHEDULE_TASK_FOLDER ||
-            (entry.getType() == AssetEntry.Type.DATA_SOURCE_FOLDER && data instanceof AssetFolder))
-         {
-            List<AssetEntry> newEntries = new ArrayList<>();
-            AssetFolder folder = (AssetFolder) data;
-
-            for(AssetEntry folderEntry : folder.getEntries()) {
-               newEntries.add(folderEntry.cloneAssetEntry(nId));
-               folder.removeEntry(folderEntry);
-            }
-
-            for(AssetEntry newEntry : newEntries) {
-               folder.addEntry(newEntry);
-            }
-         }
-
-         putXMLSerializable(identifier, data);
       }
 
-      if(!Tool.equals(oId, nId)) {
+      executor.shutdown();
+
+      try {
+         executor.awaitTermination(Integer.MAX_VALUE, TimeUnit.SECONDS);
+      }
+      catch(InterruptedException ignore) {
+         LOG.error(Catalog.getCatalog().getString(
+            "Failed to finish migrate storage from {0} to {1}", oname, nname));
+      }
+   }
+
+   private void fixRightUser(String oname, String nname, AssetEntry entry) {
+      if(Tool.equals(oname, entry.getCreatedUsername())) {
+         entry.setCreatedUsername(nname);
+      }
+
+      if(Tool.equals(oname, entry.getModifiedUsername())) {
+         entry.setModifiedUsername(nname);
+      }
+   }
+
+   private void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg, boolean removeOld)
+      throws Exception
+   {
+      String oId = oorg instanceof Organization ? ((Organization) oorg).getId() :
+         OrganizationManager.getInstance().getCurrentOrgID();
+      String nId = norg instanceof Organization ? ((Organization) norg).getId() :
+         OrganizationManager.getInstance().getCurrentOrgID();
+      int numThreads = Runtime.getRuntime().availableProcessors();
+      ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+
+      for(String key : getKeys(null, oId)) {
+         final AssetEntry entry = AssetEntry.createAssetEntry(key);
+
+         if(entry.isViewsheet() || entry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+            executor.submit(() -> new MigrateViewsheetTask(entry, oorg, norg).process());
+         }
+         else if(entry.isWorksheet()) {
+            executor.submit(() -> new MigrateWorksheetTask(entry, oorg, norg).process());
+         }
+         else if(entry.isLogicModel()) {
+            executor.submit(() -> new MigrateLogicalModelTask(entry, oorg, norg).process());
+         }
+         else if(entry.isDomain()) {
+            executor.submit(() -> new MigrateCubeTask(entry, oorg, norg).process());
+         }
+         else if(entry.isScheduleTask()) {
+            executor.submit(() -> new MigrateScheduleTask(entry, oorg, norg).process());
+         }
+         else if(entry.getType() == AssetEntry.Type.MV_DEF || entry.getType() == AssetEntry.Type.MV_DEF_FOLDER) {
+            // done by mv manager.
+         }
+         else if(norg instanceof Organization) {
+            XMLSerializable data = getXMLSerializable(key, null, oId);
+
+            if(entry.isFolder() && data instanceof AssetFolder) {
+               List<AssetEntry> newEntries = new ArrayList<>();
+               AssetFolder folder = (AssetFolder) data;
+
+               for(AssetEntry folderEntry : folder.getEntries()) {
+                  newEntries.add(folderEntry.cloneAssetEntry((Organization) norg));
+                  folder.removeEntry(folderEntry);
+               }
+
+               for(AssetEntry newEntry : newEntries) {
+                  folder.addEntry(newEntry);
+               }
+            }
+
+            AssetEntry nentry = entry.cloneAssetEntry((Organization) norg);
+            String identifier = nentry.toIdentifier();
+            putXMLSerializable(identifier, data);
+         }
+      }
+
+      executor.shutdown();
+
+      try {
+         executor.awaitTermination(Integer.MAX_VALUE, TimeUnit.SECONDS);
+      }
+      catch(InterruptedException ignore) {
+         LOG.error(Catalog.getCatalog().getString(
+            "Failed to finish migrate storage from {0} to {1}", oorg, norg));
+      }
+
+      if(removeOld && !Tool.equals(oId, nId)) {
          removeStorage(oId);
       }
    }
 
-   private void migrateViewsheet(Organization oorg, Organization norg, Viewsheet viewsheet) {
-      String oId = oorg.getId();
-      String nId = norg.getId();
-      String oname = oorg.getName();
-      String nname = norg.getName();
-      AssetEntry baseEntry = viewsheet.getBaseEntry();
-
-      if(!Tool.equals(oId, nId) && baseEntry != null) {
-         baseEntry = baseEntry.cloneAssetEntry(nId);
-      }
-
-      if(!Tool.equals(oname, nname) && baseEntry != null) {
-         IdentityID user = baseEntry.getUser();
-
-         if(user != null) {
-            user.setOrganization(nname);
-         }
-      }
-
-      viewsheet.setBaseEntry(baseEntry);
-      MigrateUtil.updateAllAssemblyHyperlink(viewsheet, oorg, norg);
-   }
-
    @Override
-   public void copyStorageData(String oId, String nId) throws Exception  {
-      for(String key : getKeys(null, oId)) {
-         int orgIDIndex = StringUtils.ordinalIndexOf(key, "^", 4);
-         orgIDIndex = orgIDIndex == -1 ? key.length() : orgIDIndex;
-         String identifier = key.substring(0, orgIDIndex) + "^" + nId;
-         AssetEntry entry = AssetEntry.createAssetEntry(key.substring(0, orgIDIndex) + "^" + nId);
-         XMLSerializable data = getXMLSerializable(key, null, oId);
-
-         if(entry.getType() == AssetEntry.Type.VIEWSHEET) {
-            if(((Viewsheet) data).getBaseEntry() != null) {
-               AssetEntry wentry = ((Viewsheet) data).getBaseEntry().cloneAssetEntry(nId);
-               ((Viewsheet) data).setBaseEntry(wentry);
-            }
-         }
-         else if(entry.getType() == AssetEntry.Type.REPOSITORY_FOLDER) {
-            List<AssetEntry> newEntries = new ArrayList<>();
-            AssetFolder folder = (AssetFolder) data;
-
-            for(AssetEntry folderEntry : folder.getEntries()) {
-               newEntries.add(folderEntry.cloneAssetEntry(nId));
-               folder.removeEntry(folderEntry);
-            }
-
-            for(AssetEntry newEntry : newEntries) {
-               folder.addEntry(newEntry);
-            }
-         }
-
-         putXMLSerializable(identifier, data);
-      }
+   public void copyStorageData(Organization oOrg, Organization nOrg) throws Exception {
+      migrateStorageData(oOrg, nOrg, false);
    }
-
 
    @Override
    public void removeStorage(String orgID) throws Exception  {
-      getMetadataStorage(orgID).deleteBlobStorage();
+      BlobStorage<Metadata> metadataStorage = getMetadataStorage(orgID);
+      metadataStorage.deleteBlobStorage();
       cachedOrgIDs.remove(orgID);
    }
 
@@ -652,7 +702,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
             }
 
             Principal oldPrincipal = ThreadContext.getPrincipal();
-            XPrincipal tempPrincipal = new XPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getCurrentOrgName()), new IdentityID[0], new String[0], orgID);
+            XPrincipal tempPrincipal = new XPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), new IdentityID[0], new String[0], orgID);
 
             AssetEntry entry = AssetEntry.createAssetEntry(value.getPath(), orgID);
             if(entry != null && !entry.isViewsheet()) {

@@ -18,43 +18,31 @@
 <em-audit-table-view [displayedColumns]="displayedColumns" [columnRenderers]="columnRenderers" [parameterForm]="form" [fetchParameters]="fetchParameters"
                      [fetchData]="fetchData" [isIdentityInfo]="true" [orgNames]="orgNames">
   <section class="flex-row" [formGroup]="form">
-    <mat-form-field *ngIf="organizationFilter == true" appearance="outline" color="primary" class="flex">
+    <mat-form-field *ngIf="organizationFilter == true" appearance="outline" color="accent" class="flex">
       <mat-label>_#(Identity Organizations)</mat-label>
       <mat-select formControlName="selectedOrganizations" multiple>
-        <mat-option *ngFor="let org of organizations" [value]="org">{{org}}</mat-option>
+        <mat-option *ngFor="let org of organizations; let i = index" [value]="org">{{organizationNames[i]}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
-      <mat-label>_#(Users)</mat-label>
-      <mat-select formControlName="selectedUsers" multiple>
-        <mat-option *ngFor="let user of users" [value]="user">{{user}}</mat-option>
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
+      <mat-label>_#(Types)</mat-label>
+      <mat-select formControlName="selectedTypes" multiple>
+        <mat-option *ngFor="let type of getTypes()" [value]="type">{{getTypeLabel(type)}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
-      <mat-label>_#(Groups)</mat-label>
-      <mat-select formControlName="selectedGroups" multiple>
-        <mat-option *ngFor="let group of groups" [value]="group">{{group}}</mat-option>
-      </mat-select>
-    </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
-      <mat-label>_#(Roles)</mat-label>
-      <mat-select formControlName="selectedRoles" multiple>
-        <mat-option *ngFor="let role of roles" [value]="role">{{getRoleLabel(role)}}</mat-option>
-      </mat-select>
-    </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Actions)</mat-label>
       <mat-select formControlName="selectedActions" multiple>
         <mat-option *ngFor="let action of actions" [value]="action">{{getActionTypeLabel(action)}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
-      <mat-label>_#(States)</mat-label>
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
+      <mat-label>_#(Status)</mat-label>
       <mat-select formControlName="selectedStates" multiple>
         <mat-option *ngFor="let state of states" [value]="state">{{getStateLabel(state)}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Hosts)</mat-label>
       <mat-select formControlName="selectedHosts" multiple>
         <mat-option *ngFor="let host of hosts" [value]="host">{{host}}</mat-option>

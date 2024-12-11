@@ -291,7 +291,7 @@ public class DataSourceService {
 
          if(entry.getCreatedUsername() != null) {
             IdentityID identityID = entry.getUser();
-            String organization = identityID == null ? null : identityID.organization;
+            String organization = identityID == null ? null : identityID.orgID;
             IdentityID createdUserID = new IdentityID(entry.getCreatedUsername(), organization);
             User user = provider.getUser(createdUserID);
 

@@ -20,14 +20,14 @@ package inetsoft.uql.rest.datasource.toggl;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
-import org.w3c.dom.Element;
+import inetsoft.util.credential.*;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("apiToken")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiToken", visibleMethod = "useCredential")
 })
 public class TogglDataSource extends EndpointJsonDataSource<TogglDataSource> {
    static final String TYPE = "Rest.Toggl";
@@ -37,13 +37,19 @@ public class TogglDataSource extends EndpointJsonDataSource<TogglDataSource> {
       setAuthType(AuthType.BASIC);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_TOKEN;
+   }
+
    @Property(label = "API Token", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiToken() {
-      return apiToken;
+      return ((ApiTokenCredential) getCredential()).getApiToken();
    }
 
    public void setApiToken(String apiToken) {
-      this.apiToken = apiToken;
+      ((ApiTokenCredential) getCredential()).setApiToken(apiToken);
    }
 
    @Override
@@ -58,7 +64,7 @@ public class TogglDataSource extends EndpointJsonDataSource<TogglDataSource> {
 
    @Override
    public String getUser() {
-      return apiToken;
+      return getApiToken();
    }
 
    @Override
@@ -93,21 +99,6 @@ public class TogglDataSource extends EndpointJsonDataSource<TogglDataSource> {
    }
 
    @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(apiToken != null) {
-         writer.format("<apiToken><![CDATA[%s]]></apiToken>", Tool.encryptPassword(apiToken));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      apiToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiToken"));
-   }
-
-   @Override
    protected String getTestSuffix() {
       return "/api/v8/me";
    }
@@ -122,18 +113,11 @@ public class TogglDataSource extends EndpointJsonDataSource<TogglDataSource> {
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      TogglDataSource that = (TogglDataSource) o;
-      return Objects.equals(apiToken, that.apiToken);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), apiToken);
+      return Objects.hash(super.hashCode(), getApiToken());
    }
-
-   private String apiToken;
 }

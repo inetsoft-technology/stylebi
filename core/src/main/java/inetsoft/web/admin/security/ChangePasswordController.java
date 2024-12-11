@@ -19,6 +19,8 @@ package inetsoft.web.admin.security;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -53,6 +55,9 @@ public class ChangePasswordController {
       if(user instanceof FSUser) {
          SUtil.setPassword((FSUser) user, request.password());
          ((EditableAuthenticationProvider) authc).addUser(user);
+         ActionRecord record = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_EDIT,
+             principal.getName(), ActionRecord.OBJECT_TYPE_PASSWORD);
+         Audit.getInstance().auditAction(record, principal);
       }
       else {
          throw new IllegalStateException("Unsupported user type");

@@ -17,6 +17,8 @@
  */
 package inetsoft.util.config;
 
+import inetsoft.util.config.crd.CRDProperty;
+
 import java.io.Serializable;
 import java.util.Objects;
 
@@ -83,9 +85,12 @@ public class FirestoreConfig implements Serializable {
       this.collection = collection;
    }
 
+   @CRDProperty(description = "The path to the service account JSON file")
    private String serviceAccountFile;
+   @CRDProperty(description = "The base-64 encoded service account JSON", secret = true)
    private String serviceAccountJson;
    private boolean emulated = false;
    private String emulatorHost;
+   @CRDProperty(description = "The name of the collection")
    private String collection;
 }

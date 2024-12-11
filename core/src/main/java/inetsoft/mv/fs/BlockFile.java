@@ -29,11 +29,23 @@ public interface BlockFile {
 
    long length();
 
+   default long length(String orgId) {
+      return length();
+   }
+
    boolean exists();
 
    boolean delete();
 
    SeekableInputStream openInputStream() throws IOException;
 
+   default SeekableInputStream openInputStream(String orgId) throws IOException {
+      return openInputStream();
+   }
+
    TransactionChannel openWriteChannel() throws IOException;
+
+   default TransactionChannel openWriteChannel(String orgId) throws IOException {
+      return openWriteChannel();
+   }
 }

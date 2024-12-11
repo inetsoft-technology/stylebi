@@ -20,6 +20,7 @@ package inetsoft.uql.asset.sync;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.internal.cluster.SingletonRunnableTask;
 import inetsoft.storage.KeyValueTask;
+import inetsoft.util.ThreadContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +50,7 @@ public class RenameTransformTask
       queue.add(info);
       getEngine().put(getId(), DependencyStorageService.QUEUE_KEY, queue);
       LOG.debug("Rename transform task added to queue: {}", info.getTaskId());
-      Future<?> renameTransform = Cluster.getInstance().submit("renameTransform", new Rename(info));
+      Future<?> renameTransform = Cluster.getInstance().submit(1, "renameTransform", new Rename(info));
 
       if(waitDone) {
          try {
@@ -72,7 +73,7 @@ public class RenameTransformTask
 
       @Override
       public void run() {
-         Cluster.getInstance().submit("dependencyStorage", new Remove(info));
+         Cluster.getInstance().submit(2, "dependencyStorage", new Remove(info));
          LOG.debug("Rename transform task started: {}", info.getTaskId());
 
          try {

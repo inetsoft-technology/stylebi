@@ -478,6 +478,7 @@ export class SortOption implements OnInit {
 
       dialog.manualOrders = Tool.clone(this.manualOrders);
       dialog.valueLabelList = this.valueLabelList;
+      dialog.helpLinkKey = "ManualOrdering";
    }
 
    isValidN(): boolean {

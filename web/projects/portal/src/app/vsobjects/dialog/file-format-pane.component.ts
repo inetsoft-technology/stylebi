@@ -16,6 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, OnInit } from "@angular/core";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { Tool } from "../../../../../shared/util/tool";
+import { ComponentTool } from "../../common/util/component-tool";
 import { FileFormatPaneModel } from "../model/file-format-pane-model";
 import { FileFormatType } from "../model/file-format-type";
 import { UntypedFormGroup } from "@angular/forms";
@@ -35,6 +38,9 @@ export class FileFormatPane implements OnInit {
    @Input() supportCSVTableSelect: boolean = false;
    FileFormatType = FileFormatType;
    types: any[];
+
+   constructor(private modalService: NgbModal) {
+   }
 
    ngOnInit() {
       this.types = [];
@@ -59,6 +65,13 @@ export class FileFormatPane implements OnInit {
       if(type == FileFormatType.EXPORT_TYPE_HTML) {
          this.model.includeCurrent = true;
          this.model.selectedBookmarks = [];
+      }
+
+      if(this.model && type == FileFormatType.EXPORT_TYPE_CSV &&
+         Tool.isEmpty(this.model.tableDataAssemblies))
+      {
+         ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+            "_#(js:common.repletAction.exportFailed.cvs)");
       }
    }
 

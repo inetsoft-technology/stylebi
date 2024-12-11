@@ -74,13 +74,16 @@ export class AdvancedConditionPane implements OnInit, OnChanges {
           changes.hasOwnProperty("postAggregateFields")) &&
          this.preAggregateFields && this.postAggregateFields)
       {
-         this.rankingFields = this.preAggregateFields.slice();
+         const fields = this.postAggregateFields.concat(this.preAggregateFields);
+         const names = [];
+         this.rankingFields = [];
 
-         for(let field of this.postAggregateFields) {
-            if(!this.preAggregateFields.some(field2 => field2.view == field.view)) {
+         fields.forEach(field => {
+            if(!names.includes(field.view)) {
                this.rankingFields.push(field);
+               names.push(field.view);
             }
-         }
+         });
       }
    }
 

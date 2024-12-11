@@ -105,9 +105,11 @@ public class VSWizardDataService {
       if(rvs != null && rvs.getViewsheetSandbox() != null) {
          rvs.getViewsheetSandbox().updateAssembly(vsTemporaryInfo.getTempChart().getAbsoluteName());
       }
-      
+
       ChartVSAssemblyInfo ninfo =
          (ChartVSAssemblyInfo) vsTemporaryInfo.getTempChart().getVSAssemblyInfo();
+      oinfo.getVSChartInfo().clearRuntime();
+      ninfo.getVSChartInfo().clearRuntime();
       boolean trap = checkTrap0(rvs, oinfo, ninfo);
       vsTemporaryInfo.getTempChart().setVSAssemblyInfo(oinfo);
 

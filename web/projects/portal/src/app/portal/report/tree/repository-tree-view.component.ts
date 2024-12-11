@@ -95,9 +95,15 @@ export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDes
    private _rootNode: TreeNodeModel;
    private subscriptions = new Subscription();
 
+   private currOrgID: string = null;
+
    constructor(private http: HttpClient, private modal: NgbModal,
                private pageTabService: PageTabService)
    {
+      this.http.get<string>("../api/em/navbar/organization").subscribe((org)=>{
+         this.currOrgID = org;
+      });
+
       this.subscriptions.add(this.pageTabService.onRefreshPage.subscribe((tab: TabInfoModel) => {
          let entry = createAssetEntry(tab.id);
 
@@ -106,7 +112,8 @@ export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDes
          }
 
          if(entry && this.rootNode) {
-            this.repositoryTree.selectAndExpandToPath(entry.path, this.rootNode);
+            this.repositoryTree.selectAndExpandToPath(entry.path, this.rootNode,
+               entry.organization != this.currOrgID);
          }
       }));
    }
@@ -230,7 +237,8 @@ export class RepositoryTreeViewComponent implements OnInit, AfterViewInit, OnDes
             // selected node wasn't found so check along the path.
             // it may not have been loaded yet.
             if(this.selectedNode == null) {
-               this.repositoryTree.selectAndExpandToPath(entry.path, this.rootNode);
+               let defaultOrgAsset = this.currOrgID != entry.entry.organization;
+               this.repositoryTree.selectAndExpandToPath(entry.path, this.rootNode, defaultOrgAsset);
             }
          }
          else {

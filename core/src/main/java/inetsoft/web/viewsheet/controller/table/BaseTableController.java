@@ -439,6 +439,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
       lens.initTableGrid(tinfo);
       double[] colWidths = getColWidths(assembly, lens);
       lens.initTableGrid(tinfo);
+      lens.setColWidths(colWidths);
 
       int rowCount = lens.getRowCount();
       final int availableRowCount = Math.max((rowCount < 0 ? -rowCount - 1 : rowCount), 0);

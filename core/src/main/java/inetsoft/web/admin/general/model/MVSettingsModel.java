@@ -28,8 +28,6 @@ import java.util.List;
 @JsonSerialize(as = ImmutableMVSettingsModel.class)
 @JsonDeserialize(as = ImmutableMVSettingsModel.class)
 public interface MVSettingsModel {
-   MVType type();
-
    boolean onDemand();
 
    boolean onDemandDefault();

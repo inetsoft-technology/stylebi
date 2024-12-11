@@ -20,4 +20,5 @@ export interface EmNavbarModel {
    customLogo: boolean;
    enterprise?: boolean;
    ssoUser?: boolean;
+   elasticLicenseExhausted: boolean;
 }

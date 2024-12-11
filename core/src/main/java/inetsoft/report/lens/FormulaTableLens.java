@@ -376,7 +376,7 @@ public class FormulaTableLens extends AbstractTableLens
          for(int i = nrows + hrows; i <= maxr && table.moreRows(i) && scripts != null; i++) {
             // optimization, don't call get/put if never in the loop
             if(first) {
-                runtime = report == null || true;
+                runtime = true;
 
                // this must be called after put() so the parent scope is not set
                // to the top scope

@@ -93,6 +93,7 @@ public class FirebaseQuery extends EndpointJsonQuery<FirebaseEndpoint> {
             .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.nextPageToken")
             .pageOffsetParamToWrite(PaginationParamType.QUERY, "pageToken")
             .maxResultsPerPageParam(PaginationParamType.QUERY, "pageSize")
+            .maxResultsPerPage(1000)
             .build();
       }
       else {
@@ -107,7 +108,7 @@ public class FirebaseQuery extends EndpointJsonQuery<FirebaseEndpoint> {
       final String suffix = super.getSuffix();
       final FirebaseDataSource dataSource = ((FirebaseDataSource) getDataSource());
       final String projectId = dataSource.getProjectId();
-      return suffix.replaceAll("@projectId@", projectId);
+      return suffix.replaceAll("#projectId#", projectId);
    }
 
    @Override

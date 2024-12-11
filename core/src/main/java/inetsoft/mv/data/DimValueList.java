@@ -139,7 +139,7 @@ public class DimValueList {
       long[] segpos = new long[n + 1];
 
       // reserve place for fragment positions
-      channel.position(pos + segpos.length * 8);
+      channel.position(pos + segpos.length * 8L);
 
       if(currIdx > 0) {
          writeCurrentFragment();
@@ -243,7 +243,7 @@ public class DimValueList {
             return 0;
          }
 
-         return getAgePriority(XSwapper.cur - accessed, alive * 2);
+         return getAgePriority(XSwapper.cur - accessed, alive * 2L);
       }
 
       @Override

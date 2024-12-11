@@ -260,6 +260,22 @@ public abstract class AbstractAction implements Cloneable, EmailSupport,
       return emailInfo.getAttachmentName();
    }
 
+   public void setUseCredential(boolean useCredential) {
+      emailInfo.setUseCredential(useCredential);
+   }
+
+   public boolean isUseCredential() {
+      return emailInfo.isUseCredential();
+   }
+
+   public String getSecretId() {
+      return emailInfo.getSecretId();
+   }
+
+   public void setSecretId(String secretId) {
+      emailInfo.setSecretId(secretId);
+   }
+
    /**
     * Set the encrypt zip file password.
     * @param password the encrypt file password.

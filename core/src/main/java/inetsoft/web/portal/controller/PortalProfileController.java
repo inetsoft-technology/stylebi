@@ -72,7 +72,7 @@ public class PortalProfileController {
       this.viewsheetService = viewsheetService;
    }
 
-   @GetMapping("/portal/profile/group-by")
+   @GetMapping("/api/portal/profile/group-by")
    @HandleExceptions
    public GroupByFieldList getGroupByFields(@RequestParam("name") String name,
                                             @RequestParam("isViewsheet") boolean isViewsheet,
@@ -99,7 +99,7 @@ public class PortalProfileController {
       return list;
    }
 
-   @GetMapping(value = "/portal/profile/image")
+   @GetMapping(value = "/api/image/portal/profile/image")
    @HandleExceptions
    public void profileImage(
       @RequestParam("name") String name,
@@ -144,7 +144,7 @@ public class PortalProfileController {
       }
    }
 
-   @PutMapping(value = "/portal/profile/table")
+   @PutMapping(value = "/api/portal/profile/table")
    @HandleExceptions
    public PreviewTableCellModel[][] profileTable(
       @RequestParam(value = "showSummarize", required = false) boolean showSummarize,
@@ -180,7 +180,7 @@ public class PortalProfileController {
       return model;
    }
 
-   @GetMapping("/portal/profile/table-export")
+   @GetMapping("/api/portal/profile/table-export")
    @HandleExceptions
    public void downloadTable(@RequestParam("name") String name,
                              @RequestParam("isViewsheet") boolean isViewsheet,

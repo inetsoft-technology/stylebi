@@ -19,6 +19,7 @@ package inetsoft.web.health;
 
 import inetsoft.util.health.ReportFailureHealthService;
 import inetsoft.util.health.ReportFailureStatus;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
@@ -34,6 +35,8 @@ public class ReportFailureHealthIndicator implements HealthIndicator {
       ReportFailureStatus status = service.getStatus();
 
       if(status.isExcessiveFailures()) {
+         LoggerFactory.getLogger(getClass()).error(
+            "ReportFailureHealthIndicator DOWN: failureCount={}", status.getFailureCount());
          return Health.down().withDetail("failureCount", status.getFailureCount()).build();
       }
 

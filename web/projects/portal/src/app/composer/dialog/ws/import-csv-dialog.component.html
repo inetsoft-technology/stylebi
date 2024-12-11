@@ -18,7 +18,7 @@
 <div [style.cursor]="pending ? 'wait' : null">
   <modal-header [title]="'_#(Import Data File)'"
                 (onCancel)="cancel()"
-                [cshid]="'EmbeddedDataImport'">
+                [cshid]="'EmbeddedDataUpload'">
   </modal-header>
   <div class="modal-body" [enterSubmit]="formValid" (onEnter)="ok()" *ngIf="model">
     <form [formGroup]="form" class="container-fluid">

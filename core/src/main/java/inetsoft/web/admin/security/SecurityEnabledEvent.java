@@ -43,6 +43,11 @@ public abstract class SecurityEnabledEvent {
    @Nullable
    public abstract String warning();
 
+   @Value.Default
+   public boolean cloudPlatform() {
+      return false;
+   }
+
    public static Builder builder() {
       return new Builder();
    }

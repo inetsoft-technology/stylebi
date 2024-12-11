@@ -15,8 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-body{
-    background: #F4F7FD;
+body {
+  margin: 0;
+  height: 100vh;
+  width: 100vw;
+    background-image: url('../images/home-bg.svg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+}
+
+.header-band {
+  background: #424242;
+}
+
+.card-container {
+  position: relative;
+  top: max(calc(50vh - 300px), 10px);
 }
 
 .card-margin {
@@ -29,14 +45,12 @@ body{
     -webkit-box-shadow: 0px 0px 10px 0px rgba(82, 63, 105, 0.1);
     -moz-box-shadow: 0px 0px 10px 0px rgba(82, 63, 105, 0.1);
     -ms-box-shadow: 0px 0px 10px 0px rgba(82, 63, 105, 0.1);
-}
-.card {
     position: relative;
     display: flex;
     flex-direction: column;
     min-width: 0;
     word-wrap: break-word;
-    background-color: #ffffff;
+    background-color: #424242;
     background-clip: border-box;
     border: 1px solid #e6e4e9;
     border-radius: 8px;
@@ -52,6 +66,7 @@ body{
     display: flex;
     align-items: center;
     min-height: 50px;
+    color: #ffb17c;
 }
 .card-header:first-child {
     border-radius: calc(8px - 1px) calc(8px - 1px) 0 0;
@@ -113,12 +128,12 @@ body{
 }
 
 .widget-49 .widget-49-title-wrapper .widget-49-module-info .widget-49-pro-title {
-  color: #3c4142;
+  color: #ffb17c;
   font-size: 14px;
 }
 
 .widget-49 .widget-49-title-wrapper .widget-49-module-info .widget-49-module-time {
-  color: #B1BAC5;
+  color: #ccc;
   font-size: 13px;
 }
 
@@ -130,7 +145,7 @@ body{
 
 .widget-49 .widget-49-module-points .widget-49-module-item {
   display: list-item;
-  color: #727686;
+  color: #bbb;
 }
 
 .widget-49 .widget-49-module-points .widget-49-module-item span {
@@ -150,11 +165,22 @@ a > * {
 .navbar .title {
   font-size: 26px;
   font-weight: bold;
-  color: gray;
+  color: #ed711c;
 }
 
 .navbar  .title2 {
-  color: gray;
+  color: #ffb17c;
   font-size: 16px;
   align-self: flex-end;
+}
+
+.attribution {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+
+  a {
+    color: #eee;
+    font-size: 10px;
+  }
 }

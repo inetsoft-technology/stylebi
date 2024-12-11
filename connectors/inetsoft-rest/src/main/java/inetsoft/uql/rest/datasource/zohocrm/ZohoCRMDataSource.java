@@ -24,6 +24,8 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.AuthorizationCodeGrant;
+import inetsoft.util.credential.CredentialType;
 import org.apache.http.Consts;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
@@ -44,10 +46,12 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @View(vertical = true, value = {
-   @View1("clientId"),
-   @View1("clientSecret"),
-   @View1("accountDomain"),
-   @View1("authorizationCode"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "clientId", visibleMethod = "useCredential"),
+   @View1(value = "clientSecret", visibleMethod = "useCredential"),
+   @View1(value = "accountDomain", visibleMethod = "useCredential"),
+   @View1(value = "authorizationCode", visibleMethod = "useCredential"),
    @View1(type = ViewType.LABEL, text = "authorization.instructions", col = 1, wrap = true),
    @View1(type = ViewType.BUTTON, text = "Authorize", col = 1, button = @Button(type = ButtonType.METHOD, method = "authorize")),
    @View1("accessToken"),
@@ -64,59 +68,39 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
       setURL("https://www.zohoapis.com");
    }
 
-   @Property(label = "Client ID", required = true)
-   public String getClientId() {
-      return clientId;
-   }
-
-   public void setClientId(String clientId) {
-      this.clientId = clientId;
-   }
-
-   @Property(label = "Client Secret", required = true, password = true)
-   public String getClientSecret() {
-      return clientSecret;
-   }
-
-   public void setClientSecret(String clientSecret) {
-      this.clientSecret = clientSecret;
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.AUTHORIZATION_CODE;
    }
 
    @Property(label = "Account Domain", required = true)
-   @PropertyEditor(tagsMethod = "getAccountDomains")
+   @PropertyEditor(tagsMethod = "getAccountDomains", dependsOn = "useCredentialId")
    public String getAccountDomain() {
-      return accountDomain;
+      return ((AuthorizationCodeGrant) getCredential()).getAccountDomain();
    }
 
    public void setAccountDomain(String accountDomain) {
-      this.accountDomain = accountDomain;
+      ((AuthorizationCodeGrant) getCredential()).setAccountDomain(accountDomain);
    }
 
    @Property(label = "Authorization Code", password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getAuthorizationCode() {
-      return authorizationCode;
+      return ((AuthorizationCodeGrant) getCredential()).getAuthorizationCode();
    }
 
    public void setAuthorizationCode(String authorizationCode) {
-      this.authorizationCode = authorizationCode;
+      ((AuthorizationCodeGrant) getCredential()).setAuthorizationCode(authorizationCode);
    }
 
    @Property(label = "Access Token", required = true, password = true)
    public String getAccessToken() {
-      return accessToken;
-   }
-
-   public void setAccessToken(String accessToken) {
-      this.accessToken = accessToken;
+      return super.getAccessToken();
    }
 
    @Property(label = "Refresh Token", required = true, password = true)
    public String getRefreshToken() {
-      return refreshToken;
-   }
-
-   public void setRefreshToken(String refreshToken) {
-      this.refreshToken = refreshToken;
+      return super.getRefreshToken();
    }
 
    @Property(label = "Token Expiration", required = true)
@@ -142,7 +126,7 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)
             .name("Authorization")
-            .value("Zoho-oauthtoken " + accessToken)
+            .value("Zoho-oauthtoken " + getAccessToken())
             .build()
       };
    }
@@ -156,40 +140,12 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
    public void writeContents(PrintWriter writer) {
       super.writeContents(writer);
 
-      if(clientId != null) {
-         writer.format("<clientId><![CDATA[%s]]></clientId>%n", clientId);
-      }
-
-      if(clientSecret != null) {
-         writer.format(
-            "<clientSecret><![CDATA[%s]]></clientSecret>%n", Tool.encryptPassword(clientSecret));
-      }
-
-      if(accountDomain != null) {
-         writer.format("<accountDomain><![CDATA[%s]]></accountDomain>%n", accountDomain);
-      }
-
-      if(accessToken != null) {
-         writer.format(
-            "<accessToken><![CDATA[%s]]></accessToken>%n", Tool.encryptPassword(accessToken));
-      }
-
-      if(refreshToken != null) {
-         writer.format(
-            "<refreshToken><![CDATA[%s]]></refreshToken>%n", Tool.encryptPassword(refreshToken));
-      }
-
       writer.format("<tokenExpiration><![CDATA[%d]]></tokenExpiration>%n", tokenExpiration);
    }
 
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
-      clientId = Tool.getChildValueByTagName(root, "clientId");
-      clientSecret = Tool.decryptPassword(Tool.getChildValueByTagName(root, "clientSecret"));
-      accountDomain = Tool.getChildValueByTagName(root, "accountDomain");
-      accessToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "accessToken"));
-      refreshToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "refreshToken"));
       String value = Tool.getChildValueByTagName(root, "tokenExpiration");
 
       if(value != null) {
@@ -218,23 +174,23 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
    }
 
    public void authorize(String sessionId) {
-      if(clientId == null || clientId.isEmpty() || clientSecret == null || clientSecret.isEmpty() ||
-         accountDomain == null || accountDomain.isEmpty() ||
-         authorizationCode == null || authorizationCode.isEmpty())
+      if(getClientId() == null || getClientId().isEmpty() || getClientSecret() == null ||
+         getClientSecret().isEmpty() || getAccountDomain() == null || getAccountDomain().isEmpty() ||
+         getAuthorizationCode() == null || getAuthorizationCode().isEmpty())
       {
          return;
       }
 
       updateTokens(
          new BasicNameValuePair("grant_type", "authorization_code"),
-         new BasicNameValuePair("client_id", clientId),
-         new BasicNameValuePair("client_secret", clientSecret),
-         new BasicNameValuePair("code", authorizationCode));
+         new BasicNameValuePair("client_id", getClientId()),
+         new BasicNameValuePair("client_secret", getClientSecret()),
+         new BasicNameValuePair("code", getAuthorizationCode()));
    }
 
    @Override
    protected void refreshTokens() {
-      if(refreshToken == null || refreshToken.isEmpty() || tokenExpiration == 0L ||
+      if(getRefreshToken() == null || getRefreshToken().isEmpty() || tokenExpiration == 0L ||
          Instant.ofEpochMilli(tokenExpiration).isAfter(Instant.now()))
       {
          return;
@@ -242,9 +198,9 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
 
       updateTokens(
          new BasicNameValuePair("grant_type", "refresh_token"),
-         new BasicNameValuePair("client_id", clientId),
-         new BasicNameValuePair("client_secret", clientSecret),
-         new BasicNameValuePair("refresh_token", refreshToken));
+         new BasicNameValuePair("client_id", getClientId()),
+         new BasicNameValuePair("client_secret", getClientSecret()),
+         new BasicNameValuePair("refresh_token", getRefreshToken()));
 
       try {
          XFactory.getRepository().updateDataSource(this, getFullName());
@@ -255,7 +211,7 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
    }
 
    private void updateTokens(NameValuePair... parameters) {
-      HttpPost request = new HttpPost(accountDomain + "/oauth/v2/token");
+      HttpPost request = new HttpPost(getAccountDomain() + "/oauth/v2/token");
       List<NameValuePair> form = Arrays.asList(parameters);
       UrlEncodedFormEntity entity = new UrlEncodedFormEntity(form, Consts.UTF_8);
       request.setEntity(entity);
@@ -270,11 +226,11 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
             JsonNode json = new ObjectMapper().readTree(content);
 
             if(json.has("access_token") && json.has("api_domain")) {
-               accessToken = json.get("access_token").asText();
+               setAccessToken(json.get("access_token").asText());
                setURL(json.get("api_domain").asText());
 
                if(json.has("refresh_token")) {
-                  refreshToken = json.get("refresh_token").asText();
+                  setRefreshToken(json.get("refresh_token").asText());
                }
 
                Duration duration = Duration.of(json.get("expires_in").asLong(), ChronoUnit.SECONDS);
@@ -312,27 +268,16 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
       }
 
       ZohoCRMDataSource that = (ZohoCRMDataSource) o;
-      return tokenExpiration == that.tokenExpiration &&
-         Objects.equals(clientId, that.clientId) &&
-         Objects.equals(clientSecret, that.clientSecret) &&
-         Objects.equals(accountDomain, that.accountDomain) &&
-         Objects.equals(accessToken, that.accessToken) &&
-         Objects.equals(refreshToken, that.refreshToken);
+      return tokenExpiration == that.tokenExpiration;
    }
 
    @Override
    public int hashCode() {
       return Objects.hash(
-         super.hashCode(), clientId, clientSecret, accountDomain, accessToken, refreshToken,
-         tokenExpiration);
+         super.hashCode(), getClientId(), getClientSecret(), getAccountDomain(), getAccessToken(),
+         getRefreshToken(), tokenExpiration);
    }
 
-   private String clientId;
-   private String clientSecret;
-   private String accountDomain;
-   private String authorizationCode;
-   private String accessToken;
-   private String refreshToken;
    private long tokenExpiration;
 
    private static final Logger LOG = LoggerFactory.getLogger(ZohoCRMDataSource.class);

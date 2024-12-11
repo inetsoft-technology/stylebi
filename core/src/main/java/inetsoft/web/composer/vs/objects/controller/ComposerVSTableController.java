@@ -178,6 +178,11 @@ public class ComposerVSTableController {
 
             table.setFormatInfo(nfinfo);
             box.resetDataMap(table.getName());
+            ViewsheetSandbox currentBox = getSandbox(box, table.getAbsoluteName());
+
+            if(currentBox != null) {
+               currentBox.syncFormData(table.getName());
+            }
 
             BindingModel binding = bfactory.createModel(table);
             SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
@@ -230,6 +235,21 @@ public class ComposerVSTableController {
       finally {
          box.unlockWrite();
       }
+   }
+
+   /**
+    * Get viewsheet sand box.
+    */
+   private ViewsheetSandbox getSandbox(ViewsheetSandbox box, String name) {
+      int index = name.lastIndexOf(".");
+
+      if(index >= 0) {
+         ViewsheetSandbox box0 = box.getSandbox(name.substring(0, index));
+         name = name.substring(index + 1);
+         return getSandbox(box0, name);
+      }
+
+      return box;
    }
 
    private void syncHighlight(TableVSAssembly table, String oname, String nname) {
@@ -597,8 +617,11 @@ public class ComposerVSTableController {
                                @LinkUri String linkUri, CommandDispatcher dispatcher)
       throws Exception
    {
-      changeColumnWidth(event.colEvent(), principal, linkUri, dispatcher, false);
-      changeRowHeight(event.rowEvent(), principal, dispatcher, false);
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(
+         this.runtimeViewsheetRef.getRuntimeId(), principal);
+      int hint = changeColumnWidth(rvs, event.colEvent(), false);
+      changeRowHeight(rvs, event.rowEvent(), false);
+      refreshVSAssembly(rvs, event.colEvent().getName(), hint, linkUri, dispatcher);
    }
 
    /**
@@ -617,15 +640,17 @@ public class ComposerVSTableController {
                                  @LinkUri String linkUri,
                                  CommandDispatcher dispatcher) throws Exception
    {
-      changeColumnWidth(event, principal, linkUri, dispatcher, true);
-   }
-
-   private void changeColumnWidth(ResizeTableColumnEvent event, Principal principal, String linkUri,
-                                 CommandDispatcher dispatcher, boolean removePadding) throws Exception
-   {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(
          this.runtimeViewsheetRef.getRuntimeId(), principal);
+      int hint = changeColumnWidth(rvs, event, true);
+      refreshVSAssembly(rvs, event.getName(), hint, linkUri, dispatcher);
+   }
+
+   private int changeColumnWidth(RuntimeViewsheet rvs, ResizeTableColumnEvent event,
+                                 boolean removePadding) throws Exception
+   {
       final ViewsheetSandbox box = rvs.getViewsheetSandbox();
+      int hint = VSAssembly.NONE_CHANGED;
 
       try {
          box.lockRead();
@@ -634,14 +659,14 @@ public class ComposerVSTableController {
          TableDataVSAssembly table = (TableDataVSAssembly) vs.getAssembly(tableName);
 
          if(table == null) {
-            return;
+            return hint;
          }
 
          final String name = table.getAbsoluteName();
          final VSTableLens lens = box.getVSTableLens(name, false);
 
          if(lens == null) {
-            return;
+            return hint;
          }
 
          TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) table.getInfo();
@@ -736,15 +761,14 @@ public class ComposerVSTableController {
             }
 
             info.setExplicitTableWidthValue(true);
-            int hint = table.setVSAssemblyInfo(info);
-            placeholderService.refreshVSAssembly(rvs, table, dispatcher);
-            placeholderService.execute(rvs, tableName, linkUri, hint, dispatcher);
-            placeholderService.loadTableLens(rvs, tableName, linkUri, dispatcher);
+            hint = table.setVSAssemblyInfo(info);
          }
       }
       finally {
          box.unlockRead();
       }
+
+      return hint;
    }
 
    /**
@@ -760,18 +784,20 @@ public class ComposerVSTableController {
    @LoadingMask
    @MessageMapping("/composer/viewsheet/table/changeRowHeight")
    public void changeRowHeight(@Payload ResizeTableRowEvent event, Principal principal,
+                               @LinkUri String linkUri,
                                CommandDispatcher dispatcher)
-      throws Exception
-   {
-      changeRowHeight(event, principal, dispatcher, true);
-   }
-
-   private void changeRowHeight(ResizeTableRowEvent event, Principal principal,
-                               CommandDispatcher dispatcher, boolean removePadding)
       throws Exception
    {
       final RuntimeViewsheet rvs = viewsheetService.getViewsheet(
          this.runtimeViewsheetRef.getRuntimeId(), principal);
+      changeRowHeight(rvs, event, true);
+      refreshVSAssembly(rvs, event.getAssemblyName(), VSAssembly.NONE_CHANGED, linkUri, dispatcher);
+   }
+
+   private void changeRowHeight(RuntimeViewsheet rvs, ResizeTableRowEvent event,
+                               boolean removePadding)
+      throws Exception
+   {
       final Viewsheet vs = rvs.getViewsheet();
       final String tableName = event.getAssemblyName();
       final TableDataVSAssembly table = (TableDataVSAssembly) vs.getAssembly(tableName);
@@ -812,14 +838,10 @@ public class ComposerVSTableController {
       }
 
       info.setExplicitTableWidthValue(true);
-      placeholderService.refreshVSAssembly(rvs, table, dispatcher);
 
       if(lens != null) {
          lens.setRowHeights(null); // recalculate row heights
       }
-
-      BaseTableController.loadTableData(rvs, table.getAbsoluteName(), box.getMode(),
-                                        event.start(), event.rowCount(), "", dispatcher);
    }
 
    /**
@@ -1335,6 +1357,17 @@ public class ComposerVSTableController {
       }
 
       return lens;
+   }
+
+   private void refreshVSAssembly(RuntimeViewsheet rvs, String tableName,
+                                  int hint, String linkUri, CommandDispatcher dispatcher)
+      throws Exception
+   {
+      Viewsheet vs = rvs.getViewsheet();
+      TableDataVSAssembly table = (TableDataVSAssembly) vs.getAssembly(tableName);
+      placeholderService.refreshVSAssembly(rvs, table, dispatcher);
+      placeholderService.execute(rvs, tableName, linkUri, hint, dispatcher);
+      placeholderService.loadTableLens(rvs, tableName, linkUri, dispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;

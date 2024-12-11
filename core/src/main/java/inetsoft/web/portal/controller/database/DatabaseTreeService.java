@@ -416,7 +416,8 @@ public class DatabaseTreeService {
    private final AssetRepository assetRepository;
    private final DataSourceService datasourceService;
    private final static String[] ACCEPT_DATABASE_TABLE_TABLE = {
-      "TABLE", "BASE TABLE", "VIEW", "SYNONYM", "MATERIALIZED VIEW", "SYSTEM TABLE"
+      "TABLE", "BASE TABLE", "VIEW", "SYNONYM", "MATERIALIZED VIEW", "SYSTEM TABLE",
+      "PARTITIONED TABLE"
    };
    public static final String ALIAS_NODE_NAME = "ALIAS_TABLE";
    public static final long META_LOAD_TIME_OUT = 20000L;

@@ -45,17 +45,23 @@ import java.lang.management.RuntimeMXBean;
 import java.rmi.RemoteException;
 import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
-import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
+@SingletonManager.Singleton(ScheduleServer.Reference.class)
 public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    /**
     * Default constructor.
     */
    @SuppressWarnings("WeakerAccess")
-   public ScheduleServer() throws RemoteException {
+   private ScheduleServer() throws RemoteException {
       super();
+   }
+
+   public static ScheduleServer getInstance() {
+      return SingletonManager.getInstance(ScheduleServer.class);
    }
 
    /**
@@ -105,11 +111,10 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    /**
     * Run a task immediately.
     *
-    * @param taskName  the name of task
-    * @param principal
+    * @param taskName the name of task
     */
    @Override
-   public void runNow(String taskName, Principal principal) throws RemoteException {
+   public void runNow(String taskName) throws RemoteException {
       String taskNameForLog = LicenseManager.getInstance().isEnterprise() ?
          taskName : SUtil.getTaskNameWithoutOrg(taskName);
       MDC.put("SCHEDULE_TASK", taskNameForLog);
@@ -120,10 +125,6 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
       MDC.remove("SCHEDULE_TASK");
 
       try {
-         if(principal != null) {
-            ThreadContext.setContextPrincipal(principal);
-         }
-
          Scheduler.getScheduler().runTask(taskName);
       }
       catch(Exception exc) {
@@ -153,7 +154,7 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    @Override
    public void addTask(ScheduleTask task) throws RemoteException {
       LOG.debug(
-         "Received add task [" + task.getName() + "] request on " +
+         "Received add task [" + task.getTaskId() + "] request on " +
          Tool.getRmiIP() + " with config directory " +
          ConfigurationContext.getContext().getHome());
 
@@ -161,7 +162,7 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
          Scheduler.getScheduler().addTask(task);
       }
       catch(Exception exc) {
-         throw new RemoteException("Unable to add task " + task.getName(), exc);
+         throw new RemoteException("Unable to add task " + task.getTaskId(), exc);
       }
    }
 
@@ -351,7 +352,7 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
       }
 
       try {
-         ScheduleServer obj = new ScheduleServer();
+         ScheduleServer obj = ScheduleServer.getInstance();
          boolean success;
          RMICallThread rct = new RMICallThread();
          success = rct.rebind(name, obj, 30000);
@@ -386,6 +387,59 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
     */
    @Override
    public void test() throws RemoteException {
+   }
+
+   /**
+    *Check whether the local schedule server is running.
+    */
+   public boolean isLocalServerRunning() {
+      return Scheduler.getScheduler().isRunning();
+   }
+
+   public static final class Reference extends SingletonManager.Reference<ScheduleServer> {
+      @Override
+      public ScheduleServer get(Object... parameters) {
+         if(instance == null) {
+            lock.lock();
+
+            try {
+               if(instance == null) {
+                  try {
+                     instance = new ScheduleServer();
+                  }
+                  catch(RemoteException e) {
+                     LOG.error("Failed to initialize Schedule", e);
+                  }
+               }
+            }
+            finally {
+               lock.unlock();
+            }
+         }
+
+         return instance;
+      }
+
+      @Override
+      public void dispose() {
+         lock.lock();
+
+         try {
+            if(instance != null) {
+               instance.stop();
+               instance = null;
+            }
+         }
+         catch(RemoteException e) {
+            LOG.error("Failed to stop Schedule", e);
+         }
+         finally {
+            lock.unlock();
+         }
+      }
+
+      private ScheduleServer instance;
+      private final Lock lock = new ReentrantLock();
    }
 
    private ServerMetricsCalculator metricsCalculator =

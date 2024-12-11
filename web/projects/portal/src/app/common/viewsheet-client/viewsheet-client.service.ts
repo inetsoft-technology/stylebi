@@ -40,6 +40,7 @@ export class ViewsheetClientService implements OnDestroy {
    private connection: StompClientConnection;
    private connecting: boolean = false;
    private connected = new ReplaySubject<StompClientConnection>(1);
+   private connectionErrorSubject = new ReplaySubject<string>(1);
    private commandSubject: AsyncQueuedSubject<ViewsheetCommandMessage>;
    private eventSubject: QueuedSubject<ViewsheetEventMessage>;
    private renameTransformFinishedSubject = new Subject<RenameEventModel>();
@@ -84,16 +85,21 @@ export class ViewsheetClientService implements OnDestroy {
    public connect(customElement: boolean = false): void {
       if(!this.connecting && !this.connection) {
          this.connecting = true;
+         this.client.whenDisconnected().subscribe(() => {
+            this.connectionErrorSubject.next("Client disconnected!");
+         });
          this.client.connect("../vs-events", false, customElement).subscribe(
             (connection) => {
                this.commandSubject.forceAsync = connection.transport !== "websocket";
                this.connecting = false;
                this.connection = connection;
                this.subscribe();
+               this.connectionErrorSubject.next(null);
                this.connected.next(connection);
             },
             (error: any) => {
                this.connecting = false;
+               this.connectionErrorSubject.next("Client disconnected!");
                console.error("Failed to connect to server: ", error);
             });
       }
@@ -101,6 +107,10 @@ export class ViewsheetClientService implements OnDestroy {
 
    public whenConnected(): Observable<StompClientConnection> {
       return this.connected.asObservable();
+   }
+
+   public connectionError(): Observable<string> {
+      return this.connectionErrorSubject.asObservable();
    }
 
    /**

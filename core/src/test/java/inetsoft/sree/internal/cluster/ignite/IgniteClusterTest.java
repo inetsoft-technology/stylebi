@@ -116,7 +116,7 @@ public class IgniteClusterTest {
 
    @Test
    void submit() throws Exception {
-      Future<String> future = ignite1.submit(new TestCallableTask());
+      Future<String> future = ignite1.submit(new TestCallableTask(), true);
       String id = future.get(10, TimeUnit.SECONDS);
       assertEquals(ignite2.getIgniteInstance().cluster().localNode().consistentId().toString(), id);
    }

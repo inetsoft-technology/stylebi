@@ -51,10 +51,10 @@
       <button mat-icon-button title="_#(Materialize)" (click)="openMaterialize()" [disabled]="!enableMaterialize">
         <mat-icon fontSet="ineticons" fontIcon="materialized-viewsheet-icon"></mat-icon>
       </button>
-      <button mat-icon-button title="_#(Import Asset)" *ngIf="isSiteAdmin" (click)="importAsset.emit()">
+      <button mat-icon-button title="_#(Import Asset)" (click)="importAsset.emit()">
         <mat-icon fontSet="ineticons" fontIcon="upload-icon"></mat-icon>
       </button>
-      <button mat-icon-button title="_#(Export Asset)" *ngIf="isSiteAdmin" (click)="onExportAsset()" [disabled]="exportDisabled">
+      <button mat-icon-button title="_#(Export Asset)" (click)="onExportAsset()" [disabled]="exportDisabled">
         <mat-icon fontSet="ineticons" fontIcon="export-icon"></mat-icon>
       </button>
     </ng-container>

@@ -28,7 +28,6 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
@@ -50,8 +49,8 @@ import java.io.IOException;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Stream;
 
 /**
  * Controller that provides a REST endpoint used to get the contents of the
@@ -98,8 +97,83 @@ public class RepositoryTreeController {
       @RequestParam(value = "isFavoritesTree", defaultValue = "false") boolean isFavoritesTree,
       @RequestParam(value = "isGlobal", defaultValue = "false") boolean isGlobal,
       @RequestParam(value = "isPortalData", defaultValue = "false") boolean isPortalData,
+      @RequestParam(value = "isPortalRepo", defaultValue = "false") boolean isPortalRepo,
+      @RequestParam(value = "isDefaultOrgAsset", defaultValue = "false") boolean isDefaultOrgAsset,
       @RequestParam(value = "showVS", defaultValue = "false") boolean showVS,
       Principal principal) throws Exception
+   {
+         if(OrganizationManager.getGlobalDefOrgFolderName().equals(path) && isDefaultOrgAsset) {
+            return getGlobalRootNode(principal);
+         }
+
+         TreeNodeModel rootNode = getTargetNode(path, permission, selector, detailType, isArchive,
+                                                checkDetailType, isReport, isFavoritesTree, isGlobal,
+                                                isPortalData, isPortalRepo, isDefaultOrgAsset, showVS, principal);
+         String orgId = ((XPrincipal) principal).getProperty("curr_org_id") != null
+            ? ((XPrincipal) principal).getProperty("curr_org_id") : ((XPrincipal) principal).getOrgId();
+
+         if(("/".equals(path)) && isPortalRepo && SUtil.isDefaultVSGloballyVisible(principal) &&
+            !orgId.equals(Organization.getDefaultOrganizationID()))
+         {
+            TreeNodeModel globalRootNode = getGlobalRootNode(principal);
+
+            if(OrganizationManager.getGlobalDefOrgFolderName().equals(path)) {
+               return globalRootNode;
+            }
+
+            List<TreeNodeModel> childrenNodes = new ArrayList<>();
+            childrenNodes.add(rootNode);
+            childrenNodes.add(globalRootNode);
+
+            return TreeNodeModel.builder()
+               .label("")
+               .data("")
+               .type("None")
+               .addChildren(childrenNodes.toArray(TreeNodeModel[]::new))
+               .build();
+         }
+         else {
+            return rootNode;
+         }
+   }
+
+   public TreeNodeModel getTargetNode(String path, String permission, int selector,
+                                      String detailType, boolean isArchive, String checkDetailType,
+                                      boolean isReport, boolean isFavoritesTree, boolean isGlobal,
+                                      boolean isPortalData, boolean isPortalRepo, boolean isDefaultOrgAsset, boolean showVS,
+                                      Principal principal)
+      throws Exception
+   {
+      RepositoryEntry parentEntry =
+         new RepositoryEntry(path, RepositoryEntry.FOLDER);
+      parentEntry.setDefaultOrgAsset(isDefaultOrgAsset);
+      RepositoryEntryModel parentEntryModel = repositoryEntryModelFactoryService
+         .createModel(parentEntry);
+      parentEntryModel.setOp(repositoryTreeService.getSupportedOperations(parentEntry, principal));
+      String label = isFavoritesTree && parentEntry.isRoot()
+         ? Catalog.getCatalog().getString("Favorites")
+         : repositoryTreeService.getEntryLabel(parentEntry, principal);
+      TreeNodeModel[] childrenNodes = getChildrenNodes(path, permission, selector, detailType,
+                                                       isArchive, checkDetailType, isReport,
+                                                       isFavoritesTree, isGlobal, isPortalData, isDefaultOrgAsset,
+                                                       showVS, principal);
+
+      TreeNodeModel rootNode = TreeNodeModel.builder()
+         .label(label)
+         .data(parentEntryModel)
+         .addChildren(childrenNodes)
+         .build();
+
+      return rootNode;
+   }
+
+   public TreeNodeModel[] getChildrenNodes(String path, String permission, int selector,
+                                           String detailType, boolean isArchive,
+                                           String checkDetailType, boolean isReport,
+                                           boolean isFavoritesTree, boolean isGlobal,
+                                           boolean isPortalData, boolean isDefaultOrgAsset,
+                                           boolean showVS, Principal principal)
+      throws Exception
    {
       RepositoryEntry parentEntry =
          new RepositoryEntry(path, RepositoryEntry.FOLDER);
@@ -107,17 +181,15 @@ public class RepositoryTreeController {
       RepositoryEntry[] entries = null;
       AnalyticEngine engine = (AnalyticEngine) analyticRepository;
       ResourceAction action = ResourceAction.valueOf(permission);
-      RepletRegistry registry = RepletRegistry.getRegistry();
-
 
       // hyperlink asset tree need to check the detail type.
       if("true".equals(checkDetailType)) {
          entries = VSEventUtil.getRepositoryEntries(engine, principal, action,
-            selector, detailType, pentries);
+                                                    selector, detailType, pentries, isDefaultOrgAsset);
       }
       else {
          entries = engine.getRepositoryEntries(
-            parentEntry.getPath(), principal, action, selector);
+            parentEntry.getPath(), principal, action, selector, isDefaultOrgAsset);
       }
 
       List<TreeNodeModel> folderNodes = new ArrayList<>();
@@ -125,7 +197,7 @@ public class RepositoryTreeController {
 
       for(RepositoryEntry entry : entries) {
          if(!isVisible(entry, isReport, isPortalData, isFavoritesTree, isGlobal,
-            showVS, principal))
+                       showVS, principal))
          {
             continue;
          }
@@ -134,15 +206,25 @@ public class RepositoryTreeController {
          RepositoryEntryModel entryModel = repositoryEntryModelFactoryService
             .createModel(entry);
          entryModel.setOp(repositoryTreeService.getSupportedOperations(entry, principal));
+         entryModel.setDefaultOrgAsset(entry.isDefaultOrgAsset());
 
          TreeNodeModel.Builder builder = TreeNodeModel.builder();
+
+         if(Tool.MY_DASHBOARD.equals(entry.getPath()) && isSelfOrg(principal)) {
+            TreeNodeModel[] childrenNodes = getChildrenNodes(entry.getPath(), permission, selector,
+                                                             detailType, isArchive, checkDetailType,
+                                                             isReport, isFavoritesTree, isGlobal,
+                                                             isPortalData, isDefaultOrgAsset, showVS, principal);
+            builder.addChildren(childrenNodes);
+         }
+
          builder.label(repositoryTreeService.getEntryLabel(entry, principal))
             .data(entryModel)
+            .defaultOrgAsset(entry.isDefaultOrgAsset())
             .leaf(repositoryTreeService.isLeafEntry(entry))
-            .tooltip(repositoryTreeService.getEntryTooltip(entry));
-
+            .tooltip(repositoryTreeService.getEntryTooltip(entry))
+            .expanded(Tool.MY_DASHBOARD.equals(entry.getPath()) && isSelfOrg(principal));
          builder.dragName("RepositoryEntry");
-
          TreeNodeModel node = builder.build();
 
          if(entry.isFolder()) {
@@ -153,21 +235,59 @@ public class RepositoryTreeController {
          }
       }
 
-      RepositoryEntryModel parentEntryModel = repositoryEntryModelFactoryService
-         .createModel(parentEntry);
+      return Stream.concat(folderNodes.stream(), fileNodes.stream()).toArray(TreeNodeModel[]::new);
+   }
+
+   public TreeNodeModel getGlobalRootNode(Principal principal) throws Exception {
+      String globalDefOrgFolderName = OrganizationManager.getGlobalDefOrgFolderName();
+      RepositoryEntry parentEntry = new RepositoryEntry(globalDefOrgFolderName, RepositoryEntry.FOLDER);
+      parentEntry.setDefaultOrgAsset(true);
+      RepositoryEntryModel<RepositoryEntry> parentEntryModel =
+         repositoryEntryModelFactoryService.createModel(parentEntry);
       parentEntryModel.setOp(repositoryTreeService.getSupportedOperations(parentEntry, principal));
-      String label = isFavoritesTree && parentEntry.isRoot()
-         ? Catalog.getCatalog().getString("Favorites")
-         : repositoryTreeService.getEntryLabel(parentEntry, principal);
 
-      TreeNodeModel rootNode = TreeNodeModel.builder()
-         .label(label)
+      return TreeNodeModel.builder()
+         .label(globalDefOrgFolderName)
          .data(parentEntryModel)
-         .addChildren(folderNodes.toArray(new TreeNodeModel[folderNodes.size()]))
-         .addChildren(fileNodes.toArray(new TreeNodeModel[fileNodes.size()]))
+         .defaultOrgAsset(true)
+         .addChildren(getGlobalChildrenNodes(principal))
          .build();
+   }
 
-      return rootNode;
+   public TreeNodeModel[] getGlobalChildrenNodes(Principal principal) throws Exception {
+      AnalyticEngine engine = (AnalyticEngine) analyticRepository;
+      RepositoryEntry[] entries = engine.getDefaultOrgRepositoryEntries(principal);
+      List<TreeNodeModel> folderNodes = new ArrayList<>();
+      List<TreeNodeModel> fileNodes = new ArrayList<>();
+
+      for(RepositoryEntry entry : entries) {
+         RepositoryEntryModel<RepositoryEntry> entryModel =
+            repositoryEntryModelFactoryService.createModel(entry);
+         entryModel.setOp(repositoryTreeService.getSupportedOperations(entry, principal));
+         entryModel.setDefaultOrgAsset(entry.isDefaultOrgAsset());
+
+         TreeNodeModel node = TreeNodeModel.builder()
+            .label(repositoryTreeService.getEntryLabel(entry, principal))
+            .data(entryModel)
+            .defaultOrgAsset(entry.isDefaultOrgAsset())
+            .leaf(repositoryTreeService.isLeafEntry(entry))
+            .tooltip(repositoryTreeService.getEntryTooltip(entry))
+            .expanded(Tool.MY_DASHBOARD.equals(entry.getPath()) && isSelfOrg(principal))
+            .build();
+
+         if(entry.isFolder()) {
+            folderNodes.add(node);
+         }
+         else {
+            fileNodes.add(node);
+         }
+      }
+
+      return Stream.concat(folderNodes.stream(), fileNodes.stream()).toArray(TreeNodeModel[]::new);
+   }
+
+   private boolean isSelfOrg(Principal principal) {
+      return principal instanceof SRPrincipal && ((SRPrincipal) principal).isSelfOrganization();
    }
 
    /**
@@ -606,6 +726,14 @@ public class RepositoryTreeController {
          return messageCommand;
       }
 
+      if(entry.isDefaultOrgAsset() && !OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         MessageCommand messageCommand = new MessageCommand();
+         messageCommand.setMessage(catalog.getString(
+            "common.writeAuthority", assetEntry != null ? assetEntry.getName() : entryPath));
+         messageCommand.setType(MessageCommand.Type.ERROR);
+         return messageCommand;
+      }
+
       try {
          int idx = entryPath.lastIndexOf("/");
          String ename = idx >= 0 ? entryPath.substring(idx + 1) : entryPath;
@@ -705,7 +833,7 @@ public class RepositoryTreeController {
 
             ScheduleManager manager = ScheduleManager.getScheduleManager();
             manager.viewSheetRenamed(assetEntry.toIdentifier(),
-               nentry.toIdentifier(), nentry.getName());
+               nentry.toIdentifier(), nentry.getName(), OrganizationManager.getInstance().getCurrentOrgID(principal));
             assetRepository.changeSheet(assetEntry, nentry, principal, event.confirmed());
             newPath = nentry.getDescription();
          }

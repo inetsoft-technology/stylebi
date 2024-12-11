@@ -19,6 +19,7 @@ package inetsoft.util.config;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.util.config.crd.CRDProperty;
 import inetsoft.util.config.json.PasswordDeserializer;
 import inetsoft.util.config.json.PasswordSerializer;
 
@@ -125,12 +126,20 @@ public class DynamoDBConfig implements Serializable {
       this.provisionedWriteThroughput = provisionedWriteThroughput;
    }
 
+   @CRDProperty(description = "The name of the default region")
    private String region;
+   @CRDProperty(description = "The access key ID for the IAM account", secret = true)
    private String accessKeyId;
+   @CRDProperty(description = "The secret access key for the IAM account", secret = true)
    private String secretAccessKey;
+   @CRDProperty(description = "The endpoint URL for the DynamoDB service")
    private String endpoint;
+   @CRDProperty(description = "The name of the DynamoDB table")
    private String table;
+   @CRDProperty(description = "A flag that is true if on-demand capacity or false if provisioned capacity is used fo rthe table created by the provider. If the table already exists, this value is ignored.")
    private boolean onDemandCapacity = true;
+   @CRDProperty(description = "The provisioned read throughput configured for the table if it is created by the provider. If onDemandCapacity is true, this value is ignored. ")
    private long provisionedReadThroughput = 0L;
+   @CRDProperty(description = "The provisioned write throughput configured for the table if it is created by the provider. If onDemandCapacity is true, this value is ignored. ")
    private long provisionedWriteThroughput = 0L;
 }

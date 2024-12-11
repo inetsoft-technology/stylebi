@@ -299,23 +299,23 @@ export class InputParameterDialog implements OnInit {
    }
 
    isInvalid(): boolean {
-      let invalid: boolean;
-
-      if(this.model.type == XSchema.DATE) {
-         invalid = this.form && this.form.controls["dateValue"].invalid;
-      }
-      else if(this.model.type == XSchema.TIME) {
-         invalid = this.form && this.form.controls["timeValue"].invalid;
-      }
-      else if(this.model.type == XSchema.TIME_INSTANT) {
-         invalid = this.form && (this.form.controls["dateValue"].invalid ||
-            this.form.controls["timeValue"].invalid);
-      }
-      else {
-         invalid = this.form && this.form.controls["alphaNumericValue"].invalid;
+      if(!this.form) {
+         return true;
       }
 
-      return invalid || !this.model.value;
+      const isValueUndefined = this.model.value?.startsWith("undefined");
+
+      switch(this.model.type) {
+      case XSchema.DATE:
+         return this.form.controls["dateValue"].invalid || isValueUndefined;
+      case XSchema.TIME:
+         return this.form.controls["timeValue"].invalid;
+      case XSchema.TIME_INSTANT:
+         return this.form.controls["dateValue"].invalid || isValueUndefined ||
+            this.form.controls["timeValue"].invalid;
+      default:
+         return this.form.controls["alphaNumericValue"].invalid || !this.model.value;
+      }
    }
 
    isFormInvalid(): boolean {

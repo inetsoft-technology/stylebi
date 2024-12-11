@@ -93,7 +93,6 @@ public class LogSettingService {
       boolean tlsEnabled = "true".equals(SreeEnv.getProperty("log.fluentd.tlsEnabled"));
       String caCertificateFile = SreeEnv.getProperty("log.fluentd.tls.caCertificateFile");
       String logViewUrl = SreeEnv.getProperty("log.fluentd.logViewUrl");
-      String auditViewUrl = SreeEnv.getProperty("log.fluentd.auditViewUrl");
       boolean canOrgAdminAccess = Boolean.parseBoolean(SreeEnv.getProperty("log.fluentd.orgAdminAccess"));
 
       if(sharedKey != null) {
@@ -116,7 +115,6 @@ public class LogSettingService {
          .tlsEnabled(tlsEnabled)
          .caCertificateFile(caCertificateFile)
          .logViewUrl(logViewUrl)
-         .auditViewUrl(auditViewUrl)
          .orgAdminAccess(canOrgAdminAccess)
          .build();
    }
@@ -216,7 +214,6 @@ public class LogSettingService {
          SreeEnv.setProperty("log.fluentd.tlsEnabled", null);
          SreeEnv.setProperty("log.fluentd.tls.caCertificateFile", null);
          SreeEnv.setProperty("log.fluentd.logViewUrl", null);
-         SreeEnv.setProperty("log.fluentd.auditViewUrl", null);
          SreeEnv.setProperty("log.fluentd.orgAdminAccess", null);
       }
       else {
@@ -236,7 +233,6 @@ public class LogSettingService {
          SreeEnv.setProperty(
             "log.fluentd.tls.caCertificateFile", sanitizeProperty(model.caCertificateFile()));
          SreeEnv.setProperty("log.fluentd.logViewUrl", sanitizeProperty(model.logViewUrl()));
-         SreeEnv.setProperty("log.fluentd.auditViewUrl", sanitizeProperty(model.auditViewUrl()));
          SreeEnv.setProperty("log.fluentd.orgAdminAccess", Boolean.toString(model.orgAdminAccess()));
       }
    }

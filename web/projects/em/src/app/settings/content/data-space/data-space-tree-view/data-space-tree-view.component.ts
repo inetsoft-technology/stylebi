@@ -29,9 +29,9 @@ import { FlatTreeSelectNodeEvent } from "../../../../common/util/tree/flat-tree-
 export class DataSpaceTreeViewComponent implements OnInit {
    @Input() dataSource: DataSpaceTreeDataSource;
    @Input() smallDevice = false;
-   @Output() nodeSelected = new EventEmitter<FlatTreeSelectNodeEvent>();
    @Input() selectedNodes: FlatTreeNode<DataSpaceTreeNode>[];
    @Input() currentNode: FlatTreeNode<DataSpaceTreeNode>;
+   @Output() nodeSelected = new EventEmitter<FlatTreeSelectNodeEvent>();
    @Output() editNode = new EventEmitter<void>();
    @Output() deleteSelectedNodes = new EventEmitter<void>();
    get deleteDisabled(): boolean {

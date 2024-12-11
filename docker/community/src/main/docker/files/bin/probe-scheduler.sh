@@ -17,4 +17,4 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 
-exec java -cp '/usr/local/inetsoft/lib/*' inetsoft.web.health.SchedulerHealth $(hostname -i) $@
+exec java -cp '/usr/local/inetsoft/classes:/usr/local/inetsoft/lib/*' inetsoft.web.health.SchedulerHealth $(hostname -i) $@

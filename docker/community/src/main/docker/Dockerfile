@@ -18,13 +18,14 @@
 
 FROM ${docker.base.image}
 
-ENV JAVA_MEMORY_OPTS='-XX:MaxRAMPercentage=75.0'
-ENV JAVA_GC_OPTS='-XX:+UseZGC -XX:+ZGenerational'
+ENV JAVA_MEMORY_OPTS='-XX:MaxRAMPercentage=50.0'
+ENV JAVA_GC_OPTS='-XX:+AlwaysPreTouch -XX:+UseG1GC -XX:+ScavengeBeforeFullGC -XX:+DisableExplicitGC'
 ENV JAVA_LOCALE_OPTS='-Duser.language=en -Duser.country=US -Djava.locale.providers=COMPAT,SPI'
 ENV JAVA_CODECACHE_OPTS='-XX:ReservedCodeCacheSize=100m -XX:+UseCodeCacheFlushing'
 ENV JAVA_NETWORK_OPTS='-Djava.net.preferIPv4Stack=true'
-ENV JAVA_OPTS='$JAVA_MEMORY_OPTS $JAVA_GC_OPTS $JAVA_CODECACHE_OPTS $JAVA_LOCALE_OPTS $JAVA_NETWORK_OPTS'
+ENV JAVA_OPTS='-server $JAVA_MEMORY_OPTS $JAVA_GC_OPTS $JAVA_CODECACHE_OPTS $JAVA_LOCALE_OPTS $JAVA_NETWORK_OPTS -Djava.io.tmpdir=/var/lib/inetsoft/temp -Dinetsoft.log.dir=/var/lib/inetsoft/logs'
 ENV JAVA_CLASSPATH=''
+ENV INETSOFT_SERVER_MAIN='inetsoft.web.InetsoftApplication'
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends fonts-dejavu fonts-liberation2 \
@@ -33,7 +34,10 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/* \
   && groupadd -g 1000 inetsoft \
   && useradd -u 1000 -g 1000 -d /usr/local/inetsoft -s /bin/bash -m inetsoft \
+  && mkdir -p /usr/local/inetsoft/classes \
+  && chown -R inetsoft:inetsoft /usr/local/inetsoft/classes \
   && mkdir -p /var/lib/inetsoft/config \
+  && mkdir -p /var/lib/inetsoft/temp \
   && chown -R inetsoft:inetsoft /var/lib/inetsoft \
   && fc-cache
 

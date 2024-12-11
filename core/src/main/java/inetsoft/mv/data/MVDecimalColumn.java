@@ -370,7 +370,7 @@ public abstract class MVDecimalColumn extends AbstractMeasureColumn {
             return 0;
          }
 
-         return getAgePriority(XSwapper.cur - iaccessed, alive * 2);
+         return getAgePriority(XSwapper.cur - iaccessed, alive * 2L);
       }
 
       @Override

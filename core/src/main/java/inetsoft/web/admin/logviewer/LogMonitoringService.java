@@ -22,6 +22,9 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.OrganizationManager;
+import inetsoft.util.Tool;
+import inetsoft.util.config.AuditConfig;
+import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.log.LogManager;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -34,8 +37,7 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.IOException;
 import java.security.Principal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.zip.ZipOutputStream;
 
 @Service
@@ -145,8 +147,24 @@ public class LogMonitoringService implements MessageListener {
    private List<LogFileModel> getLocalLogs() {
       return new ArrayList<>(logManager.getLogFiles().stream()
                                 .map(File::getName)
-                                .map(f -> new LogFileModel(cluster.getLocalMember(), f, logManager.isRotateSupported(f)))
+                                .map(f -> new LogFileModel(getClusterNode(f), f, logManager.isRotateSupported(f)))
                                 .toList());
+   }
+
+   private String getClusterNode(String logFile) {
+      if(SUtil.isCluster()) {
+         return cluster.getLocalMember();
+      }
+
+      for(String node : cluster.getClusterNodes()) {
+         if(Tool.equals(LogManager.extractIPFromLogName(logFile),
+                        LogManager.extractIpFromNodeName(node)))
+         {
+            return node;
+         }
+      }
+
+      return cluster.getLocalMember();
    }
 
    /**
@@ -209,46 +227,28 @@ public class LogMonitoringService implements MessageListener {
    public LogViewLinks getLinks(Principal principal) {
       boolean fluentdLogging = "fluentd".equals(SreeEnv.getProperty("log.provider"));
       String logViewUrl = null;
-      String auditViewUrl = null;
 
       if(fluentdLogging) {
          logViewUrl = SreeEnv.getProperty("log.fluentd.logViewUrl");
 
          if(logViewUrl != null && logViewUrl.contains("{organizationId}")) {
-            logViewUrl = addOrganizationId(principal, logViewUrl);
-         }
-
-         auditViewUrl = SreeEnv.getProperty("log.fluentd.auditViewUrl");
-
-         if(auditViewUrl != null && auditViewUrl.contains("{organizationId}")) {
-            auditViewUrl = addOrganizationId(principal, auditViewUrl);
+            logViewUrl = addOrganizationId(logViewUrl);
          }
 
          if(logViewUrl != null && logViewUrl.trim().isEmpty()) {
             logViewUrl = null;
-         }
-
-         if(auditViewUrl != null && auditViewUrl.trim().isEmpty()) {
-            auditViewUrl = null;
          }
       }
 
       return LogViewLinks.builder()
          .fluentdLogging(fluentdLogging)
          .logViewUrl(logViewUrl)
-         .auditViewUrl(auditViewUrl)
          .build();
    }
 
-   private String addOrganizationId(Principal principal, String url) {
+   private String addOrganizationId(String url) {
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-
-      if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
-         return url.replace("{organizationId}",orgId);
-      }
-      else {
-         return url.replace("{organizationId}","");
-      }
+      return url.replace("{organizationId}",orgId);
    }
 
    @Override

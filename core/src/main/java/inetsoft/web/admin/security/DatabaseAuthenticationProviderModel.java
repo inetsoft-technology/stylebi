@@ -36,12 +36,19 @@ public interface DatabaseAuthenticationProviderModel {
    @Value.Default
    default boolean requiresLogin() { return true; }
 
+   @Value.Default
+   default boolean useCredential() { return false; }
+
+   @Nullable
+   String secretId();
+
+   @Nullable
    String user();
 
+   @Nullable
    String password();
 
    String hashAlgorithm();
-
 
    @Nullable
    String userQuery();
@@ -65,7 +72,7 @@ public interface DatabaseAuthenticationProviderModel {
    String organizationListQuery();
 
    @Nullable
-   String organizationIdQuery();
+   String organizationNameQuery();
 
    @Nullable
    String organizationMembersQuery();

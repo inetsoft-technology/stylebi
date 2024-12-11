@@ -30,7 +30,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
-import inetsoft.uql.util.XSessionService;
+import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
@@ -115,7 +115,8 @@ public class ScheduleService {
     * @return the taskname with the principal name prepended if security enabled
     */
    public String getTaskName(String taskName, Principal principal) {
-      return isSecurityEnabled() && !taskName.startsWith(principal.getName() + ":") ?
+      return isSecurityEnabled() && !taskName.startsWith(principal.getName() + ":") &&
+         !taskName.contains(IdentityID.KEY_DELIMITER) ?
          principal.getName() + ":" + taskName : taskName;
    }
 
@@ -148,7 +149,7 @@ public class ScheduleService {
          RenameTransformHandler.getTransformHandler().addTransformTask(
             getDependencyInfo(oldName, taskName, path, path));
 
-         if(renameTask(oldName, taskName, principal)) {
+         if(renameTask(oldName, taskName, owner, principal)) {
             return taskName;
          }
       }
@@ -244,7 +245,7 @@ public class ScheduleService {
                task.setCondition(index, ocondition);
             }
 
-            throw new Exception(catalog.getString("common.dependencyCycle"));
+            throw new MessageException(catalog.getString("common.dependencyCycle"));
          }
       }
       else if(condition instanceof TimeCondition) {
@@ -274,6 +275,11 @@ public class ScheduleService {
     */
    private boolean isLoop(String task1, String src) {
       ScheduleTask task = scheduleManager.getScheduleTask(task1);
+
+      if(task == null) {
+         return false;
+      }
+
       Enumeration<?> enumeration = task.getDependency();
 
       while(enumeration.hasMoreElements()) {
@@ -294,7 +300,7 @@ public class ScheduleService {
    /**
     * Rename the task.
     */
-   private boolean renameTask(String oldName, String newName, Principal principal)
+   private boolean renameTask(String oldId, String newId, IdentityID owner, Principal principal)
       throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
@@ -302,7 +308,7 @@ public class ScheduleService {
       Vector<ScheduleTask> allTasks =
          getScheduleTasks(null, null, false, principal);
 
-      if(oldName == null || "".equals(oldName) || newName == null || "".equals(newName)) {
+      if(oldId == null || "".equals(oldId) || newId == null || "".equals(newId)) {
          throw new Exception(catalog.getString("em.scheduler.emptyTaskName"));
       }
 
@@ -310,45 +316,52 @@ public class ScheduleService {
       boolean contained = false;
 
       for(ScheduleExt extension : extensions) {
-         if(extension.containsTask(newName, orgId)) {
+         if(extension.containsTask(newId, orgId)) {
             contained = true;
             break;
          }
       }
 
-      if(scheduleManager.getScheduleTask(newName) != null || contained) {
+      if(scheduleManager.getScheduleTask(newId) != null || contained) {
          throw new MessageException(catalog.getString("em.schedule.task.duplicateName"));
       }
 
-      if(!newName.equals(oldName)) {
-         if(scheduleManager.hasDependency(allTasks, newName)) {
+      if(!newId.equals(oldId)) {
+         if(scheduleManager.hasDependency(allTasks, newId)) {
             throw new MessageException(catalog.getString(
-               "em.schedule.task.renameDependency", oldName));
+               "em.schedule.task.renameDependency", oldId));
          }
       }
 
-      ScheduleTask currTask = scheduleManager.getScheduleTask(oldName);
+      ScheduleTask currTask = scheduleManager.getScheduleTask(oldId);
 
       if(currTask == null) {
          throw new Exception(catalog.getString(
-            "em.scheduler.taskNotFound", oldName));
+            "em.scheduler.taskNotFound", oldId));
       }
 
-      if(scheduleManager.hasDependency(allTasks, oldName)) {
-         oldName = SUtil.getTaskNameWithoutOrg(oldName);
+      if(scheduleManager.hasDependency(allTasks, oldId)) {
+         oldId = SUtil.getTaskNameWithoutOrg(oldId);
 
          throw new Exception(catalog.getString(
-            "em.schedule.task.renameDependency", oldName));
+            "em.schedule.task.renameDependency", oldId));
       }
 
-      scheduleManager.removeScheduleTask(oldName, principal);
+      scheduleManager.removeScheduleTask(oldId, principal);
+      String newName = newId;
+
+      if(currTask.getOwner() != null && owner != null)
+      {
+         newName = newId.substring(owner.convertToKey().length() + 1);
+      }
+
       currTask.setName(newName);
 
       // log rename task action
       String actionName = ActionRecord.ACTION_NAME_RENAME;
       String objectType = ActionRecord.OBJECT_TYPE_TASK;
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
-      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, oldName,
+      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, oldId,
                                       objectType, actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE,
                                       null);
 
@@ -364,14 +377,14 @@ public class ScheduleService {
             oldPath = null;
          }
 
-         scheduleManager.setScheduleTask(newName, currTask, folderEntry, principal);
-         taskFolderService.removeTaskFromFolder(oldName, oldPath);
+         scheduleManager.setScheduleTask(newId, currTask, folderEntry, principal);
+         taskFolderService.removeTaskFromFolder(oldId, oldPath);
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
-         actionRecord.setActionError("new name: " + SUtil.getTaskName(newName));
+         actionRecord.setActionError("new name: " + SUtil.getTaskName(newId));
       }
       catch(Exception ex) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
-         actionRecord.setActionError(ex.getMessage() + ", new name: " + newName);
+         actionRecord.setActionError(ex.getMessage() + ", new name: " + newId);
          throw ex;
       }
       finally {
@@ -400,13 +413,13 @@ public class ScheduleService {
    protected ScheduleTask handleInternalTaskConfiguration(ScheduleTask task, Principal principal)
       throws SecurityException
    {
-      if(ScheduleManager.isInternalTask(task.getName()) &&
-         !InternalScheduledTaskService.BALANCE_TASKS.equals(task.getName()) &&
-         !InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES.equals(task.getName()))
+      if(ScheduleManager.isInternalTask(task.getTaskId()) &&
+         !InternalScheduledTaskService.BALANCE_TASKS.equals(task.getTaskId()) &&
+         !InternalScheduledTaskService.UPDATE_ASSETS_DEPENDENCIES.equals(task.getTaskId()))
       {
          task = task.clone(); // Clone to preserve the original state of the internal task.
          task.setEditable(SecurityEngine.getSecurity().checkPermission(
-            principal, ResourceType.SCHEDULE_TASK, task.getName(), ResourceAction.WRITE));
+            principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), ResourceAction.WRITE));
       }
 
       return task;
@@ -450,8 +463,9 @@ public class ScheduleService {
                                                  boolean loadInternal, AssetEntry parent, Principal principal)
       throws Exception
    {
-      Vector<ScheduleTask> matchTasks = taskEntries == null ? scheduleManager.getScheduleTasks() :
-         scheduleManager.getScheduleTasks(taskEntries, loadExtension, loadInternal);
+      String curOrgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
+      Vector<ScheduleTask> matchTasks = taskEntries == null ? scheduleManager.getScheduleTasks(curOrgID) :
+         scheduleManager.getScheduleTasks(taskEntries, loadExtension, loadInternal, curOrgID);
       List<ScheduleTask> matchTasks0 = new ArrayList<>();
 
       if(parent == null) {
@@ -461,21 +475,21 @@ public class ScheduleService {
 
          List<String> pathList = matchTasks.stream()
             .map(task -> "/".equals(task.getPath()) ?
-               task.getName() : task.getPath() + "/" + task.getName())
+               task.getTaskId() : task.getPath() + "/" + task.getTaskId())
             .collect(Collectors.toList());
          List<String> showTaskList = new ArrayList<>();
          applyPermissionForTask(pathList, showTaskList, "/", principal);
 
          matchTasks0 = matchTasks.stream().filter(task -> {
             String taskPath = "/".equals(task.getPath()) ?
-               task.getName() : task.getPath() + "/" + task.getName();
+               task.getTaskId() : task.getPath() + "/" + task.getTaskId();
 
             return showTaskList.indexOf(taskPath) != -1;
          }).collect(Collectors.toList());
       }
 
       Vector<ScheduleTask> tasks = selectString == null || selectString.isEmpty() ?
-         scheduleManager.getScheduleTasks(principal, parent != null ? matchTasks : matchTasks0) :
+         scheduleManager.getScheduleTasks(principal, parent != null ? matchTasks : matchTasks0, curOrgID) :
          getSelectScheduleTasks(parent, selectString, filter, principal);
 
       for(int i = 0; i < tasks.size(); i++) {
@@ -575,7 +589,7 @@ public class ScheduleService {
 
       for(ScheduleTask task : tasks) {
          builder.addTasks(createTaskModel(
-            task, taskActivities.get(task.getName()), principal, catalog));
+            task, taskActivities.get(task.getTaskId()), principal, catalog));
       }
 
       return builder.build();
@@ -591,7 +605,7 @@ public class ScheduleService {
 
    public boolean canDeleteTask(ScheduleTask task, Principal principal) {
       boolean canNotDelete = principal != null &&
-         !Tool.equals(principal.getName(), task.getOwner().toString()) &&
+         !Tool.equals(principal.getName(), task.getOwner().convertToKey()) &&
          scheduleManager.isDeleteOnlyByOwner(task, principal);
       boolean adminPermission = true;
 
@@ -642,14 +656,15 @@ public class ScheduleService {
    public UsersModel getUsersModel(Principal principal, boolean em) {
       Map<IdentityID, User> allUsers = new HashMap<>();
       IdentityID[] allowedUsers;
+      String currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(Organization.getSelfOrganizationID().equals(((XPrincipal) principal).getOrgId())) {
          allowedUsers = new IdentityID[] { IdentityID.getIdentityIDFromKey(principal.getName()) };
       }
       else {
-         for(IdentityID userName : securityProvider.getUsers()) {
-            allUsers.put(userName, securityProvider.getUser(userName));
-         }
+         Arrays.stream(securityProvider.getUsers())
+            .filter(u -> Tool.equals(currOrgId, u.getOrgID()))
+            .forEach(u -> allUsers.put(u, securityProvider.getUser(u)));
 
          allowedUsers = allUsers.values().stream()
             .map(User::getIdentityID)
@@ -661,9 +676,9 @@ public class ScheduleService {
 
       Map<IdentityID, Group> allGroups = new HashMap<>();
 
-      for(IdentityID groupName : securityProvider.getGroups()) {
-         allGroups.put(groupName, securityProvider.getGroup(groupName));
-      }
+      Arrays.stream(securityProvider.getGroups())
+         .filter(g -> Tool.equals(currOrgId, g.getOrgID()))
+         .forEach(g -> allGroups.put(g, securityProvider.getGroup(g)));
 
       IdentityID[] allowedGroups = allGroups.values().stream()
          .map(Group::getIdentityID)
@@ -679,7 +694,7 @@ public class ScheduleService {
          .map(allUsers::get)
          .filter(Objects::nonNull)
          .flatMap(u -> Arrays.stream(u.getGroups())
-            .map(g -> new IdentityID(g, u.getOrganization())))
+            .map(g -> new IdentityID(g, u.getOrganizationID())))
          .map(allGroups::get)
          .filter(Objects::nonNull)
          .collect(Collectors.toSet());
@@ -690,10 +705,10 @@ public class ScheduleService {
       while(!groupStack.isEmpty()) {
          Group group = groupStack.removeLast();
 
-         if(parentGroups.add(new IdentityID(group.getName(), group.getOrganization()))) {
+         if(parentGroups.add(new IdentityID(group.getName(), group.getOrganizationID()))) {
             for(String parentGroupName : group.getGroups()) {
                Group parentGroup =
-                  allGroups.get(new IdentityID(parentGroupName, group.getOrganization()));
+                  allGroups.get(new IdentityID(parentGroupName, group.getOrganizationID()));
 
                if(parentGroup != null) {
                   groupStack.addLast(parentGroup);
@@ -721,12 +736,12 @@ public class ScheduleService {
       return model.build();
    }
 
-   public TaskActivity getActivity(String taskName) {
-      return getActivity(taskName, true);
+   public TaskActivity getActivity(String taskId) {
+      return getActivity(taskId, true);
    }
 
-   public TaskActivity getActivity(String taskName, boolean cachePriority) {
-      return getTaskActivities(cachePriority).get(taskName);
+   public TaskActivity getActivity(String taskId, boolean cachePriority) {
+      return getTaskActivities(cachePriority).get(taskId);
    }
 
    private Map<String, TaskActivity> getTaskActivities() {
@@ -796,10 +811,10 @@ public class ScheduleService {
    /**
     * Saves the task with the new information.
     */
-   public void saveTask(String taskName, ScheduleTask task, Principal principal)
+   public void saveTask(String taskId, ScheduleTask task, Principal principal)
       throws Exception
    {
-      saveTask(taskName, task, principal, true);
+      saveTask(taskId, task, principal, true);
    }
 
    /**
@@ -807,14 +822,14 @@ public class ScheduleService {
     * @param  addRecord if need to add action record, if only load and save the task, don't
     * need to insert action record.
     */
-   public void saveTask(String taskName, ScheduleTask task, Principal principal, boolean addRecord)
+   public void saveTask(String taskId, ScheduleTask task, Principal principal, boolean addRecord)
       throws Exception
    {
       // log edit task action
       String actionName = ActionRecord.ACTION_NAME_EDIT;
       String objectType = ActionRecord.OBJECT_TYPE_TASK;
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
-      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, taskName,
+      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, taskId,
                                       objectType, actionTimestamp,
                                       ActionRecord.ACTION_STATUS_FAILURE, null);
 
@@ -827,7 +842,7 @@ public class ScheduleService {
                AssetEntry.Type.SCHEDULE_TASK_FOLDER, oldPath, null);
          }
 
-         scheduleManager.setScheduleTask(taskName, task, folderEntry, principal);
+         scheduleManager.setScheduleTask(taskId, task, folderEntry, principal);
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
       }
       catch(Exception ex) {
@@ -895,7 +910,9 @@ public class ScheduleService {
             .subject(abstractAction.getSubject())
             .format(abstractAction.getFileFormat())
             .bundledAsZip(abstractAction.isCompressFile())
-            .password(abstractAction.getPassword())
+            .useCredential(abstractAction.isUseCredential())
+            .secretId(abstractAction.isUseCredential() ? abstractAction.getSecretId() : null)
+            .password(!abstractAction.isUseCredential() ? abstractAction.getPassword() : null)
             .attachmentName(abstractAction.getAttachmentName())
             .htmlMessage(abstractAction.isMessageHtml())
             .message(abstractAction.getMessage())
@@ -928,7 +945,7 @@ public class ScheduleService {
 
          actionModel
             .sheet(viewsheetAction.getViewsheet())
-            .bookmarks(getBookmarkModels(viewsheetAction, em))
+            .bookmarks(getBookmarkModels(viewsheetAction, em, principal))
             .saveFormats(Arrays.stream(viewsheetAction.getSaveFormats())
                             .mapToObj(String::valueOf)
                             .toArray(String[]::new))
@@ -1023,7 +1040,7 @@ public class ScheduleService {
 
          model = BatchActionModel.builder()
             .label(getTaskActionLabel(action, catalog, principal))
-            .taskName(batchAction.getTaskName())
+            .taskName(batchAction.getTaskId())
             .queryEntry(batchAction.getQueryEntry())
             .queryParameters(queryParameterModels.toArray(new AddParameterDialogModel[0]))
             .embeddedParameters(embeddedParameterModels)
@@ -1049,6 +1066,35 @@ public class ScheduleService {
          String withoutOrg = SUtil.getTaskNameWithoutOrg(taskName);
 
          return ppath == null ? withoutOrg : ppath + "/" + withoutOrg;
+      }
+      else if(xAsset instanceof ViewsheetAsset) {
+         ViewsheetAsset sheetAsset = (ViewsheetAsset) xAsset;
+         String path = sheetAsset.getPath();
+
+         if(sheetAsset.getUser() != null) {
+            path = Tool.MY_DASHBOARD + "/" + path;
+         }
+
+         return path;
+      }
+      else if(xAsset instanceof WorksheetAsset) {
+         WorksheetAsset worksheetAsset = (WorksheetAsset) xAsset;
+         String path = worksheetAsset.getPath();
+
+         if(worksheetAsset.getUser() != null) {
+            path = Tool.MY_DASHBOARD + "/" + Tool.WORKSHEET + "/" + path;
+         }
+
+         return path;
+      }
+      else if(xAsset instanceof DashboardAsset) {
+         String path = xAsset.getPath();
+
+         if(xAsset.getUser() != null) {
+            path = SUtil.MY_DASHBOARD + "/" + path;
+         }
+
+         return path;
       }
       else {
          return xAsset.getPath();
@@ -1121,12 +1167,21 @@ public class ScheduleService {
 
             if(Tool.defaultIfNull(actionModel.saveToServerEnabled(), false)) {
                String[] saveFormats = actionModel.saveFormats();
-               List<ServerPathInfoModel> filePaths = actionModel.serverFilePaths();
+               List<ServerPathInfoModel> serverFilePaths = actionModel.serverFilePaths();
+               List<String> filePaths = actionModel.filePaths();
+               ServerPathInfo info;
 
                for(int i = 0; i < saveFormats.length; i++) {
                   int format = Integer.parseInt(saveFormats[i]);
-                  ServerPathInfoModel pModel = filePaths.get(i);
-                  ServerPathInfo info = new ServerPathInfo(pModel.path(), pModel.username(), pModel.password());
+                  ServerPathInfoModel pModel = serverFilePaths.get(i);
+
+                  if(pModel.ftp()) {
+                     info = new ServerPathInfo(pModel);
+                  }
+                  else {
+                     info = new ServerPathInfo(filePaths.get(i), null, null);
+                  }
+
                   viewsheetAction.setFilePath(format, info);
                }
             }
@@ -1234,7 +1289,6 @@ public class ScheduleService {
             abstractAction.setFileFormat(actionModel.format());
             abstractAction.setCompressFile(actionModel.bundledAsZip() != null &&
                                               actionModel.bundledAsZip());
-            abstractAction.setPassword(actionModel.password());
             abstractAction.setAttachmentName(attachmentName);
             abstractAction.setMessage(actionModel.message());
             abstractAction.setMessageHtml(actionModel.htmlMessage() != null &&
@@ -1242,6 +1296,15 @@ public class ScheduleService {
             abstractAction.setDeliverLink(actionModel.deliverLink() != null &&
                actionModel.deliverLink());
             abstractAction.setLinkURI(Tool.replaceLocalhost(linkURI));
+
+            if(Boolean.TRUE.equals(actionModel.useCredential())) {
+               abstractAction.setUseCredential(true);
+               abstractAction.setSecretId(actionModel.secretId());
+            }
+            else {
+               abstractAction.setUseCredential(false);
+               abstractAction.setPassword(actionModel.password());
+            }
 
             if(abstractAction instanceof ViewsheetAction && "CSV".equals(actionModel.format())) {
                ((ViewsheetAction) abstractAction)
@@ -1254,6 +1317,8 @@ public class ScheduleService {
             abstractAction.setSubject(null);
             abstractAction.setFileFormat(null);
             abstractAction.setCompressFile(false);
+            abstractAction.setUseCredential(false);
+            abstractAction.setSecretId(null);
             abstractAction.setPassword(null);
             abstractAction.setAttachmentName(null);
             abstractAction.setMessage(null);
@@ -1268,14 +1333,14 @@ public class ScheduleService {
          backupAction.setAssets(deployService.getEntryAssets(backupActionModel.assets(), principal));
          backupAction.setPaths(Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ? backupActionModel
             .backupPath() : null);
-         backupAction.setServerPaths((Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ?
-            new ServerPathInfo(backupActionModel.backupServerPath()) : null));
+         backupAction.setServerPaths(Tool.defaultIfNull(backupActionModel.backupPathsEnabled(), false) ?
+            new ServerPathInfo(backupActionModel.backupServerPath()) : null);
          action = backupAction;
       }
       else if("BatchAction".equals(model.actionType())) {
          BatchActionModel batchActionModel = (BatchActionModel) model;
          BatchAction batchAction = new BatchAction();
-         batchAction.setTaskName(batchActionModel.taskName());
+         batchAction.setTaskId(batchActionModel.taskName());
 
          if(batchActionModel.queryEnabled()) {
             batchAction.setQueryEntry(batchActionModel.queryEntry());
@@ -1348,7 +1413,9 @@ public class ScheduleService {
    /**
     * Get the bookmark models from the action.
     */
-   private List<VSBookmarkInfoModel> getBookmarkModels(ViewsheetAction action, boolean em) {
+   private List<VSBookmarkInfoModel> getBookmarkModels(ViewsheetAction action, boolean em,
+                                                       Principal principal)
+   {
       ArrayList<VSBookmarkInfoModel> bookmarks = new ArrayList<>();
       String[] names = action.getBookmarks();
       int[] types = action.getBookmarkTypes();
@@ -1356,17 +1423,29 @@ public class ScheduleService {
 
       if(types != null) {
          for(int i = 0; i < names.length; i++) {
+            IdentityID owner = getBookmarkOwner(owners[i], names[i], principal);
             bookmarks.add(VSBookmarkInfoModel.builder()
                   .name(names[i])
-                  .owner(owners[i])
+                  .owner(owner)
                   .type(types[i])
-                  .label(names[i] + "(" + (em ? action.getBookmarkUsers()[i].getName() :
-                     VSUtil.getUserAlias(action.getBookmarkUsers()[i])) + ")")
+                  .label(getBookmarkLabel(names[i], owner, em))
                   .build());
          }
       }
 
       return bookmarks;
+   }
+
+   private IdentityID getBookmarkOwner(IdentityID originalOwner, String name, Principal principal) {
+      if(!VSBookmark.HOME_BOOKMARK.equals(name)) {
+         return originalOwner;
+      }
+
+      return IdentityID.getIdentityIDFromKey(principal.getName());
+   }
+
+   private String getBookmarkLabel(String bkName, IdentityID owner, boolean em) {
+      return bkName + "(" + (em ? owner.getName() : VSUtil.getUserAlias(owner)) + ")";
    }
 
    /**
@@ -1540,13 +1619,13 @@ public class ScheduleService {
       Catalog catalog = Catalog.getCatalog(principal);
       String errorMsg = null;
       boolean dumpException = true;
+      ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
 
       if(!scheduleClient.isReady()) {
          errorMsg = catalog.getString("em.scheduler.notStarted");
          dumpException = false;
       }
       else {
-         ScheduleTask task = scheduleManager.getScheduleTask(taskName, currentOrgID);
          String taskNameForLog = LicenseManager.getInstance().isEnterprise() ?
             taskName : SUtil.getTaskNameWithoutOrg(taskName);
          MDC.put("SCHEDULE_TASK", taskNameForLog);
@@ -1573,6 +1652,7 @@ public class ScheduleService {
       String actionName = ActionRecord.ACTION_NAME_RUN;
       String objectType = ActionRecord.OBJECT_TYPE_TASK;
       ActionRecord actionRecord = SUtil.getActionRecord(principal, actionName, taskName, objectType);
+      actionRecord.setObjectUser(task == null ? null : task.getOwner().name);
 
       if(errorMsg != null) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -1628,7 +1708,7 @@ public class ScheduleService {
 
          if(task != null && !task.isEnabled()) {
             errorMsg = catalog.getString("em.scheduler.stopDisabledTask",
-                                         task.getName());
+                                         task.getTaskId());
          }
          else {
             try {
@@ -1730,7 +1810,7 @@ public class ScheduleService {
          }
          else {
             if(this.scheduleManager.hasDependency(allTasks, entry.getName())) {
-               builder.addTaskNames(entry.getName());
+               builder.addTaskNames(SUtil.getTaskNameWithoutOrg(entry.getName()));
             }
          }
       }
@@ -1741,7 +1821,7 @@ public class ScheduleService {
       throws Exception
    {
       for(ScheduleTaskModel task : tasks) {
-         String taskName = task.name().startsWith(task.owner().name) ? task.name() : task.owner() + ":" + task.name();
+         String taskName = task.name().startsWith(task.owner().name) ? task.name() : task.owner().convertToKey() + ":" + task.name();
          removeScheduledTask(selectStr.orElse(""), filter.orElse(""), taskName, principal);
       }
    }
@@ -1765,7 +1845,7 @@ public class ScheduleService {
 
          AssetEntry taskEntry = taskFolderService.getFolderEntry(folderPath);
          String actionName = ActionRecord.ACTION_NAME_DELETE;
-         String objectName = taskEntry.getDescription();
+         String objectName = "Tasks/" + taskEntry.getPath();
          String objectType = AssetEventUtil.getObjectType(taskEntry);
          Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
          ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, objectName,
@@ -1840,47 +1920,7 @@ public class ScheduleService {
    }
 
    List<ServerLocation> getServerLocations(Catalog catalog) {
-      List<ServerLocation> locations = new ArrayList<>();
-      String property = SreeEnv.getProperty("server.save.locations");
-
-      if(property != null && !property.trim().isEmpty()) {
-         for(String str : property.trim().split(";")) {
-            String[] pathProperties = str.split("\\|");
-            String path;
-            String label;
-            String username = null;
-            String password = null;
-
-            if(pathProperties.length < 0) {
-               path = pathProperties[0];
-               label = pathProperties[0];
-            }
-            else {
-               path = pathProperties[0];
-               label = pathProperties[1];
-
-               if(pathProperties.length > 2) {
-                  username = pathProperties[2];
-               }
-
-               if(pathProperties.length > 3) {
-                  password = pathProperties[3];
-               }
-            }
-
-            path = path.replaceAll("[/\\\\]+$", "");
-            ServerPathInfoModel pathInfoModel = ServerPathInfoModel.builder()
-               .path(path)
-               .username(username)
-               .password(password)
-               .ftp(!(username == null || username.isEmpty()))
-               .build();
-            locations.add(ServerLocation.builder().path(path).label(label).pathInfoModel(pathInfoModel).build());
-         }
-      }
-
-      locations.sort(Comparator.comparing(ServerLocation::label));
-      return locations;
+      return SUtil.getServerLocations();
    }
 
    private final AnalyticRepository analyticRepository;

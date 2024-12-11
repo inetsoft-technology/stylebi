@@ -48,5 +48,17 @@ externalStorage:
   type: "filesystem"
   filesystem:
     directory: "${project.build.directory}/server/files"
+audit:
+  type: "database"
+  database:
+    type: "MYSQL"
+    jdbcUrl: "jdbc:mysql://localhost:3306/inetsoft?useSSL=false"
+    driverClassName: "com.mysql.jdbc.Driver"
+    driverClasspath:
+      - "@MYSQL_JAR_PATH@"
+    requiresLogin: true
+    username: "inetsoft"
+    password: "secret"
+    transactionIsolationLevel: "READ_UNCOMMITTED"
 additionalProperties:
   masterPasswordCheck: "\\masterJvH+Cw++qdXFXqdYN6pDIVGOq0edVcJwjcwXHM3+xLGAXqw4QU6maufCbNhgGBEa/isngnOWadKW7IwKsrd56KTLLPNX12S3pn/u8xYZ/Ae8XA=="

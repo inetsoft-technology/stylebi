@@ -150,7 +150,7 @@ public class TextPainter implements ExpandablePainter, StyleConstants, Cloneable
          ReportSheet report = relem == null ? null : ((BaseElement) relem).getReport();
          ParameterTool ptool = new ParameterTool();
 
-          if (report != null && !false && ptool.containsParameter(value)) {
+          if (report != null && ptool.containsParameter(value)) {
               value = ptool.parseParameters(report.getVariableTable(), value);
           }
 

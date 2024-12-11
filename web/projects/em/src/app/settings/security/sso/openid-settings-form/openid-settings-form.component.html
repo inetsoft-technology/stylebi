@@ -21,14 +21,22 @@
     <input matInput type="url" (input)="enableDiscoveryApply()" formControlName="discoveryUrl">
     <button mat-button matSuffix [disabled]="disableDiscoveryApply" (click)="loadDiscovery()">_#(Apply)</button>
   </mat-form-field>
-  <mat-form-field>
-    <mat-label>_#(Client ID)</mat-label>
-    <input matInput formControlName="clientId">
-  </mat-form-field>
-  <mat-form-field>
-    <mat-label>_#(Client Secret)</mat-label>
-    <input matInput formControlName="clientSecret">
-  </mat-form-field>
+  <ng-container *ngIf="cloudSecrets">
+    <mat-form-field>
+      <mat-label>_#(Secret ID)</mat-label>
+      <input matInput formControlName="secretId">
+    </mat-form-field>
+  </ng-container>
+  <ng-container *ngIf="!cloudSecrets">
+    <mat-form-field>
+      <mat-label>_#(Client ID)</mat-label>
+      <input matInput formControlName="clientId">
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>_#(Client Secret)</mat-label>
+      <input matInput formControlName="clientSecret">
+    </mat-form-field>
+  </ng-container>
   <mat-form-field>
     <mat-label>_#(Scopes)</mat-label>
     <mat-autocomplete #scopeOptions (optionSelected)="scopeSelected($event)">
@@ -62,7 +70,7 @@
     <mat-label>_#(JWKS URL)</mat-label>
     <input matInput type="url" formControlName="jwksUri">
   </mat-form-field>
-  <mat-form-field>
+  <mat-form-field *ngIf="!googleSignIn">
     <mat-label>_#(JWK Certificate)</mat-label>
     <textarea matInput formControlName="jwkCertificate"></textarea>
     <mat-hint>_#(openid.jwk.cert.description)</mat-hint>
@@ -74,25 +82,27 @@
     </mat-autocomplete>
     <input matInput formControlName="nameClaim" [matAutocomplete]="nameClaimOptions">
   </mat-form-field>
-  <mat-form-field>
-    <mat-label>_#(Role Claim)</mat-label>
-    <mat-autocomplete #roleClaimOptions>
-      <mat-option *ngFor="let claim of filteredRoleClaims | async" [value]="claim">{{claim}}</mat-option>
-    </mat-autocomplete>
-    <input matInput formControlName="roleClaim" [matAutocomplete]="roleClaimOptions">
-  </mat-form-field>
-  <mat-form-field>
-    <mat-label>_#(Group Claim)</mat-label>
-    <mat-autocomplete #groupClaimOptions>
-      <mat-option *ngFor="let claim of filteredGroupClaims | async" [value]="claim">{{claim}}</mat-option>
-    </mat-autocomplete>
-    <input matInput formControlName="groupClaim" [matAutocomplete]="groupClaimOptions">
-  </mat-form-field>
-  <mat-form-field>
-    <mat-label>_#(Organization ID Claim)</mat-label>
-    <mat-autocomplete #organizationIDClaimOptions>
-      <mat-option *ngFor="let claim of filteredOrganizationIDClaims | async" [value]="claim">{{claim}}</mat-option>
-    </mat-autocomplete>
-    <input matInput formControlName="orgIDClaim" [matAutocomplete]="organizationIDClaimOptions">
-  </mat-form-field>
+  <ng-container *ngIf="!googleSignIn">
+    <mat-form-field>
+      <mat-label>_#(Role Claim)</mat-label>
+      <mat-autocomplete #roleClaimOptions>
+        <mat-option *ngFor="let claim of filteredRoleClaims | async" [value]="claim">{{claim}}</mat-option>
+      </mat-autocomplete>
+      <input matInput formControlName="roleClaim" [matAutocomplete]="roleClaimOptions">
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>_#(Group Claim)</mat-label>
+      <mat-autocomplete #groupClaimOptions>
+        <mat-option *ngFor="let claim of filteredGroupClaims | async" [value]="claim">{{claim}}</mat-option>
+      </mat-autocomplete>
+      <input matInput formControlName="groupClaim" [matAutocomplete]="groupClaimOptions">
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>_#(Organization ID Claim)</mat-label>
+      <mat-autocomplete #organizationIDClaimOptions>
+        <mat-option *ngFor="let claim of filteredOrganizationIDClaims | async" [value]="claim">{{claim}}</mat-option>
+      </mat-autocomplete>
+      <input matInput formControlName="orgIDClaim" [matAutocomplete]="organizationIDClaimOptions">
+    </mat-form-field>
+  </ng-container>
 </form>

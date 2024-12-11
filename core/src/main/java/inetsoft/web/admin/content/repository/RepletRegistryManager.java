@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.content.repository;
 
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.SUtil;
@@ -28,12 +29,15 @@ import inetsoft.uql.viewsheet.VSSnapshot;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.FileNotFoundException;
 import java.security.Principal;
+import java.sql.Timestamp;
 import java.util.*;
 
 /**
@@ -141,7 +145,7 @@ public class RepletRegistryManager {
          }
 
          if(sameScope && replace) {
-            String result = registryTo.changeFolder(oldPath, newPath);
+            String result = registryTo.changeFolder(oldPath, newPath, principal);
 
             if(!"true".equals(result)) {
                throw new RenameFailedException(result);
@@ -155,7 +159,7 @@ public class RepletRegistryManager {
             String oPath = oidx > 0 ? oldPath.substring(0, oidx + 1) : "";
 
             if(!Tool.equals(newFolder, oldFolder)) {
-               registry.changeFolder(oldPath, oPath + newFolder);
+               registry.changeFolder(oldPath, oPath + newFolder, principal);
                registry.save();
 
                oldPath = oPath + newFolder;
@@ -212,6 +216,13 @@ public class RepletRegistryManager {
             "common.asset.notFound", oldName));
       }
 
+      String actionName = ActionRecord.ACTION_NAME_EDIT;
+      String objectName = oentry.getDescription();
+      String objectType = AssetEventUtil.getObjectType(oentry);
+      Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
+      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, objectName,
+         objectType, actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE,null);
+
       AssetRepository repository = AssetUtil.getAssetRepository(false);
       AbstractSheet vs = repository.getSheet(oentry, principal, false,
                                              AssetContent.ALL);
@@ -251,6 +262,7 @@ public class RepletRegistryManager {
 
          repository.changeSheet(oentry, nentry, principal, true);
          oentry = nentry;
+         actionRecord.setActionError("Target Entry: " + nentry.getDescription());
       }
 
       if(oentry.isWorksheet()) {
@@ -259,6 +271,9 @@ public class RepletRegistryManager {
 
       oentry.setAlias(alias);
       repository.setSheet(oentry, vs, principal, true);
+      actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
+      Audit.getInstance().auditAction(actionRecord, principal);
+
       return oentry;
    }
 
@@ -1480,7 +1495,7 @@ public class RepletRegistryManager {
     * @param principal the principal identifying the current user.
     */
    public RepositoryEntry[] getRepositoryEntries(String parent, int filter, IdentityID user, int type,
-                                                 Principal principal) throws Exception
+                                                 Principal principal, boolean isDefaultOrgAsset) throws Exception
    {
       if(parent == null || parent.length() == 0) {
          return null;
@@ -1492,11 +1507,11 @@ public class RepletRegistryManager {
          registry = RepletRegistry.getRegistry(user);
       }
 
-      return getRepositoryEntries(parent, filter, user, type, registry, principal);
+      return getRepositoryEntries(parent, filter, user, type, registry, principal, isDefaultOrgAsset);
    }
 
    RepositoryEntry[] getRepositoryEntries(String parent, int filter, IdentityID user, int type,
-                                          RepletRegistry registry, Principal principal)
+                                          RepletRegistry registry, Principal principal, boolean isDefaultOrgAsset)
       throws Exception
    {
       boolean ismy = user != null;

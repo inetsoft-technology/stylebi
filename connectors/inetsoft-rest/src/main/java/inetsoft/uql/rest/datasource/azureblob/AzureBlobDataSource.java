@@ -20,6 +20,7 @@ package inetsoft.uql.rest.datasource.azureblob;
 import inetsoft.uql.rest.AbstractRestDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import javax.crypto.Mac;
@@ -32,25 +33,27 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @View(vertical = true, value = {
-   @View1("accountName"),
-   @View1("URL"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "accountName", visibleMethod = "useCredential"),
+   @View1(value = "URL", visibleMethod = "useCredential"),
    @View1(type = ViewType.PANEL, colspan = 2, elements = {
-      @View2(value = "storageAccountKey", align = ViewAlign.FILL),
+      @View2(value = "storageAccountKey", align = ViewAlign.FILL, visibleMethod = "useCredential"),
       @View2(type = ViewType.BUTTON, text = "Generate Signature",
          button = @Button(type = ButtonType.METHOD, method = "generateSignature",
-                          dependsOn = {"storageAccountKey", "accountName"},
+                          dependsOn = {"storageAccountKey", "accountName", "credentialId"},
                           enabledMethod = "generateSignatureEnabled"))
    }),
    @View1(type = ViewType.LABEL, text = "storageAccountKey.description", colspan = 2, wrap = true),
-   @View1("signatureServicesVersion"),
-   @View1("signatureServices"),
-   @View1("signatureResourceTypes"),
-   @View1("signatureStartTime"),
-   @View1("signatureExpiryTime"),
-   @View1("signaturePermissions"),
-   @View1("signatureIpRange"),
-   @View1("signatureProtocol"),
-   @View1("signature")
+   @View1(value = "signatureServicesVersion"),
+   @View1(value = "signatureServices"),
+   @View1(value = "signatureResourceTypes"),
+   @View1(value = "signatureStartTime"),
+   @View1(value = "signatureExpiryTime"),
+   @View1(value = "signaturePermissions"),
+   @View1(value = "signatureIpRange"),
+   @View1(value = "signatureProtocol"),
+   @View1(value = "signature")
 })
 public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSource> {
    static final String TYPE = "Rest.AzureBlob";
@@ -59,9 +62,14 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
       super(TYPE, AzureBlobDataSource.class);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.SIGNATURE;
+   }
+
    @Property(label = "Account Name", required = true)
    public String getAccountName() {
-      return accountName;
+      return this.accountName;
    }
 
    public void setAccountName(String accountName) {
@@ -70,11 +78,23 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
 
    @Property(label = "Storage Account Key", password = true)
    public String getStorageAccountKey() {
-      return storageAccountKey;
+      if(((SignatureCredential) getCredential()).getAccountKey() != null) {
+         return ((SignatureCredential) getCredential()).getAccountKey();
+      }
+
+      return this.storageAccountKey;
    }
 
    public void setStorageAccountKey(String storageAccountKey) {
-      this.storageAccountKey = storageAccountKey;
+      if(getCredential() instanceof LocalSignatureCredential) {
+         ((SignatureCredential) getCredential()).setAccountKey(storageAccountKey);
+      }
+      // if cloud secret only contains account key, we need to local persistent for signature.
+      else if(getCredential() instanceof CloudCredential &&
+         ((SignatureCredential) getCredential()).getSignature() == null)
+      {
+         this.storageAccountKey = storageAccountKey;
+      }
    }
 
    @Property(label = "Signature Services Version", required = true)
@@ -151,7 +171,21 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
 
    @Property(label = "Account SAS Signature", required = true, password = true)
    public String getSignature() {
-      return signature;
+      if(isCloudSignature() || getCredential() instanceof AbstractLocalCredential) {
+         return ((SignatureCredential) getCredential()).getSignature();
+      }
+
+      // in case cloud secret only contains account key, generate Signature here.
+      if(getStorageAccountKey() != null && getCredential() instanceof CloudCredential) {
+         try {
+            generateSignature(null);
+         }
+         catch(Exception e) {
+            throw new RuntimeException(e);
+         }
+      }
+
+      return this.signature;
    }
 
    @Property(label = "URL")
@@ -160,11 +194,11 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
    public String getURL() {
       StringBuilder url = new StringBuilder("https://");
 
-      if(accountName == null) {
+      if(getAccountName() == null) {
          url.append("[Account Name]");
       }
       else {
-         url.append(accountName);
+         url.append(getAccountName());
       }
 
       return url.append(".blob.core.windows.net").toString();
@@ -223,7 +257,7 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
       params.add(HttpParameter.builder()
                     .type(HttpParameter.ParameterType.QUERY)
                     .name("sig")
-                    .value(signature)
+                    .value(getSignature())
                     .build());
 
       if(signatureIpRange != null && !signatureIpRange.isEmpty()) {
@@ -243,12 +277,23 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
    }
 
    public void setSignature(String signature) {
-      this.signature = signature;
+      if(getCredential() instanceof LocalSignatureCredential) {
+         ((SignatureCredential) getCredential()).setSignature(signature);
+      }
+      // if cloud secret only contains account key, we need to local persistent for signature.
+      else if(!isCloudSignature()){
+         this.signature = signature;
+      }
+   }
+
+   private boolean isCloudSignature() {
+      return getCredential() instanceof CloudCredential &&
+         ((SignatureCredential) getCredential()).getSignature() != null;
    }
 
    public boolean generateSignatureEnabled() {
-      return storageAccountKey != null && !storageAccountKey.isEmpty() &&
-         accountName != null && !accountName.isEmpty();
+      return !Tool.isEmptyString(getStorageAccountKey()) && !Tool.isEmptyString(getAccountName()) ||
+         isUseCredentialId() && !Tool.isEmptyString(getCredentialId()) ;
    }
 
    public void generateSignature(String sessionId) throws Exception {
@@ -285,7 +330,7 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
          signatureProtocol = "https";
       }
 
-      String stringToSign = accountName + "\n" +
+      String stringToSign = getAccountName() + "\n" +
          signaturePermissions + "\n" +
          signatureServices + "\n" +
          signatureResourceTypes + "\n" +
@@ -295,13 +340,14 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
          signatureProtocol + "\n" +
          signatureServicesVersion + "\n";
 
-      byte[] secret = Base64.getDecoder().decode(storageAccountKey);
+      byte[] secret = Base64.getDecoder().decode(getStorageAccountKey());
       Mac mac = Mac.getInstance("HmacSHA256");
       SecretKeySpec key = new SecretKeySpec(secret, "HmacSHA256");
       mac.init(key);
 
-      signature = Base64.getEncoder().encodeToString(
+      String signature = Base64.getEncoder().encodeToString(
          mac.doFinal(stringToSign.getBytes(StandardCharsets.UTF_8)));
+      setSignature(signature);
    }
 
    @Override
@@ -369,7 +415,12 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
       signaturePermissions = Tool.getChildValueByTagName(root, "signaturePermissions");
       signatureIpRange = Tool.getChildValueByTagName(root, "signatureIpRange");
       signatureProtocol = Tool.getChildValueByTagName(root, "signatureProtocol");
-      signature = Tool.decryptPassword(Tool.getChildValueByTagName(root, "signature"));
+
+      String val = Tool.getChildValueByTagName(root, "signature");
+
+      if(val != null) {
+         signature = Tool.decryptPassword(val);
+      }
    }
 
    @Override
@@ -387,8 +438,7 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
       }
 
       AzureBlobDataSource that = (AzureBlobDataSource) o;
-      return Objects.equals(accountName, that.accountName) &&
-         Objects.equals(signatureServicesVersion, that.signatureServicesVersion) &&
+      return Objects.equals(signatureServicesVersion, that.signatureServicesVersion) &&
          Objects.equals(signatureServices, that.signatureServices) &&
          Objects.equals(signatureResourceTypes, that.signatureResourceTypes) &&
          Objects.equals(signatureStartTime, that.signatureStartTime) &&
@@ -396,15 +446,15 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
          Objects.equals(signaturePermissions, that.signaturePermissions) &&
          Objects.equals(signatureIpRange, that.signatureIpRange) &&
          Objects.equals(signatureProtocol, that.signatureProtocol) &&
-         Objects.equals(signature, that.signature);
+         Objects.equals(getSignature(), that.getSignature());
    }
 
    @Override
    public int hashCode() {
       return Objects.hash(
-         super.hashCode(), accountName, signatureServicesVersion, signatureServices,
+         super.hashCode(), getAccountName(), signatureServicesVersion, signatureServices,
          signatureResourceTypes, signatureStartTime, signatureExpiryTime, signaturePermissions,
-         signatureIpRange, signatureProtocol, signature);
+         signatureIpRange, signatureProtocol, getSignature());
    }
 
    private String accountName;
@@ -417,5 +467,5 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
    private String signaturePermissions;
    private String signatureIpRange;
    private String signatureProtocol;
-   private String signature;
+   private String signature; // add signature attribute, in case user doesn't provide the signature in secret.
 }

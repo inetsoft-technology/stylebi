@@ -59,10 +59,6 @@ export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
       this.onTouched = fn;
    }
 
-   setDisabledState(isDisabled: boolean): void {
-      this.enabled = !isDisabled;
-   }
-
    writeValue(obj: any): void {
       if((!obj || !this.timeZoneOptions.find(option => option.timeZoneId == obj))) {
          this.timeZoneId = this.timeZoneOptions[0].timeZoneId;

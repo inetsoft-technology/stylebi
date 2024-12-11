@@ -74,7 +74,6 @@ export class GeneralSettingsPageComponent implements OnInit, OnDestroy {
 
    readonly _navLinks = [
       new GeneralSettingsNavLink("data-space", "_#(js:Data Space)", "dataSpaceSettingsModel"),
-      new GeneralSettingsNavLink("server", "_#(js:Cluster)", "clusterSettingsModel"),
       new GeneralSettingsNavLink("license", "_#(js:License)", "licenseKeySettingsModel"),
       new GeneralSettingsNavLink("localization", "_#(js:Localization)", "localizationSettingsModel"),
       new GeneralSettingsNavLink("mv", "_#(js:Materialized Views)", "mvSettingsModel"),

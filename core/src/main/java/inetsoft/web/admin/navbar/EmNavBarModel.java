@@ -19,6 +19,6 @@ package inetsoft.web.admin.navbar;
 
 import java.util.List;
 
-public record EmNavBarModel(String logoutUrl, boolean customLogo, boolean enterprise, boolean ssoUser)
+public record EmNavBarModel(String logoutUrl, boolean customLogo, boolean enterprise, boolean ssoUser, boolean elasticLicenseExhausted)
 {
 }

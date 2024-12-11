@@ -29,11 +29,9 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.*;
 import inetsoft.uql.VariableTable;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.util.IdentityNode;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
@@ -101,7 +99,7 @@ public class ScheduleDialogController {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       boolean bookmarkEnabled = SecurityEngine.getSecurity().checkPermission(
          principal, ResourceType.VIEWSHEET_ACTION, "Bookmark", ResourceAction.READ) &&
-         !"anonymous".equals(pId);
+         !"anonymous".equals(pId.name);
 
       String bookmarkName = "";
       boolean currentBookmark = true;
@@ -190,8 +188,7 @@ public class ScheduleDialogController {
 
       ScheduleManager manager = ScheduleManager.getScheduleManager();
       AssetEntry entry = rvs.getEntry();
-      String taskName = entry.getAlias() != null ?
-         entry.getAlias() : entry.getName();
+      String taskName = !Tool.isEmptyString(entry.getAlias()) ? entry.getAlias() : entry.getName();
       taskName = principal != null ? principal.getName() + ":" + taskName : taskName;
 
       if(manager.getScheduleTask(taskName) != null) {
@@ -253,14 +250,17 @@ public class ScheduleDialogController {
          .leaf(false)
          .build();
 
-      TreeNodeModel groupTree = TreeNodeModel.builder()
-         .label(Catalog.getCatalog().getString("Groups"))
-         .data("")
-         .type(IdentityNode.GROUPS + "")
-         .leaf(false)
-         .build();
       nodes.add(userTree);
-      nodes.add(groupTree);
+
+      if(!(principal instanceof SRPrincipal) || !((SRPrincipal) principal).isSelfOrganization()) {
+         TreeNodeModel groupTree = TreeNodeModel.builder()
+            .label(Catalog.getCatalog().getString("Groups"))
+            .data("")
+            .type(IdentityNode.GROUPS + "")
+            .leaf(false)
+            .build();
+         nodes.add(groupTree);
+      }
 
       TreeNodeModel rootTree = TreeNodeModel.builder()
          .label(Catalog.getCatalog().getString("Root"))
@@ -284,10 +284,19 @@ public class ScheduleDialogController {
          .collect(Collectors.toList());
       boolean startTimeEnabled = securityProvider.checkPermission(
          principal, ResourceType.SCHEDULE_OPTION, "startTime", ResourceAction.READ);
-      String userOrgId = securityProvider.getOrganizationId(pId.organization);
-      boolean timeRangeEnabled = securityProvider.checkPermission(
-         principal, ResourceType.SCHEDULE_OPTION, "timeRange", ResourceAction.READ) &&
-         OrganizationManager.getInstance().isSiteAdmin(principal) && Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), userOrgId);
+      boolean timeRangeEnabled;
+
+      if(SUtil.isMultiTenant()) {
+         timeRangeEnabled = securityProvider.checkPermission(
+            principal, ResourceType.SCHEDULE_OPTION, "timeRange", ResourceAction.READ) &&
+            OrganizationManager.getInstance().isSiteAdmin(principal) && Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), pId.orgID);
+      }
+      else {
+         timeRangeEnabled = securityProvider.checkPermission(
+            principal, ResourceType.SCHEDULE_OPTION, "timeRange", ResourceAction.READ) &&
+            Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), pId.orgID);
+      }
+
       List<TimeZoneModel> timeZoneOptions = TimeZoneModel.getTimeZoneOptions();
       List<String> tableDataAssemblies = new ArrayList<>();
 
@@ -306,7 +315,7 @@ public class ScheduleDialogController {
          .userDialogEnabled(userDialogEnabled)
          .taskName(taskName)
          .timeProp(timeProp)
-         .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12-hours"))
+         .twelveHourSystem(SreeEnv.getBooleanProperty("schedule.time.12hours"))
          .actionModel(viewsheetActionModel)
          .emailAddrDialogModel(emailAddrDialogModel)
          .emailButtonVisible(
@@ -416,6 +425,10 @@ public class ScheduleDialogController {
       action.setBCCAddresses(emailInfoModel.bccAddresses());
       action.setExportAllTabbedTables(emailInfoModel.exportAllTabbedTables());
 
+      if(emailInfoModel.formatType() == FileFormatInfo.EXPORT_TYPE_CSV) {
+         action.setCompressFile(true);
+      }
+
       TimeCondition condition = new TimeCondition();
       condition.setHour(Optional.ofNullable(timeConditionModel.hour()).orElse(1));
       condition.setMinute(Optional.ofNullable(timeConditionModel.minute()).orElse(30));
@@ -480,7 +493,8 @@ public class ScheduleDialogController {
          action.setViewsheetRequest(request);
       }
 
-      ScheduleTask currtask = new ScheduleTask(taskName);
+      String name = SUtil.getTaskNameWithoutUser(taskName);
+      ScheduleTask currtask = new ScheduleTask(name);
 
       currtask.addCondition(condition);
       currtask.addAction(action);

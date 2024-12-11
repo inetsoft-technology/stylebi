@@ -108,6 +108,17 @@ public class PostgreSQLHelper extends SQLHelper {
          '"' + alias + '"' : super.quoteColumnAlias(alias, same,part);
    }
 
+   @Override
+   public String fixSQLExpression(String sql) {
+      if(sql != null && sql.trim().matches("^'[^']*'$")) {
+         // expression is a string constant, cannot be used in group by clause in PostgreSQL,
+         // convert to an identity function
+         return "CAST(" + sql + " AS VARCHAR)";
+      }
+
+      return sql;
+   }
+
    private static Set keywords = new HashSet(); // keywords
 
    static {

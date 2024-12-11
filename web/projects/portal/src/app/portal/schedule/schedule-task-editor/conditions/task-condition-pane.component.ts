@@ -36,7 +36,10 @@ import {
 import { NgbDateStruct, NgbModal, NgbTimeStruct } from "@ng-bootstrap/ng-bootstrap";
 import { FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { CompletionConditionModel } from "../../../../../../../shared/schedule/model/completion-condition-model";
-import { ScheduleConditionModel } from "../../../../../../../shared/schedule/model/schedule-condition-model";
+import {
+   ScheduleConditionModel,
+   ScheduleConditionModelType
+} from "../../../../../../../shared/schedule/model/schedule-condition-model";
 import { TaskConditionPaneModel } from "../../../../../../../shared/schedule/model/task-condition-pane-model";
 import {
    TimeConditionModel,
@@ -92,7 +95,6 @@ export class TaskConditionPane implements OnInit, OnChanges {
    @Input() taskName: string;
    @Input() timeZone: string;
    @Input() timeZoneOptions: TimeZoneModel[];
-   @Input() taskOwner: string;
    @Input() taskDefaultTime: boolean;
    @Input() parentForm: UntypedFormGroup;
    @Input() listView: boolean = false;
@@ -111,6 +113,10 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       if(!value.conditions || value.conditions.length == 0) {
          this.conditionIndex = -1;
+      }
+
+      if(value.conditions.length != 0 && value.conditions[0].conditionType == "CompletionCondition") {
+         this.getServerOffset();
       }
    }
 
@@ -219,6 +225,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
    timeZoneOffset: number;
    localTimeZoneId: string = null;
    localTimeZoneLabel: string;
+   serverTimeZoneOffset: number = null;
 
    get startTime(): NgbTimeStruct {
       return this._startTime;
@@ -358,6 +365,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       }
 
       const localOffset: number = this.getLocalTimezoneOffset();
+
       const serverOffset: number = (<TimeConditionModel>this.condition).timeZoneOffset || 0;
       time += localOffset + serverOffset;
 
@@ -461,6 +469,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
          };
       }
       else {
+         type = this.serverTimeZone ? type : ChangeType.ToLocalTimeZone;
          const time: number = (<TimeConditionModel>this.condition).date;
          this.startTime = this.adjustTimeZone(new Date(time), type);
       }
@@ -499,7 +508,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
             }
          }
          else {
-            this.setStartTime(null);
+            this.setStartTime(data.startTime);
             (<TimeConditionModel>this.condition).timeRange = data.timeRange;
             this.form.get("timeZone").disable();
          }
@@ -618,9 +627,9 @@ export class TaskConditionPane implements OnInit, OnChanges {
    public changeConditionType(option: any): void {
       this.saveConditionType(this.selectedOption);
       const optionType = option.value;
+      const otype = this.condition.conditionType;
 
-      if(optionType != this.condition.conditionType &&
-         optionType != (<TimeConditionModel>this.condition).type) {
+      if(optionType != otype && optionType != (<TimeConditionModel>this.condition).type) {
          this.selectedOption = optionType;
 
          if(optionType === "CompletionCondition") {
@@ -646,6 +655,10 @@ export class TaskConditionPane implements OnInit, OnChanges {
          this.getTimeZone();
          this.initForm();
          this.updateTimesAndDates(ChangeType.None);
+
+         if(otype == "CompletionCondition" && optionType != "CompletionCondition" && this.serverTimeZoneOffset != null) {
+            (<TimeConditionModel>this.condition).timeZoneOffset = this.serverTimeZoneOffset;
+         }
       }
    }
 
@@ -694,9 +707,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message).then(
          (result: string) => {
             if(result === "ok") {
-               let taskName: string = this.oldTaskName.indexOf(this.taskOwner + ":") == 0 ?
-                  this.oldTaskName : this.taskOwner + ":" + this.oldTaskName;
-               const params = new HttpParams().set("name", Tool.byteEncode(taskName));
+               const params = new HttpParams().set("name", Tool.byteEncode(this.oldTaskName));
                const conditions: number[] = Tool.clone(this.selectedConditions);
                conditions.sort();
                conditions.reverse();
@@ -1372,7 +1383,13 @@ export class TaskConditionPane implements OnInit, OnChanges {
       if(this.serverTimeZone ||
          (this.startTimeData != null && !this.startTimeData.startTimeSelected)) {
          this.timeCondition.timeZone = null;
-         this.form.get("timeZone").disable();
+
+         if(this.selectedOption === TimeConditionType.EVERY_HOUR && !this.serverTimeZone) {
+            this.form.get("timeZone").enable();
+         }
+         else {
+            this.form.get("timeZone").disable();
+         }
       }
       else {
          this.timeCondition.timeZone = this.localTimeZoneId;
@@ -1419,5 +1436,11 @@ export class TaskConditionPane implements OnInit, OnChanges {
       const timezone = new Date(date.toLocaleString([], { timeZone: timeZoneId }));
 
       return timezone.getTime() - UTC.getTime();
+   }
+
+   private getServerOffset() {
+      this.http.get("../api/portal/schedule/task/condition/serverOffset").subscribe((val: number) => {
+         this.serverTimeZoneOffset = val;
+      });
    }
 }

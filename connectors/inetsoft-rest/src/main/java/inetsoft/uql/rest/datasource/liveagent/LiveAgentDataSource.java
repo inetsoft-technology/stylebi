@@ -20,15 +20,15 @@ package inetsoft.uql.rest.datasource.liveagent;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
-import org.w3c.dom.Element;
+import inetsoft.util.credential.*;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
    @View1("URL"),
-   @View1("apiKey")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiKey", visibleMethod = "useCredential")
 })
 public class LiveAgentDataSource extends EndpointJsonDataSource<LiveAgentDataSource> {
    public static final String TYPE = "Rest.LiveAgent";
@@ -39,13 +39,19 @@ public class LiveAgentDataSource extends EndpointJsonDataSource<LiveAgentDataSou
       setAuthType(AuthType.NONE);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_KEY;
+   }
+
    @Property(label = "API Key", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
-      return apiKey;
+      return ((ApiKeyCredential) getCredential()).getApiKey();
    }
 
    public void setApiKey(String apiKey) {
-      this.apiKey = apiKey;
+      ((ApiKeyCredential) getCredential()).setApiKey(apiKey);
    }
 
    @Override
@@ -54,24 +60,9 @@ public class LiveAgentDataSource extends EndpointJsonDataSource<LiveAgentDataSou
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)
             .name("apikey")
-            .value(apiKey)
+            .value(getApiKey())
             .build()
       };
-   }
-
-   @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(apiKey != null) {
-         writer.format("<apiKey><![CDATA[%s]]></apiKey>%n", Tool.encryptPassword(apiKey));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      apiKey = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiKey"));
    }
 
    @Override
@@ -89,18 +80,11 @@ public class LiveAgentDataSource extends EndpointJsonDataSource<LiveAgentDataSou
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      LiveAgentDataSource that = (LiveAgentDataSource) o;
-      return Objects.equals(apiKey, that.apiKey);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), apiKey);
+      return Objects.hash(super.hashCode(), getApiKey());
    }
-
-   private String apiKey;
 }

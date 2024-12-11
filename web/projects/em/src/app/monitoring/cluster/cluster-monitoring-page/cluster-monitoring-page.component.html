@@ -22,7 +22,7 @@
     [trackByProp]="'server'"
     (selectionChanged)="updateSelectedNodes($event)">
   </em-cluster-monitoring-view>
-  <div class="button-row">
+  <div class="button-row" *ngIf="reportClusterPauseVisible">
     <button mat-raised-button
             class="margin-right"
             (click)="pauseServers()"

@@ -42,12 +42,13 @@ public abstract class WorksheetTransformer extends XMLTransformer {
       currentDoc = (Document) doc;
       NodeList nlist = currentDoc.getElementsByTagName("worksheet");
       Element root = currentDoc.getDocumentElement();
+      int length = nlist != null ? nlist.getLength() : 0;
 
-      if(nlist == null || nlist.getLength() <= 0) {
+      if(length <= 0) {
          throw new Exception(" Empty document object!");
       }
 
-      for(int i = 0; i < nlist.getLength(); i++) {
+      for(int i = 0; i < length; i++) {
          Element worksheet = (Element) nlist.item(i);
 
          if(worksheet == null) {
@@ -65,8 +66,9 @@ public abstract class WorksheetTransformer extends XMLTransformer {
     */
    private void processWorksheet(Element elem) throws Exception {
       NodeList nlist = elem.getChildNodes();
+      int length = nlist.getLength();
 
-      for(int i = 0; i < nlist.getLength(); i++) {
+      for(int i = 0; i < length; i++) {
          Node node = nlist.item(i);
 
          if(node.getNodeType() == Node.ELEMENT_NODE) {

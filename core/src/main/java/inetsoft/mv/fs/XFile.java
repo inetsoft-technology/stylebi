@@ -19,6 +19,7 @@ package inetsoft.mv.fs;
 
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
+import org.apache.ignite.binary.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -36,7 +37,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @author InetSoft Technology
  * @version 10.2
  */
-public final class XFile implements Cloneable, XMLSerializable, Serializable {
+public final class XFile implements Cloneable, XMLSerializable, Serializable, Binarylizable {
    /**
     * Constructor.
     */
@@ -261,6 +262,33 @@ public final class XFile implements Cloneable, XMLSerializable, Serializable {
       for(SBlock block : blocks) {
          output.writeObject(block);
       }
+   }
+
+   @Override
+   public void writeBinary(BinaryWriter writer) throws BinaryObjectException {
+      writer.writeString("name", name);
+      writer.writeLong("ts", ts);
+      writer.writeInt("version", version);
+      writer.writeInt("blockSize", blocks.size());
+
+      for(SBlock block : blocks) {
+         writer.writeObject("block", block);
+      }
+   }
+
+   @Override
+   public void readBinary(BinaryReader reader) throws BinaryObjectException {
+      name = reader.readString("name");
+      ts = reader.readLong("ts");
+      version = reader.readInt("version");
+      int blockCount = reader.readInt("blockSize");
+      blocks = new ArrayList<>(blockCount);
+
+      for(int i = 0; i < blockCount; i++) {
+         blocks.add((SBlock) reader.readObject("block"));
+      }
+
+      lock = new ReentrantReadWriteLock();
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(XFile.class);

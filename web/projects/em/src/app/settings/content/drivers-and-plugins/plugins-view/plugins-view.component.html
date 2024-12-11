@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <ng-container *ngIf="model">
-  <ng-container *ngIf="!model.clustered">
+  <ng-container>
     <em-staged-file-chooser
       #fileChooser
       [header]="uploadHeader"
@@ -30,7 +30,7 @@
       <button
         mat-flat-button
         color="primary"
-        [disabled]="fileChooser.uploading || loading || !fileChooser.value || !fileChooser.value.length"
+        [disabled]="!model?.supportUploadDriver || fileChooser.uploading || loading || !fileChooser.value || !fileChooser.value.length"
         (click)="uploadPlugins()"
       >
         _#(Upload)
@@ -48,7 +48,7 @@
       <table mat-table matSort [dataSource]="dataSource">
         <ng-container matColumnDef="select">
           <th mat-header-cell *matHeaderCellDef>
-            <mat-checkbox (change)="$event ? masterToggle() : null" [disabled]="model.clustered || model.plugins.length == 0"
+            <mat-checkbox (change)="$event ? masterToggle() : null" [disabled]="model.plugins.length == 0"
                           [indeterminate]="selection.hasValue() && !isAllSelected()"
                           [checked]="selection.hasValue() && isAllSelected()"></mat-checkbox>
           </th>
@@ -56,7 +56,7 @@
             <mat-checkbox (click)="$event.stopPropagation()"
                           (change)="$event ? selection.toggle(plugin) : null"
                           [checked]="selection.isSelected(plugin)"
-                          [disabled]="model.clustered || plugin.readOnly"></mat-checkbox>
+                          [disabled]="plugin.readOnly"></mat-checkbox>
           </td>
         </ng-container>
 
@@ -74,7 +74,7 @@
         <tr mat-row *matRowDef="let plugin; columns: displayedColumns;" (click)="toggleSelection(plugin)"></tr>
       </table>
     </mat-card-content>
-    <mat-card-actions *ngIf="!model.clustered" class="padding-left">
+    <mat-card-actions class="padding-left">
       <button mat-flat-button
               [disabled]="selection.selected.length == 0"
               (click)="uninstallSelected()">

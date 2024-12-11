@@ -135,6 +135,10 @@ export class AddParameterDialog implements OnInit {
          });
    }
 
+   cancelChanges(): void {
+      this.onCancel.emit();
+   }
+
    convertTimeInstantArray(): void {
       if(!!this.model && this.model.array && this.model.type === "timeInstant") {
          this.model.value.value = this.model.value.value?.replace(/T/gm, " ");
@@ -236,7 +240,7 @@ export class AddParameterDialog implements OnInit {
    updateDynamicValue() {
       this.form.controls["value"].setValue(this.model.value.value);
 
-      if(this.model.value.type == ValueTypes.EXPRESSION) {
+      if(this.model.value.type == ValueTypes.EXPRESSION && this.model.value.value != "") {
          this.form.controls["array"].disable();
       }
       else {

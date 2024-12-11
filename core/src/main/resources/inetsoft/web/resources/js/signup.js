@@ -142,17 +142,22 @@ function initSignUpDetailView(requestedUrl) {
    const PASSWORD_MIN_LENGTH = 8;
    const PASSWORD_MAX_LENGTH = 72;
    let $signupButton  = $("#signupButton");
-   let $userNameField = $("#signupUserName");
+   let $userFirstNameField = $("#signupUserFirstName");
+   let $userLastNameField = $("#signupUserLastName");
    let $passwordField = $("#signupPassword");
    let $verifyPasswordField = $("#signupVerifyPassword");
    let $emailCodeField = $("#emailCode");
    let $resendCodeBtn = $("#resendCodeBtn");
    let $loadingIndicator = $(".loading-indicator");
 
-   let $userNameError = $("#userNameError");
-   let $userNameRequiredError = $("#userNameRequiredError");
-   let $userNameFormatError = $("#userNameFormatError");
-   let $userNameTooLongError = $("#userNameTooLongError");
+   let $userFirstNameError = $("#userFirstNameError");
+   let $userFirstNameRequiredError = $("#userFirstNameRequiredError");
+   let $userFirstNameFormatError = $("#userFirstNameFormatError");
+   let $userFirstNameTooLongError = $("#userFirstNameTooLongError");
+   let $userLastNameError = $("#userLastNameError");
+   let $userLastNameRequiredError = $("#userLastNameRequiredError");
+   let $userLastNameFormatError = $("#userLastNameFormatError");
+   let $userLastNameTooLongError = $("#userLastNameTooLongError");
    let $passwordError = $("#passwordError");
    let $passwordRequiredError = $("#passwordRequiredError");
    let $passwordFormatError = $("#passwordFormatError");
@@ -165,25 +170,30 @@ function initSignUpDetailView(requestedUrl) {
    let $emailCodeFormatError = $("#emailCodeFormatError");
    let $notifications = $("#notifications");
 
-   let userName;
+   let userFirstName;
+   let userLastName;
    let password;
    let verifyPassword;
    let launchCode;
 
-   let userNameValid;
+   let userFirstNameValid;
+   let userLastNameValid;
    let passwordValid;
    let verifyPasswordValid;
    let launchCodeValid;
 
-   let userNamePristine = true;
+   let userFirstNamePristine = true;
+   let userLastNamePristine = true;
    let passwordPristine = true;
    let verifyPasswordPristine = true;
    let launchCodePristine = true;
    let resendBtnEnable = true;
 
    function validateForm(ignorePristineState) {
-      userName = $userNameField.val();
-      userNameValid = validateUserName(userName);
+      userFirstName = $userFirstNameField.val();
+      userLastName = $userLastNameField.val();
+      userFirstNameValid = validateUserName(userFirstName);
+      userLastNameValid = validateUserName(userLastName);
       password = $passwordField.val();
       passwordValid = validatePassword(password);
       verifyPassword = $verifyPasswordField.val();
@@ -208,8 +218,10 @@ function initSignUpDetailView(requestedUrl) {
    }
 
    function updateViewState(ignorePristineState) {
-      updateFieldView(!ignorePristineState && userNamePristine, userName, userNameValid, $userNameField,
-          $userNameError, $userNameRequiredError, $userNameFormatError, $userNameTooLongError, 39);
+      updateFieldView(!ignorePristineState && userFirstNamePristine, userFirstName, userFirstNameValid, $userFirstNameField,
+          $userFirstNameError, $userFirstNameRequiredError, $userFirstNameFormatError, $userFirstNameTooLongError, 39);
+      updateFieldView(!ignorePristineState && userLastNamePristine, userLastName, userLastNameValid, $userLastNameField,
+          $userLastNameError, $userLastNameRequiredError, $userLastNameFormatError, $userLastNameTooLongError, 39);
       updateFieldView(!ignorePristineState && passwordPristine, password, passwordValid, $passwordField,
           $passwordError, $passwordRequiredError, $passwordFormatError, $passwordTooLongError, 72);
       updateFieldView(!ignorePristineState && verifyPasswordPristine, verifyPassword, verifyPasswordValid,
@@ -217,7 +229,7 @@ function initSignUpDetailView(requestedUrl) {
       updateFieldView(!ignorePristineState && launchCodePristine, launchCode, launchCodeValid, $emailCodeField,
           $emailCodeError, $emailCodeRequiredError, $emailCodeFormatError);
 
-      if(!userNameValid || !passwordValid || !verifyPasswordValid || !launchCodeValid) {
+      if(!userFirstNameValid || !userLastNameValid || !passwordValid || !verifyPasswordValid || !launchCodeValid) {
          $signupButton.addClass("disabled");
       }
       else {
@@ -283,14 +295,19 @@ function initSignUpDetailView(requestedUrl) {
    function signup() {
       validateForm(true);
 
-      if(!userNameValid || !passwordValid || !verifyPasswordValid || !launchCodeValid) {
+      //get email as userName from session data on back end
+      let userName = " ";
+
+      if(!userFirstNameValid || !userLastNameValid || !passwordValid || !verifyPasswordValid || !launchCodeValid) {
          return;
       }
 
       $loadingIndicator.addClass("loading");
 
-      let url = "signup/userDetail?name=" + userName + "&password=" + password +
-          "&code=" + $emailCodeField.val();
+      let url = "signup/userDetail?name=" + encodeURIComponent(userName) +"&password=" + encodeURIComponent(password) +
+         "&code=" + $emailCodeField.val() +
+         "&SignUpFirstName=" + encodeURIComponent(userFirstName) +
+         "&SignUpLastName=" + encodeURIComponent(userLastName);
 
       $.ajax({
          url: url,
@@ -298,6 +315,11 @@ function initSignUpDetailView(requestedUrl) {
          cache: false,
          success: function(data) {
             if(data.success) {
+
+               if(data.email) {
+                  userName = data.email;
+               }
+
                authenticateUser(userName, password, userName, requestedUrl, true,
                    () => {
                       if(requestedUrl != null) {
@@ -366,12 +388,23 @@ function initSignUpDetailView(requestedUrl) {
       }, 1000)
    }
 
-   $userNameField.keyup(function(event) {
+   $userFirstNameField.keyup(function(event) {
       if(event.which == 13) {
          signup();
       }
       else {
-         userNamePristine = false;
+         userFirstNamePristine = false;
+      }
+
+      validateForm();
+   });
+
+   $userLastNameField.keyup(function(event) {
+      if(event.which == 13) {
+         signup();
+      }
+      else {
+         userLastNamePristine = false;
       }
 
       validateForm();

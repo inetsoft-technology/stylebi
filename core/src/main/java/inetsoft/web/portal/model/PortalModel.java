@@ -46,6 +46,11 @@ public abstract class PortalModel {
    public abstract boolean profile();
    public abstract boolean profiling();
 
+   @Value.Default
+   public boolean elasticLicenseExhausted() {
+      return false;
+   }
+
    public static Builder builder() {
       return new Builder();
    }

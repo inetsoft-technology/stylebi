@@ -17,10 +17,10 @@
   -->
 
 <div blockMouse>
-  <div class="modal-header">
-    <h3 class="modal-title">_#(Select Palette)</h3>
-    <button type="button" class="btn-close" (click)="cancelChanges()" aria-label="Close"></button>
-  </div>
+  <modal-header
+    [title]="'_#(Select Palette)'"
+    (onCancel)="cancelChanges()">
+  </modal-header>
   <div class="modal-body" *ngIf="colorPalettes">
     <!--palette selector-->
     <div class="palette-row" *ngIf="colorPalettes">

@@ -189,6 +189,7 @@ export class ViewsheetActionEditorComponent implements OnInit, AfterContentCheck
          return;
       }
 
+      let changeSheet = !!this._selectedViewsheet;
       this._selectedViewsheet = val;
       this.bookmarks.next([]);
       this.bookmarksDB.next([]);
@@ -234,7 +235,7 @@ export class ViewsheetActionEditorComponent implements OnInit, AfterContentCheck
             )
             .subscribe(b => {
                this.bookmarks.next(b);
-               this.updateBookmark();
+               this.updateBookmark(changeSheet);
             });
 
          this.viewsheetService.hasPrintLayout(val)
@@ -345,6 +346,8 @@ export class ViewsheetActionEditorComponent implements OnInit, AfterContentCheck
       this.actionModel.to = change.recipients;
       this.actionModel.subject = change.subject;
       this.actionModel.bundledAsZip = change.bundledAsZip;
+      this.actionModel.useCredential = change.useCredential;
+      this.actionModel.secretId = change.secretId;
       this.actionModel.password = change.zipPassword;
       this.actionModel.attachmentName = change.attachmentName;
       this.actionModel.format = change.format;
@@ -457,6 +460,11 @@ export class ViewsheetActionEditorComponent implements OnInit, AfterContentCheck
          "_#(js:em.scheduleRepletAction.dashboardNotExists)", [this.selectedViewsheetName]);
    }
 
+   bookmarkNotExistsMessage(bk) {
+      return ExpandStringDirective.expandString(
+         "_#(js:em.scheduleRepletAction.bookmarkNotExists)", [bk]);
+   }
+
    private updateTreeState(): void {
       if(this.isPrivateVS(this.selectedViewsheet)) {
          let folder = this.treeControl.dataNodes?.find(node => node.id.startsWith("4^4097^") && node.id.indexOf("^" + Tool.MY_REPORTS) > 0);
@@ -518,29 +526,44 @@ export class ViewsheetActionEditorComponent implements OnInit, AfterContentCheck
       }
    }
 
-   private updateBookmark(): void {
+   private updateBookmark(changeSheet: boolean = false): void {
       let vsBookmarks = this.bookmarks.value;
 
-      if(!vsBookmarks) {
+      if(!vsBookmarks || vsBookmarks.length == 0) {
          return;
       }
 
       if(!!this.selectedBookmarks) {
          for(let i = 0; i < this.selectedBookmarks.length; i ++) {
             if(this.selectedBookmarks[i]) {
-               this.selectedBookmarks[i] = vsBookmarks.find((j) =>
+               let nbk = vsBookmarks.find((j) =>
                   j.name === this.selectedBookmarks[i].name &&
                   j.owner?.name === this.selectedBookmarks[i].owner?.name &&
-                  j.owner?.organization === this.selectedBookmarks[i].owner?.organization);
+                  j.owner?.orgID === this.selectedBookmarks[i].owner?.orgID);
+
+               if(nbk != null) {
+                  this.selectedBookmarks[i] = nbk;
+               }
+               else {
+                  if(changeSheet) {
+                     this.selectedBookmarks[i] = null;
+                  }
+                  else {
+                     this.selectedBookmarks[i].name = null;
+                     this.selectedBookmarks[i].owner = null;
+                  }
+               }
             }
          }
 
          this.selectedBookmarks = this.selectedBookmarks.filter(b => !!b);
+         this.bookmarksDB.next(this.selectedBookmarks);
       }
 
       if(!this.selectedBookmarks || this.selectedBookmarks.length == 0) {
          let home = vsBookmarks.find(i => i.name === "(Home)");
          this.selectedBookmarks = !!home ? [home] : [];
+         this.bookmarksDB.next(this.selectedBookmarks);
          this.fireModelChanged();
       }
    }
@@ -557,7 +580,8 @@ export class ViewsheetActionEditorComponent implements OnInit, AfterContentCheck
 
    removeBookmark(bookmark: VSBookmarkInfoModel) {
       const index = this.selectedBookmarks.findIndex(
-         b => b.name == bookmark.name && b.type == bookmark.type && b.owner == bookmark.owner);
+         b => b.name == bookmark.name && b.type == bookmark.type &&
+            b.owner?.name == bookmark.owner?.name && b.owner?.orgID == bookmark.owner?.orgID);
 
       if(index >= 0) {
          this.selectedBookmarks.splice(index, 1);
@@ -569,6 +593,8 @@ export class ViewsheetActionEditorComponent implements OnInit, AfterContentCheck
    private convertToPathModel(change: ServerSaveFile) {
       let info: ServerPathInfoModel = {
          path: change.path,
+         useCredential: !!change.useCredential,
+         secretId: change.secretId,
          username: change.username,
          password: change.password,
          ftp: !!change.ftp,

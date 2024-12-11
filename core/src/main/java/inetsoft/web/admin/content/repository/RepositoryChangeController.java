@@ -25,8 +25,7 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.util.Debouncer;
-import inetsoft.util.DefaultDebouncer;
+import inetsoft.util.*;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,8 +77,9 @@ public class RepositoryChangeController {
       DashboardManager.getManager().removeDashboardChangeListener(this.dashboardListener);
       DataSourceRegistry.getRegistry().removeRefreshedListener(dataSourceListener);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+      IdentityID[] users = SecurityEngine.getSecurity().getSecurityProvider().getUsers();
 
-      if(principal != null) {
+      if(principal != null && Tool.contains(users, pId)) {
          RepletRegistry.getRegistry(pId)
             .removePropertyChangeListener(this.reportListener);
 

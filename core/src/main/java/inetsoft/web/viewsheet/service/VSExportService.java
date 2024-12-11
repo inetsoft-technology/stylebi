@@ -382,7 +382,8 @@ public class VSExportService {
       }
 
       response.setHeader("Content-disposition", StringUtils.normalizeSpace(disposition) +
-         "; filename*=utf-8''" + StringUtils.normalizeSpace(fileName));
+         "; filename*=utf-8''" + StringUtils.normalizeSpace(fileName) +
+         "; filename=\"" + StringUtils.normalizeSpace(fileName) + "\"");
 
       response.setHeader("extension", StringUtils.normalizeSpace(suffix));
       // @by yuz, avoid IE bugs for MS Office

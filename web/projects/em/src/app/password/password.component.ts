@@ -66,7 +66,13 @@ export class PasswordComponent implements OnInit {
          }
       }, (error) => {
          console.error("Failed to verify old password: ", error);
-         this.service.notify("_#(js:em.changePassword.matchOldPwdError)");
+         let msg = "_#(js:em.changePassword.matchOldPwdError)";
+
+         if(error?.error?.message) {
+            msg = msg + ": " + error.error.message;
+         }
+
+         this.service.notify(msg);
          this.loading = false;
       });
    }

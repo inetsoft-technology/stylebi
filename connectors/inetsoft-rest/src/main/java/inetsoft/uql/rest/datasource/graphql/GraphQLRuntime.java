@@ -29,13 +29,13 @@ public class GraphQLRuntime extends RestJsonRuntime {
    @Override
    public XTableNode runQuery(TabularQuery tabularQuery, VariableTable params) {
       final GraphQLQuery query = (GraphQLQuery) tabularQuery;
-      final GraphQLDataSource dataSource = (GraphQLDataSource) query.getDataSource();
+      final AbstractGraphQLDataSource dataSource = (AbstractGraphQLDataSource) query.getDataSource();
       final boolean postRequest = query.isPostRequest();
       addParams(query, dataSource, postRequest);
       return super.runQuery(tabularQuery, params);
    }
 
-   private void addParams(GraphQLQuery query, GraphQLDataSource dataSource, boolean postRequest) {
+   private void addParams(GraphQLQuery query, AbstractGraphQLDataSource dataSource, boolean postRequest) {
       final Set<HttpParameter> httpParams =
          new HashSet<>(Arrays.asList(dataSource.getRequestParameters()));
 

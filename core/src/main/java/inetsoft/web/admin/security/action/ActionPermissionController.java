@@ -106,7 +106,7 @@ public class ActionPermissionController {
 
       label = Catalog.getCatalog().getString(label);
       loadActions();
-      return permissionService.getTableModel(path, type, actions.get(resource), label, true, principal);
+      return permissionService.getTableModel(path, type, actions.get(resource), label, principal);
    }
 
    @Secured(

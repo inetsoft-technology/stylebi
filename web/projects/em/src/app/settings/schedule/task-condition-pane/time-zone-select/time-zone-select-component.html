@@ -18,6 +18,6 @@
 <mat-form-field appearance="outline" color="accent" *ngIf="startTimeEnabled">
   <mat-label>_#(Time Zone)</mat-label>
   <mat-select [(value)]="timeZoneId" placeholder="_#(Time Zone)" (selectionChange)="setTimeZoneLabel(true)" [disabled]="!enabled">
-    <mat-option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId">{{tz.hourOffset + " " + tz.label}}</mat-option>
+    <mat-option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{tz.hourOffset + " " + tz.label}}</mat-option>
   </mat-select>
 </mat-form-field>

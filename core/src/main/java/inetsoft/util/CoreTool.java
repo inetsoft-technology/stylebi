@@ -912,35 +912,39 @@ public class CoreTool {
             map.put(resultKey, result);
             break;
          case CODE_TIME_INSTANT:
+            Date timeInstant;
+
             try {
-               date = parseDateTime(val);
+               timeInstant = parseDateTime(val);
             }
             catch(Exception ex) {
                try {
-                  date = parseDate(val);
+                  timeInstant = parseDate(val);
                }
                catch(Exception ex2) {
-                  date = parseTime(val);
+                  timeInstant = parseTime(val);
                }
             }
 
-            result = new java.sql.Timestamp(date.getTime());
+            result = new java.sql.Timestamp(timeInstant.getTime());
             map.put(resultKey, result);
             break;
          case CODE_TIME:
+            Date time;
+
             try {
-               date = parseTime(val);
+               time = parseTime(val);
             }
             catch(Exception ex) {
                try {
-                  date = parseDateTime(val);
+                  time = parseDateTime(val);
                }
                catch(Exception ex2) {
-                  date = parseDate(val);
+                  time = parseDate(val);
                }
             }
 
-            result = new java.sql.Time(date.getTime());
+            result = new java.sql.Time(time.getTime());
             map.put(resultKey, result);
             break;
          }
@@ -1073,33 +1077,37 @@ public class CoreTool {
 
             return new java.sql.Date(date.getTime());
          case CODE_TIME_INSTANT:
+            Date timeInstant;
+
             try {
-               date = parseDateTime(val);
+               timeInstant = parseDateTime(val);
             }
             catch(Exception ex) {
                try {
-                  date = parseDate(val);
+                  timeInstant = parseDate(val);
                }
                catch(Exception ex2) {
-                  date = parseTime(val);
+                  timeInstant = parseTime(val);
                }
             }
 
-            return new java.sql.Timestamp(date.getTime());
+            return new java.sql.Timestamp(timeInstant.getTime());
          case CODE_TIME:
+            Date time;
+
             try {
-               date = parseTime(val);
+               time = parseTime(val);
             }
             catch(Exception ex) {
                try {
-                  date = parseDateTime(val);
+                  time = parseDateTime(val);
                }
                catch(Exception ex2) {
-                  date = parseDate(val);
+                  time = parseDate(val);
                }
             }
 
-            return new java.sql.Time(date.getTime());
+            return new java.sql.Time(time.getTime());
          case CODE_COLOR:
             try {
                int ival = Integer.parseInt(val);
@@ -2957,11 +2965,15 @@ public class CoreTool {
 
             break;
          case Element.CDATA_SECTION_NODE:
-            buffer.append(child.getNodeValue());
+            String nodeValue = child.getNodeValue();
+
+            if(nodeValue != null) {
+               buffer.append(nodeValue);
+            }
             break;
          case Element.ENTITY_REFERENCE_NODE:
-            sval = "&" + child.getNodeName() + ";";
-            String eval = decoding.get(sval);
+            String val = "&" + child.getNodeName() + ";";
+            String eval = decoding.get(val);
 
             if(eval != null) {
                buffer = multiline ? buffer.append(eval) : new StringBuilder(eval);

@@ -33,6 +33,8 @@ import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.*;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -41,6 +43,7 @@ import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -341,7 +344,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
       File folder = getDirectoryPlugin(fileSystemService, descriptor.getId());
 
       try {
-         if(!folder.exists()) {
+         if(!folder.exists() || folder.lastModified() < lastModified) {
             // out-of-date, remove and unzip
             if(folder.isDirectory() && folder.lastModified() < lastModified) {
                FileUtils.deleteDirectory(folder);
@@ -403,27 +406,36 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
                fileSystemService.getFile(folder, "classes/META-INF/MANIFEST.MF"));
       }
 
-      if(!plugins.containsKey(id)) {
-         String[] requiredPlugins = new String[descriptor.getRequiredPlugins().length];
+      Plugin existingPlugin = plugins.get(id);
 
-         for(int i = 0; i < requiredPlugins.length; i++) {
-            String item = descriptor.getRequiredPlugins()[i];
-            int index = item.indexOf(':');
-            String requiredId = (index > 0) ? item.substring(0, index) : item;
+      if(existingPlugin != null) {
+         Version newVersion = Version.parse(version);
+         Version existingVersion = Version.parse(existingPlugin.getVersion());
 
-            requiredPlugins[i] = requiredId;
+         if(newVersion.isLowerThan(existingVersion)) {
+            return;
          }
+      }
 
-         try {
-            Plugin plugin = new Plugin(
-               id, name, vendor, version, false, folder, requiredPlugins, descriptor, this);
-            plugins.put(id, plugin);
-            LOG.info("Loaded plugin {}:{}", id, version);
-         }
-         catch(Exception pluginLoadException) {
-            LOG.warn("Failed to load plugin {}:{}, Reason: {}",
-                     id, version, pluginLoadException.getMessage());
-         }
+      String[] requiredPlugins = new String[descriptor.getRequiredPlugins().length];
+
+      for(int i = 0; i < requiredPlugins.length; i++) {
+         String item = descriptor.getRequiredPlugins()[i];
+         int index = item.indexOf(':');
+         String requiredId = (index > 0) ? item.substring(0, index) : item;
+
+         requiredPlugins[i] = requiredId;
+      }
+
+      try {
+         Plugin plugin = new Plugin(
+            id, name, vendor, version, false, folder, requiredPlugins, descriptor, this);
+         plugins.put(id, plugin);
+         LOG.info("Loaded plugin {}:{}", id, version);
+      }
+      catch(Exception pluginLoadException) {
+         LOG.warn("Failed to load plugin {}:{}, Reason: {}",
+                  id, version, pluginLoadException.getMessage());
       }
    }
 
@@ -615,6 +627,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
          loadPlugin(descriptor);
          Drivers.getInstance().pluginAdded(descriptor.getId());
          Config.reloadServices();
+         fireActionEvent(descriptor.getId());
       }
       catch(Exception e) {
          LOG.warn("Failed to load plugin", e);
@@ -654,6 +667,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
             }
 
             Config.reloadServices();
+            fireActionEvent(pluginId);
          }
       }
       finally {
@@ -680,14 +694,56 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
       }
    }
 
+   public void addActionListener(ActionListener listener) {
+      listeners.add(listener);
+   }
+
+   public void removeActionListener(ActionListener listener) {
+      listeners.remove(listener);
+   }
+
+   private void fireActionEvent(String name) {
+      ActionEvent evt = new ActionEvent(this, 0, name);
+      List<ActionListener> currentListeners;
+
+      synchronized(this) {
+         currentListeners = new ArrayList<>(this.listeners);
+      }
+
+      for(ActionListener listener : currentListeners) {
+         try {
+            if(listener != null) {
+               listener.actionPerformed(evt);
+            }
+         }
+         catch(Exception ex) {
+            LOG.warn("Failed to process action event", ex);
+         }
+      }
+   }
+
    public static final class Reference extends SingletonManager.Reference<Plugins> {
       @SuppressWarnings("unchecked")
       @Override
       public Plugins get(Object... parameters) {
          if(plugins == null) {
-            plugins = new Plugins(
-               SingletonManager.getInstance(BlobStorage.class, "plugins", true));
-            plugins.init();
+            lock.lock();
+
+            try {
+               if(plugins == null) {
+                  try {
+                     plugins = new Plugins(
+                        SingletonManager.getInstance(BlobStorage.class, "plugins", true));
+                     plugins.init();
+                  }
+                  catch(Exception e) {
+                     LOG.error("Failed to initialize plugins", e);
+                  }
+               }
+            }
+            finally {
+               lock.unlock();
+            }
          }
 
          return plugins;
@@ -695,26 +751,31 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
 
       @Override
       public void dispose() {
-         if(plugins != null) {
-            try {
+         lock.lock();
+
+         try {
+            if(plugins != null) {
                plugins.close();
             }
-            catch(Exception e) {
-               LOG.warn("Failed to close plugins", e);
-            }
-            finally {
-               plugins = null;
-            }
+         }
+         catch(Exception e) {
+            LOG.warn("Failed to close plugins", e);
+         }
+         finally {
+            plugins = null;
+            lock.unlock();
          }
       }
 
       private Plugins plugins;
+      private final Lock lock = new ReentrantLock();
    }
 
    private final BlobStorage<Plugin.Descriptor> blobStorage;
    private final File pluginDirectory;
    private final Map<String, Plugin> plugins;
    private final Lock blobChangeLock;
+   private final List<ActionListener> listeners = new ArrayList<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(Plugins.class);
    private static final String BLOB_CHANGE_LOCK = Plugins.class.getName() + ".blobChangeLock";

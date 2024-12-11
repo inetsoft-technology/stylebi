@@ -53,9 +53,12 @@ import { MessageDialogModule } from "../../common/util/message-dialog.module";
 import { ModalHeaderModule } from "../../common/util/modal-header/modal-header.module";
 import { ScrollNavModule } from "../../common/util/scroll-nav/scroll-nav.module";
 import { TableViewModule } from "../../common/util/table/table-view.module";
+import { FlatTreeModule } from "../../common/util/tree/flat-tree.module";
+import { TopScrollModule } from "../../top-scroll/top-scroll.module";
 import { DashboardsSettingsSortableTableViewComponent } from "./dashboards-settings-sortable-table-view/dashboards-settings-sortable-table-view.component";
 import { ExportMenuOptionsViewComponent } from "./export-menu-options-view/export-menu-options-view.component";
 import { AddFontFaceDialogComponent } from "./look-and-feel-settings-view/add-font-dialog/add-font-face-dialog.component";
+import { CustomShapeDialogComponent } from "./look-and-feel-settings-view/custom-shape-dialog.component";
 import { EditFontsDialogComponent } from "./look-and-feel-settings-view/edit-fonts-dialog/edit-fonts-dialog.component";
 import { LookAndFeelSettingsViewComponent } from "./look-and-feel-settings-view/look-and-feel-settings-view.component";
 import { EditPortalTabDialogComponent } from "./portal-integration-view/edit-portal-tab-dialog/edit-portal-tab-dialog.component";
@@ -131,11 +134,14 @@ import { ColorPickerModule } from "ngx-color-picker";
       MatTabsModule,
       MatSidenavModule,
       MatMenuModule,
-      EditorPanelModule
+      EditorPanelModule,
+      FlatTreeModule,
+      TopScrollModule
    ],
    declarations: [
       AddFontFaceDialogComponent,
       AddDataSourceTypeDialogComponent,
+      CustomShapeDialogComponent,
       DashboardsSettingsSortableTableViewComponent,
       EditFontMappingDialogComponent,
       EditFontsDialogComponent,

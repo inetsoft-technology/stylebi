@@ -22,6 +22,7 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.tabular.TabularUtil;
 import inetsoft.uql.tabular.oauth.AuthorizationClient;
 import inetsoft.uql.tabular.oauth.Tokens;
@@ -597,7 +598,7 @@ public class DataSourceController {
       @RequestBody DataSourceDefinition definition, Principal principal)
       throws Exception
    {
-      datasourcesService.createNewDataSource(definition, principal);
+      datasourcesService.createNewDataSource(definition, false, principal);
    }
 
    /**
@@ -608,7 +609,13 @@ public class DataSourceController {
    @GetMapping("/api/portal/data/datasources/checkDuplicate/**")
    //@Secured(permissions = @RequiredPermission(ActionTypes.DATA_TAB))
    public boolean checkDatasourceDuplicate(@RemainingPath String name) throws Exception {
-      return datasourcesService.checkDuplicate(name);
+      //handle globally exposed default org assets from getting hit badly
+      XPrincipal principal = (XPrincipal) (ThreadContext.getContextPrincipal());
+      principal.setProperty("datasource.isCheckingDuplicate", "true");
+      boolean isDuplicate = datasourcesService.checkDuplicate(name);
+      principal.setProperty("datasource.isCheckingDuplicate", null);
+
+      return isDuplicate;
    }
 
    /**

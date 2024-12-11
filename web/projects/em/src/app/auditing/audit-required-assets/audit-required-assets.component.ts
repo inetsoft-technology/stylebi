@@ -18,12 +18,12 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { FormBuilder, FormGroup, Validators } from "@angular/forms";
-import { tap } from "rxjs/operators";
+import { catchError, tap } from "rxjs/operators";
+import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
 import { Secured } from "../../secured";
-import { IdentityId } from "../../settings/security/users/identity-id";
 import { AssetModel } from "../audit-dependent-assets/asset-model";
 import {
    ASSET_REQUIRED_TYPES, ASSET_TYPES,
@@ -35,8 +35,9 @@ import {
 } from "../audit-dependent-assets/dependency-util";
 import { DependentAsset } from "../audit-dependent-assets/dependent-assets";
 import { RequiredAssetList, RequiredAssetParameters } from "./required-asset";
-import { Subscription } from "rxjs";
+import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
+import { RequiredAssetEvent } from "./required-asset-event";
 
 @Secured({
    route: "/auditing/required-assets",
@@ -49,7 +50,7 @@ import { ActivatedRoute } from "@angular/router";
 })
 @ContextHelp({
    route: "/auditing/required-assets",
-   link: "EMAuditingRequiredAssets"
+   link: "EMViewAudit"
 })
 @Component({
   selector: "em-audit-required-assets",
@@ -83,7 +84,8 @@ export class AuditRequiredAssetsComponent implements OnInit, OnDestroy {
    getAssetLabel = getAssetLabel;
 
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
-               private pageTitle: PageHeaderService, fb: FormBuilder)
+               private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
+               fb: FormBuilder)
    {
       this.form = fb.group({
          selectedDependentType: ["DATA_SOURCE", [Validators.required]],
@@ -123,41 +125,48 @@ export class AuditRequiredAssetsComponent implements OnInit, OnDestroy {
       }
 
       return this.http.get<RequiredAssetParameters>("../api/em/monitoring/audit/requiredAssetParameters", {params})
-         .pipe(tap(p => {
-            this.allUsers = p.users.map(u => ({value: u, label: u}));
-            this.dependentAssets = p.assets;
-         }));
+         .pipe(
+            catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
+               users: [],
+               dependentAssets: [],
+               startTime: 0,
+               endTime: 0
+            }))),
+            tap(p => {
+               this.allUsers = p.users.map(u => ({value: u, label: u}));
+               this.dependentAssets = p.assets;
+            }));
    };
 
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchData = (httpParams: HttpParams, additional: { [key: string]: any; }) => {
-      let params = httpParams;
+      let dependentAssetIds: string[] = [];
       const selectedDependentAssets: string[] = additional.selectedDependentAssets;
 
-      const filteredAssets = selectedDependentAssets.filter(
-         assetId => !!this.dependentAssets
-            .find(asset => asset.assetId == assetId))
-
-      if(!!filteredAssets && filteredAssets.length > 0) {
-         filteredAssets.forEach(a => params = params.append("dependentAssets", a));
+      if(selectedDependentAssets.length > 0) {
+         dependentAssetIds = selectedDependentAssets.filter(
+            assetId => !!this.dependentAssets
+               .find(asset => asset.assetId == assetId));
       }
       else {
-         this.dependentAssets.forEach(a => params = params.append("dependentAssets", a.assetId));
+         dependentAssetIds = this.dependentAssets.map(a => a.assetId);
       }
 
-      const selectedTargetTypes: string[] = additional.selectedTargetTypes;
+      const request: RequiredAssetEvent = {
+         dependentAssets: dependentAssetIds,
+         targetTypes: additional.selectedTargetTypes,
+         targetUsers: additional.selectedTargetUsers,
+         sortColumn: httpParams.get("sortColumn"),
+         sortDirection: httpParams.get("sortDirection"),
+         offset: Number(httpParams.get("offset")),
+         limit: Number(httpParams.get("limit"))
+      };
 
-      if(!!selectedTargetTypes && selectedTargetTypes.length > 0) {
-         selectedTargetTypes.forEach(t => params = params.append("targetTypes", t));
-      }
-
-      const selectedTargetUsers: string[] = additional.selectedTargetUsers;
-
-      if(!!selectedTargetUsers && selectedTargetUsers.length > 0) {
-         selectedTargetUsers.forEach(u => params = params.append("targetUsers", u));
-      }
-
-      return this.http.get<RequiredAssetList>("../api/em/monitoring/audit/requiredAssets", {params});
+      return this.http.post<RequiredAssetList>("../api/em/monitoring/audit/requiredAssets", request)
+         .pipe(catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to run query)", () => of({
+            totalRowCount: 0,
+            rows: []
+         }))));
    };
 
    private onDependentTypeChange(): void {

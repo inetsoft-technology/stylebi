@@ -22,8 +22,7 @@ import inetsoft.analytic.composition.event.CheckMVEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.*;
-import inetsoft.report.composition.execution.AssetDataCache;
-import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.report.composition.execution.*;
 import inetsoft.report.internal.LicenseException;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.IdentityID;
@@ -307,7 +306,7 @@ public class VSLifecycleService {
          }
 
          if(rvs != null) {
-            auditFinish = shouldAuditFinish(rvs);
+            auditFinish = shouldAuditFinish(rvs.getViewsheetSandbox());
 
             if(event.getPreviousUrl() != null) {
                rvs.setPreviousURL(event.getPreviousUrl());
@@ -492,26 +491,47 @@ public class VSLifecycleService {
       }
    }
 
-   private boolean shouldAuditFinish(RuntimeViewsheet rvs) {
-      VariableTable vars = new VariableTable();
-
+   private boolean shouldAuditFinish(ViewsheetSandbox viewsheetSandbox) {
       try {
-         AssetQuerySandbox abox =
-            rvs.getViewsheetSandbox().getAssetQuerySandbox();
-         UserVariable[] params = abox.getAllVariables(vars);
-         Viewsheet vs = rvs.getViewsheet();
+         Viewsheet vs = viewsheetSandbox.getViewsheet();
          ViewsheetInfo vsInfo = vs == null ? null : vs.getViewsheetInfo();
 
-         if(params != null && params.length > 0
-            && (vsInfo == null || !vsInfo.isDisableParameterSheet()))
-         {
-            return false;
+         if(vsInfo != null && vsInfo.isDisableParameterSheet()) {
+            return true;
          }
+
+         return shouldAuditFinish0(viewsheetSandbox);
       }
       catch(Exception e) {
          // In case there are any issues/errors in checking the Variables for
          // this Viewsheet, just swallow the exception and continue on with the
          // previous logic. There is no reason to display this error to the end-user.
+      }
+
+      return true;
+   }
+
+   private boolean shouldAuditFinish0(ViewsheetSandbox viewsheetSandbox) {
+      VariableTable vars = new VariableTable();
+      AssetQuerySandbox abox = viewsheetSandbox.getAssetQuerySandbox();
+      UserVariable[] params = abox.getAllVariables(vars);
+
+      if(params != null && params.length > 0) {
+         return false;
+      }
+
+      ViewsheetSandbox[] sandboxes = viewsheetSandbox.getSandboxes();
+
+      if(sandboxes != null) {
+         for(ViewsheetSandbox sandbox : sandboxes) {
+            if(viewsheetSandbox == sandbox) {
+               continue;
+            }
+
+            if(!shouldAuditFinish0(sandbox)) {
+               return false;
+            }
+         }
       }
 
       return true;

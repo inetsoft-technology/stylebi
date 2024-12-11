@@ -169,6 +169,10 @@ public class MVSupportService {
                if(childEntry.getType() == AssetEntry.Type.VIEWSHEET &&
                   !newIdentifiers.contains(childEntry.toIdentifier()))
                {
+                  if(getSheet(childEntry.toIdentifier(), childEntry, principal) == null) {
+                     continue;
+                  }
+
                   newIdentifiers.add(childEntry.toIdentifier());
                   newPaths.add(childEntry.getPath());
                }
@@ -315,7 +319,8 @@ public class MVSupportService {
    private String createMVForeground(List<MVStatus> views, boolean noData, Principal principal) {
       MVManager manager = MVManager.getManager();
       final String prefix = principal.getName() + ":";
-      ScheduleTask task = new ScheduleTask(prefix + "MV Task: " + UUID.randomUUID().toString());
+      ScheduleTask task = new ScheduleTask(
+         prefix + MV_TASK_PREFIX + UUID.randomUUID().toString(), ScheduleTask.Type.MV_TASK);
 
       for(MVStatus status : views) {
          if(noData) {
@@ -349,13 +354,15 @@ public class MVSupportService {
     */
    public void dispose(List<String> mvs) {
       MVManager manager = MVManager.getManager();
+      Principal principal = ThreadContext.getContextPrincipal();
+      IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
 
       for(String mv : mvs) {
          ClusterUtil.deleteClusterMV(mv);
-         MVDef def = manager.get(mv);
+         MVDef def = manager.get(mv, identityID.getOrgID());
 
          if(def != null) {
-            manager.remove(def, false);
+            manager.remove(def, false, identityID.orgID);
          }
       }
 
@@ -429,9 +436,12 @@ public class MVSupportService {
       long time = System.currentTimeMillis() + 6000 * 2;
       MVManager mvManager = MVManager.getManager();
       TimeCondition condition = TimeCondition.at(new Date(time));
-      final String prefix = principal.getName() + ":";
-      ScheduleTask task = new ScheduleTask(prefix + "MV Task: " + UUID.randomUUID().toString());
-      ScheduleTask task2 = new ScheduleTask(prefix + "MV Task Stage 2: " + UUID.randomUUID().toString());
+      ScheduleTask task = new ScheduleTask(MV_TASK_PREFIX + UUID.randomUUID(), ScheduleTask.Type.MV_TASK);
+      IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
+      IdentityID owner = SUtil.getOwnerForNewTask(user);
+      task.setOwner(SUtil.getOwnerForNewTask(user));
+      ScheduleTask task2 = new ScheduleTask(MV_TASK_STAGE_PREFIX + UUID.randomUUID(), ScheduleTask.Type.MV_TASK);
+      task2.setOwner(owner);
       task.setDeleteIfNoMoreRun(true);
       task.setEditable(false);
       task.setDurable(true);
@@ -439,7 +449,7 @@ public class MVSupportService {
       task2.setDeleteIfNoMoreRun(true);
       task2.setEditable(false);
       task2.setDurable(true);
-      task2.addCondition(new CompletionCondition(task.getName()));
+      task2.addCondition(new CompletionCondition(task.getTaskId()));
 
       for(MVStatus status : statuses) {
          if(status.getDefinition().isAssociationMV()) {
@@ -455,10 +465,10 @@ public class MVSupportService {
       }
 
       ScheduleManager manager = ScheduleManager.getScheduleManager();
-      manager.setScheduleTask(task.getName(), task, principal);
+      manager.setScheduleTask(task.getTaskId(), task, principal);
 
       if(task2.getActionCount() > 0) {
-         manager.setScheduleTask(task2.getName(), task2, principal);
+         manager.setScheduleTask(task2.getTaskId(), task2, principal);
       }
 
       mvManager.fireEvent("mvmanager_", MVManager.MV_CHANGE_EVENT, null, null);
@@ -491,7 +501,7 @@ public class MVSupportService {
 
       // status to be removed
       for(ScheduleTask task : schedule.getScheduleTasks()) {
-         if(task.getName().startsWith(DataCycleManager.TASK_PREFIX)) {
+         if(task.getTaskId().startsWith(DataCycleManager.TASK_PREFIX)) {
             continue;
          }
 
@@ -1047,8 +1057,7 @@ public class MVSupportService {
          SecurityProvider securityProvider = engine.getSecurityProvider();
 
          if(entry.getScope() == AssetRepository.USER_SCOPE) {
-            identities.add(new DefaultIdentity(entry.getUser().name,
-               securityProvider.getOrgNameFromID(entry.getOrgID()), Identity.USER));
+            identities.add(new DefaultIdentity(entry.getUser().name, entry.getOrgID(), Identity.USER));
          }
          else if(!bypass) {
             Resource resource = AssetUtil.getSecurityResource(entry);
@@ -1059,9 +1068,8 @@ public class MVSupportService {
                   if(expanded) {
                      SRIdentityFinder finder = (SRIdentityFinder) XUtil.getXIdentityFinder();
 
-                     for(IdentityID usr : engine.getOrgUsers(pident.getOrganization())) {
-                        Identity user = new DefaultIdentity(usr.name,
-                           securityProvider.getOrgNameFromID(pident.getOrganization()), Identity.USER);
+                     for(IdentityID usr : engine.getOrgUsers(pident.getOrganizationID())) {
+                        Identity user = new DefaultIdentity(usr.name, pident.getOrganizationID(), Identity.USER);
 
                         if(finder.isParentGroup(user, pident.getName())) {
                            identities.add(user);
@@ -1069,21 +1077,20 @@ public class MVSupportService {
                      }
                   }
                   else {
-                     identities.add(new DefaultIdentity(pident.getName(),
-                        securityProvider.getOrgNameFromID(pident.getOrganization()), Identity.GROUP));
+                     identities.add(new DefaultIdentity(pident.getName(), pident.getOrganizationID(), Identity.GROUP));
                   }
                }
 
                if(!expanded) {
                   for(Permission.PermissionIdentity pident : permission.getRoleGrants(ResourceAction.READ)) {
                      identities.add(new DefaultIdentity(
-                        pident.getName(), securityProvider.getOrgNameFromID(pident.getOrganization()), Identity.ROLE));
+                        pident.getName(), pident.getOrganizationID(), Identity.ROLE));
                   }
                }
 
                for(Permission.PermissionIdentity pident : permission.getUserGrants(ResourceAction.READ)) {
                   identities.add(new DefaultIdentity(
-                     pident.getName(), securityProvider.getOrgNameFromID(pident.getOrganization()), Identity.USER));
+                     pident.getName(), pident.getOrganizationID(), Identity.USER));
                }
             }
 
@@ -1097,8 +1104,7 @@ public class MVSupportService {
                   orgID = Organization.getDefaultOrganizationID();
                }
 
-               identities.add(new DefaultIdentity(XPrincipal.SYSTEM,
-                  securityProvider.getOrgNameFromID(orgID), Identity.USER));
+               identities.add(new DefaultIdentity(XPrincipal.SYSTEM, orgID, Identity.USER));
             }
          }
 
@@ -1275,6 +1281,8 @@ public class MVSupportService {
       Executors.newFixedThreadPool(2, new GroupedThreadFactory());
    private final ExecutorService remoteCreatePool =
       Executors.newCachedThreadPool(new GroupedThreadFactory());
+   public static final String MV_TASK_PREFIX = "MV Task: ";
+   public static final String MV_TASK_STAGE_PREFIX = "MV Task Stage 2: ";
 
    private static final Logger LOG = LoggerFactory.getLogger(MVSupportService.class);
 

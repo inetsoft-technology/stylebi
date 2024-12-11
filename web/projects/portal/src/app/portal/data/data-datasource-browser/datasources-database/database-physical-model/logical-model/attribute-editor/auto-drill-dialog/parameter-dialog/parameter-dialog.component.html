@@ -22,7 +22,7 @@
 <div class="modal-body" *ngIf="model && form">
   <form [formGroup]="form">
     <div class="form-group form-floating">
-      <input #inputFocus class="form-control variable-input" type="text" formControlName="name"
+      <input #inputFocus class="form-control" type="text" formControlName="name"
       [class.is-invalid]="!nameControl.valid"
       [(ngModel)]="variable"
       [ngClass]="{'input-transparent border-0': variables && variables.length > 0}"/>

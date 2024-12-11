@@ -32,9 +32,12 @@ import { Subscription } from "rxjs";
 import { SsoHeartbeatDispatcherService } from "../../../shared/sso/sso-heartbeat-dispatcher.service";
 import { StompClientConnection } from "../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../shared/stomp/stomp-client.service";
+import { LogoutService } from "../../../shared/util/logout.service";
+import { SessionExpirationModel } from "../../../shared/util/model/session-expiration-model";
 import { AuthorizationService } from "./authorization/authorization.service";
 import { ComponentPermissions } from "./authorization/component-permissions";
 import { TopScrollService } from "./top-scroll/top-scroll.service";
+import { SessionExpirationDialog } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
 
 @Component({
    selector: "em-root",
@@ -53,13 +56,15 @@ export class AppComponent implements OnInit, OnDestroy {
    private subscription = new Subscription();
    private connection: StompClientConnection;
    private smallDevice = false;
+   private sessionWarningDisplayed = false;
 
    constructor(private http: HttpClient, private authzService: AuthorizationService,
                private stompClient: StompClientService, private zone: NgZone,
                private dialog: MatDialog, private breakpointObserver: BreakpointObserver,
                private scrollService: TopScrollService,
                private ssoHeartbeatDispatcher: SsoHeartbeatDispatcherService,
-               public viewContainerRef: ViewContainerRef)
+               public viewContainerRef: ViewContainerRef,
+               private logoutService: LogoutService)
    {
       // viewContainerRef is used by the color picker in the theme page
    }
@@ -76,6 +81,10 @@ export class AppComponent implements OnInit, OnDestroy {
          this.subscription.add(connection.subscribe(
             "/notifications",
             (message) => this.zone.run(() => this.notify(JSON.parse(message.frame.body)))));
+         this.subscription.add(connection.subscribe(
+            "/user/session-expiration",
+            (message) => this.zone.run(
+               () => this.showSessionExpiringDialog(JSON.parse(message.frame.body)))));
       });
 
       this.subscription.add(this.breakpointObserver
@@ -116,8 +125,35 @@ export class AppComponent implements OnInit, OnDestroy {
       // TODO: display a message of some kind
    }
 
-   private notify(notification: any): void {
+   notify(notification: any): void {
       this.notificationMessage = notification.message;
       this.dialog.open(this.notificationDialog, { width: "350px" });
+   }
+
+   private showSessionExpiringDialog(model: SessionExpirationModel): void {
+      if(this.sessionWarningDisplayed) {
+         return;
+      }
+
+      this.sessionWarningDisplayed = true;
+      const dialogRef = this.dialog.open(SessionExpirationDialog, {
+         width: "500px",
+         data: {
+            remainingTime: model.remainingTime,
+         }
+      });
+
+      dialogRef.afterClosed().subscribe(value => {
+         if(value) {
+            this.connection.send("/user/session/refresh", null, null);
+         }
+
+         this.sessionWarningDisplayed = false;
+      });
+
+      dialogRef.componentInstance.onLogout.subscribe(() => {
+         this.sessionWarningDisplayed = false;
+         this.logoutService.logout(false, true);
+      });
    }
 }

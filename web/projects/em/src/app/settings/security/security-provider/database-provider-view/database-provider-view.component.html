@@ -43,8 +43,23 @@
               _#(Requires Login)
             </mat-checkbox>
           </div>
+          <div class="flex-row" *ngIf="dbForm.get('requiresLogin').value && isCloudSecrets">
+            <mat-checkbox class="mat-checkbox-field salt-checkbox" formControlName="useCredential">
+              _#(Use Secret ID)
+            </mat-checkbox>
+          </div>
           <div class="flex" *ngIf="dbForm.get('requiresLogin').value">
-            <div class="flex-row">
+            <div class="flex-row" *ngIf="dbForm.get('useCredential').value && isCloudSecrets">
+              <mat-form-field appearance="outline" color="accent">
+                <mat-label>_#(Secret ID)</mat-label>
+                <input matInput placeholder="_#(Secret ID)" formControlName="secretId" required>
+                <mat-hint>_#(em.security.database.secretIdDesc)</mat-hint>
+                <mat-error *ngIf="dbForm.controls['secretId']?.errors?.required">
+                  _#(em.security.database.secretIdRequired)
+                </mat-error>
+              </mat-form-field>
+            </div>
+            <div class="flex-row" *ngIf="!dbForm.get('useCredential').value || !isCloudSecrets">
               <mat-form-field appearance="outline" color="accent">
                 <mat-label>_#(User)</mat-label>
                 <input matInput placeholder="_#(User)" formControlName="user" required>

@@ -85,6 +85,14 @@ public final class DeviceRegistry {
       }
    }
 
+   public synchronized void setDevice(DeviceInfo device) {
+      storage.put(device.getId(), device);
+   }
+
+   public synchronized void deleteDevice(String id) {
+      storage.remove(id);
+   }
+
    /**
     * Gets the mobile device with the specified identifier.
     *

@@ -81,7 +81,7 @@ public class PermissionChecker {
 
       info.add(identity);
 
-      String orgId = provider.getOrganizationId(identity.getOrganization());
+      String orgId = identity.getOrganizationID();
 
       if(permission.check(identity, orgId, action)) {
          return true;
@@ -94,7 +94,8 @@ public class PermissionChecker {
          organization = identity.getName();
       }
       else {
-         organization = identity.getOrganization();
+         organization = orgId != null ? provider.getOrgNameFromID(orgId) : null;
+
       }
 
       return permission.checkOrganization(new Permission.PermissionIdentity(organization, orgId), action);
@@ -118,7 +119,7 @@ public class PermissionChecker {
 
       info.add(identity);
 
-      String orgId = provider.getOrganizationId(identity.getOrganization());
+      String orgId = identity.getOrganizationID();
 
       if(permission.check(identity, orgId, action)) {
          return true;
@@ -137,7 +138,7 @@ public class PermissionChecker {
          }
 
          for(String groupName : groups) {
-            IdentityID groupID = new IdentityID(groupName, identity.getOrganization());
+            IdentityID groupID = new IdentityID(groupName, identity.getOrganizationID());
             Group group = provider.getGroup(groupID);
             group = group == null ? new Group(groupID) : group;
             result = checkUserGroupPermission(group, permission, action, true, info);
@@ -173,7 +174,7 @@ public class PermissionChecker {
 
          info.add(identity);
 
-         String orgId = provider.getOrganizationId(identity.getOrganization());
+         String orgId = identity.getOrganizationID();
 
          if(permission.check(identity, orgId, action)) {
             return true;
@@ -189,16 +190,16 @@ public class PermissionChecker {
          if(identity.getType() == Identity.USER) {
             groups = identity.getGroups();
             roles = identity.getRoles();
-            if(identity.getOrganization() != null && provider.getOrganization(identity.getOrganization()) != null) {
-               IdentityID[] organizationRoles = provider.getOrganization(identity.getOrganization()).getRoles();
+            if(identity.getOrganizationID() != null && provider.getOrganization(identity.getOrganizationID()) != null) {
+               IdentityID[] organizationRoles = provider.getOrganization(identity.getOrganizationID()).getRoles();
                roles = ArrayUtils.addAll(roles, organizationRoles);
             }
          }
          else if(identity.getType() == Identity.GROUP) {
             groups = identity.getGroups();
             roles = identity.getRoles();
-            if(identity.getOrganization() != null && provider.getOrganization(identity.getOrganization()) != null) {
-               IdentityID[] organizationRoles = provider.getOrganization(identity.getOrganization()).getRoles();
+            if(identity.getOrganizationID() != null && provider.getOrganization(identity.getOrganizationID()) != null) {
+               IdentityID[] organizationRoles = provider.getOrganization(identity.getOrganizationID()).getRoles();
                roles = ArrayUtils.addAll(roles, organizationRoles);
             }
          }
@@ -219,7 +220,7 @@ public class PermissionChecker {
 
          if(!result) {
             for(String groupName : groups) {
-               IdentityID groupID = new IdentityID(groupName, identity.getOrganization());
+               IdentityID groupID = new IdentityID(groupName, identity.getOrganizationID());
                Group group = provider.getGroup(groupID);
                group = group == null ? new Group(groupID) : group;
                result = checkRolePermission(group, permission, action, true, info);

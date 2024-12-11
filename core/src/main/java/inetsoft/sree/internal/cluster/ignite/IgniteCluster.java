@@ -17,11 +17,11 @@
  */
 package inetsoft.sree.internal.cluster.ignite;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.AuthenticationService;
 import inetsoft.util.*;
-import inetsoft.util.config.ClusterConfig;
-import inetsoft.util.config.InetsoftConfig;
+import inetsoft.util.config.*;
 import org.apache.ignite.*;
 import org.apache.ignite.cache.*;
 import org.apache.ignite.cache.query.FieldsQueryCursor;
@@ -30,6 +30,7 @@ import org.apache.ignite.cluster.ClusterGroup;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.configuration.*;
 import org.apache.ignite.events.*;
+import org.apache.ignite.internal.NodeStoppingException;
 import org.apache.ignite.lang.*;
 import org.apache.ignite.services.ServiceConfiguration;
 import org.apache.ignite.services.ServiceDescriptor;
@@ -76,13 +77,6 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       if(!config.isClientMode()) {
          initLockTimer();
-
-         ServiceConfiguration scheduledExecutorServiceConfig = new ServiceConfiguration();
-         scheduledExecutorServiceConfig.setService(new IgniteScheduledExecutorServiceImpl());
-         scheduledExecutorServiceConfig.setName("IgniteScheduledExecutorService");
-         scheduledExecutorServiceConfig.setTotalCount(1);
-         ignite.services().deploy(scheduledExecutorServiceConfig);
-
          ignite.getOrCreateCache(getCacheConfiguration(RW_MAP_NAME));
       }
    }
@@ -92,6 +86,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       IgniteConfiguration config = new IgniteConfiguration();
       config.setMetricsLogFrequency(0);
       config.setPeerClassLoadingEnabled(true);
+
+      // atomic data structures like distributed long
+      AtomicConfiguration atomicConfiguration = new AtomicConfiguration();
+      atomicConfiguration.setBackups(getDefaultBackupCount());
+      atomicConfiguration.setCacheMode(getDefaultCacheMode());
+      config.setAtomicConfiguration(atomicConfiguration);
 
       boolean clientMode = clusterConfig.isClientMode();
       config.setClientMode(clientMode);
@@ -115,7 +115,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          TcpDiscoverySpi discoverySpi = new TcpDiscoverySpi();
          config.setDiscoverySpi(discoverySpi);
 
-         if(clusterConfig.isMulticastEnabled()) {
+         if(clusterConfig.getIpFinder() != null) {
+            discoverySpi.setIpFinder(getIpFinder(clusterConfig.getIpFinder().getType()));
+         }
+         else if(clusterConfig.isMulticastEnabled()) {
             TcpDiscoveryMulticastIpFinder ipFinder = new TcpDiscoveryMulticastIpFinder();
             ipFinder.setMulticastGroup(clusterConfig.getMulticastAddress());
             ipFinder.setMulticastPort(clusterConfig.getMulticastPort());
@@ -135,6 +138,10 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             clientConnectorConfig.setUseIgniteSslContextFactory(false);
             clientConnectorConfig.setSslContextFactory(sslContextFactory);
          }
+
+         TcpCommunicationSpi communicationSpi = new TcpCommunicationSpi();
+         communicationSpi.setForceClientToServerConnections(true);
+         config.setCommunicationSpi(communicationSpi);
       }
       else {
          int[] includedEvents = new int[]{
@@ -175,16 +182,13 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             clusterConfig.getK8s().getLabelValue() != null &&
             !clusterConfig.getK8s().getLabelValue().isEmpty())
          {
-            for(DiscoveryFinderFactory factory : ServiceLoader.load(DiscoveryFinderFactory.class)) {
-               if("kubernetes".equals(factory.getName())) {
-                  TcpDiscoveryIpFinder finder = factory.create(clusterConfig);
-                  discoverySpi.setIpFinder(finder);
-                  break;
-               }
-            }
+            discoverySpi.setIpFinder(getIpFinder("kubernetes"));
          }
          else {
-            if(clusterConfig.isSingleNode()) {
+            if(clusterConfig.getIpFinder() != null) {
+               discoverySpi.setIpFinder(getIpFinder(clusterConfig.getIpFinder().getType()));
+            }
+            else if(clusterConfig.isSingleNode()) {
                discoverySpi = new TcpDiscoverySpi();
                TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
                ipFinder.setAddresses(clusterConfig.getTcpMembers() == null ?
@@ -211,9 +215,36 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          if(sslContextFactory != null) {
             config.setSslContextFactory(sslContextFactory);
          }
+
+//         config.setMetricExporterSpi(new LogExporterSpi());
       }
 
+      SUtil.configBinaryTypes(config);
+
       return config;
+   }
+
+   private static TcpDiscoveryIpFinder getIpFinder(String type) {
+      LOG.warn("get TcpDiscoveryIpFinder finder with: {}", type);
+
+      if(type == null) {
+         return null;
+      }
+
+      try {
+         for(DiscoveryFinderFactory factory : ServiceLoader.load(DiscoveryFinderFactory.class)) {
+            if(type.equals(factory.getName())) {
+               return factory.create(InetsoftConfig.getInstance().getCluster());
+            }
+         }
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to get the DiscoveryFinderFactory", ex);
+      }
+
+      LOG.error("Failed to get the DiscoveryFinderFactory with type:" + type);
+
+      return null;
    }
 
    private static SslContextFactory createSslContextFactory(ClusterConfig clusterConfig) {
@@ -353,19 +384,37 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       return addressResolver;
    }
 
-   public static <K, V> CacheConfiguration<K, V> getCacheConfiguration(String name) {
-      return getCacheConfiguration(name, CacheMode.PARTITIONED);
+   private static <K, V> CacheConfiguration<K, V> getCacheConfiguration(String name) {
+      return getCacheConfiguration(name, getDefaultCacheMode(), getDefaultBackupCount());
    }
 
-   public static <K, V> CacheConfiguration<K, V> getCacheConfiguration(String name, CacheMode mode)
+   private static <K, V> CacheConfiguration<K, V> getCacheConfiguration(String name, CacheMode mode,
+                                                                       int backupCount)
    {
       CacheConfiguration<K, V> cacheConfiguration = new CacheConfiguration<>(name);
-      cacheConfiguration.setBackups(2);
+      cacheConfiguration.setBackups(backupCount);
       cacheConfiguration.setCacheMode(mode);
       cacheConfiguration.setAtomicityMode(CacheAtomicityMode.TRANSACTIONAL);
       cacheConfiguration.setRebalanceMode(CacheRebalanceMode.SYNC);
       cacheConfiguration.setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC);
       return cacheConfiguration;
+   }
+
+   private static int getDefaultBackupCount() {
+      ClusterConfig config = InetsoftConfig.getInstance().getCluster();
+      int backupCount = DEFAULT_BACKUP_COUNT;
+
+      if(config.getMinNodes() > DEFAULT_BACKUP_COUNT) {
+         backupCount = (config.getMinNodes() / 2) + 1;
+      }
+
+      return backupCount;
+   }
+
+   private static CacheMode getDefaultCacheMode() {
+      ClusterConfig config = InetsoftConfig.getInstance().getCluster();
+      return config.getMinNodes() > DEFAULT_BACKUP_COUNT ?
+         CacheMode.PARTITIONED : CacheMode.REPLICATED;
    }
 
    private void initLockTimer() {
@@ -762,8 +811,9 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <K, V> DistributedMap<K, V> getReplicatedMap(String name) {
+      // backup count doesn't matter for replicated cache
       return new IgniteDistributedMap<>(ignite.getOrCreateCache(
-         getCacheConfiguration(name, CacheMode.REPLICATED)));
+         getCacheConfiguration(name, CacheMode.REPLICATED, DEFAULT_BACKUP_COUNT)));
    }
 
    @Override
@@ -792,13 +842,34 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       catch(IgniteIllegalStateException ignore) {
          // already shutting down cluster, can't remove listener
       }
+      catch(IgniteException ex) {
+         if(isNodeStoppingException(ex)) {
+            // node already stoped, cannot remove listener.
+            return;
+         }
+
+         throw ex;
+      }
+   }
+
+   private boolean isNodeStoppingException(Throwable t) {
+      if(t == null) {
+         return false;
+      }
+
+      if(t instanceof NodeStoppingException) {
+         return true;
+      }
+      else {
+         return isNodeStoppingException(t.getCause());
+      }
    }
 
    @Override
    public <E> BlockingQueue<E> getQueue(String name) {
       CollectionConfiguration queueConfig = new CollectionConfiguration();
-      queueConfig.setBackups(1);
-      queueConfig.setCacheMode(CacheMode.PARTITIONED);
+      queueConfig.setBackups(getDefaultBackupCount());
+      queueConfig.setCacheMode(getDefaultCacheMode());
       queueConfig.setAtomicityMode(CacheAtomicityMode.ATOMIC);
       return ignite.queue(name, 0, queueConfig);
    }
@@ -815,8 +886,8 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    @Override
    public <E> Set<E> getSet(String name) {
       CollectionConfiguration setConfig = new CollectionConfiguration();
-      setConfig.setBackups(1);
-      setConfig.setCacheMode(CacheMode.PARTITIONED);
+      setConfig.setBackups(getDefaultBackupCount());
+      setConfig.setCacheMode(getDefaultCacheMode());
       setConfig.setAtomicityMode(CacheAtomicityMode.ATOMIC);
       return ignite.set(name, setConfig);
    }
@@ -859,21 +930,53 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
-   public <T> Future<T> submit(Callable<T> task) {
+   public <T> Future<T> submit(Callable<T> task, boolean scheduler) {
       // Do not use lambda expression to submit the task to ignite, it can not run with JDK21.
-      ClusterGroup scheduler = ignite.cluster().forPredicate(SCHEDULE_SELECTOR);
-      return CompletableFuture.supplyAsync(new IgniteTaskFuture<>(ignite, scheduler, task));
+      ClusterGroup clusterGroup = scheduler ? ignite.cluster().forPredicate(SCHEDULE_SELECTOR) :
+         ignite.cluster().forServers();
+      return CompletableFuture.supplyAsync(new IgniteTaskFuture<>(ignite, clusterGroup, task));
    }
 
    @Override
    public <T> Future<Collection<T>> submitAll(Callable<T> task) {
-      return CompletableFuture.supplyAsync(() -> ignite.compute()
-         .broadcastAsync(new IgniteTaskCallable<>(task))
-         .get());
+      IgniteFuture<Collection<T>> future = ignite.compute()
+         .broadcastAsync(new IgniteTaskCallable<>(task));
+      CompletableFuture<Collection<T>> cf = new CompletableFuture<>();
+
+      future.listen(f -> {
+         try {
+            cf.complete(future.get());
+         }
+         catch(Exception e) {
+            cf.completeExceptionally(e);
+         }
+      });
+
+      return cf;
    }
 
    @Override
    public DistributedScheduledExecutorService getScheduledExecutor() {
+      Collection<ServiceDescriptor> services = ignite.services().serviceDescriptors();
+      String serviceId = "IgniteScheduledExecutorService";
+      boolean deployed = false;
+
+      for(ServiceDescriptor service : services) {
+         if(service.name().equals(serviceId)) {
+            // service found, no need to do anything
+            deployed = true;
+            break;
+         }
+      }
+
+      if(!deployed) {
+         ServiceConfiguration scheduledExecutorServiceConfig = new ServiceConfiguration();
+         scheduledExecutorServiceConfig.setService(new IgniteScheduledExecutorServiceImpl());
+         scheduledExecutorServiceConfig.setName(serviceId);
+         scheduledExecutorServiceConfig.setTotalCount(1);
+         ignite.services().deploy(scheduledExecutorServiceConfig);
+      }
+
       return ignite.services().serviceProxy("IgniteScheduledExecutorService",
                                             IgniteScheduledExecutorService.class,
                                             false);
@@ -913,7 +1016,17 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public Future<?> submit(String serviceId, SingletonRunnableTask task) {
-      return CompletableFuture.supplyAsync(new IgniteServiceRunnableTask(ignite, serviceId, task));
+      return submit(0, serviceId, task);
+   }
+
+   @Override
+   public Future<?> submit(int level, String serviceId, SingletonRunnableTask task) {
+      ExecutorService executorService = executorServiceMap
+         .computeIfAbsent(level, k -> Executors.newFixedThreadPool(
+            Runtime.getRuntime().availableProcessors()));
+
+      return CompletableFuture.supplyAsync(new IgniteServiceRunnableTask(ignite, serviceId, task),
+         executorService);
    }
 
    private static ServiceTaskExecutor deployAndGetService(Ignite ignite, String serviceId) {
@@ -938,6 +1051,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public boolean isSchedulerRunning() {
+      CloudRunnerConfig cloudRunner = InetsoftConfig.getInstance().getCloudRunner();
+
+      if(cloudRunner != null) {
+         return true;
+      }
+
       for(ClusterNode node : ignite.cluster().nodes()) {
          if(Boolean.TRUE.equals(node.attribute("scheduler"))) {
             return true;
@@ -1051,6 +1170,14 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       clusterFileTransfer.close();
       ignite.close();
       timer.cancel();
+
+      for(ExecutorService value : executorServiceMap.values()) {
+         if(value != null) {
+            value.shutdownNow();
+         }
+      }
+
+      executorServiceMap.clear();
    }
 
    /**
@@ -1137,12 +1264,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final Map<String, LockInfo> lockInfos = new ConcurrentHashMap<>();
    private final Timer timer = new Timer();
    private final ClusterFileTransfer clusterFileTransfer;
+   private final Map<Integer, ExecutorService> executorServiceMap = new ConcurrentHashMap<>();
 
+   private static final int DEFAULT_BACKUP_COUNT = 2;
    private static final long MIN_LOCK_DURATION_MILLIS = Duration.ofMinutes(10).toMillis();
    private static final String MESSAGE_TOPIC = IgniteCluster.class.getName() + ".messageTopic";
    private static final String RW_MAP_NAME = IgniteCluster.class.getName() + ".rwMap";
-   private static final IgnitePredicate<ClusterNode> SCHEDULE_SELECTOR = node ->
-      Boolean.TRUE.equals(node.attribute("scheduler"));
+   private static final IgnitePredicate<ClusterNode> SCHEDULE_SELECTOR = node -> {
+      // select any node when config has cloud runner, because the separate scheduler server do not exist.
+      if(InetsoftConfig.getInstance().getCloudRunner() != null) {
+         return true;
+      }
+
+      return Boolean.TRUE.equals(node.attribute("scheduler"));
+   };
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
@@ -1215,9 +1350,16 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
             }
          }
          else if(event.type() == EventType.EVT_NODE_LEFT) {
-            MembershipEvent membershipEvent =
-               new MembershipEvent(IgniteCluster.this, getNodeName(event.node()));
+            String node;
 
+            if(event instanceof DiscoveryEvent discoveryEvent) {
+               node = discoveryEvent.eventNode().addresses().iterator().next();
+            }
+            else {
+               node = getNodeName(event.node());
+            }
+
+            MembershipEvent membershipEvent = new MembershipEvent(IgniteCluster.this, node);
             for(inetsoft.sree.internal.cluster.MembershipListener l : membershipListeners) {
                l.memberRemoved(membershipEvent);
             }
@@ -1292,19 +1434,19 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    private static class IgniteTaskFuture<T> implements Supplier<T> {
-      public IgniteTaskFuture(Ignite igniteInstance, ClusterGroup scheduler, Callable<T> task) {
+      public IgniteTaskFuture(Ignite igniteInstance, ClusterGroup clusterGroup, Callable<T> task) {
          this.igniteInstance = igniteInstance;
-         this.scheduler = scheduler;
+         this.clusterGroup = clusterGroup;
          this.task = new IgniteTaskCallable<>(task);
       }
 
       @Override
       public T get() {
-         return igniteInstance.compute(scheduler).call(task);
+         return igniteInstance.compute(clusterGroup).call(task);
       }
 
       private final Ignite igniteInstance;
-      private final ClusterGroup scheduler;
+      private final ClusterGroup clusterGroup;
       private final IgniteTaskCallable<T> task;
    }
 

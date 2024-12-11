@@ -17,9 +17,15 @@
  */
 package inetsoft.web.portal.controller;
 
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
+import inetsoft.uql.XPrincipal;
+import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.MVService;
 import inetsoft.web.admin.content.repository.MVSupportService;
 import inetsoft.web.admin.content.repository.model.MVManagementModel;
+import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.portal.model.AnalyzeMVPortalRequest;
 import inetsoft.web.portal.model.MVTreeModel;
 import jakarta.servlet.http.HttpServletRequest;
@@ -64,6 +70,14 @@ public class PortalMVController {
       }
 
       return mvService.getMVInfo(ids, principal);
+   }
+
+   @GetMapping("/api/portal/content/materialized-view/isOrgAccessGlobalMV/{orgID}")
+   public boolean isOrgAccessingGlobalResourceMV(@DecodePathVariable("orgID") String orgID,
+                                                 Principal principal) {
+      //determine if user is trying to access mv of a globally visible viewsheet
+      return SUtil.isDefaultVSGloballyVisible(principal) && !Tool.equals(orgID, ((XPrincipal) principal).getOrgId()) &&
+             !Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), Organization.getDefaultOrganizationID());
    }
 
    private final PortalMVService portalMVService;

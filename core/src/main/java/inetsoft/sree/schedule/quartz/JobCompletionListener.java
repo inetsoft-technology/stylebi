@@ -24,8 +24,6 @@ import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
-import inetsoft.util.audit.ActionRecord;
-import inetsoft.util.audit.Audit;
 import org.quartz.*;
 import org.quartz.impl.matchers.GroupMatcher;
 import org.quartz.listeners.JobListenerSupport;
@@ -112,8 +110,6 @@ public class JobCompletionListener extends JobListenerSupport {
 
       try {
          //Bug #29106, Add record to audit and show it in Schedule History audit report.
-         String actionName = ActionRecord.ACTION_NAME_FINISH;
-         String objectType = ActionRecord.OBJECT_TYPE_TASK;
          ScheduleTask taskValue = (ScheduleTask)
             context.getJobDetail().getJobDataMap().get(ScheduleTask.class.getName());
          Identity identity = taskValue != null ? taskValue.getIdentity() : null;
@@ -121,28 +117,13 @@ public class JobCompletionListener extends JobListenerSupport {
          String addr = Tool.getIP();
 
          // Bug #40798, don't audit logins for internal tasks
-         if(!ScheduleManager.isInternalTask(taskValue.getName())) {
+         if(!ScheduleManager.isInternalTask(taskValue.getTaskId())) {
             if(identity == null) {
                principal = SUtil.getPrincipal(owner, addr, true);
             }
             else {
                principal = SUtil.getPrincipal(identity, addr, true);
             }
-         }
-
-         ActionRecord finishActionRecord = SUtil.getActionRecord(
-            principal, actionName, taskName, objectType);
-
-         if(finishActionRecord != null) {
-            String seeScheduleLog = Catalog.getCatalog().getString("em.task.runStatus");
-            String actionError = status ==Scheduler.Status.FAILED ?
-               jobException.getMessage() + "." + seeScheduleLog : null;
-            finishActionRecord.setActionStatus(status == Scheduler.Status.FINISHED ?
-                                                  ActionRecord.ACTION_STATUS_SUCCESS :
-                                                  ActionRecord.ACTION_STATUS_FAILURE);
-            finishActionRecord.setActionError(status == Scheduler.Status.FINISHED ?
-                                                 seeScheduleLog : actionError);
-            Audit.getInstance().auditAction(finishActionRecord, principal);
          }
 
          if(status == Scheduler.Status.FAILED) {
@@ -198,46 +179,40 @@ public class JobCompletionListener extends JobListenerSupport {
             }
 
             if(isDependant) {
-               boolean triggerDependant = true;
+               boolean triggerDependant = task.getConditionStream()
+                  .filter(cond -> cond instanceof CompletionCondition)
+                  .map(cond -> ((CompletionCondition) cond).getTaskName())
+                  .noneMatch(parentTaskName -> {
+                     Long parentEndTime = null;
 
-               for(Enumeration<String> e = task.getDependency(); e.hasMoreElements(); )
-               {
-                  String parentTaskName = e.nextElement();
-                  Long parentEndTime = null;
+                     if(statusCache.containsKey(parentTaskName)) {
+                        parentEndTime = statusCache.get(parentTaskName);
+                     }
+                     else {
+                        ScheduleStatusDao.Status parentStatus = dao.getStatus(parentTaskName);
 
-                  if(statusCache.containsKey(parentTaskName)) {
-                     parentEndTime = statusCache.get(parentTaskName);
-                  }
-                  else {
-                     ScheduleStatusDao.Status parentStatus =
-                        dao.getStatus(parentTaskName);
+                        if(parentStatus != null &&
+                           parentStatus.getStatus() == Scheduler.Status.FINISHED)
+                        {
+                           parentEndTime = parentStatus.getEndTime();
+                        }
 
-                     if(parentStatus != null &&
-                        parentStatus.getStatus() == Scheduler.Status.FINISHED)
-                     {
-                        parentEndTime = parentStatus.getEndTime();
+                        statusCache.put(parentTaskName, parentEndTime);
                      }
 
-                     statusCache.put(parentTaskName, parentEndTime);
-                  }
-
-                  if(parentEndTime == null || previousStatus != null &&
-                     previousStatus.getStartTime() > parentEndTime)
-                  {
                      // failed or hasn't run since the previous execution
-                     triggerDependant = false;
-                     break;
-                  }
-               }
+                     return parentEndTime == null || previousStatus != null &&
+                        previousStatus.getStartTime() > parentEndTime;
+                  });
 
                if(triggerDependant) {
                   try {
                      context.getScheduler().triggerJob(
-                        new JobKey(task.getName(), Scheduler.GROUP_NAME));
+                        new JobKey(task.getTaskId(), Scheduler.GROUP_NAME));
                   }
                   catch(SchedulerException e) {
                      LOG.error("Failed to trigger dependent job '" +
-                        task.getName() + "'", e);
+                        task.getTaskId() + "'", e);
                   }
                }
             }
@@ -324,7 +299,7 @@ public class JobCompletionListener extends JobListenerSupport {
                ThreadContext.setContextPrincipal(principal);
             }
 
-            ScheduleManager.getScheduleManager().removeScheduleTask(taskName, null);
+            ScheduleManager.getScheduleManager().removeScheduleTask(taskName, principal);
          }
          catch(Exception e) {
             LOG.warn("Failed to remove schedule task", e);

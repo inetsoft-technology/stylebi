@@ -25,8 +25,7 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.security.db.DatabaseAuthenticationProvider;
 import inetsoft.sree.security.ldap.*;
 import inetsoft.uql.util.Identity;
-import inetsoft.util.Catalog;
-import inetsoft.util.MessageException;
+import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.data.MapModel;
 import inetsoft.web.viewsheet.*;
@@ -116,28 +115,34 @@ public class AuthenticationProviderService {
          throw new MessageException(Catalog.getCatalog().getString("security.authentication.exists"));
       }
 
-      List<AuthenticationProvider> providerList = chain.getProviders();
-      boolean found = false;
+      try {
+         chain.writeLock();
+         List<AuthenticationProvider> providerList = chain.getProviders();
+         boolean found = false;
 
-      for(int i = 0; i < providerList.size(); i++) {
-         AuthenticationProvider provider = providerList.get(i);
+         for(int i = 0; i < providerList.size(); i++) {
+            AuthenticationProvider provider = providerList.get(i);
 
-         if(Objects.equals(name, provider.getProviderName())) {
-            found = true;
-            AuthenticationProvider newProvider = getProviderFromModel(model).orElseThrow(
-               () -> new MessageException("Failed to edit authentication provider"));
-            providerList.set(i, newProvider);
-            provider.tearDown();
-            break;
+            if(Objects.equals(name, provider.getProviderName())) {
+               found = true;
+               AuthenticationProvider newProvider = getProviderFromModel(model).orElseThrow(
+                  () -> new MessageException("Failed to edit authentication provider"));
+               providerList.set(i, newProvider);
+               provider.tearDown();
+               break;
+            }
          }
-      }
 
-      if(!found) {
-         throw new MessageException(
-            "Authentication provider named \"" + name + "\" does not exist");
-      }
+         if(!found) {
+            throw new MessageException(
+               "Authentication provider named \"" + name + "\" does not exist");
+         }
 
-      chain.setProviders(providerList);
+         chain.setProviders(providerList);
+      }
+      finally {
+         chain.writeUnlock();
+      }
    }
 
    public SecurityProviderStatusList getProviderListModel() {
@@ -285,6 +290,18 @@ public class AuthenticationProviderService {
 
       setIgnoreCache(provider, false);
 
+      //return sorted by organization, then name
+      Arrays.sort(users, new Comparator<IdentityID>() {
+         @Override
+         public int compare(IdentityID o1, IdentityID o2) {
+            if(Tool.equals(o1.orgID, o2.orgID)) {
+               return Tool.compare(o1.name, o2.name);
+            }
+
+            return Tool.compare(o1.orgID, o2.orgID);
+         }
+      });
+
       return IdentityListModel.builder()
          .ids(users)
          .type(Identity.USER)
@@ -296,8 +313,10 @@ public class AuthenticationProviderService {
       throws Exception
    {
       AuthenticationProvider provider = getProviderFromModel(model).orElse(null);
+      setIgnoreCache(provider, true);
       Map<String, Object> result = provider == null ? null
          : ((DatabaseAuthenticationProvider) provider).queryUser(userid);
+      setIgnoreCache(provider, false);
 
       return new MapModel<>(result);
    }
@@ -312,12 +331,17 @@ public class AuthenticationProviderService {
       return distinctOrgs.toArray(new String[distinctOrgs.size()]);
    }
 
-   public String getOrganizationId(AuthenticationProviderModel model,
-                                           String name)
+   public String getOrganizationName(AuthenticationProviderModel model,
+                                     String id)
       throws Exception
    {
       AuthenticationProvider provider = getProviderFromModel(model).orElse(null);
-      return provider == null ? null : ((DatabaseAuthenticationProvider) provider).getOrganizationId(name);
+      setIgnoreCache(provider, true);
+      String orgName = provider == null ? null :
+         ((DatabaseAuthenticationProvider) provider).getOrganizationName(id);
+      setIgnoreCache(provider, false);
+
+      return orgName;
    }
 
    public IdentityListModel getUserEmails(AuthenticationProviderModel model,
@@ -327,7 +351,7 @@ public class AuthenticationProviderService {
       AuthenticationProvider provider = getProviderFromModel(model).orElse(null);
       setIgnoreCache(provider, true);
       IdentityID[] emails = provider == null ? new IdentityID[0] :
-         Arrays.stream(provider.getEmails(userID)).map(e -> new IdentityID(e,userID.organization)).toArray(IdentityID[]::new);
+         Arrays.stream(provider.getEmails(userID)).map(e -> new IdentityID(e,userID.orgID)).toArray(IdentityID[]::new);
       setIgnoreCache(provider, false);
 
       return IdentityListModel.builder()
@@ -360,6 +384,18 @@ public class AuthenticationProviderService {
 
       setIgnoreCache(provider, false);
 
+      //return sorted by organization, then name
+      Arrays.sort(groups, new Comparator<IdentityID>() {
+         @Override
+         public int compare(IdentityID o1, IdentityID o2) {
+            if(Tool.equals(o1.orgID, o2.orgID)) {
+               return Tool.compare(o1.name, o2.name);
+            }
+
+            return Tool.compare(o1.orgID, o2.orgID);
+         }
+      });
+
       return IdentityListModel.builder()
          .ids(groups)
          .type(Identity.GROUP)
@@ -375,7 +411,7 @@ public class AuthenticationProviderService {
       setIgnoreCache(provider, true);
 
       if(provider != null) {
-         organizations = Arrays.stream(provider.getOrganizations()).map(o -> new IdentityID(o,o)).toArray(IdentityID[]::new);
+         organizations = Arrays.stream(provider.getOrganizationIDs()).map(o -> new IdentityID(o,o)).toArray(IdentityID[]::new);
       }
 
       setIgnoreCache(provider, false);
@@ -430,7 +466,7 @@ public class AuthenticationProviderService {
    public List<IdentityID> getFilteredOrganizations(String providerName, Principal principal) {
       AuthenticationProvider provider = getProviderByName(providerName);
 
-      return Arrays.stream(provider.getOrganizations())
+      return Arrays.stream(provider.getOrganizationIDs())
          .filter(orgName -> securityEngine.getSecurityProvider().checkPermission(
             principal, ResourceType.SECURITY_ORGANIZATION, orgName, ResourceAction.ADMIN))
          .sorted()
@@ -451,6 +487,18 @@ public class AuthenticationProviderService {
       }
 
       setIgnoreCache(provider, false);
+
+      //return sorted by organization, then name
+      Arrays.sort(roles, new Comparator<IdentityID>() {
+         @Override
+         public int compare(IdentityID o1, IdentityID o2) {
+            if(Tool.equals(o1.orgID, o2.orgID)) {
+               return Tool.compare(o1.name, o2.name);
+            }
+
+            return Tool.compare(o1.orgID, o2.orgID);
+         }
+      });
 
       return IdentityListModel.builder()
          .ids(roles)
@@ -542,14 +590,21 @@ public class AuthenticationProviderService {
       ldapProvider.setHost(model.hostName());
       ldapProvider.setPort(model.hostPort());
       ldapProvider.setRootDn(model.rootDN());
-      ldapProvider.setLdapAdministrator(model.adminID());
-      ldapProvider.setPassword(model.password());
+      ldapProvider.setUseCredential(model.useCredential());
       ldapProvider.setUserSearch(model.userFilter());
       ldapProvider.setUserRolesSearch(model.userRoleFilter());
       ldapProvider.setUserBase(model.userBase());
       ldapProvider.setGroupBase(model.groupBase());
       ldapProvider.setRoleBase(model.roleBase());
       ldapProvider.setSearchSubtree(model.searchTree());
+
+      if(model.useCredential()) {
+         ldapProvider.setSecretId(model.secretId());
+      }
+      else {
+         ldapProvider.setLdapAdministrator(model.adminID());
+         ldapProvider.setPassword(model.password());
+      }
 
       if(model.sysAdminRoles() == null) {
          ldapProvider.setSystemAdministratorRoles(new String[0]);
@@ -567,8 +622,7 @@ public class AuthenticationProviderService {
       dbProvider.setDriver(model.driver());
       dbProvider.setUrl(model.url());
       dbProvider.setRequiresLogin(model.requiresLogin());
-      dbProvider.setDbUser(model.user());
-      dbProvider.setDbPassword(model.password());
+      dbProvider.setUseCredential(model.useCredential());
       dbProvider.setHashAlgorithm(model.hashAlgorithm());
       dbProvider.setAppendSalt(model.appendSalt());
       dbProvider.setUserQuery(model.userQuery());
@@ -578,10 +632,18 @@ public class AuthenticationProviderService {
       dbProvider.setRoleListQuery(model.roleListQuery());
       dbProvider.setOrganizationListQuery(model.organizationListQuery());
       dbProvider.setGroupUsersQuery(model.groupUsersQuery());
-      dbProvider.setOrganizationIdQuery(model.organizationIdQuery());
+      dbProvider.setOrganizationNameQuery(model.organizationNameQuery());
       dbProvider.setOrganizationMembersQuery(model.organizationMembersQuery());
       dbProvider.setOrganizationRolesQuery(model.organizationRolesQuery());
       dbProvider.setUserRolesQuery(model.userRolesQuery());
+
+      if(model.useCredential()) {
+         dbProvider.setSecretId(model.secretId());
+      }
+      else {
+         dbProvider.setDbUser(model.user());
+         dbProvider.setDbPassword(model.password());
+      }
 
       if(model.sysAdminRoles() == null) {
          dbProvider.setSystemAdministratorRoles(new String[0]);

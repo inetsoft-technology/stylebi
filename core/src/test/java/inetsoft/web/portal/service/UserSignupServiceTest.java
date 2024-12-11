@@ -52,7 +52,7 @@ class UserSignupServiceTest {
       AuthenticationChain chain =
          (AuthenticationChain) securityEngine.getSecurityProvider().getAuthenticationProvider();
       FileAuthenticationProvider fileAuthenticationProvider = (FileAuthenticationProvider) chain.getProviders().get(0);
-      fileAuthenticationProvider.removeUser(new IdentityID("1@inetsoft.com",Organization.getDefaultOrganizationName()));
+      fileAuthenticationProvider.removeUser(new IdentityID("1@inetsoft.com",Organization.getDefaultOrganizationID()));
 
       SecurityEngine.clear();
       securityEngine.disableSecurity();
@@ -60,17 +60,17 @@ class UserSignupServiceTest {
 
    @Test
    void checkAutoRegisterUser() {
-      if(!userSignupService.userExist(new IdentityID("1@inetsoft.com",Organization.getDefaultOrganizationName()))) {
+      if(!userSignupService.userExist(new IdentityID("1@inetsoft.com",Organization.getDefaultOrganizationID()))) {
          userSignupService.autoRegisterUser("googleId", "1@inetsoft.com");
       }
 
       ArrayList<String> results = new ArrayList<>();
-      User user = securityEngine.getSecurityProvider().getUser(new IdentityID("1@inetsoft.com",Organization.getDefaultOrganizationName()));
+      User user = securityEngine.getSecurityProvider().getUser(new IdentityID("1@inetsoft.com",Organization.getDefaultOrganizationID()));
       results.add(user.getName());
       results.add(user.getGoogleSSOId());
-      results.add(user.getOrganization());
+      results.add(user.getOrganizationID());
 
-      String[] exp = {"1@inetsoft.com", "googleId", "Host Organization"};
+      String[] exp = {"1@inetsoft.com", "googleId", "host-org"};
       assertArrayEquals(exp, results.toArray(new String[0]), "auto register user failed");
    }
 }

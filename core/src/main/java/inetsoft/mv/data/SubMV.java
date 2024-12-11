@@ -21,6 +21,8 @@ import inetsoft.mv.fs.BlockFile;
 import inetsoft.mv.fs.internal.CacheBlockFile;
 import inetsoft.mv.util.SeekableInputStream;
 import inetsoft.mv.util.TransactionChannel;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.Organization;
 import inetsoft.uql.XNode;
 import inetsoft.uql.asset.SubQueryValue;
 import inetsoft.uql.jdbc.*;
@@ -119,6 +121,17 @@ public class SubMV implements Cloneable {
          if(file != null) {
             try(SeekableInputStream channel = file.openInputStream()) {
                read(channel);
+            }
+            catch(Exception e) {
+               //catch checking only org storage when globally visible mv
+               if(SUtil.isDefaultVSGloballyVisible()) {
+                  try(SeekableInputStream channel = file.openInputStream(Organization.getDefaultOrganizationID())) {
+                     read(channel);
+                  }
+                  catch(Exception ex) {
+                     //ignore
+                  }
+               }
             }
             finally {
                inited = true;
@@ -696,32 +709,32 @@ public class SubMV implements Cloneable {
          return measureCol;
       }
       else if(ocol1 instanceof MVDoubleColumn) {
-         pos[0] += rcnt * 8;
+         pos[0] += rcnt * 8L;
          MVMeasureColumn measureCol = new MVDoubleColumn(null, pos0, file, rcnt, true);
          pos[0] += measureCol.getLength();
          return measureCol;
       }
       else if(ocol1 instanceof MVDateIntColumn) {
-         pos[0] += rcnt * 4;
+         pos[0] += rcnt * 4L;
          MVMeasureColumn measureCol = new MVDateIntColumn(null, pos0, file, rcnt, true);
          pos[0] += measureCol.getLength();
          return measureCol;
       }
       else if(ocol1 instanceof MVTimeIntColumn) {
-         pos[0] += rcnt * 4;
+         pos[0] += rcnt * 4L;
          MVMeasureColumn measureCol = new MVTimeIntColumn(null, pos0, file, rcnt, true);
          pos[0] += measureCol.getLength();
          return measureCol;
       }
       else if(ocol1 instanceof MVTimestampIntColumn) {
-         pos[0] += rcnt * 4;
+         pos[0] += rcnt * 4L;
          MVMeasureColumn measureCol = new MVTimestampIntColumn(null, pos0, file, rcnt,
                                                                true);
          pos[0] += measureCol.getLength();
          return measureCol;
       }
       else if(ocol1 instanceof MVFloatColumn) {
-         pos[0] += rcnt * 4;
+         pos[0] += rcnt * 4L;
          MVMeasureColumn measureCol = new MVFloatColumn(null, pos0, file, rcnt, true);
          pos[0] += measureCol.getLength();
          return measureCol;

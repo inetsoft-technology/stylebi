@@ -108,6 +108,8 @@ export class SecurityTreeNode implements TreeNodeData, SecurityTreeNodeFunction 
 
 /** Flat node with expandable and level information */
 export class FlatSecurityTreeNode {
+   private rootNodes: string[] = ["Users", "Groups", "Roles", "Organizations", "Organization Roles"];
+
    constructor(public expandable: boolean,
                private data: SecurityTreeNode,
                public level: number)
@@ -115,7 +117,28 @@ export class FlatSecurityTreeNode {
    }
 
    public get label() {
-      return this.data.identityID.name;
+      let name = this.data.identityID.name;
+
+      if(!name) {
+         return name;
+      }
+
+      switch(name) {
+      case "Users":
+         return "_#(js:Users)";
+      case "Groups":
+         return "_#(js:Groups)";
+      case "Roles":
+         return "_#(js:Roles)";
+      case "Organizations":
+         return "_#(js:Organizations)";
+      case "Organization Roles":
+         return "_#(js:Organization Roles)";
+      default:
+         return name;
+      }
+
+      return name;
    }
 
    public get identityID() {

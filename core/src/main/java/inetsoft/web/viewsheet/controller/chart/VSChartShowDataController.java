@@ -133,7 +133,7 @@ public class VSChartShowDataController extends VSChartController<VSChartShowData
       return format;
    }
 
-   @PutMapping("/vs/showdata/colwidth")
+   @PutMapping("/api/vs/showdata/colwidth")
    @ResponseBody
    public void setColWidth(@DecodeParam("vsId") String vsId,
                            @RequestParam("assemblyName") String assemblyName,
@@ -489,7 +489,8 @@ public class VSChartShowDataController extends VSChartController<VSChartShowData
          String style = dinfo.getDetailStyle();
 
          if(style != null) {
-            TableStyle styleTable = VSUtil.getTableStyle(style);
+            String orgID = box != null && box.getAssetEntry() != null ? box.getAssetEntry().getOrgID() : null;
+            TableStyle styleTable = VSUtil.getTableStyle(style, orgID);
 
             if(styleTable != null) {
                styleTable = (TableStyle) styleTable.clone();
@@ -700,8 +701,7 @@ public class VSChartShowDataController extends VSChartController<VSChartShowData
       @Override
       public Format getCellFormat(int r, int c, boolean cellOnly) {
          checkInit();
-         TableFormat colf = r == 0 ? super.getColTableFormat(c) :
-            getColTableFormat(c);
+         TableFormat colf = getColTableFormat(c);
          TableFormat rowf = getRowTableFormat(r);
          TableFormat cellf = getCellTableFormat(r, c);
          Format defaultformat = cellOnly ? null : table.getDefaultFormat(r, c);

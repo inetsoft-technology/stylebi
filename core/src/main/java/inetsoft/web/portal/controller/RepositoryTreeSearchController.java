@@ -21,8 +21,8 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.AnalyticEngine;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.composer.model.TreeNodeModel;
@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 
@@ -78,24 +79,50 @@ public class RepositoryTreeSearchController {
       throws Exception
    {
       searchString = searchString.toLowerCase();
+      SearchResultFolder rootFolder =
+         getRootFolder(searchString, favoritesMode, false, principal);
+      TreeNodeModel node = null;
+
+      if(!isHostOrgGlobalRepoVisible(principal)) {
+         node = convertToTreeNode(rootFolder, principal, searchString);
+      }
+      else {
+         SearchResultFolder globalRootFolder =
+            getRootFolder(searchString, favoritesMode, true, principal);
+         SearchResultFolder resultFolder = new SearchResultFolder("");
+
+         if(!rootFolder.isEmpty()) {
+            resultFolder.addFolder(rootFolder);
+         }
+
+         if(!globalRootFolder.isEmpty()) {
+            resultFolder.addFolder(globalRootFolder);
+         }
+
+         node = convertToTreeNode(resultFolder, principal, searchString);
+      }
+
+      return node;
+   }
+
+   private SearchResultFolder getRootFolder(String searchString, boolean favoritesMode,
+                                            boolean hostOrgGlobalRepo, Principal principal)
+      throws RemoteException
+   {
       Map<String, RepositoryEntry> searchResults = new LinkedHashMap<>();
       searchRepositoryFolder(new DefaultFolderEntry("/"), principal,
-         searchString, searchResults, favoritesMode);
+                             searchString, searchResults, favoritesMode, hostOrgGlobalRepo, hostOrgGlobalRepo);
 
       // create a folder structure for the results
-      SearchResultFolder rootFolder = new SearchResultFolder("/");
+      String fPath = !hostOrgGlobalRepo ? "/" : OrganizationManager.getGlobalDefOrgFolderName();
+      SearchResultFolder rootFolder = new SearchResultFolder(fPath);
       List<String> list = new ArrayList<>(searchResults.keySet());
 
       for(String path : list) {
          addSearchResult(searchResults.get(path), rootFolder);
       }
 
-      rootFolder = sortSearchResult(rootFolder, searchString);
-
-      TreeNodeModel node = convertToTreeNode(
-              rootFolder, principal, searchString);
-
-      return node;
+      return sortSearchResult(rootFolder, searchString);
    }
 
    private SearchResultFolder sortSearchResult(SearchResultFolder rootFolder, String searchString) {
@@ -123,19 +150,27 @@ public class RepositoryTreeSearchController {
    }
 
    private void searchRepositoryFolder(RepositoryEntry parentEntry, Principal principal,
-      String searchString, Map<String, RepositoryEntry> searchResults,
-      boolean favoritesMode)
+                                       String searchString, Map<String, RepositoryEntry> searchResults,
+                                       boolean favoritesMode, boolean hostOrgGlobalRepo, boolean isDefaultOrgAsset)
+      throws RemoteException
    {
-      RepositoryEntry[] entries = VSEventUtil.getRepositoryEntries(
-         (AnalyticEngine) analyticRepository, principal, ResourceAction.READ,
-         RepositoryEntry.ALL, "", new RepositoryEntry[]{parentEntry});
+      RepositoryEntry[] entries = null;
+
+      if(hostOrgGlobalRepo) {
+         entries = ((AnalyticEngine) analyticRepository).getDefaultOrgRepositoryEntries(principal);
+      }
+      else {
+         entries = VSEventUtil.getRepositoryEntries(
+            (AnalyticEngine) analyticRepository, principal, ResourceAction.READ,
+            RepositoryEntry.ALL, "", new RepositoryEntry[]{parentEntry}, isDefaultOrgAsset);
+      }
 
       for(RepositoryEntry entry : entries) {
          if(isHiddenEntry(entry, favoritesMode, principal)) {
             continue;
          }
 
-         boolean match = entry.getName().toLowerCase().contains(searchString) ||
+         boolean match = entry.getPath().toLowerCase().contains(searchString) ||
             getEntryLabel(entry).toLowerCase().contains(searchString);
          boolean exactMatch = entry.getName().toLowerCase().equals(searchString) ||
             getEntryLabel(entry).toLowerCase().equals(searchString);
@@ -148,7 +183,7 @@ public class RepositoryTreeSearchController {
                RepositoryEntry[] childEntries = VSEventUtil.getRepositoryEntries(
                   (AnalyticEngine) analyticRepository, principal, ResourceAction.READ,
                   RepositoryEntry.ALL & (~RepositoryEntry.FOLDER),
-                  "", new RepositoryEntry[]{entry});
+                  "", new RepositoryEntry[]{entry}, isDefaultOrgAsset);
 
                Arrays.stream(childEntries)
                   .filter(childEntry -> {
@@ -164,7 +199,7 @@ public class RepositoryTreeSearchController {
             }
 
             this.searchRepositoryFolder(entry, principal, searchString,
-               searchResults, favoritesMode);
+               searchResults, favoritesMode, false, isDefaultOrgAsset);
 
             if(match &&
                oldMatchCount == searchResults.size() && !searchResults.containsKey(entry.getPath()))
@@ -247,9 +282,20 @@ public class RepositoryTreeSearchController {
       RepletFolderEntry folderEntry = new RepletFolderEntry(folder.path);
       RepositoryEntryModel folderModel = repositoryEntryModelFactoryService.createModel(folderEntry);
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+      boolean hostOrgGlobalRepoVisible = isHostOrgGlobalRepoVisible(principal);
 
-      if("/".equals(folder.path)) {
+      if(!hostOrgGlobalRepoVisible && "/".equals(folder.path) ||
+         hostOrgGlobalRepoVisible && "".equals(folder.path))
+      {
          label = Catalog.getCatalog().getString("Search Results");
+      }
+      else if(hostOrgGlobalRepoVisible && "/".equals(folder.path)) {
+         label = Catalog.getCatalog().getString("Repository");
+      }
+      else if(hostOrgGlobalRepoVisible &&
+         OrganizationManager.getGlobalDefOrgFolderName().equals(folder.path))
+      {
+         label = Catalog.getCatalog().getString(OrganizationManager.getGlobalDefOrgFolderName());
       }
       else {
          RepletRegistry registry = SUtil.isMyReport(folder.path) ?
@@ -289,12 +335,16 @@ public class RepositoryTreeSearchController {
       String filePath = entry.getPath();
       String folderPath = entry.getParentPath();
 
-      if(Tool.equals(folderPath, folder.path)) {
+      if(Tool.equals(folderPath, folder.path) ||
+         Tool.equals("/", folderPath) &&
+            Tool.equals(OrganizationManager.getGlobalDefOrgFolderName(), folder.path))
+      {
          folder.files.add(entry);
       }
       else {
-         int nextSlash = filePath
-            .indexOf("/", folder.path == null ? 0 : folder.path.length() + 1);
+         int fromIndex = OrganizationManager.getGlobalDefOrgFolderName().equals(folder.path) ||
+            folder.path == null ? 0 : folder.path.length() + 1;
+         int nextSlash = filePath.indexOf("/", fromIndex);
          String nextPath = filePath.substring(0, nextSlash);
          SearchResultFolder nextFolder = folder.getFolder(nextPath);
 
@@ -327,6 +377,12 @@ public class RepositoryTreeSearchController {
       return label;
    }
 
+   private boolean isHostOrgGlobalRepoVisible(Principal principal) {
+      String orgId = ((XPrincipal) principal).getProperty("curr_org_id") != null
+         ? ((XPrincipal) principal).getProperty("curr_org_id") : ((XPrincipal) principal).getOrgId();
+      return SUtil.isDefaultVSGloballyVisible(principal) && !orgId.equals(Organization.getDefaultOrganizationID());
+   }
+
    private final AnalyticRepository analyticRepository;
    private final RepositoryTreeService repositoryTreeService;
    private final RepositoryEntryModelFactoryService repositoryEntryModelFactoryService;
@@ -348,6 +404,18 @@ public class RepositoryTreeSearchController {
          }
 
          return null;
+      }
+
+      private void addFolder(SearchResultFolder folder) {
+         if(folders == null) {
+            folders = new ArrayList<>();
+         }
+
+         folders.add(folder);
+      }
+
+      private boolean isEmpty() {
+         return folders.isEmpty() && files.isEmpty();
       }
 
       private String path;

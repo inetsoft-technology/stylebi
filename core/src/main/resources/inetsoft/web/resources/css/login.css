@@ -52,6 +52,10 @@ div.loading-indicator {
   top: 0;
 }
 
+.close {
+  margin-left: auto;
+}
+
 div.loading-indicator.loading {
   display: table;
 }

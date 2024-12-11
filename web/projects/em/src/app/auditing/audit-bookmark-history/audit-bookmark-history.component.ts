@@ -18,7 +18,10 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { FormBuilder, FormGroup } from "@angular/forms";
-import { tap } from "rxjs/operators";
+import { ActivatedRoute } from "@angular/router";
+import { of, Subscription } from "rxjs";
+import { catchError, tap } from "rxjs/operators";
+import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
@@ -29,8 +32,6 @@ import {
    BookmarkHistoryList,
    BookmarkHistoryParameters
 } from "./bookmark-history";
-import { Subscription } from "rxjs";
-import { ActivatedRoute } from "@angular/router";
 
 @Secured({
    route: "/auditing/bookmark-history",
@@ -43,7 +44,7 @@ import { ActivatedRoute } from "@angular/router";
 })
 @ContextHelp({
    route: "/auditing/bookmark-history",
-   link: "EMAuditingBookmarkHistory"
+   link: "EMViewAudit"
 })
 @Component({
    selector: "em-audit-bookmark-history",
@@ -67,16 +68,16 @@ export class AuditBookmarkHistoryComponent implements OnInit, OnDestroy {
       { name: "userName", label: "_#(js:User Name)", value: (r: BookmarkHistory) => r.userName },
       { name: "userRole", label: "_#(js:User Role)", value: (r: BookmarkHistory) => r.userRole },
       { name: "userEmail", label: "_#(js:User Email)", value: (r: BookmarkHistory) => r.userEmail },
-      { name: "userLastLogin", label: "_#(js:Last Login)", value: (r: BookmarkHistory) => AuditTableViewComponent.getDisplayDate(r.userLastLogin) },
+      { name: "userLastLogin", label: "_#(js:Last Login)", value: (r: BookmarkHistory) => AuditTableViewComponent.getDisplayDate(r.userLastLogin, r.dateFormat) },
       { name: "actionType", label: "_#(js:Action Type)", value: (r: BookmarkHistory) => r.actionType },
-      { name: "execTime", label: "_#(js:Exec Time)", value: (r: BookmarkHistory) => AuditTableViewComponent.getDisplayDate(r.execTime) },
+      { name: "execTime", label: "_#(js:Exec Time)", value: (r: BookmarkHistory) => AuditTableViewComponent.getDisplayDate(r.execTime, r.dateFormat) },
       { name: "dashboardName", label: "_#(js:Dashboard Name)", value: (r: BookmarkHistory) => r.dashboardName },
       { name: "dashboardAlias", label: "_#(js:Dashboard Alias)", value: (r: BookmarkHistory) => r.dashboardAlias },
       { name: "name", label: "_#(js:Bookmark Name)", value: (r: BookmarkHistory) => r.name },
       { name: "type", label: "_#(js:Type)", value: (r: BookmarkHistory) => r.type },
       { name: "readOnly", label: "_#(js:Read Only)", value: (r: BookmarkHistory) => r.readOnly },
-      { name: "createTime", label: "_#(js:Create Time)", value: (r: BookmarkHistory) => AuditTableViewComponent.getDisplayDate(r.createTime) },
-      { name: "updateTime", label: "_#(js:Update Time)", value: (r: BookmarkHistory) => AuditTableViewComponent.getDisplayDate(r.updateTime) },
+      { name: "createTime", label: "_#(js:Create Time)", value: (r: BookmarkHistory) => AuditTableViewComponent.getDisplayDate(r.createTime, r.dateFormat) },
+      { name: "updateTime", label: "_#(js:Update Time)", value: (r: BookmarkHistory) => AuditTableViewComponent.getDisplayDate(r.updateTime, r.dateFormat) },
       { name: "activeStatus", label: "_#(js:Active Status)", value: (r: BookmarkHistory) => r.activeStatus },
       { name: "server", label: "_#(js:Server)", value: (r: BookmarkHistory) => r.server },
       { name: "organizationId", label: "_#(js:Organization ID)", value: (r: BookmarkHistory) => r.organization }
@@ -87,7 +88,8 @@ export class AuditBookmarkHistoryComponent implements OnInit, OnDestroy {
    }
 
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
-               private pageTitle: PageHeaderService, fb: FormBuilder)
+               private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
+               fb: FormBuilder)
    {
       this.form = fb.group({
          selectedUsers: [[]],
@@ -104,13 +106,24 @@ export class AuditBookmarkHistoryComponent implements OnInit, OnDestroy {
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchParameters = () => {
       return this.http.get<BookmarkHistoryParameters>("../api/em/monitoring/audit/bookmarkHistoryParameters")
-         .pipe(tap(params => {
-            this.users = params.users;
-            this.actionTypes = params.actionTypes;
-            this.dashboards = params.dashboards;
-            this.hosts = params.hosts;
-            this.systemAdministrator = params.systemAdministrator;
-         }));
+         .pipe(
+            catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
+               users: [],
+               actionTypes: [],
+               dashboards: [],
+               hosts: [],
+               systemAdministrator: false,
+               startTime: 0,
+               endTime: 0
+            }))),
+            tap(params => {
+               this.users = params.users;
+               this.actionTypes = params.actionTypes;
+               this.dashboards = params.dashboards;
+               this.hosts = params.hosts;
+               this.systemAdministrator = params.systemAdministrator;
+            })
+         );
    };
 
    // use arrow function instead of member method to hold the right context (i.e. this)
@@ -139,7 +152,11 @@ export class AuditBookmarkHistoryComponent implements OnInit, OnDestroy {
          selectedHosts.forEach(h => params = params.append("hosts", h));
       }
 
-      return this.http.get<BookmarkHistoryList>("../api/em/monitoring/audit/bookmarkHistory", {params});
+      return this.http.get<BookmarkHistoryList>("../api/em/monitoring/audit/bookmarkHistory", {params})
+         .pipe(catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to run query)", () => of({
+            totalRowCount: 0,
+            rows: []
+         }))));
    };
 
    ngOnDestroy(): void {

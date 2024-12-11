@@ -75,7 +75,7 @@ public class ScriptPropertyTool {
          return null;
       }
 
-      String startUrl = Tool.getHelpBaseURL() + "functions/userhelp/index.html#cshid=";
+      String startUrl = Tool.getHelpBaseURL() + "#cshid=";
       return startUrl + cshid;
    }
 

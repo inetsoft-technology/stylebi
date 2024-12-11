@@ -20,11 +20,14 @@ package inetsoft.uql.rest.datasource.jive;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.credential.CredentialType;
 
 @View(vertical = true, value = {
    @View1("URL"),
-   @View1("user"),
-   @View1("password")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "password", visibleMethod = "useCredential")
 })
 public class JiveDataSource extends EndpointJsonDataSource<JiveDataSource> {
    static final String TYPE = "Rest.Jive";
@@ -34,9 +37,20 @@ public class JiveDataSource extends EndpointJsonDataSource<JiveDataSource> {
       setAuthType(AuthType.BASIC);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD;
+   }
+
    @Property(label = "Jive Community URL", required = true)
    public String getURL() {
       return super.getURL();
+   }
+
+   @Property(label = "User", required = true)
+   @Override
+   public String getUser() {
+      return super.getUser();
    }
 
    @Override

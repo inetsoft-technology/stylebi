@@ -18,8 +18,10 @@
 package inetsoft.report.internal.license;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.cluster.*;
-import inetsoft.util.*;
+import inetsoft.sree.internal.cluster.MessageEvent;
+import inetsoft.sree.internal.cluster.MessageListener;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.util.SingletonManager;
 
 import java.util.*;
 
@@ -68,12 +70,11 @@ public class LicenseManager implements AutoCloseable, MessageListener {
     */
    public static boolean isComponentAvailable(LicenseComponent component) {
       try {
-         switch(component) {
-         case FORM:
+         if(Objects.requireNonNull(component) == LicenseComponent.FORM) {
             return !"false".equals(SreeEnv.getProperty("vs.form.enabled"));
-         default:
-            return true;
          }
+
+         return true;
       }
       catch(Exception ignore) {
          return false;
@@ -209,37 +210,23 @@ public class LicenseManager implements AutoCloseable, MessageListener {
       return strategy.getNamedUserViewerSessionCount();
    }
 
-   /**
-    * Gets the installed scheduler instance licenses.
-    *
-    * @return the scheduler licenses.
-    */
-   public Set<License> getSchedulerLicenses() {
-      return strategy.getSchedulerLicenses();
-   }
-
-   /**
-    * Gets the number of scheduler instances allowed by the installed licenses. If no scheduler
-    * licenses are installed, this will return {@code 1}.
-    *
-    * @return the licensed scheduler instance count.
-    */
-   public int getSchedulerCount() {
-      int count = getSchedulerLicenses().stream()
-         .filter(License::valid)
-         .mapToInt(License::instanceCount)
-         .sum();
-      return count == 0 ? 1 : count;
-   }
-
    /**;
     * Gets the user names of the licensed named users.
     *
     * @return the named users or {@code null} if no named users are licensed.
     */
-   public Set<String> getNamedUsers() {
+   public Set<IdentityID> getNamedUsers() {
       return strategy.getNamedUsers();
    }
+
+   /**
+    * Process the user, role, group changed, it may cause the count of the administrators is changed.
+    * named user will sort administrators come first, so clear the cache.
+    */
+   public void userChanged() {
+      strategy.userChanged();
+   }
+
 
    /**
     * Adds a server license key.
@@ -267,34 +254,6 @@ public class LicenseManager implements AutoCloseable, MessageListener {
     */
    public void replaceLicense(String oldKey, String newKey) {
       strategy.replaceLicense(oldKey, newKey);
-   }
-
-   /**
-    * Adds a scheduler instance license.
-    *
-    * @param key the key to add.
-    */
-   public void addSchedulerLicense(String key) {
-      strategy.addSchedulerLicense(key);
-   }
-
-   /**
-    * Removes an installed scheduler instance license.
-    *
-    * @param key the key to remove.
-    */
-   public void removeSchedulerLicense(String key) {
-      strategy.removeSchedulerLicense(key);
-   }
-
-   /**
-    * Replaces an installed scheduler instance license.
-    *
-    * @param oldKey the key to replace.
-    * @param newKey the new key.
-    */
-   public void replaceSchedulerLicense(String oldKey, String newKey) {
-      strategy.replaceSchedulerLicense(oldKey, newKey);
    }
 
    /**
@@ -404,6 +363,69 @@ public class LicenseManager implements AutoCloseable, MessageListener {
     */
    public void removeClaimedLicenseListener(ClaimedLicenseListener l) {
       strategy.removeClaimedLicenseListener(l);
+   }
+
+   /**
+    * Update the named users key valid.
+    */
+   public void updateNamedUserKeys() {
+      Set<License> installedLicenses = getInstalledLicenses();
+
+      for(License license : installedLicenses) {
+         if(LicenseType.NAMED_USER == license.type() || LicenseType.INVALID == license.type()) {
+            replaceLicense(license.key(), license.key());
+         }
+      }
+   }
+
+   public boolean hasNamedUserKeys() {
+      Set<License> installedLicenses = getInstalledLicenses();
+
+      for(License license : installedLicenses) {
+         if(LicenseType.NAMED_USER == license.type()) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   public boolean isElasticLicense() {
+      return strategy.getValidLicenses().stream()
+         .anyMatch(l -> l.type() == LicenseType.ELASTIC);
+   }
+
+   public void startElasticPolling() {
+      strategy.startElasticPolling();
+   }
+
+   public int getElasticRemainingHours() {
+      return strategy.getElasticRemainingHours();
+   }
+
+   public int getElasticGraceHours() {
+      return strategy.getElasticGraceHours();
+   }
+
+   public boolean isHostedLicense() {
+      return strategy.getValidLicenses().stream()
+         .anyMatch(l -> l.type() == LicenseType.HOSTED);
+   }
+
+   public boolean startHostedSession(String orgId, String user) {
+      return strategy.startHostedSession(orgId, user);
+   }
+
+   public void stopHostedSession(String orgId, String user) {
+      strategy.stopHostedSession(orgId, user);
+   }
+
+   public int getHostedRemainingHours(String orgId, String user) {
+      return strategy.getHostedRemainingHours(orgId, user);
+   }
+
+   public int getHostedGraceHours(String orgId, String user) {
+      return strategy.getHostedGraceHours(orgId, user);
    }
 
    private LicenseStrategy strategy;

@@ -125,7 +125,7 @@ public class DashboardController {
       try {
          Catalog catalog = Catalog.getCatalog(principal, Catalog.REPORT);
          IdentityID user = SecurityEngine.getSecurity().isSecurityEnabled() ? IdentityID.getIdentityIDFromKey(principal.getName()) :
-            new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationName());
+            new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
          DashboardRegistry uregistry = DashboardRegistry.getRegistry(user);
          DashboardRegistry registry = DashboardRegistry.getRegistry();
          Dashboard dashboard;
@@ -234,7 +234,7 @@ public class DashboardController {
       boolean composedDashboard = false;
 
       IdentityID user = SecurityEngine.getSecurity().isSecurityEnabled() ? IdentityID.getIdentityIDFromKey(principal.getName()) :
-         new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationName());
+         new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
       DashboardRegistry registry = DashboardRegistry.getRegistry(user);
       // log create dashboard action
       String actionName = ActionRecord.ACTION_NAME_CREATE;
@@ -291,8 +291,9 @@ public class DashboardController {
          registry.addDashboard(dashboardModel.name(), dashboard);
          dashboard.setCreated(System.currentTimeMillis());
          dashboard.setLastModified(System.currentTimeMillis());
-         dashboard.setCreatedBy(principal.getName());
-         dashboard.setLastModifiedBy(principal.getName());
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+         dashboard.setCreatedBy(identityID.getName());
+         dashboard.setLastModifiedBy(identityID.getName());
          registry.save();
 
          // if this dashboard is created by a user on the viewer, then the
@@ -348,7 +349,7 @@ public class DashboardController {
 
       ActionRecord actionRecord = null;
       IdentityID user = SecurityEngine.getSecurity().isSecurityEnabled() ? IdentityID.getIdentityIDFromKey(principal.getName()) :
-         new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationName());
+         new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
       DashboardRegistry registry = DashboardRegistry.getRegistry(user);
       Catalog catalog = Catalog.getCatalog();
 
@@ -530,7 +531,7 @@ public class DashboardController {
          actionRecord.setObjectName(historyName);
 
          IdentityID user = SecurityEngine.getSecurity().isSecurityEnabled() ? IdentityID.getIdentityIDFromKey(principal.getName()) :
-            new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationName());
+            new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID());
          DashboardRegistry registry;
 
          if(dashboardName.endsWith("__GLOBAL")) {

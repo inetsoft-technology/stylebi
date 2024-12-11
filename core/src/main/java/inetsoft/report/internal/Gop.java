@@ -532,24 +532,45 @@ public class Gop implements StyleConstants {
     * @return font height in pixels.
     */
    public float getHeight(Font font) {
-      // Bug #51234 FontMetrics#getHeight on the regular-sized font will have integer rounding that
-      // can result in the height being wrong by up to 2px. Multiplying by a factor and then
-      // dividing the resultant height by that factor
-      // gives a much more accurate result.
-      final float factor = 1000F;
-      final Font largeFont = font.deriveFont(font.getSize2D() * factor);
-      final FontMetrics fm = Common.getFractionalFontMetrics(largeFont);
-      float h = fm.getHeight() / factor;
+      final float height;
+
+      // Bug #67077 Font sizes greater than 65000 will cause an overflow in the freetype native
+      // library and font rendering will be broken until a restart
+
+      if(font.getSize2D() > 6500F) {
+         height = Common.getFractionalFontMetrics(font).getHeight();
+      }
+      else {
+         // Bug #51234 FontMetrics#getHeight on the regular-sized font will have integer rounding
+         // that can result in the height being wrong by up to 2px. Multiplying by a factor and then
+         // dividing the resultant height by that factor gives a much more accurate result.
+
+         final float factor;
+
+         if(font.getSize2D() <= 65F) {
+            factor = 1000F;
+         }
+         else if(font.getSize2D() <= 650F) {
+            factor = 100F;
+         }
+         else {
+            factor = 10F;
+         }
+
+         final Font largeFont = font.deriveFont(font.getSize2D() * factor);
+         final FontMetrics fm = Common.getFractionalFontMetrics(largeFont);
+         height = fm.getHeight() / factor;
+      }
 
       if(font instanceof StyleFont) {
          StyleFont sfont = (StyleFont) font;
 
          if((sfont.getStyle() & StyleFont.UNDERLINE) != 0) {
-            return h + getLineWidth(sfont.getUnderlineStyle());
+            return height + getLineWidth(sfont.getUnderlineStyle());
          }
       }
 
-      return novratio ? h : adjustHeight(font, h);
+      return novratio ? height : adjustHeight(font, height);
    }
 
    /**

@@ -94,7 +94,7 @@ public class ScheduleTaskController {
       throws Exception
    {
       try {
-         taskName = URLDecoder.decode(taskName, "UTF-8");
+         taskName = Tool.byteDecode(taskName);
       }
       catch(Exception ignore) {
       }

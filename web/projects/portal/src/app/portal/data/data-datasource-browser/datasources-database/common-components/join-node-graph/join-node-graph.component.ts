@@ -366,7 +366,7 @@ export class JoinNodeGraphComponent implements AfterViewInit {
       dialog.label = "_#(js:data.physicalmodel.tableAliasName)";
       dialog.validators = this.physicalModelService.aliasValidators;
       dialog.validatorMessages = this.physicalModelService.aliasValidatorMessages;
-      dialog.helpLinkKey = "TableAlias";
+      dialog.helpLinkKey = "EditPhysicalViewAliasSingleTable";
       dialog.hasDuplicateCheck = (alias: string) => {
          let event = new CheckTableAliasEvent(this.runtimeId, alias);
          return this.http.put<boolean>(CHECK_ALIAS_HAS_DUPLICATE, event);

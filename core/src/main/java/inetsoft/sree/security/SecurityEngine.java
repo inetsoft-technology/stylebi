@@ -96,7 +96,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          if(userCount > 0 && authcChain.getProviders().isEmpty()) {
             FileAuthenticationProvider authc = new FileAuthenticationProvider();
             authc.setProviderName("Primary");
-            authc.removeUser(new IdentityID("guest", Organization.getDefaultOrganizationName()));
+            authc.removeUser(new IdentityID("guest", Organization.getDefaultOrganizationID()));
             authcChain.setProviders(Collections.singletonList(authc));
          }
 
@@ -337,7 +337,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
             }
 
             principal = new DestinationUserNameProviderPrincipal(
-               new ClientInfo(new IdentityID(ClientInfo.ANONYMOUS, addr),Organization.getDefaultOrganizationName()
+               new ClientInfo(new IdentityID(ClientInfo.ANONYMOUS, Organization.getDefaultOrganizationID()), addr
                ), new IdentityID[0], new String[0],Organization.getDefaultOrganizationID(), 0L);
             principal.setProperty("__internal__", "true");
          }
@@ -360,13 +360,13 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   principal = new DestinationUserNameProviderPrincipal(
                      user, provider.getRoles(user.getUserIdentity()),
                      provider.getUserGroups(user.getUserIdentity()),
-                     provider.getOrgId((provider.getUser(user.getUserIdentity()).getOrganization())),
+                     user.getUserIdentity().orgID,
                      secureID);
                   principal.setProperty("__internal__", "true");
                   users.remove(user);
                   principal.setProperty("login.user", "true");
                   users.put(user, principal);
-                  SUtil.setAdditionalDatasource(principal);
+                  ConnectionProcessor.getInstance().setAdditionalDatasource(principal);
                }
             }
          }
@@ -396,7 +396,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   new DestinationUserNameProviderPrincipal(
                      user, provider.getRoles(user.getUserIdentity()),
                      provider.getUserGroups(user.getUserIdentity()),
-                     realUser != null ? provider.getOrgId(realUser.getOrganization()) :
+                     realUser != null ? realUser.getOrganizationID() :
                         Organization.getDefaultOrganizationID(),
                      secureID,  realUser != null ? realUser.getAlias() : null);
 
@@ -496,8 +496,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
       }
 
       return Arrays.stream(provider.getUsers())
-         .filter(user -> provider.getOrgId(user.organization)
-            .equals(orgID))
+         .filter(user -> user.orgID.equals(orgID))
          .toArray(IdentityID[]::new);
    }
 
@@ -577,7 +576,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          return new String[0];
       }
 
-      return provider.getOrganizations();
+      return provider.getOrganizationIDs();
    }
 
    /**
@@ -617,12 +616,12 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          return new Role[0];
       }
 
-      String orgName = OrganizationManager.getCurrentOrgName();
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
       AuthenticationProvider authenticationProvider = provider.getAuthenticationProvider();
 
       if(authenticationProvider instanceof AuthenticationChain) {
          for(AuthenticationProvider p : ((AuthenticationChain) authenticationProvider).getProviders()) {
-            if(p.getOrganization(orgName) != null) {
+            if(p.getOrganization(orgId) != null) {
                authenticationProvider = p;
                break;
             }
@@ -633,9 +632,9 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
 
       return Arrays.stream(currentProvider.getRoles())
          .map(r -> currentProvider.getRole(r))
-         .filter(r -> siteAdmin && r.getOrganization() == null ||
+         .filter(r -> siteAdmin && r.getOrganizationID() == null ||
             !siteAdmin && currentProvider.isOrgAdministratorRole(r.getIdentityID()) ||
-            r.getOrganization() != null && r.getOrganization().equals(orgName))
+            r.getOrganizationID() != null && r.getOrganizationID().equals(orgId))
          .toArray(Role[]::new);
    }
 
@@ -1008,8 +1007,8 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   }
                   else {
                      perm = getPermission(ResourceType.DATA_SOURCE_FOLDER, "/");
-                     boolean isSelfAndNotAdmin = Tool.equals(IdentityID.getIdentityIDFromKey(principal.getName()).organization,
-                                                               Organization.getSelfOrganizationName()) &&
+                     boolean isSelfAndNotAdmin = Tool.equals(IdentityID.getIdentityIDFromKey(principal.getName()).orgID,
+                                                               Organization.getSelfOrganizationID()) &&
                                                 !OrganizationManager.getInstance().isSiteAdmin(principal) &&
                                                 !OrganizationManager.getInstance().isOrgAdmin(principal);
                      allowed = isBlank(perm) ?
@@ -1068,7 +1067,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          }
       }
       else {
-         FSUser admin = (FSUser) vprovider.getUser(new IdentityID("admin", Organization.getDefaultOrganizationName()));
+         FSUser admin = (FSUser) vprovider.getUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
          SUtil.setPassword(admin, password);
          VirtualAuthenticationProvider vaprovider =
             (VirtualAuthenticationProvider) vprovider.getAuthenticationProvider();
@@ -1159,12 +1158,12 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          ArrayList<IdentityNode> result = new ArrayList<>();
 
          if((showUsers || showGroups) && roleFilter == null) {
-            IdentityID subIdentity = new IdentityID(catalog.getString("Users"), node.getIdentityID().organization);
+            IdentityID subIdentity = new IdentityID("Users", node.getIdentityID().orgID);
             result.add(new IdentityNode(subIdentity, IdentityNode.USERS, false));
          }
 
          if(showRoles && userFilter == null && groupFilter == null) {
-            IdentityID subIdentity = new IdentityID(catalog.getString("Roles"), node.getIdentityID().organization);
+            IdentityID subIdentity = new IdentityID("Roles", node.getIdentityID().orgID);
             result.add(new IdentityNode(subIdentity, IdentityNode.ROLES, false));
          }
 
@@ -1276,7 +1275,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
                   String[] pgroups = group.getGroups();
 
                   for(String pgroup : pgroups) {
-                     if(pgroup.equals(node.getIdentityID())) {
+                     if(pgroup.equals(node.getIdentityID().name)) {
                         list.add(new IdentityNode(group));
                         break;
                      }

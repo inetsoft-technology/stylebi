@@ -465,7 +465,14 @@ public class ViewsheetScope extends ScriptableObject implements Cloneable, Dynam
          box.getAssetEntry().getPath();
       propmap.put("viewsheetPath", viewsheetPath);
       propmap.put("viewsheetAlias", box.getAssetEntry().getAlias());
-      propmap.put("viewsheetUser", box.getAssetEntry().getUser());
+
+      if(box.getAssetEntry().getUser() != null) {
+         propmap.put("viewsheetUser", box.getAssetEntry().getUser().name + " of " + box.getAssetEntry().getUser().orgID);
+      }
+      else {
+         propmap.put("viewsheetUser", null);
+      }
+
       refreshRuntimeScriptable();
       setVariableTable(box.getVariableTable());
    }

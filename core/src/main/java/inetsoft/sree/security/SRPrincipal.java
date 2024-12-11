@@ -17,7 +17,6 @@
  */
 package inetsoft.sree.security;
 
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.XPrincipal;
@@ -70,15 +69,15 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
                   SRIdentityFinder finder = new SRIdentityFinder();
                   setRoles(finder.getRoles(identity));
                   setGroups(finder.getGroups(identity));
-                  setOrgId(provider.getOrgId(finder.getOrgId(identity.getOrganization())));
+                  setOrgId(identity.getOrganizationID());
 
                   if(identity.getLocale() != null) {
                      String locale = identity.getLocale();
                      String defaultLocale = Catalog.getCatalog().getString("Default");
 
                      //overwrite default user locale with set organization locale
-                     if((locale == null || "".equals(locale) || defaultLocale.equals(locale)) && identity.getOrganization() != null) {
-                        Organization userOrg = provider.getOrganization(identity.getOrganization());
+                     if((locale == null || "".equals(locale) || defaultLocale.equals(locale)) && identity.getOrganizationID() != null) {
+                        Organization userOrg = provider.getOrganization(identity.getOrganizationID());
 
                         if(userOrg.getLocale() != null && !"".equals(userOrg.getLocale())) {
                            locale = userOrg.getLocale();
@@ -244,7 +243,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
       }
 
       if(parts.length == 1) {
-         return SUtil.getPrincipal(new IdentityID(name, OrganizationManager.getCurrentOrgName()), addr, true);
+         return SUtil.getPrincipal(new IdentityID(name, OrganizationManager.getInstance().getCurrentOrgID()), addr, true);
       }
 
       ClientInfo clientInfo = new ClientInfo(IdentityID.getIdentityIDFromKey(name), addr, session);
@@ -366,7 +365,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
       // @by billh, please refer to bug bug1269875133083
       String[] groups = getGroups();
       IdentityID[] roles = getRoles();
-      String org = getOrganizationName();
+      String org = getOrgId();
       boolean existing = groups != null && groups.length > 0;
 
       if(!existing) {
@@ -384,30 +383,6 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
 
    public boolean isSelfOrganization() {
       return OrganizationManager.getInstance().getCurrentOrgID(this).equals(Organization.getSelfOrganizationID());
-   }
-
-   public String getOrganizationName() {
-      String orgID = getOrgId();
-
-      if(StringUtils.isEmpty(orgID)) {
-         return Organization.getDefaultOrganizationName();
-      }
-
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      String[] orgNames = provider.getOrganizations();
-
-      if(orgNames == null || orgNames.length == 0) {
-         return Organization.getDefaultOrganizationName();
-      }
-
-      Organization organization = Arrays.stream(orgNames)
-         .map(name -> provider.getOrganization(name))
-         .filter(org -> org != null && Tool.equals(orgID, org.getId()))
-         .findFirst()
-         .orElse(null);
-
-      return organization == null ?
-         Organization.getDefaultOrganizationName() : organization.getName();
    }
 
    /**
@@ -544,7 +519,7 @@ public class SRPrincipal extends XPrincipal implements Serializable, LogPrincipa
     */
    @Override
    public String toString() {
-      return toString(true);
+      return toString(SUtil.isMultiTenant());
    }
 
    public String toString(boolean includeOrg) {

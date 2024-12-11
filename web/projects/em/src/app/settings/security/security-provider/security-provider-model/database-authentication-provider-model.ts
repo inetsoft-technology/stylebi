@@ -19,6 +19,8 @@ export interface DatabaseAuthenticationProviderModel {
    driver: string;
    url: string;
    requiresLogin: boolean;
+   useCredential: boolean;
+   secretId: string;
    user: string;
    password: string;
    hashAlgorithm: string;
@@ -28,7 +30,7 @@ export interface DatabaseAuthenticationProviderModel {
    groupUsersQuery: string;
    roleListQuery: string;
    organizationListQuery: string;
-   organizationIdQuery: string;
+   organizationNameQuery: string;
    organizationMembersQuery: string,
    organizationRolesQuery: string,
    userRolesQuery: string;

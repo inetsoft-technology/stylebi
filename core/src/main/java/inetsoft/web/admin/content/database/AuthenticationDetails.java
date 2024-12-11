@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.content.database;
 
+import inetsoft.util.Tool;
+
 /**
 * Created by Jason Shobe on 2/20/2015.
 */
@@ -75,7 +77,64 @@ public final class AuthenticationDetails {
       this.password = password;
    }
 
+   /**
+    * Gets the flag that indicates if the authentication credential is being used.
+    *
+    * @return <tt>true</tt> if the credential id is being used; <tt>false</tt> otherwise.
+    */
+   public boolean isUseCredentialId() {
+      return useCredentialId;
+   }
+
+   /**
+    * Sets the flag that indicates if the authentication credential should be used.
+    *
+    * @param useCredentialId <tt>true</tt> to use the credential id; <tt>false</tt> otherwise.
+    */
+   public void setUseCredentialId(boolean useCredentialId) {
+      this.useCredentialId = useCredentialId;
+   }
+
+   /**
+    * Gets the credential id used to authenticate with the database.
+    *
+    * @return the credential.
+    */
+   public String getCredentialId() {
+      return credentialId;
+   }
+
+   /**
+    * Sets the credential id used to authenticate with the database.
+    *
+    * @param credentialId the password.
+    */
+   public void setCredentialId(String credentialId) {
+      this.credentialId = credentialId;
+   }
+
+   /**
+    * Gets the flag that indicates if the credential is visible.
+    *
+    * @return <tt>true</tt> if the credential is visible; <tt>false</tt> otherwise.
+    */
+   public boolean isCredentialVisible() {
+      return credentialVisible;
+   }
+
+   /**
+    * Set the flag that indicates if the credential is visible.
+    *
+    * @param credentialVisible <tt>true</tt> if the credential is visible; <tt>false</tt> otherwise.
+    */
+   public void setCredentialVisible(boolean credentialVisible) {
+      this.credentialVisible = credentialVisible;
+   }
+
    private boolean required;
    private String userName;
    private String password;
+   private boolean useCredentialId;
+   private String credentialId;
+   private boolean credentialVisible = Tool.isCloudSecrets();
 }

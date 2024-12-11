@@ -376,7 +376,7 @@ public class DatabaseModelBrowserService {
          }
 
          if(Tool.equals(logicalModel.getFolder(), oldFolder)) {
-            logicalModel.setFolder(folder);
+            logicalModel.setFolder(isRoot ? null : folder);
             dataModel.addLogicalModel(logicalModel);
          }
 

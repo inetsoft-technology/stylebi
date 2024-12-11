@@ -213,7 +213,7 @@ public class CategoricalScale extends Scale {
                }
             }
          }
-         else if(!nnonull) {
+         else {
             values.add(0, null);
          }
 

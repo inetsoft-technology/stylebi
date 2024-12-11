@@ -943,9 +943,7 @@ public abstract class AbstractVSExporter implements VSExporter {
 
          for(int i = 0; i < hrow; i++) {
             int rh = AssetUtil.defh;
-            int dh = vs.getDisplayRowHeight(table instanceof CalcTableVSAssembly,
-               table.getName(), i);
-
+            int dh = vs.getDisplayRowHeight(true, table.getName(), i);
             int lineCount = vdata.getLineCount(i);
             realLineCount += lineCount;
 
@@ -2358,9 +2356,9 @@ public abstract class AbstractVSExporter implements VSExporter {
     */
    protected int getExpandTableHeight(TableDataVSAssembly obj, XTable table) {
       final int ypos = obj.getPixelOffset().y;
-      final int titleRow = 1;
       int rowCount = 0;
       TableDataVSAssemblyInfo info = (TableDataVSAssemblyInfo) obj.getVSAssemblyInfo();
+      final int titleRow = info.isTitleVisible() ? 1 : 0;
 
       if(!isPixelLayout()) {
          rowCount = Math.min(table.getRowCount() + titleRow, getMaxRow(ypos));
@@ -2373,9 +2371,7 @@ public abstract class AbstractVSExporter implements VSExporter {
             hrow = vsinfo != null ? Math.max(1, vsinfo.getRuntimeColHeaders().length) : 0;
          }
 
-         int tableLineCount = titleRow +
-            getExpandTableHeaderLineCount(table, hrow) +
-            getExpandTableLineCount(table, obj, titleRow, hrow, match);
+         int tableLineCount = getExpandTableLineCount(table, obj, titleRow, hrow, match);;
          rowCount = Math.min(tableLineCount, getMaxRow(ypos));
       }
 
@@ -2413,7 +2409,9 @@ public abstract class AbstractVSExporter implements VSExporter {
          totalHeight += lens.getRowHeightWithPadding(h, i);
       }
 
-      totalHeight += info.getTitleHeight();
+      if(info.isTitleVisible()) {
+         totalHeight += info.getTitleHeight();
+      }
 
       return totalHeight;
    }
@@ -2452,8 +2450,8 @@ public abstract class AbstractVSExporter implements VSExporter {
 
       // @by ankitmathur, Bug #1282, ensure we have enough lines to fit
       // all data rows and header rows.
-      if(tableLineCount < gridRowCounter + hrow && !isMatch) {
-         tableLineCount = Math.max(gridRowCounter + hrow, tableLineCount);
+      if(tableLineCount < gridRowCounter && !isMatch) {
+         tableLineCount = Math.max(gridRowCounter, tableLineCount);
       }
 
       return tableLineCount;
@@ -3125,7 +3123,7 @@ public abstract class AbstractVSExporter implements VSExporter {
       }
 
       ViewsheetVSAssemblyInfo info = (ViewsheetVSAssemblyInfo) vs.getInfo();
-      return (Dimension) (grid ? info.getPixelSize() : info.getPixelSize()).clone();
+      return (Dimension) info.getPixelSize().clone();
    }
 
    /**

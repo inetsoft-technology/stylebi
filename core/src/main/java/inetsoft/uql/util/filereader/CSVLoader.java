@@ -93,7 +93,7 @@ public final class CSVLoader {
             dataTable.setExceedLimit(true);
          }
 
-         if(r == 0) {
+         if(ncol == 0) {
             header = getHeaders(lines, firstRow || unpivot, colLimit, removeQuote);
             ncol = header.length;
 
@@ -222,7 +222,7 @@ public final class CSVLoader {
 
          Object[] rdata;
 
-         if(firstLine) {
+         if(firstLine && !line.equals("")) {
             firstLine = false;
             header = getHeaders(lines, firstRow || unpivot, colLimit, removeQuote);
 

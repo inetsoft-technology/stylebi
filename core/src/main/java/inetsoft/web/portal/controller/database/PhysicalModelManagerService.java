@@ -18,6 +18,7 @@
 package inetsoft.web.portal.controller.database;
 
 import inetsoft.report.lens.xnode.XNodeTableLens;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.uql.XNode;
@@ -33,6 +34,7 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.uql.util.rgraph.TableNode;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.CheckTableAliasEvent;
 import inetsoft.web.portal.service.database.PhysicalGraphService;
@@ -444,6 +446,10 @@ public class PhysicalModelManagerService {
                principal);
       }
 
+      if(dataModel.getPartition(newName) != null) {
+         throw new FileExistsException(newName);
+      }
+
       String path = dataSource + "/" + oldName;
       AssetEntry entry = new AssetEntry(AssetRepository.QUERY_SCOPE,
                                         AssetEntry.Type.PARTITION, path, null);
@@ -465,7 +471,7 @@ public class PhysicalModelManagerService {
       RenameTransformHandler.getTransformHandler().addTransformTask(rinfo);
       DependencyStorageService service = DependencyStorageService.getInstance();
       DependencyHandler.getInstance().renameDependencies(entry, newEntry);
-      service.rename(entry.toIdentifier(), newEntry.toIdentifier());
+      service.rename(entry.toIdentifier(), newEntry.toIdentifier(), rinfo.getOrganizationId());
    }
 
    /**
@@ -563,6 +569,10 @@ public class PhysicalModelManagerService {
                                         AssetEntry.Type.PARTITION, path, null);
       DependencyHandler.getInstance().deleteDependencies(entry);
       DependencyHandler.getInstance().deleteDependenciesKey(entry);
+      ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_DELETE,
+          path, ActionRecord.OBJECT_TYPE_PHYSICAL_VIEW);
+      Audit.getInstance().auditAction(actionRecord, principal);
+
       return true;
    }
 

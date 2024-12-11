@@ -75,7 +75,8 @@ public class ExcelSelectionListHelper extends ExporterHelper {
    private void writeTitle(Sheet sheet, SelectionListVSAssembly assembly) {
       SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) assembly.getVSAssemblyInfo();
 
-      if(!info.isTitleVisible()) {
+      if(!info.isTitleVisible() && (assembly.getContainer() == null ||
+         !(assembly.getContainer() instanceof CurrentSelectionVSAssembly))) {
          return;
       }
 

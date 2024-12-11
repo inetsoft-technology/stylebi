@@ -30,7 +30,7 @@ import org.immutables.value.Value;
 public interface EditGroupPaneModel extends EntityModel {
 
    @Value.Default
-   default String organization() {return Organization.getDefaultOrganizationName();}
+   default String organization() {return Organization.getDefaultOrganizationID();}
 
    static EditGroupPaneModel.Builder builder() {
       return new EditGroupPaneModel.Builder();

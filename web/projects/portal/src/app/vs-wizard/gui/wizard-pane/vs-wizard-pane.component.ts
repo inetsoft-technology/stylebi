@@ -70,7 +70,7 @@ import { WizardNewObjectModel } from "../objects/wizard-new-object-model";
 import { DragMoveStartOptions } from "./drag-move-start-options";
 import { FollowDirection } from "./follow-direction";
 
-const UPLOAD_IMAGE_URI = "../composer/vswizard/update-image";
+const UPLOAD_IMAGE_URI = "../api/composer/vswizard/update-image";
 const REMOVE_VS_WIZARD_OBJECT_URI = "/events/composer/vswizard/object/remove";
 const INSERT_OBJECT_URI = "/events/composer/vswizard/insert-object";
 const VIEWSHEET_WIZARD_OBJECTS_RESIZE_URI = "/events/composer/vswizard/object/resize";

@@ -75,6 +75,7 @@ export class DatabaseProviderViewComponent implements OnInit {
    }
 
    @Input() isMultiTenant = false;
+   @Input() isCloudSecrets = false;
 
    dbFormItems: any[] = [
       {
@@ -158,13 +159,13 @@ export class DatabaseProviderViewComponent implements OnInit {
          callback: () => this.securityProviderService.triggerOrganizationMembersQuery(this.form)
       },
       {
-         label: "_#(js:Organization ID Query)",
-         formControlName: "organizationIdQuery",
-         hint: "_#(js:em.security.database.organizationIdsQueryDesc)",
-         btnLabel: "_#(js:Show Organization ID)",
+         label: "_#(js:Organization Name Query)",
+         formControlName: "organizationNameQuery",
+         hint: "_#(js:em.security.database.organizationNamesQueryDesc)",
+         btnLabel: "_#(js:Show Organization Name)",
          validators: [],
          requiresMultiTenant: true,
-         callback: () => this.securityProviderService.triggerOrganizationIdQuery(this.form)
+         callback: () => this.securityProviderService.triggerOrganizationNameQuery(this.form)
       }
    ];
 
@@ -193,8 +194,10 @@ export class DatabaseProviderViewComponent implements OnInit {
          driver: this.fb.control("", [Validators.required]),
          url: this.fb.control("", [Validators.required]),
          requiresLogin: this.fb.control(true),
-         user: this.fb.control("", [Validators.required]),
-         password: this.fb.control("", [Validators.required]),
+         useCredential: this.fb.control(false),
+         secretId: this.fb.control("", this.model?.useCredential ? [Validators.required] : []),
+         user: this.fb.control("", !this.model?.useCredential ? [Validators.required] : []),
+         password: this.fb.control("", !this.model?.useCredential ? [Validators.required] : []),
          hashAlgorithm: this.fb.control("", [Validators.required, this.validAlgorithm]),
          appendSalt: this.fb.control(""),
          sysAdminRoles: this.fb.control(""),
@@ -209,14 +212,38 @@ export class DatabaseProviderViewComponent implements OnInit {
 
       this.dbForm.controls["requiresLogin"].valueChanges.subscribe(val => {
          if(val) {
-            this.dbForm.controls["user"].setValidators([Validators.required]);
-            this.dbForm.controls["password"].setValidators([Validators.required]);
+            if(this.model?.useCredential) {
+               this.dbForm.controls["secretId"].setValidators([Validators.required]);
+            }
+            else {
+               this.dbForm.controls["user"].setValidators([Validators.required]);
+               this.dbForm.controls["password"].setValidators([Validators.required]);
+            }
          }
          else {
+            this.dbForm.controls["secretId"].clearValidators();
             this.dbForm.controls["user"].clearValidators();
             this.dbForm.controls["password"].clearValidators();
          }
 
+         this.dbForm.controls["secretId"].updateValueAndValidity();
+         this.dbForm.controls["user"].updateValueAndValidity();
+         this.dbForm.controls["password"].updateValueAndValidity();
+      });
+
+      this.dbForm.controls["useCredential"].valueChanges.subscribe(val => {
+         if(val) {
+            this.dbForm.controls["secretId"].setValidators([Validators.required]);
+            this.dbForm.controls["user"].clearValidators();
+            this.dbForm.controls["password"].clearValidators();
+         }
+         else {
+            this.dbForm.controls["user"].setValidators([Validators.required]);
+            this.dbForm.controls["password"].setValidators([Validators.required]);
+            this.dbForm.controls["secretId"].clearValidators();
+         }
+
+         this.dbForm.controls["secretId"].updateValueAndValidity();
          this.dbForm.controls["user"].updateValueAndValidity();
          this.dbForm.controls["password"].updateValueAndValidity();
       });

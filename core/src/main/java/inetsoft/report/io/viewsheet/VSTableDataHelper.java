@@ -27,6 +27,7 @@ import inetsoft.uql.asset.internal.ColumnIndexMap;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
+import inetsoft.web.viewsheet.controller.table.BaseTableController;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 
@@ -323,7 +324,9 @@ public abstract class VSTableDataHelper extends ExporterHelper {
       // information pre-populated, we can not return the rendered number of
       // lines per cell.
       if(lens != null) {
+         double[] colWidths = BaseTableController.getColWidths(assembly, lens);
          lens.initTableGrid(info);
+         lens.setColWidths(colWidths);
       }
 
       int infoWidth = CoordinateHelper.getAssemblySize(

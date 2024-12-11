@@ -17,4 +17,5 @@
  */
 export interface ClusterEnabledModel {
    enabled: boolean;
+   pauseEnabled: boolean;
 }

@@ -157,4 +157,38 @@
     </plugins>
   </build>
 
+  <profiles>
+    <profile>
+      <id>sbom</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.cyclonedx</groupId>
+            <artifactId>cyclonedx-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <phase>package</phase>
+                <goals>
+                  <goal>makeBom</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>io.github.pmckeown</groupId>
+            <artifactId>dependency-track-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <phase>deploy</phase>
+                <goals>
+                  <goal>upload-bom</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
 </project>

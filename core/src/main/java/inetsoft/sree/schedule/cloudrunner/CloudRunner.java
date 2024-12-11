@@ -30,6 +30,7 @@ import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import org.apache.ignite.*;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.springframework.web.util.UriUtils;
@@ -117,11 +118,16 @@ public class CloudRunner implements Callable<Integer> {
       igniteConfig.setClientMode(true);
       igniteConfig.setPeerClassLoadingEnabled(true);
 
+      TcpCommunicationSpi communicationSpi = new TcpCommunicationSpi();
+      communicationSpi.setForceClientToServerConnections(true);
+      igniteConfig.setCommunicationSpi(communicationSpi);
+
       TcpDiscoverySpi discoverySpi = new TcpDiscoverySpi();
       TcpDiscoveryVmIpFinder ipFinder = new TcpDiscoveryVmIpFinder();
       ipFinder.setAddresses(Arrays.stream(clusterAddress.split(",")).toList());
       discoverySpi.setIpFinder(ipFinder);
       igniteConfig.setDiscoverySpi(discoverySpi);
+      SUtil.configBinaryTypes(igniteConfig);
 
       try(Ignite ignite = Ignition.start(igniteConfig)) {
          System.out.println("Connected to the InetSoft cluster");
@@ -131,6 +137,7 @@ public class CloudRunner implements Callable<Integer> {
 
          // save inetsoft.yaml file
          InetsoftConfig.save(config, Paths.get(home, "inetsoft.yaml"));
+         SingletonManager.reset(InetsoftConfig.class);
       }
    }
 
@@ -177,10 +184,10 @@ public class CloudRunner implements Callable<Integer> {
          cluster.addMessageListener(listener);
 
          try {
+            Principal principal;
+            String addr = Tool.getIP();
             Identity identity = task.getIdentity();
             IdentityID owner = task.getOwner();
-            Principal principal = null;
-            String addr = Tool.getIP();
 
             if(identity == null) {
                principal = SUtil.getPrincipal(owner, addr, false);
@@ -226,7 +233,14 @@ public class CloudRunner implements Callable<Integer> {
       }
 
       String name = arr[arr.length - 1];
-      arr = Tool.split(name, ':');
+      int index = name.indexOf("__" + DataCycleManager.TASK_PREFIX);
+
+      if(index >= 0) {
+         arr = new String[] { name.substring(0, index), name.substring(index) };
+      }
+      else {
+         arr = Tool.split(name, ':');
+      }
 
       if(arr.length == 0) {
          return;
@@ -235,7 +249,7 @@ public class CloudRunner implements Callable<Integer> {
       String userKey = arr[0];
       IdentityID identityID = IdentityID.getIdentityIDFromKey(userKey);
 
-      if(identityID != null && identityID.getOrganization() != null) {
+      if(identityID != null && identityID.getOrgID() != null) {
          Principal principal = ThreadContext.getContextPrincipal();
 
          if(principal == null) {
@@ -244,20 +258,20 @@ public class CloudRunner implements Callable<Integer> {
             ThreadContext.setContextPrincipal(principal);
          }
          else {
-            ((XPrincipal) principal).setProperty("curr_org_id", identityID.getOrganization());
+            ((XPrincipal) principal).setProperty("curr_org_id", identityID.getOrgID());
          }
       }
    }
 
-   private static ScheduleTask findScheduleTask(String taskName, String cycleName,
+   private static ScheduleTask findScheduleTask(String taskId, String cycleName,
                                                 String cycleOrgId)
    {
       if(cycleName == null) {
-         return ScheduleManager.getScheduleManager().getScheduleTask(taskName);
+         return ScheduleManager.getScheduleManager().getScheduleTask(taskId);
       }
       else {
          for(ScheduleTask candidate : DataCycleManager.getDataCycleManager().getTasks()) {
-            if(candidate.getName().equals(taskName)) {
+            if(candidate.getTaskId().equals(taskId)) {
                DataCycleManager.CycleInfo info = candidate.getCycleInfo();
 
                if(info == null ||

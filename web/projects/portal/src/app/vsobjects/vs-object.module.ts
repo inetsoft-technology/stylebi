@@ -501,7 +501,7 @@ import { VsToolbarButtonDirective } from "./vs-toolbar-button.directive";
       {
          provide: RichTextService,
          useClass: CKEditorRichTextService,
-         deps: [FontService]
+         deps: [FontService, NgbModal, HttpClient]
       },
       PropertyDialogService,
       FullScreenService,

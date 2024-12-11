@@ -401,7 +401,7 @@ public class AggregateDialogController extends WorksheetController {
 
             if(columnSelection.getAttribute(dateRangeRef.getDataRef().getAttribute()) == null) {
                newAggregateInfo.removeGroup(j);
-               aggChanged |= true;
+               aggChanged = true;
             }
          }
 

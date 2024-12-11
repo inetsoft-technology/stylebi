@@ -20,14 +20,14 @@ package inetsoft.uql.rest.datasource.asana;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
-import org.w3c.dom.Element;
+import inetsoft.util.credential.CredentialType;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("accessToken")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "accessToken", visibleMethod = "useCredential")
 })
 public class AsanaDataSource extends EndpointJsonDataSource<AsanaDataSource> {
    static final String TYPE = "Rest.Asana";
@@ -37,13 +37,15 @@ public class AsanaDataSource extends EndpointJsonDataSource<AsanaDataSource> {
       setAuthType(AuthType.NONE);
    }
 
-   @Property(label = "Personal Access Token", required = true, password = true)
-   public String getAccessToken() {
-      return accessToken;
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.ACCESS_TOKEN;
    }
 
-   public void setAccessToken(String accessToken) {
-      this.accessToken = accessToken;
+   @Property(label = "Personal Access Token", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
+   public String getAccessToken() {
+      return super.getAccessToken();
    }
 
    @Override
@@ -62,7 +64,7 @@ public class AsanaDataSource extends EndpointJsonDataSource<AsanaDataSource> {
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)
             .name("Authorization")
-            .value("Bearer " + accessToken)
+            .value("Bearer " + getAccessToken())
             .build()
       };
    }
@@ -93,22 +95,6 @@ public class AsanaDataSource extends EndpointJsonDataSource<AsanaDataSource> {
    }
 
    @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(accessToken != null) {
-         writer.format(
-            "<accessToken><![CDATA[%s]]></accessToken>%n", Tool.encryptPassword(accessToken));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      accessToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "accessToken"));
-   }
-
-   @Override
    protected String getTestSuffix() {
       return "/1.0/users/me";
    }
@@ -123,18 +109,11 @@ public class AsanaDataSource extends EndpointJsonDataSource<AsanaDataSource> {
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      AsanaDataSource that = (AsanaDataSource) o;
-      return accessToken.equals(that.getAccessToken());
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), accessToken);
+      return Objects.hash(super.hashCode(), getAccessToken());
    }
-
-   private String accessToken;
 }

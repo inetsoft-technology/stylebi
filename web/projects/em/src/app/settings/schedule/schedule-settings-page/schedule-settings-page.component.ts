@@ -15,7 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { Component, OnInit } from "@angular/core";
+import { combineLatest, Observable } from "rxjs";
 import { AuthorizationService } from "../../../authorization/authorization.service";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Secured } from "../../../secured";
@@ -38,13 +40,26 @@ export class ScheduleSettingsPageComponent implements OnInit {
    ];
    visibleLinks = this.links;
 
-   constructor(private pageTitle: PageHeaderService, private authzService: AuthorizationService) {
-      authzService.getPermissions("/settings/schedule").subscribe((permissions) => {
-         this.visibleLinks = this.links.filter((link) => permissions.permissions[link.name]);
-      });
+   constructor(private pageTitle: PageHeaderService, private authzService: AuthorizationService,
+               private http: HttpClient)
+   {
+      combineLatest(authzService.getPermissions("/settings/schedule"), this.isCloudRunner())
+         .subscribe(([permissions, cloudRunner]) => {
+            this.visibleLinks = this.links.filter((link) => {
+               if("status" == link.name && cloudRunner) {
+                  return false;
+               }
+
+               return permissions.permissions[link.name];
+            });
+         });
    }
 
    ngOnInit() {
       this.pageTitle.title = "Schedule Settings";
+   }
+
+   private isCloudRunner(): Observable<boolean> {
+      return this.http.get<boolean>("../api/em/settings/schedule/cloudRunner");
    }
 }

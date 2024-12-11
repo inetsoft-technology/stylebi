@@ -18,6 +18,7 @@
 package inetsoft.sree.internal.cluster;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -54,4 +55,10 @@ public interface DistributedMap<K, V> extends Map<K, V> {
     * @param value value of the entry
     */
    void set(K key, V value);
+
+   /**
+    * Removes a set of keys from the map
+    * @param keys
+    */
+   void removeAll(Set<? extends K> keys);
 }

@@ -21,14 +21,17 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("serviceName"),
-   @View1("apiKey"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "serviceName", visibleMethod = "useCredential"),
+   @View1(value = "apiKey", visibleMethod = "useCredential"),
    @View1("URL")
 })
 public class AzureSearchDataSource extends EndpointJsonDataSource<AzureSearchDataSource> {
@@ -39,7 +42,13 @@ public class AzureSearchDataSource extends EndpointJsonDataSource<AzureSearchDat
       setAuthType(AuthType.NONE);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_KEY;
+   }
+
    @Property(label = "Search Service Name", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getServiceName() {
       return serviceName;
    }
@@ -49,12 +58,13 @@ public class AzureSearchDataSource extends EndpointJsonDataSource<AzureSearchDat
    }
 
    @Property(label = "API Key", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
-      return apiKey;
+      return ((ApiKeyCredential) getCredential()).getApiKey();
    }
 
    public void setApiKey(String apiKey) {
-      this.apiKey = apiKey;
+      ((ApiKeyCredential) getCredential()).setApiKey(apiKey);
    }
 
    @Property(label = "URL")
@@ -82,7 +92,8 @@ public class AzureSearchDataSource extends EndpointJsonDataSource<AzureSearchDat
    public HttpParameter[] getQueryHttpParameters() {
       HttpParameter keyParam = new HttpParameter();
       keyParam.setName("api-key");
-      keyParam.setValue(apiKey);
+      keyParam.setSecret(true);
+      keyParam.setValue(getApiKey());
       keyParam.setType(HttpParameter.ParameterType.HEADER);
 
 
@@ -106,17 +117,12 @@ public class AzureSearchDataSource extends EndpointJsonDataSource<AzureSearchDat
       if(serviceName != null) {
          writer.format("<serviceName><![CDATA[%s]]></serviceName>%n", serviceName);
       }
-
-      if(apiKey != null) {
-         writer.format("<apiKey><![CDATA[%s]]></apiKey>%n", Tool.encryptPassword(apiKey));
-      }
    }
 
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       serviceName = Tool.getChildValueByTagName(root, "serviceName");
-      apiKey = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiKey"));
    }
 
    @Override
@@ -139,15 +145,13 @@ public class AzureSearchDataSource extends EndpointJsonDataSource<AzureSearchDat
       }
 
       AzureSearchDataSource that = (AzureSearchDataSource) o;
-      return Objects.equals(serviceName, that.serviceName) &&
-         Objects.equals(apiKey, that.apiKey);
+      return Objects.equals(serviceName, that.serviceName);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), serviceName, apiKey);
+      return Objects.hash(super.hashCode(), serviceName, getApiKey());
    }
 
    private String serviceName;
-   private String apiKey;
 }

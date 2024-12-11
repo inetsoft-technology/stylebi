@@ -19,6 +19,7 @@ package inetsoft.util.config;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.util.config.crd.CRDProperty;
 import inetsoft.util.config.json.PasswordDeserializer;
 import inetsoft.util.config.json.PasswordSerializer;
 
@@ -82,6 +83,14 @@ public class ClusterConfig implements Serializable {
 
    public void setMulticastPort(int multicastPort) {
       this.multicastPort = multicastPort;
+   }
+
+   public IpFinderConfig getIpFinder() {
+      return ipFinder;
+   }
+
+   public void setIpFinder(IpFinderConfig ipFinder) {
+      this.ipFinder = ipFinder;
    }
 
    /**
@@ -204,6 +213,19 @@ public class ClusterConfig implements Serializable {
    }
 
    /**
+    * The minimum number of nodes the cluster will scale down to
+    *
+    * @return the minimum number of nodes
+    */
+   public int getMinNodes() {
+      return minNodes;
+   }
+
+   public void setMinNodes(int minNodes) {
+      this.minNodes = minNodes;
+   }
+
+   /**
     * Creates the default cluster configuration.
     *
     * @return the default cluster configuration.
@@ -217,14 +239,23 @@ public class ClusterConfig implements Serializable {
    private boolean multicastEnabled = true;
    private String multicastAddress = "224.2.2.3";
    private int multicastPort = 54327;
+   private IpFinderConfig ipFinder;
    private boolean tcpEnabled = false;
    private boolean singleNode = false;
    private String[] tcpMembers;
    private boolean clientMode = false;
    private String caKeyFile = null;
+   @CRDProperty(description = "The PEM-encoded CA key used to generate SSL keys for the nodes", secret = true)
    private String caKey = null;
+   @CRDProperty(description = "The password for the CA key", secret = true)
    private String caKeyPassword = null;
    private String caCertificateFile = null;
+   @CRDProperty(description = "The PEM-encoded CA certificate used to generate SSL keys for the nodes", secret = true)
    private String caCertificate = null;
+   @CRDProperty(select = {
+      @CRDProperty.Select(field = "labelName", name = "discoveryLabelName", description = "The name of the label that identifies pods that contain a server or scheduler instance"),
+      @CRDProperty.Select(field = "labelValue", name = "discoveryLabelValue", description = "The value of the label that identifies the pods that contain a server or scheduler instance")
+   })
    private KubernetesConfig k8s;
+   private int minNodes = -1;
 }

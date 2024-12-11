@@ -1572,6 +1572,12 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
 
       int width = getColumnWidth(row, col);
 
+      if(width == AssetUtil.defw && colWidths != null && col < colWidths.length &&
+         getSpan(row, col) == null)
+      {
+         width = (int) colWidths[col];
+      }
+
       if(width <= 0) {
          return -1;
       }
@@ -1661,6 +1667,21 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
       }
 
       return cellHeight;
+   }
+
+   /**
+    * Get actual column widths.
+    */
+   public double[] getColWidths() {
+      return colWidths;
+   }
+
+   /**
+    * Set each column width.
+    * @param width the specified column.
+    */
+   public void setColWidths(double[] width) {
+      this.colWidths = width != null ? width : new double[0];
    }
 
 /*   private boolean isCellWrapped(int row, int col) {
@@ -2151,6 +2172,8 @@ public class VSTableLens extends DefaultTableFilter implements XMLSerializable, 
    private CrosstabTree ctree;
    private transient String luri;
    private int[] widths = {};
+
+   private double[] colWidths = {};
    private int[] rows = {};
    private int maxCols = 0;
    // VSFormat -> index

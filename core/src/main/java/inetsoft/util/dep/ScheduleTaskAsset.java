@@ -56,12 +56,12 @@ public class ScheduleTaskAsset extends AbstractXAsset {
 
    /**
     * Constructor.
-    * @param task the schedule task asset name.
+    * @param taskId the schedule task asset id.
     * @param user the schedule task asset owner.
     */
-   public ScheduleTaskAsset(String task, IdentityID user) {
+   public ScheduleTaskAsset(String taskId, IdentityID user) {
       this();
-      this.task = task;
+      this.task = taskId;
       this.user = user;
    }
 
@@ -108,7 +108,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
             }
             else if(action instanceof BatchAction) {
                BatchAction bAction = (BatchAction) action;
-               String tname = bAction.getTaskName();
+               String tname = bAction.getTaskId();
 
                if(tname != null) {
                   ScheduleTask stask2 = manager.getScheduleTask(tname);
@@ -169,24 +169,16 @@ public class ScheduleTaskAsset extends AbstractXAsset {
 
                if(tname != null) {
                   ScheduleTask stask2 = manager.getScheduleTask(tname);
-                  IdentityID owner;
 
                   if(stask2 == null) {
                      continue;
-                  }
-
-                  if("INETSOFT_SYSTEM".equals(stask2.getOwner().name)) {
-                     owner = null;
-                  }
-                  else {
-                     owner = stask2.getOwner();
                   }
 
                   String desc = generateDescription(
                      catalog.getString("common.xasset.task3", task),
                      catalog.getString("common.xasset.task0", tname));
                   dependencies.add(new XAssetDependency(
-                     new ScheduleTaskAsset(tname, owner), this,
+                     new ScheduleTaskAsset(tname, stask2.getOwner()), this,
                      XAssetDependency.SCHEDULETASK_SCHEDULETASK, desc));
                }
             }
@@ -222,6 +214,14 @@ public class ScheduleTaskAsset extends AbstractXAsset {
    @Override
    public IdentityID getUser() {
       return user;
+   }
+
+   public String getTask() {
+      return this.task;
+   }
+
+   public void setTask(String task) {
+      this.task = task;
    }
 
    /**
@@ -264,7 +264,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
     */
    @Override
    public String toIdentifier() {
-      return getClass().getName() + "^" + task + "^" + (user == null ? NULL : user);
+      return getClass().getName() + "^" + task + "^" + (user == null ? NULL : user.convertToKey());
    }
 
    @Override
@@ -310,20 +310,20 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       Principal principal = new SRPrincipal(newTask.getOwner());
       ScheduleManager manager = ScheduleManager.getScheduleManager();
       boolean overwriting = config != null && config.isOverwriting();
-      ScheduleTask existing = manager.getScheduleTask(newTask.getName());
+      ScheduleTask existing = manager.getScheduleTask(newTask.getTaskId());
 
       if(overwriting || existing == null) {
          if(existing != null) {
-            manager.removeScheduleTask(newTask.getName(), principal);
+            manager.removeScheduleTask(newTask.getTaskId(), principal);
          }
 
-         manager.setScheduleTask(newTask.getName(), newTask, null, principal);
+         manager.setScheduleTask(newTask.getTaskId(), newTask, null, principal);
 
          if(folders != null) {
             moveTask(newTask, parentPath, indexedStorage, manager, principal);
          }
 
-         task = parentPath.equals("/") ? newTask.getName() : parentPath + "/" + newTask.getName();
+         task = parentPath.equals("/") ? newTask.getTaskId() : parentPath + "/" + newTask.getTaskId();
       }
    }
 
@@ -360,7 +360,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
       AssetEntry nEntry
          = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER, parentPath, null);
       AssetEntry taskEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK,
-                          "/" + task.getName(), null);
+                          "/" + task.getTaskId(), null);
       AssetEntry oEntry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
                                               AssetEntry.Type.SCHEDULE_TASK_FOLDER, "/", null);
 
@@ -379,7 +379,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
          indexedStorage.putXMLSerializable(oEntry.toIdentifier(), opfolder);
       }
 
-      manager.setScheduleTask(task.getName(), task, nEntry, principal);
+      manager.setScheduleTask(task.getTaskId(), task, nEntry, principal);
    }
 
    @Override

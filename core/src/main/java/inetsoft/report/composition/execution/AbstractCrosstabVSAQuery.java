@@ -22,6 +22,7 @@ import inetsoft.graph.internal.FirstDayComparator;
 import inetsoft.report.*;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.graph.calc.AbstractColumn;
+import inetsoft.report.composition.graph.calc.PercentCalc;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.ComparatorComparer;
 import inetsoft.report.internal.Util;
@@ -640,7 +641,7 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          List<CalcColumn> calcs = new ArrayList<>();
 
          for(int i = 0; i < aggregates.length; i++) {
-            DataRef dataRef = aggrs[i];
+            DataRef dataRef = aggregates[i];
 
             if(!(dataRef instanceof CalculateAggregate)) {
                continue;
@@ -1447,7 +1448,37 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
          naggr.setColumnValue(colname);
          String nform = getParentFormula(formula);
          naggr.setPercentageOption(oaggr.getPercentageOption());
-         naggr.setCalculator(oaggr.getCalculator());
+
+         Calculator calc = oaggr.getCalculator();
+
+         if(!vname.startsWith(CalcTableVSAQuery.TEMP_ASSEMBLY_PREFIX)) {
+            int ptype = StyleConstants.PERCENTAGE_NONE;
+
+            try {
+               ptype = Integer.parseInt(oaggr.getPercentageOptionValue());
+            }
+            catch(NumberFormatException ignore) {
+            }
+
+            if(calc == null && ptype != StyleConstants.PERCENTAGE_NONE) {
+               calc = new PercentCalc();
+
+               if(ptype == StyleConstants.PERCENTAGE_OF_GROUP) {
+                  ((PercentCalc) calc).setLevel(PercentCalc.SUB_TOTAL);
+                  ((PercentCalc) calc).setPercentageByValue(cinfo.getPercentageByValue());
+               }
+               else if(ptype == StyleConstants.PERCENTAGE_OF_GRANDTOTAL) {
+                  ((PercentCalc) calc).setLevel(PercentCalc.GRAND_TOTAL);
+                  ((PercentCalc) calc).setPercentageByValue(cinfo.getPercentageByValue());
+               }
+
+               if(calc != null) {
+                  oaggr.setCalculator(calc);
+               }
+            }
+         }
+
+         naggr.setCalculator(calc);
          naggr.setFormulaValue(nform);
          naggr.setSecondaryColumn(null);
          naggr.setCaption(oaggr.getCaption());

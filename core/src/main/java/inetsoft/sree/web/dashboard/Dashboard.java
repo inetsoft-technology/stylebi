@@ -25,7 +25,7 @@ import inetsoft.util.XMLSerializable;
  * @version 8.5, 6/15/2006
  * @author InetSoft Technology Corp
  */
-public interface Dashboard extends XMLSerializable {
+public interface Dashboard extends XMLSerializable, Cloneable {
    /**
     * Type of viewsheet dashboard.
     */

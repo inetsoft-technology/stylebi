@@ -157,8 +157,8 @@ public abstract class LdapAuthenticationProvider
    }
 
    @Override
-   public Organization getOrganization(String name) {
-      if(Organization.getDefaultOrganizationName().equals(name)) {
+   public Organization getOrganization(String id) {
+      if(Organization.getDefaultOrganizationID().equals(id)) {
          return Organization.getDefaultOrganization();
       }
 
@@ -166,7 +166,7 @@ public abstract class LdapAuthenticationProvider
    }
 
    @Override
-   public String getOrgId(String name) {
+   public String getOrgIdFromName(String name) {
       return Organization.getDefaultOrganizationName().equals(name) ?
          Organization.getDefaultOrganizationID() : null;
    }
@@ -178,8 +178,13 @@ public abstract class LdapAuthenticationProvider
    }
 
    @Override
-   public String[] getOrganizations() {
+   public String[] getOrganizationIDs() {
       return new String[] { Organization.getDefaultOrganizationID() };
+   }
+
+   @Override
+   public String[] getOrganizationNames() {
+      return new String[] { Organization.getDefaultOrganizationName() };
    }
 
    /**
@@ -745,6 +750,7 @@ public abstract class LdapAuthenticationProvider
       flushContextPool();
 
       try {
+         loadCredential();
          LdapContext context = createContext();
 
          try {
@@ -783,6 +789,21 @@ public abstract class LdapAuthenticationProvider
       }
       catch(NamingException exc) {
          throw new SRSecurityException("Failed to connect to LDAP server", exc);
+      }
+   }
+
+   @Override
+   public void loadCredential(String secretId) {
+      JsonNode jsonNode = Tool.loadCredentials(secretId, !isUseCredential());
+
+      if(jsonNode != null) {
+         try {
+            ldapAdministrator = jsonNode.get("administrator_id").asText();
+            password = jsonNode.get("password").asText();
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to load credentials!");
+         }
       }
    }
 
@@ -1244,9 +1265,9 @@ public abstract class LdapAuthenticationProvider
 
    protected User doGetUser(IdentityID name) {
       final String realName = getRealUserName(name.getName());
-      IdentityID realId = new IdentityID(realName, name.getOrganization());
+      IdentityID realId = new IdentityID(realName, name.getOrgID());
       IdentityID[] roles = Arrays.stream(searchRoles(realName, Identity.USER))
-         .map(r -> new IdentityID(r, name.getOrganization()))
+         .map(r -> new IdentityID(r, name.getOrgID()))
          .toArray(IdentityID[]::new);
       String[] pgroups = getUserGroups(realId);
       return new User(realId, getEmails(name), pgroups, roles, "", "");
@@ -1359,16 +1380,29 @@ public abstract class LdapAuthenticationProvider
       validateContextBaseDn = config.get("validateContextBaseDn").asText("");
       validateContextSearch = config.get("validateContextSearch").asText("(objectclass=*)");
       rootDn = config.get("rootDn").asText("");
-      password = Tool.decryptPassword(config.get("password").asText());
       host = config.get("host").asText("localhost");
       port = config.get("port").asInt(389);
-      ldapAdministrator =  config.get("administrator").asText("cn=Administrator,cn=Users");
+      setUseCredential(config.get("useCredential").asBoolean(false));
+      readCredential(config.get("credential").asText());
 
       ArrayNode sysAdminConfig = (ArrayNode) config.get("sysAdminRoles");
       systemAdministratorRoles = new String[sysAdminConfig.size()];
 
       for(int i = 0; i < sysAdminConfig.size(); i++) {
          systemAdministratorRoles[i] = sysAdminConfig.get(i).asText();
+      }
+   }
+
+   private void readCredential(String secretId) {
+      if(Tool.isEmptyString(secretId)) {
+         return;
+      }
+
+      if(isUseCredential()) {
+         setSecretId(secretId);
+      }
+      else {
+         loadCredential(secretId);
       }
    }
 
@@ -1384,7 +1418,8 @@ public abstract class LdapAuthenticationProvider
       config.put("validateContextBaseDn", validateContextBaseDn);
       config.put("validateContextSearch", validateContextSearch);
       config.put("rootDn", rootDn);
-      config.put("password", Tool.encryptPassword(password));
+      config.put("useCredential", isUseCredential());
+      config.put("credential", writeCredential());
       config.put("host", host);
       config.put("port", port);
       config.put("userSearch", userSearch);
@@ -1392,7 +1427,6 @@ public abstract class LdapAuthenticationProvider
       config.put("groupBase", groupBase);
       config.put("roleBase", roleBase);
       config.put("userRolesSearch", userRolesSearch);
-      config.put("administrator", ldapAdministrator);
 
       ArrayNode sysAdminConfig = mapper.createArrayNode();
 
@@ -1402,6 +1436,25 @@ public abstract class LdapAuthenticationProvider
 
       config.set("sysAdminRoles", sysAdminConfig);
       return config;
+   }
+
+   private String writeCredential() {
+      try {
+         if(isUseCredential()) {
+            return getSecretId();
+         }
+         else {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode credential = mapper.createObjectNode()
+               .put("administrator_id", ldapAdministrator)
+               .put("password", password);
+
+            return Tool.encryptPassword(mapper.writeValueAsString(credential));
+         }
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to encrypt credential!");
+      }
    }
 
    /**

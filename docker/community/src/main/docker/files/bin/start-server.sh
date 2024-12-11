@@ -24,7 +24,7 @@ then
     JAVA_OPTS=$(echo "$JAVA_OPTS" | envsubst)
 fi
 
-JAVA_CP="/usr/local/inetsoft/lib/*"
+JAVA_CP="/usr/local/inetsoft/classes:/usr/local/inetsoft/lib/*"
 JAVA_OPTS="$JAVA_OPTS \
 -Dlocal.ip.addr=$(hostname -i) \
 -Drmi.localhost.ip=$(hostname -i) \
@@ -35,6 +35,7 @@ JAVA_OPTS="$JAVA_OPTS \
 -Djava.util.Arrays.useLegacyMergeSort=true \
 -Dderby.system.home=/tmp \
 -DinetsoftClusterDir=/var/lib/inetsoft/cluster \
+-Dspring.aot.enabled=true \
 -XX:OnOutOfMemoryError=/usr/local/inetsoft/bin/signal-oom.sh \
 --add-opens=java.base/jdk.internal.access=ALL-UNNAMED \
 --add-opens=java.base/jdk.internal.misc=ALL-UNNAMED \
@@ -67,4 +68,4 @@ fi
 
 rm -f /var/lib/inetsoft/local/oom
 set -o noglob
-exec $JAVA_HOME/bin/java $JAVA_OPTS -classpath $JAVA_CP inetsoft.web.InetsoftApplication --sree.home=/var/lib/inetsoft/config $@
+exec $JAVA_HOME/bin/java $JAVA_OPTS -classpath $JAVA_CP $INETSOFT_SERVER_MAIN --sree.home=/var/lib/inetsoft/config $@

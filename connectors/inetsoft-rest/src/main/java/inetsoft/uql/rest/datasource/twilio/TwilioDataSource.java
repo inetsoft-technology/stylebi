@@ -21,10 +21,13 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.View;
 import inetsoft.uql.tabular.View1;
+import inetsoft.util.credential.CredentialType;
 
 @View(vertical = true, value = {
-   @View1("user"),
-   @View1("password")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "password", visibleMethod = "useCredential")
 })
 public class TwilioDataSource extends EndpointJsonDataSource<TwilioDataSource> {
    static final String TYPE = "Rest.Twilio";
@@ -32,6 +35,11 @@ public class TwilioDataSource extends EndpointJsonDataSource<TwilioDataSource> {
    public TwilioDataSource() {
       super(TYPE, TwilioDataSource.class);
       setAuthType(AuthType.BASIC);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD;
    }
 
    @Override

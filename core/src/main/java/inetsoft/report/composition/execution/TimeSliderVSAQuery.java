@@ -34,8 +34,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.xmla.MemberObject;
 import inetsoft.util.MessageFormat;
 import inetsoft.util.*;
@@ -853,6 +852,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          throws Exception
    {
       TimeSliderVSAssembly assembly = (TimeSliderVSAssembly) getAssembly();
+      TimeSliderSelection sliderSelection = ((TimeSliderVSAssemblyInfo) assembly.getInfo()).getTimeSliderSelection();
       Format dfmt = assembly.getDefaultFormat();
       boolean excludeRight = !assembly.isUpperInclusive();
       SingleTimeInfo tinfo = (SingleTimeInfo) assembly.getTimeInfo();
@@ -902,13 +902,18 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
       Object min = fixValue(data[0], dtype);
       Object max = fixValue(data[1], dtype);
       Object omax = data.length == 3 ? fixValue(data[2], dtype) : null;
-      Object mobj = assembly.getSelectedMin();
+      Object minObj = assembly.getRuntimeMin();
+
+      if(minObj == null) {
+         minObj = assembly.getSelectedMin();
+      }
 
       int unit = tinfo.getRangeType();
       int olength = length; // old length
       SelectionList slist = new SelectionList();
       int counter = 0;
       int pos = -1;
+      int[] dateLevels = {};
 
       if(unit == TimeInfo.NUMBER && (!(min instanceof Number) || !(max instanceof Number))) {
          if(getViewsheet().getViewsheetInfo().isMetadata()) {
@@ -925,8 +930,8 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          double maxd = ((Number) max).doubleValue();
          double[] ticks = TimeSliderVSAssembly.getPreferredTicks(mind, maxd,
             -1, excludeRight, assembly.isLogScale(), Double.NaN);
-         double curr = (mobj == null) ? ticks[0] :
-            ((Number) mobj).doubleValue();
+         double curr = (minObj == null) ? ticks[0] :
+            ((Number) minObj).doubleValue();
          int inc = TimeSliderVSAssembly.getLogIncrment(mind, maxd);
          curr = TimeSliderVSAssembly.roundToPow(curr, inc, false);
 
@@ -1007,7 +1012,7 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          boolean init = rsize0 == 0;
          double mind = ((Number) min).doubleValue();
          double maxd = ((Number) max).doubleValue();
-         double curr = (mobj == null) ? mind : ((Number) mobj).doubleValue();
+         double curr = (minObj == null) ? mind : ((Number) minObj).doubleValue();
 
          if(rangecol != null && rsize0 != 0) {
             Number gap = rangecol.getInterval();
@@ -1117,6 +1122,9 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
 
          long currV = rsize != 0 ? ((long) (curr - ticks[0] * factor) / rsize) : -1;
 
+         sliderSelection.setIncrement(rsize0);
+         sliderSelection.setLabelFormat(fmt);
+
          for(double tick : ticks) {
             if(rsize != 0 && pos == -1 &&
                Math.round((tick - ticks[0]) * factor) / rsize == currV)
@@ -1164,50 +1172,56 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          fmt = fmt instanceof DurationFormat ? null : fmt;
 
          if(unit == TimeInfo.MONTH) {
+            dateLevels = new int[] {Calendar.MONTH, Calendar.YEAR};
             pos = createSelectionList(
                mind, maxd, omaxd, slist,
                (fmt instanceof DateFormat) ? fmt
                   : Tool.createDateFormat(TimeSliderVSAssembly.LABEL_MONTH_PATTERN, local),
-               TimeSliderVSAssembly.VALUE_MONTH_FORMAT.get(), excludeRight, incr,
-               (Date) mobj, Calendar.MONTH, Calendar.YEAR);
+               TimeSliderVSAssembly.VALUE_MONTH_FORMAT.get(), sliderSelection, excludeRight, incr,
+               (Date) minObj, dateLevels);
          }
          else if(unit == TimeInfo.DAY) {
+            dateLevels = new int[] {Calendar.DATE, Calendar.MONTH, Calendar.YEAR};
             pos = createSelectionList(
                mind, maxd, omaxd, slist,
                (fmt instanceof DateFormat) ? fmt
                   : Tool.createDateFormat(TimeSliderVSAssembly.LABEL_DAY_PATTERN, local),
-               TimeSliderVSAssembly.VALUE_DAY_FORMAT.get(), excludeRight, incr,
-               (Date) mobj, Calendar.DATE, Calendar.MONTH, Calendar.YEAR);
+               TimeSliderVSAssembly.VALUE_DAY_FORMAT.get(), sliderSelection, excludeRight, incr,
+               (Date) minObj, dateLevels);
          }
          else if(unit == TimeInfo.HOUR) {
+            dateLevels = new int[] {Calendar.HOUR_OF_DAY, Calendar.DATE,
+                                    Calendar.MONTH, Calendar.YEAR};
             pos = createSelectionList(
                mind, maxd, omaxd, slist,
                (fmt instanceof DateFormat) ? fmt
                   : Tool.createDateFormat(TimeSliderVSAssembly.LABEL_HOUR_PATTERN, local),
-               TimeSliderVSAssembly.VALUE_HOUR_FORMAT.get(), excludeRight, incr,
-               (Date) mobj, Calendar.HOUR_OF_DAY, Calendar.DATE, Calendar.MONTH,
-               Calendar.YEAR);
+               TimeSliderVSAssembly.VALUE_HOUR_FORMAT.get(), sliderSelection, excludeRight, incr,
+               (Date) minObj, dateLevels);
          }
          else if(unit == TimeInfo.MINUTE) {
+            dateLevels = new int[] {Calendar.MINUTE, Calendar.HOUR_OF_DAY, Calendar.DATE,
+                                    Calendar.MONTH, Calendar.YEAR};
             pos = createSelectionList(
                mind, maxd, omaxd, slist,
                (fmt instanceof DateFormat) ? fmt
                   : Tool.createDateFormat(TimeSliderVSAssembly.LABEL_MINUTE_PATTERN, local),
-               TimeSliderVSAssembly.VALUE_MINUTE_FORMAT.get(), excludeRight, incr,
-               (Date) mobj, Calendar.MINUTE, Calendar.HOUR_OF_DAY,
-               Calendar.DATE, Calendar.MONTH, Calendar.YEAR);
+               TimeSliderVSAssembly.VALUE_MINUTE_FORMAT.get(), sliderSelection, excludeRight, incr,
+               (Date) minObj, dateLevels);
          }
          else if(unit == TimeInfo.HOUR_OF_DAY) {
+            dateLevels = new int[] {Calendar.HOUR_OF_DAY, Calendar.DAY_OF_YEAR};
             // including day in the levels to handle the case where the
             // max overflows into the next day, e.g. Jan 2nd, 00:01:00
             pos = createSelectionList(
                mind, maxd, omaxd, slist,
                (fmt instanceof DateFormat) ? fmt
                   : Tool.createDateFormat(TimeSliderVSAssembly.LABEL_HOUR_OF_DAY_PATTERN, local),
-               TimeSliderVSAssembly.VALUE_HOUR_OF_DAY_FORMAT.get(), excludeRight,
-               incr, (Date) mobj, Calendar.HOUR_OF_DAY, Calendar.DAY_OF_YEAR);
+               TimeSliderVSAssembly.VALUE_HOUR_OF_DAY_FORMAT.get(), sliderSelection, excludeRight,
+               incr, (Date) minObj, dateLevels);
          }
          else if(unit == TimeInfo.MINUTE_OF_DAY) {
+            dateLevels = new int[] {Calendar.MINUTE, Calendar.HOUR_OF_DAY, Calendar.DAY_OF_YEAR};
             // including day in the levels to handle the case where the
             // max overflows into the next day,
             // e.g. omaxd is Jan 1st 23:59:59 and maxd is Jan 2nd, 00:00:59
@@ -1215,27 +1229,45 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
                mind, maxd, omaxd, slist,
                (fmt instanceof DateFormat) ? fmt
                   : Tool.createDateFormat(TimeSliderVSAssembly.LABEL_MINUTE_OF_DAY_PATTERN, local),
-               TimeSliderVSAssembly.VALUE_MINUTE_OF_DAY_FORMAT.get(), excludeRight,
-               incr, (Date) mobj, Calendar.MINUTE, Calendar.HOUR_OF_DAY, Calendar.DAY_OF_YEAR);
+               TimeSliderVSAssembly.VALUE_MINUTE_OF_DAY_FORMAT.get(), sliderSelection, excludeRight,
+               incr, (Date) minObj, dateLevels);
          }
          else {
+            dateLevels = new int[] {Calendar.YEAR};
             pos = createSelectionList(
                mind, maxd, omaxd, slist,
                (fmt instanceof DateFormat) ? fmt
                   : Tool.createDateFormat(TimeSliderVSAssembly.LABEL_YEAR_PATTERN, local),
-               TimeSliderVSAssembly.VALUE_YEAR_FORMAT.get(), excludeRight, incr,
-               (Date) mobj, Calendar.YEAR);
+               TimeSliderVSAssembly.VALUE_YEAR_FORMAT.get(), sliderSelection, excludeRight, incr,
+               (Date) minObj, dateLevels);
          }
       }
 
       SelectionList slist2 = new SelectionList();
 
-      if((hint & ALL) == ALL) {
-         pos = 0;
+      // if script set max, calculate the length by applying the max
+      if(assembly.getRuntimeMax() instanceof Date) {
+         Calendar maxDate = new GregorianCalendar();
+         Calendar cal = new GregorianCalendar();
+         maxDate.setTime((Date) assembly.getRuntimeMax());
 
-         if(!getViewsheet().getViewsheetInfo().isMetadata()) {
-            tinfo.setLengthValue(Math.max(1, length = slist.getSelectionValueCount() - 1));
+         // if min is not set, select from start
+         if(assembly.getRuntimeMin() == null) {
+         pos = 0;
          }
+
+         for(int k = 0; k < slist.getSelectionValueCount(); k++) {
+            cal.setTime(AssetUtil.getDate(AssetUtil.RANGE_SLIDER_START, slist.getSelectionValue(k).getValue()));
+
+            if(compareLevel(cal, maxDate, dateLevels) == 0) {
+               length = k + 1 - pos;
+            }
+         }
+         tinfo.setLengthValue(Math.max(1, length));
+      }
+      else if((hint & ALL) == ALL) {
+         pos = 0;
+         tinfo.setLengthValue(Math.max(1, length = slist.getSelectionValueCount() - 1));
       }
       else if((hint & FIRST_N) == FIRST_N) {
          length = Math.min(slist.getSelectionValueCount() - 1, olength);
@@ -1253,6 +1285,11 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
          if(!getViewsheet().getViewsheetInfo().isMetadata()) {
             tinfo.setLengthValue(Math.max(1, length));
          }
+      }
+      // if script set min but not max, select the min to end
+      else if(assembly.getRuntimeMin() != null && assembly.getRuntimeMax() == null) {
+         length = slist.getSelectionValueCount() - pos - 1;
+         tinfo.setLengthValue(Math.max(1, length));
       }
 
       if(pos < 0) {
@@ -1327,14 +1364,19 @@ public class TimeSliderVSAQuery extends AbstractSelectionVSAQuery {
     */
    private int createSelectionList(Date mind, Date maxd, Date omaxd,
                                    SelectionList slist, Format labelfmt,
-                                   Format valuefmt, boolean excludeRight,
-                                   int incr, Date curr, int... datelevels) {
+                                   Format valuefmt, TimeSliderSelection sliderSelection,
+                                   boolean excludeRight, int incr, Date curr, int... datelevels) {
       Calendar calendar = new GregorianCalendar();
       Calendar maxcal = new GregorianCalendar();
       Calendar omaxcal = null;
       Calendar currcal = null;
       int counter = 0;
       int pos = -1;
+
+      sliderSelection.setLabelFormat(labelfmt);
+      sliderSelection.setValueFormat(valuefmt);
+      sliderSelection.setIncrement(incr);
+      sliderSelection.setDateLevels(datelevels);
 
       maxcal.setTime(maxd);
 

@@ -52,7 +52,7 @@ export class ImagePreviewPane implements OnInit, AfterViewInit {
    selectedImageNode: TreeNodeModel = <TreeNodeModel>{};
    private selectedImageNodeForTree: TreeNodeModel = <TreeNodeModel>{}; //for correct display in selecting image pane
    currentTime: number = 0;
-   controller: string = "../composer/vs/image-preview-pane/";
+   controller: string = "../api/composer/vs/image-preview-pane/";
    alphaInvalid: boolean = false;
    blackBackground: boolean;
    @ViewChild("uploadInput") uploadInput: ElementRef;
@@ -124,7 +124,7 @@ export class ImagePreviewPane implements OnInit, AfterViewInit {
 
    public get imageSrc(): string {
       if(this.selectedImageNode && this.selectedImageNode.data && this.selectedImageNode.type) {
-         return this.controller + "image/" + Tool.byteEncode(this.selectedImageNode.data)
+         return "../api/image/composer/vs/image-preview-pane/image/" + Tool.byteEncode(this.selectedImageNode.data)
             + "/" + this.selectedImageNode.type + "/" + Tool.byteEncode(this.runtimeId)
             + "?" + this.currentTime;
       }

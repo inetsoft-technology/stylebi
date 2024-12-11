@@ -22,6 +22,7 @@ import inetsoft.mv.fs.*;
 import inetsoft.mv.util.TransactionChannel;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.*;
 import inetsoft.util.log.LogUtil;
 import org.slf4j.Logger;
@@ -137,6 +138,19 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
     */
    @Override
    public NBlock rename(XBlock from, XBlock to) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      return copy0(from, currentOrgID, to, currentOrgID,true);
+   }
+
+   /**
+    * Copy one XBlock.
+    */
+   @Override
+   public NBlock copy(XBlock from, String fromOrgId, XBlock to, String toOrgId) {
+      return copy0(from, fromOrgId, to, toOrgId, false);
+   }
+
+   private NBlock copy0(XBlock from, String fromOrgId, XBlock to, String toOrgId, boolean rename) {
       lock.lock();
 
       try {
@@ -144,13 +158,23 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
          nblock.setLength(to.getLength());
          nblock.setVersion(to.getVersion());
          BlockFile oldFile = getFile(from);
-         blocks.remove(from.getID());
+
+         if(rename) {
+            blocks.remove(from.getID());
+         }
 
          if(oldFile != null) {
             BlockFile newFile = getFile(to.getID());
             // after renamed, the oldFile will not exist, so its length is 0
-            nblock.setPhysicalLen(oldFile.length());
-            BlockFileStorage.getInstance().rename(oldFile, newFile);
+            nblock.setPhysicalLen(oldFile.length(fromOrgId));
+
+            if(rename) {
+               BlockFileStorage.getInstance().rename(oldFile, newFile);
+            }
+            else {
+               BlockFileStorage.getInstance().copy(oldFile, fromOrgId, newFile, toOrgId);
+            }
+
             blocks.put(nblock.getID(), nblock);
          }
          else {

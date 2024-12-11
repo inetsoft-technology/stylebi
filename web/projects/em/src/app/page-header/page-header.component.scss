@@ -19,11 +19,10 @@
 }
 
 .em-org-dropdown {
-  padding-left: 3.0em;
   width: 240px;
   padding-top: 6px;
 
-  .mat-mdc-select {
+  .mat-mdc-select, input.mat-mdc-input-element {
     font-size: 15px;
   }
 }
@@ -31,6 +30,7 @@
 .em-header-toolbar {
   flex-grow: 0;
   flex-shrink: 0;
+  white-space: normal;
 }
 
 .mdc-icon-button {

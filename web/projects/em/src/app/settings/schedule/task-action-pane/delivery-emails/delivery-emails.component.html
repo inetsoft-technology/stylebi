@@ -89,17 +89,26 @@
                     (change)="fireDeliveryChanged()">_#(Export All Tabbed Tables)</mat-checkbox>
       <mat-checkbox class="mat-checkbox-field"
                     formControlName="bundledAsZip"
-                    [disabled]="bundledDisabled" (change)="togglePasswordForm(true)">_#(Bundled as zip)</mat-checkbox>
+                    (change)="togglePasswordForm(true)">_#(Bundled as zip)</mat-checkbox>
+      <mat-checkbox class="mat-checkbox-field" *ngIf="cloudSecrets && passwordVisible"
+                    formControlName="useCredential"
+                    (change)="fireDeliveryChanged()">_#(Use Secret ID)</mat-checkbox>
       <div class="zip-password" *ngIf="passwordVisible">
-        <mat-form-field appearance="outline" color="accent">
-          <mat-label>_#(Password)</mat-label>
-          <input type="password" matInput formControlName="zipPassword" placeholder="_#(Password)" (change)="fireDeliveryChanged()">
+        <mat-form-field *ngIf="cloudSecrets && useCredential" appearance="outline" color="accent">
+          <mat-label>_#(Secret ID)</mat-label>
+          <input type="text" matInput formControlName="secretId" placeholder="_#(Secret ID)" (change)="fireDeliveryChanged()">
         </mat-form-field>
-        <mat-form-field appearance="outline" color="accent">
-          <mat-label>_#(Verify Password)</mat-label>
-          <input type="password" matInput formControlName="verifyZipPassword" placeholder="_#(Verify Password)" [errorStateMatcher]="errorStateMatcher" (change)="fireDeliveryChanged()"/>
-          <mat-error *ngIf="form.errors?.passwordsMatch">_#(em.schedule.action.zipPasswordMatch)</mat-error>
-        </mat-form-field>
+        <ng-container *ngIf="!cloudSecrets || !useCredential">
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Password)</mat-label>
+            <input type="password" matInput formControlName="zipPassword" placeholder="_#(Password)" (change)="fireDeliveryChanged()">
+          </mat-form-field>
+          <mat-form-field appearance="outline" color="accent">
+            <mat-label>_#(Verify Password)</mat-label>
+            <input type="password" matInput formControlName="verifyZipPassword" placeholder="_#(Verify Password)" [errorStateMatcher]="errorStateMatcher" (change)="fireDeliveryChanged()"/>
+            <mat-error *ngIf="form.errors?.passwordsMatch">_#(em.schedule.action.zipPasswordMatch)</mat-error>
+          </mat-form-field>
+        </ng-container>
       </div>
       <em-csv-config-pane *ngIf="format == 'CSV'" [showSelectedAssemblies]="type === 'viewsheet'"
                           [tableDataAssemblies]="tableDataAssemblies"

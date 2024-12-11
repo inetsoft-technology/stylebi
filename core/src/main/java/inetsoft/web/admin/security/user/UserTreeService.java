@@ -22,20 +22,22 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.security.*;
-import inetsoft.uql.XPrincipal;
+import inetsoft.storage.KeyValueStorage;
+import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.uql.asset.sync.DependencyTool;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
+import inetsoft.web.admin.favorites.FavoriteList;
 import inetsoft.web.admin.general.LocalizationSettingsService;
 import inetsoft.web.admin.general.model.LocalizationModel;
 import inetsoft.web.admin.security.*;
-import inetsoft.web.admin.server.LicenseInfo;
-import inetsoft.web.admin.server.ServerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -45,86 +47,33 @@ public class UserTreeService {
                           SystemAdminService systemAdminService,
                           IdentityService identityService,
                           LocalizationSettingsService localizationSettingsService,
-                          ServerService serverService,
                           SecurityEngine securityEngine, IdentityThemeService themeService)
    {
       this.authenticationProviderService = authenticationProviderService;
       this.systemAdminService = systemAdminService;
       this.identityService = identityService;
       this.localizationSettingsService = localizationSettingsService;
-      this.namedUsers = serverService.getLicenseInfos().stream()
-         .anyMatch(licenseInfo -> LicenseInfo.NAMED_USER.equals(licenseInfo.getType()));
       this.securityEngine = securityEngine;
       this.themeService = themeService;
    }
 
-   public SecurityTreeRootModel getSecurityTree(String providerName, Principal principal,
-                                                boolean isPermissions)
-   {
-      return getSecurityTree(providerName, principal, isPermissions, false);
-   }
-
-   public SecurityTreeRootModel getSecurityTree(String providerName, Principal principal,
-                                                boolean isPermissions, boolean providerChanged)
-   {
-      boolean isMultiTenant = SUtil.isMultiTenant();
-
-      securityProvider = securityEngine.getSecurityProvider();
-
-      final AuthenticationProvider provider = providerName == null ?
-         securityProvider.getAuthenticationProvider() :
-         authenticationProviderService.getProviderByName(providerName);
-      boolean editable = providerName == null || provider instanceof EditableAuthenticationProvider;
-
-      if(providerChanged) {
-         ((XPrincipal) principal).setProperty("curr_org_id", provider.getOrganizationId(provider.getOrganizations()[0]));
-         ((XPrincipal) principal).setProperty("curr_provider_name", providerName);
-      }
-
-      String currOrgName = OrganizationManager.getInstance().getCurrentOrgName(principal);
-      currOrgName = currOrgName == null ? Organization.getDefaultOrganizationName() : currOrgName;
-      boolean isEnterprise = LicenseManager.getInstance().isEnterprise();
-      isMultiTenant = isEnterprise && isMultiTenant;
-
-      if(!isMultiTenant) {
-         return SecurityTreeRootModel.builder()
-            .users(getUserRoot(provider, principal, isMultiTenant, currOrgName))
-            .groups(getGroupRoot(provider, principal, isMultiTenant, currOrgName))
-            .roles(getRoleTree(provider, principal, isMultiTenant, currOrgName))
-            .editable(editable)
-            .isMultiTenant(isMultiTenant)
-            .namedUsers(namedUsers)
-            .build();
-      }
-      else {
-         return SecurityTreeRootModel.builder()
-            .users(getUserRoot(provider, principal, isMultiTenant, currOrgName))
-            .groups(getGroupRoot(provider, principal, isMultiTenant, currOrgName))
-            .roles(getRoleTree(provider, principal, isMultiTenant, currOrgName))
-            .organizations(createOrgSecurityTreeNode(new IdentityID(currOrgName, currOrgName),provider, principal, false, isPermissions))
-            .editable(editable)
-            .isMultiTenant(isMultiTenant)
-            .namedUsers(namedUsers)
-            .build();
-      }
-   }
-
    public List<String> getOrganizationTree(String providerName, Principal principal) {
       final AuthenticationProvider provider = providerName == null ?
-         securityProvider.getAuthenticationProvider() :
+         getSecurityProvider().getAuthenticationProvider() :
          authenticationProviderService.getProviderByName(providerName);
 
-      final String[] organizations = provider.getOrganizations();
+      final String[] organizations = provider.getOrganizationIDs();
 
       return Arrays.stream(organizations)
       .sorted()
       .collect(Collectors.toList());
    }
 
-   private SecurityTreeNode getUserRoot(AuthenticationProvider provider, Principal principal,
-                                        boolean isMultiTenant, String curOrg) {
-      String rootOrgUserKey = new IdentityID(Catalog.getCatalog(principal).getString("Users"), curOrg).convertToKey();
-      boolean readOnly = !securityProvider.checkPermission(
+   public SecurityTreeNode getUserRoot(AuthenticationProvider provider, Principal principal,
+                                boolean isMultiTenant, String curOrgID, String currOrgName)
+   {
+      String rootOrgUserKey = new IdentityID("Users", curOrgID).convertToKey();
+      boolean readOnly = !getSecurityProvider().checkPermission(
          principal, ResourceType.SECURITY_USER, rootOrgUserKey, ResourceAction.ADMIN) &&
          !OrganizationManager.getInstance().isOrgAdmin(principal);
 
@@ -133,23 +82,17 @@ public class UserTreeService {
       //filter multi-tenant users to this organization only
       if(isMultiTenant) {
          userChildren = userChildren.stream()
-            .filter(node -> provider.getUser(node.identityID()).getOrganization().equals(curOrg))
-            .collect(Collectors.toList());
-      }
-      else {
-         userChildren = userChildren.stream()
-            .filter(node -> !Organization.getTemplateOrganizationName()
-               .equals(provider.getUser(node.identityID()).getOrganization()))
+            .filter(node -> provider.getUser(node.identityID()).getOrganizationID().equals(curOrgID))
             .collect(Collectors.toList());
       }
 
-      String label = Catalog.getCatalog(principal).getString("Users");
-      IdentityID id = new IdentityID(label, curOrg);
+      String name = "Users";
+      IdentityID id = new IdentityID(name, curOrgID);
 
       return SecurityTreeNode.builder()
-         .label(label)
+         .label(Catalog.getCatalog(principal).getString(name))
          .identityID(id)
-         .organization(curOrg)
+         .organization(currOrgName)
          .type(Identity.USER)
          .children(userChildren)
          .root(!isMultiTenant)
@@ -159,15 +102,16 @@ public class UserTreeService {
 
    private List<SecurityTreeNode> getFilteredUsers(IdentityID[] users, Principal principal) {
       return Arrays.stream(users)
-         .filter(r -> securityProvider.checkPermission(
+         .filter(r -> getSecurityProvider().checkPermission(
             principal, ResourceType.SECURITY_USER, r.convertToKey(), ResourceAction.ADMIN))
          .sorted()
          .map(this::createSecurityTreeNode)
          .collect(Collectors.toList());
    }
 
-   private SecurityTreeNode getGroupRoot(AuthenticationProvider provider, Principal principal,
-                                          boolean isMultiTenant, String curOrg) {
+   public SecurityTreeNode getGroupRoot(AuthenticationProvider provider, Principal principal,
+                                 boolean isMultiTenant, String curOrg)
+   {
       final IdentityID[] groups = provider.getGroups();
 
       Set<String> childGroups = Arrays.stream(groups)
@@ -191,27 +135,20 @@ public class UserTreeService {
       //filter multi-tenant groups to this organization only
       if(isMultiTenant) {
          groupChildren = groupChildren.stream()
-            .filter(node -> provider.getGroup(node.identityID()).getOrganization().equals(curOrg))
+            .filter(node -> provider.getGroup(node.identityID()).getOrganizationID().equals(curOrg))
             .collect(Collectors.toList());
       }
-      else {
-         groupChildren = groupChildren.stream()
-            .filter(node -> !Organization.getTemplateOrganizationName()
-               .equals(provider.getGroup(node.identityID()).getOrganization()))
-            .collect(Collectors.toList());
 
-      }
-
-      String label = Catalog.getCatalog(principal).getString("Groups");
-      String rootGroupKey = new IdentityID(label, curOrg).convertToKey();
-      boolean readOnly = !securityProvider.checkPermission(
+      String name = "Groups";
+      String rootGroupKey = new IdentityID(name, curOrg).convertToKey();
+      boolean readOnly = !getSecurityProvider().checkPermission(
          principal, ResourceType.SECURITY_GROUP, rootGroupKey, ResourceAction.ADMIN) &&
          !OrganizationManager.getInstance().isOrgAdmin(principal);
 
-      IdentityID id = new IdentityID(label, curOrg);
+      IdentityID id = new IdentityID(name, curOrg);
 
       return SecurityTreeNode.builder()
-         .label(label)
+         .label(Catalog.getCatalog(principal).getString(name))
          .identityID(id)
          .organization(curOrg)
          .type(Identity.GROUP)
@@ -243,7 +180,7 @@ public class UserTreeService {
          .toArray(IdentityID[]::new);
       List<SecurityTreeNode> userChildren = getFilteredUsers(groupUsers, principal);
 
-      boolean readOnly = !securityProvider.checkPermission(
+      boolean readOnly = !getSecurityProvider().checkPermission(
          principal, ResourceType.SECURITY_GROUP, groupName.convertToKey(), ResourceAction.ADMIN);
 
       if(readOnly && groupChildren.isEmpty() && userChildren.isEmpty()) {
@@ -252,7 +189,7 @@ public class UserTreeService {
 
       return Optional.of(SecurityTreeNode.builder()
          .label(groupName.name)
-         .organization(groupName.organization)
+         .organization(groupName.orgID)
          .identityID(groupName)
          .type(Identity.GROUP)
          .addAllChildren(groupChildren)
@@ -262,13 +199,13 @@ public class UserTreeService {
          .build());
    }
 
-   private SecurityTreeNode getRoleTree(AuthenticationProvider provider, Principal principal,
+   public SecurityTreeNode getRoleTree(AuthenticationProvider provider, Principal principal,
                                         boolean isMultiTenant, String curOrg)
    {
-      final boolean allRolesReadOnly = !(securityProvider.checkPermission(
-         principal, ResourceType.SECURITY_ROLE, new IdentityID(Catalog.getCatalog(principal).getString("Roles"), curOrg).convertToKey(), ResourceAction.ADMIN) ||
-         securityProvider.checkPermission(
-            principal, ResourceType.SECURITY_ROLE, new IdentityID(Catalog.getCatalog(principal).getString("Organization Roles"), curOrg).convertToKey(), ResourceAction.ADMIN));
+      final boolean allRolesReadOnly = !(getSecurityProvider().checkPermission(
+         principal, ResourceType.SECURITY_ROLE, new IdentityID("Roles", curOrg).convertToKey(), ResourceAction.ADMIN) ||
+         getSecurityProvider().checkPermission(
+            principal, ResourceType.SECURITY_ROLE, new IdentityID("Organization Roles", curOrg).convertToKey(), ResourceAction.ADMIN));
 
       final Role[] roles = Arrays.stream(provider.getRoles())
          .sorted()
@@ -281,30 +218,40 @@ public class UserTreeService {
       if(!isMultiTenant) {
          //filter any org admin roles that are not sys admin from appearing
          roleChildren = roleChildren.stream()
-            .filter(node -> provider.getRole(node.identityID()).getOrganization() == null
-               || provider.getRole(node.identityID()).getOrganization().equals(curOrg))
+            .filter(node -> provider.getRole(node.identityID()).getOrganizationID() == null
+               || provider.getRole(node.identityID()).getOrganizationID().equals(curOrg))
             .filter(node -> !(!provider.isSystemAdministratorRole(node.identityID()) &&
                              (provider.isOrgAdministratorRole(node.identityID()))))
-            .filter(node -> !Organization.getTemplateOrganizationName()
-               .equals(provider.getRole(node.identityID()).getOrganization()))
             .collect(Collectors.toList());
       }
       else if(OrganizationManager.getInstance().isSiteAdmin(principal)) {
             //filter global only
             roleChildren = roleChildren.stream()
-               .filter(node -> provider.getRole(node.identityID()).getOrganization() == null)
+               .filter(node -> provider.getRole(node.identityID()).getOrganizationID() == null)
                .collect(Collectors.toList());
          }
       else {
          roleChildren = Collections.emptyList();
       }
 
-      String roleLabel = Catalog.getCatalog(principal).getString("Roles");
+
+      final List<SecurityTreeNode> topChildrenNodes = (roleChildren).stream()
+         .filter(r -> {
+            Role role = provider.getRole(r.identityID());
+
+            if(role == null) {
+               return false;
+            }
+
+            return role.getRoles() == null || role.getRoles().length == 0;
+         })
+         .collect(Collectors.toList());
+
       return SecurityTreeNode.builder()
-         .label(roleLabel)
-         .identityID(new IdentityID(roleLabel, curOrg))
+         .label(Catalog.getCatalog(principal).getString("Roles"))
+         .identityID(new IdentityID("Roles", curOrg))
          .type(Identity.ROLE)
-         .children(roleChildren)
+         .children(topChildrenNodes)
          .root(true)
          .readOnly(allRolesReadOnly)
          .build();
@@ -335,7 +282,7 @@ public class UserTreeService {
 
       for(Role role : roles) {
          if(role != null && !"".equals(role.getName())) {
-            boolean hasPermission = !allRolesReadOnly || securityProvider.checkPermission(
+            boolean hasPermission = !allRolesReadOnly || getSecurityProvider().checkPermission(
                principal, ResourceType.SECURITY_ROLE, role.getIdentityID().convertToKey(), ResourceAction.ASSIGN);
             List<SecurityTreeNode> children =
                getRoleChildren(role.getIdentityID(), allRolesReadOnly,
@@ -344,17 +291,17 @@ public class UserTreeService {
 
             //filter out other organizations
             children = children.stream().filter(child -> {
-                  Role childRole = securityProvider.getRole(child.identityID());
+                  Role childRole = getSecurityProvider().getRole(child.identityID());
 
                   return (childRole != null && (
-                  (role.getOrganization() == null && childRole.getOrganization() == null) ||
-                  (role.getOrganization() != null && (role.getOrganization().equals(childRole.getOrganization()) ||
-                     childRole.getOrganization() == null && OrganizationManager.getCurrentOrgName().equals(role.getOrganization()))) ||
-                  (role.getOrganization() == null && OrganizationManager.getCurrentOrgName().equals(childRole.getOrganization()))));
+                  (role.getOrganizationID() == null && childRole.getOrganizationID() == null) ||
+                  (role.getOrganizationID() != null && (role.getOrganizationID().equals(childRole.getOrganizationID()) ||
+                     childRole.getOrganizationID() == null && OrganizationManager.getInstance().getCurrentOrgID().equals(role.getOrganizationID()))) ||
+                  (role.getOrganizationID() == null && OrganizationManager.getInstance().getCurrentOrgID().equals(childRole.getOrganizationID()))));
             })
             .collect(Collectors.toList());
 
-            if((role.getRoles().length == 0 || role.getOrganization() == null) &&
+            if((role.getRoles().length == 0 || role.getOrganizationID() == null) &&
                (!allRolesReadOnly || hasPermission ||
                children.size() > 0))
             {
@@ -447,7 +394,7 @@ public class UserTreeService {
          }
 
          if(!allRolesReadOnly || inheritPermission ||
-            (hasPermission = securityProvider.checkPermission(
+            (hasPermission = getSecurityProvider().checkPermission(
                principal, ResourceType.SECURITY_ROLE, childRole.getIdentityID().convertToKey(), ResourceAction.ASSIGN)))
          {
             childNodes.add(getRoleNode(childRole, allRolesReadOnly,
@@ -477,17 +424,17 @@ public class UserTreeService {
             return null;
          }
 
-         String currOrg =  OrganizationManager.getCurrentOrgName();
+         String currOrgID =  OrganizationManager.getInstance().getCurrentOrgID();
 
          FSGroup identity = null;
 
          for(int i = 0; identity == null; i++) {
             String name = "group" + i;
-            IdentityID id = new IdentityID(name, currOrg);
+            IdentityID id = new IdentityID(name, currOrgID);
 
             if(provider.getGroup(id) == null) {
                identity = new FSGroup(id);
-               addOrganizationMember(currOrg, name, (EditableAuthenticationProvider) provider);
+               addOrganizationMember(currOrgID, name, (EditableAuthenticationProvider) provider);
 
                if(parentGroup != null) {
                   identity.setGroups(new String[]{ parentGroup });
@@ -508,12 +455,11 @@ public class UserTreeService {
 
          return EditGroupPaneModel.builder()
             .name(identity.getName())
-            .organization(currOrg)
+            .organization(currOrgID)
             .identityNames(Arrays.stream(provider.getGroups()).toList())
             .members(new ArrayList<>())
             .roles(new ArrayList<>())
             .permittedIdentities(new ArrayList<>())
-            .theme(themeService.getTheme(identity.getIdentityID(), CustomTheme::getGroups))
             .build();
       }
       catch(Exception e) {
@@ -532,15 +478,15 @@ public class UserTreeService {
 
    EditGroupPaneModel getGroupModel(String selectedProvider, IdentityID groupID, Principal principal)
    {
-      String orgGroupRoot = Catalog.getCatalog(principal).getString("Groups");
+      String orgGroupRoot = "Groups";
 
       final AuthenticationProvider currentProvider =
          authenticationProviderService.getProviderByName(selectedProvider);
 
       if((!SUtil.isMultiTenant() || !securityEngine.isSecurityEnabled()) && isGroupRoot(groupID, principal) &&
-         (securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
-                   new IdentityID(orgGroupRoot, OrganizationManager.getCurrentOrgName()).convertToKey(), ResourceAction.ADMIN) ||
-          securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP, groupID.convertToKey(), ResourceAction.ADMIN)))
+         (getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP,
+                   new IdentityID(orgGroupRoot, OrganizationManager.getInstance().getCurrentOrgID()).convertToKey(), ResourceAction.ADMIN) ||
+          getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, groupID.convertToKey(), ResourceAction.ADMIN)))
       {
          return getRootGroupModel(principal, currentProvider);
       }
@@ -548,12 +494,12 @@ public class UserTreeService {
       boolean orgAdmin = OrganizationManager.getInstance().isOrgAdmin(principal);
 
       if(SUtil.isMultiTenant() && securityEngine.isSecurityEnabled() &&
-         isGroupRoot(groupID, principal) && (orgAdmin || hasOrgAdminPermission(OrganizationManager.getCurrentOrgName(), principal) ||
-         securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP,
-                      new IdentityID(orgGroupRoot, OrganizationManager.getCurrentOrgName()).convertToKey(), ResourceAction.ADMIN) ||
-         securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP, orgGroupRoot, ResourceAction.ADMIN)))
+         isGroupRoot(groupID, principal) && (orgAdmin || hasOrgAdminPermission(OrganizationManager.getInstance().getCurrentOrgID(), principal) ||
+         getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP,
+                      new IdentityID(orgGroupRoot, OrganizationManager.getInstance().getCurrentOrgID()).convertToKey(), ResourceAction.ADMIN) ||
+         getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, orgGroupRoot, ResourceAction.ADMIN)))
       {
-         return getRootGroupModelForOrg(principal, OrganizationManager.getCurrentOrgName(), currentProvider);
+         return getRootGroupModelForOrg(principal, OrganizationManager.getInstance().getCurrentOrgID(), currentProvider);
       }
 
       final Group group = currentProvider.getGroup(groupID);
@@ -567,12 +513,12 @@ public class UserTreeService {
       IdentityInfo info = identityService
          .getIdentityInfo(groupID, Identity.GROUP, currentProvider);
 
-      String org = group == null ? null : group.getOrganization();
+      String org = group == null ? null : group.getOrganizationID();
       if(org == null || "".equals(org)) {
-         org = Organization.getDefaultOrganizationName();
+         org = Organization.getDefaultOrganizationID();
       }
 
-      String orgID = securityProvider.getOrganization(org).getId();
+      String orgID = getSecurityProvider().getOrganization(org).getId();
 
       return EditGroupPaneModel.builder()
          .name(groupID.name)
@@ -593,25 +539,25 @@ public class UserTreeService {
       String orgID = OrganizationManager.getInstance().getUserOrgId(principal);
 
       return EditGroupPaneModel.builder()
-         .name(Catalog.getCatalog(principal).getString("Groups"))
+         .name("Groups")
+         .label(Catalog.getCatalog(principal).getString("Groups"))
          .editable(currentProvider instanceof EditableAuthenticationProvider)
          .permittedIdentities(
-            filterOtherOrgs(identityService.getPermission(new IdentityID(Catalog.getCatalog(principal).getString("Groups"), org),
+            filterOtherOrgs(identityService.getPermission(new IdentityID("Groups", orgID),
                                                           ResourceType.SECURITY_GROUP, orgID, principal)))
          .root(true)
          .build();
    }
 
-   private EditGroupPaneModel getRootGroupModelForOrg(Principal principal, String orgName,
+   private EditGroupPaneModel getRootGroupModelForOrg(Principal principal, String orgID,
                                                       AuthenticationProvider currentProvider)
    {
-      String groupName = Catalog.getCatalog(principal).getString("Groups");
-      IdentityID rootGroup = new IdentityID(groupName, orgName);
-      String orgID = currentProvider.getOrgId(orgName);
+      IdentityID rootGroup = new IdentityID("Groups", orgID);
 
       return EditGroupPaneModel.builder()
-         .name(Catalog.getCatalog(principal).getString("Groups"))
-         .organization(orgName)
+         .name("Groups")
+         .label(Catalog.getCatalog(principal).getString("Groups"))
+         .organization(orgID)
          .editable(currentProvider instanceof EditableAuthenticationProvider)
          .permittedIdentities(
             filterOtherOrgs(identityService.getPermission(rootGroup,
@@ -621,9 +567,9 @@ public class UserTreeService {
    }
 
    private boolean isGroupRoot(IdentityID group, Principal principal) {
-      String groupRoot = Catalog.getCatalog(principal).getString("Groups");
-      String orgGroupRoot = groupRoot + IdentityID.KEY_DELIMITER + OrganizationManager.getCurrentOrgName();
-      String defOrgGroupRoot = groupRoot + IdentityID.KEY_DELIMITER +Organization.getDefaultOrganizationName();
+      String groupRoot = "Groups";
+      String orgGroupRoot = groupRoot + IdentityID.KEY_DELIMITER + OrganizationManager.getInstance().getCurrentOrgID();
+      String defOrgGroupRoot = groupRoot + IdentityID.KEY_DELIMITER +Organization.getDefaultOrganizationID();
 
       return Tool.equals(group.name, groupRoot) || Tool.equals(group.name, orgGroupRoot) || Tool.equals(group.name, defOrgGroupRoot);
    }
@@ -633,11 +579,11 @@ public class UserTreeService {
    {
       IdentityID oldID = new IdentityID(model.oldName(), model.organization());
       IdentityID newID = new IdentityID(model.name(), model.organization());
-      IdentityID root = new IdentityID(Catalog.getCatalog().getString("Groups"), model.organization());
+      IdentityID root = new IdentityID("Groups", model.organization());
 
-      if(isGroupRoot(new IdentityID(model.name(), group.organization), principal)) {
-         if(securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP, root.convertToKey(), ResourceAction.ADMIN) ||
-            securityProvider.checkPermission(principal, ResourceType.SECURITY_GROUP, new IdentityID(model.name(), model.organization()).convertToKey(), ResourceAction.ADMIN))
+      if(isGroupRoot(new IdentityID(model.name(), group.orgID), principal)) {
+         if(getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, root.convertToKey(), ResourceAction.ADMIN) ||
+            getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_GROUP, new IdentityID(model.name(), model.organization()).convertToKey(), ResourceAction.ADMIN))
          {
             identityService.setIdentityPermissions(
                root, root, ResourceType.SECURITY_GROUP, principal, model.permittedIdentities(), model.organization());
@@ -664,7 +610,7 @@ public class UserTreeService {
          throw new MessageException(Catalog.getCatalog().getString("em.security.noOrgAdmin"));
       }
 
-      themeService.updateTheme(model.oldName(), model.name(), model.theme(), CustomTheme::getGroups);
+      themeService.updateTheme(model.oldName(), model.name(), CustomTheme::getGroups);
 
       // if the group has admin permission on themselves, rename the group in the grant
       List<IdentityModel> permittedIdentities = getRenamedPermittedIdentities(
@@ -693,19 +639,19 @@ public class UserTreeService {
          }
 
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
-         String currOrg = OrganizationManager.getCurrentOrgName();
+         String currOrgID = OrganizationManager.getInstance().getCurrentOrgID();
          String prefix = "user";
          FSUser identity;
 
          for(int i = 0; ; i++) {
             String name = prefix + i;
-            IdentityID id = new IdentityID(name, currOrg);
+            IdentityID id = new IdentityID(name, currOrgID);
 
             if(provider.getUser(id) == null) {
                identity = new FSUser(id);
-               identity.setOrganization(currOrg);
-               addOrganizationMember(currOrg, name, editProvider);
-               identity.setRoles(getDefaultRoles(editProvider, currOrg)
+               identity.setOrganization(currOrgID);
+               addOrganizationMember(currOrgID, name, editProvider);
+               identity.setRoles(getDefaultRoles(editProvider, currOrgID)
                                     .toArray(new IdentityID[0]));
                SUtil.setPassword(identity, "success123");
 
@@ -737,7 +683,7 @@ public class UserTreeService {
             .password(identity.getPassword())
             .alias("")
             .email("")
-            .organization(currOrg)
+            .organization(currOrgID)
             .identityNames(Arrays.stream(identityIds).toList())
             .members(new ArrayList<>())
             .roles(new ArrayList<>())
@@ -761,22 +707,22 @@ public class UserTreeService {
       }
    }
 
-   private void addOrganizationMember(String orgName, String memberName, EditableAuthenticationProvider provider) {
-      Organization org = provider.getOrganization(orgName);
+   private void addOrganizationMember(String orgID, String memberName, EditableAuthenticationProvider provider) {
+      Organization org = provider.getOrganization(orgID);
       List<String> members = org.getMembers() != null ? new ArrayList<>(Arrays.asList(org.getMembers())) : new ArrayList<>();
       members.add(memberName);
       org.setMembers(members.toArray(new String[0]));
-      provider.setOrganization(orgName, org);
+      provider.setOrganization(orgID, org);
    }
 
    public EditUserPaneModel getUserModel(String provider, IdentityID userName, Principal principal) {
       AuthenticationProvider currentProvider =
          authenticationProviderService.getProviderByName(provider);
-      String rootUser = Catalog.getCatalog(principal).getString("Users");
+      String rootUser = "Users";
 
       if(rootUser.equals(userName.name) &&
-         (securityProvider.checkPermission(principal, ResourceType.SECURITY_USER, new IdentityID(rootUser, OrganizationManager.getCurrentOrgName()).convertToKey(), ResourceAction.ADMIN) ||
-            securityProvider.checkPermission(principal, ResourceType.SECURITY_USER, userName.convertToKey(), ResourceAction.ADMIN)))
+         (getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER, new IdentityID(rootUser, OrganizationManager.getInstance().getCurrentOrgID()).convertToKey(), ResourceAction.ADMIN) ||
+            getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER, userName.convertToKey(), ResourceAction.ADMIN)))
       {
          return getRootUserModel(principal, currentProvider);
       }
@@ -812,9 +758,9 @@ public class UserTreeService {
 
       String[] emails = user.getEmails();
 
-      String org = user.getOrganization();
+      String org = user.getOrganizationID();
       if(org == null || "".equals(org)) {
-         org = Organization.getDefaultOrganizationName();
+         org = Organization.getDefaultOrganizationID();
       }
 
       return EditUserPaneModel.builder()
@@ -833,13 +779,16 @@ public class UserTreeService {
          .currentUser(userName.equals(pId))
          .localesList(localesList)
          .theme(themeService.getTheme(userName, CustomTheme::getUsers))
+         .supportChangePassword(Tool.isEmptyString(user.getGoogleSSOId()))
          .build();
    }
+
    /**
     * Create a new user
     */
-   EditOrganizationPaneModel createOrganization(String providerName, Principal principal) {
-
+   public EditOrganizationPaneModel createOrganization(String copyFromOrgID, String providerName,
+                                                       String orgName, String orgID, Principal principal)
+   {
       ActionRecord actionRecord = SUtil.getActionRecord(
          principal, ActionRecord.ACTION_NAME_CREATE, null,
          ActionRecord.OBJECT_TYPE_USERPERMISSION);
@@ -857,27 +806,61 @@ public class UserTreeService {
 
          EditableAuthenticationProvider editProvider = (EditableAuthenticationProvider) provider;
          SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
-         String prefix = "organization";
          FSOrganization identity;
-         List<IdentityModel> defMembers = new ArrayList<IdentityModel>();
+         IdentityID newOrgKey = new IdentityID(orgName, orgID);
 
-         for(int i = 0; ; i++) {
-            final String name = prefix + i;
-            boolean found = Arrays.stream(securityProvider.getOrganizations()).anyMatch(o -> o.equalsIgnoreCase(name)) ||
-                            securityProvider.getOrgNameFromID(name) != null;
+         if(Tool.isEmptyString(orgID)) {
+            String prefix = "organization";
 
-            if(!found) {
-               Organization template = editProvider.getOrganization(Organization.getTemplateOrganizationName());
-               editProvider.copyOrganization(template, name, identityService, themeService, principal);
-               identity = (FSOrganization) editProvider.getOrganization(name);
-               break;
+            for(int i = 0; ; i++) {
+               final String orgKey = prefix + i;
+               boolean found = Arrays.stream(getSecurityProvider().getOrganizationIDs()).anyMatch(o -> o.equalsIgnoreCase(orgKey)) ||
+                  Arrays.stream(getSecurityProvider().getOrganizationNames()).anyMatch(o -> o.equalsIgnoreCase(orgKey)) ||
+                  getSecurityProvider().getOrgNameFromID(orgKey) != null;
+
+               if(!found) {
+                  newOrgKey = new IdentityID(orgKey, orgKey);
+                  break;
+               }
             }
          }
+         else if(editProvider.getOrganization(orgID) != null) {
+            //provided org id already exists, return error
+            throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationID"));
+         }
+         else if(editProvider.getOrgIdFromName(orgName) != null) {
+            //provided org name already exists, return error
+            throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationName"));
+         }
 
+         if(copyFromOrgID != null && !Tool.isEmptyString(copyFromOrgID)) {
+            Organization fromOrg = provider.getOrganization(copyFromOrgID);
+            List<IdentityID> userList = Arrays.stream(provider.getUsers()).filter(user ->
+               user.getOrgID().equals(copyFromOrgID)).collect(Collectors.toList());
+            int namedUserCount = getNamedUserCount();
+            int userCount = provider.getUsers().length + userList.size();
+
+            if(namedUserCount > 0 && userCount > namedUserCount) {
+               Catalog catalog = Catalog.getCatalog(ThreadContext.getContextPrincipal());
+               throw new MessageException(
+                  catalog.getString("em.namedUsers.exceeded", userCount, namedUserCount));
+            }
+
+            editProvider.copyOrganization(fromOrg, newOrgKey.orgID, identityService, themeService, principal, false);
+            identity = (FSOrganization) editProvider.getOrganization(newOrgKey.orgID);
+         }
+         else {
+            FSOrganization newOrganization = new FSOrganization(newOrgKey);
+            editProvider.addOrganization(newOrganization);
+            identity = newOrganization;
+         }
+
+         List<IdentityModel> defMembers = new ArrayList<IdentityModel>();
          IdentityID[] identityNames = provider.getGroups();
          String state = IdentityInfoRecord.STATE_NONE;
-         actionRecord.setObjectName(identity.getName());
-         identityInfoRecord = SUtil.getIdentityInfoRecord(identity.getIdentityID(),
+         actionRecord.setObjectName(identity.getId());
+         identityInfoRecord = SUtil.getIdentityInfoRecord(new IdentityID(identity.getIdentityID().name,
+                                                                         pId.getOrgID()),
                                                           identity.getType(),
                                                           IdentityInfoRecord.ACTION_TYPE_CREATE,
                                                           null, state);
@@ -916,46 +899,25 @@ public class UserTreeService {
       }
    }
 
-   public void saveOrganizationTemplate(String provider, String fromOrgName, Principal principal) {
-      AuthenticationProvider currentProvider =
-         authenticationProviderService.getProviderByName(provider);
-      if(currentProvider instanceof AbstractEditableAuthenticationProvider) {
-         Organization copyFrom = currentProvider.getOrganization(fromOrgName);
-         String templateOrgName = Organization.getTemplateOrganizationName();
-
-         if(currentProvider.getOrganization(templateOrgName) == null) {
-            Organization newTemplateOrg = new Organization(templateOrgName, Organization.getTemplateOrganizationID(),new String[0], "", true);
-            ((AbstractEditableAuthenticationProvider) currentProvider).addOrganization(newTemplateOrg);
-         }
-
-         ((AbstractEditableAuthenticationProvider) currentProvider).copyOrganization(copyFrom, templateOrgName, identityService, themeService, principal);
-      }
+   private int getNamedUserCount() {
+      LicenseManager manager = LicenseManager.getInstance();
+      return manager.getNamedUserCount() + manager.getNamedUserViewerSessionCount();
    }
 
-   public void clearOrganizationTemplate(String provider, Principal principal) {
+   public EditOrganizationPaneModel getOrganizationModel(String provider, IdentityID orgID, Principal principal) {
       AuthenticationProvider currentProvider =
          authenticationProviderService.getProviderByName(provider);
 
-      if(currentProvider instanceof AbstractEditableAuthenticationProvider) {
-         ((AbstractEditableAuthenticationProvider) currentProvider).cleanTemplateOrganization(identityService, principal);
-      }
-   }
-
-   public EditOrganizationPaneModel getOrganizationModel(String provider, String orgName, Principal principal) {
-      AuthenticationProvider currentProvider =
-         authenticationProviderService.getProviderByName(provider);
-
-      if(Catalog.getCatalog(principal).getString("Organizations").equals(orgName) &&
-         securityProvider.checkPermission(
+      if(Catalog.getCatalog(principal).getString("Organizations").equals(orgID.name) &&
+         getSecurityProvider().checkPermission(
             principal, ResourceType.SECURITY_ORGANIZATION, "*", ResourceAction.ADMIN))
       {
          return getRootOrganizationModel(principal, currentProvider);
       }
 
-      Organization organization = currentProvider.getOrganization(orgName);
+      Organization organization = currentProvider.getOrganization(orgID.orgID);
       String[] propertyNames = {"max.row.count", "max.col.count", "max.cell.size", "max.user.count"};
       List<PropertyModel> properties = new ArrayList<>();
-      IdentityID orgId = new IdentityID(orgName, orgName);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
 
       for(String key : propertyNames) {
@@ -965,9 +927,9 @@ public class UserTreeService {
       }
 
       List<IdentityModel> grantedOrganizations =
-         identityService.getPermission(orgId, ResourceType.SECURITY_ORGANIZATION, organization.getId(), principal);
+         identityService.getPermission(orgID, ResourceType.SECURITY_ORGANIZATION, orgID.orgID, principal);
 
-      IdentityInfo info = identityService.getIdentityInfo(orgId, Identity.ORGANIZATION, currentProvider);
+      IdentityInfo info = identityService.getIdentityInfo(orgID, Identity.ORGANIZATION, currentProvider);
 
       List<LocalizationModel> locales = localizationSettingsService.getModel().locales();
       List<String> localesList = locales.stream()
@@ -983,14 +945,11 @@ public class UserTreeService {
          }
       }
 
-      List<IdentityModel> members = info.getMembers().stream()
-         .filter(identityModel -> identityModel.type() != Identity.USER ||
-            securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
-                                             identityModel.identityID().convertToKey(), ResourceAction.ADMIN)).toList();
+      List<IdentityModel> members = getOrganizationMembers(info.getMembers(), principal);
 
       return EditOrganizationPaneModel.builder()
-         .name(orgName)
-         .id(organization.getId())
+         .name(orgID.name)
+         .id(orgID.orgID)
          .status(organization.isActive())
          .locale(locale == null ? "" : locale)
          .identityNames(Arrays.stream(currentProvider.getGroups()).toList())
@@ -999,7 +958,7 @@ public class UserTreeService {
          .permittedIdentities(filterOtherOrgs(grantedOrganizations))
          .properties(properties)
          .editable(organization.isEditable() && currentProvider instanceof EditableAuthenticationProvider)
-         .currentUser(orgName.equals(pId.name))
+         .currentUser(orgID.name.equals(pId.name))
          .localesList(localesList)
          .theme(organization.getTheme())
          .currentUserName(pId.name)
@@ -1007,10 +966,11 @@ public class UserTreeService {
    }
 
    private EditUserPaneModel getRootUserModel(Principal principal, AuthenticationProvider currentProvider) {
-      IdentityID rootUser = new IdentityID(Catalog.getCatalog(principal).getString("Users"), OrganizationManager.getCurrentOrgName());
+      IdentityID rootUser = new IdentityID("Users", OrganizationManager.getInstance().getCurrentOrgID());
       return EditUserPaneModel.builder()
-         .name(Catalog.getCatalog(principal).getString("Users"))
-         .organization(OrganizationManager.getCurrentOrgName())
+         .name("Users")
+         .label(Catalog.getCatalog(principal).getString("Users"))
+         .organization(OrganizationManager.getInstance().getCurrentOrgID())
          .editable(currentProvider instanceof EditableAuthenticationProvider)
          .permittedIdentities(
             filterOtherOrgs(identityService.getPermission(rootUser, ResourceType.SECURITY_USER, OrganizationManager.getInstance().getCurrentOrgID(principal), principal)))
@@ -1033,11 +993,11 @@ public class UserTreeService {
    }
 
    public List<IdentityModel> filterOtherOrgs(List<IdentityModel> pList) {
-      String thisOrg = OrganizationManager.getCurrentOrgName();
+      String thisOrg = OrganizationManager.getInstance().getCurrentOrgID();
       return pList.stream()
          //must be valid identity, then must be in this org or global role
-         .filter(i -> i.identityID().organization == null  ||
-            i.identityID().organization.equals(thisOrg))
+         .filter(i -> i.identityID().orgID == null  ||
+            i.identityID().orgID.equals(thisOrg))
          .toList();
    }
 
@@ -1047,13 +1007,13 @@ public class UserTreeService {
    void editUser(EditUserPaneModel model, String providerName,
                  Principal principal) throws Exception
    {
-      String rootUser = Catalog.getCatalog(principal).getString("Users");
+      String rootUser = "Users";
       IdentityID rootID = new IdentityID(rootUser, model.organization());
 
       if(rootUser.equals(model.name())) {
-         if(securityProvider.checkPermission(
+         if(getSecurityProvider().checkPermission(
             principal, ResourceType.SECURITY_USER, new IdentityID(rootUser, model.organization()).convertToKey(), ResourceAction.ADMIN) ||
-            securityProvider.checkPermission(principal, ResourceType.SECURITY_USER, rootID.convertToKey(), ResourceAction.ADMIN))
+            getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER, rootID.convertToKey(), ResourceAction.ADMIN))
          {
             identityService.setIdentityPermissions(
               rootID, rootID, ResourceType.SECURITY_USER, principal, model.permittedIdentities(), "");
@@ -1062,13 +1022,19 @@ public class UserTreeService {
          return;
       }
 
-      themeService.updateTheme(model.oldName(), model.name(), model.theme(), CustomTheme::getUsers);
+      themeService.updateUserTheme(model.oldName(), model.name(), model.theme());
 
       final AuthenticationProvider provider =
          authenticationProviderService.getProviderByName(providerName);
       IdentityID oldID = new IdentityID(model.oldName(), model.organization());
       IdentityID newID = new IdentityID(model.name(), model.organization());
       final User oldUser = provider.getUser(oldID);
+
+      if(oldUser == null) {
+         throw new MessageException(
+            Catalog.getCatalog().getString("em.security.editingUser.not.exist", oldID.getName()));
+      }
+
       final IdentityModification userChange =
          systemAdminService.getUserModification(oldUser, model, principal);
 
@@ -1088,6 +1054,7 @@ public class UserTreeService {
          model.permittedIdentities(), Identity.USER, oldID, newID);
       identityService.setIdentityPermissions(
          oldID, newID, ResourceType.SECURITY_USER, principal, permittedIdentities, "");
+      renameUserAsset(newID, oldID);
    }
 
 
@@ -1097,13 +1064,11 @@ public class UserTreeService {
    void editOrganization(EditOrganizationPaneModel model, String providerName,
                  Principal principal) throws Exception
    {
-      themeService.updateTheme(model.oldName(), model.name(), model.theme(), CustomTheme::getOrganizations);
-
       final AuthenticationProvider provider =
          authenticationProviderService.getProviderByName(providerName);
-      final Organization oldOrg = provider.getOrganization(model.oldName());
-      IdentityID oldID = new IdentityID( model.oldName(), model.oldName());
-      IdentityID newID = new IdentityID( model.name(), model.name());
+      final Organization oldOrg = provider.getOrganization(provider.getOrganizationId(model.oldName()));
+      IdentityID oldID = new IdentityID( model.oldName(), provider.getOrganizationId(model.oldName())) ;
+      IdentityID newID = new IdentityID( model.name(), model.id());
 
       if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
          checkOrgEditedHasSysAdmin(oldOrg, model, principal);
@@ -1121,7 +1086,6 @@ public class UserTreeService {
 
       if(!oldOrg.getName().equals(model.name()) &&
          (Organization.getDefaultOrganizationName().equals(oldOrg.getName()) ||
-            Organization.getTemplateOrganizationName().equals(oldOrg.getName()) ||
             Organization.getSelfOrganizationName().equals(oldOrg.getName())))
       {
          // cannot edit Default Organization name
@@ -1129,7 +1093,6 @@ public class UserTreeService {
       }
       else if(!oldOrg.getId().equalsIgnoreCase(model.id()) &&
               (Organization.getDefaultOrganizationID().equalsIgnoreCase(oldOrg.getId()) ||
-               Organization.getTemplateOrganizationID().equalsIgnoreCase(oldOrg.getId()) ||
                Organization.getSelfOrganizationID().equalsIgnoreCase(oldOrg.getId()))) {
          throw new MessageException(Catalog.getCatalog().getString("em.security.writeDefaultOrgId"));
       }
@@ -1167,15 +1130,18 @@ public class UserTreeService {
 
       identityService.setIdentityPermissions(
          oldID, newID, ResourceType.SECURITY_ORGANIZATION, principal,
-         permittedIdentities, model.name(), model.id());
+         permittedIdentities, model.id());
    }
 
    private void checkDuplicateOrgIDs(EditOrganizationPaneModel model, Organization oldOrg) throws MessageException {
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      String[] organizations = provider.getOrganizations();
+      String[] organizations = provider.getOrganizationIDs();
+      String[] orgNames = provider.getOrganizationNames();
+
       for(int i=0;i< organizations.length; i++) {
-         String orgName = organizations[i];
-         String orgID = provider.getOrganization(orgName).getId();
+         String orgName = orgNames[i];
+         String orgIDName = organizations[i];
+         String orgID = provider.getOrganization(orgIDName).getId();
 
          if(orgName != null && !orgName.equals(oldOrg.getName()) && orgName.equalsIgnoreCase(model.name())) {
             throw new MessageException(Catalog.getCatalog().getString("em.duplicateOrganizationName"));
@@ -1210,7 +1176,7 @@ public class UserTreeService {
 
       return permittedIdentities.stream().map(identity -> {
          IdentityID updatedID = identity.type() == type && identity.identityID().equals(oldID) ?
-            newID : new IdentityID(identity.identityID().name, oldID.organization);
+            newID : new IdentityID(identity.identityID().name, oldID.orgID);
          return IdentityModel.builder()
             .from(identity)
             .identityID(updatedID)
@@ -1228,13 +1194,17 @@ public class UserTreeService {
          .build();
    }
 
-   private SecurityTreeNode createOrgSecurityTreeNode(IdentityID orgID, AuthenticationProvider provider,
-                                                      Principal principal, boolean topOnly, boolean isPermissions) {
+   public SecurityTreeNode createOrgSecurityTreeNode(IdentityID orgID, String currOrgName,
+                                                      AuthenticationProvider provider,
+                                                      Principal principal, boolean topOnly,
+                                                      boolean isPermissions,
+                                                      boolean hideOrgAdminRole)
+   {
 
       //readOnly as false if returning permissions
-      boolean readOnly = !isPermissions && !securityProvider.checkPermission(
+      boolean readOnly = !isPermissions && !getSecurityProvider().checkPermission(
          principal, ResourceType.SECURITY_ORGANIZATION, orgID.convertToKey(), ResourceAction.ADMIN) &&
-         !OrganizationManager.getInstance().isOrgAdmin(principal) && !hasOrgAdminPermission(orgID.name, principal);
+         !OrganizationManager.getInstance().isOrgAdmin(principal) && !hasOrgAdminPermission(orgID.orgID, principal);
 
 
       if(topOnly) {
@@ -1252,26 +1222,27 @@ public class UserTreeService {
             .label(orgID.name)
             .identityID(orgID)
             .type(Identity.ORGANIZATION)
-            .children(getOrgNodeChildren(orgID.name, isPermissions, provider, principal))
+            .children(getOrgNodeChildren(orgID.orgID, currOrgName, isPermissions, provider, principal, hideOrgAdminRole))
             .root(false)
             .readOnly(readOnly)
             .build();
       }
    }
 
-   private Iterable<? extends SecurityTreeNode> getOrgNodeChildren(String orgName, boolean isPermissions,
+   private Iterable<? extends SecurityTreeNode> getOrgNodeChildren(String orgID, String currOrgName,
+                                                                   boolean isPermissions,
                                                                    AuthenticationProvider provider,
-                                                                   Principal principal)
+                                                                   Principal principal,
+                                                                   boolean hideOrgAdminRole)
    {
       List<SecurityTreeNode> orgMembersList = new ArrayList<SecurityTreeNode>();
-
       List<SecurityTreeNode> orgUsersList = new ArrayList<SecurityTreeNode>();
       List<SecurityTreeNode> orgGroupsList = new ArrayList<SecurityTreeNode>();
       List<SecurityTreeNode> orgRolesList = new ArrayList<SecurityTreeNode>();
 
-      IdentityID[] users = Arrays.stream(provider.getUsers()).filter(id -> orgName.equals(id.organization)).sorted().toArray(IdentityID[]::new);
-      IdentityID[] groups = Arrays.stream(provider.getGroups()).filter(id -> orgName.equals(id.organization)).sorted().toArray(IdentityID[]::new);
-      IdentityID[] roles = Arrays.stream(provider.getRoles()).filter(id -> id.organization == null || orgName.equals(id.organization)).sorted().toArray(IdentityID[]::new);
+      IdentityID[] users = Arrays.stream(provider.getUsers()).filter(id -> orgID.equals(id.orgID)).sorted().toArray(IdentityID[]::new);
+      IdentityID[] groups = Arrays.stream(provider.getGroups()).filter(id -> orgID.equals(id.orgID)).sorted().toArray(IdentityID[]::new);
+      IdentityID[] roles = Arrays.stream(provider.getRoles()).filter(id -> id.orgID == null || orgID.equals(id.orgID)).sorted().toArray(IdentityID[]::new);
 
       for(int i=0; i < users.length; i++) {
          User user = provider.getUser(users[i]);
@@ -1279,7 +1250,7 @@ public class UserTreeService {
          if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
             IdentityID userID = user.getIdentityID();
             if(OrganizationManager.getInstance().isSiteAdmin(provider, userID) ||
-               !securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+               !getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER,
                user.getIdentityID().convertToKey(), ResourceAction.ADMIN))
             {
                continue;
@@ -1289,7 +1260,7 @@ public class UserTreeService {
          SecurityTreeNode node = SecurityTreeNode.builder()
             .children(Collections.emptyList())
             .label(user.getName())
-            .organization(user.getOrganization())
+            .organization(currOrgName)
             .identityID(user.getIdentityID())
             .type(user.getType())
             .root(false)
@@ -1300,15 +1271,15 @@ public class UserTreeService {
       Set<IdentityID> childGroups = Arrays.stream(groups)
          .map(provider::getGroup)
          .filter(Objects::nonNull)
-         .filter(g -> g.getOrganization().equals(orgName))
+         .filter(g -> g.getOrganizationID().equals(orgID))
          .filter(g -> g.getGroups().length > 0)
          .map(Group::getIdentityID)
          .collect(Collectors.toSet());
 
-      final Map<String, List<Identity>> groupMemberMap = provider.createGroupMemberMap(orgName);
+      final Map<String, List<Identity>> groupMemberMap = provider.createGroupMemberMap(orgID);
 
       orgGroupsList = Arrays.stream(groups)
-         .filter(g -> orgName.equals(provider.getGroup(g).getOrganization()))
+         .filter(g -> orgID.equals(provider.getGroup(g).getOrganizationID()))
          .filter(group -> !childGroups.contains(group))
          .filter(group -> !"".equals(group.name))
          .sorted()
@@ -1319,11 +1290,11 @@ public class UserTreeService {
 
       boolean orgAdminOnly = OrganizationManager.getInstance().isOrgAdmin(principal) && !OrganizationManager.getInstance().isSiteAdmin(principal);
       boolean allRolesReadOnly = !OrganizationManager.getInstance().isOrgAdmin(principal) && !OrganizationManager.getInstance().isSiteAdmin(principal) &&
-         !securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
-                   new IdentityID("Organization Roles", OrganizationManager.getCurrentOrgName()).convertToKey(), ResourceAction.ADMIN) &&
-         !securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+         !getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_ROLE,
+                   new IdentityID("Organization Roles", OrganizationManager.getInstance().getCurrentOrgID()).convertToKey(), ResourceAction.ADMIN) &&
+         !getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_ROLE,
             Organization.getRootOrgRoleName(principal), ResourceAction.ADMIN) &&
-         !securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE,
+         !getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_ROLE,
             Organization.getRootRoleName(principal), ResourceAction.ADMIN);
 
       final List<IdentityID> topLevenRoles = Arrays.stream(roles)
@@ -1340,58 +1311,59 @@ public class UserTreeService {
          .collect(Collectors.toList());
 
       Map<IdentityID, List<IdentityID>> rolesParentMap = getRolesParentMap(roles, provider);
-      getOrgRoleList(orgRolesList, topLevenRoles, rolesParentMap, provider, orgName, orgAdminOnly,
-         allRolesReadOnly, principal);
-      String label = Catalog.getCatalog(principal).getString("Users");
+      getOrgRoleList(orgRolesList, topLevenRoles, rolesParentMap, provider, orgID, orgAdminOnly,
+         allRolesReadOnly, hideOrgAdminRole, principal);
+      String name = "Users";
+      String label = Catalog.getCatalog(principal).getString(name);
 
       //readOnly as false if returning permissions
-      boolean readOnly = !isPermissions && !securityProvider.checkPermission(
-         principal, ResourceType.SECURITY_USER, new IdentityID(label, orgName).convertToKey(), ResourceAction.ADMIN) &&
-         !OrganizationManager.getInstance().isOrgAdmin(principal) && !hasOrgAdminPermission(orgName, principal);
+      boolean readOnly = !isPermissions && !getSecurityProvider().checkPermission(
+         principal, ResourceType.SECURITY_USER, new IdentityID(name, orgID).convertToKey(), ResourceAction.ADMIN) &&
+         !OrganizationManager.getInstance().isOrgAdmin(principal) && !hasOrgAdminPermission(orgID, principal);
 
       SecurityTreeNode userRoot = SecurityTreeNode.builder()
          .label(label)
-         .identityID(new IdentityID(label, orgName))
+         .identityID(new IdentityID(name, orgID))
          .type(Identity.USER)
          .children(orgUsersList)
          .root(true)
-         .organization(orgName)
+         .organization(currOrgName)
          .readOnly(readOnly)
          .build();
 
       orgMembersList.add(userRoot);
 
-      String groupLabel = Catalog.getCatalog(principal).getString("Groups");
-      readOnly = !isPermissions && !securityProvider.checkPermission(
-         principal, ResourceType.SECURITY_GROUP, new IdentityID(groupLabel, orgName).convertToKey(), ResourceAction.ADMIN) &&
-         !OrganizationManager.getInstance().isOrgAdmin(principal) && !hasOrgAdminPermission(orgName, principal);
+      String groupName = "Groups";
+      readOnly = !isPermissions && !getSecurityProvider().checkPermission(
+         principal, ResourceType.SECURITY_GROUP, new IdentityID(groupName, orgID).convertToKey(), ResourceAction.ADMIN) &&
+         !OrganizationManager.getInstance().isOrgAdmin(principal) && !hasOrgAdminPermission(orgID, principal);
 
 
       SecurityTreeNode groupRoot = SecurityTreeNode.builder()
-         .label(groupLabel)
-         .identityID(new IdentityID(groupLabel, orgName))
+         .label(Catalog.getCatalog(principal).getString("Groups"))
+         .identityID(new IdentityID(groupName, orgID))
          .type(Identity.GROUP)
          .children(orgGroupsList)
          .root(true)
-         .organization(orgName)
+         .organization(currOrgName)
          .readOnly(readOnly)
          .build();
 
       orgMembersList.add(groupRoot);
 
-      String orgRoleLabel = Catalog.getCatalog(principal).getString("Organization Roles");
-      readOnly = !isPermissions && !securityProvider.checkPermission(
-         principal, ResourceType.SECURITY_ROLE, new IdentityID(orgRoleLabel, orgName).convertToKey(), ResourceAction.ADMIN) &&
-         !OrganizationManager.getInstance().isOrgAdmin(principal) && !hasOrgAdminPermission(orgName, principal);
+      String orgRoleName = "Organization Roles";
+      readOnly = !isPermissions && !getSecurityProvider().checkPermission(
+         principal, ResourceType.SECURITY_ROLE, new IdentityID(orgRoleName, orgID).convertToKey(), ResourceAction.ADMIN) &&
+         !OrganizationManager.getInstance().isOrgAdmin(principal) && !hasOrgAdminPermission(orgID, principal);
 
       SecurityTreeNode roleRoot = SecurityTreeNode.builder()
-         .label(orgRoleLabel)
-         .identityID(new IdentityID(orgRoleLabel, orgName))
+         .label(Catalog.getCatalog(principal).getString("Organization Roles"))
+         .identityID(new IdentityID(orgRoleName, orgID))
          .type(Identity.ROLE)
          .children(orgRolesList)
          .root(true)
          .readOnly(readOnly)
-         .organization(orgName)
+         .organization(currOrgName)
          .build();
 
       orgMembersList.add(roleRoot);
@@ -1402,8 +1374,9 @@ public class UserTreeService {
 
    private void getOrgRoleList(List<SecurityTreeNode> orgRolesList, List<IdentityID> roles,
                                Map<IdentityID, List<IdentityID>> rolesParentMap,
-                               AuthenticationProvider provider, String orgName,
-                               boolean orgAdminOnly, boolean allRolesReadOnly, Principal principal)
+                               AuthenticationProvider provider, String orgID,
+                               boolean orgAdminOnly, boolean allRolesReadOnly,
+                               boolean hideOrgAdminRole, Principal principal)
    {
       if(roles == null) {
          return;
@@ -1425,7 +1398,7 @@ public class UserTreeService {
       for(int i = 0; i < roles.size(); i++) {
          Role role = provider.getRole(roles.get(i));
          boolean hasPermission = false;
-         boolean permissionExists = securityProvider.checkPermission(principal,
+         boolean permissionExists = getSecurityProvider().checkPermission(principal,
             ResourceType.SECURITY_ROLE, role.getIdentityID().convertToKey(), ResourceAction.ASSIGN);
 
          if(orgAdminOnly && provider.isOrgAdministratorRole(role.getIdentityID())) {
@@ -1435,20 +1408,18 @@ public class UserTreeService {
 
             hasPermission = true;
          }
-         else if(role.getOrganization() != null && role.getOrganization().equals(orgName)) {
+         else if(role.getOrganizationID() != null && role.getOrganizationID().equals(orgID)) {
             hasPermission = !allRolesReadOnly || permissionExists;
          }
 
-         boolean assignedPermission = !orgAdminOnly && !OrganizationManager.getInstance().isSiteAdmin(principal)
-            && permissionExists;
+         boolean isSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
+         boolean isOrgAdmin = OrganizationManager.getInstance().isOrgAdmin(principal);
 
-         boolean isOtherOrgRole = role.getOrganization() != null &&
-            !role.getOrganization().equals(OrganizationManager.getCurrentOrgName());
-
-         boolean notSiteAdmin = (!OrganizationManager.getInstance().isSiteAdmin(principal) &&
-            provider.isSystemAdministratorRole(role.getIdentityID()));
-
-         boolean notOrgAdmin = !OrganizationManager.getInstance().isOrgAdmin(principal) && !OrganizationManager.getInstance().isSiteAdmin(principal) &&
+         boolean assignedPermission = !orgAdminOnly && !isSiteAdmin && permissionExists;
+         boolean isOtherOrgRole = role.getOrganizationID() != null &&
+            !role.getOrganizationID().equals(OrganizationManager.getInstance().getCurrentOrgID());
+         boolean notSiteAdmin = (!isSiteAdmin && provider.isSystemAdministratorRole(role.getIdentityID()));
+         boolean notOrgAdmin = (!isOrgAdmin || hideOrgAdminRole) && !isSiteAdmin &&
             provider.isOrgAdministratorRole(role.getIdentityID());
 
          if(isOtherOrgRole || notSiteAdmin || notOrgAdmin || (!hasPermission && !assignedPermission)) {
@@ -1457,7 +1428,7 @@ public class UserTreeService {
 
          List<SecurityTreeNode> children = new ArrayList<>();
          getOrgRoleList(children, rolesParentMap.get(roles.get(i)), rolesParentMap, provider,
-            orgName, orgAdminOnly, allRolesReadOnly, principal);
+            orgID, orgAdminOnly, allRolesReadOnly, hideOrgAdminRole, principal);
 
          SecurityTreeNode node = SecurityTreeNode.builder()
             .children(children)
@@ -1474,16 +1445,16 @@ public class UserTreeService {
    void editRole(EditRolePaneModel model, String providerName,
                  Principal principal) throws Exception
    {
-      String rootName = Catalog.getCatalog(principal).getString("Roles");
-      String rootOrgName = Catalog.getCatalog(principal).getString("Organization Roles");
+      String rootName = "Roles";
+      String rootOrgName = "Organization Roles";
       IdentityID oldID = new IdentityID(model.oldName(), model.organization());
       IdentityID rootID = new IdentityID(rootName, model.organization());
       IdentityID rootOrgID = new IdentityID(rootOrgName, model.organization());
 
       if(model.name().equals(rootName)) {
-         if(securityProvider.checkPermission(
+         if(getSecurityProvider().checkPermission(
             principal, ResourceType.SECURITY_ROLE, rootID.convertToKey(), ResourceAction.ADMIN) ||
-            securityProvider.checkPermission(
+            getSecurityProvider().checkPermission(
                principal, ResourceType.SECURITY_ROLE, new IdentityID(model.name(), model.organization()).convertToKey(), ResourceAction.ADMIN))
          {
             identityService.setIdentityPermissions(
@@ -1495,9 +1466,9 @@ public class UserTreeService {
          return;
       }
       else if(model.name().equals(rootOrgName)) {
-         if(securityProvider.checkPermission(
+         if(getSecurityProvider().checkPermission(
             principal, ResourceType.SECURITY_ROLE, rootOrgID.convertToKey(), ResourceAction.ADMIN) ||
-            securityProvider.checkPermission(
+            getSecurityProvider().checkPermission(
                principal, ResourceType.SECURITY_ROLE, new IdentityID(model.name(), model.organization()).convertToKey(), ResourceAction.ADMIN))
          {
             identityService.setIdentityPermissions(
@@ -1521,25 +1492,24 @@ public class UserTreeService {
          throw new MessageException(Catalog.getCatalog().getString("em.security.noOrgAdmin"));
       }
 
-      themeService.updateTheme(model.oldName(), model.name(), model.theme(), CustomTheme::getRoles);
+      themeService.updateTheme(model.oldName(), model.name(), CustomTheme::getRoles);
       identityService.setIdentity(oldRole, model, provider, principal);
    }
 
    private List<IdentityID> getDefaultRoles(AuthenticationProvider provider, String org) {
       return Arrays.stream(provider.getRoles())
-         .filter(role -> org != null && org.equals(provider.getRole(role).getOrganization()))
+         .filter(role -> org != null && org.equals(provider.getRole(role).getOrganizationID()))
          .filter(role -> provider.getRole(role).isDefaultRole())
          .collect(Collectors.toList());
    }
 
-   private boolean hasOrgAdminPermission(String organization, Principal principal) {
-      String orgId = securityProvider.getOrgId(organization);
+   private boolean hasOrgAdminPermission(String organizationID, Principal principal) {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      IdentityID orgID = new IdentityID(organization, organization);
-      Permission orgPermissions = securityProvider.getPermission(ResourceType.SECURITY_ORGANIZATION, orgID);
+      IdentityID orgID = new IdentityID(getSecurityProvider().getOrgNameFromID(organizationID), organizationID);
+      Permission orgPermissions = getSecurityProvider().getPermission(ResourceType.SECURITY_ORGANIZATION, orgID);
       Set<IdentityID> userGrants = orgPermissions == null ? Collections.emptySet() :
-                  orgPermissions.getOrgScopedUserGrants(ResourceAction.ADMIN, orgId);
-      return organization != null && orgPermissions != null &&
+                  orgPermissions.getOrgScopedUserGrants(ResourceAction.ADMIN, organizationID);
+      return organizationID != null && orgPermissions != null &&
          userGrants != null && userGrants.contains(pId);
    }
 
@@ -1548,10 +1518,10 @@ public class UserTreeService {
          .filter(i -> i.type() == Identity.USER)
          .map(IdentityModel::identityID)
          .toList();
-      boolean removedUserAdmin = Arrays.stream(securityProvider.getOrganizationMembers(oldOrg.getName()))
-         .map(n -> new IdentityID(n, oldOrg.getName()))
-         .filter(n -> securityProvider.getUser(n) != null)
-         .filter(u -> securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
+      boolean removedUserAdmin = Arrays.stream(getSecurityProvider().getOrganizationMembers(oldOrg.getId()))
+         .map(n -> new IdentityID(n, oldOrg.getId()))
+         .filter(n -> getSecurityProvider().getUser(n) != null)
+         .filter(u -> getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER,
                         u.convertToKey(), ResourceAction.ADMIN))
          .filter(u -> !newUsersList.contains(u))
          .anyMatch(userID -> OrganizationManager.getInstance().isSiteAdmin(userID));
@@ -1560,9 +1530,9 @@ public class UserTreeService {
          .filter(i -> i.type() == Identity.GROUP)
          .map(IdentityModel::identityID)
          .toList();
-      List<IdentityID> removedGroups = Arrays.stream(securityProvider.getOrganizationMembers(oldOrg.getName()))
-         .map(i -> new IdentityID(i, oldOrg.getName()))
-         .filter(i -> securityProvider.getGroup(i) != null)
+      List<IdentityID> removedGroups = Arrays.stream(getSecurityProvider().getOrganizationMembers(oldOrg.getId()))
+         .map(i -> new IdentityID(i, oldOrg.getId()))
+         .filter(i -> getSecurityProvider().getGroup(i) != null)
          .filter(g -> !newGroupList.contains(g))
          .toList();
 
@@ -1580,7 +1550,7 @@ public class UserTreeService {
          .filter(i -> i.type() == Identity.USER)
          .map(IdentityModel::identityID)
          .toList();
-      boolean removedUserAdmin = Arrays.stream(securityProvider.getGroupMembers(oldGroup.getIdentityID()))
+      boolean removedUserAdmin = Arrays.stream(getSecurityProvider().getGroupMembers(oldGroup.getIdentityID()))
          .filter(i -> i.getType() == Identity.USER)
          .filter(u -> !newUsersList.contains(u))
          .anyMatch(u -> {
@@ -1592,7 +1562,7 @@ public class UserTreeService {
          .filter(i -> i.type() == Identity.GROUP)
          .map(IdentityModel::identityID)
          .toList();
-      List<IdentityID> removedGroups = Arrays.stream(securityProvider.getGroupMembers(oldGroup.getIdentityID()))
+      List<IdentityID> removedGroups = Arrays.stream(getSecurityProvider().getGroupMembers(oldGroup.getIdentityID()))
          .filter(i -> i.getType() == Identity.GROUP)
          .map(Identity::getIdentityID)
          .filter(g -> !newGroupList.contains(g))
@@ -1600,9 +1570,8 @@ public class UserTreeService {
 
          boolean deletedGroupHasSysAdminChild = checkGroupChildrenSysAdmin(removedGroups);
 
-         if(removedUserAdmin || deletedGroupHasSysAdminChild)
-             {
-                throw new MessageException(Catalog.getCatalog().getString("em.security.orgAdmin.identityPermissionDenied"));
+         if(removedUserAdmin || deletedGroupHasSysAdminChild) {
+            throw new MessageException(Catalog.getCatalog().getString("em.security.orgAdmin.identityPermissionDenied"));
          }
    }
 
@@ -1610,16 +1579,16 @@ public class UserTreeService {
       boolean sysAdminFound = false;
 
       for(IdentityID groupName : deletedGroups) {
-         Group group = securityProvider.getGroup(groupName);
+         Group group = getSecurityProvider().getGroup(groupName);
          List<IdentityID> childUsers = Arrays.stream(group.getGroups())
-            .map(u -> new IdentityID(u, group.getOrganization()))
-            .filter(u -> securityProvider.getUser(u) != null).toList();
+            .map(u -> new IdentityID(u, group.getOrganizationID()))
+            .filter(u -> getSecurityProvider().getUser(u) != null).toList();
          List<IdentityID> childGroups = Arrays.stream(group.getGroups())
-            .map(u -> new IdentityID(u, group.getOrganization()))
-            .filter(u -> securityProvider.getUser(u) != null).toList();
+            .map(u -> new IdentityID(u, group.getOrganizationID()))
+            .filter(u -> getSecurityProvider().getUser(u) != null).toList();
 
          sysAdminFound = sysAdminFound || childUsers.stream().anyMatch(userID -> OrganizationManager.getInstance().isSiteAdmin(userID)) ||
-            Arrays.stream(group.getRoles()).anyMatch(securityProvider::isSystemAdministratorRole) ||
+            Arrays.stream(group.getRoles()).anyMatch(getSecurityProvider()::isSystemAdministratorRole) ||
             checkGroupChildrenSysAdmin(childGroups);
 
          if(sysAdminFound) {
@@ -1629,12 +1598,70 @@ public class UserTreeService {
       return false;
    }
 
+   private void renameUserAsset(IdentityID newID, IdentityID oldID) throws Exception {
+      if(newID.equals(oldID)) {
+         return;
+      }
+
+      IndexedStorage storage = IndexedStorage.getIndexedStorage();
+      KeyValueStorage<FavoriteList> favorites =
+         SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
+
+      if(favorites != null && oldID != null && newID != null &&
+         favorites.contains(oldID.convertToKey()))
+      {
+         FavoriteList favoriteList = favorites.remove(oldID.convertToKey()).get();
+         favorites.put(newID.convertToKey(), favoriteList);
+      }
+
+      storage.migrateStorageData(oldID.getName(), newID.getName());
+      DependencyStorageService.getInstance().migrateStorageData(oldID, newID);
+   }
+
+   private SecurityProvider getSecurityProvider() {
+      return securityEngine.getSecurityProvider();
+   }
+
+   private List<IdentityModel> getOrganizationMembers(List<IdentityModel> members,
+                                                      Principal principal)
+   {
+      if(members == null || members.isEmpty() ||
+         OrganizationManager.getInstance().isSiteAdmin(principal))
+      {
+         return members;
+      }
+
+      ExecutorService executor =
+         Executors.newFixedThreadPool(DependencyTool.getThreadNumber(members.size()));
+
+      List<CompletableFuture<IdentityModel>> futures = members.stream()
+         .map(identityModel -> CompletableFuture.supplyAsync(() -> {
+            if(identityModel.type() != Identity.USER ||
+               getSecurityProvider().checkPermission(principal, ResourceType.SECURITY_USER,
+                                                     identityModel.identityID().convertToKey(),
+                                                     ResourceAction.ADMIN))
+            {
+               return identityModel;
+            }
+
+            return null;
+         }, executor))
+         .toList();
+
+      List<IdentityModel> orgMembers = futures.stream()
+         .map(CompletableFuture::join)
+         .filter(Objects::nonNull)
+         .collect(Collectors.toList());
+
+      executor.shutdown();
+
+      return orgMembers;
+   }
+
    private final AuthenticationProviderService authenticationProviderService;
    private final SystemAdminService systemAdminService;
    private final IdentityService identityService;
-   private SecurityProvider securityProvider;
    private final LocalizationSettingsService localizationSettingsService;
-   private final boolean namedUsers;
    private final SecurityEngine securityEngine;
    private final IdentityThemeService themeService;
 }

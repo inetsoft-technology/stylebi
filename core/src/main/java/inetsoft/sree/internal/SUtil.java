@@ -20,10 +20,11 @@ package inetsoft.sree.internal;
 import inetsoft.mv.fs.*;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.internal.Util;
-import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.report.internal.license.*;
 import inetsoft.report.io.viewsheet.snapshot.ViewsheetAsset2;
 import inetsoft.sree.*;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.ignite.serializer.Object2ObjectOpenHashMapSerializer;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.schedule.ScheduleTask;
 import inetsoft.sree.security.*;
@@ -40,6 +41,8 @@ import inetsoft.util.audit.*;
 import inetsoft.util.dep.*;
 import inetsoft.util.log.LogManager;
 import inetsoft.web.RecycleUtils;
+import inetsoft.web.admin.schedule.model.ServerLocation;
+import inetsoft.web.admin.schedule.model.ServerPathInfoModel;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 
 import java.io.*;
@@ -51,9 +54,14 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import jakarta.servlet.http.*;
 import org.apache.commons.io.IOUtils;
+import org.apache.ignite.binary.BinaryTypeConfiguration;
+import org.apache.ignite.configuration.BinaryConfiguration;
+import org.apache.ignite.configuration.IgniteConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.user.DestinationUserNameProvider;
@@ -90,6 +98,7 @@ public class SUtil {
     * Administrator ticket.
     */
    public static final String TICKET = "admin.security.ticket";
+   public static final String LONGON_TIME = "user.logon.time";
 
    /**
     * Check if is my report.
@@ -744,9 +753,8 @@ public class SUtil {
             User user = provider.getUser(remoteUserID);
 
             if(user != null) {
-               String orgID = remoteUserID.name.equals("INETSOFT_SYSTEM") ?
-                  Organization.getDefaultOrganizationID() :
-                  provider.getOrganization(remoteUserID.organization).getId();
+               String orgID = remoteUserID.name.equals("INETSOFT_SYSTEM") && remoteUserID.orgID == null ?
+                  Organization.getDefaultOrganizationID() : remoteUserID.orgID;
                res = new SRPrincipal(new ClientInfo(remoteUserID, remoteAddr, sessionId, locale),
                   user.getRoles(), user.getGroups(), orgID,
                   getRandom().nextLong(), user.getAlias());
@@ -765,9 +773,9 @@ public class SUtil {
             }
             else {
                // for sso user.
-               String orgID = remoteUserID.name.equals("INETSOFT_SYSTEM") ?
+               String orgID = remoteUserID.name.equals("INETSOFT_SYSTEM")  && remoteUserID.orgID == null ?
                   Organization.getDefaultOrganizationID() :
-                  provider.getOrganization(remoteUserID.organization).getId();
+                  provider.getOrganization(remoteUserID.orgID).getId();
                res = new SRPrincipal(new ClientInfo(remoteUserID, remoteAddr, sessionId, locale),
                                      new IdentityID[0], new String[0], orgID,
                                      getRandom().nextLong(), null);
@@ -787,13 +795,13 @@ public class SUtil {
          ClientInfo clientInfo;
 
          if(Identity.UNKNOWN_USER.equals(remoteUserID.name)) {
-            clientInfo = new ClientInfo(new IdentityID(Identity.UNKNOWN_USER, remoteUserID.organization), remoteAddr, sessionId, locale);
+            clientInfo = new ClientInfo(new IdentityID(Identity.UNKNOWN_USER, remoteUserID.orgID), remoteAddr, sessionId, locale);
          }
          else if(XPrincipal.SYSTEM.equals(remoteUserID.name)) {
-            clientInfo = new ClientInfo(new IdentityID(XPrincipal.SYSTEM, remoteUserID.organization), remoteAddr, sessionId, locale);
+            clientInfo = new ClientInfo(new IdentityID(XPrincipal.SYSTEM, remoteUserID.orgID), remoteAddr, sessionId, locale);
          }
          else {
-            clientInfo = new ClientInfo(new IdentityID(ClientInfo.ANONYMOUS, remoteUserID.organization), remoteAddr, sessionId, locale);
+            clientInfo = new ClientInfo(new IdentityID(ClientInfo.ANONYMOUS, remoteUserID.orgID), remoteAddr, sessionId, locale);
          }
 
          res = new SRPrincipal(
@@ -819,12 +827,6 @@ public class SUtil {
       return res;
    }
 
-   public static String getOrgID(IdentityID identityID) {
-      return identityID == null || identityID.organization == null ?
-         OrganizationManager.getInstance().getCurrentOrgID() :
-         SecurityEngine.getSecurity().getSecurityProvider().getOrgId(identityID.organization);
-   }
-
    /**
     * Get the principal using an identity;
     * @param iden the identity object.
@@ -841,11 +843,11 @@ public class SUtil {
       if(iden.getType() == Identity.USER) {
          principal = getPrincipal(iden.getIdentityID(), remoteAddr, fireEvent);
 
-         if(XPrincipal.SYSTEM.equals(iden.getName()) && iden.getOrganization() != null &&
-            !iden.getOrganization().equals(principal.getOrgId()))
+         if(XPrincipal.SYSTEM.equals(iden.getName()) && iden.getOrganizationID() != null &&
+            !iden.getOrganizationID().equals(principal.getOrgId()))
          {
             // MV analysis/generation uses INETSOFT_SYSTEM user with the organization set
-            principal.setOrgId(iden.getOrganization());
+            principal.setOrgId(iden.getOrganizationID());
          }
 
          principal.setProperty("identity_type", "user");
@@ -853,7 +855,7 @@ public class SUtil {
       else if(iden.getType() == Identity.GROUP) {
          IdentityID group = iden.getIdentityID();
          SecurityEngine engine = SecurityEngine.getSecurity();
-         String orgID = engine.getSecurityProvider().getOrgId(group.organization);
+         String orgID = group.orgID;
 
          if(orgID == null) {
             orgID = Organization.getDefaultOrganizationID();
@@ -869,7 +871,7 @@ public class SUtil {
       else if(iden.getType() == Identity.ROLE) {
          IdentityID role = iden.getIdentityID();
          SecurityEngine engine = SecurityEngine.getSecurity();
-         String orgID = iden.getOrganization();
+         String orgID = iden.getOrganizationID();
 
          if(orgID == null) {
             orgID = Organization.getDefaultOrganizationID();
@@ -984,7 +986,7 @@ public class SUtil {
       for(String notification : notifications) {
          if(!Tool.matchEmail(notification)) {
             try {
-               String[] emails = SUtil.getEmails(new IdentityID(notification, OrganizationManager.getCurrentOrgName()));
+               String[] emails = SUtil.getEmails(new IdentityID(notification, OrganizationManager.getInstance().getCurrentOrgID()));
 
                if(emails.length == 0) {
                   LOG.warn("No email address specified for: {}", notification);
@@ -1034,14 +1036,14 @@ public class SUtil {
 
          if(identityID.name.endsWith(Identity.GROUP_SUFFIX)) {
             List<String> emails = new ArrayList<>();
-            IdentityID id = new IdentityID(identityID.name.substring(0, identityID.name.lastIndexOf(Identity.GROUP_SUFFIX)), identityID.organization);
+            IdentityID id = new IdentityID(identityID.name.substring(0, identityID.name.lastIndexOf(Identity.GROUP_SUFFIX)), identityID.orgID);
 
             addGroupEmails(security, id, emails);
 
             return emails.toArray(new String[0]);
          }
          else if(identityID.name.endsWith(Identity.USER_SUFFIX)) {
-            IdentityID userID = new IdentityID(identityID.name.substring(0, identityID.name.lastIndexOf(Identity.USER_SUFFIX)), identityID.organization);
+            IdentityID userID = new IdentityID(identityID.name.substring(0, identityID.name.lastIndexOf(Identity.USER_SUFFIX)), identityID.orgID);
             User user0 = security.getUser(userID);
 
             return (user0 == null) ? new String[0] : user0.getEmails();
@@ -1086,7 +1088,7 @@ public class SUtil {
 
          for(int i = 0; i < toAddrs.length; i++) {
             if(toAddrs[i].indexOf('@') < 0) {
-               String[] uemails = getEmails(new IdentityID(toAddrs[i], OrganizationManager.getCurrentOrgName()));
+               String[] uemails = getEmails(new IdentityID(toAddrs[i], OrganizationManager.getInstance().getCurrentOrgID()));
 
                for(int j = 0; uemails != null && j < uemails.length; j++) {
                   if(!userEmails.contains(uemails[j])) {
@@ -1148,7 +1150,7 @@ public class SUtil {
 
       String userName = user == null || user.name.equals("") || clientUser.equals(user) ?
          clientUser.name : clientUser.name + "(" + user.name + ")";
-      return new IdentityID(userName, user != null ? user.organization : OrganizationManager.getCurrentOrgName());
+      return new IdentityID(userName, user != null ? user.orgID : OrganizationManager.getInstance().getCurrentOrgID());
    }
 
    // ChrisS bug1382576675872 2014-6-4
@@ -1178,8 +1180,10 @@ public class SUtil {
          sessionRecord = new SessionRecord();
          sessionRecord.setUserID(userID.convertToKey());
          sessionRecord.setUserHost(addr);
-         sessionRecord.setUserGroup(Tool.arrayToString(xprin.getGroups(), "#"));
-         sessionRecord.setUserRole(Tool.arrayToString(xprin.getRoles(), "#"));
+         sessionRecord.setUserGroup(Arrays.asList(xprin.getGroups()));
+         sessionRecord.setUserRole(Arrays.stream(xprin.getRoles())
+                                      .map(IdentityID::getName)
+                                      .collect(Collectors.toList()));
          sessionRecord.setUserSessionID(xprin.getSessionID());
          sessionRecord.setOpType(SessionRecord.OP_TYPE_TASKLOGON);
          sessionRecord.setOpTimestamp(new Timestamp(System.currentTimeMillis()));
@@ -2084,7 +2088,7 @@ public class SUtil {
 
             if(!user.contains(IdentityID.KEY_DELIMITER)) {
                paths[2] =
-                  user + IdentityID.KEY_DELIMITER + OrganizationManager.getCurrentOrgName();
+                  user + IdentityID.KEY_DELIMITER + OrganizationManager.getInstance().getCurrentOrgID();
                path = String.join("^", paths);
             }
          }
@@ -2285,12 +2289,12 @@ public class SUtil {
          name = name.substring(0, name.length() - 4);
 
          for(int j = 0; j < registered.length; j++) {
-            if(name.equals(registered[j])) {
+            if(name.equals(registered[j].convertToKey())) {
                continue OUTER;
             }
          }
 
-         if(!XPrincipal.ANONYMOUS.equals(name)) {
+         if(!XPrincipal.ANONYMOUS.equals(IdentityID.getIdentityIDFromKey(name).name)) {
             unregistered.add(name);
          }
       }
@@ -2396,7 +2400,8 @@ public class SUtil {
          ((SRPrincipal) principal).setProperty(SRPrincipal.LOCALE, olocale);
       }
 
-      actionRecord.setResourceOrganization(OrganizationManager.getCurrentOrgName());
+      actionRecord.setResourceOrganization(OrganizationManager.getInstance().getCurrentOrgID());
+      actionRecord.setResourceOrganizationName(OrganizationManager.getCurrentOrgName());
 
       return actionRecord;
    }
@@ -2760,6 +2765,7 @@ public class SUtil {
    }
 
    public static void setMultiTenant(boolean multiTenant) {
+      String oldValue = SreeEnv.getProperty("security.users.multiTenant");
       SreeEnv.setProperty("security.users.multiTenant", multiTenant + "");
 
       try {
@@ -2768,12 +2774,43 @@ public class SUtil {
       catch(IOException e) {
          LOG.error("Failed to save properties", e);
       }
+
+      if(!Tool.equals(oldValue, multiTenant + "")) {
+         LicenseManager.getInstance().updateNamedUserKeys();
+      }
    }
 
    public static boolean isMultiTenant() {
       return SecurityEngine.getSecurity().isSecurityEnabled() &&
          LicenseManager.getInstance().isEnterprise() &&
          Boolean.parseBoolean(SreeEnv.getProperty("security.users.multiTenant", "false"));
+   }
+
+   public static boolean isDefaultVSGloballyVisible() {
+      String orgScopedProperty = "security." + OrganizationManager.getInstance().getCurrentOrgID() + ".exposeDefaultOrgToAll";
+
+      return SUtil.isMultiTenant() &&
+         (Boolean.parseBoolean(SreeEnv.getProperty("security.exposeDefaultOrgToAll", "false")) ||
+          Boolean.parseBoolean(SreeEnv.getProperty(orgScopedProperty, "false")));
+   }
+
+   public static boolean isDefaultVSGloballyVisible(Principal principal) {
+      String orgId = principal == null ? OrganizationManager.getInstance().getCurrentOrgID() :
+                                          ((XPrincipal) principal).getProperty("curr_org_id") != null
+                                       ? ((XPrincipal) principal).getProperty("curr_org_id") :
+                                          ((XPrincipal) principal).getOrgId();
+
+      String orgScopedProperty = "security." + orgId + ".exposeDefaultOrgToAll";
+      return SUtil.isMultiTenant() &&
+         (Boolean.parseBoolean(SreeEnv.getProperty("security.exposeDefaultOrgToAll", "false")) ||
+          Boolean.parseBoolean(SreeEnv.getProperty(orgScopedProperty, "false")));
+   }
+
+   public static String getOrgIDFromMVPath(String path) {
+      String[] paths = path.split("\\_");
+      String org = paths[paths.length-1];
+
+      return SecurityEngine.getSecurity().getSecurityProvider().getOrganization(org) != null ? org : null;
    }
 
    public static String appendPath(String base, String suffix) {
@@ -2815,56 +2852,102 @@ public class SUtil {
    /**
     * Gets the task name that does not contain organization info.
     */
-   public static String getTaskNameWithoutOrg(String taskFullName) {
-      if(Tool.isEmptyString(taskFullName) || !taskFullName.contains(":")) {
-         return taskFullName;
+   public static String getTaskNameWithoutOrg(String taskId) {
+      if(Tool.isEmptyString(taskId) || !taskId.contains(":")) {
+         return taskId;
       }
 
-      String name = taskFullName;
+      String name = taskId;
 
-      if(taskFullName.contains(IdentityID.KEY_DELIMITER)) {
-         String taskName = taskFullName.substring(taskFullName.indexOf(":") + 1);
+      if(taskId.contains(IdentityID.KEY_DELIMITER)) {
+         String taskName = taskId.substring(taskId.indexOf(":") + 1);
          String userName =
-            IdentityID.getIdentityIDFromKey(taskFullName.substring(0, taskFullName.indexOf(":"))).getName();
+            IdentityID.getIdentityIDFromKey(taskId.substring(0, taskId.indexOf(":"))).getName();
          name = userName + ":" + taskName;
       }
 
       return name;
    }
 
-   public static String getTaskName(String name) {
-      return getTaskName(name, null);
+   /**
+    * Gets the task name that does not contain organization info.
+    */
+   public static String getTaskOrgName(String taskFullName, Principal principal) {
+
+      if(taskFullName.contains(IdentityID.KEY_DELIMITER)) {
+         return IdentityID.getIdentityIDFromKey(taskFullName.substring(0, taskFullName.indexOf(":"))).getOrgID();
+      }
+
+      return OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal);
    }
 
-   public static String getTaskName(String name, String taskOrganization) {
+   public static String getTaskName(String name) {
       if(name.indexOf(":") < 0) {
          return name;
       }
 
       String[] names = name.split(":");
-      String currentOrg = taskOrganization == null ? OrganizationManager.getCurrentOrgName() : taskOrganization;
 
-      if(names[0].length() > currentOrg.length() + 3) {
-         return names[0].substring(0, names[0].length() - currentOrg.length() - 3) + ":" +
-            names[1];
+      if(names[0].indexOf(IdentityID.KEY_DELIMITER) > 0) {
+         String[] userNames = names[0].split(IdentityID.KEY_DELIMITER);
+         return userNames[0] + ":" + names[1];
       }
 
       return name;
    }
 
-   public static String getTaskUser(String name, String taskOrganization) {
+   public static String getTaskNameWithoutUser(String name) {
       if(name.indexOf(":") < 0) {
-         return "None";
+         return name;
       }
 
       String[] names = name.split(":");
-      String currentOrg = taskOrganization == null ? OrganizationManager.getCurrentOrgName() : taskOrganization;
+      return names[1];
+   }
 
-      if(names[0].length() > currentOrg.length() + 3) {
-         return names[0].substring(0, names[0].length() - currentOrg.length() - 3);
+   public static IdentityID getOwnerForNewTask(IdentityID user) {
+      OrganizationManager organizationManager = OrganizationManager.getInstance();
+      String currOrgId = organizationManager.getCurrentOrgID();
+
+      if(user != null && !Tool.equals(user.getOrgID(), currOrgId)) {
+         IdentityID[] orgUsers = SecurityEngine.getSecurity().getOrgUsers(currOrgId);
+
+         if(orgUsers != null) {
+            IdentityID orgAdmin = Arrays.stream(orgUsers)
+               .filter(organizationManager::isOrgAdmin)
+               .findFirst().orElse(null);
+            return orgAdmin == null ? new IdentityID(user.name, currOrgId) : orgAdmin;
+         }
+      }
+
+      return user;
+   }
+
+   public static String getTaskUser(String name) {
+      if(name == null || !name.contains(":")) {
+         return "";
+      }
+
+      String[] names = name.split(":");
+
+      if(names[0].indexOf(IdentityID.KEY_DELIMITER) > 0) {
+         String[] userNames = names[0].split(IdentityID.KEY_DELIMITER);
+         return userNames[0];
       }
 
       return names[0];
+   }
+
+   public static IdentityID getTaskOwner(String taskId) {
+      if(Tool.isEmptyString(taskId) || !taskId.contains(":")) {
+         return null;
+      }
+
+      if(taskId.contains(IdentityID.KEY_DELIMITER)) {
+         return IdentityID.getIdentityIDFromKey(taskId.substring(0, taskId.indexOf(":")));
+      }
+
+      return null;
    }
 
    public static String getDeviceName(String id) {
@@ -2893,16 +2976,29 @@ public class SUtil {
          return null;
       }
 
-      if(!SUtil.isMultiTenant()) {
+      if(!SUtil.isSecurityOn() || principal == null) {
          return path;
       }
 
-      StringBuilder stringBuilder = new
-         StringBuilder(OrganizationManager.getInstance().getCurrentOrgName(principal));
-      stringBuilder.append("/");
+      String dir = null;
+      String file = path;
+      int idx = path.lastIndexOf("/");
+
+      if(idx != -1) {
+         dir = path.substring(0, idx);
+         file = path.substring(idx + 1);
+      }
+
+      StringBuilder stringBuilder = new  StringBuilder();
+
+      if(SUtil.isMultiTenant()) {
+         stringBuilder.append(IdentityID.getIdentityIDFromKey(principal.getName()).getOrgID());
+         stringBuilder.append("/");
+      }
+
       boolean internalUser = SUtil.isInternalUser(principal);
 
-      if(internalUser) {
+      if(internalUser || principal.getName().contains(IdentityID.KEY_DELIMITER)) {
          stringBuilder.append(IdentityID.getIdentityIDFromKey(principal.getName()).getName());
       }
       else {
@@ -2910,6 +3006,27 @@ public class SUtil {
       }
 
       String prefix = stringBuilder.toString();
+
+      if(!StringUtils.isEmpty(SreeEnv.getProperty("server.save.locations"))) {
+         List<ServerLocation> serverLocations = SUtil.getServerLocations();
+         String serverPath = "";
+
+         for(ServerLocation serverLocation : serverLocations) {
+            if(dir != null && dir.startsWith(serverLocation.path())) {
+               serverPath = serverLocation.path();
+               dir = dir.substring(serverLocation.path().length());
+               break;
+            }
+         }
+         if(dir == null) {
+            dir = prefix;
+         }
+         else {
+            dir = serverPath + "/" + prefix + dir;
+         }
+
+         return dir + "/" + file;
+      }
 
       if(path.startsWith(prefix)) {
          return path;
@@ -2922,6 +3039,90 @@ public class SUtil {
             return prefix + "/" + path;
          }
       }
+   }
+
+   public static List<ServerLocation> getServerLocations() {
+      List<ServerLocation> locations = new ArrayList<>();
+      String property = SreeEnv.getProperty("server.save.locations");
+
+      if(property != null && !property.trim().isEmpty()) {
+         for(String str : property.trim().split(";")) {
+            String[] pathProperties = str.split("\\|");
+            String path = pathProperties[0];
+            String label = pathProperties[1];
+            String username = null;
+            String password = null;
+            String secretId = null;
+            boolean useSecretId = false;
+
+            if(path.contains("?")) {
+               String param = path.substring(path.lastIndexOf("?") + 1);
+               String[] kv = param.split("=");
+
+               if(kv.length == 2 && kv[0].equals("useSecretId")) {
+                  useSecretId = Boolean.parseBoolean(kv[1]);
+               }
+
+               path = path.substring(0, path.lastIndexOf("?"));
+            }
+
+            if(pathProperties.length > 2) {
+               if(useSecretId) {
+                  secretId = pathProperties[2];
+               }
+               else {
+                  username = pathProperties[2];
+                  password = pathProperties.length > 3 ? pathProperties[3] : null;
+               }
+            }
+
+            path = path.replaceAll("[/\\\\]+$", "");
+            ServerPathInfoModel pathInfoModel = ServerPathInfoModel.builder()
+               .path(path)
+               .username(username)
+               .password(password)
+               .secretId(secretId)
+               .useCredential(useSecretId)
+               .ftp(!Tool.isEmptyString(username) || !Tool.isEmptyString(secretId))
+               .build();
+            locations.add(ServerLocation.builder().path(path).label(label).pathInfoModel(pathInfoModel).build());
+         }
+      }
+
+      locations.sort(Comparator.comparing(ServerLocation::label));
+      return locations;
+   }
+
+   public static void configBinaryTypes(IgniteConfiguration config) {
+      BinaryConfiguration binaryCfg = new BinaryConfiguration();
+      binaryCfg.setTypeConfigurations(getBinaryTypeConfigurations());
+      config.setBinaryConfiguration(binaryCfg);
+   }
+
+   private static List<BinaryTypeConfiguration> getBinaryTypeConfigurations() {
+      List<BinaryTypeConfiguration> binaryTypeConfigurations = new ArrayList<>();
+      BinaryTypeConfiguration typeCfg = new BinaryTypeConfiguration();
+      typeCfg.setTypeName(Object2ObjectOpenHashMap.class.getName());
+      typeCfg.setSerializer(new Object2ObjectOpenHashMapSerializer());
+      binaryTypeConfigurations.add(typeCfg);
+
+      return binaryTypeConfigurations;
+   }
+
+   public static String[] parseSignUpUserNames(IdentityID userID, SRPrincipal principal) {
+      String firstName = null;
+      String lastName = null;
+
+      if(principal != null) {
+         firstName= principal.getProperty("SignUpFirstName");
+         lastName = principal.getProperty("SignUpLastName");
+      }
+
+      firstName = firstName != null ? firstName : userID.getName().split(" ")[0];
+      lastName = lastName != null ? lastName :
+         userID.getName().split(" ").length > 1 ? userID.name.split(" ")[1] : "";
+
+      return new String[]{firstName, lastName};
    }
 
    private static final List<WeakReference<HttpSession>> userSessions = new ArrayList<>();

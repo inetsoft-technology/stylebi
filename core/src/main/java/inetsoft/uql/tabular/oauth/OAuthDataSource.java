@@ -49,7 +49,7 @@ public interface OAuthDataSource {
    default void setPassword(String password) {
    }
 
-   @Property(label = "Client ID")
+   @Property(label = "Client ID", required = true)
    default String getClientId() {
       return null;
    }
@@ -57,7 +57,7 @@ public interface OAuthDataSource {
    default void setClientId(String clientId) {
    }
 
-   @Property(label = "Client Secret", password = true)
+   @Property(label = "Client Secret", password = true, required = true)
    default String getClientSecret() {
       return null;
    }
@@ -65,6 +65,7 @@ public interface OAuthDataSource {
    default void setClientSecret(String clientSecret) {
    }
 
+   @PropertyEditor(enabled = false)
    @Property(label = "Authorization URI")
    default String getAuthorizationUri() {
       return null;
@@ -73,6 +74,7 @@ public interface OAuthDataSource {
    default void setAuthorizationUri(String authorizationUri) {
    }
 
+   @PropertyEditor(enabled = false)
    @Property(label = "Token URI")
    default String getTokenUri() {
       return null;
@@ -81,6 +83,7 @@ public interface OAuthDataSource {
    default void setTokenUri(String tokenUri) {
    }
 
+   @PropertyEditor(enabled = false)
    @Property(label = "Scope")
    default String getScope() {
       return null;
@@ -89,6 +92,7 @@ public interface OAuthDataSource {
    default void setScope(String scope) {
    }
 
+   @PropertyEditor(enabled = false)
    @Property(label = "OAuth Flags")
    default String getOauthFlags() {
       return null;

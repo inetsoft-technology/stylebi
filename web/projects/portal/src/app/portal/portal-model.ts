@@ -38,4 +38,5 @@ export interface PortalModel {
    title: string;
    profile: boolean;
    profiling: boolean;
+   elasticLicenseExhausted: boolean;
 }

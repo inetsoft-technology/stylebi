@@ -17,6 +17,8 @@
  */
 package inetsoft.util.config;
 
+import inetsoft.util.config.crd.CRDProperty;
+
 @InetsoftConfigBean
 public class AuditConfig {
    /**
@@ -85,10 +87,16 @@ public class AuditConfig {
       this.mongo = mongo;
    }
 
+   @CRDProperty(description = "The type of audit storage", allowedValues = { "mapdb", "cosmosdb", "database", "dynamodb", "firestore", "mongo" })
    private String type;
+   @CRDProperty(description = "The CosmosDB audit storage settings")
    private CosmosDBConfig cosmosdb;
+   @CRDProperty(description = "The relational database audit storage settings")
    private DatabaseConfig database;
+   @CRDProperty(description = "The DynamoDB audit storage settings")
    private DynamoDBConfig dynamodb;
+   @CRDProperty(description = "The Firestore audit storage settings")
    private FirestoreConfig firestore;
+   @CRDProperty(description = "The MongoDB audit storage configuration")
    private MongoConfig mongo;
 }

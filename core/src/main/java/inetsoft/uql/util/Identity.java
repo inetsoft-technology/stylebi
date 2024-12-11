@@ -120,7 +120,7 @@ public interface Identity extends Serializable, Cloneable {
    /**
     * Get the organization assigned to the identity
     */
-   String getOrganization();
+   String getOrganizationID();
 
    /**
     * Get the identityID object referencing this identity

@@ -59,9 +59,11 @@
         <td mat-cell *matCellDef="let element; let i = index">
           <mat-form-field floatLabel="never" appearance="outline" color="accent">
             <mat-select [(value)]="selectedBookmarks[i]" placeholder="_#(Select Bookmark)" [compareWith]="compareBookmark" (valueChange)="fireModelChanged()">
-              <mat-option *ngFor="let bookmark of bookmarks | async" [value]="bookmark">{{bookmark.label}}</mat-option>
+              <mat-option *ngFor="let bookmark of bookmarks | async" [value]="bookmark">{{bookmark.label}}
+              </mat-option>
             </mat-select>
           </mat-form-field>
+          <mat-error *ngIf="selectedBookmarks[i].name == null">{{bookmarkNotExistsMessage(selectedBookmarks[i].label)}}</mat-error>
         </td>
       </ng-container>
       <ng-container matColumnDef="actions">
@@ -86,9 +88,9 @@
 <div class="action-options">
   <em-notification-emails
     *ngIf="model?.notificationEmailEnabled"
+    [notifyIfFailed]="actionModel?.notifyIfFailed"
     [enabled]="actionModel?.notificationEnabled"
     [emails]="actionModel?.notifications"
-    [notifyIfFailed]="actionModel?.notifyIfFailed"
     [notifyLink]="actionModel?.link"
     [emailBrowserEnabled]="emailBrowserEnabled"
     [users]="emailUsers"
@@ -107,6 +109,8 @@
     [recipients]="actionModel?.to"
     [subject]="actionModel?.subject"
     [bundledAsZip]="actionModel?.bundledAsZip"
+    [useCredential]="actionModel?.useCredential"
+    [secretId]="actionModel.secretId"
     [zipPassword]="actionModel?.password"
     [attachmentName]="actionModel?.attachmentName"
     [format]="actionModel?.format"
@@ -124,6 +128,7 @@
     [ccAddress]="actionModel?.ccAddress" [bccAddress]="actionModel?.bccAddress"
     [hasPrintLayout]="hasPrintLayout | async"
     [fipsMode]="model?.fipsMode"
+    [cloudSecrets]="model?.cloudSecrets"
     (deliveryChanged)="onDeliveryChanged($event)"
   >
   </em-delivery-emails>
@@ -145,6 +150,7 @@
     [csvSaveModel]="actionModel?.csvSaveModel"
     [tableDataAssemblies]="tableDataAssemblies | async"
     [saveExportAllTabbedTables]="actionModel.saveExportAllTabbedTables"
+    [cloudSecrets]="model?.cloudSecrets"
     (serverSaveChanged)="onServerSaveChanged($event)"
   >
   </em-server-save>

@@ -345,7 +345,7 @@ public class ScheduleClient {
          LOG.debug("Send start task request [" + taskName + "] from " + Tool.getIP() +
             " to " + server + " with config directory " +
             ConfigurationContext.getContext().getHome());
-         getSchedule(server).runNow(task, ThreadContext.getContextPrincipal());
+         getSchedule(server).runNow(task);
          result = true;
       }
 
@@ -407,7 +407,7 @@ public class ScheduleClient {
                }
                catch(RemoteException ex) {
                   LOG.error("Failed to update scheduler with delayed task: " +
-                     st.getTask().getName(), ex);
+                     st.getTask().getTaskId(), ex);
                }
             }
          }
@@ -638,7 +638,13 @@ public class ScheduleClient {
     */
    public static ScheduleClient getScheduleClient() {
       if(client == null) {
-         client = new ScheduleClient();
+         if(InetsoftConfig.getInstance().getCloudRunner() == null) {
+            client = new ScheduleClient();
+         }
+         else {
+            client = new CloudRunnerServerScheduleClient();
+         }
+
       }
 
       return client;
@@ -738,7 +744,7 @@ public class ScheduleClient {
     *
     * @return the schedule client.
     */
-   private Schedule getSchedule(String server) {
+   protected Schedule getSchedule(String server) {
       if(server.equals(Tool.getRmiIP()) ||
          Tool.getRmiIP().equals("localhost") && server.equals(Tool.getIP()))
       {

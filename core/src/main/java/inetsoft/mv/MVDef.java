@@ -24,6 +24,8 @@ import inetsoft.mv.trans.*;
 import inetsoft.report.composition.QueryTreeModel.QueryNode;
 import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.composition.execution.*;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -241,23 +243,31 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     */
    private String getName(Viewsheet vs, String otname) {
       if(vs == null) {
-         return normalize(getEntry().getPath() + "_" + otname + "_" + System.currentTimeMillis() +
-                             "_" + index.getAndIncrement());
+         String name = String.join("_", getEntry().getPath(), otname,
+                                   System.currentTimeMillis() + "", index.getAndIncrement() + "",
+                                   OrganizationManager.getInstance().getCurrentOrgID());
+         return normalize(name);
       }
 
       AssetEntry entry = vs.getBaseEntry();
-      String name = "";
-
+      StringBuilder builder = new StringBuilder();
       if(entry != null) {
-         name += entry.getPath();
+         builder.append(entry.getPath());
       }
 
       if(otname != null) {
-         name += "_" + otname;
+         builder.append("_");
+         builder.append(otname);
       }
 
-      name += "_" + System.currentTimeMillis() + "_" + index.getAndIncrement();
-      return normalize(name);
+      builder.append("_");
+      builder.append(System.currentTimeMillis());
+      builder.append("_");
+      builder.append(index.getAndIncrement());
+      builder.append("_");
+      builder.append(OrganizationManager.getInstance().getCurrentOrgID());
+
+      return normalize(builder.toString());
    }
 
    /**
@@ -352,6 +362,14 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       createMVData(ws, vs, bypass);
    }
 
+   public String getMVName() {
+      return this.mvname;
+   }
+
+   public void setMVName(String mvname) {
+      this.mvname = mvname;
+   }
+
    /**
     * Update this mv def with real data.
     */
@@ -359,8 +377,10 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       String file = MVStorage.getFile(mvname);
       MV mv = null;
 
+      String orgID = SUtil.getOrgIDFromMVPath(mvname);
+
       try {
-         mv = MVStorage.getInstance().get(file);
+         mv = MVStorage.getInstance().get(file, orgID);
       }
       catch(Exception ex) {
          LOG.warn("Failed to update materialized view definition " + mvname +
@@ -371,7 +391,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          return this;
       }
       else {
-         return mv.getDef(true);
+         return mv.getDef(true, orgID);
       }
    }
 
@@ -590,6 +610,14 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
             vsId = entry.toIdentifier();
          }
       }
+   }
+
+   public void setVsId(String vsId) {
+      this.vsId = vsId;
+   }
+
+   public void setWsId(String wsId) {
+      this.wsId = wsId;
    }
 
    /**
@@ -1730,8 +1758,8 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
             writer.format("<user type=\"%d\">", user.getType());
             writer.format("<name><![CDATA[%s]]></name>", user.getName());
 
-            if(user.getOrganization() != null) {
-               writer.format("<organization><![CDATA[%s]]></organization>", user.getOrganization());
+            if(user.getOrganizationID() != null) {
+               writer.format("<organization><![CDATA[%s]]></organization>", user.getOrganizationID());
             }
 
             writer.print("</user>");
@@ -2058,7 +2086,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          }
       }
 
-      source = XUtil.getDatasource(box.getUser(), source);
+      source = ConnectionProcessor.getInstance().getDatasource(box.getUser(), source);
       QueryNode node = query.getQueryPlan();
 
       StringBuilder sb = new StringBuilder(source + "\n");
@@ -2281,6 +2309,35 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       return null;
    }
 
+   public MVDef deepClone() {
+      try {
+         MVDef mvdef = (MVDef) super.clone();
+
+         if(mvdef.container != null) {
+            mvdef.container = mvdef.container.clone();
+         }
+
+         if(data != null) {
+            mvdef.data = data.deepClone();
+         }
+
+         if(users != null) {
+            mvdef.users = (Identity[]) Tool.clone(users);
+         }
+
+         if(runtimeVariables != null) {
+            mvdef.runtimeVariables = runtimeVariables.clone();
+         }
+
+         return mvdef;
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to clone materialized view definition", ex);
+      }
+
+      return null;
+   }
+
    /**
     * Get the worksheet file name.
     */
@@ -2298,11 +2355,26 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
 
       try {
          Worksheet.setIsTEMP(true);
-         MVWorksheetStorage.getInstance().putWorksheet(getWorksheetPath(), ws);
+         String orgID = handleUpdatingOrgID();
+         MVWorksheetStorage.getInstance().putWorksheet(getWorksheetPath(), ws, orgID);
       }
       finally {
          Worksheet.setIsTEMP(false);
       }
+   }
+
+   //in the case that worksheet is being saved on orgID change, worksheet needs the new orgID passed to save to storage
+   //grab new org id from users, which was already updated
+   private String handleUpdatingOrgID() {
+      Identity user = this.users == null || this.users.length == 0 ? null : this.users[0];
+      String uOrgID = user == null ? null : user.getOrganizationID();
+      String curOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(uOrgID != null && !Tool.equals(curOrgID,uOrgID)) {
+         return uOrgID;
+      }
+
+      return curOrgID;
    }
 
    /**
@@ -2330,7 +2402,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
     * Parse the ws file.
     */
    private Worksheet parseWorksheet() throws Exception {
-      return MVWorksheetStorage.getInstance().getWorksheet(getWorksheetPath());
+      return MVWorksheetStorage.getInstance().getWorksheet(getWorksheetPath(), handleUpdatingOrgID());
    }
 
    /**
@@ -2477,7 +2549,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    /**
     * MV Container contains mv columns and worksheet.
     */
-   private static class MVContainer implements Serializable, Cloneable {
+   static class MVContainer implements Serializable, Cloneable {
       MVContainer(List<MVColumn> columns, Worksheet ws) {
          this.columns = columns;
          this.ws = ws;
@@ -2518,6 +2590,7 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
    private transient SoftReference<MVContainer> containerRef = new SoftReference<>(null);
    private String plan = null; // query plan of the mvDef
    private String mvname = null; // name of this mv
+   private String orgID = null; //orgid of this mv
    private String vsId = null; // viewsheet identifier
    private String wsId = null; // worksheet identifier
    private String tname = null; // mv table name

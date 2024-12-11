@@ -38,9 +38,12 @@ public class MVWorksheetStorage implements AutoCloseable {
       return SingletonManager.getInstance(MVWorksheetStorage.class);
    }
 
-   public Worksheet getWorksheet(String path) throws Exception {
+   public Worksheet getWorksheet(String path, String orgID) throws Exception {
+      return getWorksheet(getStorage(orgID), path);
+   }
+
+   public Worksheet getWorksheet(BlobStorage<Metadata> storage, String path) throws Exception {
       Worksheet worksheet = null;
-      BlobStorage<Metadata> storage = getStorage();
 
       if(storage.exists(path)) {
          try(InputStream input = storage.getInputStream(path)) {
@@ -55,8 +58,12 @@ public class MVWorksheetStorage implements AutoCloseable {
       return worksheet;
    }
 
-   public void putWorksheet(String path, Worksheet worksheet) throws IOException {
-      try(BlobTransaction<Metadata> tx = getStorage().beginTransaction();
+   public void putWorksheet(String path, Worksheet worksheet, String orgID) throws IOException {
+      putWorksheet(getStorage(orgID), path, worksheet);
+   }
+
+   public void putWorksheet(BlobStorage<Metadata> storage, String path, Worksheet worksheet) throws IOException {
+      try(BlobTransaction<Metadata> tx = storage.beginTransaction();
           OutputStream output = tx.newStream(path, new Metadata()))
       {
          PrintWriter writer =
@@ -77,7 +84,12 @@ public class MVWorksheetStorage implements AutoCloseable {
    }
 
    private BlobStorage<Metadata> getStorage() {
-      String storeID = OrganizationManager.getInstance().getCurrentOrgID() + "__" + "mvws";
+      String storeID = OrganizationManager.getInstance().getCurrentOrgID().toLowerCase() + "__" + "mvws";
+      return SingletonManager.getInstance(BlobStorage.class, storeID, false);
+   }
+
+   private BlobStorage<Metadata> getStorage(String orgID) {
+      String storeID = orgID.toLowerCase() + "__" + "mvws";
       return SingletonManager.getInstance(BlobStorage.class, storeID, false);
    }
 

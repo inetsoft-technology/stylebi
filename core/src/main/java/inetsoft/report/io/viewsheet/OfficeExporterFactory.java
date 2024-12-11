@@ -31,6 +31,10 @@ public interface OfficeExporterFactory {
 
    WSExporter createWorksheetExporter();
 
+   default WSExporter createWorksheetExporter(int row, int col) {
+      return createWorksheetExporter();
+   }
+
    static OfficeExporterFactory getInstance() {
       try {
          Class<?> clazz = OfficeExporterFactory.class.getClassLoader()

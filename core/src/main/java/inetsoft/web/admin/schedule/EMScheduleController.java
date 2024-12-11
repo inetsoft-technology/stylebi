@@ -337,11 +337,13 @@ public class EMScheduleController {
       TitleDescriptor xTitle = new TitleDescriptor();
       xTitle.setTitleValue(catalog.getString("Tasks"));
       xTitle.getTextFormat().setColor(fgColor);
+      xTitle.getTextFormat().setBackground(bgColor);
 
       TitleDescriptor yTitle = new TitleDescriptor();
       yTitle.setTitleValue(catalog.getString(type));
       yTitle.getTextFormat().setRotation(90);
       yTitle.getTextFormat().setColor(fgColor);
+      yTitle.getTextFormat().setBackground(bgColor);
 
       ChartDescriptor chart = new ChartDescriptor();
       chart.setPreferredSize(new Dimension(width, height));
@@ -362,6 +364,7 @@ public class EMScheduleController {
       info.setSeparatedGraph(false);
       info.setMultiStyles(false);
       info.setRTChartType(GraphTypes.CHART_BAR_STACK);
+      info.getAxisDescriptor().getAxisLabelTextFormat().setBackground(bgColor);
 
       BaseField field = new BaseField((String) data[0][0]);
       VSChartDimensionRef dimension = new VSChartDimensionRef(field);
@@ -425,6 +428,7 @@ public class EMScheduleController {
          AxisSpec spec = scale.getAxisSpec();
          spec.setTruncate(true);
          spec.getTextSpec().setColor(fgColor);
+         spec.getTextSpec().setBackground(bgColor);
 
          if(isDarkEM) {
             spec.setLineColor(bgColor.darker());

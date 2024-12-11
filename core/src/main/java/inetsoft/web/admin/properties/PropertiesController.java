@@ -74,8 +74,12 @@ public class PropertiesController {
    public Properties getProperties() {
       Properties properties = SreeEnv.getProperties();
 
-     if(properties.get("license.key") != null && !LicenseManager.getInstance().isEnterprise()) {
+      if(properties.get("license.key") != null && !LicenseManager.getInstance().isEnterprise()) {
          properties.remove("license.key");
+      }
+
+      if(!LicenseManager.getInstance().isEnterprise()) {
+         removeUnuseProperties(properties);
       }
 
       return properties;
@@ -83,6 +87,27 @@ public class PropertiesController {
 
    @GetMapping("/api/admin/properties/defaults")
    public Properties getDefaultProperties() {
-      return SreeEnv.getDefaultProperties();
+      Properties properties = SreeEnv.getDefaultProperties();
+
+      if(!LicenseManager.getInstance().isEnterprise()) {
+         removeUnuseProperties(properties);
+      }
+
+      return properties;
+   }
+
+   private void removeUnuseProperties(Properties properties) {
+      properties.remove("log.fluentd.host");
+      properties.remove("log.fluentd.orgadminaccess");
+      properties.remove("log.fluentd.port");
+      properties.remove("log.fluentd.security.userauthenticationenabled");
+      properties.remove("log.fluentd.connecttimeout");
+      properties.remove("log.fluentd.securityenabled");
+      properties.remove("log.fluentd.tlsenabled");
+      properties.remove("log.level.intesoft.storage.aws.com.amazonaws");
+      properties.remove("log.level.inetsoft.storage.aws.org.apache");
+      properties.remove("log.level.inetsoft.web.portal.controller.ControllerErrorHandler");
+      properties.remove("log.level.inetsoft_audit");
+      properties.remove("log.level.org.apache.ignite");
    }
 }

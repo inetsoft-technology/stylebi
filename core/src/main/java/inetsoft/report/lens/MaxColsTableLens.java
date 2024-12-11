@@ -32,6 +32,8 @@ public class MaxColsTableLens extends AbstractTableLens implements TableFilter {
     * Constructor.
     */
    public MaxColsTableLens(TableLens table, int max) {
+      super();
+
       this.table = table;
       this.max = max;
    }

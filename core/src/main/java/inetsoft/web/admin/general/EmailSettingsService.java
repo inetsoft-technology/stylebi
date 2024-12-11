@@ -18,6 +18,7 @@
 package inetsoft.web.admin.general;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.general.model.EmailSettingsModel;
 import inetsoft.web.viewsheet.AuditUser;
@@ -38,11 +39,13 @@ public class EmailSettingsService {
          .jndiUrl(SreeEnv.getProperty("mail.jndi.url"))
          .smtpAuthentication("true".equals(SreeEnv.getProperty("mail.smtp.auth")))
          .smtpUser(SreeEnv.getProperty("mail.smtp.user"))
-         .smtpPassword(SreeEnv.getPassword("mail.smtp.pass"))
+         .smtpSecretId(Tool.isCloudSecrets() ? SreeEnv.getProperty("mail.smtp.pass") : null)
+         .smtpPassword(!Tool.isCloudSecrets() ? SreeEnv.getPassword("mail.smtp.pass") : null)
          .fromAddress(SreeEnv.getProperty("mail.from.address"))
          .deliveryMailSubjectFormat(SreeEnv.getProperty("mail.subject.format"))
          .notificationMailSubjectFormat(SreeEnv.getProperty("mail.notification.subject.format"))
          .historyEnabled(historyEnabled)
+         .secretIdVisible(Tool.isCloudSecrets())
          .build();
    }
 
@@ -59,7 +62,8 @@ public class EmailSettingsService {
 
       if(model.smtpAuthentication()) {
          SreeEnv.setProperty("mail.smtp.user", model.smtpUser());
-         SreeEnv.setPassword("mail.smtp.pass", model.smtpPassword());
+         SreeEnv.setPassword(
+            "mail.smtp.pass", Tool.isCloudSecrets() ? model.smtpSecretId() :model.smtpPassword());
       }
 
       SreeEnv.setProperty("mail.smtp.host", model.smtpHost());

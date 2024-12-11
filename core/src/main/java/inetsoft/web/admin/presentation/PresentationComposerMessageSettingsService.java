@@ -18,7 +18,9 @@
 package inetsoft.web.admin.presentation;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.PresentationComposerMessageSettingsModel;
+import inetsoft.web.viewsheet.Audited;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -35,6 +37,11 @@ public class PresentationComposerMessageSettingsService {
          .build();
    }
 
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_EDIT,
+      objectName = "Presentation-Composer Message",
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
    public void setModel(PresentationComposerMessageSettingsModel model, boolean globalSettings) throws IOException {
       SreeEnv.setProperty("composer.vs.create.messsage", model.viewsheetCreateMessage(), !globalSettings);
       SreeEnv.setProperty("composer.vs.edit.messsage", model.viewsheetEditMessage(), !globalSettings);

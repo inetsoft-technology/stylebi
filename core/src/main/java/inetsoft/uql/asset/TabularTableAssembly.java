@@ -25,8 +25,8 @@ import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.tabular.*;
+import inetsoft.uql.util.ConnectionProcessor;
 import inetsoft.uql.util.QueryManager;
-import inetsoft.uql.util.XUtil;
 import inetsoft.util.ThreadContext;
 import inetsoft.web.composer.model.ws.DependencyType;
 import org.slf4j.Logger;
@@ -89,7 +89,7 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
             XDataSource ds = null;
 
             if(principal != null && query.getDataSource() != null) {
-               ds = XUtil.getDatasource(principal, query.getDataSource());
+               ds = ConnectionProcessor.getInstance().getDatasource(principal, query.getDataSource());
             }
 
             if(ds == null) {

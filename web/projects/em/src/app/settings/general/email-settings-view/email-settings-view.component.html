@@ -45,19 +45,28 @@
             <input matInput placeholder="_#(User Name)" formControlName="smtpUser">
             <mat-error>_#(Invalid user name)</mat-error>
           </mat-form-field>
-          <mat-form-field appearance="outline" color="accent">
-            <mat-label>_#(Password)</mat-label>
-            <input matInput [type]="hidePassword ? 'password' : 'text'" placeholder="_#(Password)" formControlName="smtpPassword">
-            <mat-icon matSuffix fontSet="ineticons" [fontIcon]="hidePassword ? 'eye-icon' : 'eye-off-icon'" (click)="hidePassword = !hidePassword"></mat-icon>
-            <mat-error>_#(em.login.pwdEmpty)</mat-error>
-          </mat-form-field>
-          <mat-form-field appearance="outline" color="accent">
-            <mat-label>_#(Confirm Password)</mat-label>
-            <input matInput [type]="hidePassword ? 'password' : 'text'" placeholder="_#(Confirm Password)"
-                   formControlName="confirmSmtpPassword" [errorStateMatcher]="errorStateMatcher">
-            <mat-icon matSuffix fontSet="ineticons" [fontIcon]="hidePassword ? 'eye-icon' : 'eye-off-icon'" (click)="hidePassword = !hidePassword"></mat-icon>
-            <mat-error>_#(viewer.password.confirmPwd)</mat-error>
-          </mat-form-field>
+          <ng-container *ngIf="model.secretIdVisible">
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(Secret ID)</mat-label>
+              <input matInput type="text" placeholder="_#(Secret ID)" formControlName="smtpSecretId">
+              <mat-error>_#(em.settings.general.email.smtpSecretIDEmpty)</mat-error>
+            </mat-form-field>
+          </ng-container>
+          <ng-container *ngIf="!model.secretIdVisible">
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(Password)</mat-label>
+              <input matInput [type]="hidePassword ? 'password' : 'text'" placeholder="_#(Password)" formControlName="smtpPassword">
+              <mat-icon matSuffix fontSet="ineticons" [fontIcon]="hidePassword ? 'eye-icon' : 'eye-off-icon'" (click)="hidePassword = !hidePassword"></mat-icon>
+              <mat-error>_#(em.login.pwdEmpty)</mat-error>
+            </mat-form-field>
+            <mat-form-field appearance="outline" color="accent">
+              <mat-label>_#(Confirm Password)</mat-label>
+              <input matInput [type]="hidePassword ? 'password' : 'text'" placeholder="_#(Confirm Password)"
+                     formControlName="confirmSmtpPassword" [errorStateMatcher]="errorStateMatcher">
+              <mat-icon matSuffix fontSet="ineticons" [fontIcon]="hidePassword ? 'eye-icon' : 'eye-off-icon'" (click)="hidePassword = !hidePassword"></mat-icon>
+              <mat-error>_#(viewer.password.confirmPwd)</mat-error>
+            </mat-form-field>
+          </ng-container>
         </ng-container>
         <mat-checkbox class="mat-checkbox-field" formControlName="historyEnabled">
           _#(Autocomplete Email)

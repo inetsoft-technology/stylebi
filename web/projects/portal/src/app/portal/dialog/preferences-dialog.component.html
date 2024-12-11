@@ -30,7 +30,8 @@
                    [class.is-invalid]="!emailControl.valid && emailControl.dirty"/>
             <label>_#(Email)</label>
             <span class="invalid-feedback invalid-feedback-content"
-                  *ngIf="emailControl.getError('emailFormatIfNotNull')">
+                  *ngIf="emailControl.getError('emailSpecialCharacters')
+                  || emailControl.getError('email')">
                   _#(viewer.mailto.invalidFormat)
                 </span>
           </div>
@@ -45,7 +46,8 @@
           <div class="col">
             <label class="form-check-label">
               <input type="checkbox" class="form-check-input"
-                     [(ngModel)]="model.historyBarEnabled"/>
+                     [(ngModel)]="model.historyBarEnabled"
+                     (ngModelChange)="updateOkState()"/>
               _#(portal.history.bar.enable)
             </label>
           </div>
@@ -54,7 +56,7 @@
     </div>
   </ng-template>
   <ng-template wDialogButtons>
-    <button type="button" class="btn btn-primary" (click)="okClicked()" [disabled]="!isValid()">
+    <button type="button" class="btn btn-primary" (click)="okClicked()" [disabled]="!isValid() && !isButtonEnabled">
       _#(OK)
     </button>
     <button type="button" class="btn btn-default" (click)="closeDialog()">_#(Cancel)</button>

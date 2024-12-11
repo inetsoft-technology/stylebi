@@ -404,11 +404,9 @@ public class mxCoordinateAssignment implements mxHierarchicalLayoutStage {
                WeightedCellSorter connectedCellWrapper = map
                   .get(connectedCell);
 
-               if(connectedCellWrapper != null) {
-                  if(connectedCellWrapper.visited == false) {
-                     connectedCellWrapper.visited = true;
-                     nodeList.add(connectedCellWrapper);
-                  }
+               if(connectedCellWrapper != null && !connectedCellWrapper.visited) {
+                  connectedCellWrapper.visited = true;
+                  nodeList.add(connectedCellWrapper);
                }
             }
 
@@ -418,11 +416,9 @@ public class mxCoordinateAssignment implements mxHierarchicalLayoutStage {
                WeightedCellSorter connectedCellWrapper = map
                   .get(connectedCell);
 
-               if(connectedCellWrapper != null) {
-                  if(connectedCellWrapper.visited == false) {
-                     connectedCellWrapper.visited = true;
-                     nodeList.add(connectedCellWrapper);
-                  }
+               if(connectedCellWrapper != null && !connectedCellWrapper.visited) {
+                  connectedCellWrapper.visited = true;
+                  nodeList.add(connectedCellWrapper);
                }
             }
          }
@@ -774,7 +770,7 @@ public class mxCoordinateAssignment implements mxHierarchicalLayoutStage {
          localX += intraCellSpacing;
       }
 
-      if(boundsWarning == true) {
+      if(boundsWarning) {
          log.warning("At least one cell has no bounds");
       }
    }
@@ -865,7 +861,7 @@ public class mxCoordinateAssignment implements mxHierarchicalLayoutStage {
             rankWidths[rankValue] = localX;
          }
 
-         if(boundsWarning == true) {
+         if(boundsWarning) {
             log.warning("At least one cell has no bounds");
          }
 

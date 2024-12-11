@@ -24,8 +24,9 @@
           (datasourceChanged)="datasourceChanged($event)"
           (datasourceValid)="updateDatasourceValid($event)"
           (onWarning)="dataNotifications.notifications.danger($event)"
+          (onSuccess)="dataNotifications.notifications.success($event)"
           ></datasources-datasource-editor>
-        <ng-container *ngIf="datasource.tabularView">
+        <ng-container *ngIf="datasource.tabularView && enterprise">
           <div class="row">
             <div class="col">
               <label class="addition-label">_#(Additional Connections) :</label>

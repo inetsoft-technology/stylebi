@@ -291,13 +291,17 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    }
 
    public LogicalLibraryEntry getLogicalLibraryEntry(String name) {
+      return getLogicalLibraryEntry(name, null);
+   }
+
+   public LogicalLibraryEntry getLogicalLibraryEntry(String name, String orgID) {
       lock.readLock().lock();
 
       try {
          LogicalLibraryEntry entry = null;
 
          if(checkPermission(getResourceType(), name, ResourceAction.READ)) {
-            entry = Optional.ofNullable(getNameToEntryMap(null).get(name))
+            entry = Optional.ofNullable(getNameToEntryMap(orgID).get(name))
                .orElse(null);
          }
 
@@ -311,6 +315,16 @@ public abstract class AbstractLogicalLibrary<T> implements LogicalLibrary<T> {
    @Override
    public T get(String name) {
       LogicalLibraryEntry<T> logicalLibraryEntry = getLogicalLibraryEntry(name);
+
+      if(logicalLibraryEntry == null) {
+         return null;
+      }
+
+      return logicalLibraryEntry.asset();
+   }
+
+   public T get(String name, String orgID) {
+      LogicalLibraryEntry<T> logicalLibraryEntry = getLogicalLibraryEntry(name, orgID);
 
       if(logicalLibraryEntry == null) {
          return null;

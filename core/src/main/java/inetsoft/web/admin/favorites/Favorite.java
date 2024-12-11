@@ -17,26 +17,25 @@
  */
 package inetsoft.web.admin.favorites;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.immutables.serial.Serial;
-import org.immutables.value.Value;
-
 import java.io.Serializable;
 
-@Value.Immutable
-@Serial.Structural
-@JsonSerialize(as = ImmutableFavorite.class)
-@JsonDeserialize(as = ImmutableFavorite.class)
-public abstract class Favorite implements Serializable {
-   public abstract String label();
-
-   public abstract String path();
-
-   public static Builder builder() {
-      return new Builder();
+public class Favorite implements Serializable {
+   public String getLabel() {
+      return label;
    }
 
-   public static final class Builder extends ImmutableFavorite.Builder {
+   public void setLabel(String label) {
+      this.label = label;
    }
+
+   public String getPath() {
+      return path;
+   }
+
+   public void setPath(String path) {
+      this.path = path;
+   }
+
+   private String label;
+   private String path;
 }

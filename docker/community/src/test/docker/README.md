@@ -3,9 +3,7 @@
 First build the Docker image by running the following commands:
 
 ```
-mvnw clean package -o -pl docker
-cd docker/target/docker
-docker buildx bake
+mvnw clean package -o -f docker -Pcommunity,dockerImage
 ```
 
 Then, in the `docker/target/docker-test` folder, start the server and scheduler:

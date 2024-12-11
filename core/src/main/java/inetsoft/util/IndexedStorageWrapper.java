@@ -18,6 +18,7 @@
 package inetsoft.util;
 
 import inetsoft.sree.security.Organization;
+import inetsoft.uql.util.AbstractIdentity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -137,8 +138,8 @@ public class IndexedStorageWrapper implements IndexedStorage {
     * @throws Exception
     */
    @Override
-   public void putDocument(String key, Document doc, String className) {
-      storage.putDocument(key, doc, className);
+   public void putDocument(String key, Document doc, String className, String orgID) {
+      storage.putDocument(key, doc, className, orgID);
    }
 
    /**
@@ -148,8 +149,8 @@ public class IndexedStorageWrapper implements IndexedStorage {
     * @return the asset document.
     */
    @Override
-   public Document getDocument(String key) {
-      return storage.getDocument(key);
+   public Document getDocument(String key, String orgID) {
+      return storage.getDocument(key, orgID);
    }
 
    /**
@@ -397,13 +398,18 @@ public class IndexedStorageWrapper implements IndexedStorage {
    }
 
    @Override
-   public void migrateStorageData(Organization oorg, Organization norg) throws Exception {
+   public void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg) throws Exception {
       storage.migrateStorageData(oorg, norg);
    }
 
    @Override
-   public void copyStorageData(String oId, String nId) throws Exception {
-      storage.copyStorageData(oId, nId);
+   public void migrateStorageData(String oname, String nname) throws Exception {
+      storage.migrateStorageData(oname, nname);
+   }
+
+   @Override
+   public void copyStorageData(Organization oOrg, Organization nOrg) throws Exception {
+      storage.copyStorageData(oOrg, nOrg);
    }
 
    @Override

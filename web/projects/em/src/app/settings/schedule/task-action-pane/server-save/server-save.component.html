@@ -42,7 +42,19 @@
         <th mat-header-cell class="checkbox-column" *matHeaderCellDef> _#(FTP/SFTP) </th>
         <td mat-cell class="checkbox-column" *matCellDef="let element">
           <div class="checkbox-container">
-            <mat-checkbox [(ngModel)]="element.ftp"></mat-checkbox>
+            <mat-checkbox [(ngModel)]="element.ftp" (ngModelChange)="updateFtp()"></mat-checkbox>
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="secretId">
+        <th mat-header-cell class="checkbox-column" *matHeaderCellDef> _#(Secret ID) </th>
+        <td mat-cell class="checkbox-column" *matCellDef="let element">
+          <div class="checkbox-container">
+            <mat-checkbox [(ngModel)]="element.useCredential"
+                          [disabled]="!element.ftp"
+                          (ngModelChange)="fireServerSaveChanged()">
+            </mat-checkbox>
           </div>
         </td>
       </ng-container>
@@ -53,13 +65,15 @@
         <form *ngIf="filesForm" [formGroup]="filesForm">
           <td mat-cell class="path-column" *matCellDef="let element; let i = index" >
             <div class="path-container">
-              <ng-container formArrayName="paths">
+              <ng-container formArrayName="locationPaths">
                 <mat-form-field *ngIf="hasLocations" floatLabel="never" appearance="outline" color="accent">
-                  <mat-select [(value)]="element.locationPath" (valueChange)="fireServerSaveChanged()" placeholder="_#(Location)" [required]="true">
+                  <mat-select [formControlName]="i" (selectionChange)="locationPathChanged(i)" placeholder="_#(Location)" [required]="true">
                     <mat-option *ngFor="let location of locations" [value]="location.path">{{location.label}}</mat-option>
                   </mat-select>
-                  <mat-error *ngIf="!element.locationPath">#(em.schedule.action.serverLocationRequired)</mat-error>
+                  <mat-error *ngIf="!element.locationPath">_#(em.schedule.action.serverLocationRequired)</mat-error>
                 </mat-form-field>
+              </ng-container>
+              <ng-container formArrayName="paths">
                 <mat-form-field appearance="outline" color="accent">
                   <input type="text" matInput [formControlName]="i" (change)="updatePathForm(i)" placeholder="_#(Path)" [required]="true"/>
                   <mat-error *ngIf="!element.filePath">
@@ -70,14 +84,21 @@
                     _#(em.schedule.action.pathIsDirectory)</mat-error>
                 </mat-form-field>
               </ng-container>
-              <ng-container formArrayName="usernames" *ngIf="!hasLocations && element.ftp">
+              <ng-container formArrayName="secretIdForms" *ngIf="!hasLocations && element.ftp && element.useCredential">
+                <mat-form-field floatLabel="always" appearance="outline" color="accent">
+                  <mat-label>_#(Secret ID)</mat-label>
+                  <input type="text" matInput [formControlName]="i" (change)="updateSecretIDForm(i)" placeholder="_#(Secret ID)"
+                         [required]="false"/>
+                </mat-form-field>
+              </ng-container>
+              <ng-container formArrayName="usernames" *ngIf="!hasLocations && element.ftp && !element.useCredential">
                 <mat-form-field floatLabel="always" appearance="outline" color="accent">
                   <mat-label>_#(Username)</mat-label>
                   <input type="text" matInput [formControlName]="i" (change)="updateUserForm(i)" placeholder="_#(Username)"
                          [required]="false"/>
                 </mat-form-field>
               </ng-container>
-              <ng-container formArrayName="passwords" *ngIf="!hasLocations && element.ftp">
+              <ng-container formArrayName="passwords" *ngIf="!hasLocations && element.ftp && !element.useCredential">
                 <mat-form-field floatLabel="always" appearance="outline" color="accent">
                   <mat-label>_#(Password)</mat-label>
                   <input type="password" matInput [formControlName]="i" (change)="updatePasswordForm(i)" placeholder="_#(Password)"

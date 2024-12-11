@@ -19,10 +19,11 @@ import { AuditRecordList, AuditRecordParameters } from "../audit-table-view/audi
 
 export interface ModificationHistoryParameters extends AuditRecordParameters {
    users: string[];
-   organizations: string[];
+   organizationNames: string[];
    objectTypes: string[];
    hosts: string[];
-   systemAdministrator: boolean;
+   modifyStatuses: string[];
+   organizationFilter: boolean;
 }
 
 export interface ModificationHistory {
@@ -34,6 +35,7 @@ export interface ModificationHistory {
    message: string;
    modifyType: string;
    server: string;
+   dateFormat: string;
 }
 
 export interface ModificationHistoryList extends AuditRecordList<ModificationHistory> {

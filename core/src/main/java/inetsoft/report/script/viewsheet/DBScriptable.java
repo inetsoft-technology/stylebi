@@ -21,7 +21,7 @@ import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.uql.*;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.jdbc.JDBCHandler;
-import inetsoft.uql.util.XUtil;
+import inetsoft.uql.util.ConnectionProcessor;
 import inetsoft.util.Tool;
 import inetsoft.util.script.FunctionObject2;
 import org.mozilla.javascript.FunctionObject;
@@ -62,7 +62,7 @@ public class DBScriptable extends ScriptableObject {
 
       try {
          XRepository rep = XFactory.getRepository();
-         xds = XUtil.getDatasource(principal, rep.getDataSource(source, true));
+         xds = ConnectionProcessor.getInstance().getDatasource(principal, rep.getDataSource(source, true));
       }
       catch(Throwable ex) {
          LOG.error("Failed to get data source: " + source, ex);

@@ -18,6 +18,7 @@
 package inetsoft.util.config;
 
 import java.io.Serializable;
+import java.util.Map;
 import java.util.Objects;
 
 @InetsoftConfigBean
@@ -89,7 +90,22 @@ public class CloudRunnerConfig implements Serializable {
       this.docker = docker;
    }
 
+   /**
+    * Debug properties. Default values:
+    * DEBUG=false
+    * DEBUG_PORT=5009
+    * DEBUG_SUSPEND=n
+    */
+   public Map<String, String> getDebugProperties() {
+      return debugProperties;
+   }
+
+   public void setDebugProperties(Map<String, String> debugProperties) {
+      this.debugProperties = debugProperties;
+   }
+
    private String type;
+   private Map<String, String> debugProperties;
    private FargateCloudRunnerConfig fargate;
    private GoogleCloudRunnerConfig google;
    private KubernetesCloudRunnerConfig kubernetes;

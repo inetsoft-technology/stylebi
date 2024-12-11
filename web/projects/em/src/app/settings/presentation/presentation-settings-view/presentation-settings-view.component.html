@@ -37,18 +37,19 @@
       <div id="look-and-feel" emNavigationScrollableItem="look-and-feel">
         <em-look-and-feel-settings-view
           [isSysAdmin]="isSysAdmin"
+          [orgId]="orgSettings || !isSysAdmin ? orgId : null"
           [model]="model?.lookAndFeelSettingsModel"
           [securityEnabled]="model?.securityEnabled"
           (modelChanged)="onModelChanged($event)">
         </em-look-and-feel-settings-view>
       </div>
-      <div *ngIf="isSysAdmin" id="welcome-page" emNavigationScrollableItem="welcome-page">
+      <div id="welcome-page" emNavigationScrollableItem="welcome-page">
         <em-welcome-page-settings-view
           [model]="model?.welcomePageSettingsModel"
           (modelChanged)="onModelChanged($event)">
         </em-welcome-page-settings-view>
       </div>
-      <div *ngIf="isSysAdmin" id="login-banner" emNavigationScrollableItem="login-banner">
+      <div id="login-banner" emNavigationScrollableItem="login-banner">
         <em-presentation-login-banner-settings-view
           [model]="model?.loginBannerSettingsModel"
           (modelChanged)="onModelChanged($event)">
@@ -59,6 +60,20 @@
                 [model]="model?.composerSettingMessageModel"
                 (modelChanged)="onModelChanged($event)">
         </em-presentation-composer-message-settings-view>
+      </div>
+      <div id="dashboard-settings" emNavigationScrollableItem="dashboard-settings">
+        <em-presentation-dashboard-settings-view
+          *ngIf="model?.dashboardSettingsModel"
+          [model]="model?.dashboardSettingsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-presentation-dashboard-settings-view>
+      </div>
+      <div id="viewsheet-toolbar" *ngIf="model?.viewsheetToolbarOptionsModel"
+           emNavigationScrollableItem="viewsheet-toolbar">
+        <em-presentation-viewsheet-toolbar-options-view
+          [model]="model?.viewsheetToolbarOptionsModel"
+          (modelChanged)="onModelChanged($event)">
+        </em-presentation-viewsheet-toolbar-options-view>
       </div>
       <div id="portal-integration" emNavigationScrollableItem="portal-integration">
         <em-portal-integration-view
@@ -73,20 +88,6 @@
           [model]="model?.timeSettingsModel"
           (modelChanged)="onModelChanged($event)">
         </em-presentation-time-settings-view>
-      </div>
-      <div id="viewsheet-toolbar" *ngIf="model?.viewsheetToolbarOptionsModel"
-           emNavigationScrollableItem="viewsheet-toolbar">
-        <em-presentation-viewsheet-toolbar-options-view
-          [model]="model?.viewsheetToolbarOptionsModel"
-          (modelChanged)="onModelChanged($event)">
-        </em-presentation-viewsheet-toolbar-options-view>
-      </div>
-      <div id="dashboard-settings" emNavigationScrollableItem="dashboard-settings">
-        <em-presentation-dashboard-settings-view
-          *ngIf="model?.dashboardSettingsModel"
-          [model]="model?.dashboardSettingsModel"
-          (modelChanged)="onModelChanged($event)">
-        </em-presentation-dashboard-settings-view>
       </div>
       <div id="pdf" emNavigationScrollableItem="pdf">
         <em-presentation-pdf-generation-settings-view

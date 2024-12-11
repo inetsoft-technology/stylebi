@@ -51,13 +51,6 @@ export class LicenseKeyListComponent implements OnInit {
    }
 
    private get keyType(): LicenseKeyType {
-      if(this.scheduler) {
-         return LicenseKeyType.SCHEDULER;
-      }
-      else {
-         return LicenseKeyType.SERVER;
-      }
-
       return LicenseKeyType.SERVER;
    }
 
@@ -172,14 +165,13 @@ export class LicenseKeyListComponent implements OnInit {
    }
 
    private openKeyDialog(type: LicenseKeyType, key?: LicenseKeyModel): Observable<LicenseKeyModel> {
-      const keys = type === LicenseKeyType.SCHEDULER ? [] : this.keys;
       return this.dialog.open(EditLicenseKeyDialogComponent, {
          role: "dialog",
          width: "500px",
          maxWidth: "100%",
          maxHeight: "100%",
          disableClose: true,
-         data: new EditLicenseKeyDialogData(key, type, keys)
+         data: new EditLicenseKeyDialogData(key, type, this.keys)
       }).afterClosed();
    }
 }

@@ -362,8 +362,11 @@ public class ODataRuntime extends TabularRuntime {
    static Document getMetaDataDocument(ODataDataSource ds) {
       try(CloseableHttpClient httpClient = HttpClients.createDefault()) {
          String metadataUrl = ds.getURL();
-         metadataUrl = metadataUrl.endsWith("/") ? metadataUrl + "%24metadata" :
-            metadataUrl + "/%24metadata";
+
+         if(metadataUrl != null) {
+            metadataUrl = metadataUrl.endsWith("/") ? metadataUrl + "%24metadata" :
+               metadataUrl + "/%24metadata";
+         }
 
          HttpGet getRequest = new HttpGet(metadataUrl);
          //only mime type supported for getting metadata

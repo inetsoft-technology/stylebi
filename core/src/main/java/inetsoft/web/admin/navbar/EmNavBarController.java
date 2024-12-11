@@ -17,12 +17,15 @@
  */
 package inetsoft.web.admin.navbar;
 
+import inetsoft.report.internal.Util;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
+import inetsoft.util.ThreadContext;
+import inetsoft.util.data.CommonKVModel;
 import inetsoft.web.admin.security.SSOType;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -53,15 +56,31 @@ public class EmNavBarController {
 
       boolean ssoUser = principal instanceof XPrincipal &&
       !"true".equals(((XPrincipal) principal).getProperty("__internal__"));
+      LicenseManager licenseManager = LicenseManager.getInstance();
+      boolean elasticLicenseExhausted = false;
+
+      if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
+         elasticLicenseExhausted = true;
+      }
+      else if(licenseManager.isHostedLicense()) {
+         if(principal instanceof SRPrincipal srp) {
+            String orgId = srp.getOrgId();
+            String user = srp.getName();
+
+            if(licenseManager.getHostedRemainingHours(orgId, user) == 0) {
+               elasticLicenseExhausted = true;
+            }
+         }
+      }
 
       return new EmNavBarModel(logoutUri,
-                               PortalThemesManager.CUSTOM_LOGO.equals(manager.getLogoStyle()),
-                               enterprise, ssoUser);
+                               manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID()),
+                               enterprise, ssoUser, elasticLicenseExhausted);
    }
 
    @GetMapping("/api/em/navbar/organization")
    public String getCurrOrg(Principal principal) {
-      return OrganizationManager.getCurrentOrgName();
+      return OrganizationManager.getInstance().getCurrentOrgID();
    }
 
    @GetMapping("/api/em/navbar/isMultiTenant")
@@ -78,6 +97,12 @@ public class EmNavBarController {
    public boolean isSiteAdmin(Principal principal) {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       return OrganizationManager.getInstance().isSiteAdmin(principal);
+   }
+
+   @GetMapping("/api/em/navbar/userInfo")
+   public CommonKVModel getUserInfo(Principal principal) {
+      OrganizationManager manager = OrganizationManager.getInstance();
+      return new CommonKVModel(manager.getCurrentOrgID(), manager.isSiteAdmin(principal));
    }
 
    private static String DEFAULT_LOGOUT_URI = "../logout?fromEm=true";

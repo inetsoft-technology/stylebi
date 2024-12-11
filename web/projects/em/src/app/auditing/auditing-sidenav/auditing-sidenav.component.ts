@@ -21,7 +21,7 @@ import { Component, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { MatSidenav } from "@angular/material/sidenav";
 import { Router } from "@angular/router";
 import { Subject } from "rxjs";
-import { mergeMap, takeUntil, tap } from "rxjs/operators";
+import { takeUntil } from "rxjs/operators";
 import { AuthorizationService } from "../../authorization/authorization.service";
 import { LogViewLinks } from "../../monitoring/log/log-view-links";
 import { PageHeaderService } from "../../page-header/page-header.service";
@@ -52,7 +52,7 @@ export class AuditingSidenavComponent implements OnInit, OnDestroy {
    exportHistoryVisible = false;
    scheduleHistoryVisible = false;
    bookmarkHistoryVisible = false;
-   fluentdLogging = false;
+   fluentdAudit = false;
 
    private destroy$ = new Subject<void>();
 
@@ -74,11 +74,6 @@ export class AuditingSidenavComponent implements OnInit, OnDestroy {
                this.sidenav.close();
             }
          });
-
-      this.http.get<LogViewLinks>("../api/em/monitoring/audit/links")
-         .pipe(
-            tap(links => this.fluentdLogging = links.fluentdLogging),
-         )
 
       this.authzService.getPermissions("auditing")
          .subscribe(p => {

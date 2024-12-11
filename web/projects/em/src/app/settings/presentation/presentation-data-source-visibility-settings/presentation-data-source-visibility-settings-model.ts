@@ -18,7 +18,7 @@
 import { CommonKVModel } from "../../../../../../portal/src/app/common/data/common-kv-model";
 
 export interface PresentationDataSourceVisibilitySettingsModel {
-   visibleDataSources: string[];
-   hiddenDataSources: string[];
+   visibleDataSources: CommonKVModel<string, string>[];
+   hiddenDataSources: CommonKVModel<string, string>[];
    dataSourceListings: CommonKVModel<string, string>[];
 }

@@ -185,7 +185,8 @@ public class ViewsheetPropertyDialogController {
 
       AssetRepository assetRepository = viewsheetService.getAssetRepository();
       boolean enterprise = LicenseManager.getInstance().isEnterprise();
-      screensPane.setEditDevicesAllowed((!enterprise || OrganizationManager.getInstance().isSiteAdmin(principal))
+      screensPane.setEditDevicesAllowed((!enterprise || OrganizationManager.getInstance().isSiteAdmin(principal) ||
+         OrganizationManager.getInstance().getCurrentOrgID().equals(Organization.getDefaultOrganizationID()))
          && assetRepository.checkPermission(
          principal, ResourceType.DEVICE, "*", EnumSet.of(ResourceAction.ACCESS)));
 
@@ -377,49 +378,7 @@ public class ViewsheetPropertyDialogController {
       info.setTemplateHeight(screensPane.getTemplateHeight());
       info.setBalancePadding(screensPane.isBalancePadding());
 
-      DeviceRegistry registry = DeviceRegistry.getRegistry();
-      List<DeviceInfo> devices = new ArrayList<>();
-      Map<String, String> tempToId = new HashMap<>();
-
-      //The Dependenc of Deivce is the ry stored according to id
-      if(registry.getDevices().length > screensPane.getDevices().size()) {
-         List<DeviceInfo> oDevices = Arrays.stream((registry.getDevices())).toList();
-         List<String> deleteId = getDeleteDevices(oDevices, screensPane.getDevices());
-
-         for(String id : deleteId) {
-            AssetEntry entry = new AssetEntry(AssetRepository.COMPONENT_SCOPE,
-               AssetEntry.Type.DEVICE, id, null);
-            DependencyHandler.getInstance().deleteDependenciesKey(entry);
-         }
-      }
-
-      for(ScreenSizeDialogModel device: screensPane.getDevices()) {
-         DeviceInfo deviceInfo = new DeviceInfo();
-         deviceInfo.setName(device.getLabel());
-         deviceInfo.setDescription(device.getDescription());
-         deviceInfo.setMinWidth(device.getMinWidth());
-         deviceInfo.setMaxWidth(device.getMaxWidth());
-         deviceInfo.setLastModified(System.currentTimeMillis());
-         deviceInfo.setLastModifiedBy(principal.getName());
-
-         if(device.getId() == null || registry.getDevice(device.getId()) == null) {
-            String uuid = UUID.randomUUID().toString();
-            deviceInfo.setId(uuid);
-            deviceInfo.setCreated(System.currentTimeMillis());
-            deviceInfo.setCreatedBy(principal.getName());
-            tempToId.put(device.getTempId(), uuid);
-         }
-         else {
-            deviceInfo.setId(device.getId());
-         }
-
-         devices.add(deviceInfo);
-      }
-
-      registry.setDevices(devices);
-
       VSPrintLayoutDialogModel vsPrintLayoutDialog = screensPane.getPrintLayout();
-
       LayoutInfo layoutInfo = viewsheet.getLayoutInfo();
       Dimension oldPageSize = null;
 
@@ -500,16 +459,7 @@ public class ViewsheetPropertyDialogController {
 //         vsLayout.setScaleFont(layout.getScaleFont());
          vsLayout.setMobileOnly(layout.isMobileOnly());
 
-         selectedDevices = layout.getSelectedDevices()
-            .stream()
-            .map(deviceId -> {
-               if(tempToId.get(deviceId) != null) {
-                  return tempToId.get(deviceId);
-               }
-
-               return deviceId;
-            })
-            .collect(Collectors.toList());
+         selectedDevices = layout.getSelectedDevices();
          vsLayout.setDeviceIds(selectedDevices.toArray(new String[0]));
          newLayouts.add(vsLayout);
 

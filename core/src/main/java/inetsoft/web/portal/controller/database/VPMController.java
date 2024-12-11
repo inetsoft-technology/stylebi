@@ -36,6 +36,7 @@ import inetsoft.uql.schema.XTypeNode;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.binding.drm.ColumnRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
@@ -539,7 +540,7 @@ public class VPMController {
          }
 
          String name = item.getName();
-         removeVPM(dataModel, database, name);
+         removeVPM(dataModel, database, name, principal);
          String path = database + "/" + name;
          AssetEntry entry = new AssetEntry(
             AssetRepository.QUERY_SCOPE, AssetEntry.Type.VPM, path, null);
@@ -549,20 +550,17 @@ public class VPMController {
       repository.updateDataModel(dataModel);
    }
 
-   @Audited(
-      actionName = ActionRecord.ACTION_NAME_DELETE,
-      objectType = ActionRecord.OBJECT_TYPE_VIRTUAL_PRIVATE_MODEL
-   )
-   private void removeVPM(XDataModel dataModel, @AuditObjectName String database,
-                          @AuditObjectName String name)
+   private void removeVPM(XDataModel dataModel, String database, String name, Principal principal)
       throws Exception
    {
-
       if(dataModel.getVirtualPrivateModel(name) == null) {
          throw new FileNotFoundException(database + "/" + name);
       }
 
       dataModel.removeVirtualPrivateModel(name);
+      ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_DELETE,
+         database + "/" + name, ActionRecord.OBJECT_TYPE_VIRTUAL_PRIVATE_MODEL);
+      Audit.getInstance().auditAction(actionRecord, principal);
    }
 
    /**
@@ -573,8 +571,9 @@ public class VPMController {
     */
    @GetMapping(value = "/api/data/vpm/usersRoles")
    public TestData getUsersRoles(Principal principal) {
+      boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
       IdentityID[] users = securityEngine.getOrgUsers(((XPrincipal) principal).getOrgId());
-      Role[] roles = securityEngine.getRolesOrgScoped(OrganizationManager.getInstance().isSiteAdmin(principal));
+      Role[] roles = securityEngine.getRolesOrgScoped(siteAdmin);
 
       if(!SUtil.isMultiTenant()) {
          roles = Arrays.stream(roles).filter(r ->
@@ -591,6 +590,10 @@ public class VPMController {
 
       if(users != null) {
          for(IdentityID user : users) {
+            if(OrganizationManager.getInstance().isSiteAdmin(user) && !siteAdmin) {
+               continue;
+            }
+
             usersData.add(new DataItem(user.name, user.name));
          }
       }
@@ -636,18 +639,18 @@ public class VPMController {
       ArrayList<String> groupList = new ArrayList<>(0);
 
       if("user".equals(type)) {
-         user = new IdentityID(name, OrganizationManager.getCurrentOrgName());
+         user = new IdentityID(name, OrganizationManager.getInstance().getCurrentOrgID());
          groups = SUtil.getGroups(user);
 
          if(groups.length != 0) {
             userGroup = groups[0];
-            Group currentGroup = provider.getGroup(new IdentityID(userGroup, user.organization));
+            Group currentGroup = provider.getGroup(new IdentityID(userGroup, user.orgID));
             String[] parent = currentGroup.getGroups();
             groupList.add(userGroup);
 
             while (parent.length != 0) {
                groupList.add(parent[0]);
-               currentGroup = provider.getGroup(new IdentityID(parent[0], currentGroup.getOrganization()));
+               currentGroup = provider.getGroup(new IdentityID(parent[0], currentGroup.getOrganizationID()));
                parent = currentGroup.getGroups();
             }
 
@@ -656,19 +659,19 @@ public class VPMController {
          }
 
          roles = securityEngine.getRoles(user);
-         User securityUser =  provider.getUser(new IdentityID(name, OrganizationManager.getCurrentOrgName()));
+         User securityUser =  provider.getUser(new IdentityID(name, OrganizationManager.getInstance().getCurrentOrgID()));
 
          if(securityUser != null) {
-            orgID = securityUser.getOrganization();
+            orgID = securityUser.getOrganizationID();
          }
       }
       else {
          user = null;
          groups = new String[0];
-         roles = new IdentityID[]{new IdentityID(name, OrganizationManager.getCurrentOrgName())};
+         roles = new IdentityID[]{new IdentityID(name, OrganizationManager.getInstance().getCurrentOrgID())};
       }
 
-      user = user == null ? new IdentityID(Identity.UNKNOWN_USER, OrganizationManager.getCurrentOrgName()) : user;
+      user = user == null ? new IdentityID(Identity.UNKNOWN_USER, OrganizationManager.getInstance().getCurrentOrgID()) : user;
       roles = roles == null ? new IdentityID[0] : roles;
       XDataModel dataModel = repository.getDataModel(database);
       Catalog catalog = Catalog.getCatalog();

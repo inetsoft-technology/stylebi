@@ -32,7 +32,7 @@ public abstract class CurrentUserModel {
    public abstract IdentityID name();
    public abstract boolean isSysAdmin();
    @Nullable
-   public abstract String orgID();
+   public abstract String org();
    @Nullable
    public abstract String alias();
    @Nullable

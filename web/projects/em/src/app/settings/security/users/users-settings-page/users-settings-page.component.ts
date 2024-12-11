@@ -50,7 +50,7 @@ import {SecurityTreeRootModel} from "../users-settings-view/security-tree-root-m
 import {DeleteIdentitiesResponse} from "./delete-identities-response";
 import {SecurityEnabledEvent} from "../../security-settings-page/security-enabled-event";
 import {ScheduleUsersService} from "../../../../../../../shared/schedule/schedule-users.service";
-import { convertToKey, IdentityId } from "../identity-id";
+import { convertKeyToID, convertToKey, IdentityId } from "../identity-id";
 
 @Secured({
    route: "/settings/security/users",
@@ -87,6 +87,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    currOrg: string;
    userOrg: string;
    userOrgID: string;
+   loading: boolean = false;
 
    constructor(private http: HttpClient,
                private pageTitle: PageHeaderService,
@@ -99,8 +100,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    {
       this.http.get("../api/em/security/get-current-user").subscribe(userModel => {
          this.userName = userModel["name"].name;
-         this.userOrg = userModel["name"].organization;
-         this.userOrgID = userModel["orgID"];
+         this.userOrgID = userModel["name"].orgID;
+         this.userOrg = userModel["org"];
          this.isSysAdmin = userModel["isSysAdmin"];
          this.loadAuthenticationProviders();
       });
@@ -158,7 +159,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          .pipe(catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)))
          .subscribe(model => {
             if(model) {
-               let id: IdentityId = {name: model.name, organization: model.organization};
+               let id: IdentityId = {name: model.name, orgID: model.organization};
                this.refreshTree(id, IdentityType.USER);
             }
          });
@@ -189,7 +190,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          .pipe(catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)))
          .subscribe(model => {
             if(model) {
-               let id: IdentityId = {name: model.name, organization: model.name};
+               let id: IdentityId = {name: model.name, orgID: model.id};
                this.refreshTree(id, IdentityType.ORGANIZATION);
             }
          });
@@ -211,52 +212,47 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
                this.http.post("../api/em/security/users/edit-organization/" + provider, model).pipe(
                   catchError((error: HttpErrorResponse) => {
-                     this.identityEditable.next(model.editable);
+                     this.identityEditable.next(true);
                      return this.errorService.showSnackBar(error);
-                  })).subscribe(() => window.open("../logout?fromEm=true", "_self"));
+                  })).subscribe((msg) => {
+                     if(msg) {
+                        this.dialog.open(MessageDialog, {
+                           data: {
+                              title: "_#(js:Confirm)",
+                              content: "_#(js:em.organization.renameIssue)",
+                              type: MessageDialogType.CONFIRMATION
+                           }
+                        });
+                     }
+
+                     window.open("../logout?fromEm=true", "_self");
+                  });
             }
          });
       }
       else {
+          this.loading = true;
           let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
           this.http.post("../api/em/security/users/edit-organization/" + provider, model).pipe(
               catchError((error: HttpErrorResponse) => {
-                  this.identityEditable.next(model.editable);
+                  this.loading = false;
+                  this.identityEditable.next(true);
                   return this.errorService.showSnackBar(error);
               }),
-              tap(() => this.refreshTree({name: model.name, organization: model.name}, IdentityType.ORGANIZATION))
-          ).subscribe();
-      }
-   }
+              tap(() => this.refreshTree({name: model.name, orgID: (model as EditOrganizationPaneModel).id}, IdentityType.ORGANIZATION))
+          ).subscribe((msg) => {
+             if(msg) {
+                this.dialog.open(MessageDialog, {
+                   data: {
+                      title: "_#(js:Confirm)",
+                      content: "_#(js:em.organization.renameIssue)",
+                      type: MessageDialogType.CONFIRMATION
+                   }
+                });
+             }
 
-   updateTemplateOrganization(model: EditIdentityPaneModel) {
-      let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
-      this.isLoadingTemplate = true;
-      if(model != null) {
-         this.http.post("../api/em/security/users/save-organization-template/" + provider, model).pipe(
-            catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)))
-             .subscribe(() => {
-                this.snackBar.open(
-             "_#(js:em.security.templateUpdated)", "_#(js:Close)", {duration: Tool.SNACKBAR_DURATION});
-                this.isLoadingTemplate = false;
-                this.expandNode(null);
-                let id: IdentityId = {name: model.name, organization: model.name};
-                this.refreshTree(id, IdentityType.ORGANIZATION);
-             });
-      }
-      else {
-         //if model is null, reset template
-         this.http.post<string>("../api/em/security/users/clear-organization-template/" + provider, null).pipe(
-            catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)),
-            tap((templateName) => this.refreshTree({name:templateName, organization:templateName},
-                                                               IdentityType.ORGANIZATION)))
-            .subscribe(() => {
-               this.snackBar.open(
-               "_#(js:em.security.templateUpdated)", "_#(js:Close)", {duration: Tool.SNACKBAR_DURATION});
-               this.isLoadingTemplate = false;
-               this.expandNode(null);
-               this.refreshTree();
-            });
+             this.loading = false;
+          });
       }
    }
 
@@ -269,7 +265,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
             if(this.model.namedUsers && model.oldName != model.name) {
                this.snackBar.open("_#(js:em.security.userNameChangeWarning)", "_#(js:Close)", {duration: Tool.SNACKBAR_DURATION});
             }
-            let id: IdentityId = {name: model.name, organization: model.organization};
+            let id: IdentityId = {name: model.name, orgID: model.organization};
             this.refreshTree(id, IdentityType.USER);
          })
       ).subscribe(() => {
@@ -284,14 +280,14 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
       const uri = `../api/em/security/providers/${provider}/create-group`;
       this.http.post<EditGroupPaneModel>(uri, {parentGroup})
          .subscribe(model => this.refreshTree(
-               {name: model.name, organization: model.organization}, IdentityType.GROUP));
+               {name: model.name, orgID: model.organization}, IdentityType.GROUP));
    }
 
    public newRole() {
       let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
       this.http.get<EditRolePaneModel>("../api/em/security/user/create-role/" + provider)
          .subscribe(model => this.refreshTree(
-             {name: model.name, organization: model.organization}, IdentityType.ROLE));
+             {name: model.name, orgID: model.organization}, IdentityType.ROLE));
    }
 
    setRole(model: EditRolePaneModel) {
@@ -299,19 +295,19 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
       this.http.post("../api/em/security/user/edit-role/" + provider, model).pipe(
          catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)),
          tap(() => this.refreshTree(
-             {name: model.name, organization: model.organization}, IdentityType.ROLE))
+             {name: model.name, orgID: model.organization}, IdentityType.ROLE))
       ).subscribe();
    }
 
    setGroup(model: EditGroupPaneModel) {
       let provider = Tool.byteEncodeURLComponent(this.selectedProvider);
-      let group = Tool.byteEncodeURLComponent(convertToKey({name: model.oldName, organization: model.organization}));
+      let group = Tool.byteEncodeURLComponent(convertToKey({name: model.oldName, orgID: model.organization}));
 
       const url = `../api/em/security/providers/${provider}/groups/${group}/`;
       this.http.post(url, model).pipe(
          catchError((error: HttpErrorResponse) => this.errorService.showSnackBar(error)),
          tap(() => this.refreshTree(
-             {name: model.name, organization: model.organization}, IdentityType.GROUP))
+             {name: model.name, orgID: model.organization}, IdentityType.GROUP))
       ).subscribe();
    }
 
@@ -451,22 +447,21 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          }));
 
       // refresh the users after making changes
-      if(id != null) {
+      if(id != null || providerChanged) {
          this.usersService.loadScheduleUsers();
       }
    }
 
-
    private getOrgRoleRoot() {
-      return new SecurityTreeNode({name: "_#(js:Organization Roles)", organization: this.currOrg}, IdentityType.ROLE);
+      return new SecurityTreeNode({name: "Organization Roles", orgID: this.currOrg}, IdentityType.ROLE);
    }
 
    private getGroupRoot() {
-      return new SecurityTreeNode({name: "_#(js:Groups)", organization: this.currOrg}, IdentityType.GROUP);
+      return new SecurityTreeNode({name: "Groups", orgID: this.currOrg}, IdentityType.GROUP);
    }
 
    private getUserRoot() {
-      return new SecurityTreeNode({name: "_#(js:Users)", organization: this.currOrg}, IdentityType.USER);
+      return new SecurityTreeNode({name: "Users", orgID: this.currOrg}, IdentityType.USER);
    }
 
    expandNode(treeControl: FlatTreeControl<FlatSecurityTreeNode>) {
@@ -518,7 +513,10 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
                      });
                }
                else {
-                  if(providers.includes(provider)) {
+                  if(!provider) {
+                     this.changeProvider(providers[0], false);
+                  }
+                  else if(providers.includes(provider)) {
                      this.changeProvider(provider, false);
                   }
                   else {

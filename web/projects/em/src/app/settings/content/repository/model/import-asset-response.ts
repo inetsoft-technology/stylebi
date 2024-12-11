@@ -17,6 +17,7 @@
  */
 export interface ImportAssetResponse {
    failedAssets: string[];
+   ignoreUserAssets: string[];
    complete: boolean;
    failed: boolean;
 }

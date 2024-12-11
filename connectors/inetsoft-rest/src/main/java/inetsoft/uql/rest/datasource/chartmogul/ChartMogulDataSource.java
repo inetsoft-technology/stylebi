@@ -20,15 +20,15 @@ package inetsoft.uql.rest.datasource.chartmogul;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
-import org.w3c.dom.Element;
+import inetsoft.util.credential.*;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("accountToken"),
-   @View1("secretKey")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "accountToken", visibleMethod = "useCredential"),
+   @View1(value = "secretKey", visibleMethod = "useCredential")
 })
 public class ChartMogulDataSource extends EndpointJsonDataSource<ChartMogulDataSource> {
    public static final String TYPE = "Rest.ChartMogul";
@@ -38,22 +38,29 @@ public class ChartMogulDataSource extends EndpointJsonDataSource<ChartMogulDataS
       setAuthType(AuthType.BASIC);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.ACCOUNT_SECRET;
+   }
+
    @Property(label = "Account Token", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getAccountToken() {
-      return accountToken;
+      return ((AccountSecretCrendential) getCredential()).getAccountToken();
    }
 
    public void setAccountToken(String accountToken) {
-      this.accountToken = accountToken;
+      ((AccountSecretCrendential) getCredential()).setAccountToken(accountToken);
    }
 
    @Property(label = "Secret Key", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getSecretKey() {
-      return secretKey;
+      return ((AccountSecretCrendential) getCredential()).getSecretKey();
    }
 
    public void setSecretKey(String secretKey) {
-      this.secretKey = secretKey;
+      ((AccountSecretCrendential) getCredential()).setSecretKey(secretKey);
    }
 
    @Override
@@ -68,7 +75,7 @@ public class ChartMogulDataSource extends EndpointJsonDataSource<ChartMogulDataS
 
    @Override
    public String getUser() {
-      return accountToken;
+      return getAccountToken();
    }
 
    @Override
@@ -78,34 +85,12 @@ public class ChartMogulDataSource extends EndpointJsonDataSource<ChartMogulDataS
 
    @Override
    public String getPassword() {
-      return secretKey;
+      return getSecretKey();
    }
 
    @Override
    public void setPassword(String password) {
       // no-op
-   }
-
-   @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(accountToken != null) {
-         writer.format(
-            "<accountToken><![CDATA[%s]]></accountToken>%n", Tool.encryptPassword(accountToken));
-      }
-
-      if(secretKey != null) {
-         writer.format(
-            "<secretKey><![CDATA[%s]]></secretKey>%n", Tool.encryptPassword(secretKey));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      accountToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "accountToken"));
-      secretKey = Tool.decryptPassword(Tool.getChildValueByTagName(root, "secretKey"));
    }
 
    @Override
@@ -123,20 +108,11 @@ public class ChartMogulDataSource extends EndpointJsonDataSource<ChartMogulDataS
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      ChartMogulDataSource that = (ChartMogulDataSource) o;
-      return Objects.equals(accountToken, that.accountToken) &&
-         Objects.equals(secretKey, that.secretKey);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), accountToken, secretKey);
+      return Objects.hash(super.hashCode(), getAccountToken(), getSecretKey());
    }
-
-   private String accountToken;
-   private String secretKey;
 }

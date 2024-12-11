@@ -19,6 +19,7 @@ package inetsoft.sree;
 
 import inetsoft.sree.internal.*;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -159,7 +160,7 @@ public class RepletRegistry implements Serializable {
       }
 
       // dangerous operation requires verification
-      String path = "portal" + File.separator + identityID;
+      String path = "portal" + File.separator + identityID.getOrgID() + File.separator + identityID.getName();
       DataSpace space = DataSpace.getDataSpace();
       space.delete(null, path);
    }
@@ -183,11 +184,11 @@ public class RepletRegistry implements Serializable {
       }
 
       // dangerous operation requires verification
-      String opath = "portal" + File.separator + oID;
-      String npath = "portal" + File.separator + nID;
+      String opath = "portal" + File.separator + oID.orgID + File.separator + oID.name;
+      String npath = "portal" + File.separator + nID.orgID + File.separator + nID.name;
       DataSpace space = DataSpace.getDataSpace();
 
-      if(space.exists("portal", oID.convertToKey())) {
+      if(space.exists("portal", oID.orgID + File.separator + oID.name)) {
          space.rename(opath, npath);
       }
 
@@ -197,6 +198,51 @@ public class RepletRegistry implements Serializable {
       if(space.exists(null, oapath)) {
          String napath = npath + File.separator + nID.convertToKey() + "_archive_";
          space.rename(oapath, napath);
+      }
+   }
+
+   /**
+    * Copy a user.
+    *
+    * @param oID the old name of the specified user.
+    * @param nID the new name of the specified user.
+    */
+   public static synchronized void copyUser(IdentityID oID, IdentityID nID) throws Exception {
+      String opath = "portal" + File.separator + oID.orgID + File.separator + oID.name;
+      String npath = "portal" + File.separator + nID.orgID + File.separator + nID.name;
+      DataSpace space = DataSpace.getDataSpace();
+
+      if(space.exists("portal", oID.orgID + File.separator + oID.name)) {
+         space.copy(opath, npath);
+      }
+
+      // for archive reports
+      String oapath = npath + File.separator + oID.convertToKey() + "_archive_";
+
+      if(space.exists(null, oapath)) {
+         String napath = npath + File.separator + nID.convertToKey() + "_archive_";
+         space.copy(oapath, napath);
+      }
+
+      RepletRegistry.changeOrgID(nID, oID.getOrgID(), nID.getOrgID());
+   }
+
+   /**
+    * Move registry contents from one orgID to another.
+    *
+    * @param id the name of the specified user.
+    * @param oOrgID the orgID to change from.
+    * @param nOrgID the orgID to change to.
+    */
+   public static synchronized void changeOrgID(IdentityID id, String oOrgID, String nOrgID) {
+      try {
+         String registryKey = getRegistryKey(id == null ? null : id.convertToKey());
+         RepletRegistry registry = getRegistryCache().get(registryKey);
+         registry.moveFolderMap(oOrgID, nOrgID);
+         registry.save();
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to move private folders from " + oOrgID + " to " + nOrgID, ex);
       }
    }
 
@@ -448,7 +494,7 @@ public class RepletRegistry implements Serializable {
     * @return true if remove successfully.
     */
    public boolean removeFolder(String folderName, String orgID) {
-      return removeFolder(folderName, true, false, null);
+      return removeFolder(folderName, true, false, orgID);
    }
 
    public boolean removeFolder(String folderName) {
@@ -461,7 +507,16 @@ public class RepletRegistry implements Serializable {
    public synchronized boolean removeFolder(String folderName, boolean transaction,
                                             boolean saveBeforeEvent, String orgID)
    {
-      if("/".equals(folderName)) {
+      return removeFolder(folderName, transaction, saveBeforeEvent, orgID, true);
+   }
+
+   /**
+    * Remove the folder and all the replets inside it.
+    */
+   public synchronized boolean removeFolder(String folderName, boolean transaction,
+                                            boolean saveBeforeEvent, String orgID, boolean fireEvent)
+   {
+      if("/".equals(folderName) || Tool.MY_DASHBOARD.equals(folderName)) {
          return false;
       }
 
@@ -473,8 +528,11 @@ public class RepletRegistry implements Serializable {
          if(folder.equals(folderName) || folder.startsWith(prefix)) {
             getFolderMap(orgID).remove(folder);
             changed = true;
-            fireEvent("registry_" + (folder.equals(folderName) && transaction),
-               REMOVE_FOLDER_EVENT, folder, folder);
+
+            if(fireEvent) {
+               fireEvent("registry_" + (folder.equals(folderName) && transaction),
+                         REMOVE_FOLDER_EVENT, folder, folder);
+            }
          }
       }
 
@@ -487,7 +545,10 @@ public class RepletRegistry implements Serializable {
                LOG.warn("Failed to save registry", e);
             }
          }
-         fireEvent("registry_", CHANGE_EVENT, null, null);
+
+         if(fireEvent) {
+            fireEvent("registry_", CHANGE_EVENT, null, null);
+         }
       }
 
       getFolderContextmap().remove(folderName);
@@ -508,17 +569,29 @@ public class RepletRegistry implements Serializable {
     * @return true if add successfully.
     */
    public boolean addFolder(String folder, String orgID) {
-      return addFolder(folder, true, orgID);
+      return addFolder(folder, orgID, true);
    }
 
    public boolean addFolder(String folder) {
-      return addFolder(folder, true, null);
+      return addFolder(folder, null);
+   }
+
+   /**
+    * Add a new folder.
+    *
+    * @param folder the folder.
+    * @return true if add successfully.
+    */
+   public boolean addFolder(String folder, String orgID, boolean fireEvent) {
+      return addFolder(folder, true, orgID, fireEvent);
    }
 
    /**
     * Add a new folder.
     */
-   private synchronized boolean addFolder(String folder, boolean transaction, String orgID) {
+   private synchronized boolean addFolder(String folder, boolean transaction, String orgID,
+                                          boolean fireEvent)
+   {
       if(folder == null || folder.equals("")) {
          return false;
       }
@@ -548,9 +621,11 @@ public class RepletRegistry implements Serializable {
       if(!exactDuplicate) {
          getFolderMap(orgID).put(folder, folder);
 
-         fireEvent("registry_" + transaction, ADD_FOLDER_EVENT, folder, folder);
+         if(fireEvent) {
+            fireEvent("registry_" + transaction, ADD_FOLDER_EVENT, folder, folder);
+         }
 
-         if(transaction) {
+         if(transaction && fireEvent) {
             fireEvent("registry_", CHANGE_EVENT, null, null);
          }
       }
@@ -567,7 +642,7 @@ public class RepletRegistry implements Serializable {
    }
 
    private synchronized boolean addFolder(String folder, boolean transaction) {
-      return addFolder(folder, transaction, null);
+      return addFolder(folder, transaction, null, true);
    }
 
    /**
@@ -580,9 +655,18 @@ public class RepletRegistry implements Serializable {
    /**
     * Get sub folders of a folder.
     */
-   public synchronized String[] getFolders(String folder, boolean publicOnly) {
+   public String[] getFolders(String folder, boolean publicOnly) { return getFolders(folder, publicOnly, null); }
+
+   public synchronized String[] getFolders(String folder, String orgID) {
+      return getFolders(folder, noMyreports, orgID);
+   }
+
+   /**
+    * Get sub folders of a folder.
+    */
+   public synchronized String[] getFolders(String folder, boolean publicOnly, String orgID) {
       boolean root = folder == null || folder.equals("/");
-      Iterator<String> iterator = getFolderMap().keySet().iterator();
+      Iterator<String> iterator = getFolderMap(orgID).keySet().iterator();
       List<String> result = new ArrayList<>();
 
       while(iterator.hasNext()) {
@@ -642,6 +726,13 @@ public class RepletRegistry implements Serializable {
          return catalog.getString("common.repletRegistry.folderExist", newFolderName);
       }
 
+      if(SUtil.isDefaultVSGloballyVisible(principal) && principal != null && principal != null &&
+         !Tool.equals(((XPrincipal) principal).getOrgId(), Organization.getDefaultOrganizationID()) &&
+         !getFolderMap(((XPrincipal) principal).getOrgId()).contains(oldFolderName) &&
+         getFolderMap(Organization.getDefaultOrganizationID()).contains(oldFolderName)) {
+         return catalog.getString("common.writeAuthority", Organization.getDefaultOrganizationID());
+      }
+
       String oprefix = oldFolderName + "/";
       List<String> all = new ArrayList<>(getFolderMap().keySet());
       boolean changed = false;
@@ -691,6 +782,10 @@ public class RepletRegistry implements Serializable {
       return getFolderContextmap().get(name);
    }
 
+   protected FolderContext getFolderContext(String name, String orgID) {
+      return getFolderContextmap(orgID).get(name);
+   }
+
    /**
     * Set the folder alias.
     *
@@ -730,6 +825,16 @@ public class RepletRegistry implements Serializable {
     */
    public String getFolderAlias(String name) {
       FolderContext context = getFolderContext(name);
+
+      if(context != null) {
+         return context.getAlias();
+      }
+
+      return null;
+   }
+
+   public String getFolderAlias(String name, String orgID) {
+      FolderContext context = getFolderContext(name, orgID);
 
       if(context != null) {
          return context.getAlias();
@@ -815,6 +920,10 @@ public class RepletRegistry implements Serializable {
       return getFolderMap().containsKey(folder);
    }
 
+   public boolean isFolder(String folder, String orgID) {
+      return getFolderMap(orgID).containsKey(folder);
+   }
+
    /**
     * Get registry path to save.
     */
@@ -836,6 +945,8 @@ public class RepletRegistry implements Serializable {
          if(space.exists(null, repfile)) {
             reload();
          }
+
+         loaded = true;
       }
 
       int idx = repfile.lastIndexOf('.');
@@ -957,6 +1068,18 @@ public class RepletRegistry implements Serializable {
       });
    }
 
+   private synchronized void moveFolderMap(String oOrgID, String nOrgID) {
+      if(folders.containsKey(oOrgID)) {
+         Hashtable<String, String> orgFolders = folders.remove(oOrgID);
+         folders.put(nOrgID, orgFolders);
+      }
+
+      if(foldercontextmap.containsKey(oOrgID)) {
+         Hashtable<String, FolderContext> orgFolderContext = foldercontextmap.remove(oOrgID);
+         foldercontextmap.put(nOrgID, orgFolderContext);
+      }
+   }
+
    private synchronized Hashtable<String, FolderContext> getFolderContextmap() {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
       return getFolderContextmap(orgID);
@@ -968,6 +1091,19 @@ public class RepletRegistry implements Serializable {
          orgContextMap.put(Tool.MY_DASHBOARD, new FolderContext(Tool.MY_DASHBOARD));
          return orgContextMap;
       });
+   }
+
+   public void copyFolderContextMap(String oOID, String nOID) {
+      Hashtable<String, FolderContext> otable = getFolderContextmap(oOID);
+      Hashtable<String, FolderContext> ntable = new Hashtable<>();
+
+      otable.forEach((key, value) -> {
+         FolderContext ncontext = new FolderContext(value.getName(), value.getDescription(),
+            value.getAlias());
+         ntable.put(key, ncontext);
+      });
+
+      foldercontextmap.put(nOID, ntable);
    }
 
    private static ResourceCache<String, RepletRegistry> getRegistryCache() {
@@ -1149,7 +1285,8 @@ public class RepletRegistry implements Serializable {
 
       @Override
       protected String getRegistryDir() {
-         return "portal" + File.separator + getUser() + File.separator +
+         IdentityID userID = IdentityID.getIdentityIDFromKey(getUser());
+         return "portal" + File.separator + userID.orgID + File.separator + userID.name + File.separator +
             "myreport" + File.separator;
       }
 
@@ -1214,6 +1351,14 @@ public class RepletRegistry implements Serializable {
             if(engine instanceof PropertyChangeListener) {
                registry.addPropertyChangeListener(
                   (PropertyChangeListener) engine);
+            }
+         }
+         else if(!registry.loaded) {
+            DataSpace space = DataSpace.getDataSpace();
+            String repfile = registry.getRegistryPath();
+
+            if(space.exists(null, repfile)) {
+               registry.reload();
             }
          }
 

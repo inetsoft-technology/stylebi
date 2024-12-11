@@ -21,7 +21,7 @@
   <FSUser class="inetsoft.sree.security.FSUser">
     <name><![CDATA[{{adminUsername}}]]></name>
     <active><![CDATA[true]]></active>
-    <organization><![CDATA[Host Organization]]></organization>
+    <organization><![CDATA[host-org]]></organization>
     <locale><![CDATA[]]></locale>
     <password algorithm="bcrypt"><![CDATA[{{adminPassword}}]]></password>
     <emails></emails>

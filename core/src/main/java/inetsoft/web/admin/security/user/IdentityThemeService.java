@@ -19,8 +19,8 @@ package inetsoft.web.admin.security.user;
 
 import inetsoft.sree.portal.CustomTheme;
 import inetsoft.sree.portal.CustomThemesManager;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
+import inetsoft.util.Tool;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -43,64 +43,76 @@ public class IdentityThemeService {
 
    public String getTheme(IdentityID name, Function<CustomTheme, List<String>> fn) {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+
       return CustomThemesManager.getManager().getCustomThemes().stream()
          .filter(t -> fn.apply(t).contains(name.name))
          .filter(theme -> theme.getOrgID() == null || theme.getOrgID().equals(orgID))
          .map(CustomTheme::getId)
          .findFirst()
          .orElse(null);
+
    }
 
-   public void updateTheme(String oldName, String name, String themeId,
-                           Function<CustomTheme, List<String>> fn)
-   {
-      String sanitizedId = sanitizeThemeId(themeId);
+   public void removeTheme(String orgID) {
       CustomThemesManager themeManager = CustomThemesManager.getManager();
       Set<CustomTheme> themes = new HashSet<>(themeManager.getCustomThemes());
-      String oldThemeIdentity = oldName == null ? name : oldName;
-      CustomTheme currentTheme = themes.stream()
-         .filter(t -> fn.apply(t).contains(oldThemeIdentity))
-         .findFirst()
-         .orElse(null);
+      Iterator<CustomTheme> iterator = themes.iterator();
 
-      if(sanitizedId == null && currentTheme != null) {
-         fn.apply(currentTheme).remove(oldThemeIdentity);
-      }
-      else if(sanitizedId != null && currentTheme != null) {
-         if(currentTheme.getId().equals(sanitizedId) && !oldThemeIdentity.equals(name)) {
-            fn.apply(currentTheme).remove(oldThemeIdentity);
-            fn.apply(currentTheme).add(name);
+      while (iterator.hasNext()) {
+         CustomTheme theme = iterator.next();
+
+         if(Tool.equals(orgID, theme.getOrgID())) {
+            iterator.remove();
          }
-         else if(!currentTheme.getId().equals(sanitizedId)) {
-            fn.apply(currentTheme).remove(oldName);
-            themes.stream()
-               .filter(t -> t.getId().equals(sanitizedId))
-               .findFirst()
-               .ifPresent(t -> fn.apply(t).add(name));
-         }
-      }
-      else if(sanitizedId != null) {
-         themes.stream()
-            .filter(t -> t.getId().equals(sanitizedId))
-            .findFirst()
-            .ifPresent(t -> fn.apply(t).add(name));
       }
 
       themeManager.setCustomThemes(themes);
       themeManager.save();
    }
 
-   private String sanitizeThemeId(String themeId) {
-      String sanitized = themeId;
-
-      if(sanitized != null) {
-         sanitized = sanitized.trim();
-
-         if(sanitized.isEmpty()) {
-            sanitized = null;
+   public void updateTheme(String oldId, String id, Function<CustomTheme, List<String>> fn) {
+      CustomThemesManager themeManager = CustomThemesManager.getManager();
+      Set<CustomTheme> themes = new HashSet<>(themeManager.getCustomThemes());
+      String oldThemeIdentity = oldId == null ? id : oldId;
+      themes.stream()
+      .map(theme -> {
+         if(fn.apply(theme).contains(oldThemeIdentity)) {
+            fn.apply(theme).remove(oldThemeIdentity);
+            fn.apply(theme).add(id);
          }
-      }
 
-      return sanitized;
+         if(Tool.equals(theme.getOrgID(), oldId)) {
+            theme.setOrgID(id);
+            theme.setJarPath(theme.getJarPath().replace(oldId, id));
+         }
+
+         return theme;
+      })
+      .collect(Collectors.toList());
+
+      themeManager.setCustomThemes(themes);
+      themeManager.save();
+   }
+
+   public void updateUserTheme(String oldId, String id, String ntheme) {
+      CustomThemesManager themeManager = CustomThemesManager.getManager();
+      Set<CustomTheme> themes = new HashSet<>(themeManager.getCustomThemes());
+
+      themes.stream().map(theme -> {
+         if(theme.getUsers().contains(oldId)) {
+            theme.getUsers().remove(oldId);
+            theme.getUsers().add(id);
+         }
+
+         if(Tool.equals(theme.getId(), ntheme) && !theme.getUsers().contains(oldId)) {
+            theme.getUsers().add(id);
+         }
+
+         return theme;
+      })
+      .collect(Collectors.toList());
+
+      themeManager.setCustomThemes(themes);
+      themeManager.save();
    }
 }

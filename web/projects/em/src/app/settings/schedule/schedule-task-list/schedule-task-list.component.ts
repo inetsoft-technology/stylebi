@@ -73,7 +73,7 @@ import { ExportTaskDialogComponent } from "../import-export/export-task-dialog/e
 import { ImportTaskDialogComponent } from "../import-export/import-task-dialog/import-task-dialog.component";
 import { DistributionChart, DistributionChartValue } from "../model/distribution-model";
 import { MoveTaskFolderRequest } from "../model/move-task-folder-request";
-import { ScheduleTaskChange } from "../model/schedule-task-change";
+import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
 import { TaskDependencyModel } from "../model/task-dependency-model";
 import { TaskListModel } from "../model/task-list-model";
 import { MoveTaskFolderDialogComponent } from "../move-folder-dialog/move-task-folder-dialog.component";
@@ -576,7 +576,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
       }
 
       return this.selection.selected.some((val, i, arr) =>
-         val.enabled !== arr[0].enabled || !val.editable);
+         val.enabled !== arr[0].enabled || !val.editable || !this.internalTask(val.name) && !val.canDelete);
    }
 
    get allSelectedAreDisabled(): boolean {
@@ -648,6 +648,10 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
       return this.selection.selected.map(task => this.getTaskName(task));
    }
 
+   getEncodedTaskName(task: ScheduleTaskModel): string {
+      return Tool.byteEncode(this.getTaskName(task));
+   }
+
    getTaskName(task: ScheduleTaskModel): string {
       return ScheduleTaskListComponent.getTaskName(task);
    }
@@ -658,12 +662,12 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
       }
 
       if(!!task.owner && task.owner.name == SYSTEM_USER) {
-         return task.owner.name + KEY_DELIMITER + task.owner.organization + "__" + task.name;
+         return task.owner.name + KEY_DELIMITER + task.owner.orgID + "__" + task.name;
       }
 
      return !!task.owner && !task.name.startsWith(task.owner.name) &&
         !task.name.startsWith("MV Task:") && !task.name.startsWith("MV Task Stage 2:") ?
-        task.owner.name + KEY_DELIMITER + task.owner.organization + ":" + task.name : task.name;
+        task.owner.name + KEY_DELIMITER + task.owner.orgID + ":" + task.name : task.name;
    }
 
    getDistributionDayLabel(): string {
@@ -737,6 +741,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    private setTasks(list: ScheduleTaskModel[]): void {
       this.tasks = list;
       this.dataSource.data = list;
+
       this.dataSource.sortingDataAccessor = (item, property) => {
          switch(property) {
          case "name": return item.label;
@@ -990,8 +995,8 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    public nodeSelected(evt: FlatTreeSelectNodeEvent): void {
-       this.selectedNodes = [<RepositoryFlatNode>evt.node];
-       this.loadTasks();
+      this.selectedNodes = [<RepositoryFlatNode>evt.node];
+      this.loadTasks();
    }
 
    get currentFolder(): RepositoryTreeNode {

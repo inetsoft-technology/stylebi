@@ -342,7 +342,7 @@
                             [securityEnabled]="securityEnabled" [addBookmarkDisabled]="isAddBookmarkDisabled()"
                             [saveCurrentBookmarkDisabled]="saveCurrentBookmarkDisabled()"
                             [setDefaultBookmarkDisabled]="isSetDefaultBookmarkDisabled()"
-                            [principal]="principal" (onSetDefaultBookmark)="setDefaultBookmark($event)"
+                            [principal]="principal" [isDefaultOrgAsset]="isDefaultOrgAsset" (onSetDefaultBookmark)="setDefaultBookmark($event)"
                             (onEditBookmark)="editBookmark($event)" (onDeleteBookmark)="deleteBookmark($event)"
                             (onDeleteBookmarks)="deleteBookmarkByCondition()"
                             (onGoToBookmark)="gotoBookmark($event, true)" (onAddBookmark)="addBookmark()"

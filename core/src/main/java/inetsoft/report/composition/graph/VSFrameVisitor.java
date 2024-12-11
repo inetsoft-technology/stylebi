@@ -496,6 +496,10 @@ public class VSFrameVisitor {
       if(frame instanceof CategoricalColorFrame) {
          if(frame.getField() != null) {
             syncColors((CategoricalColorFrame) frame, data, aestheticDataRef, dc, isDcRuntime);
+
+            // userColors should be explicitly ignored if sync occurs
+            frame = (CategoricalColorFrame) frame.clone();
+            ((CategoricalColorFrame) frame).clearUserColors();
          }
       }
       else if(frame instanceof CategoricalShapeFrame) {

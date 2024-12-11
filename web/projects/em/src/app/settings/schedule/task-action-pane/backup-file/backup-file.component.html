@@ -29,14 +29,23 @@
         <mat-error *ngIf="backupForm.controls['path']?.errors?.required">_#(em.schedule.action.pathRequired)</mat-error>
       </mat-form-field>
       <mat-checkbox formControlName="ftp" (change)="toggleFTP()">_#(FTP/SFTP)</mat-checkbox>
-      <mat-form-field floatLabel="always" appearance="outline" color="accent">
-        <mat-label>_#(Username)</mat-label>
-        <input type="text" matInput formControlName="username" placeholder="_#(Username)" />
-      </mat-form-field>
-      <mat-form-field floatLabel="always" appearance="outline" color="accent">
-        <mat-label>_#(Password)</mat-label>
-        <input type="password" matInput formControlName="password" placeholder="_#(Password)" />
-      </mat-form-field>
+      <mat-checkbox *ngIf="cloudSecrets" formControlName="useCredential">_#(Use Secret ID)</mat-checkbox>
+      <ng-container *ngIf="cloudSecrets && backupForm.controls['useCredential'].value">
+        <mat-form-field floatLabel="always" appearance="outline" color="accent">
+          <mat-label>_#(Secret ID)</mat-label>
+          <input type="text" matInput formControlName="secretId" placeholder="_#(Secret ID)" />
+        </mat-form-field>
+      </ng-container>
+      <ng-container *ngIf="!cloudSecrets || !backupForm.controls['useCredential'].value">
+        <mat-form-field floatLabel="always" appearance="outline" color="accent">
+          <mat-label>_#(Username)</mat-label>
+          <input type="text" matInput formControlName="username" placeholder="_#(Username)" />
+        </mat-form-field>
+        <mat-form-field floatLabel="always" appearance="outline" color="accent">
+          <mat-label>_#(Password)</mat-label>
+          <input type="password" matInput formControlName="password" placeholder="_#(Password)" />
+        </mat-form-field>
+      </ng-container>
     </mat-card-content>
 
     <div class="flex-row">

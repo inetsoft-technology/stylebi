@@ -26,6 +26,7 @@ import { ValueLabelModel } from "../data/value-label-model";
 export class ManualOrderingDialog implements OnChanges {
    @Input() manualOrders: string[];
    @Input() valueLabelList: ValueLabelModel[];
+   @Input() helpLinkKey: string;
    @Output() onCommit: EventEmitter<String[]> = new EventEmitter<String[]>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    selIndex: number = 0;

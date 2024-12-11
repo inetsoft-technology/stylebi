@@ -21,7 +21,6 @@ import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.execution.ReportWorksheetProcessor;
 import inetsoft.report.internal.binding.*;
-import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
 import inetsoft.uql.Condition;
@@ -40,7 +39,6 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.util.*;
 import inetsoft.util.MessageFormat;
 import inetsoft.util.audit.*;
-import inetsoft.util.profile.ProfileUtils;
 import inetsoft.util.script.*;
 
 import java.awt.*;
@@ -1140,7 +1138,7 @@ public final class XUtil {
    }
 
    public static String getUserName(Principal user) {
-      IdentityID id =  user instanceof SRPrincipal ? ((SRPrincipal) user).getIdentityID() : null;
+      IdentityID id = user instanceof XPrincipal ? ((XPrincipal) user).getIdentityID() : null;
       return id == null ? null : id.getName();
    }
 
@@ -1151,7 +1149,7 @@ public final class XUtil {
     */
    public static String[] getUserRoleNames(Principal user) {
       IdentityID[] ids = getUserRoles(user, false);
-      return ids == null ? null : Arrays.stream(ids).map(id -> id.getName()).toArray(String[]::new);
+      return ids == null ? null : Arrays.stream(ids).map(id -> id.getName()).distinct().toArray(String[]::new);
    }
 
    /**
@@ -1269,6 +1267,30 @@ public final class XUtil {
       }
 
       return securityEngine.getSecurityProvider();
+   }
+
+   public static Comparator<String> getOrganizationComparator() {
+      final List<String> builtinOrgs = Arrays.asList(
+         Organization.getDefaultOrganizationID(),
+         Organization.getSelfOrganizationID());
+      Comparator<String> comp = (a, b) -> {
+         int rc = a.compareTo(b);
+
+         if(rc != 0) {
+            int aIdx = builtinOrgs.indexOf(a);
+            int bIdx = builtinOrgs.indexOf(b);
+
+            if(aIdx >= 0 || bIdx >= 0) {
+               aIdx = (aIdx < 0) ? 100 : aIdx;
+               bIdx = (bIdx < 0) ? 100 : bIdx;
+               return aIdx - bIdx;
+            }
+         }
+
+         return rc;
+      };
+
+      return comp;
    }
 
    /**
@@ -3157,13 +3179,13 @@ public final class XUtil {
 
                @Override
                public IdentityID[] getUsers() {
-                  return new IdentityID[] {new IdentityID("anonymous", Organization.getDefaultOrganizationName())};
+                  return new IdentityID[] {new IdentityID("anonymous", Organization.getDefaultOrganizationID())};
                }
 
                @Override
                public XPrincipal create(Identity id) {
                   return new XPrincipal(
-                     id.getIdentityID(), new IdentityID[0], new String[0], id.getOrganization());
+                     id.getIdentityID(), new IdentityID[0], new String[0], id.getOrganizationID());
                }
 
                @Override
@@ -3437,80 +3459,6 @@ public final class XUtil {
    private static final class ChangedInfo {
       public boolean changed;
       public boolean empty;
-   }
-
-   /**
-    * Get additional data source.
-    */
-   public static XDataSource getDatasource(Principal user, XDataSource ds) {
-      if(ds instanceof AdditionalConnectionDataSource) {
-         AdditionalConnectionDataSource<?> jds = (AdditionalConnectionDataSource<?>) ds;
-
-         if(jds.getBaseDatasource() != null || ds.isFromPortal()) {
-            return jds;
-         }
-
-         String ds2 = getAdditionalDatasource(user, ds.getFullName());
-
-         if(ds2 != null && jds.containDatasource(ds2)) {
-            return jds.getDataSource(ds2);
-         }
-      }
-
-      return ds;
-   }
-
-   /**
-    * Get a specific additional data source.
-    */
-   public static XDataSource getDatasource(Principal user, XDataSource ds, String additional) {
-      if(ds instanceof AdditionalConnectionDataSource) {
-         AdditionalConnectionDataSource<?> jds = (AdditionalConnectionDataSource<?>) ds;
-
-         if(ds.isFromPortal() || jds.getBaseDatasource() != null ||
-            OUTER_MOSE_LAYER_DATABASE.equals(additional))
-         {
-            return jds;
-         }
-
-         String ds2 = getAdditionalDatasource(user, ds.getFullName(), additional);
-
-         if(ds2 != null && jds.containDatasource(ds2)) {
-            return jds.getDataSource(ds2);
-         }
-      }
-
-      return ds;
-   }
-
-   /**
-    * Get additional data source.
-    */
-   public static String getAdditionalDatasource(Principal user, String dsname) {
-      return getAdditionalDatasource(user, dsname, null);
-   }
-
-   /**
-    * Get a specific additional data source.
-    */
-   public static String getAdditionalDatasource(Principal user, String dsname, String additional) {
-      if(user instanceof XPrincipal) {
-         String resource = dsname + "::";
-
-         Enumeration<String> names = ((XPrincipal) user).getPropertyNames();
-
-         while(names.hasMoreElements()) {
-            String name = names.nextElement();
-
-            if(name.startsWith(resource)) {
-               if(additional == null || additional.equals(name.substring(resource.length()))) {
-                  return name.substring(resource.length());
-               }
-            }
-         }
-      }
-
-      return null;
    }
 
    /**

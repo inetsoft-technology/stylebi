@@ -39,6 +39,7 @@ import javax.xml.xpath.*;
 import java.io.*;
 import java.security.Principal;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -148,6 +149,23 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
    @Scheduled(fixedRate = 180000L)
    public void evictExpiredSessions() {
       this.sessions.cleanUp();
+   }
+
+   @Scheduled(fixedRate = 20000) // Check every 20 seconds
+   public void checkSessions() {
+      long currentTime = System.currentTimeMillis();
+
+      for(MapSession session : sessions.asMap().values()) {
+         Instant lastAccessedTime = session.getLastAccessedTime();
+         Duration maxInactiveInterval = session.getMaxInactiveInterval();
+         long remainingTime = lastAccessedTime.toEpochMilli() + maxInactiveInterval.toMillis()
+            - currentTime;
+
+         // warn the user if remaining time is less than EXPIRATION_WARNING_TIME
+         if(remainingTime <= EXPIRATION_WARNING_TIME && remainingTime > 0) {
+            fireSessionExpiringSoon(session, remainingTime);
+         }
+      }
    }
 
    /**
@@ -363,6 +381,31 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
       }
    }
 
+   private void fireSessionExpiringSoon(Session session, long remainingTime) {
+      SessionExpiringSoonListener listener = sessionExpiringSoonListeners.get(session.getId());
+
+      if(listener != null) {
+         SessionExpiringSoonEvent event = new SessionExpiringSoonEvent(this, session, remainingTime);
+         listener.sessionExpiringSoon(event);
+      }
+   }
+
+   public void addSessionExpiringSoonListener(String sessionId, SessionExpiringSoonListener l) {
+      if(sessionId != null) {
+         synchronized(sessionExpiringSoonListeners) {
+            sessionExpiringSoonListeners.put(sessionId, l);
+         }
+      }
+   }
+
+   public void removeSessionExpiringSoonListener(String sessionId) {
+      if(sessionId != null) {
+         synchronized(sessionExpiringSoonListeners) {
+            sessionExpiringSoonListeners.remove(sessionId);
+         }
+      }
+   }
+
    /**
     * If non-null, this value is used to override
     * {@link Session#setMaxInactiveInterval(Duration)}.
@@ -375,6 +418,8 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
    private final AuthenticationService authenticationService;
    private final Set<PrincipalChangeListener> principalListeners = new HashSet<>();
    private final Set<SessionExpirationListener> sessionListeners = new HashSet<>();
+   private final Map<String, SessionExpiringSoonListener> sessionExpiringSoonListeners = new HashMap<>();
+   private static final int EXPIRATION_WARNING_TIME = 90000;
    private static final Logger LOG = LoggerFactory.getLogger(MapSessionRepository.class);
 
    public interface PrincipalChangeListener extends EventListener {
@@ -424,5 +469,28 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
       }
 
       private final Session session;
+   }
+
+   public interface SessionExpiringSoonListener extends EventListener {
+      void sessionExpiringSoon(SessionExpiringSoonEvent event);
+   }
+
+   public static final class SessionExpiringSoonEvent extends EventObject {
+      public SessionExpiringSoonEvent(Object source, Session session, long remainingTime) {
+         super(source);
+         this.session = session;
+         this.remainingTime = remainingTime;
+      }
+
+      public Session getSession() {
+         return session;
+      }
+
+      public long getRemainingTime() {
+         return remainingTime;
+      }
+
+      private final Session session;
+      private final long remainingTime;
    }
 }

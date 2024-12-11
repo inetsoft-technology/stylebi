@@ -24,17 +24,20 @@
                       (onSearchChange)="search($event)"
                       (onCloseSearch)="initSearchResults()">
     <div class="bordered-box bd-gray bordered-box-md cols-container" largeFieldElement>
-      <div *ngIf="searchResults != null && searchResults.length > 0">
-        <div class="form-check mb-1" *ngFor="let result of searchResults; let _i = index;"
-             [wTooltip]="getTooltip(result.column)">
-          <input type="checkbox" class="form-check-input"
-                 [checked]="result.column.visible" [id]="getColumn(result.column)"
-                 (change)="changeColVisibility(result)">
-          <label class="form-check-label" [for]="getColumn(result.column)">
-            {{getColumn(result.column)}}
-          </label>
+      <cdk-virtual-scroll-viewport itemSize="20" class="form-check mb-1">
+        <div *ngIf="searchResults != null && searchResults.length > 0">
+          <div *cdkVirtualFor="let result of searchResults; let _i = index"
+               class="form-check mb-1"
+               [wTooltip]="getTooltip(result.column)">
+            <input type="checkbox" class="form-check-input"
+                   [checked]="result.column.visible" [id]="getColumn(result.column)"
+                   (change)="changeColVisibility(result)">
+            <label class="form-check-label" [for]="getColumn(result.column)">
+              {{getColumn(result.column)}}
+            </label>
+          </div>
         </div>
-      </div>
+      </cdk-virtual-scroll-viewport>
       <span *ngIf="searchResults == null || searchResults.length == 0">
         _#(composer.ws.noColumnsAvailable)
       </span>
@@ -47,6 +50,8 @@
     </ng-container>
   </w-large-form-field>
 </div>
+<vs-loading-display *ngIf="!model">
+</vs-loading-display>
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" [disabled]="!isValid()" (click)="ok()" #okButton>_#(OK)</button>
   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>

@@ -19,6 +19,7 @@ package inetsoft.web.admin.presentation;
 
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.portal.PortalWelcomePage;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.presentation.model.PresentationLoginBannerSettingsModel;
 import inetsoft.web.viewsheet.Audited;
@@ -27,10 +28,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class PresentationLoginBannerSettingsService {
 
-   public PresentationLoginBannerSettingsModel getModel() {
+   public PresentationLoginBannerSettingsModel getModel(boolean global) {
       PortalThemesManager manager = PortalThemesManager.getManager();
       manager.loadThemes();
       PortalWelcomePage welcomePage = manager.getWelcomePage();
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+
+      if(!global && orgId != null && manager.getWelcomePage(orgId) != null) {
+         welcomePage = manager.getWelcomePage(orgId);
+      }
 
       if(welcomePage == null) {
          return null;
@@ -47,14 +53,29 @@ public class PresentationLoginBannerSettingsService {
       objectName = "Presentation-Login Banner",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
-   public void setModel(PresentationLoginBannerSettingsModel model) {
+   public void setModel(PresentationLoginBannerSettingsModel model, boolean global) {
       PortalThemesManager manager = PortalThemesManager.getManager();
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      PortalWelcomePage welcomePage;
 
-      if(manager.getWelcomePage() == null) {
-         manager.setWelcomePage(new PortalWelcomePage());
+      if(global) {
+         welcomePage = manager.getWelcomePage();
+      }
+      else {
+         welcomePage = manager.getWelcomePage(orgId);
       }
 
-      PortalWelcomePage welcomePage = manager.getWelcomePage();
+      if(welcomePage == null) {
+         welcomePage = new PortalWelcomePage();
+
+         if(global) {
+            manager.setWelcomePage(welcomePage);
+         }
+         else {
+            manager.setWelcomePage(orgId, welcomePage);
+         }
+      }
+
       String loginBanner = model.loginBanner() == null ? "" : model.loginBanner();
 
       welcomePage.setBannerType(Integer.parseInt(model.bannerType()));
@@ -68,16 +89,21 @@ public class PresentationLoginBannerSettingsService {
       objectName = "Presentation-Login Banner",
       objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
    )
-   public void resetSettings() {
+   public void resetSettings(boolean global) {
       PortalThemesManager manager = PortalThemesManager.getManager();
 
-      manager.setWelcomePage(new PortalWelcomePage());
+      if(global) {
+         manager.setWelcomePage(new PortalWelcomePage());
 
-      PortalWelcomePage welcomePage = manager.getWelcomePage();
-      String loginBanner = "";
+         PortalWelcomePage welcomePage = manager.getWelcomePage();
+         String loginBanner = "";
 
-      welcomePage.setBannerType(0);
-      welcomePage.setBanner(loginBanner);
+         welcomePage.setBannerType(0);
+         welcomePage.setBanner(loginBanner);
+      }
+      else {
+         manager.removeWelcomePage(OrganizationManager.getInstance().getCurrentOrgID());
+      }
 
       manager.save();
    }

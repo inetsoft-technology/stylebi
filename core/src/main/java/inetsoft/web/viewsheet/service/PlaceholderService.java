@@ -27,7 +27,9 @@ import inetsoft.report.composition.execution.*;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.internal.ParameterTool;
+import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.Field;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.script.viewsheet.ScriptEvent;
@@ -220,7 +222,14 @@ public class PlaceholderService {
       setExportType(rvs, dispatcher);
       setComposedDashboard(rvs, dispatcher);
 
+      // embed web component
       if(event.getEmbedAssemblyName() != null) {
+         Viewsheet vs = rvs.getViewsheet();
+
+         if(vs != null && !vs.containsAssembly(event.getEmbedAssemblyName())) {
+            throw new RuntimeException("Assembly does not exist: " + event.getEmbedAssemblyName());
+         }
+
          EmbedAssemblyInfo embedAssemblyInfo = new EmbedAssemblyInfo();
          embedAssemblyInfo.setAssemblyName(event.getEmbedAssemblyName());
          embedAssemblyInfo.setAssemblySize(event.getEmbedAssemblySize());
@@ -485,6 +494,24 @@ public class PlaceholderService {
          }
          else {
             infoMap.put("viewsheetBackground", Tool.getVSCSSBgColorHexString());
+         }
+
+         LicenseManager licenseManager = LicenseManager.getInstance();
+
+         if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
+            infoMap.put("hasWatermark", true);
+         }
+         else if(licenseManager.isHostedLicense()) {
+            Principal user = ThreadContext.getContextPrincipal();
+
+            if(user instanceof SRPrincipal principal) {
+               String orgId = principal.getOrgId();
+               String username = principal.getName();
+
+               if(licenseManager.getHostedRemainingHours(orgId, username) == 0) {
+                  infoMap.put("hasWatermark", true);
+               }
+            }
          }
 
          infoMap.put("statusText", rvs.getEntry().getDescription() + " " +
@@ -1067,10 +1094,11 @@ public class PlaceholderService {
             }
             else if(reset) {
                box.reset(null, sheetAssemblies, clist, true, true, null, toggleMaxMode);
+               rvs.refreshAllTipViewOrPopComponentTable();
             }
             else if(initing) {
                box.reset(null, sheetAssemblies, clist, true, true, copiedSelections);
-               rvs.refreshAllTipViewTable();
+               rvs.refreshAllTipViewOrPopComponentTable();
             }
 
             if(initing) {
@@ -1813,11 +1841,18 @@ public class PlaceholderService {
                LOG.warn("Failed to get data", e);
             }
 
+            OutputVSAssemblyInfo outputInfo = (OutputVSAssemblyInfo) info;
+
             if(data == null) {
                data = ((OutputVSAssembly) assembly).getValue();
             }
+            // set the newest value again in case the newly calculated result has changed
+            // due to sequencing (e.g. input assembly value applied in parameter after the
+            // previous execution of output value). (68371)
+            else {
+               outputInfo.setValue(data);
+            }
 
-            OutputVSAssemblyInfo outputInfo = (OutputVSAssemblyInfo) info;
             BindingInfo binding = outputInfo.getBindingInfo();
             // it is not reasonable to disable text, this will cause
             // format problem, fix bug1343748782524
@@ -2687,6 +2722,7 @@ public class PlaceholderService {
 
       if(rvs.isRuntime()) {
          final SecurityEngine engine = SecurityEngine.getSecurity();
+         boolean isSelfOrg = user instanceof SRPrincipal && ((SRPrincipal) user).isSelfOrganization();
 
          if(Boolean.parseBoolean(SreeEnv.getProperty("Viewsheet Toolbar Hidden"))) {
             permissions.add("Toolbar");
@@ -2746,8 +2782,8 @@ public class PlaceholderService {
 
          if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Schedule", ResourceAction.READ) ||
             !engine.checkPermission(user, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS) ||
-            !engine.checkPermission(user, ResourceType.SCHEDULE_TASK_FOLDER, "/", ResourceAction.READ)
-         )
+            !engine.checkPermission(user, ResourceType.SCHEDULE_TASK_FOLDER, "/", ResourceAction.READ) ||
+            VSUtil.hideActionsForHostAssets(rvs.getEntry(), user))
          {
             permissions.add("Schedule");
          }
@@ -2811,9 +2847,15 @@ public class PlaceholderService {
       VSAssemblyInfo vsAssemblyInfo = vs.getVSAssemblyInfo();
       String[] allOptions = VSUtil.getExportOptions();
       ArrayList<String> options = new ArrayList<>();
+      boolean withDiffOrg = rvs.getEntry() != null && rvs.getViewsheet().getBaseEntry() != null &&
+         !Tool.equals(rvs.getEntry().getOrgID(), rvs.getViewsheet().getBaseEntry().getOrgID());
 
       for(int i = 0; i < allOptions.length; i++) {
          String eoption = allOptions[i];
+
+         if(withDiffOrg && FileFormatInfo.EXPORT_NAME_SNAPSHOT.equals(eoption)) {
+            continue;
+         }
 
          if(vsAssemblyInfo.isActionVisible(eoption)) {
             options.add(eoption);

@@ -21,6 +21,7 @@ import inetsoft.uql.ListedDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -39,9 +40,9 @@ import java.util.Objects;
          method = "updateTokens",
          oauth = @Button.OAuth(serviceName = "google-sheets")
       )),
-      @View1("accessToken"),
-      @View1("refreshToken"),
-      @View1("tokenExpiration"),
+      @View1(value = "accessToken"),
+      @View1(value = "refreshToken"),
+      @View1(value = "tokenExpiration"),
       @View1("connectTimeout"),
       @View1("readTimeout")
    })
@@ -53,28 +54,38 @@ public class GDataDataSource extends TabularDataSource<GDataDataSource> implemen
       super(TYPE, GDataDataSource.class);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.AUTH_TOKENS;
+   }
+
+   @Override
+   protected boolean supportCredentialId() {
+      return false;
+   }
+
    @Property(label = "Access Token", password = true)
-   @PropertyEditor(enabled = false)
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
    public String getAccessToken() {
-      return accessToken;
+      return ((AuthTokensCredential) getCredential()).getAccessToken();
    }
 
    public void setAccessToken(String accessToken) {
-      this.accessToken = accessToken;
+      ((AuthTokensCredential) getCredential()).setAccessToken(accessToken);
    }
 
    @Property(label = "Refresh Token", password = true)
-   @PropertyEditor(enabled = false)
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
    public String getRefreshToken() {
-      return refreshToken;
+      return ((AuthTokensCredential) getCredential()).getRefreshToken();
    }
 
    public void setRefreshToken(String refreshToken) {
-      this.refreshToken = refreshToken;
+      ((AuthTokensCredential) getCredential()).setRefreshToken(refreshToken);
    }
 
    @Property(label = "Token Expiration", password = true)
-   @PropertyEditor(enabled = false)
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
    public long getTokenExpiration() {
       return tokenExpiration;
    }
@@ -122,8 +133,9 @@ public class GDataDataSource extends TabularDataSource<GDataDataSource> implemen
    }
 
    public void updateTokens(Tokens tokens) {
-      this.accessToken = tokens.accessToken();
-      this.refreshToken = tokens.refreshToken();
+      AuthTokensCredential credential = (AuthTokensCredential) getCredential();
+      credential.setAccessToken(tokens.accessToken());
+      credential.setRefreshToken(tokens.refreshToken());
       this.tokenExpiration = tokens.expiration();
    }
 
@@ -136,18 +148,6 @@ public class GDataDataSource extends TabularDataSource<GDataDataSource> implemen
    protected void writeContents(PrintWriter writer) {
       super.writeContents(writer);
 
-      if(accessToken != null) {
-         writer.format(
-            "<accessToken><![CDATA[%s]]></accessToken>%n",
-            Tool.encryptPassword(accessToken));
-      }
-
-      if(refreshToken != null) {
-         writer.format(
-            "<refreshToken><![CDATA[%s]]></refreshToken>%n",
-            Tool.encryptPassword(refreshToken));
-      }
-
       writer.format("<tokenExpiration>%d</tokenExpiration>%n", tokenExpiration);
       writer.format("<connectTimeout>%d</connectTimeout>%n", connectTimeout);
       writer.format("<readTimeout>%d</readTimeout>%n", readTimeout);
@@ -156,16 +156,6 @@ public class GDataDataSource extends TabularDataSource<GDataDataSource> implemen
    @Override
    protected void parseContents(Element tag) throws Exception {
       super.parseContents(tag);
-      Element element;
-
-      if((element = Tool.getChildNodeByTagName(tag, "accessToken")) != null) {
-         accessToken = Tool.decryptPassword(Tool.getValue(element));
-      }
-
-      if((element = Tool.getChildNodeByTagName(tag, "refreshToken")) != null) {
-         refreshToken = Tool.decryptPassword(Tool.getValue(element));
-      }
-
       String value;
 
       if((value = Tool.getChildValueByTagName(tag, "tokenExpiration")) != null) {
@@ -191,8 +181,7 @@ public class GDataDataSource extends TabularDataSource<GDataDataSource> implemen
       try {
          GDataDataSource ds = (GDataDataSource) obj;
 
-         return Objects.equals(accessToken, ds.accessToken) &&
-            Objects.equals(refreshToken, ds.refreshToken) &&
+         return Objects.equals(getCredential(), ds.getCredential()) &&
             tokenExpiration == ds.tokenExpiration &&
             connectTimeout == ds.connectTimeout &&
             readTimeout == ds.readTimeout;
@@ -204,8 +193,6 @@ public class GDataDataSource extends TabularDataSource<GDataDataSource> implemen
 
    private int connectTimeout = 0;
    private int readTimeout = 0;
-   private String accessToken;
-   private String refreshToken;
    private long tokenExpiration;
 
    private static final Logger LOG = LoggerFactory.getLogger(GDataDataSource.class);

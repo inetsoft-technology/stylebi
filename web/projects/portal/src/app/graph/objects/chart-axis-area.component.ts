@@ -473,8 +473,8 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
          let clientRect = this.objectCanvas.nativeElement.getBoundingClientRect();
          let objLeft = clientRect.left;
          let objTop = clientRect.top;
-         let x1 = (event.clientX - objLeft + this.canvasX) / this.viewsheetScale;
-         let y1 = (event.clientY - objTop + this.canvasY) / this.viewsheetScale;
+         let x1 = (event.clientX - objLeft) / this.viewsheetScale + this.canvasX;
+         let y1 = (event.clientY - objTop) / this.viewsheetScale + this.canvasY;
 
          const regions = this.getTreeRegions(x1, y1, x1, y1)
             .filter((region) => !!region && !region.noselect);

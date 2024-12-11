@@ -61,6 +61,16 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    }
 
    /**
+    * Create a ScheduleTask.
+    * @param name task name. It should be unique in each scheduler.
+    */
+   public ScheduleTask(String name, Type type) {
+      this();
+      this.name = name;
+      this.type = type;
+   }
+
+   /**
     * Get the task name.
     */
    public String getName() {
@@ -72,6 +82,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
     */
    public void setName(String name) {
       this.name = name;
+      id = null;
    }
 
    /**
@@ -211,7 +222,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
 
       long retry = Long.MAX_VALUE;
       Scheduler scheduler = Scheduler.getScheduler();
-      long lastRun = scheduler.getLastScheduledRunTime(getName());
+      long lastRun = scheduler.getLastScheduledRunTime(getTaskId());
 
       for(int i = 0; i < conds.size(); i++) {
          ScheduleCondition cond = conds.elementAt(i);
@@ -289,7 +300,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       acts.addElement(action);
 
       if(action instanceof BatchAction) {
-         dependency.add(((BatchAction) action).getTaskName());
+         dependency.add(((BatchAction) action).getTaskId());
       }
    }
 
@@ -338,6 +349,11 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
     * Remove the specified condition from the task.
     */
    public void removeCondition(int idx) {
+      // avoid deleting a condition that has not yet been saved causing the deletion request to fail
+      if(idx < 0 || idx >= conds.size()) {
+         return;
+      }
+
       ScheduleCondition cond = conds.elementAt(idx);
 
       if(cond instanceof CompletionCondition) {
@@ -372,11 +388,11 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       ScheduleAction existingAction = acts.get(idx);
 
       if(existingAction instanceof BatchAction) {
-         dependency.remove(((BatchAction) existingAction).getTaskName());
+         dependency.remove(((BatchAction) existingAction).getTaskId());
       }
 
       if(action instanceof BatchAction) {
-         dependency.add(((BatchAction) action).getTaskName());
+         dependency.add(((BatchAction) action).getTaskId());
       }
 
       acts.setElementAt(action, idx);
@@ -389,7 +405,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       ScheduleAction action = acts.elementAt(idx);
 
       if(action instanceof BatchAction) {
-         dependency.removeElement(((BatchAction) action).getTaskName());
+         dependency.removeElement(((BatchAction) action).getTaskId());
       }
 
       acts.removeElementAt(idx);
@@ -451,7 +467,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    public void run(Principal principal) throws Throwable {
       synchronized(this) {
          if(isRunning()) {
-            throw new Exception("Task is still running: " + getName());
+            throw new Exception("Task is still running: " + getTaskId());
          }
 
          running = true;
@@ -516,24 +532,24 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          }
 
          Runnable r = new ThreadPool.AbstractContextRunnable() {
-            { addRecord("ScheduleTask:" + ScheduleTask.this.getName()); }
+            { addRecord("ScheduleTask:" + ScheduleTask.this.getTaskId()); }
 
             @Override
             public void run() {
                try {
                   if(principal instanceof XPrincipal) {
                      ((XPrincipal) principal).setProperty("__TASK_NAME__",
-                        ScheduleTask.this.getName());
+                        ScheduleTask.this.getTaskId());
                   }
 
                   if(principal != null) {
                      ThreadContext.setContextPrincipal(principal);
                   }
 
-                  String taskName = getName();
-                  taskName = LicenseManager.getInstance().isEnterprise() ?
-                     taskName : SUtil.getTaskNameWithoutOrg(taskName);
-                  MDC.put("SCHEDULE_TASK", taskName);
+                  String taskId = getTaskId();
+                  taskId = LicenseManager.getInstance().isEnterprise() ?
+                     taskId : SUtil.getTaskNameWithoutOrg(taskId);
+                  MDC.put("SCHEDULE_TASK", taskId);
                   act.run(principal);
                   MDC.remove("SCHEDULE_TASK");
                }
@@ -570,7 +586,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       int threshold = (cycleInfo != null && cycleInfo.isExceedNotify())
          ? cycleInfo.getThreshold() : 0;
       int time = 0;
-      int timeout = Integer.parseInt(SreeEnv.getProperty("schedule.task.timeout", "0"));
+      long timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
 
       // only after all the replet actions are over, should the task be over
       synchronized(this) {
@@ -582,7 +598,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
             if(timeout > 0 && System.currentTimeMillis() - startTime > timeout) {
                cancel();
                throw new RuntimeException("Schedule Task Timeout exceeded! Cancelling the task: " +
-                                             getName());
+                                             getTaskId());
             }
 
             wait(1000);
@@ -606,7 +622,8 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                   if(SreeEnv.getBooleanProperty("schedule.options.taskFailed", "true", "CHECKED"))
                   {
                      String subject = Catalog.getCatalog().getString(
-                        "em.scheduler.notification.taskFailedSub", getName(),
+                        "em.scheduler.notification.taskFailedSub",
+                        SUtil.getTaskNameWithoutOrg(getTaskId()), SUtil.getTaskOrgName(getTaskId(), principal),
                         (new SimpleDateFormat("hh:mma yyyy-MM-dd"))
                         .format(new Date()));
                      String body = Catalog.getCatalog().getString(
@@ -621,7 +638,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                   Throwable ex = exceptions.get(i);
                   LOG.warn("Exception occurred during " +
                      "execution of schedule task " +
-                     ScheduleTask.this.getName() + ": " + ex.getMessage(),
+                     ScheduleTask.this.getTaskId() + ": " + ex.getMessage(),
                      ex);
                }
             }
@@ -742,7 +759,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
 
       for(String toAddr : toAddrs) {
          if(!Tool.matchEmail(toAddr)) {
-            String[] uemails = SUtil.getEmails(new IdentityID(toAddr, OrganizationManager.getCurrentOrgName()));
+            String[] uemails = SUtil.getEmails(new IdentityID(toAddr, OrganizationManager.getInstance().getCurrentOrgID()));
 
             if(uemails != null) {
                for(String uemail : uemails) {
@@ -772,6 +789,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
     */
    public void setOwner(IdentityID owner) {
       this.owner = owner;
+      id = null;
    }
 
    /**
@@ -898,6 +916,38 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
     */
    public CycleInfo getCycleInfo() {
       return cycleInfo;
+   }
+
+   /**
+    * Get the task Id.
+    */
+   public String getTaskId() {
+      if(id == null) {
+         if(type == Type.CYCLE_TASK) {
+            id = owner.convertToKey() + "__" + name;
+         }
+         else if(type == Type.INTERNAL_TASK) {
+            id = name;
+         }
+         else {
+            id = owner == null ? name : ScheduleManager.getTaskId(owner.convertToKey(), name);
+         }
+      }
+
+      return id;
+   }
+
+   /**
+    * Get the task label to display.
+    *
+    * @param containsOwner whether label contains owner.
+    */
+   public String toView(boolean containsOwner) {
+      if(!containsOwner || owner == null) {
+         return name;
+      }
+
+      return owner.name + ":" + name;
    }
 
    /**
@@ -1138,6 +1188,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       writer.printf(" durable=\"%s\"", durable);
       writer.printf(" path=\"%s\"", Tool.escape(path));
       writer.printf(" lastModified=\"%d\"", lastModified);
+      writer.printf(" type=\"%s\"", type.name());
 
       if(startDate != null) {
          writer.print(" startDate=\"" + startDate.getTime() +
@@ -1211,7 +1262,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       path = Tool.isEmptyString(path) ? "/" : path;
       // backward compatibility, null is administrator
       owner = Tool.equals("null", owner.name) ?
-         new IdentityID(XPrincipal.SYSTEM, Organization.getDefaultOrganizationName()) : owner;
+         new IdentityID(XPrincipal.SYSTEM, Organization.getDefaultOrganizationID()) : owner;
       enabled = "true".equals(elem.getAttribute("enabled"));
       // removable and editable will be missing if the xml is from a previous version.
       final String removableStr = Tool.getAttribute(elem, "removable");
@@ -1265,6 +1316,13 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       catch(Exception exp) {
          LOG.error("Failed to set owner of task " + name + " to " + idname, exp);
       }
+
+      String taskType = elem.getAttribute("type");
+
+      if(!Tool.isEmptyString(taskType)) {
+         type = Type.valueOf(elem.getAttribute("type"));
+      }
+
 
       NodeList conds = Tool.getChildNodesByTagName(elem, "Condition");
 
@@ -1467,6 +1525,13 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       }
    }
 
+   public enum Type {
+      NORMAL_TASK,
+      MV_TASK,
+      CYCLE_TASK,
+      INTERNAL_TASK
+   }
+
    private Vector<ScheduleCondition> conds = new Vector<>();
    private Vector<ScheduleAction> acts = new Vector<>();
    private String name;
@@ -1486,6 +1551,8 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    private Identity identity = null;
    private CycleInfo cycleInfo;
    private ScheduleTask runtimeTask;
+   private Type type = Type.NORMAL_TASK;
+   private transient String id;
 
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTask.class);
 }

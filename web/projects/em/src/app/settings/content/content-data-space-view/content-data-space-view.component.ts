@@ -149,11 +149,12 @@ export class ContentDataSpaceViewComponent implements OnInit {
             const request = {
                path: folder,
                files: result.uploadId,
-               extractArchives: result.extract
+               extractArchives: result.extract,
+               global: folder == "portal/shapes"
             };
 
             this.http.post(uri, request).subscribe(
-               () => this.dataSource.refresh(),
+               () => this.dataSource.refresh(this.currentNode),
                () => this.snackbar.open("_#(js:em.dataspace.uploadError)", "_#(js:Close)", this.snackBarConfig)
             );
          }

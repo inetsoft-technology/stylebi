@@ -24,7 +24,8 @@ public enum LicenseType {
    NAMED_USER(true, false, true),
    VIEWER(true, true, true),
    NAMED_USER_VIEWER(true, true, true),
-   SCHEDULER(false, false, false);
+   ELASTIC(true, false, true),
+   HOSTED(true, false, true);
 
    private final boolean pooled;
    private final boolean viewer;
@@ -41,17 +42,13 @@ public enum LicenseType {
    }
 
    public static LicenseType forTypeChar(char c) {
-      switch(c) {
-      case 'Q':
-         return SCHEDULER;
-      case 'X':
-         return CPU;
-      case 'S':
-         return CONCURRENT_SESSION;
-      case 'U':
-         return NAMED_USER;
-      default:
-         return INVALID;
-      }
+      return switch(c) {
+         case 'X' -> CPU;
+         case 'S' -> CONCURRENT_SESSION;
+         case 'U' -> NAMED_USER;
+         case 'E' -> ELASTIC;
+         case 'H' -> HOSTED;
+         default -> INVALID;
+      };
    }
 }

@@ -15,9 +15,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, OnDestroy, OnInit, Output } from "@angular/core";
+import {
+   Component,
+   EventEmitter,
+   Input,
+   OnDestroy,
+   OnInit,
+   Output
+} from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators } from "@angular/forms";
 import { Subscription } from "rxjs";
+import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { AuthenticationProviderModel } from "../security-provider-model/authentication-provider-model";
@@ -37,6 +45,14 @@ export class AuthorizationProviderDetailViewComponent implements OnInit, OnDestr
    private _model: AuthorizationProviderModel;
    private _original: AuthenticationProviderModel;
    private _changed: boolean = false;
+   isEnterprise: boolean = false;
+
+   con
+   constructor(private appInfoService: AppInfoService) {
+      this.appInfoService.isEnterprise().subscribe(val => {
+         this.isEnterprise = val;
+      });
+   }
 
    @Input()
    set model(model: AuthorizationProviderModel) {

@@ -159,6 +159,39 @@ public class MapDBKeyValueEngine implements KeyValueEngine {
       return ids.stream();
    }
 
+   @Override
+   public <T> void putAll(String id, Map<String, T> keyValueMap) {
+      updateAll(id, keyValueMap, null);
+   }
+
+   @Override
+   public void removeAll(String id, Set<String> keys) {
+      updateAll(id, null, keys);
+   }
+
+   private <T> void updateAll(String id, Map<String, T> keyValueMap, Set<String> keys) {
+      if(closed) {
+         throw new IllegalStateException("Key value engine is closed");
+      }
+
+      CacheEntry entry = getDatabase(id);
+
+      synchronized(entry) {
+         ConcurrentMap<String, Object> map = getMap(id, entry.db);
+
+         if(keys == null && keyValueMap != null) {
+            map.putAll(keyValueMap);
+         }
+         else if(keys != null) {
+            for(String key : keys) {
+               map.remove(key);
+            }
+         }
+
+         commitDebouncer.debounce(id, 1L, TimeUnit.SECONDS, new CommitTask(id));
+      }
+   }
+
    private CacheEntry openDB(String id) {
       try {
          DB db = DBMaker

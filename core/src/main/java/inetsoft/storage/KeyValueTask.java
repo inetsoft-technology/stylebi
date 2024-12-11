@@ -17,8 +17,7 @@
  */
 package inetsoft.storage;
 
-import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.sree.internal.cluster.SingletonCallableTask;
+import inetsoft.sree.internal.cluster.*;
 
 import java.io.*;
 import java.util.Map;
@@ -62,7 +61,7 @@ public abstract class KeyValueTask<T extends Serializable> implements Serializab
     *
     * @return the map.
     */
-   protected final Map<String, T> getMap() {
+   protected final DistributedMap<String, T> getMap() {
       Cluster cluster = Cluster.getInstance();
       return cluster.getReplicatedMap("inetsoft.storage.kv." + id);
    }

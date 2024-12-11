@@ -17,11 +17,14 @@
  */
 package inetsoft.storage;
 
+import inetsoft.sree.internal.SUtil;
+import inetsoft.util.Catalog;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.config.InetsoftConfig;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.security.Principal;
 import java.util.List;
 import java.util.ServiceLoader;
 
@@ -41,14 +44,10 @@ public interface ExternalStorageService {
     */
    void write(String path, Path file) throws IOException;
 
-   /**
-    * Gets a file name that is not used in the external storage.
-    *
-    * @param path  the desired file path.
-    * @param start the initial number to use as a suffix for the file name.
-    *
-    * @return an available file name.
-    */
+   default void write(String path, Path file, Principal principal) throws IOException {
+      write(SUtil.addUserSpacePathPrefix(principal, path), file);
+   }
+
    String getAvailableFile(String path, int start);
 
    /**
@@ -68,6 +67,12 @@ public interface ExternalStorageService {
     * @throws IOException if an I/O error occurs.
     */
    void delete(String path) throws IOException;
+
+   void renameFolder(String ofolder, String nfolder) throws IOException;
+
+   default String getStorageLocation() {
+      return Catalog.getCatalog().getString("em.confirm.heapDump.storageLocation");
+   }
 
    static ExternalStorageService getInstance() {
       return SingletonManager.getInstance(ExternalStorageService.class);

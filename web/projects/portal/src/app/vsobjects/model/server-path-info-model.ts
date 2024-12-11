@@ -20,4 +20,6 @@ export class ServerPathInfoModel {
    username?: string;
    password?: string;
    ftp?: boolean;
+   useCredential?: boolean;
+   secretId?: string;
 }

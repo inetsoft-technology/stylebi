@@ -23,6 +23,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.asset.internal.AssetFolder;
+import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.uql.util.Drivers;
 import inetsoft.web.AutoSaveUtils;
 import org.slf4j.Logger;
@@ -84,7 +85,7 @@ public abstract class AbstractIndexedStorage implements IndexedStorage {
                changes.add(new TimestampIndexChange(entry.toIdentifier(),
                   TimestampIndexChangeType.ADD));
             }
-            
+
             event = new StorageRefreshEvent(this, lastModified(), changes);
          }
 
@@ -130,14 +131,23 @@ public abstract class AbstractIndexedStorage implements IndexedStorage {
       return result;
    }
 
+   public byte[] get(String key) throws Exception {
+      return get(key, null);
+   }
+
    /**
     * Return the data to which the specified key is mapped in this storage.
     * @param key key whose associated data is to be returned.
+    * @param orgID orgID the target organization id.
     * @return the data to which this map maps the specified key, or
     * <tt>null</tt> if the storage contains no mapping for this key.
     * @throws Exception if get value object failed.
     */
-   public abstract byte[] get(String key) throws Exception;
+   public abstract byte[] get(String key, String orgID) throws Exception;
+
+   protected void put(String key, byte[] value) throws Exception {
+      put(key, value, null);
+   }
 
    /**
     * Add the specified data with the specified key in this storage
@@ -145,9 +155,10 @@ public abstract class AbstractIndexedStorage implements IndexedStorage {
     * replaced by the specified data.
     * @param key key with which the specified data is to be associated.
     * @param value data to be associated with the specified key.
+    * @param orgID the target organization id.
     * @throws Exception if put key-value pair failed.
     */
-   protected abstract void put(String key, byte[] value) throws Exception;
+   protected abstract void put(String key, byte[] value, String orgID) throws Exception;
 
    @Override
    public boolean contains(String key, String orgID) {
@@ -315,13 +326,12 @@ public abstract class AbstractIndexedStorage implements IndexedStorage {
     * @param doc the document after transformation.
     * @param className the asset sheet class name.
     */
-   @Override
-   public void putDocument(String key, Document doc, String className) {
+   public void putDocument(String key, Document doc, String className, String orgID) {
       try {
          ByteArrayOutputStream bout = new ByteArrayOutputStream();
          XMLTool.writeAssets(doc, bout, className, key);
          byte[] data = bout.toByteArray();
-         put(key, data);
+         put(key, data, orgID);
       }
       catch(Exception exc) {
          LOG.error("Failed to write to indexed storage: {}", key, exc);
@@ -332,12 +342,13 @@ public abstract class AbstractIndexedStorage implements IndexedStorage {
     * This is for rename transformation.
     * Get the asset document, and transformation document directly to improve performance.
     * @param key the asset identifier.
+    * @param orgID the target organization id.
     * @return the asset document.
     */
    @Override
-   public Document getDocument(String key) {
+   public Document getDocument(String key, String orgID) {
       try {
-         byte[] data = get(key);
+         byte[] data = get(key, orgID);
          Map<String, Object> map = parseData(data);
          Object obj = map != null ? map.get("doc") : null;
          return obj == null ? null : (Document) obj;
@@ -566,11 +577,17 @@ public abstract class AbstractIndexedStorage implements IndexedStorage {
    }
 
    @Override
-   public void migrateStorageData(Organization oorg, Organization norg) throws Exception  {
+   public void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg) throws Exception  {
       // no-op
    }
+
    @Override
-   public void copyStorageData(String oId, String nId) throws Exception  {
+   public void migrateStorageData(String oname, String nname) throws Exception {
+      // no-op
+   }
+
+   @Override
+   public void copyStorageData(Organization oOrg, Organization nOrg) throws Exception {
       // no-op
    }
 

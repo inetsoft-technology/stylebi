@@ -19,7 +19,7 @@ import { HttpParams } from "@angular/common/http";
 import { AfterViewInit, Component, Input, OnInit, ViewChild } from "@angular/core";
 import { FormGroup } from "@angular/forms";
 import { MatPaginator } from "@angular/material/paginator";
-import { MatSort } from "@angular/material/sort";
+import { MatSort, Sort } from "@angular/material/sort";
 import { MatTableDataSource } from "@angular/material/table";
 import { EMPTY, Observable, of } from "rxjs";
 import { mergeMap } from "rxjs/operators";
@@ -55,6 +55,9 @@ export class AuditTableViewComponent<R> implements OnInit, AfterViewInit {
    dataSource = new MatTableDataSource<R>([]);
    totalRowCount = 0;
    loading = false;
+   sortColumn: string = ""
+   sortDirection: string = ""
+   initDate = 0;
 
    private _startDate = this.minDate;
    private _endDate = this.maxDate;
@@ -88,35 +91,48 @@ export class AuditTableViewComponent<R> implements OnInit, AfterViewInit {
 
    ngOnInit(): void {
       this.loading = true;
-      this.fetchParameters().subscribe(params => {
-         if(this.dateRangeVisible) {
-            this.minDate = this.floorSeconds(params.startTime); // round down to the nearest second
-            this.maxDate = this.floorSeconds(params.endTime) + 1000; // round up to the nearest second
-            this._startDate = this.minDate;
-            this._endDate = this.maxDate;
-         }
+      this.fetchParameters().subscribe(
+         params=> {
+            if(this.dateRangeVisible) {
+               this.minDate = this.floorSeconds(params.startTime); // round down to the nearest second
+               this.maxDate = this.floorSeconds(params.endTime) + 1000; // round up to the nearest second
+               this._startDate = this.minDate;
+               this._endDate = this.maxDate;
+               this.initDate = this.maxDate;
+            }
 
-         this.onParameterChange();
-      });
+            this.onParameterChange();
+         },
+         error => {
+            console.error("Failed to get parameters: ", error);
+            this.loading = false;
+         });
    }
 
    ngAfterViewInit(): void {
       this.paginator.page.subscribe(() => this.onParameterChange());
-      this.dataSource.sort = this.sort;
    }
 
    apply() {
       this.loading = true;
-      this.fetchParameters().subscribe(params => {
-         if(this.dateRangeVisible) {
-            this.minDate = this.floorSeconds(params.startTime); // round down to the nearest second
-            this.maxDate = this.floorSeconds(params.endTime) + 1000; // round up to the nearest second
-            this._startDate = this.minDate;
-            this._endDate = this.maxDate;
-         }
+      this.fetchParameters().subscribe(
+         params=> {
+            if(this.dateRangeVisible) {
+               this.maxDate = this.floorSeconds(params.endTime) + 1000;// round up to the nearest second
 
-         this.onParameterChange();
-      });
+               if(this.maxDate > this.initDate) {
+                  this._endDate = this.maxDate;
+                  this.initDate = this.maxDate;
+               }
+            }
+
+            this.onParameterChange();
+         },
+         error => {
+            console.error("Failed to get parameters: ", error);
+            this.loading = false;
+         }
+      );
    }
 
    onParameterChange(): void {
@@ -129,7 +145,9 @@ export class AuditTableViewComponent<R> implements OnInit, AfterViewInit {
       const additional = this.parameterForm.value;
       let params = new HttpParams()
          .set("offset", this.paginator.pageIndex * this.paginator.pageSize)
-         .set("limit", this.paginator.pageSize);
+         .set("limit", this.paginator.pageSize)
+         .set("sortColumn", this.sortColumn)
+         .set("sortDirection", this.sortDirection);
 
       if(this.dateRangeVisible) {
          params = params
@@ -160,11 +178,17 @@ export class AuditTableViewComponent<R> implements OnInit, AfterViewInit {
          });
    }
 
+   changeSort(sortState: Sort) {
+      this.sortColumn = sortState.active;
+      this.sortDirection = sortState.direction;
+      this.onParameterChange();
+   }
+
    private floorSeconds(ts: number): number {
       return ts - (ts % 1000);
    }
 
-   static getDisplayDate(ts: number): string {
-      return DateTypeFormatter.format(ts, "YYYY-MM-DD HH:mm:ss.SSS", false);
+   static getDisplayDate(ts: number, dateFormat: string): string {
+      return DateTypeFormatter.format(ts, dateFormat, false);
    }
 }

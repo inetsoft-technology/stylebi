@@ -1415,7 +1415,7 @@ public class ChangeChartProcessor {
     */
    private void modifiedPercentage(XAggregateRef ref, ChartInfo info) {
       // not modified percent level, only one group will allowed SUB_TOTAL
-      if(true || ref == null) {
+      if(ref == null) {
          return;
       }
 

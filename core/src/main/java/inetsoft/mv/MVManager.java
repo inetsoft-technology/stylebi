@@ -18,12 +18,20 @@
 package inetsoft.mv;
 
 import inetsoft.analytic.composition.event.CheckMVEvent;
+import inetsoft.mv.data.MV;
+import inetsoft.mv.data.MVStorage;
+import inetsoft.mv.fs.*;
+import inetsoft.mv.fs.internal.BlockFileStorage;
 import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.mv.util.MVRule;
+import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
+import inetsoft.storage.BlobStorage;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.ExpressionRef;
@@ -37,10 +45,12 @@ import org.slf4j.LoggerFactory;
 
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -75,15 +85,26 @@ public final class MVManager {
     * Get the MVDef by providing mv name.
     */
    public MVDef get(String name) {
+      return get(name, null);
+   }
+
+   /**
+    * Get the MVDef by providing mv name.
+    */
+   public MVDef get(String name, String orgId) {
       if(name == null) {
          return null;
       }
 
-      if(!mvs.containsKey(name)) {
+      if(orgId == null) {
+         orgId = SUtil.getOrgIDFromMVPath(name.toString()) ;
+      }
+
+      if(!mvs.containsKey(name, orgId)) {
          return null;
       }
 
-      return mvs.get(name);
+      return mvs.get(name, orgId);
    }
 
    /**
@@ -831,12 +852,18 @@ public final class MVManager {
     * @return removed successful.
     */
    public boolean remove(MVDef mv, boolean event) {
+      return remove(mv, event, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   public boolean remove(MVDef mv, boolean event, String orgID) {
       if(mv == null) {
          return false;
       }
 
+      orgID = orgID == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgID;
+
       mv.container = mv.getContainer();
-      boolean success = mvs.remove(mv.getName()) != null;
+      boolean success = mvs.remove(mv.getName(), orgID) != null;
 
       if(success) {
          mv.dispose();
@@ -864,7 +891,6 @@ public final class MVManager {
     * List all MVs.
     */
    public synchronized MVDef[] list(boolean sort, MVFilter filter, Principal principal) {
-      List<MVDef> defs = new ArrayList<>();
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
       String[] orgIDs = null;
 
@@ -875,10 +901,25 @@ public final class MVManager {
          orgIDs[0] = orgId;
       }
       else {
-         orgIDs = Arrays.stream(provider.getOrganizations())
-            .map(name -> provider.getOrganization(name).getId())
-            .toArray(String[]::new);
+         orgIDs = provider.getOrganizationIDs();
       }
+
+      List<MVDef> defs = list(orgIDs);
+      Stream<MVDef> stream = defs.stream().filter(def -> def != null);
+
+      if(filter != null) {
+         stream = stream.filter(filter::accept);
+      }
+
+      if(sort) {
+         stream = stream.sorted();
+      }
+
+      return stream.toArray(MVDef[]::new);
+   }
+
+   public synchronized List<MVDef> list(String[] orgIDs) {
+      List<MVDef> defs = new ArrayList<>();
 
       for(String orgID : orgIDs) {
          for(String key : mvs.keySet(orgID)) {
@@ -891,17 +932,7 @@ public final class MVManager {
          }
       }
 
-      Stream<MVDef> stream = defs.stream().filter(def -> def != null);
-
-      if(filter != null) {
-         stream = stream.filter(filter::accept);
-      }
-
-      if(sort) {
-         stream = stream.sorted();
-      }
-
-      return stream.toArray(MVDef[]::new);
+      return defs;
    }
 
    /**
@@ -945,6 +976,173 @@ public final class MVManager {
             }
          }
       }
+   }
+
+   public void copyStorageData(Organization oorg, Organization norg) throws Exception {
+      migrateStorageData(oorg, norg, true);
+   }
+
+   private void migrateStorageData(Organization oorg, Organization norg, boolean copy)
+      throws Exception
+   {
+      mvs.initRoot(norg.getOrganizationID());
+
+      if(mvs.isEmpty()) {
+         return;
+      }
+
+      String oorgId = oorg.getId();
+      String norgId = norg.getId();
+      Set<String> keySet = mvs.keySet(oorgId);
+
+      for(String key : keySet) {
+         MVDef mvDef = mvs.get(key, oorgId);
+         final MVDef newMVDef = mvDef != null && copy ? mvDef.deepClone() : mvDef;
+
+         if(!copy) {
+            mvs.remove(key, norgId);
+         }
+
+         final String newKey = key.substring(0, key.lastIndexOf("_") + 1) + norgId;
+         updateMVDef(newMVDef, oorg, norg);
+         OrganizationManager.runInOrgScope(norgId, () -> mvs.put(newKey, newMVDef, norgId));
+      }
+
+      migrateMVStorage(oorg, norg, copy);
+   }
+
+   private void migrateMVStorage(Organization oorg, Organization norg, boolean copy)
+      throws Exception
+   {
+      String oorgId = oorg.getId();
+      String norgId = norg.getId();
+      boolean idChanged = !Tool.equals(oorgId, norgId);
+      String storeId = idChanged ? norgId : oorgId;
+
+      MVStorage mvStorage = MVStorage.getInstance();
+      List<String> listFiles = mvStorage.listFiles(oorgId);
+      XServerNode server = FSService.getServer(norgId);
+      XFileSystem fsys = server.getFSystem();
+      XBlockSystem bsys = FSService.getDataNode().getBSystem();
+      fsys.refresh(bsys, true);
+      BlobStorage<?> blkStorage = BlockFileStorage.getInstance().getStorage(norgId);
+
+      for(String file : listFiles) {
+         String defName = null;
+         Cluster.getInstance().lockKey("mv.fs.update");
+
+         try {
+            MV mv = (MV) mvStorage.get(file, oorgId).clone(oorgId);
+            MVDef def = mv.getDef();
+            def = def != null && copy ? def.deepClone() : def;
+            String oldDefName = def.getName();
+
+            updateMVDef(def, oorg, norg);
+            defName = def.getName();
+            mv.setDef(def);
+
+            XFile oldFile = fsys.get(oldDefName);
+            mv.save(MVStorage.getFile(def.getName()), storeId, false);
+            fsys.rename(oldDefName, oorgId, defName, norgId, copy);
+            XFile newFile = fsys.get(defName);
+
+            for(int i = 0; i < oldFile.getBlocks().size(); i ++) {
+               String oBlkId = bsys.getFile(oldFile.getBlocks().get(i).getID()).getName();
+               String nBlkId = bsys.getFile(newFile.getBlocks().get(i).getID()).getName();
+               blkStorage.rename(oBlkId, nBlkId);
+            }
+         }
+         catch(IOException e) {
+            throw new RuntimeException(e);
+         }
+         finally {
+            Cluster.getInstance().unlockKey("mv.fs.update");
+         }
+      }
+
+      if(!copy && idChanged) {
+         mvStorage.getStorage(oorgId).deleteBlobStorage();
+      }
+   }
+
+   private void updateMVDef(MVDef mvDef, Organization oorg, Organization norg) {
+      if (mvDef == null) {
+         return;
+      }
+
+      boolean idChanged = !Tool.equals(oorg.getId(), norg.getId());
+
+      if(idChanged) {
+         String mvName = mvDef.getMVName();
+         mvName = mvName.substring(0, mvName.lastIndexOf("_") + 1) + norg.getId();
+         mvDef.setMVName(mvName);
+      }
+
+      String vsId = mvDef.getVsId();
+      vsId = AssetEntry.createAssetEntry(vsId).cloneAssetEntry(norg).toIdentifier(true);
+      mvDef.setVsId(vsId);
+      String wsId = mvDef.getWsId();
+      String nwsId = null;
+
+      if(wsId != null) {
+         nwsId = AssetEntry.createAssetEntry(wsId).cloneAssetEntry(norg).toIdentifier(true);
+         mvDef.setWsId(nwsId);
+      }
+
+      Identity[] users = mvDef.getUsers();
+
+      if(idChanged && users != null && users.length > 0) {
+         for(Identity user : users) {
+            DefaultIdentity identity = (DefaultIdentity) user;
+            identity.setOrganization(norg.getId());
+         }
+      }
+
+      MVMetaData metaData = mvDef.getMetaData();
+
+      if(metaData != null) {
+         String metaWsId = metaData.getWsId();
+
+         if(metaWsId != null) {
+            metaData.setWsId(AssetEntry.createAssetEntry(metaWsId).cloneAssetEntry(norg)
+               .toIdentifier(true));
+         }
+
+         String[] registeredSheets = metaData.getRegisteredSheets();
+
+         for(String registeredSheet : registeredSheets) {
+            String newSheetId = AssetEntry.createAssetEntry(registeredSheet)
+               .cloneAssetEntry(norg).toIdentifier(true);
+
+            if(!Tool.equals(registeredSheet, newSheetId)) {
+               metaData.renameRegistered(registeredSheet, newSheetId);
+            }
+         }
+      }
+
+      MVDef.MVContainer container = mvDef.getContainer();
+
+      if(container == null || container.ws == null) {
+         return;
+      }
+
+      updateMVWorksheet(container.ws, norg);
+   }
+
+   private void updateMVWorksheet(Worksheet worksheet, Organization norg) {
+      WorksheetWrapper worksheetWrapper = (WorksheetWrapper) worksheet;
+      Worksheet inner = worksheetWrapper.getWorksheet();
+
+      if(inner == null) {
+         return;
+      }
+
+      AssetEntry[] outerDependents = inner.getOuterDependencies();
+      inner.removeOuterDependencies();
+
+      Arrays.stream(outerDependents)
+         .map(entry -> entry.cloneAssetEntry(norg))
+         .forEach(entry -> inner.addOuterDependency(entry));
    }
 
    /**

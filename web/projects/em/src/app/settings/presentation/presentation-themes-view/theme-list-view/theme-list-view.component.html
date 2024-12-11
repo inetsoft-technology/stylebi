@@ -30,7 +30,7 @@
       <button mat-icon-button title="_#(Delete)" (click)="deleteTheme()" [disabled]="cannotDelete()">
         <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
       </button>
-      <button mat-icon-button title="_#(Download)" (click)="downloadTheme()" [disabled]="!selectedTheme">
+      <button mat-icon-button title="_#(Download)" (click)="downloadTheme()" [disabled]="!selectedTheme || selectedTheme.global && !isSiteAdmin">
         <mat-icon fontSet="ineticons" fontIcon="export-icon"></mat-icon>
       </button>
     </ng-container>
@@ -43,7 +43,7 @@
             mat-list-item
             (click)="onThemeSelected(theme.id)">
             {{theme.name}}
-            <mat-icon *ngIf="theme.defaultTheme" fontSet="ineticons" class="default-theme-icon" fontIcon="select-single-icon"></mat-icon>
+            <mat-icon *ngIf="isDefaultTheme(theme)" fontSet="ineticons" class="default-theme-icon" fontIcon="select-single-icon"></mat-icon>
           </a>
         </div>
       </mat-action-list>
@@ -53,10 +53,10 @@
     <button mat-menu-item class="dropdown-import-button" (click)="createTheme()">
       <mat-icon fontSet="ineticons" fontIcon="shape-plus-icon"></mat-icon>
     </button>
-    <button mat-menu-item class="dropdown-import-button" (click)="deleteTheme()" [disabled]="!selectedTheme">
+    <button mat-menu-item class="dropdown-import-button" (click)="deleteTheme()" [disabled]="cannotDelete()">
       <mat-icon fontSet="ineticons" fontIcon="trash-icon"></mat-icon>
     </button>
-    <button mat-menu-item class="dropdown-import-button" (click)="downloadTheme()" [disabled]="!selectedTheme">
+    <button mat-menu-item class="dropdown-import-button" (click)="downloadTheme()" [disabled]="!selectedTheme || selectedTheme.global && !isSiteAdmin">
       <mat-icon fontSet="ineticons" fontIcon="export-icon"></mat-icon>
     </button>
   </mat-menu>

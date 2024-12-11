@@ -45,8 +45,15 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
       this.path = model.path();
 
       if(model.ftp()) {
-         this.username = model.username();
-         this.password = model.password();
+         this.useCredential = model.useCredential();
+
+         if(this.useCredential) {
+            this.secretId = model.secretId();
+         }
+         else {
+            this.username = model.username();
+            this.password = model.password();
+         }
       }
 
       checkFTP();
@@ -59,6 +66,22 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
    public void setPath(String path) {
       this.path = path;
       checkFTP();
+   }
+
+   public boolean isUseCredential() {
+      return useCredential;
+   }
+
+   public void setUseCredential(boolean useCredential) {
+      this.useCredential = useCredential;
+   }
+
+   public String getSecretId() {
+      return secretId;
+   }
+
+   public void setSecretId(String secretId) {
+      this.secretId = secretId;
    }
 
    public String getUsername() {
@@ -88,7 +111,9 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
    }
 
    private void checkFTP() {
-      if((username != null && !username.isEmpty()) || path.toLowerCase().startsWith("ftp://")) {
+      if((useCredential && secretId != null && !secretId.isEmpty()) ||
+         (username != null && !username.isEmpty()) || path.toLowerCase().startsWith("ftp://"))
+      {
          ftp = true;
       }
 
@@ -98,24 +123,27 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
       }
    }
 
-
    @Override
    public void writeXML(PrintWriter writer) {
       writer.print("<ServerPath ");
 
       if(getPath() != null) {
-         writer.print(" path=\"" + Tool.escape(byteEncode(getPath())) +
-                         "\"");
+         writer.print(" path=\"" + Tool.escape(byteEncode(getPath())) + "\"");
       }
 
-      if(getUsername() != null && !getUsername().isEmpty()) {
-         writer.print(" username=\"" + Tool.escape(byteEncode(getUsername())) +
-                         "\"");
-      }
+      writer.print(" useCredential=\"" + isUseCredential() + "\"");
 
-      if(getPassword() != null && !getPassword().isEmpty()) {
-         writer.print(" password=\"" + Tool.encryptPassword(getPassword()) +
-                         "\"");
+      if(isUseCredential()) {
+         writer.print(" secretId=\"" + Tool.escape(byteEncode(getSecretId())) + "\"");
+      }
+      else {
+         if(getUsername() != null && !getUsername().isEmpty()) {
+            writer.print(" username=\"" + Tool.escape(byteEncode(getUsername())) + "\"");
+         }
+
+         if(getPassword() != null && !getPassword().isEmpty()) {
+            writer.print(" password=\"" + Tool.encryptPassword(getPassword()) + "\"");
+         }
       }
 
       writer.print("/> ");
@@ -128,24 +156,39 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
    public void parseXML(Element tag) throws Exception {
       path = tag.getAttribute("path");
       path = byteDecode(path);
-      username = tag.getAttribute("username");
-      username = byteDecode(username);
-      password = tag.getAttribute("password");
-      password = Tool.decryptPassword(password);
+      useCredential = Boolean.parseBoolean(tag.getAttribute("useCredential"));
+
+      if(useCredential) {
+         secretId = tag.getAttribute("secretId");
+         secretId = byteDecode(secretId);
+      }
+      else {
+         username = tag.getAttribute("username");
+         username = byteDecode(username);
+         password = tag.getAttribute("password");
+         password = Tool.decryptPassword(password);
+      }
+
       checkFTP();
    }
 
    @Override
    public boolean equals(Object val) {
-      if(!(val instanceof ServerPathInfo)) {
+      if(!(val instanceof ServerPathInfo info)) {
          return false;
       }
 
-      ServerPathInfo info = (ServerPathInfo) val;
+      if(!Tool.equals(useCredential, info.useCredential)) {
+         return false;
+      }
+
+      if(useCredential && !Tool.equals(secretId, info.secretId)) {
+         return false;
+      }
+
       return Tool.equals(path, info.path) && Tool.equals(username, info.username) &&
          Tool.equals(password, info.password);
    }
-
 
    @Override
    public int compareTo(Object val) {
@@ -178,6 +221,8 @@ public class ServerPathInfo implements Cloneable, Serializable, HttpXMLSerializa
    }
 
    private String path;
+   private boolean useCredential;
+   private String secretId;
    private String username;
    private String password;
    private transient boolean ftp = false;

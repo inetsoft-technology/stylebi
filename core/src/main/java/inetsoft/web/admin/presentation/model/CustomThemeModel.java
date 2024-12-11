@@ -38,7 +38,8 @@ public interface CustomThemeModel {
    String id();
    String name();
    @Nullable Boolean global();
-   @Nullable Boolean defaultTheme();
+   @Nullable Boolean defaultThemeOrg();
+   @Nullable Boolean defaultThemeGlobal();
 //   @Nullable List<String> users();
 //   @Nullable List<String> groups();
 //   @Nullable List<String> roles();
@@ -60,21 +61,8 @@ public interface CustomThemeModel {
 //         roles(theme.getRoles());
 
          String selected = CustomThemesManager.getManager().getSelectedTheme();
-
-         boolean isSiteAdmin = true;
-
-         XPrincipal principal = (XPrincipal) ThreadContext.getContextPrincipal();
-
-         if(principal != null) {
-            isSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
-         }
-
-         if(isSiteAdmin) {
-            defaultTheme(Objects.equals(selected, theme.getId()));
-         }
-         else {
-            defaultTheme(theme.getOrganizations().contains(OrganizationManager.getCurrentOrgName()));
-         }
+         defaultThemeGlobal(Objects.equals(selected, theme.getId()));
+         defaultThemeOrg(theme.getOrganizations().contains(OrganizationManager.getInstance().getCurrentOrgID()));
 
          return this;
       }

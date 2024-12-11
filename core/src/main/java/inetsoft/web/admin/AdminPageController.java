@@ -63,11 +63,13 @@ public class AdminPageController {
          model = new ModelAndView("restricted");
          PortalThemesManager manager = PortalThemesManager.getManager();
          String redirectUri = LinkUriArgumentResolver.transformUri(request);
-         String logoutUrl = SreeEnv.getProperty("sso.logout.url", linkUri + "logout") +
-            "?fromEm=true&redirectUri=" + URLEncoder.encode(redirectUri, "UTF-8");
+         String baseLink = SreeEnv.getProperty("sso.logout.url", linkUri + "logout");
+         String paramAppend = baseLink.contains("?") ? "&" : "?";
+         String logoutUrl =  baseLink + paramAppend +
+            "fromEm=true&redirectUri=" + URLEncoder.encode(redirectUri, "UTF-8");
          model.addObject("logoutUrl", logoutUrl);
-         model.addObject(
-            "customLogo", PortalThemesManager.CUSTOM_LOGO.equals(manager.getLogoStyle()));
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+         model.addObject("customLogo", manager.hasCustomLogo(orgId));
       }
       else {
          model = new ModelAndView("em/index");

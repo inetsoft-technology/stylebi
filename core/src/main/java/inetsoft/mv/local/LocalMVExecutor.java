@@ -21,7 +21,9 @@ import inetsoft.mv.*;
 import inetsoft.mv.fs.*;
 import inetsoft.mv.mr.XJobPool;
 import inetsoft.report.internal.table.XTableLens;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -74,7 +76,8 @@ public class LocalMVExecutor extends AbstractMVExecutor {
 
    private XTable getData0() throws Exception {
       ColumnSelection ocols = table.getColumnSelection(true);
-      XFileSystem fs = FSService.getServer().getFSystem();
+      String mvOrg = SUtil.getOrgIDFromMVPath(mvName);
+      XFileSystem fs = mvOrg == null ?  FSService.getServer().getFSystem() : FSService.getServer(mvOrg).getFSystem();
       XFile file = fs == null ? null : fs.get(mvName);
       List<SBlock> blocks = file == null ? null : file.getBlocks();
 
@@ -116,7 +119,9 @@ public class LocalMVExecutor extends AbstractMVExecutor {
       MVBenchmark.startTimer("executeJob");
 
       try {
-         return (XTable) XJobPool.execute(job);
+         String orgId = mvOrg != null ? mvOrg : user != null ? user.getOrgId() :
+            OrganizationManager.getInstance().getCurrentOrgID();
+         return (XTable) XJobPool.execute(job, orgId);
       }
       finally {
          MVBenchmark.stopTimer("executeJob");

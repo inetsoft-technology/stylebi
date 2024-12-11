@@ -64,7 +64,7 @@ public class User extends AbstractIdentity {
       this.groups = groups;
       this.locale = locale;
       this.name = userIdentity == null ? null : userIdentity.name;
-      this.organization = userIdentity == null ? null : userIdentity.organization;
+      this.organizationID = userIdentity == null ? null : userIdentity.orgID;
       this.roles = roles;
       this.password = password;
    }
@@ -154,9 +154,8 @@ public class User extends AbstractIdentity {
    /**
     * Get organization assigned to the user.
     */
-   @Override
-   public String getOrganization() {
-      return organization == null ? Organization.getDefaultOrganizationName() : organization;
+   public String getOrganizationID() {
+      return organizationID == null ? Organization.getDefaultOrganizationID() : organizationID;
    }
 
    /**
@@ -180,6 +179,10 @@ public class User extends AbstractIdentity {
     */
    public String getGoogleSSOId() {
       return googleSSOId;
+   }
+
+   public void setGoogleSSOId(String googleId) {
+      this.googleSSOId = googleId;
    }
 
    /**
@@ -232,7 +235,7 @@ public class User extends AbstractIdentity {
          String[] cgroups = new String[groups.length];
          System.arraycopy(groups, 0, cgroups, 0, groups.length);
 
-         return new User(new IdentityID(name, getOrganization()), cemails, cgroups, croles, locale, password, passwordAlgorithm,
+         return new User(new IdentityID(name, getOrganizationID()), cemails, cgroups, croles, locale, password, passwordAlgorithm,
                          passwordSalt, appendPasswordSalt, active, alias);
       }
       catch(Exception ex) {
@@ -251,7 +254,7 @@ public class User extends AbstractIdentity {
 
    @Override
    public IdentityID getIdentityID() {
-      return new IdentityID(name, organization);
+      return new IdentityID(name, organizationID);
    }
 
    /**
@@ -280,7 +283,7 @@ public class User extends AbstractIdentity {
    }
 
    protected String name;
-   protected String organization;
+   protected String organizationID;
    protected String[] emails;
    protected IdentityID[] roles;
    protected String[] groups;

@@ -20,16 +20,16 @@ package inetsoft.uql.rest.datasource.appfigures;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
-import org.w3c.dom.Element;
+import inetsoft.util.credential.*;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("clientKey"),
-   @View1("user"),
-   @View1("password")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "clientKey", visibleMethod = "useCredential"),
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "password", visibleMethod = "useCredential")
 })
 public class AppfiguresDataSource extends EndpointJsonDataSource<AppfiguresDataSource> {
    static final String TYPE = "Rest.Appfigures";
@@ -39,13 +39,19 @@ public class AppfiguresDataSource extends EndpointJsonDataSource<AppfiguresDataS
       setAuthType(AuthType.BASIC);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD_CLIENT_KEY;
+   }
+
    @Property(label = "Client Key", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getClientKey() {
-      return clientKey;
+      return ((ClientKeyPasswordCredential) getCredential()).getClientKey();
    }
 
    public void setClientKey(String clientKey) {
-      this.clientKey = clientKey;
+      ((ClientKeyPasswordCredential) getCredential()).setClientKey(clientKey);
    }
 
    @Override
@@ -64,7 +70,7 @@ public class AppfiguresDataSource extends EndpointJsonDataSource<AppfiguresDataS
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)
             .name("X-Client-Key")
-            .value(clientKey)
+            .value(getClientKey())
             .build()
       };
    }
@@ -72,21 +78,6 @@ public class AppfiguresDataSource extends EndpointJsonDataSource<AppfiguresDataS
    @Override
    public void setQueryHttpParameters(HttpParameter[] parameters) {
       // no-op
-   }
-
-   @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(clientKey != null) {
-         writer.format("<clientKey><![CDATA[%s]]></clientKey>%n", Tool.encryptPassword(clientKey));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      clientKey = Tool.decryptPassword(Tool.getChildValueByTagName(root, "clientKey"));
    }
 
    @Override
@@ -104,18 +95,11 @@ public class AppfiguresDataSource extends EndpointJsonDataSource<AppfiguresDataS
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      AppfiguresDataSource that = (AppfiguresDataSource) o;
-      return Objects.equals(clientKey, that.clientKey);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), clientKey);
+      return Objects.hash(super.hashCode(), getClientKey());
    }
-
-   private String clientKey;
 }

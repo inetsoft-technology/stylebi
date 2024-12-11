@@ -74,6 +74,7 @@ local.properties
 .idea/**/usage.statistics.xml
 .idea/**/dictionaries
 .idea/**/shelf
+.idea/jsLibraryMappings.xml
 
 # AWS User-specific
 .idea/**/aws.xml
@@ -154,6 +155,8 @@ fabric.properties
 .idea/encodings.xml
 .idea/jarRepositories.xml
 .idea/vcs.xml
+.idea/scala_compiler.xml
+.idea/.gitignore
 
 ### Maven ###
 target/

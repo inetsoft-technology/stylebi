@@ -28,19 +28,21 @@ import {
 import {ConditionModule} from "../condition/condition.module";
 import {DropdownViewModule} from "../dropdown-view/dropdown-view.module";
 import {FontPaneModule} from "../font-pane/font-pane.module";
+import {ModalHeaderModule} from "../modal-header/modal-header.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      WidgetDirectivesModule,
-      ReactiveFormsModule,
-      ColorPickerModule,
-      LargeFormFieldModule,
-      ConditionModule,
-      DropdownViewModule,
-      FontPaneModule,
-      FormsModule,
-   ],
+    imports: [
+        CommonModule,
+        WidgetDirectivesModule,
+        ReactiveFormsModule,
+        ColorPickerModule,
+        LargeFormFieldModule,
+        ConditionModule,
+        DropdownViewModule,
+        FontPaneModule,
+        FormsModule,
+        ModalHeaderModule,
+    ],
    declarations: [
       AddHighlightDialog,
       HighlightPane

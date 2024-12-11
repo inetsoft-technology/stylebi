@@ -238,6 +238,17 @@ public class ViewsheetEntry extends RepositoryEntry {
       alias = Tool.byteDecode(Tool.getValue(elem));
    }
 
+   @Override
+   public ViewsheetEntry clone() throws CloneNotSupportedException {
+      ViewsheetEntry viewsheetEntry = (ViewsheetEntry) super.clone();
+
+      if(entry != null) {
+         viewsheetEntry.entry = (AssetEntry) entry.clone();
+      }
+
+      return viewsheetEntry;
+   }
+
    private boolean onReport = true;
    private boolean snapshot = false;
    private String identifier = null;

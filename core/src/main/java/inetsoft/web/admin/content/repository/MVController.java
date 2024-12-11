@@ -124,7 +124,7 @@ public class MVController {
    {
       ActionRecord actionRecord = SUtil.getActionRecord(
          principal, ActionRecord.ACTION_NAME_CREATE,
-         DataCycleManager.TASK_PREFIX + createUpdateMVRequest.cycle(),
+         (DataCycleManager.TASK_PREFIX + createUpdateMVRequest.cycle()).trim(),
          ActionRecord.OBJECT_TYPE_TASK);
 
       try {
@@ -155,6 +155,7 @@ public class MVController {
       }
       finally {
          if(actionRecord != null) {
+            actionRecord.setObjectUser(XPrincipal.SYSTEM);
             Audit.getInstance().auditAction(actionRecord, principal);
          }
       }

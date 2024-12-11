@@ -17,25 +17,17 @@
  */
 package inetsoft.web.admin.favorites;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import org.immutables.serial.Serial;
-import org.immutables.value.Value;
-
 import java.io.Serializable;
 import java.util.List;
 
-@Value.Immutable
-@Serial.Structural
-@JsonSerialize(as = ImmutableFavoriteList.class)
-@JsonDeserialize(as = ImmutableFavoriteList.class)
-public abstract class FavoriteList implements Serializable {
-   public abstract List<Favorite> favorites();
-
-   public static Builder builder() {
-      return new Builder();
+public class FavoriteList implements Serializable {
+   public List<Favorite> getFavorites() {
+      return favorites;
    }
 
-   public static final class Builder extends ImmutableFavoriteList.Builder {
+   public void setFavorites(List<Favorite> favorites) {
+      this.favorites = favorites;
    }
+
+   private List<Favorite> favorites;
 }

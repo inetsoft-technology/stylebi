@@ -20,13 +20,16 @@ package inetsoft.uql.rest.datasource.airtable;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("apiToken"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiToken", visibleMethod = "useCredential"),
    @View1("testBaseID"),
    @View1("testTable")
 })
@@ -37,13 +40,19 @@ public class AirtableDataSource extends EndpointJsonDataSource<AirtableDataSourc
       super(TYPE, AirtableDataSource.class);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_TOKEN;
+   }
+
    @Property(label = "API Token", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiToken() {
-      return apiToken;
+      return ((ApiTokenCredential) getCredential()).getApiToken();
    }
 
    public void setApiToken(String apiToken) {
-      this.apiToken = apiToken;
+      ((ApiTokenCredential) getCredential()).setApiToken(apiToken);
    }
 
    @Property(label = "Test Base ID")
@@ -90,7 +99,7 @@ public class AirtableDataSource extends EndpointJsonDataSource<AirtableDataSourc
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)
             .name("Authorization")
-            .value("Bearer " + apiToken)
+            .value("Bearer " + getApiToken())
             .build()
       };
    }
@@ -104,10 +113,6 @@ public class AirtableDataSource extends EndpointJsonDataSource<AirtableDataSourc
    public void writeContents(PrintWriter writer) {
       super.writeContents(writer);
 
-      if(apiToken != null) {
-         writer.format("<apiToken><![CDATA[%s]]></apiToken>%n", Tool.encryptPassword(apiToken));
-      }
-
       if(testBaseID != null) {
          writer.format("<testBaseID><![CDATA[%s]]></testBaseID>%n", testBaseID);
       }
@@ -120,7 +125,6 @@ public class AirtableDataSource extends EndpointJsonDataSource<AirtableDataSourc
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
-      apiToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiToken"));
       testBaseID = Tool.getChildValueByTagName(root, "testBaseID");
       testTable = Tool.getChildValueByTagName(root, "testTable");
    }
@@ -129,16 +133,13 @@ public class AirtableDataSource extends EndpointJsonDataSource<AirtableDataSourc
    public boolean equals(Object obj) {
       try {
          AirtableDataSource ds = (AirtableDataSource) obj;
-         return Objects.equals(apiToken, ds.apiToken) &&
-            Objects.equals(testBaseID, ds.testBaseID) &&
-            Objects.equals(testTable, ds.testTable);
+         return Objects.equals(testBaseID, ds.testBaseID) && Objects.equals(testTable, ds.testTable);
       }
       catch(Exception ex) {
          return false;
       }
    }
 
-   private String apiToken;
    private String testBaseID;
    private String testTable;
 }

@@ -20,6 +20,7 @@ package inetsoft.uql.rest.datasource.xero;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.credential.CredentialType;
 
 @View(vertical = true, value = {
    @View1(
@@ -38,6 +39,16 @@ public class XeroDataSource extends OAuthEndpointJsonDataSource<XeroDataSource> 
    
    public XeroDataSource() {
       super(TYPE, XeroDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.AUTH_TOKENS;
+   }
+
+   @Override
+   protected boolean supportCredentialId() {
+      return false;
    }
 
    @Override

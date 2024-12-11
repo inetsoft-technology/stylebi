@@ -286,6 +286,14 @@ public class ComboBoxVSAssemblyInfo extends ListInputVSAssemblyInfo {
             info.rowCountValue = (DynamicValue2) rowCountValue.clone();
          }
 
+         if(minDate != null) {
+            info.minDate = minDate.clone();
+         }
+
+         if(maxDate != null) {
+            info.maxDate = maxDate.clone();
+         }
+
          return info;
       }
       catch(Exception ex) {

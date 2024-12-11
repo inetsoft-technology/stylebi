@@ -206,8 +206,7 @@ public class XBinaryCondition extends XFilterNode {
    public void writeXML(PrintWriter writer) {
       writer.print("<");
       writer.print(getTag());
-      writer.print(" isnot=" +
-         ((isIsNot() == true) ? "\"true\"" : "\"false\""));
+      writer.print(" isnot=" + (isIsNot() ? "\"true\"" : "\"false\""));
       writer.print(" clause=" + "\"" + getClause() + "\"");
       boolean cnull = "true".equals(getAttribute("containsNull"));
       writer.print(" containsNull=" + "\"" + cnull + "\"");

@@ -73,6 +73,9 @@ public interface ContentRepositoryTreeNode {
    String lastModifiedTime();
 
    @Nullable
+   String organization();
+
+   @Nullable
    @Value.Default
    default Map<String, String> properties() {
       return new HashMap<>();

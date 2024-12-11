@@ -518,7 +518,8 @@ export namespace ChartTool {
                                            type: string): boolean
    {
       return chartSelection && chartSelection.regions && chartSelection.regions.length > 0
-         && chartSelection.regions.some((region) => ChartTool.areaType(model, region) == type);
+         && chartSelection.regions.some((region) =>
+            ChartTool.getMea(model, region) == null || ChartTool.areaType(model, region) == type);
    }
 
    export function axisSelected(model: ChartModel): boolean {
@@ -722,21 +723,12 @@ export namespace ChartTool {
    }
 
    export function drawReferenceLine(context: CanvasRenderingContext2D, region: ChartRegion,
-                                     canvasX: number, canvasY: number): void
+                                     canvasX: number, canvasY: number, scale: number = 1): void
    {
       if(context && region && region.centroid) {
-         // draw a line to the point
-         const point = region.centroid;
-         context.beginPath();
-         context.lineWidth = 2;
-         context.strokeStyle = "#66DD66";
-         context.moveTo(0, point.y);
-         context.lineTo(point.x, point.y);
-         context.lineTo(point.x, context.canvas.height);
-         context.stroke();
-
          // draw the reference point region
-         ChartTool.drawRegions(context, [].concat(region), canvasX, canvasY, 1);
+         ChartTool.drawRegions(context,
+            [].concat(region), canvasX, canvasY, scale, undefined, undefined, true);
       }
    }
 
@@ -755,7 +747,8 @@ export namespace ChartTool {
     */
    export function drawRegions(context: CanvasRenderingContext2D, regions: ChartRegion[],
                                offsetX: number, offsetY: number, currentScale?: number,
-                               scaleX?: number, scaleY?: number): void
+                               scaleX?: number, scaleY?: number,
+                               drawReferLine: boolean = false): void
    {
       if(context && regions) {
          let deviceRatio = window.devicePixelRatio;
@@ -771,12 +764,15 @@ export namespace ChartTool {
          let strokeStyle = "#dc581e";
          let canvasScaleX = deviceRatio;
          let canvasScaleY = deviceRatio;
+
          if(scaleX) {
             canvasScaleX = scaleX * deviceRatio;
          }
+
          if(scaleY) {
             canvasScaleY = scaleY * deviceRatio;
          }
+
          if(currentScale) {
             canvasScaleX *= currentScale;
             canvasScaleY *= currentScale;
@@ -795,12 +791,6 @@ export namespace ChartTool {
             strokeStyle = `${canvasCssStyle.borderColor}`;
          }
 
-         context.beginPath();
-         context.lineWidth = 2;
-         context.fillStyle = fillStyle;
-         context.strokeStyle = strokeStyle;
-         const dregions = Tool.clone(regions);
-
          if(canvasScaleX != null && canvasScaleY != null) {
             context.transform(canvasScaleX, 0, 0, canvasScaleY, 0, 0);
          }
@@ -810,6 +800,25 @@ export namespace ChartTool {
          scaleX = scaleX ? scaleX : 1;
          scaleY = scaleY ? scaleY : 1;
          context.translate(-offsetX, -offsetY);
+
+         if(drawReferLine && regions[0]) {
+            // draw a reference line to the point
+            const point = regions[0].centroid;
+            context.beginPath();
+            context.lineWidth = 2;
+            context.strokeStyle = "#66DD66";
+            context.moveTo(0, point.y);
+            context.lineTo(point.x, point.y);
+            context.lineTo(point.x, Math.round(context.canvas.height / deviceRatio));
+            context.stroke();
+         }
+
+         context.beginPath();
+         context.lineWidth = 2;
+         context.fillStyle = fillStyle;
+         context.strokeStyle = strokeStyle;
+
+         const dregions = Tool.clone(regions);
 
          for(let m = 0; m < dregions.length; m++) {
             const region: ChartRegion = dregions[m];

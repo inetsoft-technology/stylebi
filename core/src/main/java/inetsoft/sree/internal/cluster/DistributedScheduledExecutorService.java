@@ -68,15 +68,11 @@ public interface DistributedScheduledExecutorService {
     * @param initialDelay the time to delay first execution
     * @param period the period between successive executions
     * @param unit the time unit of the initialDelay and period parameters
-    * @return a ScheduledFuture representing pending completion of
-    *         the task, and whose {@code get()} method will throw an
-    *         exception upon cancellation
     * @throws RejectedExecutionException if the task cannot be
     *         scheduled for execution
     * @throws NullPointerException if command is null
     */
-   ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period,
-                                          TimeUnit unit);
+   void scheduleAtFixedRate(Runnable command, long initialDelay, long period, TimeUnit unit);
 
    /**
     * Initiates an orderly shutdown in which previously submitted

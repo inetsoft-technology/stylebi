@@ -42,16 +42,16 @@ public class PreferencesDialogModel {
       this.historyBarEnabled = historyBarEnabled;
    }
 
-   public void setSSOUser(boolean ssoUser) {
-      this.ssoUser = ssoUser;
+   public void setdisable(boolean disable) {
+      this.disable = disable;
    }
 
-   public boolean isSSOUser() {
-      return this.ssoUser;
+   public boolean isdisable() {
+      return this.disable;
    }
 
    private String email;
    private boolean changePasswordAvailable;
    private boolean historyBarEnabled;
-   private boolean ssoUser = false;
+   private boolean disable = false;
 }

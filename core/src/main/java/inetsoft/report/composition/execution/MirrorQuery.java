@@ -701,7 +701,9 @@ public class MirrorQuery extends AssetQuery {
       // Some databases (like Intersystems Caché) will treat an order by clause
       // in a sub-select as invalid SQL, and it doesn't make sense to keep
       // them in cases where a row limit does not exist.
-      if(query.getDefinedMaxRows() == 0 && Tool.equals(ds.getDriver(), "com.intersys.jdbc.CacheDriver")) {
+      if(query.getDefinedMaxRows() == 0 && ds != null &&
+         Tool.equals(ds.getDriver(), "com.intersys.jdbc.CacheDriver"))
+      {
          sql.removeAllOrderByFields();
       }
 

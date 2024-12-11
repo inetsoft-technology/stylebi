@@ -44,7 +44,7 @@ public class RemoveWSObjectCommand extends WorksheetCommand {
    public RemoveWSObjectCommand(String name, boolean showStar) {
       this();
       put("name", name);
-      put("showStar", showStar == true ? "true" : "false");
+      put("showStar", showStar ? "true" : "false");
    }
 
 }

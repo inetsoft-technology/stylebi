@@ -53,6 +53,14 @@ public class HttpParameter implements Serializable, XMLSerializable, Cloneable {
       this.type = type;
    }
 
+   public boolean isSecret() {
+      return secret;
+   }
+
+   public void setSecret(boolean secret) {
+      this.secret = secret;
+   }
+
    @Override
    public HttpParameter clone() {
       try {
@@ -71,14 +79,14 @@ public class HttpParameter implements Serializable, XMLSerializable, Cloneable {
          return;
       }
 
-      writer.print("<httpParameter class=\"" + getClass().getName() + "\">");
+      writer.print("<httpParameter class=\"" + getClass().getName() + "\" secret=\"" + secret + "\">");
 
       if(name != null) {
          writer.format("<name><![CDATA[%s]]></name>", name);
       }
 
       if(value != null) {
-         writer.format("<value><![CDATA[%s]]></value>", value);
+         writer.format("<value><![CDATA[%s]]></value>", secret ? Tool.encryptPassword(value) : value);
       }
 
       writer.format("<type><![CDATA[%s]]></type>", type);
@@ -88,14 +96,17 @@ public class HttpParameter implements Serializable, XMLSerializable, Cloneable {
 
    @Override
    public void parseXML(Element tag) throws Exception {
+      secret = "true".equals(tag.getAttribute("secret"));
       name = Tool.getValue(Tool.getChildNodeByTagName(tag, "name"));
-      value = Tool.getValue(Tool.getChildNodeByTagName(tag, "value"));
+      String val = Tool.getValue(Tool.getChildNodeByTagName(tag, "value"));
+      this.value = secret ? Tool.decryptPassword(val) : val;
       type = ParameterType.valueOf(Tool.getValue(Tool.getChildNodeByTagName(tag, "type")));
    }
 
    @Override
    public String toString() {
       return "HttpParameter{" +
+         "secret='" + secret + '\'' +
          "name='" + name + '\'' +
          ", value='" + value + '\'' +
          ", type=" + type +
@@ -106,7 +117,7 @@ public class HttpParameter implements Serializable, XMLSerializable, Cloneable {
    public boolean equals(Object obj) {
       try {
          HttpParameter param = (HttpParameter) obj;
-         return Objects.equals(name, param.name) &&
+         return Objects.equals(secret, param.secret) && Objects.equals(name, param.name) &&
             Objects.equals(value, param.value) &&
             Objects.equals(type, param.type);
       }
@@ -125,9 +136,15 @@ public class HttpParameter implements Serializable, XMLSerializable, Cloneable {
 
    private String name;
    private String value;
+   private boolean secret;
    private ParameterType type;
 
    public static final class Builder {
+      public Builder secret(boolean secret) {
+         this.secret = secret;
+         return this;
+      }
+
       public Builder name(String name) {
          this.name = name;
          return this;
@@ -148,11 +165,13 @@ public class HttpParameter implements Serializable, XMLSerializable, Cloneable {
          parameter.setName(name);
          parameter.setValue(value);
          parameter.setType(type);
+         parameter.setSecret(secret);
          return parameter;
       }
 
       private String name;
       private String value;
+      private boolean secret;
       private ParameterType type;
    }
 

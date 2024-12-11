@@ -16,7 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output, OnInit } from "@angular/core";
-import {HttpClient} from "@angular/common/http";
+import { HttpClient } from "@angular/common/http";
+import { MatSnackBar } from "@angular/material/snack-bar";
+import { Tool } from "../../../../../../shared/util/tool";
 import { ResourcePermissionModel } from "./resource-permission-model";
 import { PermissionsTableComponent } from "../permissions-table/permissions-table.component";
 import { ResourcePermissionTableModel } from "./resource-permission-table-model";
@@ -36,22 +38,27 @@ export class ResourcePermissionComponent implements OnInit {
    @Output() permissionChanged = new EventEmitter<ResourcePermissionTableModel[]>();
    tableSelected: boolean = false;
    isOrgAdminOnly = true;
-
+   siteAdmin: boolean = true;
 
    dialogData = <SecurityTreeDialogData> {
       dialogTitle: "_#(js:Add Permission)",
       usersEnabled: true,
       groupsEnabled: true,
       rolesEnabled: true,
-      organizationsEnabled: true
+      organizationsEnabled: true,
+      hideOrgAdminRole: true
    };
 
-   constructor(private dialog: MatDialog, private http: HttpClient) {
+   constructor(private dialog: MatDialog, private http: HttpClient, private snackBar: MatSnackBar) {
    }
 
    ngOnInit() {
       this.http.get<boolean>("../api/em/navbar/isOrgAdminOnly")
          .subscribe(isOrgAdminOnly => this.isOrgAdminOnly = isOrgAdminOnly);
+      this.http.get<boolean>("../api/em/navbar/isSiteAdmin").subscribe(
+         (isAdmin => {this.siteAdmin = isAdmin;
+         })
+      );
    }
 
    addPermission(table: PermissionsTableComponent): void {
@@ -75,6 +82,18 @@ export class ResourcePermissionComponent implements OnInit {
    }
 
    removePermission(table: PermissionsTableComponent): void {
+      if(!this.siteAdmin) {
+         let selected = table.selection.selected;
+         let hasGlobalRole = selected.find(r => r.identityID != null && r.identityID.orgID == null) != null;
+
+         if(hasGlobalRole) {
+            const message = "_#(js:em.security.orgAdmin.removeGlobalRolePermissionDenied)";
+            this.snackBar.open(message, null, {duration: Tool.SNACKBAR_DURATION});
+
+            return;
+         }
+      }
+
       table.sendSelection();
    }
 

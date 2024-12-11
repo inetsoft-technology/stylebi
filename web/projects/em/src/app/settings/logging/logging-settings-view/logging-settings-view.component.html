@@ -29,7 +29,7 @@
       <mat-checkbox class="mat-checkbox-field" formControlName="outputToStd">
         _#(Output to Stderr)
       </mat-checkbox>
-      <ng-container formGroupName="fluentdSettings" *ngIf="model.provider === 'fluentd'">
+      <ng-container formGroupName="fluentdSettings" *ngIf="isMultiTenant && model.provider === 'fluentd'">
         <mat-checkbox class="mat-checkbox-field" formControlName="orgAdminAccess">
           _#(em.common.log.orgAdminAccess)
         </mat-checkbox>
@@ -105,10 +105,6 @@
           <mat-label>_#(em.common.log.fluentd.logViewUrl)</mat-label>
           <input matInput placeholder="_#(em.common.log.fluentd.logViewUrl)" formControlName="logViewUrl">
         </mat-form-field>
-        <mat-form-field appearance="outline" color="accent">
-          <mat-label>_#(em.common.log.fluentd.auditViewUrl)</mat-label>
-          <input matInput placeholder="_#(em.common.log.fluentd.auditViewUrl)" formControlName="auditViewUrl">
-        </mat-form-field>
       </ng-container>
       <mat-form-field appearance="outline" color="accent">
         <mat-label>_#(Log Detail Level)</mat-label>
@@ -119,7 +115,7 @@
           <mat-option value="error">_#(Error)</mat-option>
         </mat-select>
       </mat-form-field>
-      <em-logging-level-table [loggingLevels]="model.logLevels" (loggingLevelsChange)="changeLoggingLevels($event)"></em-logging-level-table>
+      <em-logging-level-table [loggingLevels]="getLevels(model.logLevels)" (loggingLevelsChange)="changeLoggingLevels($event)"></em-logging-level-table>
     </ng-container>
   </form>
 </mat-card-content>

@@ -308,7 +308,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
             if(hInfo == null) {
                //The owner of (Home) bookmark is admin
-               bookmark = getUserBookmark(new IdentityID("admin", OrganizationManager.getCurrentOrgName()));
+               bookmark = getUserBookmark(new IdentityID("admin", OrganizationManager.getInstance().getCurrentOrgID()));
                vs = bookmark.getHomeBookmark(vs);
                hInfo = bookmark.getBookmarkInfo(VSBookmark.HOME_BOOKMARK);
             }
@@ -477,6 +477,13 @@ public class RuntimeViewsheet extends RuntimeSheet {
             }
          }
       }
+      else {
+         ContainerVSAssembly containerVSAssembly = getContainerVSAssembly(fullname);
+
+         if(containerVSAssembly != null && tipviews.containsKey(containerVSAssembly.getName())) {
+            return true;
+         }
+      }
 
       return false;
    }
@@ -490,6 +497,15 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       if(popcomponents.contains(fullname)) {
+         return true;
+      }
+
+      ContainerVSAssembly containerVSAssembly = getContainerVSAssembly(fullname);
+
+      if(containerVSAssembly != null &&
+         Arrays.stream(containerVSAssembly.getAssemblies()).anyMatch(n -> n.equals(fullname)) &&
+         popcomponents.contains(containerVSAssembly.getName()))
+      {
          return true;
       }
 
@@ -514,6 +530,23 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       return false;
+   }
+
+   private ContainerVSAssembly getContainerVSAssembly(String name) {
+      Assembly[] assemblies = vs.getAssemblies();
+
+      for(Assembly assembly : assemblies) {
+         if(!assembly.getName().equals(name) && assembly instanceof ContainerVSAssembly) {
+            ContainerVSAssembly containerVSAssembly = (ContainerVSAssembly) assembly;
+            boolean match = Arrays.stream(containerVSAssembly.getAssemblies()).anyMatch((n) -> n.equals(name));
+
+            if(match) {
+               return containerVSAssembly;
+            }
+         }
+      }
+
+      return null;
    }
 
    /**
@@ -561,7 +594,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
          setOpenedBookmark(bookmark == null ? null : bookmark.getBookmarkInfo(name));
 
          point = -1;
-         points = new XSwappableSheetList();
+         points = new XSwappableSheetList(this.contextPrincipal);
          events = new ArrayList<>();
 
          getEntry().setProperty("bookmarkName", name);
@@ -1068,7 +1101,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * @param owner the bookmark owner.
     */
    public boolean bookmarkWritable(String name, IdentityID owner) throws Exception {
-      if(owner.equals(getUserName())) {
+      if(owner.convertToKey().equals(getUserName())) {
          return true;
       }
 
@@ -1142,7 +1175,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       String defName = def.getName();
       IdentityID defOwner = def.getOwner();
 
-      if(pId != null && pId.name.equals(defOwner) && bookmark.containsBookmark(defName))
+      if(pId != null && pId.equals(defOwner) && bookmark.containsBookmark(defName))
       {
          return bookmark;
       }
@@ -1186,7 +1219,8 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
    private String getLockedBookmarkUser(String name, IdentityID owner) {
       BookmarkLockManager lockManager = BookmarkLockManager.getManager();
-      return lockManager.getLockedBookmarkUser(getLockPath(name, owner), getUserName());
+      String lockUser = lockManager.getLockedBookmarkUser(getLockPath(name, owner), getUserName());
+      return lockUser == null ? null : IdentityID.getIdentityIDFromKey(lockUser).name;
    }
 
    private String getUserName() {
@@ -1777,9 +1811,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    /**
-    * Refresh the tipviews of the runtime viewsheet.
+    * Refresh the tip views or pop components of the runtime viewsheet.
     */
-   public void refreshAllTipViewTable() {
+   public void refreshAllTipViewOrPopComponentTable() {
       Assembly[] arr = vs.getAssemblies();
 
       if(mode != VIEWSHEET_RUNTIME_MODE) {
@@ -1787,12 +1821,31 @@ public class RuntimeViewsheet extends RuntimeSheet {
       }
 
       for(Assembly assembly : arr) {
-         if(assembly instanceof VSAssembly &&
-            ((VSAssembly) assembly).getVSAssemblyInfo() instanceof TipVSAssemblyInfo)
-         {
-            refreshTipViewTable((TipVSAssemblyInfo) assembly.getInfo(), vs);
+         if(assembly instanceof VSAssembly) {
+            VSAssemblyInfo vsAssemblyInfo = ((VSAssembly) assembly).getVSAssemblyInfo();
+
+            if(vsAssemblyInfo instanceof TipVSAssemblyInfo) {
+               refreshTipViewTable((TipVSAssemblyInfo) assembly.getInfo(), vs);
+            }
+            else if(vsAssemblyInfo instanceof PopVSAssemblyInfo) {
+               refreshPopComponentTable((PopVSAssemblyInfo) assembly.getInfo(), vs);
+            }
          }
       }
+   }
+
+   public void refreshPopComponentTable(PopVSAssemblyInfo info, Viewsheet vs) {
+      int popOption = info.getPopOption();
+      String componentValue = info.getPopComponentValue();
+      VSAssembly obj = (VSAssembly) vs.getAssembly(componentValue);
+
+      if(popOption != PopVSAssemblyInfo.POP_OPTION || obj == null ||
+         obj.getContainer() != null)
+      {
+         return;
+      }
+
+      initPopComponentTable(obj, vs);
    }
 
    /**

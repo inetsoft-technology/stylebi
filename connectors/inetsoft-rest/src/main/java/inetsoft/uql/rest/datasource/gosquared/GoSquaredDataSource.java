@@ -20,15 +20,15 @@ package inetsoft.uql.rest.datasource.gosquared;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
-import org.w3c.dom.Element;
+import inetsoft.util.credential.*;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("apiKey"),
-   @View1("siteToken")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiKey", visibleMethod = "useCredential"),
+   @View1(value = "siteToken", visibleMethod = "useCredential")
 })
 public class GoSquaredDataSource extends EndpointJsonDataSource<GoSquaredDataSource> {
    static final String TYPE = "GoSquared";
@@ -38,22 +38,27 @@ public class GoSquaredDataSource extends EndpointJsonDataSource<GoSquaredDataSou
       setAuthType(AuthType.NONE);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.SITE_TOKEN;
+   }
+
    @Property(label = "API Key", required = true, password = true)
    public String getApiKey() {
-      return apiKey;
+      return ((SiteTokenCredential) getCredential()).getApiKey();
    }
 
    public void setApiKey(String apiKey) {
-      this.apiKey = apiKey;
+      ((SiteTokenCredential) getCredential()).setApiKey(apiKey);
    }
 
    @Property(label = "Site Token", required = true, password = true)
    public String getSiteToken() {
-      return siteToken;
+      return ((SiteTokenCredential) getCredential()).getSiteToken();
    }
 
    public void setSiteToken(String siteToken) {
-      this.siteToken = siteToken;
+      ((SiteTokenCredential) getCredential()).setSiteToken(siteToken);
    }
 
    @Override
@@ -70,12 +75,14 @@ public class GoSquaredDataSource extends EndpointJsonDataSource<GoSquaredDataSou
    public HttpParameter[] getQueryHttpParameters() {
       HttpParameter keyParam = new HttpParameter();
       keyParam.setName("api_key");
-      keyParam.setValue(apiKey);
+      keyParam.setSecret(true);
+      keyParam.setValue(getApiKey());
       keyParam.setType(HttpParameter.ParameterType.QUERY);
 
       HttpParameter tokenParam = new HttpParameter();
       tokenParam.setName("site_token");
-      tokenParam.setValue(siteToken);
+      tokenParam.setSecret(true);
+      tokenParam.setValue(getSiteToken());
       tokenParam.setType(HttpParameter.ParameterType.QUERY);
 
       HttpParameter acceptToken = new HttpParameter();
@@ -89,26 +96,6 @@ public class GoSquaredDataSource extends EndpointJsonDataSource<GoSquaredDataSou
    @Override
    public void setQueryHttpParameters(HttpParameter[] parameters) {
       // no-op
-   }
-
-   @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(apiKey != null) {
-         writer.format("<apiKey><![CDATA[%s]]></apiKey>%n", Tool.encryptPassword(apiKey));
-      }
-
-      if(siteToken != null) {
-         writer.format("<siteToken><![CDATA[%s]]></siteToken>%n", Tool.encryptPassword(siteToken));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      apiKey = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiKey"));
-      siteToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "siteToken"));
    }
 
    @Override
@@ -126,20 +113,11 @@ public class GoSquaredDataSource extends EndpointJsonDataSource<GoSquaredDataSou
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      GoSquaredDataSource that = (GoSquaredDataSource) o;
-      return Objects.equals(apiKey, that.apiKey) &&
-         Objects.equals(siteToken, that.siteToken);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), apiKey, siteToken);
+      return Objects.hash(super.hashCode(), getApiKey(), getSiteToken());
    }
-
-   private String apiKey;
-   private String siteToken;
 }

@@ -128,7 +128,7 @@ public class RestErrorHandler {
       //Do not retry if the timeout is too long
       while(!handlerResponse.shouldContinue() && retryAfter < RETRY_AFTER_TIMEOUT) {
          try {
-            Thread.sleep(retryAfter * 1000);
+            Thread.sleep(retryAfter * 1000L);
             T returnValue = fn.call();
             handlerResponse = new RestErrorResponse<>(true, returnValue);
          }

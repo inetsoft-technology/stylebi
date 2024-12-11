@@ -73,7 +73,7 @@ class SharepointAuthenticator extends BaseAuthenticationProvider {
       authorize("client_id=" + dataSource.getClientId() +
          "&client_secret=" + URLEncoder.encode(dataSource.getClientSecret(), "UTF-8") +
          "&scope=Sites.Read.All%20offline_access" +
-         "&username=" + URLEncoder.encode(dataSource.getUsername(), "UTF-8") +
+         "&username=" + URLEncoder.encode(dataSource.getUser(), "UTF-8") +
          "&password=" + URLEncoder.encode(dataSource.getPassword(), "UTF-8") +
          "&grant_type=password");
    }

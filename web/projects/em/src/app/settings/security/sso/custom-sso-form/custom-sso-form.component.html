@@ -16,12 +16,12 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div class="custom-sso-form">
-  <mat-radio-group [(ngModel)]="classType">
+  <mat-radio-group [(ngModel)]="classType" (change)="modelChange.emit()">
     <mat-radio-button value="java">_#(Java Class)</mat-radio-button>
     <mat-radio-button value="groovy">_#(Inline Groovy)</mat-radio-button>
   </mat-radio-group>
   <mat-form-field class="flex" *ngIf="classType === 'java'">
-    <input matInput placeholder="_#(Filter Class)" [(ngModel)]="javaClassName"/>
+    <input matInput placeholder="_#(Filter Class)" [(ngModel)]="javaClassName" (change)="modelChange.emit()"/>
   </mat-form-field>
   <div class="groovy-form" [class.not-shown]="classType === 'java'">
     <div class="groovy-label"><mat-label>_#(Filter Class)</mat-label></div>

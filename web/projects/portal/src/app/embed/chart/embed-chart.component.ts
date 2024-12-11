@@ -32,7 +32,11 @@ import { BehaviorSubject, forkJoin, Subscription } from "rxjs";
 import { Tool } from "../../../../../shared/util/tool";
 import { Dimension } from "../../common/data/dimension";
 import { GuiTool } from "../../common/util/gui-tool";
-import { CommandProcessor, ViewsheetClientService } from "../../common/viewsheet-client";
+import {
+   CommandProcessor,
+   StompClientService,
+   ViewsheetClientService
+} from "../../common/viewsheet-client";
 import { TouchAssetEvent } from "../../composer/gui/ws/socket/touch-asset-event";
 import { AbstractVSActions } from "../../vsobjects/action/abstract-vs-actions";
 import { AddVSObjectCommand } from "../../vsobjects/command/add-vs-object-command";
@@ -66,6 +70,10 @@ import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 import { CollectParametersCommand } from "../../vsobjects/command/collect-parameters-command";
 import { CollectParametersOverEvent } from "../../common/event/collect-parameters-over-event";
 import { first } from "rxjs/operators";
+import { VSRefreshEvent } from "../../vsobjects/event/vs-refresh-event";
+import { DebounceService } from "../../widget/services/debounce.service";
+import { InteractService } from "../../widget/interact/interact.service";
+import { EmbedErrorCommand } from "../embed-error-command";
 
 const OPEN_VS_URI: string = "/events/open";
 const CLOSE_VIEWSHEET_SOCKET_URI: string = "/events/composer/viewsheet/close";
@@ -83,7 +91,9 @@ declare const window: any;
       TooltipService,
       NgbModal,
       DialogService,
-      FixedDropdownService
+      FixedDropdownService,
+      InteractService,
+      DebounceService
    ]
 })
 export class EmbedChartComponent extends CommandProcessor implements OnInit, OnDestroy, AfterViewInit {
@@ -98,6 +108,9 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    queryParams: Params = {};
    mobileDevice: boolean = GuiTool.isMobileDevice();
    connected: boolean;
+   errorTimeout: any;
+   showError: boolean;
+   timeoutError: boolean;
    @ViewChild("viewerRoot") viewerRoot: ElementRef;
 
    private subscriptions: Subscription = new Subscription();
@@ -123,7 +136,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
                private viewContainerRef: ViewContainerRef,
                private injector: Injector,
                private shadowDomService: ShadowDomService,
-               private showHyperlinkService: ShowHyperlinkService)
+               private showHyperlinkService: ShowHyperlinkService,
+               private debounceService: DebounceService)
    {
       super(viewsheetClient, zone, true);
       shadowDomService.addShadowRootHost(injector, viewContainerRef.element?.nativeElement);
@@ -154,7 +168,20 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          (window.inetsoftConnected as BehaviorSubject<boolean>).subscribe((connected) => {
             if(!this.connected && connected) {
                this.connected = true;
+
+               if(!!this.errorTimeout) {
+                  clearTimeout(this.errorTimeout);
+               }
+
+               this.showError = false;
                this.openViewsheet();
+            }
+
+            if(!this.connected && !connected) {
+               this.errorTimeout = setTimeout(() => {
+                  this.showError = true;
+                  console.error("InetSoft client not connected. Please make sure to login first.");
+               }, 1000);
             }
          });
       }
@@ -211,6 +238,10 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    processSetRuntimeIdCommand(command: SetRuntimeIdCommand): void {
       this.viewsheetClient.runtimeId = command.runtimeId;
       this.runtimeId = command.runtimeId;
+
+      // call onResize in case the element was resized while the server was processing
+      // open viewsheet event
+      this.onResize();
    }
 
    // noinspection JSUnusedGlobalSymbols
@@ -278,6 +309,12 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       this.viewsheetClient.sendEvent(COLLECT_PARAMS_URI, event);
    }
 
+   // noinspection JSUnusedGlobalSymbols
+   processEmbedErrorCommand(command: EmbedErrorCommand): void {
+      this.showError = true;
+      console.error(command.message);
+   }
+
    downloadStarted(url: string): void {
       ComponentTool.showMessageDialog(this.modalService, "_#(js:Info)", "_#(js:common.downloadStart)");
    }
@@ -331,6 +368,9 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
       if(this.assetId) {
          this.subscriptions.add(this.viewsheetClient.whenConnected()
             .subscribe(() => setTimeout(() => this.openViewsheet0(), 0)));
+         this.subscriptions.add(this.viewsheetClient.connectionError().subscribe((error) => {
+            this.timeoutError = !!error;
+         }));
          this.viewsheetClient.connect(!!this.url);
          this.viewsheetClient.beforeDestroy = () => this.beforeDestroy();
       }
@@ -395,8 +435,8 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
          this.viewerRoot.nativeElement.offsetHeight);
 
       const sbSize = GuiTool.measureScrollbars();
-      this.assemblySize = new Dimension(this.appSize.width - sbSize,
-         this.appSize.height - sbSize);
+      this.assemblySize = new Dimension(Math.max(0, this.appSize.width - sbSize),
+         Math.max(0, this.appSize.height - sbSize));
    }
 
    onOpenContextMenu(event: MouseEvent) {
@@ -468,4 +508,30 @@ export class EmbedChartComponent extends CommandProcessor implements OnInit, OnD
    public getVariableValues(name: string): string[] {
       return VSUtil.getVariableList(this.vsInfo.vsObjects, name);
    }
+
+   onResize() {
+      // if runtime id not set yet then ignore the resize events
+      if(this.runtimeId == null || this.appSize == null) {
+         return;
+      }
+
+      const oldAppSize = new Dimension(this.appSize.width, this.appSize.height);
+      this.setAppSize();
+
+      // no change or set to 0 then ignore
+      if(this.appSize.width == 0 || this.appSize.height == 0 ||
+         (oldAppSize.width == this.appSize.width && oldAppSize.height == this.appSize.height))
+      {
+         return;
+      }
+
+      this.debounceService.debounce("embed-chart-vs-resize" + this.runtimeId, () => {
+         const refreshEvent = new VSRefreshEvent();
+         refreshEvent.setWidth(this.appSize.width);
+         refreshEvent.setHeight(this.appSize.height);
+         refreshEvent.setEmbedAssemblySize(this.assemblySize);
+         this.viewsheetClient.sendEvent("/events/vs/refresh", refreshEvent);
+      }, 100, []);
+   }
 }
+

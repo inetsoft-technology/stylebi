@@ -17,6 +17,8 @@
  */
 package inetsoft.util.config;
 
+import inetsoft.util.config.crd.CRDProperty;
+
 import java.io.Serializable;
 import java.util.Objects;
 
@@ -114,12 +116,19 @@ public class KeyValueConfig implements Serializable {
       this.mongo = mongo;
    }
 
+   @CRDProperty(description = "The type of key-value storage", allowedValues = { "cosmosdb", "database", "dynamodb", "firestore", "mapdb", "mongo" })
    private String type;
+   @CRDProperty(description = "The CosmosDB key-value storage settings")
    private CosmosDBConfig cosmosdb;
+   @CRDProperty(description = "The relational database key-value storage settings")
    private DatabaseConfig database;
+   @CRDProperty(description = "The DynamoDB key-value storage settings")
    private DynamoDBConfig dynamodb;
    private FilesystemConfig filesystem;
+   @CRDProperty(description = "The Firestore key-value storage settings")
    private FirestoreConfig firestore;
+   @CRDProperty(description = "The MapDB key-value storage settings")
    private MapDBConfig mapdb;
+   @CRDProperty(description = "The MongoDB key-value storage settings")
    private MongoConfig mongo;
 }

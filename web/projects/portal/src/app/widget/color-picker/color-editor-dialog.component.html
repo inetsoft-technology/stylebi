@@ -16,10 +16,10 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div blockMouse>
-   <div class="modal-header">
-        <h3 class="modal-title">_#(Select Color)</h3>
-        <button type="button" class="btn-close" (click)="cancel()" aria-label="Close"></button>
-   </div>
+  <modal-header
+    [title]="'_#(Select Color)'"
+    (onCancel)="cancel()">
+  </modal-header>
    <div class="modal-body">
      <div class="container-fluid">
        <div class="row g-3">

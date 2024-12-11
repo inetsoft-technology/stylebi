@@ -338,6 +338,32 @@ public final class XSwappableObjectList<T> implements Serializable {
    }
 
    /**
+    * Check if the fragment is disposed.
+    * @return <tt>true</tt> if disposed, <tt>false</tt> otherwise.
+    */
+   public boolean isDisposed(int idx) {
+      int tidx = idx >> BLOCK_BITS;
+      XObjectFragment<T>[] fragments = this.fragments;
+
+      if(fragments == null) {
+         try {
+            rlock.lock();
+            fragments = this.fragments;
+         }
+         finally {
+            rlock.unlock();
+         }
+      }
+
+      if(fragments == null || fragments[tidx] == null) {
+         LOG.debug("Fragment {} not found", tidx);
+         return false;
+      }
+
+      return fragments[tidx].isDisposed();
+   }
+
+   /**
     * Finalize the object.
     */
    @Override

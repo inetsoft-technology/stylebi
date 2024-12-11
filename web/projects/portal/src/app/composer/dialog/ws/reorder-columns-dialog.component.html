@@ -22,11 +22,14 @@
 <div class="modal-body" enterSubmit (onEnter)="ok()" *ngIf="model">
   <w-large-form-field>
     <div class="bordered-box bd-gray bordered-box-md" largeFieldElement>
-      <div *ngFor="let _index of model.indexes; let _i = index;"
-           class="reorder-column" [class.selected]="isSelectedItem(_i)"
-           (click)="selectItem($event, _i)"
-           [wTooltip]="getTooltip(_index)">
-        {{getColumn(_index)}}</div>
+      <cdk-virtual-scroll-viewport itemSize="20" maxBufferPx="100">
+        <div *cdkVirtualFor="let _index of model.indexes; let _i = index"
+             [class.selected]="isSelectedItem(_i)"
+             (click)="selectItem($event, _i)"
+             [wTooltip]="getTooltip(_index)">
+          {{getColumn(_index)}}
+        </div>
+      </cdk-virtual-scroll-viewport>
     </div>
     <ng-container largeFieldButtons>
       <button type="button" class="btn btn-default btn-up"
@@ -40,6 +43,8 @@
     </ng-container>
   </w-large-form-field>
 </div>
+<vs-loading-display *ngIf="!model">
+</vs-loading-display>
 <div class="modal-footer">
   <button type="button" class="btn btn-primary" (click)="ok()" #okButton>_#(OK)</button>
   <button type="button" class="btn btn-default" data-dismiss="modal" (click)="cancel()">_#(Cancel)</button>

@@ -123,9 +123,10 @@ public interface RepletRepository extends Remote {
     * @param selector the specified selector, should be one of the repository entry
     * type predefined in <tt>RepositoryEntry</tt> like <tt>FOLDER</tt>.
     * The selector might be the combination of the types as well.
+    * @param isDefaultOrgAsset is this folder a globally visible default org asset
     */
    RepositoryEntry[] getRepositoryEntries(String folder, Principal user, ResourceAction action,
-                                          int selector) throws RemoteException;
+                                          int selector, boolean isDefaultOrgAsset) throws RemoteException;
 
    /**
     * Get available repository entries.
@@ -139,10 +140,11 @@ public interface RepletRepository extends Remote {
     * @param selector the specified selector, should be one of the repository entry
     * type predefined in <tt>RepositoryEntry</tt> like <tt>FOLDER</tt>.
     * The selector might be the combination of the types as well.
+    * @param isDefaultOrgAsset is this folder a globally visible default org asset
     */
    RepositoryEntry[] getRepositoryEntries(String folder, Principal user,
                                           EnumSet<ResourceAction> actions,
-                                          int selector) throws RemoteException;
+                                          int selector, boolean isDefaultOrgAsset) throws RemoteException;
 
    /**
     * Check if the tree change, response the refresh option to refresh the tree
@@ -215,11 +217,11 @@ public interface RepletRepository extends Remote {
 
    /**
     * Get the schedule task with the specified name.
-    * @param name the name of the schedule task.
+    * @param taskId the task id of the schedule task.
     * @return the requested ScheduleTask object.
     * @throws RemoteException if an error occurs.
     */
-   ScheduleTask getScheduleTask(String name) throws RemoteException;
+   ScheduleTask getScheduleTask(String taskId) throws RemoteException;
 
    /**
     * Get the schedule task with the specified name.

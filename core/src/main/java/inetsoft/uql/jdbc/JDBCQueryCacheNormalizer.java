@@ -78,7 +78,7 @@ public class JDBCQueryCacheNormalizer {
          return false;
       }
 
-      return true;
+      return usql.getParseResult() != UniformSQL.PARSE_FAILED;
    }
 
    public boolean isClearedSqlString() {

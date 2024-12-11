@@ -223,7 +223,7 @@ public class RuntimeWorksheet extends RuntimeSheet
 
    public void cancelJoin() throws Exception {
       this.ws = this.joinWS.ws;
-      points = new XSwappableSheetList();
+      points = new XSwappableSheetList(this.contextPrincipal);
       events = new LinkedList<>();
 
       for(int i = 0; i < joinWS.points.size(); i++) {

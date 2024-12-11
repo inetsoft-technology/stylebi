@@ -43,7 +43,7 @@ public class HelpController {
    @PostConstruct
    public void loadLinks() throws IOException {
       try(InputStream input = getClass().getResourceAsStream("help-links.json")) {
-         String prefix = Tool.getHelpURL(true) + "/#cshid=";
+         String prefix = Tool.getHelpBaseURL() + "#cshid=";
          HelpLinks.Builder builder = HelpLinks.builder();
          // prefix with help base URL
          objectMapper.readValue(input, HelpLinks.class).links().stream()
@@ -72,7 +72,7 @@ public class HelpController {
       )
    )
    public String getHelpUrL(Principal princpal) {
-      return Encode.forUri(Tool.getHelpURL(true));
+      return Encode.forUri(Tool.getHelpBaseURL());
    }
 
    private HelpLinks helpLinks;

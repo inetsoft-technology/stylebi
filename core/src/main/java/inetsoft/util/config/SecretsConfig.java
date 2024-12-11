@@ -17,9 +17,20 @@
  */
 package inetsoft.util.config;
 
+import inetsoft.util.config.crd.*;
+
 import java.io.Serializable;
 
 @InetsoftConfigBean
+@CRDResources({
+   @CRDResource(
+      name = "local", type = "LocalSecrets",
+      properties = {
+         @CRDProperty(name = "masterPassword", type = String.class, description = "The master password used to generate a PBKDF2 cipher for encrypting secrets", secret = true),
+         @CRDProperty(name = "masterSalt", type = String.class, description = "The salt to use when encrypting secrets in FIPS mode", secret = true)
+      }
+   )
+})
 public class SecretsConfig implements Serializable, Cloneable {
    public String getType() {
       return type;
@@ -61,6 +72,14 @@ public class SecretsConfig implements Serializable, Cloneable {
       this.googleSecrets = googleSecrets;
    }
 
+   public HcpVaultSecretsConfig getHcpVaultSecrets() {
+      return hcpVaultSecrets;
+   }
+
+   public void setHcpVaultSecrets(HcpVaultSecretsConfig hcpVaultSecrets) {
+      this.hcpVaultSecrets = hcpVaultSecrets;
+   }
+
    @Override
    public Object clone() {
       SecretsConfig config = new SecretsConfig();
@@ -79,12 +98,23 @@ public class SecretsConfig implements Serializable, Cloneable {
          config.setGoogleSecrets((GoogleCloudSecretsConfig) googleSecrets.clone());
       }
 
+      if(hcpVaultSecrets != null) {
+         config.setHcpVaultSecrets((HcpVaultSecretsConfig) hcpVaultSecrets.clone());
+      }
+
       return config;
    }
 
-   private String type = "local";
+   @CRDProperty(description = "The type of secrets manager", allowedValues = { "local", "aws", "azure", "google", "hcp" })
+   private String type = SecretsType.LOCAL.getName();
+   @CRDProperty(description = "A flag that indicates if FIPS compliance mode is activated")
    private boolean fipsComplianceMode;
+   @CRDProperty(name = "awsSecretsManager", description = "The AWS Secrets Manager configuration")
    private AwsSecretsConfig awsSecrets;
+   @CRDProperty(description = "The Azure Key Vault configuration")
    private AzureKeyVaultConfig azureKeyVault;
+   @CRDProperty(name = "googleCloudSecrets", description = "The Google Cloud Secrets configuration")
    private GoogleCloudSecretsConfig googleSecrets;
+   @CRDProperty(name = "hcpVaultSecrets", description = "The HCP Vault Secrets configuration")
+   private HcpVaultSecretsConfig hcpVaultSecrets;
 }

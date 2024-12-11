@@ -112,7 +112,7 @@ public class XMLIndexedStorage extends AbstractIndexedStorage
     * @throws UnsupportedOperationException
     */
    @Override
-   public byte[] get(String key) throws Exception {
+   public byte[] get(String key, String orgID) throws Exception {
       throw new UnsupportedOperationException();
    }
 
@@ -125,7 +125,7 @@ public class XMLIndexedStorage extends AbstractIndexedStorage
     * @throws UnsupportedOperationException
     */
    @Override
-   protected void put(String key, byte[] value) throws Exception {
+   protected void put(String key, byte[] value, String orgID) throws Exception {
       throw new UnsupportedOperationException();
    }
 

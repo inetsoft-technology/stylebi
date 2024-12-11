@@ -34,7 +34,7 @@
       <section class="flex-row">
         <mat-card class="tab-block portal-card" *ngFor="let dataSource of model.visibleDataSources, let i = index;">
           <mat-card-subtitle class="visible-subtitle">
-            <h4 class="tab-name mat-subtitle-2">{{dataSource}}</h4>
+            <h4 class="tab-name mat-subtitle-2">{{dataSource.value}}</h4>
             <span class="spacer"></span>
             <button mat-icon-button
                     title="_#(Delete)"
@@ -64,7 +64,7 @@
       <section class="flex-row">
         <mat-card class="tab-block portal-card" *ngFor="let dataSource of model.hiddenDataSources, let i = index;">
           <mat-card-subtitle class="visible-subtitle">
-            <h4 class="tab-name mat-subtitle-2">{{dataSource}}</h4>
+            <h4 class="tab-name mat-subtitle-2">{{dataSource.value}}</h4>
             <span class="spacer"></span>
             <button mat-icon-button
                     title="_#(Delete)"

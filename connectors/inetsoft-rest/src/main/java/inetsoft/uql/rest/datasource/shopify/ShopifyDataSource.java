@@ -21,6 +21,7 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.datasource.graphql.AbstractGraphQLDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.CoreTool;
+import inetsoft.util.credential.CredentialType;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -35,11 +36,13 @@ import java.util.Objects;
       vertical = true,
       colspan = 2,
       elements =  {
-         @View2("clientId"),
-         @View2("clientSecret"),
-         @View2("authorizationUri"),
-         @View2("tokenUri"),
-         @View2("scope"),
+         @View2(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+         @View2(value = "credentialId", visibleMethod = "isUseCredentialId"),
+         @View2(value = "clientId", visibleMethod = "useCredential"),
+         @View2(value = "clientSecret", visibleMethod = "useCredential"),
+         @View2(value = "authorizationUri", visibleMethod = "useCredential"),
+         @View2(value = "tokenUri", visibleMethod = "useCredential"),
+         @View2(value = "scope", visibleMethod = "useCredential"),
          @View2(
             type = ViewType.BUTTON,
             text = "Authorize",
@@ -58,15 +61,20 @@ public class ShopifyDataSource extends AbstractGraphQLDataSource<ShopifyDataSour
    }
 
    @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.OAUTH2;
+   }
+
+   @Override
    @Property(label = "Authorization URI", required = true)
-   @PropertyEditor(enabled = false, dependsOn = "shop")
+   @PropertyEditor(enabled = false, dependsOn = {"shop"})
    public String getAuthorizationUri() {
       return String.format("https://%s.myshopify.com/admin/oauth/authorize", shop);
    }
 
    @Override
    @Property(label = "Token URI", required = true)
-   @PropertyEditor(enabled = false, dependsOn = "shop")
+   @PropertyEditor(enabled = false, dependsOn = {"shop"})
    public String getTokenUri() {
       return String.format("https://%s.myshopify.com/admin/oauth/access_token", shop);
    }

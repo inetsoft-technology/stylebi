@@ -16,5 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 .cols-container {
+  display: flex;
   padding: 5px 10px;
+}
+
+cdk-virtual-scroll-viewport {
+  flex: 1 1 auto;
+  overflow-y: auto;
 }

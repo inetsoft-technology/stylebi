@@ -15,10 +15,10 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="modal-header">
-  <h3 class="modal-title">_#(Edit)</h3>
-  <button type="button" class="btn-close" (click)="close()" aria-label="Close" tabindex="-1"></button>
-</div>
+<modal-header
+  [title]="'_#(Edit)'"
+  (onCancel)="close()">
+</modal-header>
 <div class="modal-body">
   <form [formGroup]="rangeForm" class="container-fluid">
     <div class="form-row-float-label row">

@@ -49,7 +49,6 @@ import { ModalHeaderModule } from "../../common/util/modal-header/modal-header.m
 import { ScrollNavModule } from "../../common/util/scroll-nav/scroll-nav.module";
 import { EmailPickerModule } from "../email-picker/email-picker.module";
 import { CacheSettingsViewComponent } from "./cache-settings-view/cache-settings-view.component";
-import { ClusterSettingsViewComponent } from "./cluster-settings-view/cluster-settings-view.component";
 import {
    BackupDialog,
    DataSpaceSettingsViewComponent,
@@ -104,7 +103,6 @@ import { PerformanceSettingsViewComponent } from "./performance-settings-view/pe
    declarations: [
       BackupDialog,
       CacheSettingsViewComponent,
-      ClusterSettingsViewComponent,
       DataSpaceSettingsViewComponent,
       EditLicenseKeyDialogComponent,
       EmailSettingsViewComponent,

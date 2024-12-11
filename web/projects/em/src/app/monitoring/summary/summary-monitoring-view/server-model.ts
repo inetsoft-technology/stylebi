@@ -20,4 +20,5 @@ export interface ServerModel {
    serverDateTimeMap: {[node: string]: string};
    schedulerUpTimeMap: {[node: string]: string};
    timestamp: number;
+   externalStoragePath: string;
 }

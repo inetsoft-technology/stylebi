@@ -45,8 +45,8 @@
         <ng-container [matColumnDef]="'name'">
           <ng-container class="detail-cell">
             <th mat-header-cell *matHeaderCellDef>_#(Name)</th>
-            <td mat-cell *matCellDef="let row"> {{globalRole && !!row.identityID.organization ?
-              row.identityID.name + " : " + row.identityID.organization : row.identityID.name}}</td>
+            <td mat-cell *matCellDef="let row"> {{globalRole && !!row.identityID.orgID ?
+              row.identityID.name + " : " + (row.identityIDLabel == null ? row.identityID.orgID : row.identityIDLabel) : row.identityID.name}}</td>
           </ng-container>
         </ng-container>
         <tr mat-header-row *matHeaderRowDef="displayColumns"></tr>

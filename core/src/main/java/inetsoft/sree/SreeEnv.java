@@ -17,15 +17,14 @@
  */
 package inetsoft.sree;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import inetsoft.report.StyleFont;
-import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.*;
 import inetsoft.util.log.LogContext;
 import inetsoft.util.log.LogLevel;
 
 import java.awt.*;
 import java.io.IOException;
-import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -181,7 +180,15 @@ public class SreeEnv {
     * @param value the value of the property.
     */
    public static void setPassword(String name, String value) {
-      PropertiesEngine.getInstance().setProperty(name, Tool.encryptPassword(value));
+      if(Tool.isEmptyString(value)) {
+         return;
+      }
+
+      if(!Tool.isCloudSecrets()) {
+         value = Tool.encryptPassword(value);
+      }
+
+      PropertiesEngine.getInstance().setProperty(name, value);
    }
 
    /**
@@ -192,7 +199,32 @@ public class SreeEnv {
     * @return the value of the property.
     */
    public static String getPassword(String name) {
-      return Tool.decryptPassword(getProperty(name));
+      String encryptedPassword = getProperty(name);
+
+      if(Tool.isEmptyString(encryptedPassword)) {
+         return encryptedPassword;
+      }
+
+      if(Tool.isCloudSecrets()) {
+         JsonNode jsonNode = Tool.loadCredentials(encryptedPassword, false);
+         String secretKey = "password";
+
+         if("openid.client.id".equals(name) || "styleBI.google.openid.client.id".equals(name)) {
+            secretKey = "client_id";
+         }
+         else if("openid.client.secret".equals(name) || "styleBI.google.openid.client.secret".equals(name)) {
+            secretKey = "client_secret";
+         }
+
+         if(jsonNode != null && jsonNode.has(secretKey)) {
+            return jsonNode.get(secretKey).asText();
+         }
+
+         return null;
+      }
+      else {
+         return Tool.decryptPassword(encryptedPassword);
+      }
    }
 
    /**

@@ -48,12 +48,14 @@ public class RoleController {
    public RoleController(SecurityProvider securityProvider,
                          IdentityService identityService,
                          UserTreeService userTreeService,
+                         SecurityTreeServer securityTreeServer ,
                          SystemAdminService systemAdminService,
                          IdentityThemeService themeService)
    {
       this.securityProvider = securityProvider;
       this.identityService = identityService;
       this.userTreeService = userTreeService;
+      this.securityTreeServer = securityTreeServer;
       this.systemAdminService = systemAdminService;
       this.themeService = themeService;
    }
@@ -63,7 +65,7 @@ public class RoleController {
                                                     @PathVariable("providerChanged") boolean providerChanged,
                                                     Principal principal)
    {
-      return userTreeService.getSecurityTree(provider, principal, false, providerChanged);
+      return securityTreeServer.getSecurityTree(provider, principal, false, providerChanged);
    }
 
    @GetMapping("/api/em/security/user/create-role/{provider}")
@@ -85,10 +87,10 @@ public class RoleController {
          EditableAuthenticationProvider provider = (EditableAuthenticationProvider) authcProvider;
          String prefix = "role";
          FSRole identity;
-         String currOrg = OrganizationManager.getCurrentOrgName();
+         String currOrg = OrganizationManager.getInstance().getCurrentOrgID();
 
          if(!SUtil.isMultiTenant()) {
-            currOrg = Organization.getDefaultOrganizationName();
+            currOrg = Organization.getDefaultOrganizationID();
          }
 
          for(int i = 0; ; i++) {
@@ -149,17 +151,17 @@ public class RoleController {
                                     Principal principal)
    {
       IdentityID roleIdentityID= IdentityID.getIdentityIDFromKey(roleId);
-      String rootRoleID = new IdentityID(Catalog.getCatalog(principal).getString("Roles"), roleIdentityID.organization).convertToKey();
-      String rootOrgRoleID = new IdentityID(Catalog.getCatalog(principal).getString("Organization Roles"), roleIdentityID.organization).convertToKey();
+      String rootRoleID = new IdentityID("Roles", roleIdentityID.orgID).convertToKey();
+      String rootOrgRoleID = new IdentityID("Organization Roles", roleIdentityID.orgID).convertToKey();
 
       if(isRoleRoot(roleId, principal) &&
          (securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE, rootRoleID, ResourceAction.ADMIN) ||
          securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE, rootOrgRoleID, ResourceAction.ADMIN) ||
           securityProvider.checkPermission(principal, ResourceType.SECURITY_ROLE, roleId, ResourceAction.ADMIN)))
       {
-         return roleId.contains(Catalog.getCatalog(principal).getString("Organization Roles")) ?
+         return roleId.contains("Organization Roles") ?
             getRootOrgRoleModel(principal, providerName) :
-            getRootRoleModel(principal, roleIdentityID.organization, providerName);
+            getRootRoleModel(principal, roleIdentityID.orgID, providerName);
       }
 
       AuthenticationProvider provider = getProvider(providerName);
@@ -175,7 +177,7 @@ public class RoleController {
       }
 
       String name = role.getName();
-      String org = role.getOrganization();
+      String org = role.getOrganizationID();
 
       //disable editing if a global role and not a system administrator
       boolean editableRoles =  (provider instanceof EditableAuthenticationProvider)
@@ -203,22 +205,21 @@ public class RoleController {
    }
 
    private boolean isRoleRoot(String roleName, Principal principal) {
-      String roleRoot = new IdentityID(Catalog.getCatalog(principal).getString("Roles"), OrganizationManager.getCurrentOrgName()).convertToKey();
+      String roleRoot = new IdentityID("Roles", OrganizationManager.getInstance().getCurrentOrgID()).convertToKey();
       String roleOrgRoot = Organization.getRootOrgRoleName(principal);
       return roleRoot.equals(roleName) || roleOrgRoot.equals(roleName) ||
-         Catalog.getCatalog(principal).getString("Roles").equals(roleName) ||
-         Catalog.getCatalog(principal).getString("Organization Roles").equals(roleName);
+         "Roles".equals(roleName) || "Organization Roles".equals(roleName);
    }
 
-   private EditRolePaneModel getRootRoleModel(Principal principal, String org, String providerName) {
+   private EditRolePaneModel getRootRoleModel(Principal principal, String orgID, String providerName) {
       AuthenticationProvider provider = getProvider(providerName);
-      String orgID = provider.getOrgId(org);
       return EditRolePaneModel.builder()
-         .name(Catalog.getCatalog(principal).getString("Roles"))
-         .organization(OrganizationManager.getCurrentOrgName())
+         .name("Roles")
+         .label(Catalog.getCatalog(principal).getString("Roles"))
+         .organization(OrganizationManager.getInstance().getCurrentOrgID())
          .editable(provider instanceof EditableAuthenticationProvider)
          .permittedIdentities(userTreeService.filterOtherOrgs(identityService.getPermission(
-            new IdentityID(Catalog.getCatalog().getString("Roles"), org), ResourceType.SECURITY_ROLE, orgID, principal)))
+            new IdentityID("Roles", orgID), ResourceType.SECURITY_ROLE, orgID, principal)))
          .root(true)
          .isSysAdmin(false)
          .isOrgAdmin(false)
@@ -226,12 +227,12 @@ public class RoleController {
    }
 
    private EditRolePaneModel getRootOrgRoleModel(Principal principal, String providerName) {
-      String name = Catalog.getCatalog(principal).getString("Organization Roles");
       String permId = Organization.getRootOrgRoleName(principal);
       AuthenticationProvider provider = getProvider(providerName);
       return EditRolePaneModel.builder()
-         .name(name)
-         .organization(OrganizationManager.getCurrentOrgName())
+         .name("Organization Roles")
+         .label(Catalog.getCatalog(principal).getString("Organization Roles"))
+         .organization(OrganizationManager.getInstance().getCurrentOrgID())
          .editable(provider instanceof EditableAuthenticationProvider)
          .permittedIdentities(userTreeService.filterOtherOrgs(identityService.getPermission(permId, ResourceType.SECURITY_ROLE, principal)))
          .root(true)
@@ -265,8 +266,8 @@ public class RoleController {
       throws Exception
    {
       IdentityID oldIdentityID = new IdentityID(model.oldName(), model.organization());
-      String rootOrgName = Catalog.getCatalog(principal).getString("Organization Roles");
-      String rootName = Catalog.getCatalog(principal).getString("Roles");
+      String rootOrgName = "Organization Roles";
+      String rootName = "Roles";
       String roleSourceName = oldIdentityID.convertToKey();
 
       if(model.name().equals(rootName) || model.name().equals(rootOrgName)) {
@@ -306,19 +307,13 @@ public class RoleController {
       List<String> modelNames = modelIds.stream().map(id -> id.name).toList();
 
       boolean includesDefaultOrg = false;
-      boolean includesTemplateOrg = false;
       boolean includesSelfOrg = false;
 
       if(modelNames.contains(Organization.getDefaultOrganizationName()) ||
-         modelNames.contains(Organization.getTemplateOrganizationName()) ||
          modelNames.contains(Organization.getSelfOrganizationName())) {
          for(IdentityModel model:models) {
             if(model.type() == Identity.ORGANIZATION && Organization.getDefaultOrganizationName().equals(model.identityID().name)) {
                includesDefaultOrg = true;
-               break;
-            }
-            else if(model.type() == Identity.ORGANIZATION && Organization.getTemplateOrganizationName().equals(model.identityID().name)) {
-               includesTemplateOrg = true;
                break;
             }
             else if(model.type() == Identity.ORGANIZATION && Organization.getSelfOrganizationName().equals(model.identityID().name)) {
@@ -329,9 +324,6 @@ public class RoleController {
       }
       if(includesDefaultOrg) {
          warnings.add(Catalog.getCatalog().getString("em.security.delDefOrg"));
-      }
-      else if(includesTemplateOrg) {
-         warnings.add(Catalog.getCatalog().getString("em.security.delTemplateOrg"));
       }
       else if(includesSelfOrg) {
          warnings.add(Catalog.getCatalog().getString("em.security.delSelfOrg"));
@@ -355,6 +347,7 @@ public class RoleController {
    private final SecurityProvider securityProvider;
    private final IdentityService identityService;
    private final UserTreeService userTreeService;
+   private final SecurityTreeServer securityTreeServer;
    private final SystemAdminService systemAdminService;
    private final IdentityThemeService themeService;
    private final Logger LOG = LoggerFactory.getLogger(RoleController.class);

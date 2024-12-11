@@ -47,6 +47,7 @@ import { LocalStorage } from "../../../common/util/local-storage.util";
 export class ViewsheetOptionsPane implements OnInit {
    @Input() model: ViewsheetOptionsPaneModel;
    @Input() form: UntypedFormGroup;
+   @Input() defaultOrgAsset: boolean = false;
    @Input() runtimeId: string;
    @ViewChild("viewsheetParametersDialog") viewsheetParametersDialog: TemplateRef<any>;
    @ViewChild("selectDataSourceDialog") selectDataSourceDialog: TemplateRef<any>;

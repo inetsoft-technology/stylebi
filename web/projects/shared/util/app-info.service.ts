@@ -16,17 +16,23 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { BehaviorSubject, Observable } from "rxjs";
-import { Injectable } from "@angular/core";
+import { Injectable, OnDestroy } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
+import { IdentityId } from "../../em/src/app/settings/security/users/identity-id";
+import { CommonKVModel } from "../../portal/src/app/common/data/common-kv-model";
 
 @Injectable({
    providedIn: "root"
 })
 @Injectable()
-export class AppInfoService {
+export class AppInfoService implements OnDestroy {
    private ldapProviderUsed = new BehaviorSubject<boolean>(false);
+   currentOrgInfo = new BehaviorSubject<CommonKVModel<string, string>>(null);
 
    constructor(private httpClient: HttpClient) {
+      this.loadCurrentOrgInfo().subscribe((orgInfo) => {
+         this.currentOrgInfo.next(orgInfo)
+      });
    }
 
    isEnterprise(): Observable<boolean> {
@@ -39,5 +45,17 @@ export class AppInfoService {
 
    setLdapProviderUsed(value: boolean): void {
       this.ldapProviderUsed.next(value);
+   }
+
+   loadCurrentOrgInfo(): Observable<CommonKVModel<string, string>> {
+      return this.httpClient.get<CommonKVModel<string, string>>("../api/org/info");
+   }
+
+   getCurrentOrgInfo(): Observable<CommonKVModel<string, string>> {
+      return this.currentOrgInfo;
+   }
+
+   ngOnDestroy() {
+      this.currentOrgInfo.complete();
    }
 }

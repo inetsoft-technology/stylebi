@@ -21,6 +21,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.apache.commons.lang3.StringUtils;
 
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * ExportRecord is a in memory representation of a record in SR_Export table.
@@ -31,14 +33,9 @@ import java.sql.Timestamp;
  */
 public class ExportRecord implements AuditRecord {
    /**
-    * Object type report.
-    */
-   public static final String OBJECT_TYPE_REPORT = "report";
-
-   /**
     * Object type viewsheet.
     */
-   public static final String OBJECT_TYPE_VIEWSHEET = "viewsheet";
+   public static final String OBJECT_TYPE_VIEWSHEET = "dashboard";
 
    /**
     * Create an empty instance of ExportRecord.
@@ -83,6 +80,7 @@ public class ExportRecord implements AuditRecord {
     * Get the user name.
     * @return the specified user name.
     */
+   @AuditRecordProperty
    public String getUserName(){
       return this.userName;
    }
@@ -99,6 +97,7 @@ public class ExportRecord implements AuditRecord {
     * Get the object name.
     * @return the specified object name.
     */
+   @AuditRecordProperty
    public String getObjectName() {
       return this.objectName;
    }
@@ -109,12 +108,36 @@ public class ExportRecord implements AuditRecord {
     */
    public void setObjectName(String objectName) {
       this.objectName = objectName;
+      this.objectFolders = null;
+
+      if(objectName != null && objectName.length() > 1) {
+         int index = objectName.indexOf('/', 1);
+
+         if(index >= 0) {
+            this.objectFolders = new ArrayList<>();
+
+            while(index >= 0) {
+               this.objectFolders.add(objectName.substring(0, index));
+               index = objectName.indexOf('/', index + 1);
+            }
+         }
+      }
+   }
+
+   @AuditRecordProperty
+   public List<String> getObjectFolders() {
+      return objectFolders;
+   }
+
+   public void setObjectFolders(List<String> objectFolders) {
+      this.objectFolders = objectFolders;
    }
 
    /**
     * Get the object type.
     * @return the specified object type.
     */
+   @AuditRecordProperty
    public String getObjectType() {
       return this.objectType;
    }
@@ -131,6 +154,7 @@ public class ExportRecord implements AuditRecord {
     * Get the export type.
     * @return the specified export type.
     */
+   @AuditRecordProperty
    public String getExportType() {
       return this.exportType;
    }
@@ -147,6 +171,7 @@ public class ExportRecord implements AuditRecord {
     * Get the export timestamp.
     * @return the specified export timestamp.
     */
+   @AuditRecordProperty
    public Timestamp getExportTimestamp() {
       return this.exportTimestamp;
    }
@@ -159,6 +184,7 @@ public class ExportRecord implements AuditRecord {
       this.exportTimestamp = exportTimestamp;
    }
 
+   @AuditRecordProperty
    public String getServerHostName() {
       return serverHostName;
    }
@@ -166,16 +192,19 @@ public class ExportRecord implements AuditRecord {
    public void setServerHostName(String serverHostName) {
       this.serverHostName = serverHostName;
    }
+
+   @AuditRecordProperty
    public String getOrganizationId() {
       return organizationId;
    }
+
    public void setOrganizationId(String organizationId) {
       this.organizationId = organizationId;
-
    }
 
    private String userName;
    private String objectName;
+   private List<String> objectFolders;
    private String objectType;
    private String exportType;
    private Timestamp exportTimestamp;

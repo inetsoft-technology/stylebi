@@ -15,13 +15,8 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="modal-header">
-  <h3 class="modal-title">_#(Presenter)</h3>
-  <div class="d-flex align-items-center">
-    <i [helpLink]="'Presenter'" tabindex="0" aria-label="_#(Help Information)" role="link" enterClick></i>
-    <button type="button" class="btn-close" (click)="cancel()" aria-label="_#(Close)" title="_#(Close)"></button>
-  </div>
-</div>
+<modal-header [title]="'_#(Presenter)'" (onCancel)="cancel()" [cshid]="'Presenter'">
+</modal-header>
 <div class="modal-body container-fluid" *ngIf="model">
   <ng-container *ngFor="let descriptor of model.descriptors; let i = index">
     <div class="form-group row">

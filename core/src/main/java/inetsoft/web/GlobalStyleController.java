@@ -139,7 +139,9 @@ public class GlobalStyleController implements ApplicationContextAware {
       try(InputStream input = resource.getInputStream();
           OutputStream output = response.getOutputStream())
       {
-         IOUtils.copy(input, output);
+         if(input != null) {
+            IOUtils.copy(input, output);
+         }
       }
    }
 

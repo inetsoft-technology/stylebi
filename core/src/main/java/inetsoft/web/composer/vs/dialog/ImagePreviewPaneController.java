@@ -29,6 +29,7 @@ import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.viewsheet.InGroupedThread;
 import inetsoft.web.viewsheet.service.VSObjectService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -59,7 +60,7 @@ public class ImagePreviewPaneController {
     * @param runtimeId  runtime id
     * @param response   the http response
     */
-   @GetMapping(value = "/composer/vs/image-preview-pane/image/{name}/{type}/**")
+   @GetMapping(value = "/api/image/composer/vs/image-preview-pane/image/{name}/{type}/**")
    public void getImagePreview(@PathVariable("name") String name,
                                @PathVariable("type") String type,
                                @RemainingPath String runtimeId,
@@ -152,7 +153,7 @@ public class ImagePreviewPaneController {
    }
 
    @RequestMapping(
-      value = "/composer/vs/image-preview-pane/upload/**",
+      value = "/api/composer/vs/image-preview-pane/upload/**",
       method = RequestMethod.POST)
    @ResponseBody
    public TreeNodeModel uploadImage(@RemainingPath String runtimeId,
@@ -190,7 +191,7 @@ public class ImagePreviewPaneController {
    }
 
    @RequestMapping(
-      value = "/composer/vs/image-preview-pane/delete/{name}/{runtimeId}",
+      value = "/api/composer/vs/image-preview-pane/delete/{name}/{runtimeId}",
       method = RequestMethod.DELETE
    )
    @ResponseBody

@@ -145,15 +145,18 @@ public class EmailDialogController {
          .type(IdentityNode.USERS + "")
          .leaf(false)
          .build();
-
-      TreeNodeModel groupTree = TreeNodeModel.builder()
-         .label(Catalog.getCatalog().getString("Groups"))
-         .data("")
-         .type(IdentityNode.GROUPS + "")
-         .leaf(false)
-         .build();
       nodes.add(userTree);
-      nodes.add(groupTree);
+
+      // For users of SELF organization, should not show groups.
+      if(!(principal instanceof SRPrincipal) || !((SRPrincipal) principal).isSelfOrganization()) {
+         TreeNodeModel groupTree = TreeNodeModel.builder()
+            .label(Catalog.getCatalog().getString("Groups"))
+            .data("")
+            .type(IdentityNode.GROUPS + "")
+            .leaf(false)
+            .build();
+         nodes.add(groupTree);
+      }
 
       TreeNodeModel rootTree = TreeNodeModel.builder()
          .label(Catalog.getCatalog().getString("Root"))
@@ -235,7 +238,7 @@ public class EmailDialogController {
 
          for(String addr : toAddresses) {
             if(addr.endsWith(Identity.GROUP_SUFFIX) || addr.endsWith(Identity.USER_SUFFIX)){
-               String[] emails = SUtil.getEmails(new IdentityID(addr, OrganizationManager.getCurrentOrgName()));
+               String[] emails = SUtil.getEmails(new IdentityID(addr, OrganizationManager.getInstance().getCurrentOrgID()));
 
                if(emails == null || emails.length == 0) {
                   messageCommand.setMessage(catalog.getString("Test Mail No Address"));

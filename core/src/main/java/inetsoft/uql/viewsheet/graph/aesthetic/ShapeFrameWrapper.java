@@ -19,6 +19,8 @@ package inetsoft.uql.viewsheet.graph.aesthetic;
 
 import inetsoft.graph.aesthetic.GShape;
 import inetsoft.report.StyleConstants;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.Organization;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -48,6 +50,14 @@ public abstract class ShapeFrameWrapper extends VisualFrameWrapper {
          // should ignore other option setting (e.g. applyColor) when identifying id. (59673)
          if(shape.getLegendId().equals(ImageShapes.getShape(name).getLegendId())) {
             return name;
+         }
+      }
+
+      if(SUtil.isDefaultVSGloballyVisible()) {
+         for(String name : ImageShapes.getShapeNames(Organization.getDefaultOrganizationID())) {
+            if(shape.getLegendId().equals(ImageShapes.getShape(name).getLegendId())) {
+               return name;
+            }
          }
       }
 

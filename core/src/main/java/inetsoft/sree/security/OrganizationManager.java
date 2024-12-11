@@ -22,7 +22,8 @@ import inetsoft.uql.util.XUtil;
 import inetsoft.util.ThreadContext;
 
 import java.security.Principal;
-import java.util.Arrays;
+import java.util.*;
+import java.util.function.Supplier;
 
 /**
  * @version 10.1, 19/01/2009
@@ -169,6 +170,20 @@ public class OrganizationManager {
       return false;
    }
 
+   public List<IdentityID> orgAdminUsers(String orgID) {
+      SecurityEngine security = SecurityEngine.getSecurity();
+      IdentityID[] identityIDS = security.getOrgUsers(orgID);
+      List<IdentityID> userIDs = new ArrayList<>();
+
+      for(IdentityID id : identityIDS) {
+         if(isOrgAdmin(id) || isSiteAdmin(id)) {
+            userIDs.add(id);
+         }
+      }
+
+      return userIDs;
+   }
+
    public String getCurrentOrgName(Principal principal) {
       XPrincipal xPrincipal = principal == null ? (XPrincipal) ThreadContext.getPrincipal()
          : (XPrincipal) principal;
@@ -189,14 +204,11 @@ public class OrganizationManager {
       AuthenticationProvider provider = XUtil.getSecurityProvider(providerName);
 
       if(provider != null) {
-         for(String org : provider.getOrganizations()) {
-            if(orgID.equals(provider.getOrganization(org).getOrganizationID())) {
-               orgName = org;
-            }
-         }
+        orgName = provider.getOrganization(orgID).getName();
       }
 
-      return orgName != null ? orgName : Organization.getDefaultOrganizationName();   }
+      return orgName != null ? orgName : Organization.getDefaultOrganizationName();
+   }
 
    public Organization getOrganization() {
       OrganizationCache cache = OrganizationCache.getInstance();
@@ -206,5 +218,33 @@ public class OrganizationManager {
    public void reset() {
    }
 
+   public static <T> T runInOrgScope(String orgID, Supplier<T> supplier) {
+      String oldOrgID = OrganizationManager.getMigrateCurrentOrgId();
+      T result;
+
+      try {
+         OrganizationManager.setMigrateCurrentOrgId(orgID);
+         result = supplier.get();
+      }
+      finally {
+         OrganizationManager.setMigrateCurrentOrgId(oldOrgID);
+      }
+
+      return result;
+   }
+
+   public static void setMigrateCurrentOrgId(String orgId) {
+      MIGRATE_CURRENT_ORG_ID.set(orgId);
+   }
+
+   public static String getMigrateCurrentOrgId() {
+      return MIGRATE_CURRENT_ORG_ID.get();
+   }
+
+   public static String getGlobalDefOrgFolderName() {
+      return Organization.getDefaultOrganizationName() + " Global Repository";
+   }
+
    private static OrganizationManager instance;
+   protected static final ThreadLocal<String> MIGRATE_CURRENT_ORG_ID = new ThreadLocal<>();
 }

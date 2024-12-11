@@ -20,6 +20,7 @@ package inetsoft.mv.fs.internal;
 import inetsoft.mv.fs.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.Organization;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,16 +42,31 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
    /**
     * Create a proper file system.
     */
-   public static AbstractFileSystem createFileSystem(XServerNode server) {
-      AbstractFileSystem fs = new LocalFileSystem(server);
+   public static AbstractFileSystem createFileSystem(XServerNode server, String orgID) {
+      AbstractFileSystem fs = new LocalFileSystem(server, orgID);
       fs.init();
+
       return fs;
+   }
+
+   /**
+    * Create a proper file system.
+    */
+   public static AbstractFileSystem createFileSystem(XServerNode server) {
+      return createFileSystem(server, null);
    }
 
    /**
     * Constructor.
     */
    public AbstractFileSystem(XServerNode server) {
+      this(server, null);
+   }
+
+   /**
+    * Constructor.
+    */
+   public AbstractFileSystem(XServerNode server, String orgID) {
       super();
 
       this.server = server;
@@ -58,10 +74,12 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
       ts = System.currentTimeMillis();
 
       Cluster cluster = Cluster.getInstance();
-      String mapId = getClass().getName() + ".map";
+      String mapId = getClass().getName() + (orgID == null ? "" : "." + orgID.toLowerCase()) + ".map";
       xfilemap = new LocalClusterMap<>(mapId, cluster, cluster.getMap(mapId));
       lock = cluster.getLock(getClass().getName() + ".lock");
-      lastLoad = cluster.getLong(getClass().getName() + ".lastLoad");
+      lastLoadKey = getClass().getName() + (orgID == null ? "" : "." + orgID.toLowerCase()) + ".lastLoad";
+      lastLoad = cluster.getLong(lastLoadKey);
+      this.orgId = orgID;
    }
 
    /**
@@ -249,6 +267,31 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
       }
    }
 
+   @Override
+   public void copyTo(XFileSystem target) {
+      if(!(target instanceof AbstractFileSystem)) {
+         return;
+      }
+
+      DataSpace space = DataSpace.getDataSpace();
+      String[] paths = ((AbstractFileSystem) target).getPaths();
+
+      for(String path : paths) {
+         try(DataSpace.Transaction tx = space.beginTransaction();
+             OutputStream out = tx.newStream(null, path))
+         {
+            PrintWriter writer =
+               new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
+            writeXML(writer);
+            writer.flush();
+            tx.commit();
+         }
+         catch(Throwable exc) {
+            LOG.error("Failed to copy file map: {}", path, exc);
+         }
+      }
+   }
+
    /**
     * Write the xml segment to print writer.
     * @param writer the destination print writer.
@@ -322,7 +365,31 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
          val = "";
       }
 
-      return val.split(",");
+      String[] files = val.split(",");
+
+      if(orgId != null && !Tool.equals(Organization.getDefaultOrganizationID(), orgId)) {
+         for(int i = 0; i < files.length; i++) {
+            files[i] = files[i].trim();
+            files[i] = getOrgFileName(files[i]);
+         }
+      }
+
+      return files;
+   }
+
+   private String getOrgFileName(String oldName) {
+      if(Tool.isEmptyString(oldName)) {
+         return oldName;
+      }
+
+      int index = oldName.lastIndexOf("/");
+
+      if(index == -1) {
+         return orgId + "/" + oldName;
+      }
+      else {
+         return oldName.substring(0, index) + "/" + orgId + oldName.substring(index);
+      }
    }
 
    /**
@@ -390,6 +457,7 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
    public void dispose() {
       try {
          xfilemap.close();
+         Cluster.getInstance().destroyLong(lastLoadKey);
       }
       catch(Exception e) {
          LOG.warn("Failed to close distributed map", e);
@@ -404,6 +472,8 @@ public abstract class AbstractFileSystem implements XFileSystem, XMLSerializable
    private final long ts;
    private boolean alive = true;
    private boolean idle = true;
+   private String orgId;
+   private final String lastLoadKey;
 
    private static final Logger LOG = LoggerFactory.getLogger(AbstractFileSystem.class);
 }

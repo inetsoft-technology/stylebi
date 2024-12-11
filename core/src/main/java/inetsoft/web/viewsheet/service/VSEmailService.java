@@ -487,7 +487,7 @@ public class VSEmailService {
 
                if(security != null && addr.endsWith(Identity.USER_SUFFIX)) {
                   String userName = addr.substring(0, addr.lastIndexOf(Identity.USER_SUFFIX));
-                  IdentityID userID = new IdentityID(userName, OrganizationManager.getCurrentOrgName());
+                  IdentityID userID = new IdentityID(userName, OrganizationManager.getInstance().getCurrentOrgID());
                   User user = security.getUser(userID);
 
                   if(user != null && !userEmails.contains(addr)) {
@@ -496,7 +496,7 @@ public class VSEmailService {
                }
                else if(security != null && addr.endsWith(Identity.GROUP_SUFFIX)) {
                   String groupName = addr.substring(0, addr.lastIndexOf(Identity.GROUP_SUFFIX));
-                  IdentityID groupID = new IdentityID(groupName, OrganizationManager.getCurrentOrgName());
+                  IdentityID groupID = new IdentityID(groupName, OrganizationManager.getInstance().getCurrentOrgID());
 
                   addr = groupID.name + Identity.GROUP_SUFFIX;
 
@@ -509,7 +509,7 @@ public class VSEmailService {
             }
             else {
                addr = fixGroupAddr(addr, principal);
-               String[] uemails = SUtil.getEmails(new IdentityID(addr, OrganizationManager.getCurrentOrgName()));
+               String[] uemails = SUtil.getEmails(new IdentityID(addr, OrganizationManager.getInstance().getCurrentOrgID()));
 
                for(int j = 0; uemails != null && j < uemails.length; j++) {
                   if(!userEmails.contains(uemails[j])) {

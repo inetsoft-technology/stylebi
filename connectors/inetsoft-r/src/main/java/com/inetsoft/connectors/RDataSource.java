@@ -19,6 +19,7 @@ package com.inetsoft.connectors;
 
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -30,8 +31,10 @@ import java.util.Objects;
 @View(vertical = true, value = {
    @View1("url"),
    @View1("port"),
-   @View1("user"),
-   @View1("password")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "password", visibleMethod = "useCredential")
 })
 public class RDataSource extends TabularDataSource<RDataSource> {
    public static final String TYPE = "R";
@@ -39,6 +42,11 @@ public class RDataSource extends TabularDataSource<RDataSource> {
    public RDataSource() {
       super(TYPE, RDataSource.class);
       this.port = 6311;
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD;
    }
 
    @Override
@@ -56,21 +64,23 @@ public class RDataSource extends TabularDataSource<RDataSource> {
    }
 
    @Property(label="User")
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getUser() {
-      return user;
+      return ((PasswordCredential) getCredential()).getUser();
    }
 
    public void setUser(String user) {
-      this.user = user;
+      ((PasswordCredential) getCredential()).setUser(user);
    }
 
    @Property(label="Password", password=true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getPassword() {
-      return password;
+      return ((PasswordCredential) getCredential()).getPassword();
    }
 
    public void setPassword(String password) {
-      this.password = password;
+      ((PasswordCredential) getCredential()).setPassword(password);
    }
 
    @Property(label="Port")
@@ -90,15 +100,6 @@ public class RDataSource extends TabularDataSource<RDataSource> {
       if(url != null) {
          writer.println("<url><![CDATA[" + url + "]]></url>");
       }
-
-      if(user != null) {
-         writer.println("<user><![CDATA[" + user + "]]></user>");
-      }
-
-      if(password != null) {
-         writer.println("<password><![CDATA[" + Tool.encryptPassword(password) +
-                           "]]></password>");
-      }
    }
 
    @Override
@@ -110,9 +111,6 @@ public class RDataSource extends TabularDataSource<RDataSource> {
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       url = Tool.getChildValueByTagName(root, "url");
-      user = Tool.getChildValueByTagName(root, "user");
-      password = Tool.decryptPassword(Tool.getChildValueByTagName(root, "password"));
-
       String portStr = Tool.getChildValueByTagName(root, "port");
 
       if(portStr != null) {
@@ -127,8 +125,7 @@ public class RDataSource extends TabularDataSource<RDataSource> {
 
          return Objects.equals(url, ds.url) &&
             port == ds.port &&
-            Objects.equals(user, ds.user) &&
-            Objects.equals(password, ds.password);
+            Objects.equals(getCredential(), ds.getCredential());
       }
       catch(Exception ex) {
          return false;
@@ -137,6 +134,4 @@ public class RDataSource extends TabularDataSource<RDataSource> {
 
    private String url;
    private int port;
-   private String user;
-   private String password;
 }

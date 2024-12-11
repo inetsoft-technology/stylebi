@@ -22,7 +22,7 @@ import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.uql.XTable;
 import inetsoft.util.script.FormulaContext;
 
-import java.awt.*;
+import java.awt.Point;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -37,7 +37,10 @@ public class CalcGroupSelector extends RangeSelector {
       this.groupspecs = groupspecs;
 
       Point loc = FormulaContext.getCellLocation();
-      CalcCellContext context = loc != null ? calc.getCellContext(loc.y, loc.x) : null;
+      // only get the context if the cell location is for the current (context) table.
+      // ignore context when a calc table is used inside another calc table. (67076)
+      CalcCellContext context = loc != null && calc == FormulaContext.getTable()
+         ? calc.getCellContext(loc.y, loc.x) : null;
 
       // add context to the group qualification
       if(context != null) {
@@ -58,15 +61,17 @@ public class CalcGroupSelector extends RangeSelector {
          }
       }
 
-      // remove the wildcards
-      Iterator iter = groupspecs.entrySet().iterator();
+      if(!groupspecs.isEmpty()) {
+         // remove the wildcards
+         Iterator iter = groupspecs.entrySet().iterator();
 
-      while(iter.hasNext()) {
-         NamedCellRange.GroupSpec spec = (NamedCellRange.GroupSpec)
-            ((Map.Entry) iter.next()).getValue();
+         while(iter.hasNext()) {
+            NamedCellRange.GroupSpec spec = (NamedCellRange.GroupSpec)
+               ((Map.Entry) iter.next()).getValue();
 
-         if(spec.isWildCard()) {
-            iter.remove();
+            if(spec.isWildCard()) {
+               iter.remove();
+            }
          }
       }
    }
@@ -77,6 +82,10 @@ public class CalcGroupSelector extends RangeSelector {
     */
    @Override
    public int match(XTable lens, int row, int col) {
+      if(groupspecs.isEmpty()) {
+         return RangeProcessor.YES;
+      }
+
       RuntimeCalcTableLens calc = (RuntimeCalcTableLens) lens;
       Iterator iter = groupspecs.keySet().iterator();
       CalcCellContext context = calc.getCellContext(row, col);
@@ -87,25 +96,24 @@ public class CalcGroupSelector extends RangeSelector {
       // by user. A better solution may be to distinguish between implicit
       // group spec and explicit group spec, and only ignore implicit group
       // spec. But it should be safe doing it more liberally.
-      if(context == null || context.getGroupCount() == 0) {
+      if(context == null || context.isGroupEmpty()) {
          return RangeProcessor.YES;
       }
 
       while(iter.hasNext()) {
          String gname = (String) iter.next();
          NamedCellRange.GroupSpec spec = (NamedCellRange.GroupSpec) groupspecs.get(gname);
+         CalcCellContext.Group group = context.getGroup(gname);
 
-         for(CalcCellContext.Group group : context.getGroups()) {
-            if(gname.equals(group.getName())) {
-               if(spec.isByPosition()) {
-                  if(group.getPosition() != spec.getIndex()) {
-                     return RangeProcessor.NO;
-                  }
+         if(group != null) {
+            if(spec.isByPosition()) {
+               if(group.getPosition() != spec.getIndex()) {
+                  return RangeProcessor.NO;
                }
-               else if(spec.isByValue()) {
-                  if(!equalsGroup(group.getValue(context), spec.getValue())) {
-                     return RangeProcessor.NO;
-                  }
+            }
+            else if(spec.isByValue()) {
+               if(!equalsGroup(group.getValue(context), spec.getValue())) {
+                  return RangeProcessor.NO;
                }
             }
          }
@@ -116,6 +124,11 @@ public class CalcGroupSelector extends RangeSelector {
       // reference each other. If some groups are found, the comparison has
       // failed and the cell should be rejected.
       return RangeProcessor.YES;
+   }
+
+   @Override
+   public String toString() {
+      return super.toString() + "(" + groupspecs + ")";
    }
 
    private Map groupspecs;

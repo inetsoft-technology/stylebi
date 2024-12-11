@@ -36,8 +36,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 public class GeneralSettingsPageController {
    @Autowired
-   public GeneralSettingsPageController(ClusterSettingsService clusterSettingsService,
-                                        LicenseKeySettingsService licenseKeySettingsService,
+   public GeneralSettingsPageController(LicenseKeySettingsService licenseKeySettingsService,
                                         LocalizationSettingsService localizationSettingsService,
                                         MVSettingsService mvSettingsService,
                                         CacheSettingsService cacheSettingsService,
@@ -46,7 +45,6 @@ public class GeneralSettingsPageController {
                                         PerformanceSettingsService performanceSettingsService,
                                         SecurityEngine securityEngine)
    {
-      this.clusterSettingsService = clusterSettingsService;
       this.licenseKeySettingsService = licenseKeySettingsService;
       this.localizationSettingsService = localizationSettingsService;
       this.mvSettingsService = mvSettingsService;
@@ -69,7 +67,6 @@ public class GeneralSettingsPageController {
 
       return GeneralSettingsPageModel.builder()
          .dataSpaceSettingsModel(dataSpaceSettingsService.getModel(principal))
-         .clusterSettingsModel(clusterSettingsService.getModel())
          .licenseKeySettingsModel(licenseKeySettingsService.getModel())
          .localizationSettingsModel(localizationSettingsService.getModel())
          .mvSettingsModel(mvSettingsService.getModel(principal))
@@ -105,10 +102,6 @@ public class GeneralSettingsPageController {
             localizationSettingsService.setModel(model.localizationSettingsModel(), principal);
          }
 
-         if(model.clusterSettingsModel() != null) {
-            clusterSettingsService.setModel(model.clusterSettingsModel(), principal);
-         }
-
          if(model.cacheSettingsModel() != null) {
             cacheSettingsService.setModel(model.cacheSettingsModel(), principal);
          }
@@ -126,18 +119,13 @@ public class GeneralSettingsPageController {
    }
 
    @PostMapping("/api/em/general/settings/data-space/backup")
-   public ConnectionStatus backup(@RequestBody BackupDataModel model) {
+   public ConnectionStatus backup(@RequestBody BackupDataModel model, Principal principal) {
       return new ConnectionStatus(DataSpaceSettingsService.backup(model));
    }
 
    @GetMapping("/api/em/general/settings/license-key/single-server-key")
    public LicenseKeyModel getSingleServerLicenseKey(@RequestParam("key") String key) {
       return this.licenseKeySettingsService.getSingleServerLicenseKey(key);
-   }
-
-   @GetMapping("/api/em/general/settings/license-key/scheduler-key")
-   public LicenseKeyModel getSchedulerLicenseKey(@RequestParam("key") String key) {
-      return this.licenseKeySettingsService.getSchedulerLicenseKey(key);
    }
 
    @GetMapping("/api/em/general/settings/localization/locale")
@@ -166,7 +154,6 @@ public class GeneralSettingsPageController {
       cacheSettingsService.cleanUpCache();
    }
 
-   private final ClusterSettingsService clusterSettingsService;
    private final LicenseKeySettingsService licenseKeySettingsService;
    private final LocalizationSettingsService localizationSettingsService;
    private final MVSettingsService mvSettingsService;

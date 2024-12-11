@@ -19,13 +19,13 @@ import { EventEmitter, Injectable, NgZone, OnDestroy } from "@angular/core";
 import { Subscription } from "rxjs";
 import { StompClientService } from "../../common/viewsheet-client";
 import { StompClientConnection } from "../../../../../shared/stomp/stomp-client-connection";
-import { ScheduleTaskModel } from "../../../../../shared/schedule/model/schedule-task-model";
+import { ScheduleTaskChange } from "../../../../../shared/schedule/model/schedule-task-change";
 
 @Injectable()
 export class ScheduleChangeService implements OnDestroy {
    private subscriptions: Subscription = new Subscription();
    private connection: StompClientConnection;
-   onChange = new EventEmitter<ScheduleTaskModel>();
+   onChange = new EventEmitter<ScheduleTaskChange>();
    onFolderChange = new EventEmitter();
 
    constructor(private stompClient: StompClientService, private zone: NgZone) {
@@ -57,7 +57,7 @@ export class ScheduleChangeService implements OnDestroy {
       }
    }
 
-   private taskChanged(task: ScheduleTaskModel) {
-      this.onChange.emit(task);
+   private taskChanged(change: ScheduleTaskChange) {
+      this.onChange.emit(change);
    }
 }

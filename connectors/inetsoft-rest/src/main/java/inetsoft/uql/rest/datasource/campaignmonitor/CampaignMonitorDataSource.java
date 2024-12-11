@@ -20,10 +20,13 @@ package inetsoft.uql.rest.datasource.campaignmonitor;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.credential.CredentialType;
 
 @View(vertical = true, value = {
    @View1("URL"),
-   @View1("apiKey")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiKey", visibleMethod = "useCredential")
 })
 public class CampaignMonitorDataSource extends EndpointJsonDataSource<CampaignMonitorDataSource> {
    public static final String TYPE = "Rest.CampaignMonitor";
@@ -34,7 +37,13 @@ public class CampaignMonitorDataSource extends EndpointJsonDataSource<CampaignMo
       setAuthType(AuthType.BASIC);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_KEY;
+   }
+
    @Property(label = "API Key", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
       return getUser();
    }
@@ -46,5 +55,10 @@ public class CampaignMonitorDataSource extends EndpointJsonDataSource<CampaignMo
    @Override
    protected String getTestSuffix() {
       return "/v3.2/billingdetails.json";
+   }
+
+   @Override
+   public String getPassword() {
+      return "";
    }
 }

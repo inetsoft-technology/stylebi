@@ -108,7 +108,7 @@ public class SectionPaintable extends BasePaintable {
                             ih + (float) 0 / 2 - (float) 0 / 2);
          }
 
-         if((!false || designtime)) {
+         if(designtime) {
             y2 += h;
          }
          else {
@@ -156,7 +156,7 @@ public class SectionPaintable extends BasePaintable {
             h = minH;
          }
 
-         if(!false || designtime) {
+         if(designtime) {
             h += infos[i].getHeight() + infos[i].getAdvance();
          }
          else {
@@ -301,7 +301,7 @@ public class SectionPaintable extends BasePaintable {
             lastunderlayBottom = underlayBottom;
             lastunderlayLevel = underlayLevel;
 
-            if(!false || designtime) {
+            if(designtime) {
                lastYP += height;
             }
             else {
@@ -312,7 +312,7 @@ public class SectionPaintable extends BasePaintable {
             return new Rectangle((int) x, (int) yp, (int) width, (int) height);
          }
 
-         if(!false || designtime) {
+         if(designtime) {
             yp += height;
          }
          else {

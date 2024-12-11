@@ -141,10 +141,6 @@ public class ChartHandler {
          return false;
       }
 
-      if(tipfmt == null) {
-         return false;
-      }
-
       int fmtptr = 0;
 
       while(fmtptr < tipfmt.length()) {

@@ -32,7 +32,7 @@ public class EmbeddedTableStorage implements AutoCloseable {
    }
 
    private BlobStorage<Metadata> getStorage() {
-      String storeID = OrganizationManager.getInstance().getCurrentOrgID() + "__" + "pdata";
+      String storeID = OrganizationManager.getInstance().getCurrentOrgID().toLowerCase() +  "__pdata";
       return SingletonManager.getInstance(BlobStorage.class, storeID, true);
    }
 

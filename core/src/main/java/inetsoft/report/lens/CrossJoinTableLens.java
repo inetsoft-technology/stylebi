@@ -23,9 +23,9 @@ import inetsoft.report.filter.DefaultTableChangeListener;
 import inetsoft.report.internal.table.CancellableTableLens;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.util.StringUtils;
 
 import java.awt.*;
 import java.math.BigInteger;
@@ -856,15 +856,6 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
    }
 
    /**
-    * Finalize the cross join lens.
-    */
-   @Override
-   protected void finalize() throws Throwable {
-      super.finalize();
-      dispose();
-   }
-
-   /**
     * Dispose the cross join lens.
     */
    @Override
@@ -915,9 +906,7 @@ public class CrossJoinTableLens extends AbstractBinaryTableFilter implements Can
                break;
             }
 
-            if(!this.disposed) {
-               updateRowCount(left, i - hrows + 1, false);
-            }
+            updateRowCount(left, i - hrows + 1, false);
          }
 
          if(!this.disposed && !CrossJoinTableLens.this.disposed && !cancelled) {

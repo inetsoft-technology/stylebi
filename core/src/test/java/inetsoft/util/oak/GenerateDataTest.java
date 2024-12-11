@@ -338,7 +338,7 @@ public class GenerateDataTest {
 
       ScheduleTask task = new ScheduleTask();
       task.setName(name);
-      task.setOwner(new IdentityID("admin", OrganizationManager.getCurrentOrgName()));
+      task.setOwner(new IdentityID("admin", OrganizationManager.getInstance().getCurrentOrgID()));
       task.setEnabled(true);
       task.setDeleteIfNoMoreRun(false);
       task.setDurable(false);
@@ -363,6 +363,6 @@ public class GenerateDataTest {
       task.addAction(action);
 
       ScheduleManager.getScheduleManager().setScheduleTask(
-         name, task, entry.getParent(), SUtil.getPrincipal(new IdentityID("admin", OrganizationManager.getCurrentOrgName()), "localhost", false));
+         name, task, entry.getParent(), SUtil.getPrincipal(new IdentityID("admin", OrganizationManager.getInstance().getCurrentOrgID()), "localhost", false));
    }
 }

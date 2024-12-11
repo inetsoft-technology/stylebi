@@ -29,6 +29,11 @@ public interface EntityModel {
    String name();
 
    @Value.Default
+   default String label() {
+      return name();
+   }
+
+   @Value.Default
    default boolean root() {
       return false;
    }

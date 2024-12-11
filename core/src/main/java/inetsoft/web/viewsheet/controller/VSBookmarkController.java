@@ -17,6 +17,7 @@
  */
 package inetsoft.web.viewsheet.controller;
 
+import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.composition.RuntimeViewsheet;
@@ -288,7 +289,8 @@ public class VSBookmarkController {
 
          if(!tasksUsingBookmark.isEmpty()) {
             MessageCommand messageCommand = new MessageCommand();
-            final String tasksStr = tasksUsingBookmark.stream().map(ScheduleTask::getName)
+            final String tasksStr = tasksUsingBookmark.stream()
+               .map(scheduleTask -> scheduleTask.toView(true))
                .collect(Collectors.joining(", "));
             messageCommand.setMessage(
                catalog.getString("viewer.viewsheet.deleteBookmarkInSchedule", name, tasksStr));
@@ -357,7 +359,7 @@ public class VSBookmarkController {
                     bookmarkService.getScheduledTasksUsingBookmark(bookmark.getName(), user, rvs.getEntry().toIdentifier());
 
             if(!tasksUsingBookmark.isEmpty()) {
-               final String tasksStr = tasksUsingBookmark.stream().map(ScheduleTask::getName)
+               final String tasksStr = tasksUsingBookmark.stream().map(ScheduleTask::getTaskId)
                        .collect(Collectors.joining(", "));
                String message = catalog.getString("viewer.viewsheet.deleteBookmarkInSchedule",
                                                   bookmark.getName(), tasksStr);
@@ -485,13 +487,16 @@ public class VSBookmarkController {
          VSUtil.getBookmarks(rvs.getEntry(), pId);
       boolean security = securityEngine.isSecurityEnabled();
 
+      boolean readOnly = !SUtil.isDefaultVSGloballyVisible(principal) ||
+                         !Tool.equals(rvs.getEntry() == null ? "" : rvs.getEntry().getOrgID(),Organization.getDefaultOrganizationID());
+
       for(VSBookmarkInfo vsBookmarkInfo : bookmarks) {
          if(vsBookmarkInfo.getName().equals(VSBookmark.HOME_BOOKMARK)) {
             allBookmarks.add(VSBookmarkInfoModel.builder()
                                 .name(vsBookmarkInfo.getName())
                                 .type(VSBookmarkInfo.ALLSHARE)
                                 .owner(IdentityID.getIdentityIDFromKey(principal.getName()))
-                                .readOnly(false)
+                                .readOnly(readOnly)
                                 .label(catalog.getString(vsBookmarkInfo.getName()))
                                 .defaultBookmark(defaultBookmark != null &&
                                                     defaultBookmark.getName().equals(vsBookmarkInfo.getName()) &&
@@ -622,6 +627,23 @@ public class VSBookmarkController {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       return rvs.checkBookmark(name, ownerId) ? Boolean.FALSE.toString() : Boolean.TRUE.toString();
    }
+
+   @RequestMapping(
+      value="api/vs/bookmark/isDefaultOrgAsset/**",
+      method = RequestMethod.GET
+   )
+   @ResponseBody
+   public boolean isDefaultOrgAsset(@RemainingPath String assetID, Principal principal)
+      throws Exception
+   {
+      assetID = Tool.byteDecode(assetID);
+      RuntimeViewsheet rvs = ViewsheetEngine.getViewsheetEngine().getViewsheet(assetID, principal);
+      return SUtil.isDefaultVSGloballyVisible(principal) && !Tool.equals(((XPrincipal)principal).getOrgId(),rvs.getEntry().getOrgID()) &&
+         Tool.equals(rvs.getEntry().getOrgID(), Organization.getDefaultOrganizationID());
+
+   }
+
+
 
    private final VSObjectService service;
    private final VSBookmarkService bookmarkService;

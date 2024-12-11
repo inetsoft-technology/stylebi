@@ -17,8 +17,10 @@
  */
 package inetsoft.web.portal.controller;
 
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalTab;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.SecurityException;
@@ -26,6 +28,7 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.web.WebService;
 import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.factory.RemainingPath;
@@ -33,6 +36,7 @@ import inetsoft.web.portal.GlobalParameterProvider;
 import inetsoft.web.portal.model.*;
 import inetsoft.web.reportviewer.model.ParameterPageModel;
 import inetsoft.web.viewsheet.controller.ComposerClientController;
+import inetsoft.web.viewsheet.service.ComposerClientService;
 import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -111,6 +115,22 @@ public class PortalController {
             .getSecurity().checkPermission(principal, ResourceType.PROFILE, "*", ResourceAction.ACCESS);
 
       boolean profiling = porfile && ((XPrincipal) principal).isProfiling();
+      LicenseManager licenseManager = LicenseManager.getInstance();
+      boolean elasticLicenseExhausted = false;
+
+      if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
+         elasticLicenseExhausted = true;
+      }
+      else if(licenseManager.isHostedLicense()) {
+         if(principal instanceof SRPrincipal srp) {
+            String orgId = srp.getOrgId();
+            String user = srp.getName();
+
+            if(licenseManager.getHostedRemainingHours(orgId, user) == 0) {
+               elasticLicenseExhausted = true;
+            }
+         }
+      }
 
       return PortalModel.builder()
          .currentUser(getCurrentUser(principal))
@@ -122,8 +142,8 @@ public class PortalController {
          .reportEnabled(true)
          .composerEnabled(composerEnabled)
          .dashboardEnabled(dashboardEnabled)
-         .customLogo(PortalThemesManager.CUSTOM_LOGO.equals(manager.getLogoStyle()))
-         .helpURL(Tool.getHelpURL(true))
+         .customLogo(manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID()))
+         .helpURL(Tool.getHelpBaseURL())
          .logoutUrl(logoutUrl)
          .accessible(accessible)
          .hasDashboards(dashboards.getDashboards(new User(pId), false).length > 0)
@@ -133,6 +153,7 @@ public class PortalController {
          .newViewsheetEnabled(newViewsheetEnabled)
          .profile(porfile)
          .profiling(profiling)
+         .elasticLicenseExhausted(elasticLicenseExhausted)
          .build();
    }
 
@@ -141,7 +162,7 @@ public class PortalController {
       HttpSession session = request.getSession();
       String sessionId = session.getId();
       String simpSessionId =
-         ComposerClientController.getFirstSimpSessionId(sessionId);
+         ComposerClientService.getFirstSimpSessionId(sessionId);
 
       return simpSessionId != null;
    }
@@ -166,11 +187,12 @@ public class PortalController {
       }
 
       IdentityID pId = principal == null ? null :IdentityID.getIdentityIDFromKey(principal.getName());
+      String alias = VSUtil.getUserAlias(pId);
 
       return CurrentUserModel.builder()
          .anonymous(principal == null || pId.name.equals(XPrincipal.ANONYMOUS))
-         .name(principal == null ? new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getCurrentOrgName()) : pId)
-         .alias(principal instanceof XPrincipal ? ((XPrincipal) principal).getAlias() : null)
+         .name(principal == null ? new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID()) : pId)
+         .alias(alias)
          .isSysAdmin(principal != null && OrganizationManager.getInstance().isSiteAdmin(principal))
          .localeLanguage(localeLanguage)
          .localeCountry(localeCountry)

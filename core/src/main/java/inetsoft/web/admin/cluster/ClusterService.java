@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.cluster;
 
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.cluster.ServerClusterClient;
@@ -91,7 +92,8 @@ public class ClusterService extends MonitorLevelService implements StatusUpdater
 
    public ClusterEnabledModel getClusterEnabled() {
       return ClusterEnabledModel.builder()
-         .enabled("server_cluster".equals(SreeEnv.getProperty("server.type")))
+         .enabled(LicenseManager.getInstance().isEnterprise())
+         .pauseEnabled("true".equals(SreeEnv.getProperty("cluster.pause.enabled", "false")))
          .build();
    }
 

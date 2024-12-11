@@ -313,7 +313,10 @@ public class VSCrosstabBindingHandler {
       trimColumns(cinfo);
 
       if(removeRef != null) {
-         drillHandler.removeDrillFilter(rvs, assembly, removeRef, dispatcher, linkUri);
+         if(dispatcher != null) {
+            drillHandler.removeDrillFilter(rvs, assembly, removeRef, dispatcher, linkUri);
+         }
+
          int colIndex = index;
 
          if(VSUtil.getPeriodCalendar(assembly.getViewsheet(), assembly.getTableName()) != null) {

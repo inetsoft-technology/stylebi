@@ -40,10 +40,11 @@ public abstract class ListInputModel<T extends ListInputVSAssembly> extends VSIn
          .map(l -> catalog.getString(l))
          .toArray(String[]::new);
       values = assemblyInfo.getValues();
-      this.formatIndexes = new int[values.length];
       VSCompositeFormat[] formats = assemblyInfo.getFormats();
 
-      if(formats != null) {
+      if(formats != null && formats.length > 0) {
+         this.formatIndexes = new Integer[values.length];
+
          for(int i = 0; i < formats.length; i++) {
             formatIndexes[i] = getFormatIndex(formats[i]);
          }
@@ -79,7 +80,7 @@ public abstract class ListInputModel<T extends ListInputVSAssembly> extends VSIn
       return values;
    }
 
-   public int[] getFormatIndexes() {
+   public Integer[] getFormatIndexes() {
       return formatIndexes;
    }
 
@@ -99,7 +100,7 @@ public abstract class ListInputModel<T extends ListInputVSAssembly> extends VSIn
    private Object[] values;
    private Map<VSCompositeFormat, Integer> formats = new Object2IntOpenHashMap<>();
    private ListInputVSAssemblyInfo assemblyInfo;
-   private int[] formatIndexes;
+   private Integer[] formatIndexes;
    private VSCompositeFormat lastFormat;
    private int lastIndex;
 }

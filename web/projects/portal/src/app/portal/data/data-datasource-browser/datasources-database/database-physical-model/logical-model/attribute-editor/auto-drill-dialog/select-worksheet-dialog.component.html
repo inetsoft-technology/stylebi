@@ -43,7 +43,7 @@
       <ng-container *ngFor="let param of queryParams; let i = index;">
         <div #dropdownBody class="field-combo" [class.form-group]="i != queryParams.length - 1">
           <div #dropDownToggle class="field-combo-toggle form-floating form-control dropdown-toggle bd-gray"
-               [fixedDropdown]="dropdownMenu"
+               [fixedDropdown]="dropdownMenu" [autoClose]="closeMenu"
                dropdownPlacement="bottom">
             <div class="field-combo-text ps-1">
               {{getSelectedParamVal(param)}}&nbsp;

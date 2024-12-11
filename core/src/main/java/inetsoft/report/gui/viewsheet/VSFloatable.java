@@ -75,7 +75,15 @@ public abstract class VSFloatable extends VSObject {
          g.scale(2, 2);
       }
 
-      paint(g);
+      VSFloatable.isExport.set(isExport);
+
+      try {
+         paint(g);
+      }
+      finally {
+         VSFloatable.isExport.remove();
+      }
+
       g.dispose();
 
       return image;
@@ -207,5 +215,6 @@ public abstract class VSFloatable extends VSObject {
       return new Point((int) getBW(LEFT), (int) getBW(TOP));
    }
 
+   public static ThreadLocal<Boolean> isExport = ThreadLocal.withInitial(() -> false);
    protected Dimension imageSize;
 }

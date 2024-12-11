@@ -35,11 +35,14 @@
           <mat-icon matSuffix fontSet="ineticons" fontIcon="folder-open-icon"></mat-icon>
           <mat-error *ngIf="form.controls.jar?.errors?.required">_#(em.laf.theme.jarRequired)</mat-error>
         </mat-form-field>
-        <mat-checkbox class="mat-checkbox-field" formControlName="defaultTheme">
-          _#(Default)
+        <mat-checkbox *ngIf="!isMultiTenant || isMultiTenant && isSiteAdmin && hostOrg" class="mat-checkbox-field" formControlName="defaultThemeGlobal">
+          {{defaultThemeGlobalLable}}
         </mat-checkbox>
-        <mat-checkbox class="mat-checkbox-field" formControlName="globalTheme">
-          _#(Global)
+        <mat-checkbox *ngIf="isMultiTenant" class="mat-checkbox-field" formControlName="defaultThemeOrg">
+          _#(Default for This Organization)
+        </mat-checkbox>
+        <mat-checkbox *ngIf="isMultiTenant && isSiteAdmin && hostOrg" class="mat-checkbox-field" formControlName="globalTheme">
+          _#(Visible to All Organizations)
         </mat-checkbox>
       </div>
     </form>

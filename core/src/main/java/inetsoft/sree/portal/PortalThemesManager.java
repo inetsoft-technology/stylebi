@@ -19,10 +19,6 @@ package inetsoft.sree.portal;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.SecurityEngine;
-import inetsoft.sree.security.SecurityProvider;
-import inetsoft.uql.XPrincipal;
-import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.gui.GuiTool;
 import org.slf4j.Logger;
@@ -33,7 +29,6 @@ import javax.xml.xpath.*;
 import java.awt.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.security.Principal;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -188,18 +183,29 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    }
 
    /**
-    * Get logo style.
+    * Get logo style. true = custom
     * @return the specified logo style.
     */
-   public String getLogoStyle() {
+   public boolean isLogoStyle() {
       return logoStyle;
    }
 
+   public boolean hasCustomLogo(String org) {
+      boolean orgLogoExists = false;
+
+      if(org != null) {
+         Map<String, String> logoEntries = getLogoEntries();
+         orgLogoExists = !Tool.isEmptyString(logoEntries.get(org));
+      }
+
+      return orgLogoExists || (isLogoStyle() && !Tool.isEmptyString(logo));
+   }
+
    /**
-    * Set logo style.
+    * Set logo style. true = custom
     * @param logoStyle the specified logo style.
     */
-   public void setLogoStyle(String logoStyle) {
+   public void setLogoStyle(boolean logoStyle) {
       this.logoStyle = logoStyle;
    }
 
@@ -220,14 +226,14 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    /**
     * Get favorite icon style.
     */
-   public String getFaviconStyle() {
+   public boolean isFaviconStyle() {
       return faviconStyle;
    }
 
    /**
     * Set favorite icon style.
     */
-   public void setFaviconStyle(String faviconStyle) {
+   public void setFaviconStyle(boolean faviconStyle) {
       this.faviconStyle = faviconStyle;
    }
 
@@ -272,6 +278,44 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
 
    public void clearCSSMapping() {
       cssEntries.clear();
+   }
+
+   /**
+    * @return map of user -> favicon file name (no path)
+    */
+   public Map<String, String> getFaviconEntries() {
+      return Collections.unmodifiableMap(faviconEntries);
+   }
+
+   public void addFaviconEntry(String identityName, String fileName) {
+      faviconEntries.put(identityName, fileName);
+   }
+
+   public void removeFaviconEntry(String identityName) {
+      faviconEntries.remove(identityName);
+   }
+
+   public void clearFaviconMapping() {
+      faviconEntries.clear();
+   }
+
+   /**
+    * @return map of user -> logo file name (no path)
+    */
+   public Map<String, String> getLogoEntries() {
+      return Collections.unmodifiableMap(logoEntries);
+   }
+
+   public void addLogoEntry(String identityName, String fileName) {
+      logoEntries.put(identityName, fileName);
+   }
+
+   public void removeLogoEntry(String identityName) {
+      logoEntries.remove(identityName);
+   }
+
+   public void clearLogoMapping() {
+      logoEntries.clear();
    }
 
    /**
@@ -373,6 +417,38 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
     */
    public void setWelcomePage(PortalWelcomePage welcomePage) {
       this.welcomePage = welcomePage;
+   }
+
+   /**
+    * Set welcome page for special organization.
+    *
+    * @param orgId the organization id.
+    * @param welcomePage the specified welcome page.
+    */
+   public void setWelcomePage(String orgId, PortalWelcomePage welcomePage) {
+      welcomePageEntries.put(orgId, welcomePage);
+   }
+
+   /**
+    * Get Welcome page for the special organization.
+    *
+    * @param orgId the organization id.
+    */
+   public PortalWelcomePage getWelcomePage(String orgId) {
+      return welcomePageEntries.get(orgId);
+   }
+
+   /**
+    * Remove the welcome page for the special organization.
+    *
+    * @param orgId the organization id.
+    */
+   public void removeWelcomePage(String orgId) {
+      welcomePageEntries.remove(orgId);
+   }
+
+   public void clearOrgWelcomePage() {
+      welcomePageEntries.clear();
    }
 
    /**
@@ -519,8 +595,48 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          writer.println("</cssEntries>");
       }
 
+      if(faviconEntries.size() > 0) {
+         writer.println("<faviconEntries>");
+
+         for(Map.Entry<String, String> entry : faviconEntries.entrySet()) {
+            writer.println("<faviconEntry>");
+            writeCDATA(writer, "identityName", entry.getKey());
+            writeCDATA(writer, "faviconFile", entry.getValue());
+            writer.println("</faviconEntry>");
+         }
+
+         writer.println("</faviconEntries>");
+      }
+
+      if(logoEntries.size() > 0) {
+         writer.println("<logoEntries>");
+
+         for(Map.Entry<String, String> entry : logoEntries.entrySet()) {
+            writer.println("<logoEntry>");
+            writeCDATA(writer, "identityName", entry.getKey());
+            writeCDATA(writer, "logoFile", entry.getValue());
+            writer.println("</logoEntry>");
+         }
+
+         writer.println("</logoEntries>");
+      }
+
       if(welcomePage != null) {
          welcomePage.writeXML(writer);
+      }
+
+      if(welcomePageEntries != null) {
+         writer.println("<welcomePageEntries>");
+
+         for(Map.Entry<String, PortalWelcomePage> entry : welcomePageEntries.entrySet()) {
+            writer.print("<orgPortalWelcomePage orgId=\"");
+            writer.print(entry.getKey());
+            writer.println("\">");
+            entry.getValue().writeXML(writer);
+            writer.println("</orgPortalWelcomePage>");
+         }
+
+         writer.println("</welcomePageEntries>");
       }
    }
 
@@ -566,7 +682,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       node = Tool.getChildNodeByTagName(tag, "logoStyle");
 
       if(node != null) {
-         logoStyle = Tool.getValue(node);
+         logoStyle = "true".equals(Tool.getValue(node));
       }
 
       node = Tool.getChildNodeByTagName(tag, "favicon");
@@ -578,7 +694,7 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       node = Tool.getChildNodeByTagName(tag, "faviconStyle");
 
       if(node != null) {
-         faviconStyle = Tool.getValue(node);
+         faviconStyle = "true".equals(Tool.getValue(node));
       }
 
       node = Tool.getChildNodeByTagName(tag, "cssfile");
@@ -680,11 +796,79 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
          }
       }
 
+      node = Tool.getChildNodeByTagName(tag, "faviconEntries");
+
+      if(node != null) {
+         faviconEntries.clear();
+         final NodeList list = Tool.getChildNodesByTagName(node, "faviconEntry");
+
+         for(int i = 0; i < list.getLength(); i++) {
+            final Node favEntry = list.item(i);
+
+            if(favEntry != null) {
+               final Element nameNode = Tool.getChildNodeByTagName(favEntry, "identityName");
+               final Element fileNode = Tool.getChildNodeByTagName(favEntry, "faviconFile");
+               final String identityName = Tool.getValue(nameNode);
+               final String favFile = Tool.getValue(fileNode);
+
+               if(identityName != null && favFile != null) {
+                  faviconEntries.put(identityName, favFile);
+               }
+            }
+         }
+      }
+
+      node = Tool.getChildNodeByTagName(tag, "logoEntries");
+
+      if(node != null) {
+         logoEntries.clear();
+         final NodeList list = Tool.getChildNodesByTagName(node, "logoEntry");
+
+         for(int i = 0; i < list.getLength(); i++) {
+            final Node logoEntry = list.item(i);
+
+            if(logoEntry != null) {
+               final Element nameNode = Tool.getChildNodeByTagName(logoEntry, "identityName");
+               final Element fileNode = Tool.getChildNodeByTagName(logoEntry, "logoFile");
+               final String identityName = Tool.getValue(nameNode);
+               final String logoFile = Tool.getValue(fileNode);
+
+               if(identityName != null && logoFile != null) {
+                  logoEntries.put(identityName, logoFile);
+               }
+            }
+         }
+      }
+
       node = Tool.getChildNodeByTagName(tag, "portalWelcomePage");
 
       if(node != null) {
          welcomePage = new PortalWelcomePage();
          welcomePage.parseXML(node);
+      }
+
+      node = Tool.getChildNodeByTagName(tag, "welcomePageEntries");
+
+      if(node != null) {
+         welcomePageEntries.clear();
+         final NodeList list = Tool.getChildNodesByTagName(node, "orgPortalWelcomePage");
+
+         for(int i = 0; i < list.getLength(); i++) {
+            final Node orgEntry = list.item(i);
+
+            if(orgEntry != null) {
+               final Element page = Tool.getChildNodeByTagName(orgEntry, "portalWelcomePage");
+               final String orgId = Tool.getAttribute((Element) orgEntry, "orgId");
+
+               if(page == null || orgId == null) {
+                  continue;
+               }
+
+               PortalWelcomePage welcomePage = new PortalWelcomePage();
+               welcomePage.parseXML(page);
+               setWelcomePage(orgId, welcomePage);
+            }
+         }
       }
    }
 
@@ -786,9 +970,9 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
       copyright = null;
       fontFamily = null;
       logo = null;
-      logoStyle = null;
+      logoStyle = false;
       favicon = null;
-      faviconStyle = null;
+      faviconStyle = false;
       cssfile = null;
       cssStyle = false;
       fontStyle = false;
@@ -801,9 +985,9 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private int buttonVisible;
    private boolean autoExpand = false;
    private String fontFamily;
-   private String logoStyle;
+   private boolean logoStyle;
    private String logo;
-   private String faviconStyle;
+   private boolean faviconStyle;
    private String favicon;
    private boolean cssStyle;
    private String cssfile;
@@ -812,6 +996,9 @@ public class PortalThemesManager implements XMLSerializable, AutoCloseable {
    private Map<String, List<FontFaceModel>> userFontFaces = new LinkedHashMap<>();
    // identityName -> cssFile
    private final Map<String, String> cssEntries = new ConcurrentHashMap<>();
+   private final Map<String, String> faviconEntries = new ConcurrentHashMap<>();
+   private final Map<String, String> logoEntries = new ConcurrentHashMap<>();
+   private final Map<String, PortalWelcomePage> welcomePageEntries = new ConcurrentHashMap<>();
    private PortalWelcomePage welcomePage;
    private List<PortalTab> portalTabs = new ArrayList<>();
    private String copyright;

@@ -24,6 +24,7 @@ import {
    ViewChild
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { update } from "lodash";
 import { ModelService } from "../../widget/services/model.service";
 import { PreferencesDialogModel } from "./preferences-dialog-model";
 import { Tool } from "../../../../../shared/util/tool";
@@ -45,6 +46,7 @@ export class PreferencesDialog implements OnInit {
    @ViewChild("changePasswordDialog") changePasswordDialog: TemplateRef<any>;
    model: PreferencesDialogModel;
    emailControl: UntypedFormControl;
+   isButtonEnabled: boolean = false;
 
    constructor(private modalService: NgbModal,
                private modelService: ModelService)
@@ -56,7 +58,7 @@ export class PreferencesDialog implements OnInit {
          (data) => {
             this.model = <PreferencesDialogModel> data;
 
-            if(this.model.ssouser) {
+            if(this.model.disable) {
                this.emailControl.disable()
             }
          }
@@ -71,26 +73,16 @@ export class PreferencesDialog implements OnInit {
    }
 
    okClicked(): void {
-      if(!this.model.email) {
-         const msg = "_#(js:viewer.preferences.EmailError)";
-         ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", msg).then(
-            (result: string) => {
-               if(result === "ok") {
-                  this.modelService.sendModel(PREFERENCES_DIALOG_MODEL_URI, this.model).subscribe(
-                     (data) => {
-                        this.onCommit.emit("ok");
-                     }
-                  );
-               }
-            });
-      }
-      else {
-         this.modelService.sendModel(PREFERENCES_DIALOG_MODEL_URI, this.model).subscribe(
-            (data) => {
-               this.onCommit.emit("ok");
+      this.modelService.sendModel(PREFERENCES_DIALOG_MODEL_URI, this.model).subscribe(
+         (data) => {
+            this.onCommit.emit("ok");
+         },
+         (error) => {
+            if(!!error && error.message) {
+               ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", error.message);
             }
-         );
-      }
+         }
+      );
    }
 
    changePasswordClicked(): void {
@@ -103,6 +95,11 @@ export class PreferencesDialog implements OnInit {
 
    isValid(): boolean {
       return this.emailControl && this.emailControl.valid;
+   }
+
+   updateOkState(): boolean {
+      this.isButtonEnabled = true;
+      return this.isButtonEnabled;
    }
 
    /**
@@ -118,6 +115,8 @@ export class PreferencesDialog implements OnInit {
    }
 
    disableForSSO(): boolean {
-      return this.model.ssouser;
+      return this.model.disable;
    }
+
+   protected readonly update = update;
 }

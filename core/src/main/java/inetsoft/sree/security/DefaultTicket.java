@@ -17,6 +17,8 @@
  */
 package inetsoft.sree.security;
 
+import inetsoft.util.Tool;
+
 /**
  * Default implementation of a ticket. It stores user ID and password.
  *
@@ -92,7 +94,7 @@ public class DefaultTicket implements java.io.Serializable {
          passwd = str;
       }
 
-      return new DefaultTicket(new IdentityID(uid, OrganizationManager.getCurrentOrgName()), passwd);
+      return new DefaultTicket(new IdentityID(uid, OrganizationManager.getInstance().getCurrentOrgID()), passwd);
    }
 
    /**
@@ -153,10 +155,10 @@ public class DefaultTicket implements java.io.Serializable {
              passwd.equals(tik.passwd)) &&
             (roles == null && tik.roles == null ||
              roles != null && tik.roles != null &&
-             roles.equals(tik.roles)) &&
+             Tool.equals(roles, tik.roles)) &&
             (groups == null && tik.groups == null ||
              groups != null && tik.groups != null &&
-             groups.equals(tik.groups)) &&
+             Tool.equals(groups, tik.groups)) &&
             (orgID == null && tik.orgID == null ||
              orgID != null && tik.orgID != null &&
              orgID.equals(tik.orgID)) &&

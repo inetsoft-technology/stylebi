@@ -114,6 +114,7 @@ public abstract class AbstractSecurityFilter
       if(principal != null && createSession) {
          String token = principal.getProperty(SUtil.TICKET);
          principal.setProperty(SUtil.TICKET, null);
+         principal.setProperty(SUtil.LONGON_TIME, System.currentTimeMillis() + "");
          request.setAttribute(SUtil.TICKET, DefaultTicket.parse(token));
          principal.setProperty("showGettingStated", "true");
          createSession(request, principal);
@@ -136,7 +137,7 @@ public abstract class AbstractSecurityFilter
    protected SRPrincipal authenticateAnonymous(ServletRequest request)
       throws AuthenticationFailureException
    {
-      IdentityID anonID = new IdentityID(ClientInfo.ANONYMOUS, Organization.getDefaultOrganizationName());
+      IdentityID anonID = new IdentityID(ClientInfo.ANONYMOUS, Organization.getDefaultOrganizationID());
       ClientInfo info = createClientInfo(anonID, request);
       return (SRPrincipal) AuthenticationService.getInstance().authenticate(info, null);
    }
@@ -469,6 +470,10 @@ public abstract class AbstractSecurityFilter
       return isPageRequested(apiPath, request);
    }
 
+   protected boolean isApiImage(HttpServletRequest request) {
+      return isPageRequested(apiImagePath, request);
+   }
+
    @Override
    public void sessionAccessed(SessionAccessDispatcher.SessionAccessEvent event) {
       // NO-OP
@@ -492,7 +497,7 @@ public abstract class AbstractSecurityFilter
 
          while(!queue.isEmpty()) {
             String groupName = queue.removeFirst();
-            IdentityID groupID = new IdentityID(groupName, OrganizationManager.getCurrentOrgName());
+            IdentityID groupID = new IdentityID(groupName, OrganizationManager.getInstance().getCurrentOrgID());
 
             for(String parentGroup : security.getGroupParentGroups(groupID)) {
                if(!visited.contains(groupName)) {
@@ -527,7 +532,7 @@ public abstract class AbstractSecurityFilter
          Set<IdentityID> visited = new HashSet<>(result);
 
          for(String groupName : groups) {
-            IdentityID groupID = new IdentityID(groupName, OrganizationManager.getCurrentOrgName());
+            IdentityID groupID = new IdentityID(groupName, OrganizationManager.getInstance().getCurrentOrgID());
             Group group = security.getGroup(groupID);
 
             if(group != null && group.getRoles() != null) {
@@ -629,6 +634,7 @@ public abstract class AbstractSecurityFilter
       new SreeEnv.Value("security.allow.iframe", 10000);
    private static final String emPath = "/em/**"; // NOSONAR not applicable
    private static final String appPath = "/app/**"; // NOSONAR not applicable
+   private static final String apiImagePath = "/api/image/**"; // NOSONAR not applicable
    private static final String apiPath = "/api/**"; // NOSONAR not applicable
    private static final String publicApiPath = "/api/public/**"; // NOSONAR not applicable
    private static final String teamWebsocketEndpointPath = "/reports/**"; // NOSONAR not applicable

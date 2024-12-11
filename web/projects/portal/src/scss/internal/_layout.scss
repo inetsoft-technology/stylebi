@@ -358,6 +358,10 @@ li.active, a.active {
   height: 100%;
 }
 
+.tooltip.fade {
+  height: auto;
+}
+
 
 .fade:not(.modal):not(.tab-pane):not(ngb-alert) {
   opacity: 0.5;

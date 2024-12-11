@@ -21,14 +21,17 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("domain"),
-   @View1("apiKey"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "domain", visibleMethod = "useCredential"),
+   @View1(value = "apiKey", visibleMethod = "useCredential"),
    @View1("URL")
 })
 public class FreshdeskDataSource extends EndpointJsonDataSource<FreshdeskDataSource> {
@@ -39,7 +42,13 @@ public class FreshdeskDataSource extends EndpointJsonDataSource<FreshdeskDataSou
       setAuthType(AuthType.BASIC);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_KEY;
+   }
+
    @Property(label = "Domain", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getDomain() {
       return domain;
    }
@@ -49,12 +58,13 @@ public class FreshdeskDataSource extends EndpointJsonDataSource<FreshdeskDataSou
    }
 
    @Property(label = "API Key", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
-      return apiKey;
+      return ((ApiKeyCredential) getCredential()).getApiKey();
    }
 
    public void setApiKey(String apiKey) {
-      this.apiKey = apiKey;
+      ((ApiKeyCredential) getCredential()).setApiKey(apiKey);
    }
 
    @Property(label = "URL")
@@ -80,7 +90,7 @@ public class FreshdeskDataSource extends EndpointJsonDataSource<FreshdeskDataSou
 
    @Override
    public String getUser() {
-      return apiKey;
+      return getApiKey();
    }
 
    @Override
@@ -105,17 +115,12 @@ public class FreshdeskDataSource extends EndpointJsonDataSource<FreshdeskDataSou
       if(domain != null) {
          writer.format("<domain><![CDATA[%s]]></domain>%n", domain);
       }
-
-      if(apiKey != null) {
-         writer.format("<apiKey><![CDATA[%s]]></apiKey>%n", Tool.encryptPassword(apiKey));
-      }
    }
 
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       domain = Tool.getChildValueByTagName(root, "domain");
-      apiKey = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiKey"));
    }
 
    @Override
@@ -138,15 +143,13 @@ public class FreshdeskDataSource extends EndpointJsonDataSource<FreshdeskDataSou
       }
 
       FreshdeskDataSource that = (FreshdeskDataSource) o;
-      return Objects.equals(domain, that.domain) &&
-         Objects.equals(apiKey, that.apiKey);
+      return Objects.equals(domain, that.domain);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), domain, apiKey);
+      return Objects.hash(super.hashCode(), domain, getApiKey());
    }
 
    private String domain;
-   private String apiKey;
 }

@@ -24,6 +24,7 @@ import inetsoft.uql.tabular.ColumnDefinition;
 import inetsoft.uql.tabular.DataType;
 import inetsoft.uql.text.TextOutput;
 import inetsoft.uql.util.filereader.*;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -186,7 +187,7 @@ public class ServerFileUtil {
          try {
             String sheet = sfQuery.getExcelSheet();
 
-            if(sheet == null) {
+            if(Tool.isEmptyString(sheet)) {
                sheet = sfQuery.getExcelSheetNames()[0];
             }
 

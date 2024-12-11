@@ -25,21 +25,19 @@ import {
    ValidationErrors
 } from "@angular/forms";
 import { ErrorStateMatcher } from "@angular/material/core";
-import { MatDialog } from "@angular/material/dialog";
+import { MatDialog, MatDialogConfig } from "@angular/material/dialog";
 import { Subject } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { ContextHelp } from "../../../context-help";
 import { Searchable } from "../../../searchable";
 import { PresentationSettingsType } from "../presentation-settings-view/presentation-settings-type.enum";
 import { PresentationSettingsChanges } from "../presentation-settings-view/presentation-settings-view.component";
+import { CustomShapeDialogComponent } from "./custom-shape-dialog.component";
 import { EditFontsDialogComponent } from "./edit-fonts-dialog/edit-fonts-dialog.component";
 import { LookAndFeelSettingsModel } from "./look-and-feel-settings-model";
 import { MatSnackBar, MatSnackBarConfig } from "@angular/material/snack-bar";
 import { Tool } from "../../../../../../shared/util/tool";
-import {
-   DataSpaceUploadDialogComponent
-} from "../../content/content-data-space-view/data-space-upload-dialog/data-space-upload-dialog.component";
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import { DataSpaceTreeDataSource } from "../../content/data-space/data-space-tree-data-source";
 import { GuiTool } from "../../../../../../portal/src/app/common/util/gui-tool";
 
@@ -64,7 +62,9 @@ import { GuiTool } from "../../../../../../portal/src/app/common/util/gui-tool";
 export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
    @Input() securityEnabled: boolean = false;
    @Input() isSysAdmin: boolean = false;
+   @Input() orgId: string;
    @Output() modelChanged = new EventEmitter<PresentationSettingsChanges>();
+   isMultiTenant: boolean = false;
    snackBarConfig: MatSnackBarConfig;
    dataSource: DataSpaceTreeDataSource;
 
@@ -155,6 +155,11 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
             !!this.form.errors && !!this.form.errors.viewsheetFileRequired ||
             defaultErrorMatcher.isErrorState(control, form)
       };
+
+      this.http.get("../api/em/navbar/isMultiTenant").subscribe((isMultiTenant: boolean) =>
+      {
+         this.isMultiTenant = isMultiTenant;
+      });
    }
 
    ngOnInit(): void {
@@ -315,28 +320,10 @@ export class LookAndFeelSettingsViewComponent implements OnInit, OnDestroy {
       };
    }
 
-   addShapes() {
-      const ref = this.dialog.open(DataSpaceUploadDialogComponent);
-      ref.afterClosed().subscribe(result => {
-         if(!!result.error) {
-            this.snackbar.open(
-               "_#(js:em.dataspace.uploadError)", "_#(js:Close)", this.snackBarConfig);
-         }
-         else {
-            const uri = "../api/em/content/data-space/folder/upload";
-            const request = {
-               path: "portal/shapes",
-               files: result.uploadId,
-               extractArchives: result.extract
-            };
-            this.http.post(uri, request).subscribe(
-               () => {
-                  if(this.dataSource != null) {
-                     this.dataSource.refresh()
-                  }
-               },
-               () => this.snackbar.open("_#(js:em.dataspace.uploadError)", "_#(js:Close)", this.snackBarConfig)
-            );
+   customShapes() {
+      this.dialog.open(CustomShapeDialogComponent, <MatDialogConfig>{
+         data: {
+            orgId: this.orgId
          }
       });
    }

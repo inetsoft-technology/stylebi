@@ -91,10 +91,31 @@
               <arguments>run ${ng.verify.script}</arguments>
             </configuration>
           </execution>
+          <execution>
+            <id>generate-sbom</id>
+            <phase>package</phase>
+            <goals>
+              <goal>npm</goal>
+            </goals>
+            <configuration>
+              <arguments>run generate-sbom</arguments>
+            </configuration>
+          </execution>
         </executions>
         <configuration>
           <nodeVersion>${node.version}</nodeVersion>
           <installDirectory>${settings.localRepository}/node/node-${node.version}</installDirectory>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.3.0</version>
+        <configuration>
+          <excludes>
+            <exclude>inetsoft/web/resources/elements/**</exclude>
+          </excludes>
         </configuration>
       </plugin>
     </plugins>
@@ -107,6 +128,25 @@
         <ng.build.script>build:prod</ng.build.script>
         <ng.verify.script>verify:prod</ng.verify.script>
       </properties>
+    </profile>
+    <profile>
+      <id>sbom</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>io.github.pmckeown</groupId>
+            <artifactId>dependency-track-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <phase>deploy</phase>
+                <goals>
+                  <goal>upload-bom</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
   </profiles>
 

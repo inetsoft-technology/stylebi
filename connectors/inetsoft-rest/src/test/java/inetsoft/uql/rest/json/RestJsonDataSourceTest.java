@@ -18,6 +18,7 @@
 package inetsoft.uql.rest.json;
 
 import inetsoft.uql.tabular.HttpParameter;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.PrintWriter;

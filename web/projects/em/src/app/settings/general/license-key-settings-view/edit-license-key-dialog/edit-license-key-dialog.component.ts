@@ -15,13 +15,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import {HttpClient, HttpParams} from "@angular/common/http";
-import {Component, HostListener, Inject, OnInit} from "@angular/core";
-import {AbstractControl, UntypedFormBuilder, UntypedFormGroup, ValidationErrors, Validators} from "@angular/forms";
-import {MAT_DIALOG_DATA, MatDialogRef} from "@angular/material/dialog";
-import {FormValidators} from "../../../../../../../shared/util/form-validators";
-import {LicenseKeyModel} from "../license-key-settings-model";
-import {EditLicenseKeyDialogData, LicenseKeyType} from "./edit-license-key-dialog-data";
+
+import { HttpClient, HttpParams } from "@angular/common/http";
+import { Component, HostListener, Inject, OnInit } from "@angular/core";
+import {
+   AbstractControl,
+   UntypedFormBuilder,
+   UntypedFormGroup,
+   ValidationErrors,
+   Validators
+} from "@angular/forms";
+import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
+import { FormValidators } from "../../../../../../../shared/util/form-validators";
+import { LicenseKeyModel } from "../license-key-settings-model";
+import { EditLicenseKeyDialogData } from "./edit-license-key-dialog-data";
 
 @Component({
    selector: "em-edit-license-key-dialog",
@@ -31,7 +38,6 @@ import {EditLicenseKeyDialogData, LicenseKeyType} from "./edit-license-key-dialo
 export class EditLicenseKeyDialogComponent implements OnInit {
    add = false;
    server = false;
-   scheduler = false;
    form: UntypedFormGroup;
    private keyInvalid = false;
 
@@ -44,9 +50,6 @@ export class EditLicenseKeyDialogComponent implements OnInit {
                @Inject(MAT_DIALOG_DATA) data: EditLicenseKeyDialogData, fb: UntypedFormBuilder)
    {
       switch(data.type) {
-      case LicenseKeyType.SCHEDULER:
-         this.scheduler = true;
-         break;
       default:
          this.server = true;
       }
@@ -70,14 +73,7 @@ export class EditLicenseKeyDialogComponent implements OnInit {
 
    submit(): void {
       let params = new HttpParams().set("key", this.form.get("key").value);
-      let uri;
-
-      if(this.scheduler) {
-         uri = "../api/em/general/settings/license-key/scheduler-key";
-      }
-      else {
-         uri = "../api/em/general/settings/license-key/single-server-key";
-      }
+      let uri = "../api/em/general/settings/license-key/single-server-key";
 
       this.http.get<LicenseKeyModel>(uri, {params}).subscribe(
          keyModel => {

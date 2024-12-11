@@ -24,7 +24,6 @@
 <colorScheme><![CDATA[granite]]></colorScheme>
 <fontFamily><![CDATA[Roboto]]></fontFamily>
 <copyright><![CDATA[Copyright (c) 1996-2010, InetSoft Technology Corp. All Rights Reserved.]]></copyright>
-<logo><![CDATA[portal/images/modern/logo.gif]]></logo>
 <portalTabs>
 <portalTab visible="true" editable="false">
 <name><![CDATA[Dashboard]]></name>

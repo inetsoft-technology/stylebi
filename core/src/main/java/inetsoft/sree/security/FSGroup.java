@@ -97,7 +97,7 @@ public class FSGroup extends Group implements XMLSerializable {
     * Set the assigned organization ID.
     */
    public void setOrganization(String organization) {
-      this.organization = organization;
+      this.organizationID = organization;
    }
 
    /**
@@ -109,8 +109,8 @@ public class FSGroup extends Group implements XMLSerializable {
       writer.print("<FSGroup class=\"" + getClass().getName() + "\">");
       writer.print("<name><![CDATA[" + name + "]]></name>");
 
-      if(organization != null) {
-         writer.print("<organization><![CDATA[" + organization + "]]></organization>");
+      if(organizationID != null) {
+         writer.print("<organization><![CDATA[" + organizationID + "]]></organization>");
       }
 
       if(locale != null) {
@@ -146,7 +146,7 @@ public class FSGroup extends Group implements XMLSerializable {
       elem = Tool.getChildNodeByTagName(tag, "organization");
 
       if(elem != null) {
-         organization = Tool.getValue(elem);
+         organizationID = Tool.getValue(elem);
       }
 
       elem = Tool.getChildNodeByTagName(tag, "locale");
@@ -201,7 +201,7 @@ public class FSGroup extends Group implements XMLSerializable {
          gen.writeStringField("className", value.getClass().getName());
          gen.writeStringField("name", value.name);
          gen.writeStringField("locale", value.name);
-         gen.writeStringField("organization", value.organization);
+         gen.writeStringField("organization", value.organizationID);
          gen.writeArrayFieldStart("roles");
 
          for(IdentityID role : value.roles) {
@@ -247,7 +247,7 @@ public class FSGroup extends Group implements XMLSerializable {
          value.name = root.get("name").asText(null);
 
          JsonNode orgNode = root.get("organization");
-         value.organization = orgNode == null ? null : orgNode.asText(null);
+         value.organizationID = orgNode == null ? null : orgNode.asText(null);
          JsonNode node = root.get("roles");
 
          if(node != null && node.isArray()) {

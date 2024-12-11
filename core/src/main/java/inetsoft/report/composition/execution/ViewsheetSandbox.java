@@ -31,7 +31,9 @@ import inetsoft.report.lens.TextSizeLimitTableLens;
 import inetsoft.report.script.formula.AssetQueryScope;
 import inetsoft.report.script.viewsheet.*;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleInfo;
+import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
@@ -2024,6 +2026,20 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
       // execute for first time or whenever onInit is changed
       if(vs.getViewsheetInfo().isScriptEnabled() && !Tool.equals(onInit, lastOnInit)) {
+         Principal oPrincipal = ThreadContext.getContextPrincipal();
+         String vsOrgID = vs.getEntry() != null ? vs.getEntry().getOrgID():
+                          vs.getRuntimeEntry() != null ? vs.getRuntimeEntry().getOrgID() : null;
+
+         if(SUtil.isDefaultVSGloballyVisible(user) &&
+               !Tool.equals(vsOrgID, OrganizationManager.getInstance().getCurrentOrgID()) &&
+               Tool.equals(Organization.getDefaultOrganizationID(), vsOrgID)) {
+            IdentityID pId = IdentityID.getIdentityIDFromKey(oPrincipal.getName());
+            pId.setOrgID(Organization.getDefaultOrganizationID());
+            XPrincipal tmpPrincipal = new XPrincipal(pId);
+            tmpPrincipal.setOrgId(Organization.getDefaultOrganizationID());
+            ThreadContext.setContextPrincipal(tmpPrincipal);
+         }
+
          executeVSScript(lastOnInit = onInit, null);
 
          boolean scriptSelected = Arrays.stream(vs.getAssemblies())
@@ -2047,6 +2063,10 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             // it would be init'ed property with the parent scope set to
             // the script engine
             scope.getScriptEnv().put("__initViewsheetScope", initScope);
+         }
+
+         if(!Tool.equals(ThreadContext.getContextPrincipal(),oPrincipal)) {
+            ThreadContext.setContextPrincipal(oPrincipal);
          }
       }
    }
@@ -2666,7 +2686,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       /// map of table -> ref name -> selection
       final Map<String, Map<String, Collection<Object>>> appliedSelections = new HashMap<>();
       final Map<String, Map<String, Collection<Object>>> allSelections = new HashMap<>();
-      String table = sassembly.getTableName();
+      String table = sassembly.getSelectionTableName();
 
       final SelectionVSAssembly[] sarr =
          SelectionVSUtil.getRelatedSelectionAssemblies(sassembly).toArray(new SelectionVSAssembly[0]);
@@ -6893,7 +6913,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          if(mv) {
             MVTableMetaData metadata = new MVTableMetaData(tname, rmv, ViewsheetSandbox.this);
 
-            if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+            if("true".equals(SreeEnv.getProperty("mv.debug"))) {
                LOG.debug("use mv table metadata for: {}", key);
             }
 
@@ -6918,7 +6938,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          int mode = isRuntime() ? AssetQuerySandbox.RUNTIME_MODE : AssetQuerySandbox.LIVE_MODE;
          MVManager mgr = MVManager.getManager();
 
-         if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+         if("true".equals(SreeEnv.getProperty("mv.debug"))) {
             LOG.debug("Using realtime metadata for: {}", key);
          }
 

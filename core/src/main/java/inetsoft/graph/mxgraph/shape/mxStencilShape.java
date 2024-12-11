@@ -180,9 +180,7 @@ public class mxStencilShape extends mxBasicShape {
          String strokeStyle = mxUtils.getString(style,
                                                 CSSConstants.CSS_STROKE_PROPERTY);
 
-         if(strokeStyle != null
-            && strokeStyle.equals(CSSConstants.CSS_NONE_VALUE))
-         {
+         if(strokeStyle != null) {
             if(strokeStyle.equals(CSSConstants.CSS_NONE_VALUE)) {
                stroke = false;
             }

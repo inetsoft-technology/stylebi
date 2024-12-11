@@ -72,7 +72,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    _model: EditIdentityPaneModel;
    @Input() set model(m: EditIdentityPaneModel) {
       this._model = m;
-      this.identityEditable = m?.editable;
+      this.identityEditable = true;
    }
    get model() {
       return this._model;
@@ -89,10 +89,9 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    @Output() groupSettingsChanged = new EventEmitter<EditGroupPaneModel>();
    @Output() userSettingsChanged = new EventEmitter<EditUserPaneModel>();
    @Output() organizationSettingsChanged = new EventEmitter<EditOrganizationPaneModel>();
-   @Output() setTemplateOrganizationClicked = new EventEmitter<EditOrganizationPaneModel>();
    @Output() pageChanged = new EventEmitter<boolean>();
-   public identityTypes = ["_#(js:Users)", "_#(js:Groups)", "_#(js:Roles)","Unknown Identity", "_#(js:Organizations)"];
-   public userIdentityTypes = ["_#(js:Groups)", "_#(js:Roles)"];
+   public identityTypes = ["Users", "Groups", "Roles","Unknown Identity", "Organizations"];
+   public userIdentityTypes = ["Groups", "Roles"];
    public identities: Observable<IdentityId[]>;
    identity: string;
    subIdentity: IdentityId = null;
@@ -105,7 +104,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    passwordErrorMatcher: ErrorStateMatcher;
    themes: IdentityTheme[] = [];
    isMultiTenant: boolean = false;
-   identityEditable: boolean = false;
+   identityEditable: boolean = true;
 
    private originalModel: EditIdentityPaneModel;
    private originalRoles: IdentityModel[];
@@ -114,7 +113,6 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    private originalProperties: PropertyModel[];
    private formSubscription = Subscription.EMPTY;
    private changingPassword = false;
-   private templateOrganization = false;
    private editableSubscription = Subscription.EMPTY;
 
    public get user(): boolean {
@@ -131,10 +129,6 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
 
    public get organization(): boolean {
       return this.type === IdentityType.ORGANIZATION;
-   }
-
-   public get isTemplateOrganization(): boolean {
-      return this.templateOrganization;
    }
 
    get pwForm(): UntypedFormGroup {
@@ -173,23 +167,6 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
       this.isMultiTenant = orgRoot.length != 0;
    }
 
-   setIsTemplate() {
-      if(this.organization) {
-         const uri = "../api/em/security/providers/" + Tool.byteEncodeURLComponent(this.provider) + "/get-is-template/" + convertToKey({name:this.model.name, organization:this.model.name});
-         let root = this.treeData;
-
-         let templateCall = this.http.get<boolean>(uri).pipe(
-            map(isTemp => {
-               return isTemp;
-            }));
-
-         templateCall.subscribe((isTemp: boolean) => this.templateOrganization = isTemp);
-      }
-      else {
-         this.templateOrganization = false;
-      }
-   }
-
    constructor(private fb: UntypedFormBuilder,
                private http: HttpClient,
                private changeDetector: ChangeDetectorRef,
@@ -223,10 +200,10 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
 
    init(): void {
       this.setIsEnterprise();
-      this.setIsTemplate();
 
-      const nameValidator = this.type == IdentityType.USER ? FormValidators.validUserName
-         : FormValidators.validGroupName;
+      const nameValidator = this.type == IdentityType.USER ? FormValidators.validUserName :
+         this.type == IdentityType.ORGANIZATION ? FormValidators.containsDashboardSpecialCharsForName :
+            FormValidators.validGroupName;
       this.form = this.fb.group({
          name: [this.model.name, [Validators.required, nameValidator]],
          active: [true],
@@ -255,6 +232,10 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
          theme: [this.model.theme || ""]
       });
 
+      if(!this.isSysAdmin && (this.model.organization == null || this.model.organization == "")) {
+         this.readonly = true;
+      }
+
       // this.readonly = !this.model.editable;
       this.members = this.model.members.slice(0);
       this.roles = this.model.roles.map((role) =>
@@ -280,8 +261,8 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
             this.initializeOrganizationForm();
          }
 
-         if(!this.identityTypes.find(x => x === "_#(js:Users)")) {
-            this.identityTypes.unshift("_#(js:Users)");
+         if(!this.identityTypes.find(x => x === "Users")) {
+            this.identityTypes.unshift("Users");
          }
       }
 
@@ -323,6 +304,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    private initializeUserForm() {
+      this.readonly = false;
       const model = <EditUserPaneModel> this.model;
       this.identityTypes = this.userIdentityTypes.slice(0);
       this.form.get("active").setValue(model.status);
@@ -339,6 +321,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    private initializeRoleForm() {
+      this.readonly = false;
       const roleModel = <EditRolePaneModel> this.model;
       this.form.get("defaultRole").setValue(roleModel.defaultRole);
       this.form.get("organization").setValue(roleModel.organization);
@@ -347,6 +330,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    private initializeOrganizationForm() {
+      this.readonly = false;
       const orgModel = <EditOrganizationPaneModel> this.model;
 
       if(this.form.get("id") != null) {
@@ -359,6 +343,7 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
    }
 
    public initializeGroupForm() {
+      this.readonly = false;
       const groupModel = <EditGroupPaneModel> this.model;
       this.form.get("organization").setValue(groupModel.organization);
    }
@@ -394,16 +379,16 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
       let addedType = IdentityType.USER;
 
       switch(this.identity) {
-      case "_#(js:Users)":
+      case "Users":
          addedType = IdentityType.USER;
          break;
-      case "_#(js:Groups)":
+      case "Groups":
          addedType = IdentityType.GROUP;
          break;
-      case "_#(js:Roles)":
+      case "Roles":
          addedType = IdentityType.ROLE;
          break;
-      case "_#(js:Organizations)":
+      case "Organizations":
          addedType = IdentityType.ORGANIZATION;
          break;
       }
@@ -503,23 +488,6 @@ export class EditIdentityViewComponent implements OnInit, OnChanges, OnDestroy {
          this.identityEditable = false;
       }
 
-      this.pageChanged.emit(false);
-   }
-
-   updateTemplate() {
-      //prevent user from editing while saving
-      if(this.type == IdentityType.ORGANIZATION) {
-         const cmodel = <EditOrganizationPaneModel> this.model;
-         this.setTemplateOrganizationClicked.emit(cmodel);
-      }
-      this.pageChanged.emit(false);
-   }
-
-   resetTemplate() {
-      if(this.type == IdentityType.ORGANIZATION) {
-         const cmodel = null;
-         this.setTemplateOrganizationClicked.emit(cmodel);
-      }
       this.pageChanged.emit(false);
    }
 

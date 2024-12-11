@@ -37,7 +37,6 @@ import java.util.*;
 public class VSFilterRecommendationFactory
    implements VSObjectRecommendationFactory<VSFilterRecommendation>
 {
-   @Autowired
    public VSFilterRecommendationFactory() {
    }
 

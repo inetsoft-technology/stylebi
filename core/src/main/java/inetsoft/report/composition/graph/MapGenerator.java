@@ -37,7 +37,7 @@ import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.viewsheet.ColumnNotFoundException;
+import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.util.*;
@@ -1073,6 +1073,14 @@ public class MapGenerator extends MergedGraphGenerator {
 
       for(int i = 0; i < ydims.size(); i++) {
          element.addDim(ydims.get(i));
+      }
+
+      ChartInfo chartInfo = getChartInfo();
+
+      if(chartInfo != null && chartInfo.getTextField() != null &&
+         chartInfo.getTextField().getDataRef() instanceof VSDimensionRef)
+      {
+         element.setHint("_map_text_dim_", chartInfo.getTextField().getDataRef().getName());
       }
    }
 

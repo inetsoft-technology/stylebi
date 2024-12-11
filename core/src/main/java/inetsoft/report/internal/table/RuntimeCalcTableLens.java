@@ -190,6 +190,10 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
       if(cellmap != null) {
          cellmap.reset();
       }
+
+      if(!this.mergeCellCache.isEmpty()) {
+         this.mergeCellCache.clear();
+      }
    }
 
    /**
@@ -200,6 +204,10 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
 
       if(cellmap != null) {
          cellmap.reset();
+      }
+
+      if(!this.mergeCellCache.isEmpty()) {
+         this.mergeCellCache.clear();
       }
    }
 
@@ -551,8 +559,19 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
       }
 
       if(rowmap != null && colmap != null) {
-         return CalcCellContext.merge(rowmap.getCellContext(row),
-                  colmap.getCellContext(col));
+         String key = getMergeCellKey(row, col);
+         CalcCellContext context = mergeCellCache.get(key);
+
+         if(context != null) {
+            return context;
+         }
+         else {
+            CalcCellContext merge = CalcCellContext.merge(rowmap.getCellContext(row),
+                                                          colmap.getCellContext(col));
+            mergeCellCache.put(key, merge);
+
+            return merge;
+         }
       }
 
       return null;
@@ -955,14 +974,12 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
          }
 
          if(col == -1 && cls2 == null && table instanceof CalcTableVSAssembly) {
-            if(cls2 == null) {
-               ColumnSelection cols = VSUtil.getBaseColumns((CalcTableVSAssembly) table, true);
+            ColumnSelection cols = VSUtil.getBaseColumns((CalcTableVSAssembly) table, true);
 
-               if(cols.getAttribute(bind.getValue()) != null) {
-                  DataRef ref = cols.getAttribute(bind.getValue());
-                  String dtype = ref.getDataType();
-                  cls2 = dtype == null ? null : Tool.getDataClass(dtype);
-               }
+            if(cols.getAttribute(bind.getValue()) != null) {
+               DataRef ref = cols.getAttribute(bind.getValue());
+               String dtype = ref.getDataType();
+               cls2 = dtype == null ? null : Tool.getDataClass(dtype);
             }
          }
 
@@ -1505,6 +1522,15 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
       return new Point(prow, pcol);
    }
 
+   public String getMergeCellKey(int row, int col) {
+      StringBuilder buf = new StringBuilder();
+      buf.append(row);
+      buf.append("-");
+      buf.append(col);
+
+      return buf.toString();
+   }
+
    private TableDataDescriptor cdescriptor;
    private CalcTableLens calc;
    private IndexMap rowmap;
@@ -1515,4 +1541,5 @@ public class RuntimeCalcTableLens extends CalcTableLens implements MappedTableLe
    // cached value
    private transient Map kvmap0;
    private transient Object kvKey0;
+   private transient Map<String, CalcCellContext> mergeCellCache = new HashMap<>();
 }

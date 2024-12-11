@@ -18,5 +18,4 @@
 export interface LogViewLinks {
    fluentdLogging: boolean;
    logViewUrl: string;
-   auditViewUrl: string;
 }

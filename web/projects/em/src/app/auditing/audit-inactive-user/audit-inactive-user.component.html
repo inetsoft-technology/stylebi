@@ -17,19 +17,21 @@
   -->
 <em-audit-table-view [dateRangeVisible]="false" [displayedColumns]="getDisplayedColumns()" [columnRenderers]="columnRenderers" [parameterForm]="form" [fetchParameters]="fetchParameters" [fetchData]="fetchData">
   <section class="flex-row" [formGroup]="form">
-    <mat-form-field appearance="outline" color="primary" class="flex">
+    <mat-form-field appearance="outline" color="accent" class="flex">
       <mat-label>_#(Hosts)</mat-label>
       <mat-select formControlName="selectedHosts" multiple>
         <mat-option *ngFor="let host of hosts" [value]="host">{{host}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(inactive.least.days)</mat-label>
       <input matInput type="number" [min]="minStartDuration" [max]="maxStartDuration" formControlName="minDuration"/>
+      <mat-error>{{getRadiusError()}}</mat-error>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(inactive.most.days)</mat-label>
       <input matInput type="number" [min]="minEndDuration" [max]="maxEndDuration" formControlName="maxDuration"/>
+      <mat-error>{{getRadiusError()}}</mat-error>
     </mat-form-field>
   </section>
 </em-audit-table-view>

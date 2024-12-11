@@ -17,198 +17,32 @@
  */
 package inetsoft.web.viewsheet.controller;
 
-import inetsoft.util.Catalog;
-import inetsoft.web.composer.command.OpenComposerAssetCommand;
-import inetsoft.web.composer.vs.command.OpenComposerCommand;
-import inetsoft.web.composer.vs.event.CreateQueryEventCommand;
-import inetsoft.web.composer.vs.event.EditViewsheetEvent;
-import inetsoft.web.portal.data.EditWorksheetEvent;
-import inetsoft.web.viewsheet.command.MessageCommand;
-import inetsoft.web.viewsheet.service.CommandDispatcher;
+import inetsoft.web.viewsheet.service.ComposerClientService;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Scope;
 import org.springframework.context.annotation.ScopedProxyMode;
-import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.*;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 import org.springframework.stereotype.Controller;
 
-import java.security.Principal;
-import java.util.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import static inetsoft.web.viewsheet.service.ComposerClientService.COMMANDS_TOPIC;
 
 @Controller
 @Scope(value = "websocket", proxyMode = ScopedProxyMode.TARGET_CLASS)
 public class ComposerClientController {
    @Autowired
-   public ComposerClientController(SimpMessagingTemplate simpMessagingTemplate) {
-      this.simpMessagingTemplate = simpMessagingTemplate;
-   }
-
-   @MessageMapping("/composer/editViewsheet")
-   public void editViewsheet(@Payload EditViewsheetEvent event, Principal principal,
-                             SimpMessageHeaderAccessor headerAccessor,
-                             CommandDispatcher commandDispatcher)
-   {
-      String httpSessionId =
-         headerAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString();
-      String simpSessionId = getFirstSimpSessionId(httpSessionId);
-
-      if(simpSessionId == null) {
-         OpenComposerCommand openComposerCommand = OpenComposerCommand.builder()
-            .vsId(event.getVsId())
-            .build();
-         commandDispatcher.sendCommand(openComposerCommand);
-         return;
-      }
-
-      MessageCommand command = new MessageCommand();
-      command.setMessage(Catalog.getCatalog().getString("composer.openDashboardRepeatedly"));
-      commandDispatcher.sendCommand(command);
-      SimpMessageHeaderAccessor msgHeaderAccessor = SimpMessageHeaderAccessor
-         .create(SimpMessageType.MESSAGE);
-      msgHeaderAccessor.setSessionId(simpSessionId);
-      msgHeaderAccessor.setLeaveMutable(true);
-      OpenComposerAssetCommand composerAssetCommand = OpenComposerAssetCommand.builder()
-         .assetId(event.getVsId())
-         .viewsheet(true)
-         .build();
-      simpMessagingTemplate
-         .convertAndSendToUser(simpSessionId, COMMANDS_TOPIC, composerAssetCommand,
-            msgHeaderAccessor.getMessageHeaders());
-   }
-
-   @MessageMapping("/composer/editWorksheet")
-   public void editWorksheet(@Payload EditWorksheetEvent event, Principal principal,
-                             SimpMessageHeaderAccessor headerAccessor,
-                             CommandDispatcher commandDispatcher)
-   {
-      String httpSessionId =
-         headerAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString();
-      String simpSessionId = getFirstSimpSessionId(httpSessionId);
-
-      if(simpSessionId == null) {
-         OpenComposerCommand openComposerCommand = OpenComposerCommand.builder()
-            .vsId(event.getWsId())
-            .build();
-         commandDispatcher.sendCommand(openComposerCommand);
-         return;
-      }
-
-      MessageCommand command = new MessageCommand();
-      command.setMessage(Catalog.getCatalog().getString("composer.openWorksheetRepeatedly"));
-      commandDispatcher.sendCommand(command);
-      SimpMessageHeaderAccessor msgHeaderAccessor = SimpMessageHeaderAccessor
-         .create(SimpMessageType.MESSAGE);
-      msgHeaderAccessor.setSessionId(simpSessionId);
-      msgHeaderAccessor.setLeaveMutable(true);
-      OpenComposerAssetCommand composerAssetCommand = OpenComposerAssetCommand.builder()
-         .assetId(event.getWsId())
-         .viewsheet(false)
-         .build();
-      simpMessagingTemplate
-         .convertAndSendToUser(simpSessionId, COMMANDS_TOPIC, composerAssetCommand,
-                               msgHeaderAccessor.getMessageHeaders());
-   }
-
-   @MessageMapping("/composer/ws/query/create")
-   public void createQuery(@Payload CreateQueryEventCommand event, Principal principal,
-                           SimpMessageHeaderAccessor headerAccessor,
-                           CommandDispatcher commandDispatcher)
-   {
-      String httpSessionId =
-         headerAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString();
-      String simpSessionId = getFirstSimpSessionId(httpSessionId);
-
-      if(simpSessionId == null) {
-         commandDispatcher.sendCommand(event);
-         return;
-      }
-
-      MessageCommand command = new MessageCommand();
-      command.setMessage(Catalog.getCatalog().getString("composer.createQueryRepeatedly"));
-      commandDispatcher.sendCommand(command);
-
-      SimpMessageHeaderAccessor msgHeaderAccessor = SimpMessageHeaderAccessor
-         .create(SimpMessageType.MESSAGE);
-      msgHeaderAccessor.setSessionId(simpSessionId);
-      msgHeaderAccessor.setLeaveMutable(true);
-      OpenComposerAssetCommand composerAssetCommand = OpenComposerAssetCommand.builder()
-         .baseDataSource(event.getBaseDataSource())
-         .baseDataSourceType(event.getBaseDataSourceType())
-         .viewsheet(false)
-         .wsWizard(true)
-         .build();
-      simpMessagingTemplate
-         .convertAndSendToUser(simpSessionId, COMMANDS_TOPIC, composerAssetCommand,
-            msgHeaderAccessor.getMessageHeaders());
-   }
-
-   @PreDestroy
-   public void preDestroy() {
-      removeFromSessionList();
-   }
-
-   @MessageMapping(COMMANDS_TOPIC + "/leave")
-   public void unsubscribe() {
-      removeFromSessionList();
+   public ComposerClientController(ComposerClientService composerClientService) {
+      this.composerClientService = composerClientService;
    }
 
    @SubscribeMapping(COMMANDS_TOPIC)
    public void subscribe(SimpMessageHeaderAccessor headerAccessor) {
-      LOCK.lock();
-
-      try {
-         httpSessionId = headerAccessor.getSessionAttributes().get("HTTP.SESSION.ID")
-            .toString();
-         simpSessionId = headerAccessor.getSessionId();
-         List<String> simpSessionIdList =
-            COMPOSER_CLIENTS.computeIfAbsent(httpSessionId, k -> new ArrayList<>());
-         simpSessionIdList.add(simpSessionId);
-      }
-      finally {
-         LOCK.unlock();
-      }
+      composerClientService.setSessionID(() -> new String[] {
+         headerAccessor.getSessionAttributes().get("HTTP.SESSION.ID").toString(),
+         headerAccessor.getSessionId()
+      });
    }
 
-   private void removeFromSessionList() {
-      LOCK.lock();
-
-      try {
-         List<String> simpSessionIdList = COMPOSER_CLIENTS.get(httpSessionId);
-
-         if(simpSessionIdList != null) {
-            simpSessionIdList.remove(simpSessionId);
-         }
-      }
-      finally {
-         LOCK.unlock();
-      }
-   }
-
-   public static String getFirstSimpSessionId(String httpSessionId) {
-      LOCK.lock();
-
-      try {
-         List<String> simpSessionIdList = COMPOSER_CLIENTS.get(httpSessionId);
-         String simpSessionId = simpSessionIdList != null && simpSessionIdList
-            .size() > 0 ? simpSessionIdList.get(0) : null;
-         return simpSessionId;
-      }
-      finally {
-         LOCK.unlock();
-      }
-   }
-
-   private final SimpMessagingTemplate simpMessagingTemplate;
-   private String httpSessionId;
-   private String simpSessionId;
-
-   private static final String COMMANDS_TOPIC = "/composer-client";
-   // key = http session id, value = list of simpSessionIds
-   private static final Map<String, List<String>> COMPOSER_CLIENTS = new HashMap<>();
-   private static final Lock LOCK = new ReentrantLock();
+   private final ComposerClientService composerClientService;
 }

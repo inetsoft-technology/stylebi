@@ -44,4 +44,5 @@ export interface RepositoryEntry {
    favoritesUser?: boolean;
    bursting?: boolean;
    auditReport?: boolean;
+   defaultOrgAsset?: boolean;
 }

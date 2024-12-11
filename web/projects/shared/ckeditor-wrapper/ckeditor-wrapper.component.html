@@ -26,7 +26,8 @@
             *ngIf="isLayoutReady"
             [disabled]="disabled"
             [(ngModel)]="content"
-            (ready)="ready.emit($event)"
+            (ready)="onEditorReady($event)"
+            (keydown.enter)="handleEnter($event)"
           ></ckeditor>
         </div>
       </div>

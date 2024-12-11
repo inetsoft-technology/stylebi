@@ -50,7 +50,7 @@ public class WizardUploadImageController {
       this.vsObjectService = vsObjectService;
    }
 
-   @PostMapping("/composer/vswizard/update-image/{assemblyName}/**")
+   @PostMapping("/api/composer/vswizard/update-image/{assemblyName}/**")
    @ResponseBody
    public VSObjectModel uploadImage(@PathVariable("assemblyName") String assemblyName,
                                     @RemainingPath String runtimeId,

@@ -114,6 +114,7 @@ public class RepositoryDashboardService {
          AssetEntry entry = Objects.requireNonNull(AssetEntry.createAssetEntry(identifier));
          String oldName = model.oname();
          Dashboard oldDashboard = registry.getDashboard(oldName);
+         DependencyHandler.getInstance().updateDashboardDependencies(owner, oldName, false);
          ViewsheetEntry oldEntry = ((VSDashboard) oldDashboard).getViewsheet();
          ViewsheetEntry viewsheet = new ViewsheetEntry(entry.getPath(), entry.getUser());
          viewsheet.setIdentifier(identifier);
@@ -137,8 +138,8 @@ public class RepositoryDashboardService {
             registry.renameDashboard(oldName, name);
             String parent = path.contains("/") ? path.substring(0, path.lastIndexOf('/')) : null;
             path = parent != null ? parent + "/" + name : name;
-            actionRecord.setActionName(ActionRecord.ACTION_NAME_RENAME);
             actionRecord.setObjectName(Util.getObjectFullPath(RepositoryEntry.DASHBOARD, oldName, principal, owner));
+            actionRecord.setActionError("new name: " + name);
          }
 
          // remove the base vs if a new vs replaces it
@@ -150,16 +151,19 @@ public class RepositoryDashboardService {
             }
          }
 
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+
          if(registry.getDashboard(name) == null) {
             dashboard.setCreated(System.currentTimeMillis());
-            dashboard.setCreatedBy(principal.getName());
+            dashboard.setCreatedBy(identityID.getName());
          }
 
          dashboard.setLastModified(System.currentTimeMillis());
-         dashboard.setLastModifiedBy(principal.getName());
+         dashboard.setLastModifiedBy(identityID.getName());
 
          registry.addDashboard(name, dashboard);
          registry.save();
+         DependencyHandler.getInstance().updateDashboardDependencies(owner, name, true);
 
          //security permission part
          ResourcePermissionModel permissions = model.permissions();
@@ -181,7 +185,7 @@ public class RepositoryDashboardService {
                setIdentityPermission(
                   groupGrants.stream().map(id->id.name).collect(Collectors.toSet()), Identity.Type.GROUP, securityProvider.getGroups(), name, principal);
                setIdentityPermission(
-                  organizationGrants.stream().map(id->id.name).collect(Collectors.toSet()), Identity.Type.ORGANIZATION, Arrays.stream(securityProvider.getOrganizations())
+                  organizationGrants.stream().map(id->id.name).collect(Collectors.toSet()), Identity.Type.ORGANIZATION, Arrays.stream(securityProvider.getOrganizationIDs())
                                        .map(o -> new IdentityID(o,o)).toArray(IdentityID[]::new), name, principal);
                setIdentityPermission
                   (roleGrants.stream().map(id->id.name).collect(Collectors.toSet()), Identity.Type.ROLE, securityProvider.getRoles(), name, principal);
@@ -194,7 +198,7 @@ public class RepositoryDashboardService {
                setIdentityPermission(Collections.EMPTY_SET, Identity.Type.ROLE,
                                      securityProvider.getRoles(), name, principal);
                setIdentityPermission(Collections.EMPTY_SET, Identity.Type.ORGANIZATION,
-                                     Arrays.stream(securityProvider.getOrganizations())
+                                     Arrays.stream(securityProvider.getOrganizationIDs())
                                      .map(o -> new IdentityID(o,o)).toArray(IdentityID[]::new), name, principal);
             }
          }
@@ -281,9 +285,10 @@ public class RepositoryDashboardService {
          actionRecord.setObjectName(Util.getObjectFullPath(RepositoryEntry.DASHBOARD, dashboardName, principal, owner));
          VSDashboard dashboard = new VSDashboard();
          dashboard.setCreated(System.currentTimeMillis());
-         dashboard.setCreatedBy(principal.getName());
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(principal.getName());
+         dashboard.setCreatedBy(identityID.getName());
          dashboard.setLastModified(System.currentTimeMillis());
-         dashboard.setLastModifiedBy(principal.getName());
+         dashboard.setLastModifiedBy(identityID.getName());
          registry.addDashboard(dashboardName, dashboard);
          registry.save();
          Identity identity = SecurityEngine.getSecurity().isSecurityEnabled() ?
@@ -308,12 +313,18 @@ public class RepositoryDashboardService {
       AuthorizationProvider authz = securityProvider.getAuthorizationProvider();
       Permission perm = new Permission();
       Set<String> userGrants = new HashSet<>();
-      userGrants.add(IdentityID.getIdentityIDFromKey(principal.getName()).getName());
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      List<IdentityID> adminUsers = OrganizationManager.getInstance().orgAdminUsers(currentOrgID);
 
-      for(ResourceAction action : ResourceAction.values()) {
-         perm.setUserGrantsForOrg(action, userGrants, OrganizationManager.getInstance().getCurrentOrgID());
+      for (IdentityID id : adminUsers) {
+         userGrants.add(id.getName());
       }
 
+      for(ResourceAction action : ResourceAction.values()) {
+         perm.setUserGrantsForOrg(action, userGrants, currentOrgID);
+      }
+
+      perm.updateGrantAllByOrg(currentOrgID, true);
       authz.setPermission(ResourceType.DASHBOARD, parentInfo.getPath(), perm);
       return contentRepositoryTreeService.getDashboardNode(parentInfo.getPath(),
                                                            parentInfo.getOwner());
@@ -326,6 +337,7 @@ public class RepositoryDashboardService {
          path = SUtil.getUnscopedPath(path);
       }
 
+      DependencyHandler.getInstance().updateDashboardDependencies(owner, path, false);
       Dashboard dashboard = registry.getDashboard(path);
       registry.removeDashboard(path);
       registry.save();

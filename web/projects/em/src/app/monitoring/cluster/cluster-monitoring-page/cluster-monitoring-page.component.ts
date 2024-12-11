@@ -63,6 +63,7 @@ export class ClusterMonitoringPageComponent implements OnInit, OnDestroy {
    private subscriptions = new Subscription();
 
    reportClusterVisible = false;
+   reportClusterPauseVisible = false;
    reportClusterStatus: Observable<ReportClusterNodeModel[]>;
    reportClusterTableInfo: TableInfo;
    reportClusterColumnsInfo: ColumnInfo[] = [
@@ -80,9 +81,10 @@ export class ClusterMonitoringPageComponent implements OnInit, OnDestroy {
    {
       this.authorizationService.getPermissions("monitoring/cluster").subscribe((p) => {
          if(p.permissions.reportCluster) {
-            this.http.get("../em/monitoring/cluster/cluster-enabled").subscribe(
+            this.http.get("../api/em/monitoring/cluster/cluster-enabled").subscribe(
                (data: ClusterEnabledModel) => {
                   this.reportClusterVisible = data.enabled;
+                  this.reportClusterPauseVisible = data.pauseEnabled;
                }
             );
          }
@@ -114,7 +116,7 @@ export class ClusterMonitoringPageComponent implements OnInit, OnDestroy {
    }
 
    pauseServers() {
-      this.http.get("../em/monitoring/cluster/cluster-status")
+      this.http.get("../api/em/monitoring/cluster/cluster-status")
          .subscribe((nodes: ReportClusterNodeModel[]) => {
             if(!!nodes) {
                let remainingRunningNodes = nodes.filter((node) => node.status === "Running"
@@ -127,13 +129,13 @@ export class ClusterMonitoringPageComponent implements OnInit, OnDestroy {
                }
             }
 
-            this.http.post("../em/monitoring/cluster/pause-server",
+            this.http.post("../api/em/monitoring/cluster/pause-server",
                this.selectedNodes.map((node) => node.server)).subscribe();
       });
    }
 
    resumeServers() {
-      this.http.post("../em/monitoring/cluster/resume-server",
+      this.http.post("../api/em/monitoring/cluster/resume-server",
          this.selectedNodes.map((node) => node.server)).subscribe();
    }
 

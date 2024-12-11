@@ -26,12 +26,13 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValueEngine;
-import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.util.*;
+import inetsoft.util.migrate.MigrateViewsheetTask;
 import it.unimi.dsi.fastutil.objects.*;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -42,6 +43,7 @@ import java.security.Principal;
 import java.text.Collator;
 import java.text.ParseException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * AssetEntry locates a sheet or folder in <tt>AssetRepository</tt>. For a
@@ -374,6 +376,10 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
     * @return the created asset entry.
     */
    public static AssetEntry createAssetEntry(String identifier, String orgID) {
+      if(identifier == null) {
+         return null;
+      }
+
       int index = identifier.indexOf('^');
 
       if(index < 0) {
@@ -458,7 +464,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       String path = index == -1 ?
          identifier.substring(lindex + 1) : identifier.substring(lindex + 1, identifier.lastIndexOf('^'));
 
-      orgID = index == -1 ?
+      orgID = index == -1 || scope == AssetRepository.TEMPORARY_SCOPE ?
          orgID : identifier.substring(index + 1);
 
       return new AssetEntry(scope, type, path, user, orgID);
@@ -651,6 +657,13 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
     */
    public String getOrgID() {
       return orgID;
+   }
+
+   /**
+    * Set the organization id of the asset entry.
+    */
+   public void setOrgID(String orgID) {
+      this.orgID = orgID;
    }
 
    /**
@@ -1952,7 +1965,29 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
    public Object clone() {
       try {
          AssetEntry entry = (AssetEntry) super.clone();
+
+         if(user != null) {
+            entry.user = (IdentityID) user.clone();
+         }
+
+         if(favoritesUser != null) {
+            entry.favoritesUser = Tool.deepCloneSynchronizedList(favoritesUser, new ArrayList<>());
+         }
+
+         if(createdDate != null) {
+            entry.createdDate = (Date) createdDate.clone();
+         }
+
+         if(modifiedDate != null) {
+            entry.modifiedDate = (Date) modifiedDate.clone();
+         }
+
+         if(favoritesUser != null) {
+            entry.favoritesUser = Tool.deepCloneSynchronizedList(favoritesUser, new ArrayList<>());
+         }
+
          entry.prop = Object2ObjectMaps.synchronize(new Object2ObjectOpenHashMap<>(prop));
+
          return entry;
       }
       catch(Exception ex) {
@@ -1965,11 +2000,167 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
     * Create a clone of an asset entry, except with a different organization ID.
     * @return the created asset entry.
     */
-   public AssetEntry cloneAssetEntry (String orgID) {
+   public AssetEntry cloneAssetEntry(String orgID, String name) {
       AssetEntry newEntry = (AssetEntry) clone();
       newEntry.orgID = orgID;
+      newEntry.hash = -1;
+      newEntry.cachedName = null;
+
+      if(name.equals("")) {
+         return newEntry;
+      }
+
+      IdentityID user = newEntry.getUser();
+
+      if(!newEntry.isScheduleTask()) {
+         user.setName(name);
+      }
+
+      if(newEntry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+         String path = newEntry.getPath();
+         newEntry.setPath(cloneBookmarkPath(path, name));
+      }
+      else if(newEntry.isScheduleTask()) {
+         String taskName = newEntry.getPath().substring(1);
+         String[] split = taskName.split(":");
+
+         if(split.length == 2) {
+            IdentityID identityID = IdentityID.getIdentityIDFromKey(split[0]);
+            identityID.setName(name);
+            taskName = identityID.convertToKey() + ":" + split[1];
+         }
+
+         newEntry.setPath("/" + taskName);
+      }
+
+      List<String> favoritesUser = newEntry.getFavoritesUsers();
+
+      if(favoritesUser != null && !favoritesUser.isEmpty()) {
+         favoritesUser = favoritesUser.stream()
+            .map(userKey -> {
+               IdentityID id = IdentityID.getIdentityIDFromKey(userKey);
+
+               if(id != null) {
+                  id.setName(name);
+                  userKey = id.convertToKey();
+               }
+
+               return userKey;
+            })
+            .collect(Collectors.toList());
+         newEntry.favoritesUser = favoritesUser;
+      }
+
+      String bookmarkId = newEntry.getProperty("__bookmark_id__");
+
+      if(!StringUtils.isEmpty(bookmarkId)) {
+         bookmarkId = cloneBookmarkPath(bookmarkId, name);
+         newEntry.setProperty("__bookmark_id__", bookmarkId);
+      }
 
       return newEntry;
+   }
+
+   /**
+    * Create a clone of an asset entry, except with a different organization ID.
+    * @return the created asset entry.
+    */
+   public AssetEntry cloneAssetEntry(Organization org) {
+      AssetEntry newEntry = (AssetEntry) clone();
+      newEntry.hash = -1;
+      newEntry.cachedName = null;
+
+      if(org == null) {
+         return newEntry;
+      }
+
+      newEntry.orgID = org.getId();
+      IdentityID user = newEntry.getUser();
+
+      if(user != null) {
+         user.setOrgID(org.getId());
+      }
+
+      if(newEntry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
+         String path = newEntry.getPath();
+         newEntry.setPath(cloneBookmarkPath(path, org));
+      }
+      else if(newEntry.isScheduleTask()) {
+         String taskName = newEntry.getPath().substring(1);
+         int index = taskName.indexOf(":");
+
+         if(index > 0) {
+            IdentityID identityID = IdentityID.getIdentityIDFromKey(taskName.substring(0, index));
+            identityID.setOrgID(org.getId());
+            taskName = identityID.convertToKey() + taskName.substring(index);
+         }
+
+         newEntry.setPath("/" + taskName);
+      }
+
+      List<String> favoritesUser = newEntry.getFavoritesUsers();
+
+      if(favoritesUser != null && !favoritesUser.isEmpty()) {
+         favoritesUser = favoritesUser.stream()
+            .map(userKey -> {
+               IdentityID id = IdentityID.getIdentityIDFromKey(userKey);
+
+               if(id != null) {
+                  id.setOrgID(org.getId());
+                  userKey = id.convertToKey();
+               }
+
+               return userKey;
+            })
+            .collect(Collectors.toList());
+         newEntry.favoritesUser = favoritesUser;
+      }
+
+      String bookmarkId = newEntry.getProperty("__bookmark_id__");
+
+      if(!StringUtils.isEmpty(bookmarkId)) {
+         bookmarkId = cloneBookmarkPath(bookmarkId, org);
+         newEntry.setProperty("__bookmark_id__", bookmarkId);
+      }
+
+      return newEntry;
+   }
+
+   public AssetEntry cloneAssetEntry(IdentityID oldUser, IdentityID newUser) {
+      AssetEntry newEntry = (AssetEntry) clone();
+      newEntry.hash = -1;
+      newEntry.cachedName = null;
+
+      if(Tool.equals(user, oldUser)) {
+         newEntry.user = newUser;
+      }
+
+      if(newEntry.isScheduleTask()) {
+         String taskName = newEntry.getPath().substring(1);
+         String[] split = taskName.split(":");
+
+         if(split.length == 2) {
+            IdentityID identityID = IdentityID.getIdentityIDFromKey(split[0]);
+
+            if(Tool.equals(identityID, oldUser)) {
+               identityID.setName(newUser.getName());
+            }
+
+            taskName = identityID.convertToKey() + ":" + split[1];
+         }
+
+         newEntry.setPath("/" + taskName);
+      }
+
+      return newEntry;
+   }
+
+   private String cloneBookmarkPath(String path, Organization org) {
+      return MigrateViewsheetTask.updateBookmarkPath(path, org);
+   }
+
+   private String cloneBookmarkPath(String path, String name) {
+      return MigrateViewsheetTask.updateBookmarkPath(path, name);
    }
 
    /**

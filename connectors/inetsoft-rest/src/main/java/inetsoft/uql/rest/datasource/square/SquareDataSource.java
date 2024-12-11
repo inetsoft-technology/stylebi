@@ -20,20 +20,28 @@ package inetsoft.uql.rest.datasource.square;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
    @View1("sandbox"),
-   @View1("accessToken")
+   @View1(value = "accessToken", visibleMethod = "useCredential")
 })
 public class SquareDataSource extends EndpointJsonDataSource<SquareDataSource> {
    static final String TYPE = "Rest.Square";
    
    public SquareDataSource() {
       super(TYPE, SquareDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.ACCESS_TOKEN;
    }
 
    @Property(label = "Sandbox", required = true)
@@ -46,12 +54,9 @@ public class SquareDataSource extends EndpointJsonDataSource<SquareDataSource> {
    }
 
    @Property(label = "Personal Access Token", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getAccessToken() {
-      return accessToken;
-   }
-
-   public void setAccessToken(String accessToken) {
-      this.accessToken = accessToken;
+      return super.getAccessToken();
    }
 
    @Override
@@ -80,7 +85,7 @@ public class SquareDataSource extends EndpointJsonDataSource<SquareDataSource> {
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)
             .name("Authorization")
-            .value("Bearer " + accessToken)
+            .value("Bearer " + getAccessToken())
             .build()
       };
    }
@@ -108,22 +113,6 @@ public class SquareDataSource extends EndpointJsonDataSource<SquareDataSource> {
    }
 
    @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(accessToken != null) {
-         writer.format(
-            "<accessToken><![CDATA[%s]]></accessToken>%n", Tool.encryptPassword(accessToken));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      accessToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "accessToken"));
-   }
-
-   @Override
    public boolean equals(Object o) {
       if(this == o) {
          return true;
@@ -138,14 +127,13 @@ public class SquareDataSource extends EndpointJsonDataSource<SquareDataSource> {
       }
 
       SquareDataSource that = (SquareDataSource) o;
-      return sandbox == that.sandbox && Objects.equals(accessToken, that.accessToken);
+      return sandbox == that.sandbox;
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), sandbox, accessToken);
+      return Objects.hash(super.hashCode(), sandbox, getAccessToken());
    }
 
    private boolean sandbox;
-   private String accessToken;
 }

@@ -141,7 +141,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
       if(repository instanceof RepletEngine) {
          try(InputStream input = url.openStream()) {
             XPrincipal testPrincipal = SUtil.getPrincipal(
-               new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getCurrentOrgName()), null, false);
+               new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false);
             testPrincipal.setOrgId(Organization.getDefaultOrganizationID());
             ThreadContext.setPrincipal(testPrincipal);
             ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -156,7 +156,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
 
    private void materialize(String assetId, MVSupportService support, Set<String> mvNames) throws Exception {
       Principal user = SUtil.getPrincipal(
-         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getCurrentOrgName()), null, false);
+         new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false);
       String path = Objects.requireNonNull(AssetEntry.createAssetEntry(assetId)).getPath();
       List<String> identifiers = new ArrayList<>();
       List<String> paths = new ArrayList<>();
@@ -345,10 +345,7 @@ public class SreeHomeExtension implements BeforeAllCallback, AfterAllCallback {
    private void writeConfig(Path home) {
       InetsoftConfig config = InetsoftConfig.createDefault(home);
       KeyValueConfig keyValue = new KeyValueConfig();
-      keyValue.setType("filesystem");
-      FilesystemConfig filesystem = new FilesystemConfig();
-      filesystem.setDirectory(home.resolve("kv").toString());
-      keyValue.setFilesystem(filesystem);
+      keyValue.setType("test");
       config.setKeyValue(keyValue);
 
       InetsoftConfig.save(config, home.resolve("inetsoft.yaml"));

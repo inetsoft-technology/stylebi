@@ -23,6 +23,7 @@ import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
+import inetsoft.uql.util.Identity;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -154,13 +155,133 @@ public class RecycleBin implements XMLSerializable, AutoCloseable {
       getStorage(orgID).close();
    }
 
-   public void migrateStorageData(String oId, String id) throws Exception {
-      KeyValueStorage<Entry> oStorage = getStorage(oId);
-      KeyValueStorage<Entry> nStorage = getStorage(id);
-      SortedMap<String, Entry> data = new TreeMap<>();
-      oStorage.stream().forEach(pair -> data.put(pair.getKey(), pair.getValue()));
-      nStorage.putAll(data);
-      removeStorage(oId);
+   public void migrateEntries(Map<String, Entry> data, Organization oorg, Organization norg) {
+      if(data.isEmpty()) {
+         return;
+      }
+
+      String onid = oorg.getId();
+      String nid = norg.getId();
+
+      data.forEach((key, entry) -> {
+         IdentityID originalUser = entry.getOriginalUser();
+
+         if(originalUser != null && originalUser.getOrgID().equals(onid)) {
+            originalUser.setOrgID(nid);
+         }
+
+         if(entry.getPermission() != null) {
+            migrateEntryPermission(entry.getPermission(), oorg, norg);
+         }
+      });
+   }
+
+   public void migrateEntryPermission(Permission permission, Organization oorg, Organization norg) {
+      migratePermissionGrants(permission, oorg, norg, Identity.USER);
+      migratePermissionGrants(permission, oorg, norg, Identity.GROUP);
+      migratePermissionGrants(permission, oorg, norg, Identity.ROLE);
+      migratePermissionGrants(permission, oorg, norg, Identity.ORGANIZATION);
+
+      Map<String, Boolean> orgUpdatedMap = permission.getOrgEditedGrantAll();
+
+      if(orgUpdatedMap != null && !orgUpdatedMap.isEmpty()) {
+         Map<String, Boolean> newUpdatedMap = new HashMap<>();
+         String oid = oorg.getId();
+         String nid = norg.getId();
+
+         orgUpdatedMap.forEach((orgId, edited) -> {
+            if(oid.equals(orgId)) {
+               newUpdatedMap.put(nid, edited);
+            }
+            else {
+               newUpdatedMap.put(orgId, edited);
+            }
+         });
+
+         permission.setOrgEditedGrantAll(newUpdatedMap);
+      }
+   }
+
+   public void migratePermissionGrants(Permission permission, Organization oorg, Organization norg,
+                                       int identityType)
+   {
+      Set<Permission.PermissionIdentity> readGrants =
+         permission.getGrants(ResourceAction.READ, identityType);
+
+      if(readGrants != null && !readGrants.isEmpty()) {
+         permission.setGrants(ResourceAction.READ, identityType,
+                              getMigratedGrants(readGrants, oorg, norg, identityType));
+      }
+
+      Set<Permission.PermissionIdentity> writeGrants =
+         permission.getGrants(ResourceAction.WRITE, identityType);
+
+      if(writeGrants != null && !writeGrants.isEmpty()) {
+         permission.setGrants(ResourceAction.WRITE, identityType,
+                              getMigratedGrants(writeGrants, oorg, norg, identityType));
+      }
+
+      Set<Permission.PermissionIdentity> deleteGrants =
+         permission.getGrants(ResourceAction.DELETE, identityType);
+
+      if(deleteGrants != null && !deleteGrants.isEmpty()) {
+         permission.setGrants(ResourceAction.DELETE, identityType,
+                              getMigratedGrants(deleteGrants, oorg, norg, identityType));
+      }
+
+      Set<Permission.PermissionIdentity> shareGrants =
+         permission.getGrants(ResourceAction.SHARE, identityType);
+
+      if(shareGrants != null && !shareGrants.isEmpty()) {
+         permission.setGrants(ResourceAction.SHARE, identityType,
+                              getMigratedGrants(shareGrants, oorg, norg, identityType));
+      }
+
+      Set<Permission.PermissionIdentity> adminGrants =
+         permission.getGrants(ResourceAction.ADMIN, identityType);
+
+      if(adminGrants != null && !adminGrants.isEmpty()) {
+         permission.setGrants(ResourceAction.ADMIN, identityType,
+                              getMigratedGrants(adminGrants, oorg, norg, identityType));
+      }
+   }
+
+   private Set<Permission.PermissionIdentity> getMigratedGrants(Set<Permission.PermissionIdentity> grants,
+                                                                Organization oorg, Organization norg,
+                                                                int identityType)
+   {
+      String oid = oorg.getId();
+      String nid = norg.getId();
+      Set<Permission.PermissionIdentity> newGrants = new HashSet<>();
+
+      if(identityType == Identity.ORGANIZATION) {
+         for(Permission.PermissionIdentity grant : grants) {
+            String name = grant.getName();
+            String id = grant.getOrganizationID();
+
+            if(name.equals(oid)) {
+               name = nid;
+            }
+
+            if(id.equals(oid)) {
+               id = nid;
+            }
+
+            newGrants.add(new Permission.PermissionIdentity(name, id));
+         }
+      }
+      else {
+         for(Permission.PermissionIdentity grant : grants) {
+            if(grant.getOrganizationID().equals(oid)) {
+               newGrants.add(new Permission.PermissionIdentity(grant.getName(), nid));
+            }
+            else {
+               newGrants.add(grant);
+            }
+         }
+      }
+
+      return newGrants;
    }
 
    public void copyStorageData(String oId, String id) {

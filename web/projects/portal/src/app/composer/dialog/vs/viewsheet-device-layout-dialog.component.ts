@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import {
    Component,
    OnInit,
@@ -31,6 +32,10 @@ import { ViewsheetDeviceLayoutDialogModel } from "../../data/vs/viewsheet-device
 import { Tool } from "../../../../../../shared/util/tool";
 import { Point } from "../../../common/data/point";
 import { ComponentTool } from "../../../common/util/component-tool";
+
+const URI_NEW_DEViCE = "../api/composer/device/new";
+const URI_EDIT_DEViCE = "../api/composer/device/edit";
+const URI_GET_DELETE_DEViCE = "../api/composer/device/delete";
 
 @Component({
    selector: "viewsheet-device-layout-dialog",
@@ -56,7 +61,7 @@ export class ViewsheetDeviceLayoutDialog implements OnInit {
    formValid = () => this.model && this.formDevice && this.formDevice.valid &&
       this.deviceSelected() && !this.duplicateName() && !this.reservedName();
 
-   constructor(private modalService: NgbModal) {
+   constructor(private modalService: NgbModal, private http: HttpClient) {
    }
 
    ngOnInit() {
@@ -112,6 +117,9 @@ export class ViewsheetDeviceLayoutDialog implements OnInit {
          {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
          .then((buttonClicked) => {
             if(buttonClicked === "yes") {
+               let device: ScreenSizeDialogModel = this.devices[index];
+
+               this.http.post(URI_GET_DELETE_DEViCE, device).subscribe();
                this.selected.splice(index, 1);
                this.devices.splice(index, 1);
             }
@@ -138,10 +146,13 @@ export class ViewsheetDeviceLayoutDialog implements OnInit {
       this.modalService.open(this.screenSizeDialog, { backdrop: "static"}).result.then(
          (result: ScreenSizeDialogModel) => {
             if(this.editDevice == -1) {
+               result.id = Tool.generateRandomUUID();
                this.devices.push(result);
+               this.http.post(URI_NEW_DEViCE, result).subscribe();
             }
             else {
                this.devices[this.editDevice] = result;
+               this.http.post(URI_EDIT_DEViCE, result).subscribe();
             }
          },
          () => {

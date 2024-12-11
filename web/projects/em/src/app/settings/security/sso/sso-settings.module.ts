@@ -40,33 +40,36 @@ import { SsoSettingsPageComponent } from "./sso-settings-page/sso-settings-page.
 import { SsoSettingsRoutingModule } from "./sso-settings-routing.module";
 
 @NgModule({
-   declarations: [
-      SsoSettingsPageComponent,
-      SSOSettingsFormComponent,
-      CustomSsoFormComponent,
-      OpenidSettingsFormComponent
-   ],
-   imports: [
-      CommonModule,
-      EditorPanelModule,
-      FormsModule,
-      MatCardModule,
-      MatDialogModule,
-      MatFormFieldModule,
-      MatInputModule,
-      MatRadioModule,
-      MatSelectModule,
-      MatOptionModule,
-      ReactiveFormsModule,
-      SsoSettingsRoutingModule,
-      MatButtonModule,
-      MatIconModule,
-      MatCheckboxModule,
-      FeatureFlagsModule,
-      MatAutocompleteModule,
-      MessageDialogModule,
-      MatChipsModule
-   ]
+    declarations: [
+        SsoSettingsPageComponent,
+        SSOSettingsFormComponent,
+        CustomSsoFormComponent,
+        OpenidSettingsFormComponent
+    ],
+    exports: [
+        OpenidSettingsFormComponent
+    ],
+    imports: [
+        CommonModule,
+        EditorPanelModule,
+        FormsModule,
+        MatCardModule,
+        MatDialogModule,
+        MatFormFieldModule,
+        MatInputModule,
+        MatRadioModule,
+        MatSelectModule,
+        MatOptionModule,
+        ReactiveFormsModule,
+        SsoSettingsRoutingModule,
+        MatButtonModule,
+        MatIconModule,
+        MatCheckboxModule,
+        FeatureFlagsModule,
+        MatAutocompleteModule,
+        MessageDialogModule,
+        MatChipsModule
+    ]
 })
 export class SSOSettingsModule {
 }

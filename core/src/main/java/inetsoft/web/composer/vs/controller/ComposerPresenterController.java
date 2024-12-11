@@ -22,7 +22,6 @@ import inetsoft.report.internal.table.PresenterRef;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Catalog;
 import inetsoft.web.composer.model.TreeNodeModel;
-import org.apache.commons.collections.map.HashedMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -85,7 +84,7 @@ public class ComposerPresenterController {
       TreeNodeModel.Builder root = TreeNodeModel.builder().label("Presenters");
       String parent = presenters[0][0];
       List<TreeNodeModel> children = new ArrayList<>();
-      Map<String, Object> data = new HashedMap();
+      Map<String, Object> data = new HashMap<>();
       data.put("class", null);
       data.put("hasDescriptors", false);
 
@@ -121,7 +120,7 @@ public class ComposerPresenterController {
                boolean hasDescriptors = ref.getPropertyDescriptors() != null &&
                   ref.getPropertyDescriptors().length > 0;
 
-               data = new HashedMap();
+               data = new HashMap<>();
                data.put("path", path);
                data.put("class", pobj.getClass().getName());
                data.put("hasDescriptors", hasDescriptors);

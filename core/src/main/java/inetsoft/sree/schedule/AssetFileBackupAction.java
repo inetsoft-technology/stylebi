@@ -17,9 +17,12 @@
  */
 package inetsoft.sree.schedule;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.web.admin.general.DataSpaceSettingsService;
 
+import java.io.Serializable;
 import java.security.Principal;
+import java.util.concurrent.Callable;
 
 /**
  * A schedule action that saves the storage contents to a backup file.
@@ -38,7 +41,22 @@ public class AssetFileBackupAction implements ScheduleAction {
     */
    @Override
    public void run(Principal principal) throws Throwable {
-      DataSpaceSettingsService.backup(null);
+      Cluster.getInstance().submit(new AssetFileBackupActionCallable(principal), false).get();
    }
 
+   private static class AssetFileBackupActionCallable implements Callable<String>, Serializable {
+      public AssetFileBackupActionCallable() {
+      }
+
+      public AssetFileBackupActionCallable(Principal principal) {
+         this.principal = principal;
+      }
+
+      @Override
+      public String call() throws Exception {
+         return DataSpaceSettingsService.backup(null);
+      }
+
+      private Principal principal;
+   }
 }

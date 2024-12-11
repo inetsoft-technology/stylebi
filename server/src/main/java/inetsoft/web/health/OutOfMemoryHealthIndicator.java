@@ -19,6 +19,7 @@ package inetsoft.web.health;
 
 import inetsoft.util.health.OutOfMemoryHealthService;
 import inetsoft.util.health.OutOfMemoryStatus;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
@@ -34,6 +35,8 @@ public class OutOfMemoryHealthIndicator implements HealthIndicator {
       OutOfMemoryStatus status = service.getStatus();
 
       if(status.isOutOfMemory()) {
+         LoggerFactory.getLogger(getClass()).error(
+            "OutOfMemoryHealthIndicator DOWN: time={}", status.getTime());
          return Health.down().withDetail("time", status.getTime()).build();
       }
 

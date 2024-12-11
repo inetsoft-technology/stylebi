@@ -35,14 +35,29 @@ import { CustomThemeModel } from "../custom-theme-model";
    styleUrls: ["./theme-list-view.component.scss"]
 })
 export class ThemeListViewComponent implements OnInit, OnDestroy {
-   @Input() themes: CustomThemeModel[];
+   @Input() get themes(): CustomThemeModel[] {
+      return this._themes;
+   }
+
+   set themes(value: CustomThemeModel[]) {
+      this._themes = value;
+      this.defaultTheme = this.themes.find(theme => theme.defaultThemeOrg);
+
+      if(this.defaultTheme == null) {
+         this.defaultTheme = this.themes.find(theme => theme.defaultThemeGlobal);
+      }
+   }
+
    @Input() selectedTheme: CustomThemeModel;
    @Input() isSiteAdmin = false;
+   @Input() orgId: string;
    @Output() themeSelected = new EventEmitter<string>();
    @Output() themeDeleted = new EventEmitter<string>();
    @Output() themeCreated = new EventEmitter<string>();
    @Output() themeDownloaded = new EventEmitter<string>();
 
+   _themes: CustomThemeModel[];
+   defaultTheme: CustomThemeModel;
    collapseToolbar = false;
    private destroy$ = new Subject<void>();
 
@@ -84,5 +99,9 @@ export class ThemeListViewComponent implements OnInit, OnDestroy {
 
    cannotDelete(): boolean {
       return !this.selectedTheme?.id || this.selectedTheme.global && !this.isSiteAdmin;
+   }
+
+   isDefaultTheme(theme: CustomThemeModel): boolean {
+      return this.defaultTheme != null && this.defaultTheme.id == theme.id;
    }
 }

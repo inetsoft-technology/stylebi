@@ -19,6 +19,7 @@ package inetsoft.web.admin.content.repository;
 
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
@@ -144,6 +145,7 @@ public class RepositoryRecycleBinController {
       throws Exception
    {
       AssetRepository repository = AssetUtil.getAssetRepository(false);
+      IdentityID identity = IdentityID.getIdentityIDFromKey(principal.getName());
       AssetEntry[] entries;
       IdentityID[] users = securityProvider.getUsers();
 
@@ -163,6 +165,17 @@ public class RepositoryRecycleBinController {
                                             ResourceAction.READ, selector);
             getRecycleNodeFromAssetEntries(table, entries, recycleBin, principal);
          }
+
+         if(Arrays.stream(users)
+            .noneMatch(user -> user.equals(identity)))
+         {
+            pentry = new AssetEntry(AssetRepository.USER_SCOPE, entryType,
+                                    RecycleUtils.getRecycleBinPath(null), identity);
+
+            entries = repository.getEntries(pentry, principal,
+                                            ResourceAction.READ, selector);
+            getRecycleNodeFromAssetEntries(table, entries, recycleBin, principal);
+         }
       }
    }
 
@@ -172,11 +185,16 @@ public class RepositoryRecycleBinController {
    {
       for(AssetEntry entry : entries) {
          RecycleBin.Entry binEntry = recycleBin.getEntry(entry.getPath());
+
+         if(binEntry == null && entry.getScope() ==  AssetRepository.USER_SCOPE) {
+            binEntry = recycleBin.getEntry(Tool.MY_DASHBOARD + "/" + entry.getPath());
+         }
+
          boolean securityCheck =  entry.getUser() != null ?
             securityProvider.checkPermission(principal, ResourceType.SECURITY_USER, entry.getUser().convertToKey(), ResourceAction.ADMIN) :
             securityProvider.checkPermission(principal, RecycleUtils.getAssetResourceType(entry), entry.getPath(), ResourceAction.ADMIN);
 
-         if(binEntry != null && !entry.isRepositoryFolder() && securityCheck) {
+         if(binEntry != null && securityCheck) {
             RepositoryFolderRecycleBinTableModel report =
                RepositoryFolderRecycleBinTableModel.builder()
                   .from(binEntry.getOriginalPath(),
@@ -215,10 +233,12 @@ public class RepositoryRecycleBinController {
       @RequestBody() RepositoryFolderRecycleBinSettingsModel model, Principal principal) {
       List<RepositoryFolderRecycleBinTableModel> table = model.table();
       ArrayList<TreeNodeInfo> recycleNodes = new ArrayList<>();
+      RecycleBin recycleBinFile = RecycleBin.getRecycleBin();
 
       for(RepositoryFolderRecycleBinTableModel item : table) {
-         RecycleBin recycleBinFile = RecycleBin.getRecycleBin();
-         RecycleBin.Entry binEntry  = recycleBinFile.getEntry(item.path());
+         String path = item.path();
+         path = SUtil.isMyDashboard(item.originalPath()) ? Tool.MY_DASHBOARD + "/" + path : path;
+         RecycleBin.Entry binEntry  = recycleBinFile.getEntry(path);
 
          final TreeNodeInfo recycleNodeInfo = new TreeNodeInfo.Builder()
             .label(binEntry.getName())
@@ -245,7 +265,9 @@ public class RepositoryRecycleBinController {
       boolean overwrite = model.overwrite();
 
       for(RepositoryFolderRecycleBinTableModel item : table) {
-         restoreNode(item.path(), overwrite, principal);
+         String path = item.path();
+         path = SUtil.isMyDashboard(item.originalPath()) ? Tool.MY_DASHBOARD + "/" + path : path;
+         restoreNode(path, overwrite, principal);
       }
 
       return null;

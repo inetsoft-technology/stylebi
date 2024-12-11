@@ -130,7 +130,18 @@ public class RepositoryObjectService {
       nodes = list.toArray(new TreeNodeInfo[0]);
 
       for(TreeNodeInfo node : nodes) {
-         String objectName = Util.getObjectFullPath(node.type(), node.path(), principal, node.owner());
+         String nodePath = node.path();
+
+         if(nodePath.indexOf(IdentityID.KEY_DELIMITER) > 0) {
+            String[] parts = Tool.split(nodePath, '^');
+
+            if(parts.length > 2 && parts[2].contains(IdentityID.KEY_DELIMITER)) {
+               parts[2] = IdentityID.getIdentityIDFromKey(parts[2]).name;
+               nodePath = String.join("^", parts);
+            }
+         }
+
+         String objectName = Util.getObjectFullPath(node.type(), nodePath, principal, node.owner());
          ActionRecord actionRecord = SUtil.getActionRecord(principal,
             ActionRecord.ACTION_NAME_DELETE, objectName, getActionRecordType(node.type()));
 
@@ -595,8 +606,8 @@ public class RepositoryObjectService {
                }
 
                folderName += newFolderName;
-               dataSourceRegistry.setDataSourceFolder(
-                  new DataSourceFolder(folderName, LocalDateTime.now(), pId));
+               dataSourceRegistry.setDataSourceFolder(new DataSourceFolder(
+                  folderName, LocalDateTime.now(), pId != null ? pId.getName() : null));
                String fullPath = Util.getObjectFullPath(type, folderName, principal);
                actionRecord.setObjectName(fullPath);
             }
@@ -605,8 +616,8 @@ public class RepositoryObjectService {
                   String name = folderName + "Folder" + i;
 
                   if(dataSourceRegistry.getDataSourceFolder(name) == null) {
-                     dataSourceRegistry.setDataSourceFolder(
-                        new DataSourceFolder(name, LocalDateTime.now(), pId));
+                     dataSourceRegistry.setDataSourceFolder(new DataSourceFolder(
+                        name, LocalDateTime.now(), pId != null ? pId.getName() : null));
                      folderName = name;
                      String fullPath = Util.getObjectFullPath(type, folderName, principal);
                      actionRecord.setObjectName(fullPath);
@@ -707,14 +718,14 @@ public class RepositoryObjectService {
          setResourcePermission(isWorksheetFolder ? ResourceType.ASSET :
                                   type == RepositoryEntry.DATA_SOURCE_FOLDER ?
                                      ResourceType.DATA_SOURCE_FOLDER : ResourceType.REPORT, principal, folderName);
+         actionRecord.setObjectName(Util.getObjectFullPath(isWorksheetFolder ?
+             RepositoryEntry.WORKSHEET_FOLDER : type, folderName, principal, user));
 
          if(user != null) {
             if((type & ~RepositoryEntry.USER) == RepositoryEntry.WORKSHEET_FOLDER) {
-               folderName = "My Reports/Worksheets/" + folderName;
+               folderName = Tool.MY_DASHBOARD + "/Worksheets/" + folderName;
             }
          }
-
-         actionRecord.setObjectName(Util.getObjectFullPath(type, folderName, principal, user));
 
          return treeService.getFolderNode(folderName, type, user);
       }
@@ -738,11 +749,13 @@ public class RepositoryObjectService {
       Permission perm = new Permission();
       Set<String> userGrants = new HashSet<>();
       userGrants.add(IdentityID.getIdentityIDFromKey(principal.getName()).name);
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       for(ResourceAction action : ResourceAction.values()) {
-         perm.setUserGrantsForOrg(action, userGrants, OrganizationManager.getInstance().getCurrentOrgID());
+         perm.setUserGrantsForOrg(action, userGrants, currentOrgID);
       }
 
+      perm.updateGrantAllByOrg(currentOrgID, true);
       authz.setPermission(type, name, perm);
    }
 
@@ -1180,6 +1193,7 @@ public class RepositoryObjectService {
          repositoryType == RepositoryEntry.QUERY ? ActionRecord.OBJECT_TYPE_QUERY :
          repositoryType == RepositoryEntry.SCRIPT ? ActionRecord.OBJECT_TYPE_SCRIPT :
          repositoryType == RepositoryEntry.TABLE_STYLE ? ActionRecord.OBJECT_TYPE_TABLE_STYLE :
+         repositoryType == RepositoryEntry.VPM ? ActionRecord.OBJECT_TYPE_VIRTUAL_PRIVATE_MODEL :
          repositoryType == RepositoryEntry.PROTOTYPE ? ActionRecord.OBJECT_TYPE_PROTOTYPE :
          (repositoryType & RepositoryEntry.FOLDER) != 0 ? ActionRecord.OBJECT_TYPE_FOLDER :
             ActionRecord.OBJECT_TYPE_REPORT;

@@ -65,7 +65,7 @@ public class VSSelectionListHelper extends ExporterHelper {
          writeList(assembly, values);
       }
 
-      if(!info.isTitleVisible()) {
+      if(!info.isTitleVisible() && (assembly.getContainer() == null || !(assembly.getContainer() instanceof CurrentSelectionVSAssembly))) {
          return;
       }
 

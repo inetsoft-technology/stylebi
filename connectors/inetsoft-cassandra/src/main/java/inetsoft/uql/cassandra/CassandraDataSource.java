@@ -22,6 +22,7 @@ import com.datastax.oss.driver.api.core.CqlSession;
 import com.datastax.oss.driver.api.core.metadata.schema.KeyspaceMetadata;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -36,15 +37,22 @@ import java.util.Objects;
       @View1("datacenter"),
       @View1("SSL"),
       @View1("keyspace"),
+      @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+      @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
       @View1(type=ViewType.LABEL, text="authentication.required.text", col=1, paddingLeft=3),
-      @View1("user"),
-      @View1("password")
+      @View1(value = "user", visibleMethod = "useCredential"),
+      @View1(value = "password", visibleMethod = "useCredential")
    })
 public class CassandraDataSource extends TabularDataSource<CassandraDataSource> {
    public static final String TYPE = "Cassandra";
 
    public CassandraDataSource() {
       super(TYPE, CassandraDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD;
    }
 
    @Property(label="Host", required = true)
@@ -98,21 +106,27 @@ public class CassandraDataSource extends TabularDataSource<CassandraDataSource> 
    }
 
    @Property(label="User")
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getUser() {
-      return user;
+      return getCredential() == null ? null : ((PasswordCredential) getCredential()).getUser();
    }
 
    public void setUser(String user) {
-      this.user = user;
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setUser(user);
+      }
    }
 
    @Property(label="Password", password=true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getPassword() {
-      return password;
+      return getCredential() == null ? null : ((PasswordCredential) getCredential()).getPassword();
    }
 
    public void setPassword(String password) {
-      this.password = password;
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setPassword(password);
+      }
    }
 
    /**
@@ -155,15 +169,6 @@ public class CassandraDataSource extends TabularDataSource<CassandraDataSource> 
          writer.println("<datacenter><![CDATA[" + datacenter + "]]></datacenter>");
       }
 
-      if(user != null) {
-         writer.println("<user><![CDATA[" + user + "]]></user>");
-      }
-
-      if(password != null) {
-         writer.println("<password><![CDATA[" + Tool.encryptPassword(password) +
-                        "]]></password>");
-      }
-
       if(keyspace != null) {
          writer.println("<keyspace><![CDATA[" + keyspace + "]]></keyspace>");
       }
@@ -187,8 +192,6 @@ public class CassandraDataSource extends TabularDataSource<CassandraDataSource> 
       host = Tool.getChildValueByTagName(root, "host");
       datacenter = Tool.getChildValueByTagName(root, "datacenter");
       keyspace = Tool.getChildValueByTagName(root, "keyspace");
-      user = Tool.getChildValueByTagName(root, "user");
-      password = Tool.decryptPassword(Tool.getChildValueByTagName(root, "password"));
    }
 
    @Override
@@ -199,8 +202,7 @@ public class CassandraDataSource extends TabularDataSource<CassandraDataSource> 
          return Objects.equals(host, ds.host) &&
             port == ds.port &&
             Objects.equals(keyspace, ds.keyspace) &&
-            Objects.equals(user, ds.user) &&
-            Objects.equals(password, ds.password) &&
+            Objects.equals(getCredential(), ds.getCredential()) &&
             ssl == ds.ssl;
       }
       catch(Exception ex) {
@@ -212,8 +214,6 @@ public class CassandraDataSource extends TabularDataSource<CassandraDataSource> 
    private int port = 9042;
    private String datacenter = "datacenter1";
    private String keyspace;
-   private String user;
-   private String password;
    private boolean ssl = false;
 
    private static final Logger LOG = LoggerFactory.getLogger(CassandraDataSource.class.getName());

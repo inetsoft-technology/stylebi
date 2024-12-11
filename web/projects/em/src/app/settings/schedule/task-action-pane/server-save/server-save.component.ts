@@ -37,6 +37,8 @@ export interface ServerSaveFile {
    filePath?: string;
    locationPath?: string;
    ftp?: boolean;
+   useCredential?: boolean;
+   secretId?: string;
    username?: string;
    password?: string;
 }
@@ -67,6 +69,7 @@ export class ServerSaveComponent implements OnInit {
    @Input() csvSaveModel: CSVConfigModel;
    @Input() tableDataAssemblies: string[] = [];
    @Input() saveExportAllTabbedTables = false;
+   @Input() cloudSecrets = false;
    @Output() serverSaveChanged = new EventEmitter<ServerSave>();
 
    @Input()
@@ -179,7 +182,7 @@ export class ServerSaveComponent implements OnInit {
    }
 
    dataSource = new BehaviorSubject<ServerSaveFile[]>([]);
-   columnsToDisplay = ["format", "ftp", "path", "actions"];
+   columnsToDisplay = ["format", "ftp", "secretId", "path", "actions"];
 
    private _formats: string[] = [];
    private _paths: string[] = [];
@@ -188,6 +191,8 @@ export class ServerSaveComponent implements OnInit {
    private _locations: ServerLocation[] = [];
    filesForm: UntypedFormGroup;
    pathForms: FormArray;
+   locationPathsForm: FormArray;
+   secretIdForms: FormArray;
    usersForms: FormArray;
    passwordsForms: FormArray;
 
@@ -198,27 +203,45 @@ export class ServerSaveComponent implements OnInit {
       if(this.hasLocations) {
          this.columnsToDisplay = ["format", "path", "actions"];
       }
+      else if(!this.cloudSecrets) {
+         this.columnsToDisplay = ["format", "ftp", "path", "actions"];
+      }
    }
 
    initForm() {
       let pathArray: UntypedFormControl[] = [];
+      let secretIdArray: UntypedFormControl[] = [];
       let userArray: UntypedFormControl[] = [];
       let passwordArray: UntypedFormControl[] = [];
+      let locationPathArray: UntypedFormControl[] = [];
 
       for(let i = 0; i < this._paths.length; i ++) {
          pathArray[i] = this.createPathForm(i);
+
+         if(this.hasLocations) {
+            let path = this._pathModels[i].path;
+            const location = this.locations.find(l =>
+               path.startsWith(l.path) &&
+               (path === l.path || path[l.path.length] == "/" || path[l.path.length] == "\\"));
+            locationPathArray[i] = this.fb.control(location?.path, [Validators.required]);
+         }
       }
 
       for(let i = 0; i < this._pathModels.length; i ++) {
+         secretIdArray[i] = this.fb.control(this._pathModels[i].secretId);
          userArray[i] = this.fb.control(this._pathModels[i].username);
          passwordArray[i] = this.fb.control(this._pathModels[i].password);
       }
 
       this.pathForms = this.fb.array(pathArray);
+      this.locationPathsForm = this.fb.array(locationPathArray);
+      this.secretIdForms = this.fb.array(secretIdArray);
       this.usersForms = this.fb.array(userArray);
       this.passwordsForms = this.fb.array(passwordArray);
       this.filesForm = this.fb.group({
          paths: this.pathForms,
+         locationPaths: this.locationPathsForm,
+         secretIdForms: this.secretIdForms,
          usernames: this.usersForms,
          passwords: this.passwordsForms
       });
@@ -238,6 +261,8 @@ export class ServerSaveComponent implements OnInit {
       let model: ServerPathInfoModel = {
          ftp: false,
          path: "",
+         useCredential: false,
+         secretId: "",
          username: "",
          password: ""
       };
@@ -260,8 +285,19 @@ export class ServerSaveComponent implements OnInit {
       }
    }
 
-   fireServerSaveChanged() {
-      this.updatePaths();
+   locationPathChanged(index: number) {
+      this.dataSource.getValue()[index].locationPath = this.locationPathsForm.at(index).value;
+
+      if(this._files[index].filePath != null) {
+         let path = this._files[index].filePath.replace(/^(([/\\]+)|([a-zA-Z]:[/\\]))/, "");
+         this.pathForms.at(index).setValue(path);
+      }
+
+      this.fireServerSaveChanged();
+   }
+
+   fireServerSaveChanged(fireByFtp: boolean = false) {
+      this.updatePaths(fireByFtp);
       this.saveOnlyDataComponents = this.matchLayout ? false : this.saveOnlyDataComponents;
       this.serverSaveChanged.emit({
          valid: this.isValid(),
@@ -331,6 +367,8 @@ export class ServerSaveComponent implements OnInit {
 
                if(location.pathInfoModel) {
                   file.ftp = location.pathInfoModel.ftp;
+                  file.useCredential = location.pathInfoModel.useCredential;
+                  file.secretId = location.pathInfoModel.secretId;
                   file.username = location.pathInfoModel.username;
                   file.password = location.pathInfoModel.password;
                }
@@ -340,6 +378,8 @@ export class ServerSaveComponent implements OnInit {
 
       if(!!pathModel) {
          file.ftp = pathModel.ftp;
+         file.useCredential = pathModel.useCredential;
+         file.secretId = pathModel.secretId;
          file.username = pathModel.username;
          file.password = pathModel.password;
       }
@@ -347,11 +387,11 @@ export class ServerSaveComponent implements OnInit {
       return file;
    }
 
-   private updatePaths(): void {
-      this._files.forEach(f => this.updatePath(f));
+   private updatePaths(fireByFtp: boolean = false): void {
+      this._files.forEach(f => this.updatePath(f, fireByFtp));
    }
 
-   updatePath(file: ServerSaveFile): void {
+   updatePath(file: ServerSaveFile, fireByFtp: boolean = false): void {
       if(this.hasLocations && file.locationPath) {
          if(file.filePath) {
             file.path = file.locationPath + "/" +
@@ -364,20 +404,25 @@ export class ServerSaveComponent implements OnInit {
          const location: ServerLocation = this.locations.find(l => l.path == file.locationPath);
 
          if(!!location.pathInfoModel) {
+            file.secretId = location.pathInfoModel.secretId;
             file.username = location.pathInfoModel.username;
             file.password = location.pathInfoModel.password;
          }
 
-         file.ftp = file.ftp || location.pathInfoModel.ftp ||
-            !!file.path && (file.path.startsWith("ftp:") || file.path.startsWith("sftp:"));
+         if(!fireByFtp) {
+            file.ftp = file.ftp || location.pathInfoModel.ftp ||
+               !!file.path && (file.path.startsWith("ftp:") || file.path.startsWith("sftp:"));
+         }
       }
       else {
          file.path = file.filePath;
-         file.ftp = file.ftp ||
-            !!file.path && (file.path.startsWith("ftp:") || file.path.startsWith("sftp:"));
+
+         if(!fireByFtp) {
+            file.ftp = file.ftp ||
+               !!file.path && (file.path.startsWith("ftp:") || file.path.startsWith("sftp:"));
+         }
       }
    }
-
 
    private updateExportOptions() {
       if(!this.hasExcelFormat) {
@@ -392,6 +437,16 @@ export class ServerSaveComponent implements OnInit {
    private isVSCSVFormat(format: string) {
       return format === "6";
    }
+
+   updateFtp() {
+      this.fireServerSaveChanged(true);
+   }
+
+   updateSecretIDForm(index: number) {
+      this.dataSource.getValue()[index].secretId = this.secretIdForms.at(index).value?.trim();
+      this.fireServerSaveChanged();
+   }
+
    updateUserForm(index: number) {
       this.dataSource.getValue()[index].username = this.usersForms.at(index).value;
       this.fireServerSaveChanged();

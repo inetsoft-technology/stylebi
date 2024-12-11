@@ -20,6 +20,7 @@ package inetsoft.uql.rest.datasource.linkedin;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.credential.CredentialType;
 
 @View(vertical = true, value = {
    @View1(
@@ -29,7 +30,9 @@ import inetsoft.uql.tabular.*;
          type = ButtonType.OAUTH,
          method = "updateTokens",
          oauth = @Button.OAuth(serviceName = "linkedin"))),
-   @View1("accessToken"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "accessToken", visibleMethod = "useCredential"),
    @View1("tokenExpiration")
 })
 public class LinkedinDataSource extends OAuthEndpointJsonDataSource<LinkedinDataSource> {
@@ -38,6 +41,11 @@ public class LinkedinDataSource extends OAuthEndpointJsonDataSource<LinkedinData
    public LinkedinDataSource() {
       super(TYPE, LinkedinDataSource.class);
       setAuthType(AuthType.NONE);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.ACCESS_TOKEN;
    }
 
    @Override

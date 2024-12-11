@@ -16,7 +16,7 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <modal-header [title]="'_#(Database Query)'"
-   [cshid]="'DatabaseQuery'"
+   [cshid]="helpLinkKey"
    (onCancel)="cancel()">
 </modal-header>
 <div *ngIf="model" class="modal-body" [enterSubmit]="formValid"

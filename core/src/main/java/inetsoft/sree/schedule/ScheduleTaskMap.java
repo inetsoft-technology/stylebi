@@ -46,7 +46,8 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    /**
     * Creates a new instance of <tt>ScheduleTaskMap</tt>.
     */
-   ScheduleTaskMap() {
+   ScheduleTaskMap(String orgID) {
+      this.orgID = orgID;
       indexedStorage = IndexedStorage.getIndexedStorage();
 
       Lock lock = Cluster.getInstance().getLock(Scheduler.INIT_LOCK);
@@ -80,22 +81,19 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
 
    @Override
    public ScheduleTask get(Object key) {
-      return get(key, null);
-   }
-
-   public ScheduleTask get(Object key, String orgID) {
       ScheduleTask task = null;
       String identifier = (String) key;
+      String curOrg = this.orgID;
 
       int startIndex = org.apache.commons.lang.StringUtils.ordinalIndexOf((String) key, "^", 3);
       int endIndex = org.apache.commons.lang.StringUtils.ordinalIndexOf((String) key, "^", 4);
       String taskName = ((String) key).substring(startIndex + 2, endIndex);
 
       if(InternalScheduledTaskService.isInternalTask(taskName)) {
-         orgID = Organization.getDefaultOrganizationID();
+         curOrg = Organization.getDefaultOrganizationID();
       }
 
-      long ts = indexedStorage.lastModified(identifier, orgID);
+      long ts = indexedStorage.lastModified(identifier, curOrg);
       TaskWrapper wrapper = cache.get(identifier);
 
       if(wrapper != null && ts == wrapper.ts) {
@@ -105,7 +103,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       try {
          if(task == null) {
             task = (ScheduleTask) indexedStorage
-               .getXMLSerializable(identifier, new ScheduleTransformListener(), orgID);
+               .getXMLSerializable(identifier, new ScheduleTransformListener(), curOrg);
             cache.put(identifier, new TaskWrapper(task, ts));
          }
       }
@@ -115,6 +113,12 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       }
 
       return task;
+   }
+
+   public void clearCache() {
+      cache.clear();
+      rootFolders.clear();
+      rootTS.clear();
    }
 
    @Override
@@ -127,7 +131,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
                                     AssetEntry.Type.SCHEDULE_TASK_FOLDER, value.getPath(), null);
          }
 
-         return put(key, value, pentry, OrganizationManager.getInstance().getCurrentOrgID());
+         return put(key, value, pentry, this.orgID);
       }
       catch(Exception e) {
          throw new RuntimeException("Failed to store schedule task: " + key, e);
@@ -135,11 +139,11 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    }
    public ScheduleTask put(String key, ScheduleTask value, String orgID) {
       try {
-         AssetEntry pentry = getRootEntry(orgID);
+         AssetEntry pentry = getRootEntry();
 
          if(value.getPath() != null && !value.getPath().isEmpty()) {
             pentry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
-                                    AssetEntry.Type.SCHEDULE_TASK_FOLDER, value.getPath(), null);
+                                    AssetEntry.Type.SCHEDULE_TASK_FOLDER, value.getPath(), null, orgID);
          }
 
          return put(key, value, pentry, orgID);
@@ -153,12 +157,12 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       ScheduleTask oldValue = null;
 
       if(parent == null) {
-         parent = getRootEntry(orgID);
+         parent = getRootEntry();
       }
 
       try {
          AssetFolder parentFolder = (AssetFolder)
-            indexedStorage.getXMLSerializable(parent.toIdentifier(), null, orgID);
+            indexedStorage.getXMLSerializable(parent.toIdentifier(), null, parent.getOrgID());
 
          if(parentFolder == null) {
             // if repository is corrupt (orphaned schedule asset), recreate the parent folder
@@ -180,15 +184,15 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
          indexedStorage.putXMLSerializable(parent.toIdentifier(), parentFolder);
          indexedStorage.putXMLSerializable(key, value);
          AssetFolder rootFolder =
-            (AssetFolder) indexedStorage.getXMLSerializable(getRootIdentifier(orgID), null, orgID);
+            (AssetFolder) indexedStorage.getXMLSerializable(getRootIdentifier(), null, orgID);
 
          if(rootFolder == null) {
             rootFolder = new AssetFolder();
-            indexedStorage.putXMLSerializable(getRootIdentifier(orgID), rootFolder);
+            indexedStorage.putXMLSerializable(getRootIdentifier(), rootFolder);
          }
 
          rootFolders.put(orgID, rootFolder);
-         rootTS.put(orgID, indexedStorage.lastModified(getRootIdentifier(orgID), orgID));
+         rootTS.put(orgID, indexedStorage.lastModified(getRootIdentifier(), orgID));
       }
       catch(Exception e) {
          throw new RuntimeException(
@@ -212,51 +216,14 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
             AssetFolder root = getRoot();
             AssetEntry entry = AssetEntry.createAssetEntry(identifier);
             root.removeEntry(entry);
-            indexedStorage.putXMLSerializable(getRootIdentifier(), root);
-            indexedStorage.remove(identifier);
-
-            // should remove the task from folder when delete a task.
-            if(task != null && !StringUtils.isEmpty(task.getPath())) {
-               AssetEntry folderEntry = new AssetEntry( AssetRepository.GLOBAL_SCOPE,
-                  AssetEntry.Type.SCHEDULE_TASK_FOLDER, task.getPath(), null);
-               XMLSerializable folder = indexedStorage
-                  .getXMLSerializable(folderEntry.toIdentifier(), null);
-
-               if(folder instanceof AssetFolder) {
-                  ((AssetFolder) folder).removeEntry(entry);
-                  indexedStorage.putXMLSerializable(folderEntry.toIdentifier(), folder);
-               }
-            }
-         }
-         catch(Exception e) {
-            throw new RuntimeException(
-               "Failed to delete schedule task: " + identifier, e);
-         }
-         finally {
-            indexedStorage.close();
-         }
-      }
-
-      return task;
-   }
-
-   public ScheduleTask removeKey(Object key, String orgID) {
-      ScheduleTask task = get(key, orgID);
-
-      if(task != null) {
-         String identifier = (String) key;
-
-         try {
-            AssetFolder root = getRoot(orgID);
-            AssetEntry entry = AssetEntry.createAssetEntry(identifier);
-            root.removeEntry(entry);
             indexedStorage.putXMLSerializable(getRootIdentifier(orgID), root);
             indexedStorage.remove(identifier);
+            cache.remove(identifier);
 
             // should remove the task from folder when delete a task.
             if(task != null && !StringUtils.isEmpty(task.getPath())) {
                AssetEntry folderEntry = new AssetEntry( AssetRepository.GLOBAL_SCOPE,
-                                                        AssetEntry.Type.SCHEDULE_TASK_FOLDER, task.getPath(), null);
+                                                        AssetEntry.Type.SCHEDULE_TASK_FOLDER, task.getPath(), null, orgID);
                XMLSerializable folder = indexedStorage
                   .getXMLSerializable(folderEntry.toIdentifier(), null, orgID);
 
@@ -288,7 +255,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
             root.removeEntry(entry);
          }
 
-         indexedStorage.putXMLSerializable(getRootIdentifier(), root);
+         indexedStorage.putXMLSerializable(getRootIdentifier(this.orgID), root);
       }
       catch(Exception e) {
          throw new RuntimeException("Failed to clear schedule tasks", e);
@@ -335,7 +302,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    @SuppressWarnings("NullableProblems")
    @Override
    public Set<Entry<String, ScheduleTask>> entrySet() {
-      return new ScheduleTaskEntrySet();
+      return new ScheduleTaskEntrySet(this.orgID);
    }
 
    public Set<Entry<String, ScheduleTask>> entrySet(String orgID) {
@@ -355,18 +322,14 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    /**
     * Gets the root folder where all the asset entries are stored
     */
-   private AssetFolder getRoot(String orgID) throws Exception {
-      if(orgID == null) {
-         orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      }
-
-      String rootId = getRootIdentifier();
+   private AssetFolder getRoot() throws Exception {
+      String rootId = getRootIdentifier(orgID);
       long ts = indexedStorage.lastModified(rootId);
       Long ots = rootTS.containsKey(orgID) ? rootTS.get(orgID) : 0;
       AssetFolder rootFolder = rootFolders.get(orgID);
 
       if(ts > ots || rootFolder == null) {
-         rootFolder = (AssetFolder) indexedStorage.getXMLSerializable(rootId, null);
+         rootFolder = (AssetFolder) indexedStorage.getXMLSerializable(rootId, null, orgID);
 
          if(rootFolder == null) {
             // bug #58866, handle corruption where asset entry is in the index, but the asset data
@@ -382,22 +345,12 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       return rootFolder;
    }
 
-   private AssetFolder getRoot() throws Exception {
-      return getRoot(null);
-   }
-
    /**
     * Gets the root asset entry.
     *
     * @return the root entry.
     */
    private AssetEntry getRootEntry() {
-      return new AssetEntry(
-         AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
-         "/", null);
-   }
-
-   private AssetEntry getRootEntry(String orgID) {
       return new AssetEntry(
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK_FOLDER,
          "/", null, orgID);
@@ -413,7 +366,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    }
 
    private String getRootIdentifier(String orgID) {
-      return getRootEntry(orgID).toIdentifier();
+      return getRootEntry().toIdentifier();
    }
 
    /**
@@ -422,9 +375,9 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
     */
    private void initRoot() throws Exception {
       try {
-         if(!indexedStorage.contains(getRootIdentifier())) {
+         if(!indexedStorage.contains(getRootIdentifier(this.orgID))) {
             indexedStorage.putXMLSerializable(
-               getRootIdentifier(), new AssetFolder());
+               getRootIdentifier(this.orgID), new AssetFolder());
          }
       }
       finally {
@@ -500,12 +453,12 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
 
             AssetEntry entry = new AssetEntry(
                AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK,
-               "/" + task.getName(), null);
+               "/" + task.getTaskId(), null);
             rootFolder.addEntry(entry);
             indexedStorage.putXMLSerializable(entry.toIdentifier(), task);
          }
 
-         indexedStorage.putXMLSerializable(getRootIdentifier(), rootFolder);
+         indexedStorage.putXMLSerializable(getRootIdentifier(this.orgID), rootFolder);
       }
       finally {
          indexedStorage.close();
@@ -557,7 +510,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    private final class ScheduleTaskEntry implements Map.Entry<String, ScheduleTask> {
       ScheduleTaskEntry(String key) {
          this.key = key;
-         this.orgID = null;
+         this.orgID = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
       ScheduleTaskEntry(String key, String orgID) {
@@ -572,7 +525,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
 
       @Override
       public ScheduleTask getValue() {
-         return ScheduleTaskMap.this.get(key, orgID);
+         return ScheduleTaskMap.this.get(key);
       }
 
       @Override
@@ -589,13 +542,8 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    {
       ScheduleTaskEntryIterator(String orgID) {
          try {
-            if(orgID == null) {
-               orgID = OrganizationManager.getInstance().getCurrentOrgID();
-            }
 
-            this.orgID = orgID;
-
-            root = getRoot(orgID);
+            root = getRoot();
             entries = getAllChildren(root, orgID).toArray(new AssetEntry[0]);
 
             if(!orgID.equals(Organization.getDefaultOrganizationID())) {
@@ -725,7 +673,6 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       private int index = -1;
       private int globalIndex = -1;
       private boolean removed = false;
-      private String orgID;
    }
 
    private final class ScheduleTaskEntrySet
@@ -733,6 +680,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    {
       private ScheduleTaskEntrySet() {
          super();
+         this.orgID = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
       private ScheduleTaskEntrySet(String orgID) {
@@ -766,6 +714,7 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    }
 
    private final IndexedStorage indexedStorage;
+   private final String orgID;
    private final Map<String, TaskWrapper> cache = new ConcurrentHashMap<>();
    private final Map<String, Long> rootTS = new ConcurrentHashMap<>();
    private Map<String, AssetFolder> rootFolders = new ConcurrentHashMap<>();

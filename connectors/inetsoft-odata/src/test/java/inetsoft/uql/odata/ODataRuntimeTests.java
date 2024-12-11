@@ -23,9 +23,12 @@ import com.github.tomakehurst.wiremock.junit5.WireMockRuntimeInfo;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.uql.*;
+import inetsoft.util.credential.*;
 import org.apache.commons.io.IOUtils;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,11 +37,22 @@ import java.nio.charset.StandardCharsets;
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @WireMockTest
 class ODataRuntimeTests {
    private ODataDataSource dataSource;
    private ODataRuntime runtime;
+
+   @BeforeAll
+   static void mockService() {
+      MockedStatic<CredentialService> mockedCredentialService = Mockito.mockStatic(CredentialService.class);
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD_OAUTH2))
+         .thenReturn(mock(LocalSecretTokenCredential.class));
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD_OAUTH2, false))
+         .thenReturn(mock(LocalSecretTokenCredential.class));
+   }
 
    @BeforeEach
    void setupDataSource(WireMockRuntimeInfo info) {

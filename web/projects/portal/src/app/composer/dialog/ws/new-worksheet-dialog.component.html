@@ -21,26 +21,26 @@
 </modal-header>
 <div class="modal-body" [enterSubmit]="submitOnEnter()">
   <div aria-labelledby="newWorksheetObjectButton" class="item-list">
-    <button class="dropdown-item new-upload-file-button bg-white1 hover-bg-primary"
+    <button class="dropdown-item new-upload-file-button hover-bg-primary"
             (click)="selectObjectType(WSObjectType.UPLOAD_FILE)">
       <i class="upload-icon icon-size-medium"></i>
       <span>_#(Upload File)</span>
     </button>
-    <button class="dropdown-item new-mashup-data-button bg-white1 hover-bg-primary"
+    <button class="dropdown-item new-mashup-data-button hover-bg-primary"
             (click)="selectObjectType(WSObjectType.MASHUP)">
       <i class="new-worksheet-icon icon-size-medium"></i>
       <span>_#(Mashup Data)</span>
     </button>
     <ng-container *ngIf="sqlEnabled && !!databaseDataSources && !!databaseDataSources.length">
       <button *ngFor="let dataSource of databaseDataSources"
-              class="dropdown-item new-database-query-button bg-white1 hover-bg-primary"
+              class="dropdown-item new-database-query-button hover-bg-primary"
               (click)="selectDatabaseQuery(dataSource.name)">
         <i class="query-icon icon-size-medium"></i>
         <span>{{dataSource.label}} _#(Query)</span>
       </button>
     </ng-container>
     <ng-container *ngFor="let type of tabularDataSourceTypes">
-      <button class="dropdown-item bg-white1 hover-bg-primary" *ngIf="type.exists"
+      <button class="dropdown-item hover-bg-primary" *ngIf="type.exists"
               [disabled]="!type.exists"
               (click)="selectTabularQuery(type)">
         <i class="tabular-subquery-icon icon-size-medium"></i>

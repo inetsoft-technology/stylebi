@@ -29,11 +29,12 @@ export class BaseQueryResult {
    queryResult: string[];
    label: string = "_#(js:Query Result)";
    selectable = false;
+   isPreSorted: boolean = false;
 
    constructor(private bottomSheetRef: MatBottomSheetRef<BaseQueryResult>,
                @Inject(MAT_BOTTOM_SHEET_DATA) public data: any)
    {
-      this.queryResult = Tool.sortObjects(data.queryResult,
+      this.queryResult = data.isPreSorted ? data.queryResult : Tool.sortObjects(data.queryResult,
       new SortOptions([], SortTypes.ASCENDING));
       this.label = data.label ?? this.label;
       this.selectable = !!data.selectable;

@@ -31,7 +31,7 @@ const EMAIL_REGEXP =
 
 @Injectable()
 export class FormValidators {
-   public static DATASOURCE_NAME_REGEXP = /^[^\\\/?"*:<>|. ^][^\\\/?"*:<>|.^]*$/;
+   public static DATASOURCE_NAME_REGEXP = /^[^\\\/\?"\*\:\<\>\|\.^][^\\\/\?"\*\:\<\>\|\.^]*$/;
 
    public static passwordComplexity(control: AbstractControl): ValidationErrors | null {
       if(control.value) {

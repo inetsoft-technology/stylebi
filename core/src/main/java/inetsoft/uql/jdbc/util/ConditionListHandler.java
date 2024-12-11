@@ -439,16 +439,16 @@ public class ConditionListHandler {
             "LIKE");
          break;
       case XCondition.CONTAINS:
-         xexpression = getExpression(cond, cond.getValue(0), vars);
-         String containsStr = getStripQuotesString(sqlTypes, xexpression.getValue());
+         XExpression containsExpression = getExpression(cond, cond.getValue(0), vars);
+         String containsStr = getStripQuotesString(sqlTypes, containsExpression.getValue());
          condnode = new XBinaryCondition(
             field,
             new XExpression("'%" + containsStr + "%'", XExpression.EXPRESSION),
             "LIKE");
          break;
       case XCondition.LIKE:
-         xexpression = getExpression(cond, cond.getValue(0), vars);
-         String likeStr = getStripQuotesString(sqlTypes, xexpression.getValue());
+         XExpression likeExpression = getExpression(cond, cond.getValue(0), vars);
+         String likeStr = getStripQuotesString(sqlTypes, likeExpression.getValue());
          condnode = new XBinaryCondition(
             field,
             new XExpression("'" + likeStr + "'", XExpression.EXPRESSION),

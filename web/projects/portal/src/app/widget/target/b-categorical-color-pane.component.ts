@@ -48,6 +48,18 @@ export class BCategoricalColorPane implements OnInit {
    }
 
    ngOnInit() {
+      this.initPalettes()
+   }
+
+   initPalettes(): void {
+      this.http.get("../api/composer/chart/colorpalettes")
+         .subscribe((data: any) => {
+               this.colorPalettes = <CategoricalColorModel[]> data;
+            },
+            (err: any) => {
+               //TODO error
+            }
+         );
    }
 
    get viewAtBeginning(): boolean {

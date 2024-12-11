@@ -51,7 +51,6 @@ export class EditIdentityPaneComponent implements OnChanges {
    @Output() userSettingsChanged = new EventEmitter<EditUserPaneModel>();
    @Output() groupSettingsChanged = new EventEmitter<EditGroupPaneModel>();
    @Output() organizationSettingsChanged = new EventEmitter<EditOrganizationPaneModel>();
-   @Output() setTemplateOrganizationClicked = new EventEmitter<EditOrganizationPaneModel>();
    @Output() pageEdited = new EventEmitter<boolean>();
    @Output() loadIdentityError = new EventEmitter<void>();
    public editModel$: Observable<EditIdentityPaneModel>;

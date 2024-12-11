@@ -41,7 +41,7 @@ public class DashboardEnumeration implements XAssetEnumeration<DashboardAsset> {
       try {
          SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
          IdentityID[] susers = provider != null ? provider.getUsers() :
-            new IdentityID[] { new IdentityID("anonymous", OrganizationManager.getCurrentOrgName())};
+            new IdentityID[] { new IdentityID("anonymous", OrganizationManager.getInstance().getCurrentOrgID())};
          IdentityID[] users = new IdentityID[susers.length + 1];
          System.arraycopy(susers, 0, users, 1, susers.length);
          List<Enumeration<DashboardAsset>> denums = Arrays.stream(users)

@@ -43,8 +43,8 @@ class SecurityEngineTest {
 
       final FileAuthenticationProvider provider =
          (FileAuthenticationProvider) chain.getProviders().get(0);
-      provider.addUser(new FSUser(new IdentityID("Alice", OrganizationManager.getCurrentOrgName())));
-      provider.addUser(new FSUser(new IdentityID("Bob", OrganizationManager.getCurrentOrgName())));
+      provider.addUser(new FSUser(new IdentityID("Alice", OrganizationManager.getInstance().getCurrentOrgID())));
+      provider.addUser(new FSUser(new IdentityID("Bob", OrganizationManager.getInstance().getCurrentOrgID())));
    }
 
    @AfterAll
@@ -56,7 +56,7 @@ class SecurityEngineTest {
 
    @Test
    void readScriptDefault() throws SecurityException {
-      final SRPrincipal principal = new SRPrincipal(new IdentityID("Alice", OrganizationManager.getCurrentOrgName()));
+      final SRPrincipal principal = new SRPrincipal(new IdentityID("Alice", OrganizationManager.getInstance().getCurrentOrgID()));
       final boolean allowed = engine.checkPermission(principal, ResourceType.SCRIPT,
                                                      "createBulletGraph", ResourceAction.READ);
 
@@ -65,7 +65,7 @@ class SecurityEngineTest {
 
    @Test
    void readScriptWhenLibraryHasPermission() throws SecurityException {
-      final SRPrincipal principal = new SRPrincipal(new IdentityID("Alice", OrganizationManager.getCurrentOrgName()));
+      final SRPrincipal principal = new SRPrincipal(new IdentityID("Alice", OrganizationManager.getInstance().getCurrentOrgID()));
 
       final Permission rootPerm = new Permission();
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();

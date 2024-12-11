@@ -34,9 +34,7 @@ public class DCNamedGroupInfo extends SNamedGroupInfo {
 
    @Override
    public void setGroupValue(String name, List value) {
-      if(value == null || value.size() != 2 || !(value.get(0) instanceof Date) ||
-         !(value.get(0) instanceof Date))
-      {
+      if(value == null || value.size() != 2 || !(value.get(0) instanceof Date)) {
          return;
       }
 

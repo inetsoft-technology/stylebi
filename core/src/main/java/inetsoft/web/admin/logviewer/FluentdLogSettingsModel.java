@@ -55,9 +55,6 @@ public interface FluentdLogSettingsModel {
    @Nullable
    String logViewUrl();
 
-   @Nullable
-   String auditViewUrl();
-
    boolean orgAdminAccess();
 
    static Builder builder() {

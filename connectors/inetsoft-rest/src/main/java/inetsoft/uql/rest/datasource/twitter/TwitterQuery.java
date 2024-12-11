@@ -177,23 +177,10 @@ public class TwitterQuery extends EndpointJsonQuery<TwitterEndpoint> {
       if(paged == 1) {
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.ITERATION)
-            .hasNextParam(PaginationParamType.JSON_PATH, "$.next_cursor_str")
-            .hasNextParamValue("0")
-            .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.next_cursor_str")
-            .pageOffsetParamToWrite(PaginationParamType.QUERY, "cursor")
-            .build();
-      }
-      else if(paged == 2) {
-         paginationSpec = PaginationSpec.builder()
-            .type(PaginationType.TWITTER_ITERATION)
-            .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.search_metadata.next_results")
-            .build();
-      }
-      else if(paged == 3) {
-         paginationSpec = PaginationSpec.builder()
-            .type(PaginationType.PAGE)
-            .recordCountPath("$.length()")
-            .pageNumberParamToWrite(PaginationParamType.QUERY, "page")
+            .hasNextParam(PaginationParamType.JSON_PATH, "$.meta.next_token")
+            .hasNextParamValue(null)
+            .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.meta.next_token")
+            .pageOffsetParamToWrite(PaginationParamType.QUERY, "pagination_token")
             .build();
       }
       else {

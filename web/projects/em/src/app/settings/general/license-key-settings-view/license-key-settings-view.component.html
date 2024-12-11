@@ -20,12 +20,6 @@
   [(keys)]="serverKeys"
 >
 </em-license-key-list>
-<em-license-key-list
-  title="_#(Scheduler Licenses)"
-  [scheduler]="true"
-  [(keys)]="schedulerKeys"
->
-</em-license-key-list>
 <mat-card appearance="outlined" class="em-card" *ngIf="cluster && pooledClusterLicense">
   <mat-card-title class="flex-col">_#(Cluster Licenses)</mat-card-title>
   <mat-card-content class="flex-col">

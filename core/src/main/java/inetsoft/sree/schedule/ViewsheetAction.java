@@ -17,6 +17,7 @@
  */
 package inetsoft.sree.schedule;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import inetsoft.analytic.composition.VSPortalHelper;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.VGraph;
@@ -511,6 +512,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             Viewsheet vs = rvs.getViewsheet().clone();
             Assembly[] assemblies = vs.getAssemblies();
             List<String> alertTriggeredBookmarks = new ArrayList<>();
+            ViewsheetSandbox obox = rvs.getViewsheetSandbox();
 
             for(int i = 0; i < bookmarkNames.length; i++) {
                int vmode = Viewsheet.SHEET_RUNTIME_MODE;
@@ -518,6 +520,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                   rvs.getOriginalBookmark(bookmarkNames[i]), vmode, principal, false,
                   rvs.getEntry());
 
+               box.getAssetQuerySandbox().refreshVariableTable(obox.getVariableTable());
                setScheduleParameters(rvs.getVariableTable());
                box.resetAll(new ChangedAssemblyList());
 
@@ -669,7 +672,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                }
 
                exporter.setLogExecution(true);
-               exporter.setLogExport(true);
+               exporter.setLogExport(false);
                exporter.export(box, bookmarkNames[i], new VSPortalHelper());
                exporter.write();
                box.dispose();
@@ -855,8 +858,11 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                   abox.refreshVariableTable(box.getVariableTable());
                }
 
+               String password = isUseCredential() ?
+                  getDecryptedPassword(getSecretId()) : getPassword();
+
                if(exporter instanceof EncryptedCompressExporter) {
-                  ((EncryptedCompressExporter) exporter).setPassword(getPassword());
+                  ((EncryptedCompressExporter) exporter).setPassword(password);
                }
 
                boolean excelToCSV = false;
@@ -875,7 +881,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                exporter.write();
                out.flush();
                out.close();
-               String password = PasswordEncryption.isFipsCompliant() ? null : getPassword();
+               password = PasswordEncryption.isFipsCompliant() ? null : password;
 
                if(excelToCSV) {
                   out = new FileOutputStream(zipFileName);
@@ -1070,7 +1076,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                String uuid =  UUID.randomUUID().toString();
                String dir = fileSystemService.getCacheDirectory() + File.separator + uuid;
                tmpDir = fileSystemService.getFile(dir);
-               int index = str.lastIndexOf("/");
+               int index = Tool.replaceAll(str, "\\", "/").lastIndexOf("/");
                String fileName = str.substring(index + 1);
 
                if(!tmpDir.mkdir()) {
@@ -1152,8 +1158,7 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
                   FTPUtil.uploadToFTP(str, file, pathInfo, append);
                }
                else {
-                  ExternalStorageService.getInstance()
-                     .write(SUtil.addUserSpacePathPrefix(principal, str), file.toPath());
+                  ExternalStorageService.getInstance().write(str, file.toPath(), principal);
                }
             }
             catch(Throwable ex) {
@@ -1800,6 +1805,25 @@ public class ViewsheetAction extends AbstractAction implements ViewsheetSupport 
             vars.put(name, repletRequest.getParameter(name));
          }
       }
+   }
+
+   private String getDecryptedPassword(String secretId) {
+      if(Tool.isEmptyString(secretId)) {
+         return secretId;
+      }
+
+      JsonNode jsonNode = Tool.loadCredentials(secretId);
+
+      if(jsonNode != null) {
+         try {
+            return jsonNode.get("password").asText();
+         }
+         catch(Exception e) {
+            throw new RuntimeException("Failed to load credential by secret ID '" + secretId + "'");
+         }
+      }
+
+      return null;
    }
 
    /**

@@ -22,6 +22,12 @@ import { AuthorizationService } from "../../../authorization/authorization.servi
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Secured } from "../../../secured";
 
+interface Link {
+   path: string;
+   name: string;
+   label: string;
+}
+
 @Secured({
    route: "/settings/presentation",
    label: "Presentation"
@@ -32,12 +38,13 @@ import { Secured } from "../../../secured";
    styleUrls: ["./presentation-nav-view.component.scss"]
 })
 export class PresentationNavViewComponent implements OnInit {
-   readonly links = [
+
+   readonly links: Link[] = [
       { path: "/settings/presentation/settings", name: "settings", label: "_#(js:Global Settings)" },
       { path: "/settings/presentation/org-settings", name: "org-settings", label: "_#(js:Organization Settings)" },
       { path: "/settings/presentation/themes", name: "themes", label: "_#(js:Themes)" }
    ];
-   visibleLinks = this.links;
+   visibleLinks: Link[];
 
    constructor(private pageTitle: PageHeaderService, private authzService: AuthorizationService,
                private http: HttpClient, private appInfoService: AppInfoService)
@@ -47,8 +54,8 @@ export class PresentationNavViewComponent implements OnInit {
             authzService.getPermissions("/settings/presentation").subscribe(permissions => {
                this.http.get("../api/em/navbar/isMultiTenant").subscribe((isMultiTenant: boolean) =>
                {
-                  this.visibleLinks = this.links.filter(link => permissions.permissions[link.name]);
-                  this.renameOrgSettings(isMultiTenant);
+                  this.visibleLinks =
+                     this.renameOrgSettings(this.links.filter(link => permissions.permissions[link.name]), isMultiTenant);
                })
             });
          }
@@ -63,15 +70,15 @@ export class PresentationNavViewComponent implements OnInit {
       this.pageTitle.title = "_#(js:Presentation)";
    }
 
-   renameOrgSettings(isMultiTenant: boolean): void {
+   renameOrgSettings(visibleLinks: Link[], isMultiTenant: boolean): Link[] {
       let noOrgScope = true;
 
-      for(let i = 0; i < this.visibleLinks.length; i ++) {
-         let link = this.visibleLinks[i];
+      for(let i = 0; i < visibleLinks.length; i ++) {
+         let link = visibleLinks[i];
 
          if(link.name == "org-settings") {
             if(!isMultiTenant) {
-               this.visibleLinks.splice(i, 1);
+               visibleLinks.splice(i, 1);
                i --;
             }
             else {
@@ -81,13 +88,15 @@ export class PresentationNavViewComponent implements OnInit {
       }
 
       if(noOrgScope) {
-         for(let i = 0; i < this.visibleLinks.length; i ++) {
-            let link = this.visibleLinks[i];
+         for(let i = 0; i < visibleLinks.length; i ++) {
+            let link = visibleLinks[i];
 
             if(link.name == "settings") {
                link.label = "_#(js:Settings)"
             }
          }
       }
+
+      return visibleLinks;
    }
 }

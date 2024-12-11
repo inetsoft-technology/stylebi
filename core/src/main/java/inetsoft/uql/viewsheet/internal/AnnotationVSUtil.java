@@ -1392,8 +1392,6 @@ public final class AnnotationVSUtil {
                int changeY = newPt.y - oldPt.y;
                Point newRectPt =
                   new Point(rectPt.x + changeX, rectPt.y + changeY);
-               newRectPt = getAdjustPosition(
-                  newRectPt, new Dimension(plotBounds.width, plotBounds.height), rinfo.getPixelSize());
                Point rectPixelPt = topvs.getPixelPosition(newRectPt);
 
                rinfo.setPixelOffset(rectPixelPt);
@@ -1435,23 +1433,6 @@ public final class AnnotationVSUtil {
 
       ainfo.setAvailable(false);
       return false;
-   }
-
-   private static Point getAdjustPosition(Point newRectPt, Dimension parentSize,
-                                          Dimension assemblySize)
-   {
-      double x = newRectPt.getX();
-      double y = newRectPt.getY();
-
-      if(x + assemblySize.getWidth() > parentSize.width) {
-         x = (int) Math.floor(parentSize.width - assemblySize.getWidth());
-      }
-
-      if(y + assemblySize.getHeight() > parentSize.height) {
-         y = (int) Math.floor(parentSize.height - assemblySize.getHeight());
-      }
-
-      return new Point((int) Math.floor(x), (int) Math.floor(y));
    }
 
    /**

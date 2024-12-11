@@ -23,6 +23,7 @@ import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.internal.DeployManagerService;
 import inetsoft.sree.internal.DeploymentInfo;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.*;
@@ -39,8 +40,7 @@ import org.springframework.web.bind.annotation.*;
 import java.io.*;
 import java.lang.invoke.MethodHandles;
 import java.security.Principal;
-import java.util.Base64;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -114,6 +114,14 @@ public class ImportAssetController {
       @RequestBody() List<String> ignoreList,
       @PathVariable("overwriting") boolean overwriting) throws Exception
    {
+      if(principal instanceof SRPrincipal && ((SRPrincipal) principal).isSelfOrganization()) {
+         ArrayList<String> errors = new ArrayList<>();
+         errors.add(Catalog.getCatalog().getString("em.import.ignoreSelfImport"));
+         return ImportAssetResponse.builder()
+            .failedAssets(errors)
+            .failed(true).build();
+      }
+
       IdentityID locationUserID = IdentityID.getIdentityIDFromKey(locationUser);
 
       if(importId != null) {
@@ -171,6 +179,24 @@ public class ImportAssetController {
          });
          return ImportAssetResponse.builder().complete(false).build();
       }
+   }
+
+   @GetMapping("/api/em/content/repository/import/clear-cache")
+   public void importFinish(HttpServletRequest req) {
+      HttpSession session = req.getSession(false);
+
+      if(session == null) {
+         return;
+      }
+
+      ImportJarProperties properties = (ImportJarProperties) session.getAttribute(PROPS_ATTR);
+
+      if(properties == null) {
+         return;
+      }
+
+      String cacheFolder = properties.unzipFolderPath();
+      Tool.deleteFile(new File(cacheFolder));
    }
 
    private AssetEntry createImportTargetFolderEntry(String targetLocation, Integer locationType,

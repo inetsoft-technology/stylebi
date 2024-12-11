@@ -46,7 +46,6 @@ import java.sql.Statement;
 import java.util.List;
 import java.util.*;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -937,8 +936,15 @@ public class JDBCUtil {
       result.getAuthentication().setRequired(jdbcDataSource.isRequireLogin());
 
       if(jdbcDataSource.isRequireLogin()) {
-         result.getAuthentication().setUserName(jdbcDataSource.getUser());
-         result.getAuthentication().setPassword(jdbcDataSource.getPassword());
+         result.getAuthentication().setUseCredentialId(jdbcDataSource.isUseCredentialId());
+
+         if(!jdbcDataSource.isUseCredentialId()) {
+            result.getAuthentication().setUserName(jdbcDataSource.getUser());
+            result.getAuthentication().setPassword(jdbcDataSource.getPassword());
+         }
+         else {
+            result.getAuthentication().setCredentialId(jdbcDataSource.getCredentialId());
+         }
       }
 
       result.setInfo(type.createDatabaseInfo());

@@ -31,16 +31,9 @@
           (modelChanged)="onModelChanged($event)">
         </em-data-space-settings-view>
       </div>
-      <div id="server" *ngIf="isEnterprise && model.clusterSettingsModel" emNavigationScrollableItem="server">
-        <em-cluster-settings-view
-          [model]="model.clusterSettingsModel"
-          (modelChanged)="onModelChanged($event)">
-        </em-cluster-settings-view>
-      </div>
       <div id="license" *ngIf="isEnterprise && model.licenseKeySettingsModel" emNavigationScrollableItem="license">
         <em-license-key-settings-view
           [model]="model.licenseKeySettingsModel"
-          [clusterModel]="model.clusterSettingsModel"
           (modelChanged)="onLicenseKeyModelChanged($event)">
         </em-license-key-settings-view>
       </div>

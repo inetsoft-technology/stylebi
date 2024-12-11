@@ -1493,7 +1493,7 @@ public class TableElementDef extends BaseElement
             ((SpanTableLens) printTbl).complete();
          }
 
-         if(getTableLayout() != null && true) {
+         if(getTableLayout() != null) {
             LOG.debug(
                "Table " + getID() + " finished processing: " +
                   lens.getRowCount());

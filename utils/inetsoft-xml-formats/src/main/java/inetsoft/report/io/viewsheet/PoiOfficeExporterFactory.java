@@ -47,4 +47,13 @@ public class PoiOfficeExporterFactory implements OfficeExporterFactory {
    public WSExporter createWorksheetExporter() {
       return new ExcelWSExporter();
    }
+
+   @Override
+   public WSExporter createWorksheetExporter(int row, int col) {
+      if(Math.ceil(WSExporter.getPageMaxCellCount() * 1.0 / col) < row) {
+         return new LargeDataExcelWSExporter();
+      }
+
+      return createWorksheetExporter();
+   }
 }

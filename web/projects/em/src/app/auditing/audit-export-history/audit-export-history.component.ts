@@ -18,7 +18,8 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { FormBuilder, FormGroup } from "@angular/forms";
-import { tap } from "rxjs/operators";
+import { catchError, tap } from "rxjs/operators";
+import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
@@ -26,7 +27,7 @@ import { Secured } from "../../secured";
 import { LogonHistoryList } from "../audit-logon-history/logon-history";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 import { ExportHistory, ExportHistoryList, ExportHistoryParameters } from "./export-history";
-import { Subscription } from "rxjs";
+import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 
 @Secured({
@@ -40,7 +41,7 @@ import { ActivatedRoute } from "@angular/router";
 })
 @ContextHelp({
    route: "/auditing/export-history",
-   link: "EMAuditingExportHistory"
+   link: "EMViewAudit"
 })
 @Component({
    selector: "em-audit-export-history",
@@ -61,7 +62,7 @@ export class AuditExportHistoryComponent implements OnInit, OnDestroy {
    columnRenderers = [
       { name: "objectType", label: "_#(js:Object Type)", value: (r: ExportHistory) => r.objectType },
       { name: "objectFolder", label: "_#(js:Object Folder)", value: (r: ExportHistory) => r.objectFolder },
-      { name: "exportTime", label: "_#(js:Export Time)", value: (r: ExportHistory) => AuditTableViewComponent.getDisplayDate(r.exportTime) },
+      { name: "exportTime", label: "_#(js:Export Time)", value: (r: ExportHistory) => AuditTableViewComponent.getDisplayDate(r.exportTime, r.dateFormat) },
       { name: "server", label: "_#(js:Server)", value: (r: ExportHistory) => r.server },
       { name: "userName", label: "_#(js:User Name)", value: (r: ExportHistory) => r.userName },
       { name: "objectName", label: "_#(js:Object Name)", value: (r: ExportHistory) => r.objectName },
@@ -74,10 +75,10 @@ export class AuditExportHistoryComponent implements OnInit, OnDestroy {
    }
 
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
-               private pageTitle: PageHeaderService, fb: FormBuilder)
+               private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
+               fb: FormBuilder)
    {
       this.form = fb.group({
-         selectedTypes: [[]],
          selectedUsers: [[]],
          selectedHosts: [[]],
          selectedFolders: [[]]
@@ -88,26 +89,39 @@ export class AuditExportHistoryComponent implements OnInit, OnDestroy {
       this.pageTitle.title = "_#(js:Export History)";
    }
 
+   getTypeLabel(type: string) {
+      if("dashboard" == type) {
+         return "Dashboard";
+      }
+
+      return type;
+   }
+
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchParameters = () => {
       return this.http.get<ExportHistoryParameters>("../api/em/monitoring/audit/exportHistoryParameters")
-         .pipe(tap(params => {
-            this.objectTypes = params.objectTypes;
-            this.users = params.users;
-            this.hosts = params.hosts;
-            this.folders = params.folders;
-            this.systemAdministrator = params.systemAdministrator;
-         }));
+         .pipe(
+            catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
+               objectTypes: [],
+               users: [],
+               hosts: [],
+               folders: [],
+               systemAdministrator: false,
+               startTime: 0,
+               endTime: 0
+            }))),
+            tap(params => {
+               this.objectTypes = params.objectTypes;
+               this.users = params.users;
+               this.hosts = params.hosts;
+               this.folders = params.folders;
+               this.systemAdministrator = params.systemAdministrator;
+            }));
    };
 
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchData = (httpParams: HttpParams, additional: { [key: string]: any; }) => {
       let params = httpParams;
-      const selectedTypes: string[] = additional.selectedTypes;
-
-      if(!!selectedTypes && selectedTypes.length > 0) {
-         selectedTypes.forEach(t => params = params.append("types", t));
-      }
 
       const selectedUsers: string[] = additional.selectedUsers;
 
@@ -127,7 +141,11 @@ export class AuditExportHistoryComponent implements OnInit, OnDestroy {
          selectedFolders.forEach(f => params = params.append("folders", f));
       }
 
-      return this.http.get<ExportHistoryList>("../api/em/monitoring/audit/exportHistory", {params});
+      return this.http.get<ExportHistoryList>("../api/em/monitoring/audit/exportHistory", {params})
+         .pipe(catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to run query)", () => of({
+            totalRowCount: 0,
+            rows: []
+         }))));
    };
 
    ngOnDestroy(): void {

@@ -165,7 +165,7 @@ export class UserMonitoringViewComponent implements OnInit, OnDestroy {
          (isAdmin => {
             this.isSiteAdmin = isAdmin;
 
-            this.http.get<string[]>("../api/em/security/users/get-all-organizations/").subscribe(
+            this.http.get<string[]>("../api/em/security/users/get-all-organization-names/").subscribe(
                (orgList =>  {
                   this.orgNames = orgList;
 

@@ -61,7 +61,7 @@ public class InternalScheduledTaskService {
    }
 
    private void setTask(ScheduleTask task) throws Exception {
-      scheduleManager.setScheduleTask(task.getName(), task, null, true, null);
+      scheduleManager.setScheduleTask(task.getTaskId(), task, null, true, null);
    }
 
    /**
@@ -80,7 +80,7 @@ public class InternalScheduledTaskService {
 
       Calendar calendar = Calendar.getInstance();
       parseDateFromProperty("repository.asset.backup.time", calendar);
-      ScheduleTask task = new ScheduleTask(ASSET_FILE_BACKUP);
+      ScheduleTask task = new ScheduleTask(ASSET_FILE_BACKUP, ScheduleTask.Type.INTERNAL_TASK);
 
       ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
       dao.clearStatus(ASSET_FILE_BACKUP);
@@ -96,7 +96,7 @@ public class InternalScheduledTaskService {
 
       task.addAction(new AssetFileBackupAction());
 
-      task.setOwner(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getCurrentOrgName()));
+      task.setOwner(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()));
       task.setRemovable(false);
       task.setEditable(false);
       // todo does it really need to be an instance of FileSystemDataSpace?
@@ -150,10 +150,10 @@ public class InternalScheduledTaskService {
          return;
       }
 
-      ScheduleTask task = new ScheduleTask(BALANCE_TASKS);
+      ScheduleTask task = new ScheduleTask(BALANCE_TASKS, ScheduleTask.Type.INTERNAL_TASK);
       task.addCondition(new TaskBalancerCondition());
       task.addAction(new TaskBalancerAction());
-      task.setOwner(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getCurrentOrgName()));
+      task.setOwner(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()));
 
       task.setRemovable(false);
       task.setEditable(false);
@@ -169,13 +169,13 @@ public class InternalScheduledTaskService {
          return;
       }
 
-      ScheduleTask task = new ScheduleTask(UPDATE_ASSETS_DEPENDENCIES);
+      ScheduleTask task = new ScheduleTask(UPDATE_ASSETS_DEPENDENCIES, ScheduleTask.Type.INTERNAL_TASK);
       ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
       dao.clearStatus(UPDATE_ASSETS_DEPENDENCIES);
 
       task.addAction(new UpdateAssetsDependenciesAction());
       task.addCondition(new NeverRunCondition());
-      task.setOwner(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getCurrentOrgName()));
+      task.setOwner(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()));
       task.setRemovable(false);
       task.setEditable(false);
 

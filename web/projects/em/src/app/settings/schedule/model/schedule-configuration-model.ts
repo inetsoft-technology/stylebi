@@ -43,4 +43,5 @@ export interface ScheduleConfigurationModel {
    serverLocations: ServerLocation[];
    saveAutoSuffix: string;
    securityEnable: boolean;
+   cloudSecrets: boolean;
 }

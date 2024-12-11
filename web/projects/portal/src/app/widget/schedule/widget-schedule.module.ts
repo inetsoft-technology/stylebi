@@ -28,18 +28,20 @@ import {
    NgbTypeaheadModule
 } from "@ng-bootstrap/ng-bootstrap";
 import {EmailDialogModule} from "../email-dialog/email-dialog.module";
+import {ModalHeaderModule} from "../modal-header/modal-header.module";
 
 @NgModule({
-   imports: [
-      CommonModule,
-      WidgetDirectivesModule,
-      FormsModule,
-      HelpLinkModule,
-      ReactiveFormsModule,
-      NgbTypeaheadModule,
-      EmailDialogModule,
-      NgbTimepickerModule,
-   ],
+    imports: [
+        CommonModule,
+        WidgetDirectivesModule,
+        FormsModule,
+        HelpLinkModule,
+        ReactiveFormsModule,
+        NgbTypeaheadModule,
+        EmailDialogModule,
+        NgbTimepickerModule,
+        ModalHeaderModule,
+    ],
    declarations: [
       CSVConfigPane,
       SimpleScheduleDialog,

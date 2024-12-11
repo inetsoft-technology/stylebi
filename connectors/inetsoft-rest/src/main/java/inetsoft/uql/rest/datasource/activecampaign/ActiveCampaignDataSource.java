@@ -20,10 +20,13 @@ package inetsoft.uql.rest.datasource.activecampaign;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
+import inetsoft.util.credential.CredentialType;
 
 @View(vertical = true, value = {
    @View1("URL"),
-   @View1("apiToken")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value ="apiToken", visibleMethod = "useCredential")
 })
 public class ActiveCampaignDataSource extends EndpointJsonDataSource<ActiveCampaignDataSource> {
    public static final String TYPE = "Rest.ActiveCampaign";
@@ -34,7 +37,13 @@ public class ActiveCampaignDataSource extends EndpointJsonDataSource<ActiveCampa
       setAuthType(AuthType.NONE);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_TOKEN;
+   }
+
    @Property(label = "API Token", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiToken() {
       HttpParameter param = getHttpParameter("Api-Token", HttpParameter.ParameterType.HEADER);
       return param != null ? param.getValue() : null;

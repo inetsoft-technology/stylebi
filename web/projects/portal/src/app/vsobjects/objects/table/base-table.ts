@@ -88,7 +88,7 @@ import { VSTabService } from "../../util/vs-tab.service";
 import { ComponentTool } from "../../../common/util/component-tool";
 
 const TABLE_CHANGE_TITLE_URL: string = "/events/composer/viewsheet/objects/changeTitle";
-const TABLE_DETAIL_FORMAT_URI: string = "../table/show-details/format-model";
+const TABLE_DETAIL_FORMAT_URI: string = "../api/table/show-details/format-model";
 const TABLE_MAX_MODE_URL: string = "/events/vstable/toggle-max-mode";
 const TABLE_WIZARD_CHANGE_TITLE_URL: string = "/events/vswizard/preview/changeDescription";
 
@@ -2084,7 +2084,7 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
                   return cell.cell.row === annotationModel.row &&
                      cell.cell.col === annotationModel.col && cell.isRendered;
                })
-               .filter((annotationModel) => !annotationModel.hidden)
+               .filter((annotationModel) => !annotationModel.hidden && cell.cell.row <= this.lastVisibleRow)
                .forEach((annotationModel) => {
                   const cellRect = cell.boundingClientRect;
                   const cellTop = (cellRect.top - tableContainer.top + scrollTop) / this.scale;

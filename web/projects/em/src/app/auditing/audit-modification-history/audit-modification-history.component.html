@@ -17,28 +17,34 @@
   -->
 <em-audit-table-view [displayedColumns]="displayedColumns" [columnRenderers]="columnRenderers" [parameterForm]="form" [fetchParameters]="fetchParameters" [fetchData]="fetchData">
   <section class="flex-row" [formGroup]="form">
-    <mat-form-field appearance="outline" color="primary" class="flex">
+    <mat-form-field *ngIf="organizationFilter" appearance="outline" color="accent" class="flex">
+      <mat-label>_#(Resource Organizations)</mat-label>
+      <mat-select formControlName="selectedOrganizations" multiple>
+        <mat-option *ngFor="let organization of organizationNames; let i = index" [value]="organization">{{organizationNames[i]}}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Users)</mat-label>
       <mat-select formControlName="selectedUsers" multiple>
         <mat-option *ngFor="let user of users" [value]="user">{{user}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Object Types)</mat-label>
       <mat-select formControlName="selectedTypes" multiple>
         <mat-option *ngFor="let type of objectTypes" [value]="type">{{getAssetTypeLabel(type)}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
+      <mat-label>_#(Modify Status)</mat-label>
+      <mat-select formControlName="selectedStatuses" multiple>
+        <mat-option *ngFor="let modifyStatus of modifyStatuses" [value]="modifyStatus">{{modifyStatus}}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Hosts)</mat-label>
       <mat-select formControlName="selectedHosts" multiple>
         <mat-option *ngFor="let host of hosts" [value]="host">{{host}}</mat-option>
-      </mat-select>
-    </mat-form-field>
-    <mat-form-field *ngIf="organizations != null && organizations.length > 0 && systemAdministrator" appearance="outline" color="primary" class="flex margin-left">
-      <mat-label>_#(Resource Orgagnization)</mat-label>
-      <mat-select formControlName="selectedOrganizations" multiple>
-        <mat-option *ngFor="let organization of organizations" [value]="organization">{{organization}}</mat-option>
       </mat-select>
     </mat-form-field>
   </section>

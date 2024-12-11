@@ -37,7 +37,7 @@ const cssFiles = [
 gulp.task("elements:scripts", function () {
    return gulp.src(scriptFiles)
       .pipe(concat("elements.js"))
-      .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/elements/"));
+      .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/app/"));
 });
 
 gulp.task("elements:concat-css", function () {
@@ -53,7 +53,7 @@ gulp.task("elements:sass", function () {
       .pipe(replace("inetsoft-chart :root", "inetsoft-chart"))
       .pipe(replace("inetsoft-chart body", "inetsoft-chart"))
       .pipe(postcss([cssnano()]))
-      .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/elements/"));
+      .pipe(gulp.dest("target/generated-resources/gulp/inetsoft/web/resources/app/"));
 });
 
 gulp.task("elements:css", gulp.series(["elements:concat-css", "elements:sass"]));

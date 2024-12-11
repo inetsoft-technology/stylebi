@@ -104,6 +104,7 @@ export class RepositoryFolderSettingsViewComponent implements OnChanges, OnDestr
          this.form.get("folderName").disable({ emitEvent: false });
       }
 
+      this.form.get("parentFolder").disable({ emitEvent: false });
       this.form.patchValue(this.model, { emitEvent: false });
       this.form.valueChanges.pipe(takeUntil(this.destroy$))
          .subscribe(() => { // don't use value because form controls can be disabled

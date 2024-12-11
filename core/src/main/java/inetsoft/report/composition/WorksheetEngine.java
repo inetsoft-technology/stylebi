@@ -25,8 +25,7 @@ import inetsoft.report.composition.event.*;
 import inetsoft.report.composition.execution.BoundTableHelper;
 import inetsoft.report.internal.RuntimeAssetEngine;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -1115,9 +1114,15 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       String uname = user == null ? null : user.getName();
 
       if(owner != null && !owner.equals(uname)) {
+         String[] ownerParts = owner.split(IdentityID.KEY_DELIMITER);
+         String[] unameparts = uname.split(IdentityID.KEY_DELIMITER);
+         String ownerName = ownerParts[0];
+         String ownerOrg = ownerParts[1];
+         String unameName = unameparts[0];
+         String unameOrg = unameparts[1];
          throw new MessageException(Catalog.getCatalog().getString(
                                        "common.worksheetLocked", entry.getPath(),
-                                       owner, uname), LogLevel.WARN, false);
+                                       ownerName, ownerOrg, unameName, unameOrg), LogLevel.WARN, false);
       }
 
       ((AbstractAssetEngine) engine).setSheet(entry, sheet, user, force, true, updateDependency);

@@ -19,6 +19,8 @@ package inetsoft.web.admin.general;
 
 import inetsoft.report.internal.license.License;
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.AuthenticationService;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.general.model.LicenseKeyModel;
 import inetsoft.web.admin.general.model.LicenseKeySettingsModel;
@@ -26,8 +28,10 @@ import inetsoft.web.viewsheet.AuditUser;
 import inetsoft.web.viewsheet.Audited;
 import org.springframework.stereotype.Service;
 
+import java.io.Serializable;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -38,7 +42,6 @@ public class LicenseKeySettingsService {
    public LicenseKeySettingsModel getModel() {
       return LicenseKeySettingsModel.builder()
          .serverKeys(getServerLicenseData())
-         .schedulerKeys(getSchedulerLicenseData())
          .clusterKeys(getClusterLicenseData())
          .build();
    }
@@ -52,17 +55,11 @@ public class LicenseKeySettingsService {
       throws Exception
    {
       setServerKeys(model.serverKeys());
-      setSchedulerKeys(model.schedulerKeys());
+      Cluster.getInstance().submitAll(new LicenseKeyResetCallable());
    }
 
    private List<LicenseKeyModel> getServerLicenseData() {
       return LicenseManager.getInstance().getInstalledLicenses().stream()
-         .map(this::createLicenseKeyModel)
-         .collect(Collectors.toList());
-   }
-
-   private List<LicenseKeyModel> getSchedulerLicenseData() {
-      return LicenseManager.getInstance().getSchedulerLicenses().stream()
          .map(this::createLicenseKeyModel)
          .collect(Collectors.toList());
    }
@@ -80,14 +77,6 @@ public class LicenseKeySettingsService {
       Set<License> installed = manager.getInstalledLicenses();
       updateKeys(
          licenses, installed, manager::addLicense, manager::replaceLicense, manager::removeLicense);
-   }
-
-   private void setSchedulerKeys(List<LicenseKeyModel> licenses) {
-      LicenseManager manager = LicenseManager.getInstance();
-      Set<License> installed = manager.getSchedulerLicenses();
-      updateKeys(
-         licenses, installed, manager::addSchedulerLicense, manager::replaceSchedulerLicense,
-         manager::removeSchedulerLicense);
    }
 
    private void updateKeys(List<LicenseKeyModel> newLicenses, Set<License> installedLicenses,
@@ -125,7 +114,11 @@ public class LicenseKeySettingsService {
       return createLicenseKeyModel(LicenseManager.getInstance().parseLicense(requestedKey));
    }
 
-   LicenseKeyModel getSchedulerLicenseKey(String requestedKey) {
-      return createLicenseKeyModel(LicenseManager.getInstance().parseLicense(requestedKey));
+   private static final class LicenseKeyResetCallable implements Callable<Void>, Serializable {
+      @Override
+      public Void call() throws Exception {
+         AuthenticationService.getInstance().reset();
+         return null;
+      }
    }
 }

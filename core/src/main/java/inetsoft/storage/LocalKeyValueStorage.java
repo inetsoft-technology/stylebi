@@ -75,6 +75,11 @@ class LocalKeyValueStorage<T extends Serializable> implements KeyValueStorage<T>
    }
 
    @Override
+   public Future<?> removeAll(Set<String> keys) {
+      return cluster.submit(id, new DeleteAllKeyValueTask<>(id, keys));
+   }
+
+   @Override
    public Future<T> rename(String oldKey, String newKey, T value) {
       return cluster.submit(id, new RenameKeyValueTask<>(id, oldKey, newKey, value));
    }

@@ -103,7 +103,7 @@ public class SecurityModule {
 
       cancelled = false;
 
-      IdentityID user = new IdentityID(ClientInfo.ANONYMOUS, OrganizationManager.getCurrentOrgName());
+      IdentityID user = new IdentityID(ClientInfo.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID());
       String passwd = "";
 
       if(credential instanceof DefaultTicket) {

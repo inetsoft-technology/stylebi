@@ -41,6 +41,7 @@ import {
 } from "./portal/report/desktop/collapse-repository-tree.service.component";
 import { PageTabService } from "./viewer/services/page-tab.service";
 import { ViewDataService } from "./viewer/services/view-data.service";
+import { SessionExpirationDialogModule } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.module";
 import { NotificationsModule } from "./widget/notifications/notifications.module";
 import { DragService } from "./widget/services/drag.service";
 import { FontService } from "./widget/services/font.service";
@@ -69,7 +70,8 @@ export const httpInterceptorProviders = [
       NotificationsModule,
       FormsModule,
       ReactiveFormsModule,
-      GettingStartedModule
+      GettingStartedModule,
+      SessionExpirationDialogModule
    ],
    providers: [
       SsoHeartbeatService,

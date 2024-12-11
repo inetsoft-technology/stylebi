@@ -87,7 +87,7 @@ export class TextFileContentViewComponent implements OnInit, OnChanges {
          this.loading = true;
       }
 
-      this.http.get("../em/content/data-space/file/content", {params: params})
+      this.http.get("../api/em/content/data-space/file/content", {params: params})
          .subscribe((model: DataSpaceFileContentModel) => {
                this.content = model.content;
                this.editable = model.editable;

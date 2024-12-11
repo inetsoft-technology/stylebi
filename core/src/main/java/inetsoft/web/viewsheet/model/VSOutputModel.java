@@ -77,7 +77,13 @@ public abstract class VSOutputModel<T extends OutputVSAssembly> extends VSObject
             if(fmts.length > 0) {
                String tempTip = tipStr.replace("{0}", formattedVal);
                MessageFormat tempFmt = getFormat(tempTip);
-               tipStr = tempFmt.format(new Object[] {value});
+
+               try {
+                  tipStr = tempFmt.format(new Object[] {value});
+               }
+               catch(Exception ex) {
+                  tipStr = value + "";
+               }
             }
             else {
                tipStr = fmt.format(new Object[] {formattedVal});

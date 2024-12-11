@@ -33,6 +33,7 @@ import {
    GettingStartedService, StepIndex
 } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { PortalDataType } from "../../data-navigation-tree/portal-data-type";
+import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 
 const DATASOURCES_URI: string = "../api/portal/data/datasources";
 
@@ -66,6 +67,7 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
    additionalList: AdditionalInfo[] = [];
    selectedAdditionalIndex: number[] = [];
    private routeParamSubscription: Subscription;
+   enterprise: boolean;
 
    constructor(private httpClient: HttpClient,
                private modalService: NgbModal,
@@ -73,11 +75,13 @@ export class DatasourcesDatasourceComponent implements OnInit, OnDestroy{
                private router: Router,
                private zone: NgZone,
                private changeRef: ChangeDetectorRef,
+               private appInfoService: AppInfoService,
                private gettingStartedService: GettingStartedService)
    {
    }
 
    ngOnInit(): void {
+      this.appInfoService.isEnterprise().subscribe(info => this.enterprise = info);
       // subscribe to route parameters and update current database model
       this.routeParamSubscription = this.route.paramMap
          .subscribe((routeParams: ParamMap) => {

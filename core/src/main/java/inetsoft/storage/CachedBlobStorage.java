@@ -26,8 +26,10 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.nio.channels.FileChannel;
 import java.nio.file.*;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * {@code CachedBlobStorage} is an implementation of {@link BlobStorage} that stores blobs in some
@@ -101,8 +103,13 @@ public final class CachedBlobStorage<T extends Serializable>
    protected void delete(Blob<T> blob) throws IOException {
       Path path = getPath(blob, base);
 
-      if(path.toFile().exists()) {
-         Files.delete(path);
+      try {
+         if(path.toFile().exists()) {
+            Files.delete(path);
+         }
+      }
+      catch(NoSuchFileException e) {
+         logger.warn("Failed to delete local cache file {}", path, e);
       }
    }
 
@@ -122,6 +129,19 @@ public final class CachedBlobStorage<T extends Serializable>
    @Override
    protected boolean isLocal() {
       return false;
+   }
+
+   @Override
+   public void deleteBlobStorage() throws Exception {
+      List<String> files = stream()
+         .map(Blob::getPath)
+         .collect(Collectors.toList());
+
+      for(String file : files) {
+         delete(file);
+      }
+
+      close();
    }
 
    @Override

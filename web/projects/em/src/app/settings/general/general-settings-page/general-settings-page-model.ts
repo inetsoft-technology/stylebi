@@ -19,7 +19,6 @@ import { DataSpaceSettingsModel } from "../data-space-settings-view/data-space-s
 import { LicenseKeySettingsModel } from "../license-key-settings-view/license-key-settings-model";
 import { LocalizationSettingsModel } from "../localization-settings-view/localization-settings-model";
 import { MVSettingsModel } from "../mv-settings-view/mv-settings-model";
-import { ClusterSettingsModel } from "../cluster-settings-view/cluster-settings-model";
 import { CacheSettingsModel } from "../cache-settings-view/cache-settings-model";
 import { EmailSettingsModel } from "../email-settings-view/email-settings-model";
 import { PerformanceSettingsModel } from "../performance-settings-view/performance-settings-model";
@@ -29,7 +28,6 @@ export interface GeneralSettingsPageModel {
    licenseKeySettingsModel?: LicenseKeySettingsModel;
    localizationSettingsModel?: LocalizationSettingsModel;
    mvSettingsModel?: MVSettingsModel;
-   clusterSettingsModel?: ClusterSettingsModel;
    cacheSettingsModel?: CacheSettingsModel;
    emailSettingsModel?: EmailSettingsModel;
    performanceSettingsModel?: PerformanceSettingsModel;

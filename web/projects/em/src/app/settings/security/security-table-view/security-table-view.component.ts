@@ -108,7 +108,8 @@ export class SecurityTableViewComponent implements OnChanges, AfterViewInit {
          .afterClosed().subscribe(result => {
          if(result) {
             this.addIdentities.emit(result
-               .map(node => <IdentityModel>{identityID: node.identityID, type: node.type})
+               .map(node => <IdentityModel>{identityID: node.identityID,
+                  identityIDLabel: node.organization, type: node.type})
                .filter((model) => !this.dataSource.some(
                   (data) => data.identityID === model.name && data.type === model.type)
             ));

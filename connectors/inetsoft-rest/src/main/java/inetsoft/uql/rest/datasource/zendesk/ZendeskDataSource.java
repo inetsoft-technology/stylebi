@@ -23,6 +23,7 @@ import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.rest.json.JsonTransformer;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.CredentialType;
 import org.w3c.dom.Element;
 
 import java.io.InputStream;
@@ -32,8 +33,10 @@ import java.util.Objects;
 @View(vertical = true, value = {
    @View1("domain"),
    @View1("URL"),
-   @View1("user"),
-   @View1("password")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "password", visibleMethod = "useCredential")
 })
 public class ZendeskDataSource extends EndpointJsonDataSource<ZendeskDataSource> {
    static final String TYPE = "Rest.Zendesk";
@@ -41,6 +44,11 @@ public class ZendeskDataSource extends EndpointJsonDataSource<ZendeskDataSource>
    public ZendeskDataSource() {
       super(TYPE, ZendeskDataSource.class);
       setAuthType(AuthType.BASIC);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD;
    }
 
    @Property(label = "Domain", required = true)
@@ -76,7 +84,13 @@ public class ZendeskDataSource extends EndpointJsonDataSource<ZendeskDataSource>
    @Property(label = "User", required = true)
    @Override
    public String getUser() {
-      return super.getUser();
+      String userEmail = super.getUser();
+
+      if(userEmail != null && !userEmail.contains("/token")) {
+         userEmail = userEmail + "/token";
+      }
+
+      return userEmail;
    }
 
    @Property(label = "Password", required = true, password = true)

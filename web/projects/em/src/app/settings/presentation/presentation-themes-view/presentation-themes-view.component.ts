@@ -21,6 +21,7 @@ import { Component, OnInit } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { Observable, of } from "rxjs";
 import { map } from "rxjs/operators";
+import { CommonKVModel } from "../../../../../../portal/src/app/common/data/common-kv-model";
 import { DownloadService } from "../../../../../../shared/download/download.service";
 import { Tool } from "../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
@@ -62,6 +63,8 @@ export class PresentationThemesViewComponent implements OnInit {
    //For small device use only
    editing = false;
    isSiteAdmin = false;
+   orgId: string = null;
+   ids: string[] = [];
 
    get smallScreen(): boolean {
       return this.breakpointObserver.isMatched(`(max-width: ${SMALL_WIDTH_BREAKPOINT}px)`);
@@ -93,8 +96,11 @@ export class PresentationThemesViewComponent implements OnInit {
             this.unselectedThemeNames = this.themes.map(t => t.name);
          });
 
-      this.http.get<boolean>("../api/em/navbar/isSiteAdmin")
-         .subscribe(isSiteAdmin => this.isSiteAdmin = isSiteAdmin);
+      this.http.get<CommonKVModel<string, boolean>>("../api/em/navbar/userInfo")
+         .subscribe((model: CommonKVModel<string, boolean>) => {
+            this.isSiteAdmin = model.value;
+            this.orgId = model.key;
+         });
    }
 
    onThemeSelected(id: string) {
@@ -162,28 +168,31 @@ export class PresentationThemesViewComponent implements OnInit {
             return;
          }
 
-         const ids = this.themes.map(t => t.id);
-         const names = this.themes.map(t => t.name);
-         const ref = this.dialog.open(AddThemeDialogComponent, {
-            role: "dialog",
-            disableClose: false,
-            width: "400px",
-            maxWidth: "70vw",
-            maxHeight: "75vh",
-            data: { ids, names }
-         });
+         this.http.get<string[]>("../api/em/settings/presentation/themes/ids").subscribe(ids => {
+            this.ids = ids;
 
-         ref.afterClosed().subscribe(result => {
-            result.global = this.isSiteAdmin;
+            const names = this.themes.map(t => t.name);
+            const ref = this.dialog.open(AddThemeDialogComponent, {
+               role: "dialog",
+               disableClose: false,
+               width: "400px",
+               maxWidth: "70vw",
+               maxHeight: "75vh",
+               data: { ids: this.ids, names }
+            });
 
-            if(!!result) {
-               this.http.post<CustomThemeModel>("../api/em/settings/presentation/themes", result).subscribe(model => {
-                  const newThemes = this.themes.slice();
-                  newThemes.push(model);
-                  this.setThemes(newThemes);
-                  this.onThemeSelected(model.id);
-               });
-            }
+            ref.afterClosed().subscribe(result => {
+               result.global = this.isSiteAdmin && this.orgId == "host-org";
+
+               if(!!result) {
+                  this.http.post<CustomThemeModel>("../api/em/settings/presentation/themes", result).subscribe(model => {
+                     const newThemes = this.themes.slice();
+                     newThemes.push(model);
+                     this.setThemes(newThemes);
+                     this.onThemeSelected(model.id);
+                  });
+               }
+            });
          });
       });
    }
@@ -203,10 +212,18 @@ export class PresentationThemesViewComponent implements OnInit {
 
                // if current theme is the new default theme then reset the defaultTheme property of
                // other themes
-               if(current.defaultTheme) {
+               if(current.defaultThemeGlobal) {
                   for(let i = 0; i < newThemes.length; i++) {
                      if(i != index) {
-                        newThemes[i].defaultTheme = false;
+                        newThemes[i].defaultThemeGlobal = false;
+                     }
+                  }
+               }
+
+               if(current.defaultThemeOrg) {
+                  for(let i = 0; i < newThemes.length; i++) {
+                     if(i != index) {
+                        newThemes[i].defaultThemeOrg = false;
                      }
                   }
                }

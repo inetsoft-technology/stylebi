@@ -186,7 +186,10 @@ export class RepositoryDashboardSettingsViewComponent implements OnChanges, OnIn
             const pathIndex = path.lastIndexOf("^") >= 0 ? path.lastIndexOf("^") + 1 : 0;
             const pathName = path.substr(pathIndex);
             const node = this.dataSource.treeControl.dataNodes.find(
-               n => n.id === path || n.id === pathName);
+               n => {
+                  const entry = createAssetEntry(n.id);
+                  return (entry.path === path || n.id === pathName);
+               });
 
             if(node && !this.dataSource.treeControl.isExpanded(node)) {
                this.dataSource.treeControl.toggle(node);

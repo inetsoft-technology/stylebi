@@ -1135,7 +1135,7 @@ public abstract class VSAQuery {
          query.setQueryManager(qmgr);
          StringBuilder buf = new StringBuilder();
          query.getQueryPlan().writeContent(buf);
-
+         Set<String> vpmUsedParameters = query.getVPMUsedParameters();
          VSAssembly vsobj = getAssembly();
 
          // for MV query, the query plan doesn't include detailed
@@ -1159,7 +1159,8 @@ public abstract class VSAQuery {
 
             if(VariableTable.isBuiltinVariable(key) ||
                VariableTable.isContextVariable(key) ||
-               vars.isInternalParameter(key) || cvars.contains(key))
+               vars.isInternalParameter(key) || cvars.contains(key) ||
+               vpmUsedParameters.contains(key))
             {
                continue;
             }

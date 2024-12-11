@@ -129,7 +129,7 @@ export class QueryMonitoringPageComponent implements OnDestroy {
          ids.push(query.id);
       }
 
-      this.http.post("../em/monitoring/queries/remove/"
+      this.http.post("../api/em/monitoring/queries/remove/"
          + this.monitoringDataService.nonNullCluster, ids).subscribe((data: any) => {
             this.monitoringDataService.refresh();
          });

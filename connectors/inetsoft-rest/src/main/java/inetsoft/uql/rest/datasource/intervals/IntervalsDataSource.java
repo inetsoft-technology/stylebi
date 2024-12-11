@@ -20,14 +20,14 @@ package inetsoft.uql.rest.datasource.intervals;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
-import org.w3c.dom.Element;
+import inetsoft.util.credential.*;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("apiToken")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiToken", visibleMethod = "useCredential")
 })
 public class IntervalsDataSource extends EndpointJsonDataSource<IntervalsDataSource> {
    static final String TYPE = "Rest.Intervals";
@@ -37,13 +37,19 @@ public class IntervalsDataSource extends EndpointJsonDataSource<IntervalsDataSou
       setAuthType(AuthType.BASIC);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_TOKEN;
+   }
+
    @Property(label = "API Token", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiToken() {
-      return apiToken;
+      return ((ApiTokenCredential) getCredential()).getApiToken();
    }
 
    public void setApiToken(String apiToken) {
-      this.apiToken = apiToken;
+      ((ApiTokenCredential) getCredential()).setApiToken(apiToken);
    }
 
    @Override
@@ -58,7 +64,7 @@ public class IntervalsDataSource extends EndpointJsonDataSource<IntervalsDataSou
 
    @Override
    public String getUser() {
-      return apiToken;
+      return getApiToken();
    }
 
    @Override
@@ -91,21 +97,6 @@ public class IntervalsDataSource extends EndpointJsonDataSource<IntervalsDataSou
    }
 
    @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(apiToken != null) {
-         writer.format("<apiToken><![CDATA[%s]]></apiToken>%n", Tool.encryptPassword(apiToken));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      apiToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiToken"));
-   }
-
-   @Override
    protected String getTestSuffix() {
       return "/me/";
    }
@@ -120,18 +111,11 @@ public class IntervalsDataSource extends EndpointJsonDataSource<IntervalsDataSou
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      IntervalsDataSource that = (IntervalsDataSource) o;
-      return Objects.equals(apiToken, that.apiToken);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), apiToken);
+      return Objects.hash(super.hashCode(), getApiToken());
    }
-
-   private String apiToken;
 }

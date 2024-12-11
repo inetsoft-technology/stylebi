@@ -40,6 +40,8 @@ public interface ServerModel {
 
    long timestamp();
 
+   String externalStoragePath();
+
    static ServerModel.Builder builder() {
       return new ServerModel.Builder();
    }

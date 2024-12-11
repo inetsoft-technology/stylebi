@@ -69,6 +69,7 @@ export class DatabaseQueryComponent implements OnDestroy {
    @ViewChild("queryGroupingPane") queryGroupingPane: QueryGroupingPaneComponent;
    private _queryModel: AdvancedSqlQueryModel;
    private validGroupBy: boolean = true;
+   private editingJoin: boolean;
 
    get queryModel(): AdvancedSqlQueryModel {
       return this._queryModel;
@@ -120,6 +121,10 @@ export class DatabaseQueryComponent implements OnDestroy {
    }
 
    isTabDisabled(tab: string): boolean {
+      if(this.editingJoin && tab != DatabaseQueryTabs.LINKS) {
+         return true;
+      }
+
       let parseFailed = !!this.queryModel?.freeFormSQLPaneModel?.sqlString &&
          this.queryModel?.freeFormSQLPaneModel?.parseResult == ParseResult.PARSE_FAILED;
 
@@ -306,5 +311,9 @@ export class DatabaseQueryComponent implements OnDestroy {
             map.set(field.alias, field.name);
             return map;
          }, new Map());
+   }
+
+   joinEditingChanged(editing: boolean) {
+      this.editingJoin = editing;
    }
 }

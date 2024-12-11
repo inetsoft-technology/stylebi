@@ -63,9 +63,18 @@ public class CubeModel {
       this.caption = caption;
    }
 
+   public void setDecimalFmts(String[] decimalFmts) {
+      this.decimalFmts = decimalFmts;
+   }
+
+   public String[] getDecimalFmts() {
+      return decimalFmts;
+   }
+
    private String name;
    private List<CubeDimensionModel> dimensions;
    private List<CubeMeasureModel> measures;
    private String type;
    private String caption;
+   private String[] decimalFmts;
 }

@@ -17,6 +17,7 @@
  */
 package inetsoft.mv;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.sree.security.SecurityProvider;
@@ -61,8 +62,12 @@ class MVDefMap extends AbstractMap<String, MVDef> {
 
    @Override
    public boolean containsKey(Object key) {
-      String identifier = getEntry((String) key).toIdentifier();
-      return indexedStorage.contains(identifier);
+      return containsKey(key, null);
+   }
+
+   public boolean containsKey(Object key, String orgId) {
+      String identifier = getEntry((String) key, orgId).toIdentifier();
+      return indexedStorage.contains(identifier, orgId);
    }
 
    @Override
@@ -71,6 +76,10 @@ class MVDefMap extends AbstractMap<String, MVDef> {
    }
 
    public MVDef get(Object key, String orgID) {
+      if(orgID == null) {
+         orgID = SUtil.getOrgIDFromMVPath(key.toString());
+      }
+
       MVDef mv = null;
       String identifier = getEntry((String) key, orgID).toIdentifier();
       long ts = indexedStorage.lastModified(identifier, orgID);
@@ -95,12 +104,15 @@ class MVDefMap extends AbstractMap<String, MVDef> {
 
    @Override
    public MVDef put(String key, MVDef value) {
+      return put(key, value, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   public MVDef put(String key, MVDef value, String orgId) {
       MVDef oldValue = null;
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
 
       try {
-         AssetFolder folder = getRoot();
-         AssetEntry entry = getEntry(key);
+         AssetFolder folder = getRoot(orgId);
+         AssetEntry entry = getEntry(key, orgId);
 
          if(folder.containsEntry(entry)) {
             entry = folder.getEntry(entry);
@@ -109,11 +121,11 @@ class MVDefMap extends AbstractMap<String, MVDef> {
          }
 
          folder.addEntry(entry);
-         indexedStorage.putXMLSerializable(getRootIdentifier(), folder);
+         indexedStorage.putXMLSerializable(getRootIdentifier(orgId), folder);
          indexedStorage.putXMLSerializable(entry.toIdentifier(), value);
          rootFolders.put(entry.getOrgID(), (AssetFolder) indexedStorage
-            .getXMLSerializable(getRootIdentifier(), null, entry.getOrgID()));
-         rootTS.put(orgID, indexedStorage.lastModified(getRootIdentifier()));
+            .getXMLSerializable(getRootIdentifier(orgId), null, entry.getOrgID()));
+         rootTS.put(orgId, indexedStorage.lastModified(getRootIdentifier(orgId), orgId));
          cache.remove(entry.toIdentifier());
       }
       catch(Exception e) {
@@ -128,21 +140,24 @@ class MVDefMap extends AbstractMap<String, MVDef> {
 
    @Override
    public MVDef remove(Object key) {
-      MVDef mv = get(key);
-      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      return remove(key, OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   public MVDef remove(Object key, String orgId) {
+      MVDef mv = get(key, orgId);
 
       if(mv != null) {
-         AssetEntry entry = getEntry((String) key);
+         AssetEntry entry = getEntry((String) key, orgId);
          String identifier = entry.toIdentifier();
 
          try {
-            AssetFolder root = getRoot();
+            AssetFolder root = getRoot(orgId);
             root.removeEntry(entry);
-            indexedStorage.putXMLSerializable(getRootIdentifier(), root);
+            indexedStorage.putXMLSerializable(getRootIdentifier(orgId), root);
             indexedStorage.remove(identifier);
-            rootFolders.put(orgID, (AssetFolder) indexedStorage
-               .getXMLSerializable(getRootIdentifier(), null, orgID));
-            rootTS.put(orgID, indexedStorage.lastModified(getRootIdentifier()));
+            rootFolders.put(orgId, (AssetFolder) indexedStorage
+               .getXMLSerializable(getRootIdentifier(orgId), null, orgId));
+            rootTS.put(orgId, indexedStorage.lastModified(getRootIdentifier(orgId)));
          }
          catch(Exception e) {
             throw new RuntimeException("Failed to remove MV definition: " + key, e);
@@ -170,6 +185,28 @@ class MVDefMap extends AbstractMap<String, MVDef> {
          rootFolders.put(orgID, (AssetFolder) indexedStorage
             .getXMLSerializable(getRootIdentifier(), null, orgID));
          rootTS.put(orgID, indexedStorage.lastModified(getRootIdentifier()));
+      }
+      catch(Exception e) {
+         throw new RuntimeException("Failed to clear MV definitions", e);
+      }
+      finally {
+         indexedStorage.close();
+      }
+   }
+
+   public void clear(String orgId) {
+      try {
+         AssetFolder root = getRoot(orgId);
+
+         for(AssetEntry entry : root.getEntries()) {
+            indexedStorage.remove(entry.toIdentifier());
+            root.removeEntry(entry);
+         }
+
+         indexedStorage.putXMLSerializable(getRootIdentifier(orgId), root);
+         rootFolders.put(orgId, (AssetFolder) indexedStorage
+            .getXMLSerializable(getRootIdentifier(), null, orgId));
+         rootTS.put(orgId, indexedStorage.lastModified(getRootIdentifier(orgId)));
       }
       catch(Exception e) {
          throw new RuntimeException("Failed to clear MV definitions", e);
@@ -216,10 +253,10 @@ class MVDefMap extends AbstractMap<String, MVDef> {
       }
    }
 
-   private void initRoot() throws Exception {
+   protected void initRoot(String orgId) throws Exception {
       try {
-         if(!indexedStorage.contains(getRootIdentifier())) {
-            indexedStorage.putXMLSerializable(getRootIdentifier(), new AssetFolder());
+         if(!indexedStorage.contains(getRootIdentifier(orgId), orgId)) {
+            indexedStorage.putXMLSerializable(getRootIdentifier(orgId), new AssetFolder());
          }
       }
       finally {
@@ -301,11 +338,10 @@ class MVDefMap extends AbstractMap<String, MVDef> {
    }
 
    private AssetFolder getRoot(String orgID) throws Exception {
-      if (orgID == null) {
+      if(orgID == null) {
          orgID = OrganizationManager.getInstance().getCurrentOrgID();
-      } else {
-         orgID = orgID;
       }
+
       long ts = indexedStorage.lastModified(getRootIdentifier(orgID), orgID);
       long currts = rootTS.containsKey(orgID) ? rootTS.get(orgID) : 0;
       AssetFolder rootFolder = rootFolders.get(orgID);
@@ -353,9 +389,7 @@ class MVDefMap extends AbstractMap<String, MVDef> {
 
    private String[] getOrgIDS() {
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      return Arrays.stream(provider.getOrganizations())
-         .map(name -> provider.getOrganization(name).getId())
-         .toArray(String[]::new);
+      return provider.getOrganizationIDs();
    }
 
    private final IndexedStorage indexedStorage;

@@ -72,7 +72,6 @@ export class RepositoryTreeViewComponent implements OnInit, OnDestroy, OnChanges
    collapseToolbar = false;
    filterForm: UntypedFormGroup;
    licensedComponents: LicensedComponents;
-   isSiteAdmin = false;
 
    get searchQuery(): string {
       return this.searchQuery$.value;
@@ -96,7 +95,7 @@ export class RepositoryTreeViewComponent implements OnInit, OnDestroy, OnChanges
 
    ngOnInit(): void {
       this.breakpointObserver
-         .observe("(min-width: 0) and (max-width: 1025px)")
+         .observe("(min-width: 0) and (max-width: 1225px)")
          .pipe(takeUntil(this.destroy$))
          .subscribe((state: BreakpointState) => {
             this.collapseToolbar = state.matches;
@@ -123,12 +122,6 @@ export class RepositoryTreeViewComponent implements OnInit, OnDestroy, OnChanges
          .subscribe(components => {
             this.licensedComponents = components;
             this.dataSource.licensedComponents = components;
-         });
-
-      this.http.get<boolean>("../api/em/content/is-site-admin")
-         .subscribe(res => {
-            this.isSiteAdmin = res;
-            this.dataSource.isSiteAdmin = this.isSiteAdmin;
          });
 
       this.dataSource.contextMenusEnabled = true;

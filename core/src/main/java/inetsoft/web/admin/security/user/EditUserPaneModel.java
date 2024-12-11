@@ -58,7 +58,7 @@ public interface EditUserPaneModel extends EntityModel {
    }
 
    @Value.Default
-   default String organization() {return Organization.getDefaultOrganizationName();}
+   default String organization() {return Organization.getDefaultOrganizationID();}
 
    @Value.Derived
    @JsonIgnore
@@ -82,6 +82,11 @@ public interface EditUserPaneModel extends EntityModel {
 
    @Value.Default
    default List<String> localesList(){ return new ArrayList<>(); }
+
+   @Value.Default
+   default boolean supportChangePassword() {
+      return false;
+   }
 
    static EditUserPaneModel.Builder builder() {
       return new EditUserPaneModel.Builder();

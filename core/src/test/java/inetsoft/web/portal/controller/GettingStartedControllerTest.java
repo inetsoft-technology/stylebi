@@ -48,11 +48,11 @@ class GettingStartedControllerTest {
       GettingStartedService gettingStartedService = new GettingStartedService(assetRepository, new AnalyticEngine(), securityEngine);
       gettingStartedController = new GettingStartedController(gettingStartedService);
 
-      admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationName()), new IdentityID[] { new IdentityID("Everyone",Organization.getDefaultOrganizationName())}, new String[0], Organization.getDefaultOrganizationID(),
+      admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()), new IdentityID[] { new IdentityID("Everyone",Organization.getDefaultOrganizationID())}, new String[0], Organization.getDefaultOrganizationID(),
                               Tool.getSecureRandom().nextLong());
       admin.setProperty("showGettingStated", "true");
 
-      user1 = new SRPrincipal(new IdentityID("user1", Organization.getSelfOrganizationName()), new IdentityID[] {new IdentityID("Everyone", Organization.getSelfOrganizationName())}, new String[0], Organization.getSelfOrganizationID(),
+      user1 = new SRPrincipal(new IdentityID("user1", Organization.getDefaultOrganizationID()), new IdentityID[] {new IdentityID("Everyone", Organization.getDefaultOrganizationID())}, new String[0], Organization.getDefaultOrganizationID(),
                               Tool.getSecureRandom().nextLong());
       user1.setProperty("showGettingStated", "true");
    }

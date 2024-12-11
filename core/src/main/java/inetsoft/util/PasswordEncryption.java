@@ -18,8 +18,7 @@
 package inetsoft.util;
 
 import com.nimbusds.jose.*;
-import inetsoft.util.config.InetsoftConfig;
-import inetsoft.util.config.SecretsConfig;
+import inetsoft.util.config.*;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
@@ -69,6 +68,16 @@ public interface PasswordEncryption {
     * @return the decrypted password.
     */
    String decryptPassword(String input);
+
+   /**
+    * Decrypts a database credential stored by Vault secrets engine.
+    *
+    * @param input the password to decrypt.
+    * @param dbType the database type.
+    *
+    * @return the decrypted password.
+    */
+   String decryptDBPassword(String input, String dbType);
 
    /**
     * Decrypts a password directly with the system master password.
@@ -159,6 +168,22 @@ public interface PasswordEncryption {
     */
    static PasswordEncryption newInstance() {
       return SingletonManager.getInstance(PasswordEncryption.class);
+   }
+
+   static PasswordEncryption newLocalInstance() {
+      return newLocalInstance(InetsoftConfig.getInstance().getSecrets());
+   }
+
+   static PasswordEncryption newLocalInstance(SecretsConfig secretsConfig) {
+      if(!Tool.equals(secretsConfig.getType(), SecretsType.LOCAL.getName())) {
+         SecretsConfig localSecretsConfig = new SecretsConfig();
+         localSecretsConfig.setType(SecretsType.LOCAL.getName());
+         localSecretsConfig.setFipsComplianceMode(secretsConfig.isFipsComplianceMode());
+         secretsConfig = localSecretsConfig;
+         return PasswordEncryption.newInstance(secretsConfig);
+      }
+
+      return newInstance();
    }
 
    /**
@@ -260,7 +285,7 @@ public interface PasswordEncryption {
             }
 
             if(encryption == null) {
-               throw new RuntimeException("Failed to get key value engine of type " + type);
+               throw new RuntimeException("Failed to get password encryption of type " + type);
             }
 
             map.put(secretsConfig, encryption);

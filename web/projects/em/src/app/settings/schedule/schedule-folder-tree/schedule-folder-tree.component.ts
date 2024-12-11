@@ -113,14 +113,14 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
          model => {
             this.treeSource.data = model.nodes;
 
-            if(this.selectedNodes == null || this.selectedNodes.length == 0) {
+            if((!selectedPath || selectedPath === "/") && (this.selectedNodes == null || this.selectedNodes.length == 0)) {
                let root: RepositoryFlatNode = new RepositoryFlatNode(this.treeSource.data[0].label, 0,
                   true, this.treeSource.data[0], false, true, null, this.getIcon);
                this.nodeSelected({node: root, event: null});
             }
 
             if(selectedPath != null) {
-               if(this.selectedNodes[0].data.path != selectedPath) {
+               if(this.selectedNodes[0]?.data.path != selectedPath) {
                   const nodes: RepositoryFlatNode[] = this.treeControl.dataNodes;
                   this.selectedNodes = [nodes.find(n => n.data.path === selectedPath)];
                   this.expandToPath(selectedPath, expandPath);
@@ -226,7 +226,7 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
          data: {
             oldPath: (node.path ? node.path + "/" : "") + "x",
             securityEnabled: true,
-            owner: {name: "null", organization: null}
+            owner: {name: "null", orgID: null}
          }
       });
 
@@ -259,6 +259,7 @@ export class ScheduleFolderTreeComponent implements OnInit, OnDestroy {
 
       if(this.dragService.get("tasks") != null) {
          moveTasks = JSON.parse(this.dragService.get("tasks"));
+         this.dragService.reset();
       }
 
       if(moveTasks == null) {

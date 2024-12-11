@@ -37,6 +37,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.security.Principal;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -60,11 +61,11 @@ public class ResourcePermissionService {
          (type == ResourceType.SCHEDULE_TASK_FOLDER && "/".equals(path)));
       boolean isDenyLabel = isRoot || type == ResourceType.SCHEDULE_CYCLE || type == ResourceType.SCHEDULE_TIME_RANGE;
       String label = isDenyLabel ? Catalog.getCatalog().getString("Deny access to all users") : null;
-      return getTableModel(path, type, actions, label, false, principal);
+      return getTableModel(path, type, actions, label, principal);
    }
 
    public ResourcePermissionModel getTableModel(String path, ResourceType type, EnumSet<ResourceAction> actions,
-                                                String label, boolean useOrgDefaults, Principal principal)
+                                                String label, Principal principal)
    {
       if(label == null) {
          label = "Use Parent Permissions";
@@ -76,7 +77,7 @@ public class ResourcePermissionService {
 
       List<ResourcePermissionTableModel> resourcePermissions = getResourcePermissions(path, type, principal);
 
-      boolean hasOrgEdited = hasOrgEditedPerm(path, type, principal) || !useOrgDefaults;
+      boolean hasOrgEdited = hasOrgEditedPerm(path, type, principal);
 
       ResourcePermissionModel.Builder builder =
          ResourcePermissionModel.builder()
@@ -84,7 +85,7 @@ public class ResourcePermissionService {
                             hasOrgEdited ? Collections.emptyList() : null)
             .displayActions(actions)
             .hasOrgEdited(hasOrgEdited)
-            .derivePermissionLabel(catalog.getString(label))
+            .derivePermissionLabel(Catalog.getCatalog().getString(label))
             .securityEnabled(securityEngine.isSecurityEnabled())
             .requiresBoth(Boolean.parseBoolean(SreeEnv.getProperty("permission.andCondition",false, true)));
 
@@ -294,6 +295,7 @@ public class ResourcePermissionService {
 
       Permission permission = provider.getPermission(resourceType, resourcePath);
       String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
       //String orgName = XUtil.getCurrentOrgName();
 
       if(tableModel.permissions() == null) {
@@ -303,11 +305,19 @@ public class ResourcePermissionService {
 
          //set all grants for this organization to null
          String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+
          for(ResourceAction action : ResourceAction.values()) {
             for(Identity.Type identityType : Identity.Type.values()) {
+               // non site admin should not clear global role permission.
+               if(identityType == Identity.Type.ROLE && siteAdmin) {
+                  permission.setGrantsOrgScoped(action, identityType.code(),
+                     Collections.emptySet(), null);
+               }
+
                permission.setGrantsOrgScoped(action, identityType.code(), Collections.emptySet(), orgId);
             }
          }
+
          permission.updateGrantAllByOrg(orgId, tableModel.hasOrgEdited());
          provider.setPermission(resourceType, resourcePath, permission);
          return;
@@ -351,7 +361,7 @@ public class ResourcePermissionService {
                   groupGrants.add(permissionModel.identityID().name);
                   break;
                case ROLE:
-                  if(permissionModel.identityID().organization == null) {
+                  if(permissionModel.identityID().orgID == null) {
                      globalRoleGrants.add(permissionModel.identityID().name);
                   }
                   else {
@@ -390,7 +400,7 @@ public class ResourcePermissionService {
          if(!globalRoleGrants.isEmpty()) {
             permission.setRoleGrantsForOrg(action, globalRoleGrants, null);
          }
-         else {
+         else if(siteAdmin) {
             permission.setRoleGrantsForOrg(action, Collections.emptySet(), null);
          }
 
@@ -539,27 +549,20 @@ public class ResourcePermissionService {
 
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
-      String orgName = "";
       String orgId = OrganizationManager.getInstance().getCurrentOrgID();
-      for(String org : securityProvider.getOrganizations()) {
-         if(securityProvider.getOrganization(org).getOrganizationID().equals(orgId)) {
-            orgName = org;
-            break;
-         }
-      }
 
       switch(type) {
       case USER:
          User user = provider.getUser(identity);
-         return !orgName.equals(user.getOrganization());
+         return !orgId.equals(user.getOrganizationID());
        case GROUP:
           Group group = provider.getGroup(identity);
-          return !orgName.equals(group.getOrganization());
+          return !orgId.equals(group.getOrganizationID());
       case ROLE:
          Role role = provider.getRole(identity);
-         return !orgName.equals(role.getOrganization());
+         return !orgId.equals(role.getOrganizationID());
       case ORGANIZATION:
-         return !orgName.equals(identity);
+         return !orgId.equals(identity.orgID);
       default:
          return false;
       }
@@ -571,10 +574,10 @@ public class ResourcePermissionService {
       // Only show users from the same organization and site admins (if permission allows)
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
       String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
-      String org = Arrays.stream(provider.getOrganizations())
+      String org = Arrays.stream(provider.getOrganizationIDs())
          .map(provider::getOrganization)
          .filter((o) -> o.getOrganizationID().equals(orgID))
-         .map(Organization::getName)
+         .map(Organization::getId)
          .findFirst()
          .orElse("");
 
@@ -587,7 +590,7 @@ public class ResourcePermissionService {
             boolean userIsSiteAdmin = Arrays.stream(provider.getAllRoles(roles))
                .anyMatch(provider::isSystemAdministratorRole);
 
-            if(userIsSiteAdmin || org.equals(user.getOrganization())) {
+            if(userIsSiteAdmin || org.equals(user.getOrganizationID())) {
                resourceType = ResourceType.SECURITY_USER;
                break;
             }
@@ -595,7 +598,7 @@ public class ResourcePermissionService {
 
          return false;
       case GROUP:
-         if(provider.getGroup(identity) != null && org.equals(provider.getGroup(identity).getOrganization())) {
+         if(provider.getGroup(identity) != null && org.equals(provider.getGroup(identity).getOrganizationID())) {
             resourceType = ResourceType.SECURITY_GROUP;
             break;
          }
@@ -615,14 +618,14 @@ public class ResourcePermissionService {
             .anyMatch(provider::isSystemAdministratorRole);
          boolean userIsAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
 
-         if((!roleIsSiteAdmin || userIsAdmin) || org.equals(role.getOrganization())) {
+         if((!roleIsSiteAdmin || userIsAdmin) || org.equals(role.getOrganizationID())) {
             resourceType = ResourceType.SECURITY_ROLE;
             break;
          }
 
          return false;
       case ORGANIZATION:
-         if(org.equals(identity.name)) {
+         if(org.equals(identity.orgID)) {
             resourceType = ResourceType.SECURITY_ORGANIZATION;
             break;
          }
@@ -641,8 +644,26 @@ public class ResourcePermissionService {
                                                                  Principal principal)
    {
       Map<IdentityID, EnumSet<ResourceAction>> identities = getActions(perm, type);
-      identities.keySet().retainAll(getAuthorizedIdentities(type, principal));
-      return createModels(identities, type);
+      Set<IdentityID> ids = identities.keySet();
+
+      // don't display global role in non site admin permission table.
+      if(!OrganizationManager.getInstance().isSiteAdmin(principal)) {
+         ids = ids.stream().filter(identityID -> identityID.getOrgID() != null).collect(Collectors.toSet());
+      }
+
+      if(!ids.isEmpty()) {
+         ids = ids.stream().map(identity -> CompletableFuture.supplyAsync(() ->
+               isIdentityAuthorized(identity, type, principal) ? identity : null
+            ))
+            .map(CompletableFuture::join)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+      }
+
+      Map<IdentityID, EnumSet<ResourceAction>> nidentities = new HashMap<>();
+      ids.stream().forEach(id -> nidentities.put(id, identities.get(id)));
+
+      return createModels(nidentities, type);
    }
 
    /**
@@ -718,15 +739,19 @@ public class ResourcePermissionService {
          identities = securityProvider.getAuthenticationProvider().getRoles();
          break;
       case ORGANIZATION:
-         identities = Arrays.stream(securityProvider.getAuthenticationProvider().getOrganizations())
-                            .map(n -> new IdentityID(n,n)).toArray(IdentityID[]::new);
+         identities = Arrays.stream(securityProvider.getAuthenticationProvider().getOrganizationIDs())
+                            .map(id -> new IdentityID(securityProvider.getAuthenticationProvider().getOrgNameFromID(id), id)).toArray(IdentityID[]::new);
          break;
       default:
          return Collections.emptyList();
       }
 
       return Arrays.stream(identities)
-         .filter(identity -> isIdentityAuthorized(identity, type, principal))
+         .map(identity -> CompletableFuture.supplyAsync(() ->
+            isIdentityAuthorized(identity, type, principal) ? identity : null
+         ))
+         .map(CompletableFuture::join)
+         .filter(Objects::nonNull)
          .collect(Collectors.toList());
    }
 

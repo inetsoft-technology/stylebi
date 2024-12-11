@@ -19,6 +19,7 @@ package inetsoft.web.admin.security;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;

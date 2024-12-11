@@ -68,7 +68,7 @@ public class PropertiesEngine {
    }
 
    public String getProperty(String name, boolean earlyLoaded, boolean orgScope) {
-      name = orgScope ? fixPropertyName(name, earlyLoaded) : name;
+      name = orgScope ? fixPropertyName(name, earlyLoaded) : fixPropertyNameCase(name);
       Properties prop = earlyLoaded ? getEarlyLoadedProperties() : getUserEnhancedProperties();
       String val = prop.getProperty(name);
 
@@ -156,7 +156,12 @@ public class PropertiesEngine {
     */
    public void remove(String name) {
       init();
-      getInternalProperties().remove(name);
+      name = fixPropertyNameCase(name);
+
+      synchronized(changedProps) {
+         getInternalProperties().remove(name);
+         changedProps.add(name);
+      }
    }
 
    /**
@@ -168,13 +173,15 @@ public class PropertiesEngine {
          principal = principal == null ?
             (XPrincipal) ThreadContext.getContextPrincipal() : principal;
          String orgID;
+
          if(principal == null) {
             orgID = null;
          }
          else {
             orgID = OrganizationManager.getInstance().getCurrentOrgID();
          }
-         name = orgID == null ? name : "inetsoft.org." + orgID + "." + name;
+
+         name = orgID == null ? name : "inetsoft.org." + orgID + "." + fixPropertyNameCase(name);
       }
 
       remove(name);
@@ -186,9 +193,10 @@ public class PropertiesEngine {
    public void setProperty(String name, String val) {
       init();
       Properties prop = getInternalProperties();
+      name = fixPropertyNameCase(name);
 
       if(val == null) {
-         prop.remove(name);
+         remove(name);
       }
       else {
          if(!(val.startsWith("$(sree.home)")) && !name.equals("sree.home")) {
@@ -212,7 +220,15 @@ public class PropertiesEngine {
             }
          }
 
-         prop.put(name, val);
+         // if value is the same then don't set it as changed and just return
+         if(Tool.equals(prop.getProperty(name), val)) {
+            return;
+         }
+
+         synchronized(changedProps) {
+            prop.put(name, val);
+            changedProps.add(name);
+         }
       }
    }
 
@@ -224,13 +240,15 @@ public class PropertiesEngine {
          XPrincipal principal = (XPrincipal) ThreadContext.getPrincipal();
          principal = principal == null ? (XPrincipal) ThreadContext.getContextPrincipal() : principal;
          String orgID;
+
          if(principal == null) {
             orgID = null;
          }
          else {
             orgID = OrganizationManager.getInstance().getCurrentOrgID();
          }
-         name = orgID == null ? name : "inetsoft.org." + orgID + "." + name;
+
+         name = orgID == null ? name : "inetsoft.org." + orgID + "." + fixPropertyNameCase(name);
       }
 
       setProperty(name, val);
@@ -264,7 +282,28 @@ public class PropertiesEngine {
    }
 
    private String fixPropertyName(String name, boolean earlyLoaded) {
-      return earlyLoaded ? name : useAvailableOrgProperty(name);
+      String lcase = fixPropertyNameCase(name);
+      return earlyLoaded ? lcase : useAvailableOrgProperty(lcase);
+   }
+
+   private String fixPropertyNameCase(String name) {
+      if(name != null && !name.startsWith("log.level.") &&
+         !name.startsWith("plugin.extra.classpath.") &&
+         !name.matches("^log\\.[A-Z_]+\\.level\\..+$") &&
+         !name.matches("^inetsoft\\.uql\\.jdbc\\.pool\\..+\\.connectionTestQuery$"))
+      {
+         return name.toLowerCase();
+      }
+
+      if(name != null && name.startsWith("inetsoft.org.")) {
+         int index = name.substring(13).indexOf('.');
+
+         if(index >= 0) {
+            return name.substring(0, 14 + index) + name.substring(14 + index).toLowerCase();
+         }
+      }
+
+      return name;
    }
 
    private String useAvailableOrgProperty(String propertyName) {
@@ -275,7 +314,7 @@ public class PropertiesEngine {
          orgID = null;
       }
       else {
-         orgID = OrganizationManager.getInstance().getCurrentOrgID();
+         orgID = OrganizationManager.getInstance().getCurrentOrgID().toLowerCase();
       }
 
       List<String> excludedProps = Arrays.asList(
@@ -376,10 +415,7 @@ public class PropertiesEngine {
          ConfigurationContext.getContext().put(PROPERTIES_KEY, topProp);
       }
       catch(Exception ex) {
-         // temp for for Bug #66476
-         LOG.error("\n\n\n\n\n\n==============for Bug #66476 It has never been reproduced. " +
-                      "Anyone encounters it, please add stacktrace to the bug description. Thank you very much: " + ex, ex);
-         ex.printStackTrace();
+         LOG.error("Failed to initialize SreeEnv: " + ex, ex);
          Properties prop = getDefaultProperties();
          DefaultProperties topProp = new DefaultProperties(prop, prop);
          ConfigurationContext.getContext().put(PROPERTIES_KEY, topProp);
@@ -416,10 +452,6 @@ public class PropertiesEngine {
       return storage;
    }
 
-   public static void setContextProperties(Properties properties) {
-      contextProperties = properties;
-   }
-
    private void initEarlyLoadedProperties() {
       if(ConfigurationContext.getContext().get(EARLY_LOADED_PROPERTIES_KEY) != null) {
          return;
@@ -433,13 +465,15 @@ public class PropertiesEngine {
          }
 
          Properties defaultProperties = null;
-         Properties base = new Properties();
+         Properties noSystemProperties = new Properties();
+         Properties base = noSystemProperties;
 
          try {
             // use the system property as base for all properties
             // the logic was here before uses the defkey's property as base
             // which is not correct because those are not logically connected
-            base.putAll(System.getProperties());
+            Properties systemProperties = System.getProperties();
+            base = new DefaultProperties(noSystemProperties, systemProperties);
          }
          catch(Exception ignore) {
          }
@@ -464,12 +498,6 @@ public class PropertiesEngine {
             }
          }
          catch(Exception ignore) {
-         }
-
-         if(contextProperties != null) {
-            for(String name : contextProperties.stringPropertyNames()) {
-               base.setProperty(name, contextProperties.getProperty(name));
-            }
          }
 
          InputStream inp = null;
@@ -577,16 +605,39 @@ public class PropertiesEngine {
       }
    }
 
-   private void saveToStorage(Properties properties, KeyValueStorage<String> storage)
+   private void saveToStorage(Properties properties, KeyValueStorage<String> storage,
+                              Set<String> changedProps)
       throws ExecutionException, InterruptedException
    {
       if(properties instanceof DefaultProperties) {
-         saveToStorage(((DefaultProperties) properties).getMainProperties(), storage);
+         saveToStorage(((DefaultProperties) properties).getMainProperties(), storage, changedProps);
       }
       else {
-         SortedMap<String, String> values = new TreeMap<>();
-         properties.forEach((key, value) -> values.put((String) key, (String) value));
-         storage.replaceAll(values).get();
+         Set<String> propsToRemove = new TreeSet<>();
+         SortedMap<String, String> propsToAdd = new TreeMap<>();
+
+         for(String prop : changedProps) {
+            if(properties.containsKey(prop)) {
+               propsToAdd.put(prop, properties.getProperty(prop));
+            }
+            else {
+               propsToRemove.add(prop);
+            }
+         }
+
+         List<Future<?>> futures = new ArrayList<>();
+
+         if(!propsToRemove.isEmpty()) {
+            futures.add(storage.removeAll(propsToRemove));
+         }
+
+         if(!propsToAdd.isEmpty()) {
+            futures.add(storage.putAll(propsToAdd));
+         }
+
+         for(Future<?> future : futures) {
+            future.get();
+         }
       }
    }
 
@@ -600,8 +651,12 @@ public class PropertiesEngine {
       logManager.setLevel("inetsoft.swap_data", LogLevel.OFF);
       logManager.setLevel(SUtil.MAC_LOG_NAME, LogLevel.OFF);
       logManager.setLevel(LogUtil.PERFORMANCE_LOGGER_NAME, LogLevel.OFF);
-      logManager.setLevel("inetsoft.storage.aws.com.amazonaws", LogLevel.WARN);
-      logManager.setLevel("inetsoft.storage.aws.org.apache", LogLevel.WARN);
+
+      if(LicenseManager.getInstance().isEnterprise()) {
+         logManager.setLevel("inetsoft.storage.aws.com.amazonaws", LogLevel.WARN);
+         logManager.setLevel("inetsoft.storage.aws.org.apache", LogLevel.WARN);
+      }
+      
       logManager.setLevel("inetsoft_audit", LogLevel.INFO);
       logManager.setLevel("org.apache.ignite", LogLevel.WARN);
 
@@ -860,10 +915,17 @@ public class PropertiesEngine {
     * specified by the argument.
     */
    public void save() throws IOException {
-      Properties prop = (Properties) getInternalProperties().clone();
-
-      if(prop == null) {
+      if(getInternalProperties() == null) {
          init();
+      }
+
+      Set<String> changedProps;
+      Properties prop;
+
+      synchronized(this.changedProps) {
+         changedProps = new HashSet<>(this.changedProps);
+         this.changedProps.clear();
+         prop = (Properties) getInternalProperties().clone();
       }
 
       String admHome = prop.getProperty("sree.home", ".");
@@ -875,7 +937,7 @@ public class PropertiesEngine {
       storage.removeListener(changeListener);
 
       try {
-         saveToStorage(prop, storage);
+         saveToStorage(prop, storage, changedProps);
       }
       catch(ExecutionException | InterruptedException e) {
          throw new IOException("Failed to store properties in storage", e);
@@ -1015,6 +1077,7 @@ public class PropertiesEngine {
       private final List<PropertyChange> changes;
    }
 
+   private final Set<String> changedProps = new TreeSet<>();
    private static final String EARLY_LOADED_PROPERTIES_KEY = PropertiesEngine.class.getName() + "_early_loaded_properties";
    private static final String PROPERTIES_KEY = PropertiesEngine.class.getName() + ".properties";
    private static final String DEFAULTS_PROPERTIES_KEY = PropertiesEngine.class.getName() + "_defaults.properties";
@@ -1026,6 +1089,5 @@ public class PropertiesEngine {
    private static final Lock DEBOUNCER_LOCK = new ReentrantLock();
    private static final Map<String, Object> cache = new ConcurrentHashMap<>(); // cached objects
    private static final Map<String, Font> fontMap = new ConcurrentHashMap<>();
-   private static Properties contextProperties;
    private static final Logger LOG = LoggerFactory.getLogger(PropertiesEngine.class);
 }

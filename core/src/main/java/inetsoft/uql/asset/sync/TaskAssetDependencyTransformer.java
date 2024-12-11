@@ -71,7 +71,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       }
       else {
          synchronized(storage) {
-            doc = storage.getDocument(identifier);
+            doc = storage.getDocument(identifier, task.getOrgID());
          }
       }
 
@@ -108,7 +108,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
       }
       catch(RemoteException e) {
          LOG.error("Failed to update scheduler with extension task: " +
-            scheduleTask.getName(), e);
+            scheduleTask.getTaskId(), e);
       }
    }
 
@@ -238,6 +238,26 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
    }
 
    private void renameBatchUpQueryParameters(Element doc, RenameInfo info) {
+      if(info.isWorksheet()) {
+         NodeList actions = getChildNodes(doc, "//Task/Action");
+
+         for(int i = 0; i < actions.getLength(); i++) {
+            Element action = (Element) actions.item(i);
+            NodeList paths = getChildNodes(action, "./queryEntry/assetEntry/path");
+
+            for(int j = 0; j < paths.getLength(); j++) {
+               Element path = (Element) paths.item(i);
+               String value = Tool.getValue(path);
+
+               if(Tool.equals(value, info.getOldPath())) {
+                  DependencyTransformer.replaceElementCDATANode(path, info.getNewPath());
+               }
+            }
+         }
+
+         return;
+      }
+
       String source = info.getSource();
       AssetEntry sourceEntry = source == null ? null : AssetEntry.createAssetEntry(source);
 
@@ -449,7 +469,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
 
       String assetExpression = "//Task/Action/XAsset[@type='%s' and @path='%s' and @user='%s']";
       assetExpression = String.format(assetExpression, type, Tool.byteEncode2(path),
-         user == null ? "null" : user);
+         user == null ? "" : user);
 
       if(info.isTask()) {
          assetExpression = "//Task/Action/XAsset[@type='%s' and @path='%s']";
@@ -472,7 +492,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          item.setAttribute("path", Tool.byteEncode2(newPath));
 
          if(!info.isTask()) {
-            item.setAttribute("user", newUser == null ? "null" : newUser.convertToKey());
+            item.setAttribute("user", newUser == null ? "" : newUser.convertToKey());
          }
       }
    }
@@ -537,7 +557,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
     */
    private void saveAssets(IndexedStorage storage, String identifier, Document doc) {
       synchronized(storage) {
-         storage.putDocument(identifier, doc, ScheduleTask.class.getName());
+         storage.putDocument(identifier, doc, ScheduleTask.class.getName(), task.getOrgID());
       }
    }
 

@@ -23,19 +23,28 @@ import inetsoft.util.*;
 import java.io.PrintWriter;
 import java.util.Objects;
 import java.util.logging.*;
+
+import inetsoft.util.credential.*;
 import org.w3c.dom.*;
 
 @View(vertical=true, value={
       @View1("URL"),
+      @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+      @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
       @View1(type=ViewType.LABEL, text="authentication.required.text", col=1, paddingLeft=3),
-      @View1("user"),
-      @View1("password")
+      @View1(value = "user", visibleMethod = "useCredential"),
+      @View1(value = "password", visibleMethod = "useCredential")
    })
 public class ElasticRestDataSource extends TabularDataSource<ElasticRestDataSource> {
    public static final String TYPE = "Elastic";
 
    public ElasticRestDataSource() {
       super(TYPE, ElasticRestDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD;
    }
 
    @Property(label="URL")
@@ -48,21 +57,27 @@ public class ElasticRestDataSource extends TabularDataSource<ElasticRestDataSour
    }
 
    @Property(label="User")
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getUser() {
-      return user;
+      return getCredential() == null ? null : ((PasswordCredential) getCredential()).getUser();
    }
 
    public void setUser(String user) {
-      this.user = user;
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setUser(user);
+      }
    }
 
    @Property(label="Password", password=true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getPassword() {
-      return password;
+      return getCredential() == null ? null : ((PasswordCredential) getCredential()).getPassword();
    }
 
    public void setPassword(String password) {
-      this.password = password;
+      if(getCredential() instanceof PasswordCredential) {
+         ((PasswordCredential) getCredential()).setPassword(password);
+      }
    }
 
    @Override
@@ -77,23 +92,12 @@ public class ElasticRestDataSource extends TabularDataSource<ElasticRestDataSour
       if(url != null) {
          writer.println("<url><![CDATA[" + url + "]]></url>");
       }
-
-      if(user != null) {
-         writer.println("<user><![CDATA[" + user + "]]></user>");
-      }
-
-      if(password != null) {
-         writer.println("<password><![CDATA[" + Tool.encryptPassword(password) +
-                        "]]></password>");
-      }
    }
 
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       url = Tool.getChildValueByTagName(root, "url");
-      user = Tool.getChildValueByTagName(root, "user");
-      password = Tool.decryptPassword(Tool.getChildValueByTagName(root, "password"));
    }
 
    @Override
@@ -102,8 +106,7 @@ public class ElasticRestDataSource extends TabularDataSource<ElasticRestDataSour
          ElasticRestDataSource ds = (ElasticRestDataSource) obj;
 
          return Objects.equals(url, ds.url) &&
-            Objects.equals(user, ds.user) &&
-            Objects.equals(password, ds.password);
+            Objects.equals(getCredential(), ds.getCredential());
       }
       catch(Exception ex) {
          return false;
@@ -111,8 +114,6 @@ public class ElasticRestDataSource extends TabularDataSource<ElasticRestDataSour
    }
 
    private String url;
-   private String user;
-   private String password;
 
    private static final Logger LOG =
       Logger.getLogger(ElasticRestDataSource.class.getName());

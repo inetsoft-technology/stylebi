@@ -20,6 +20,7 @@ package inetsoft.uql.asset.internal;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
+import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.DataVSAssemblyInfo;
@@ -1518,5 +1519,120 @@ public class ConditionUtil {
     */
    public static boolean isEmpty(ConditionList condition) {
       return condition == null || condition.isEmpty();
+   }
+
+   /**
+    * Split one of condition into multiple one of conditions such that it won't exceed the sql limit.
+    *
+    * For example, assuming a limit of 2
+    * "xx equal to t"
+    * "and"
+    * "xx is one of [a, b, c, d]" TO
+    * <p/>
+    * "xx equal to t"
+    * "and"
+    * "   xx is one of [a, b]"
+    * "   or"
+    * "   xx is one of [c, d]"
+    */
+   public static ConditionList splitOneOfCondition(ConditionList conditionList, SQLHelper helper) {
+      return splitOneOfCondition(conditionList, helper.getInClauseLimit());
+   }
+
+   public static ConditionList splitOneOfCondition(ConditionList conditionList, int limit) {
+      // no cond or no limit, do nothing
+      if(conditionList == null || conditionList.isEmpty() || limit == 0) {
+         return conditionList;
+      }
+
+      // all hierarchy items
+      List<HierarchyItem> items = new ArrayList<>();
+      // hierarchy level -> hierarchy item
+      Map<Integer, List<HierarchyItem>> levels = new HashMap<>();
+      splitCondition(conditionList, items, levels);
+
+      List<Integer> oneOfIndexes = new ArrayList<>();
+
+      // find all one of conditions that exceed the limit
+      for(int i = 0; i < items.size(); i++) {
+         HierarchyItem item = items.get(i);
+
+         if(!(item instanceof ConditionItem)) {
+            continue;
+         }
+
+         ConditionItem citem = (ConditionItem) item;
+         XCondition xcond = citem.getXCondition();
+
+         if(xcond instanceof Condition &&
+            xcond.getOperation() == XCondition.ONE_OF)
+         {
+            Condition condition = (Condition) xcond;
+
+            if(condition.getValueCount() > limit) {
+               oneOfIndexes.add(i);
+            }
+         }
+      }
+
+      if(oneOfIndexes.size() <= 0) {
+         return conditionList;
+      }
+
+      for(int i = oneOfIndexes.size() - 1; i >= 0; i--) {
+         splitOneOfCondition(items, oneOfIndexes.get(i), limit);
+      }
+
+      ConditionList ncond = new ConditionList();
+
+      for(HierarchyItem item : items) {
+         ncond.append(item);
+      }
+
+      return shrinkCondition(ncond);
+   }
+
+   /**
+    * Split one of condition.
+    */
+   private static void splitOneOfCondition(List<HierarchyItem> items, int index, int limit) {
+      ConditionItem citem = (ConditionItem) items.get(index);
+
+      // should never be the case
+      if(!(citem.getXCondition() instanceof Condition)) {
+         return;
+      }
+
+      Condition cond = (Condition) citem.getXCondition();
+      List<Object> values = cond.getValues();
+      int level = citem.getLevel() + 1;
+      indent(citem.getLevel(), items);
+
+      int count = (int) Math.ceil(values.size() / (double) limit);
+      int j = index;
+
+      for(int i = 0; i < count; i++) {
+         ConditionItem ncitem = (ConditionItem) citem.clone();
+         ncitem.setLevel(level);
+         Condition ncond = (Condition) ncitem.getXCondition();
+         ncond.removeAllValues();
+         ncond.setValues(new ArrayList<>(
+            values.subList(i * limit, Math.min((i + 1) * limit, values.size()))));
+
+         if(i == 0) {
+            items.set(j, ncitem);
+         }
+         else {
+            items.add(j, ncitem);
+         }
+
+         j++;
+
+         if(i < count - 1) {
+            JunctionOperator op = new JunctionOperator(JunctionOperator.OR, level);
+            items.add(j, op);
+            j++;
+         }
+      }
    }
 }

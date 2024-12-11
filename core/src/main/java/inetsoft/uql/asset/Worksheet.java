@@ -1038,11 +1038,11 @@ public class Worksheet extends AbstractSheet implements VariableProvider {
       writer.print("<worksheet modified=\"" + getLastModified());
 
       if(getLastModifiedBy() != null) {
-         writer.print("\" modifiedBy=\"" + getLastModifiedBy());
+         writer.print("\" modifiedBy=\"" + Tool.escape(getLastModifiedBy()));
       }
 
       if(getCreatedBy() != null) {
-         writer.print("\" createdBy=\"" + getCreatedBy());
+         writer.print("\" createdBy=\"" + Tool.escape(getCreatedBy()));
          writer.print("\" created=\"" + getCreated());
       }
 

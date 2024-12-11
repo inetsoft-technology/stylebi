@@ -22,7 +22,7 @@ import { getImageName, getImageType } from "../../util/image-util";
 
 declare const window: any;
 
-const IMAGE_URL: string = "../composer/vs/image-preview-pane/image/";
+const IMAGE_URL: string = "../api/image/composer/vs/image-preview-pane/image/";
 const EMPTY_IMAGE: string = "assets/emptyimage.gif";
 
 @Component({

@@ -62,6 +62,10 @@ export class ModelService {
 
    }
 
+   getOrgMVGlobalResource(org: string): Observable<boolean> {
+      return this.http.get<boolean>("../api/portal/content/materialized-view/isOrgAccessGlobalMV/"+org);
+   }
+
    getModel<T>(controller: string, params?: HttpParams): Observable<T> {
       const options = {
          headers: this.headers,

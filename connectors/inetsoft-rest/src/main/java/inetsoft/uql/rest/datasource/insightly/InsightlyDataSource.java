@@ -20,14 +20,14 @@ package inetsoft.uql.rest.datasource.insightly;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
-import org.w3c.dom.Element;
+import inetsoft.util.credential.*;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("apiKey")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiKey", visibleMethod = "useCredential")
 })
 public class InsightlyDataSource extends EndpointJsonDataSource<InsightlyDataSource> {
    static final String TYPE = "Rest.Insightly";
@@ -37,13 +37,19 @@ public class InsightlyDataSource extends EndpointJsonDataSource<InsightlyDataSou
       setAuthType(AuthType.BASIC);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_KEY;
+   }
+
    @Property(label = "API Key", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
-      return apiKey;
+      return ((ApiKeyCredential) getCredential()).getApiKey();
    }
 
    public void setApiKey(String apiKey) {
-      this.apiKey = apiKey;
+      ((ApiKeyCredential) getCredential()).setApiKey(apiKey);
    }
 
    @Override
@@ -58,7 +64,7 @@ public class InsightlyDataSource extends EndpointJsonDataSource<InsightlyDataSou
 
    @Override
    public String getUser() {
-      return apiKey;
+      return getApiKey();
    }
 
    @Override
@@ -91,21 +97,6 @@ public class InsightlyDataSource extends EndpointJsonDataSource<InsightlyDataSou
    }
 
    @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(apiKey != null) {
-         writer.format("<apiKey><![CDATA[%s]]></apiKey>%n", Tool.encryptPassword(apiKey));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      apiKey = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiKey"));
-   }
-
-   @Override
    protected String getTestSuffix() {
       return "/v3.0/Users/Me";
    }
@@ -120,18 +111,11 @@ public class InsightlyDataSource extends EndpointJsonDataSource<InsightlyDataSou
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      InsightlyDataSource that = (InsightlyDataSource) o;
-      return Objects.equals(apiKey, that.apiKey);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), apiKey);
+      return Objects.hash(super.hashCode(), getApiKey());
    }
-
-   private String apiKey;
 }

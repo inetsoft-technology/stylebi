@@ -17,6 +17,8 @@
  */
 package inetsoft.uql;
 
+import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.AuthenticationProvider;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.util.Identity;
@@ -24,6 +26,7 @@ import inetsoft.uql.util.XSessionService;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
+import jakarta.persistence.Id;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -82,9 +85,9 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     */
    public XPrincipal(IdentityID identityID, IdentityID[] roles, String[] groups, String orgId) {
       this.name = identityID.convertToKey();
-      this.roles = roles;
-      this.groups = groups;
-      this.orgId = orgId == null ? Organization.getDefaultOrganizationID() : orgId;
+      this.roles = roles == null ? new IdentityID[0] : roles;
+      this.groups = groups == null ? new String[0] : groups;
+      this.orgId = orgId == null ? identityID.getOrgID() : orgId;
       this.sessionID =
          XSessionService.createSessionID(XSessionService.USER, identityID.convertToKey());
       this.prop = new ConcurrentHashMap<>();
@@ -124,7 +127,10 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     * @param roles an array of the names of the roles assigned to the user.
     */
    public void setRoles(IdentityID[] roles) {
-      this.roles = roles;
+      if(!Arrays.equals(this.roles, roles)) {
+         this.roles = roles == null ? new IdentityID[0] : roles;
+         this.allRoles = null;
+      }
    }
 
    /**
@@ -133,7 +139,10 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     * @param groups an array of the names of the groups assigned to the user.
     */
    public void setGroups(String[] groups) {
-      this.groups = groups;
+      if(!Arrays.equals(this.groups, groups)) {
+         this.groups = groups == null ? new String[0] : groups;
+         this.allGroups = null;
+      }
    }
 
    /**
@@ -153,7 +162,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     * @return an array of the names of the roles assigned to the user.
     */
    public IdentityID[] getRoles() {
-      return roles;
+      return roles == null ? new IdentityID[0] : roles;
    }
 
    /**
@@ -162,7 +171,7 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
     * @return an array of the names of the groups assigned to the user.
     */
    public String[] getGroups() {
-      return groups;
+      return groups == null ? new String[0] : groups;
    }
 
    /**
@@ -422,21 +431,6 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    }
 
    /**
-    * Copy role and groups from another principal.
-    */
-   public void copyRoleGroups(XPrincipal others) {
-      if(others.roles != null) {
-         this.roles = new IdentityID[others.roles.length];
-         System.arraycopy(others.roles, 0, roles, 0, roles.length);
-      }
-
-      if(others.groups != null) {
-         this.groups = new String[others.groups.length];
-         System.arraycopy(others.groups, 0, groups, 0, groups.length);
-      }
-   }
-
-   /**
     * Set ignore login status.
     * @param ignoreLogin true if should not check login status of this
     * principal, false otherwise.
@@ -519,6 +513,80 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
       this.profiling = profiling;
    }
 
+   public void updateRoles(AuthenticationProvider provider) {
+      final HashSet<IdentityID> baseRoles = new HashSet<>();
+
+      if(this.roles != null) {
+         baseRoles.addAll(Arrays.asList(this.roles));
+      }
+
+      //check base roles of assigned Organization
+      if(orgId != null && provider.getOrganization(orgId) != null) {
+         IdentityID[] orgRoles = provider.getOrganization(orgId).getRoles();
+
+         if(orgRoles != null) {
+            baseRoles.addAll(Arrays.asList(orgRoles));
+         }
+      }
+
+      Arrays.stream(getAllGroups(provider))
+         .map(provider::getGroup)
+         .filter(Objects::nonNull)
+         .flatMap(g -> Arrays.stream(g.getRoles()))
+         .forEach(baseRoles::add);
+
+      this.allRoles = provider.getAllRoles(baseRoles.toArray(new IdentityID[0]));
+   }
+
+   /**
+    * Get all roles include parent roles. Objects are cached for 10s.
+    */
+   public IdentityID[] getAllRoles(AuthenticationProvider provider) {
+      IdentityID[] roles = this.allRoles;
+
+      if(roles != null && System.currentTimeMillis() > allRolesTimeout) {
+         roles = null;
+      }
+
+      if(roles == null) {
+         updateRoles(provider);
+         roles = this.allRoles;
+         allRolesTimeout = System.currentTimeMillis() + TIMEOUT;
+      }
+
+      roles = Arrays.stream(roles).filter(role -> isRoleVisible(role)).toArray(IdentityID[]::new);
+
+      return roles;
+   }
+
+   private boolean isRoleVisible(IdentityID role) {
+      if(!SUtil.isMultiTenant() && "Organization Administrator".equals(role.name)) {
+         return false;
+      }
+
+      return true;
+   }
+
+   /**
+    * Get all groups include parent groups. Objects are cached for 10s.
+    */
+   public IdentityID[] getAllGroups(AuthenticationProvider provider) {
+      IdentityID[] groups = this.allGroups;
+
+      if(groups != null && System.currentTimeMillis() > allGroupsTimeout) {
+         groups = null;
+      }
+
+      if(groups == null) {
+         IdentityID[] groupIds = Arrays.stream(this.groups)
+            .map(g -> new IdentityID(g, orgId)).toArray(IdentityID[]::new);
+         groups = this.allGroups = provider.getAllGroups(groupIds);
+         allGroupsTimeout = System.currentTimeMillis() + TIMEOUT;
+      }
+
+      return groups;
+   }
+
    /**
     * Get the view of this specified user (alias will be used if any).
     */
@@ -539,8 +607,8 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    private static final Logger LOG =
       LoggerFactory.getLogger(XPrincipal.class);
    protected String name;
-   protected IdentityID[] roles;
-   protected String[] groups;
+   protected IdentityID[] roles = {};
+   protected String[] groups = {};
    protected String orgId;
    protected String sessionID;
    protected Map<String, String> prop;
@@ -548,4 +616,10 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    private HashMap<String, Long> paramTS = new HashMap<>();
    private boolean ignoreLogin = false;
    private boolean profiling = false;
+
+   private static long TIMEOUT = 10000;
+   private transient IdentityID[] allRoles;
+   private transient IdentityID[] allGroups;
+   private transient long allRolesTimeout = 0;
+   private transient long allGroupsTimeout = 0;
 }

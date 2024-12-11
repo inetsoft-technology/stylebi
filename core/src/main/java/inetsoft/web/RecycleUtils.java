@@ -370,7 +370,7 @@ public final class RecycleUtils {
             AnalyticRepository analyticRepository = SUtil.getRepletRepository();
             ResourceAction action = ResourceAction.valueOf("READ");
             RepositoryEntry[] entries = analyticRepository.getRepositoryEntries(path, principal,
-               action, RepositoryEntry.ALL);
+               action, RepositoryEntry.ALL, false);
             RecycleUtils.restoreRepositoryChildren(entries, rEntry, overwrite, principal, recycleBinFile);
             registry.removeFolder(path);
             repository.checkAssetPermission(principal, newEntry.getParent(), ResourceAction.WRITE);

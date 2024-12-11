@@ -17,6 +17,9 @@
  */
 package inetsoft.sree.internal.sync;
 
+import inetsoft.sree.internal.DeployHelper;
+import inetsoft.sree.security.OrganizationManager;
+import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.dep.*;
 import inetsoft.util.gui.ObjectInfo;
 import inetsoft.uql.asset.internal.FunctionIterator;
@@ -60,11 +63,26 @@ public class QueryDependenciesFinder {
          collectDependenciesForQuery(fileName, qname, element, dependenciesMap, queryFolderMap);
       }
       else if(WorksheetAsset.WORKSHEET.equals(type)) {
-         collectDependenciesForWorksheet(fileName, element, dependenciesMap);
+         collectDependenciesForWorksheet(fileName, element, dependenciesMap,
+            isOthersUserScopeSheet(file, names));
       }
       else if(ViewsheetAsset.VIEWSHEET.equals(type)) {
          collectDependenciesForViewsheet(fileName, element, dependenciesMap);
       }
+   }
+
+   private static boolean isOthersUserScopeSheet(File file, Map<String, String> names) {
+      XAsset asset = DeployHelper.getAssetByFile(file, names);
+
+      if(!(asset instanceof AbstractSheetAsset sheet)) {
+         return false;
+      }
+
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      return sheet.getAssetEntry() != null &&
+         !Tool.equals(currentOrgID, sheet.getAssetEntry().getOrgID()) &&
+         sheet.getAssetEntry().getScope() == AssetRepository.USER_SCOPE;
    }
 
    private static String getAssetType(String fileName) {
@@ -123,7 +141,9 @@ public class QueryDependenciesFinder {
    }
 
    public static void collectDependenciesForWorksheet(String fileName, Element root,
-                                                      Map<String, List<String>> dependenciesMap) {
+                                                      Map<String, List<String>> dependenciesMap,
+                                                      boolean othersOrgUserScope)
+   {
       StringBuilder builder = new StringBuilder();
       builder.append("//assemblies/oneAssembly/assembly/assemblyInfo/source/sourceInfo |");
       builder.append("//assemblies/oneAssembly/assembly/attachedAssembly/source/sourceInfo");
@@ -142,6 +162,23 @@ public class QueryDependenciesFinder {
 
          if(!StringUtils.isEmpty(qname)) {
             dependenciesMap.computeIfAbsent(qname, k -> new ArrayList<>()).add(fileName);
+         }
+      }
+
+      if(!othersOrgUserScope) {
+         return;
+      }
+
+      list = UpdateDependencyHandler.getChildNodes(root, "//assemblies/oneAssembly/assembly/sembeddedData");
+
+      for(int i = 0; i < list.getLength(); i++) {
+         Element sembeddedData = (Element) list.item(i);
+         Element pathsElem = Tool.getChildNodeByTagName(sembeddedData, "paths");
+
+         if(pathsElem != null) {
+            Element path = Tool.getChildNodeByTagName(pathsElem, "path");
+            dependenciesMap.computeIfAbsent(
+               "privateSembeddedData", k -> new ArrayList<>()).add(Tool.getValue(path) + "_s.tdat");
          }
       }
    }

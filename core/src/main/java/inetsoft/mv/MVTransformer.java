@@ -498,7 +498,7 @@ public final class MVTransformer {
          return table;
       }*/
 
-      if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+      if("true".equals(SreeEnv.getProperty("mv.debug"))) {
          String info = desc.getInfo();
          LOG.debug("Transformation info: " + info);
       }

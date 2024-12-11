@@ -21,6 +21,7 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.CredentialType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -39,6 +40,11 @@ public class PrometheusDataSource extends EndpointJsonDataSource<PrometheusDataS
    public PrometheusDataSource() {
       super(TYPE, PrometheusDataSource.class);
       setAuthType(AuthType.NONE);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return null;
    }
 
    @Property(label = "Host", required = true)

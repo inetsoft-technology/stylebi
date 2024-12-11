@@ -149,7 +149,8 @@ public class VSAnnotationAddController {
       {
          //adjust the annotation position to make it do not out of the parent.
          if(viewsheet.getViewsheetInfo().isScaleToScreen() &&
-            !(parentInfo instanceof TableDataVSAssemblyInfo))
+            !(parentInfo instanceof TableDataVSAssemblyInfo) &&
+            !(parentInfo instanceof ChartVSAssemblyInfo))
          {
             Dimension parentSize = parentInfo.getLayoutSize(false);
             parentSize = parentSize != null ? parentSize : parentInfo.getPixelSize();

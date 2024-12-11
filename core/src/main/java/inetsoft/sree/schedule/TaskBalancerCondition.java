@@ -28,10 +28,16 @@ public class TaskBalancerCondition implements ScheduleCondition {
    @Override
    public boolean check(long curr) {
       LocalTime now = getLocalTime(curr);
-      return TimeRange.getTimeRanges().stream()
+      boolean result = TimeRange.getTimeRanges().stream()
          .map(TimeRange::getStartTime)
          .mapToLong(t -> Math.abs(Duration.between(now, t).toMinutes()))
          .anyMatch(t -> t <= 10L);
+
+      if(result) {
+         this.lastRun = curr;
+      }
+
+      return result;
    }
 
    @Override
@@ -48,7 +54,17 @@ public class TaskBalancerCondition implements ScheduleCondition {
          next = next.minusMinutes(10L);
 
          if(next.isBefore(now)) {
-            return getTimestamp(now.atDate(LocalDate.now()));
+            long nextRun;
+
+            if(Duration.between(now, getLocalTime(lastRun)).toMinutes() < 5L) {
+               nextRun = getTimestamp(now.plusMinutes(5L).atDate(LocalDate.now()));
+            }
+            else {
+               nextRun = getTimestamp(now.atDate(LocalDate.now()));
+            }
+
+            lastRun = nextRun;
+            return nextRun;
          }
 
          return getTimestamp(next.atDate(LocalDate.now()));
@@ -74,4 +90,6 @@ public class TaskBalancerCondition implements ScheduleCondition {
    private long getTimestamp(LocalDateTime date) {
       return date.toInstant(OffsetDateTime.now().getOffset()).toEpochMilli();
    }
+
+   long lastRun = 0L;
 }

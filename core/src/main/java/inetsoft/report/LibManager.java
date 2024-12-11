@@ -105,12 +105,12 @@ public class LibManager implements AutoCloseable {
       styles = factory.createTableStyleLogicalLibrary();
       styleFolders = factory.createTableStyleFolderLogicalLibrary();
       this.storages = new ConcurrentHashMap<>();
-      getStorage();
       this.debouncer = new DefaultDebouncer<>();
+      getStorage();
    }
 
    private BlobStorage<Metadata> getStorage() {
-      String storeID = OrganizationManager.getInstance().getCurrentOrgID() + "__" + "library";
+      String storeID = getStorageId(OrganizationManager.getInstance().getCurrentOrgID());
 
       if(storages.containsKey(storeID)) {
          return storages.get(storeID);
@@ -129,6 +129,10 @@ public class LibManager implements AutoCloseable {
 
          return storage;
       }
+   }
+
+   private String getStorageId(String orgId) {
+      return orgId.toLowerCase() + "__" + "library";
    }
 
    /**
@@ -531,6 +535,16 @@ public class LibManager implements AutoCloseable {
       return style == null ? styles.getByName(name) : style;
    }
 
+   public XTableStyle getTableStyle(String name, String orgID) {
+      XTableStyle style = styles.get(name, orgID);
+
+      return style == null ? styles.getByName(name) : style;
+   }
+
+   public XTableStyle getTableStyleByName(String name) {
+      return styles.getByName(name, false);
+   }
+
    /**
     * Set a new table style or replace an existing table style.
     * @param name the specified table style name.
@@ -567,6 +581,7 @@ public class LibManager implements AutoCloseable {
       scripts.clear(orgId);
       styleFolders.clear(orgId);
       styles.clear(orgId);
+      storages.remove(getStorageId(orgId));
    }
 
    /**
@@ -797,6 +812,10 @@ public class LibManager implements AutoCloseable {
     */
    public boolean isDirty() {
       return getLogicalLibraries().stream().anyMatch(LogicalLibrary::hasTransactions);
+   }
+
+   public void changeOrgID(String oldId, String newId) {
+      storages.remove(getStorageId(oldId));
    }
 
    private List<LogicalLibrary<?>> getLogicalLibraries() {

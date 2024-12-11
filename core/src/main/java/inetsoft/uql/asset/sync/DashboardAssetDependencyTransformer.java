@@ -59,10 +59,12 @@ public class DashboardAssetDependencyTransformer extends DependencyTransformer {
             TransformerUtil.save(getAssetFile().getAbsolutePath(), doc);
          }
          else {
-            DashboardRegistry registry = DashboardRegistry.getRegistry(dashboard.getUser());
+            DashboardRegistry registry = dashboard.getUser() == null ?
+               DashboardRegistry.getRegistry(dashboard.getOrgID()) :
+               DashboardRegistry.getRegistry(dashboard.getUser());
             VSDashboard dash = (VSDashboard) registry.getDashboard(dashboard.getName());
 
-            if(dash.getViewsheet() == null) {
+            if(dash == null || dash.getViewsheet() == null) {
                return null;
             }
 

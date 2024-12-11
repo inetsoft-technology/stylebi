@@ -21,12 +21,14 @@ import inetsoft.report.*;
 import inetsoft.report.composition.execution.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.binding.*;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.lens.*;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
+import inetsoft.storage.ExternalStorageService;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
@@ -278,11 +280,8 @@ public class Util implements inetsoft.report.StyleConstants {
          if(w2 > w1) {
             return s2;
          }
-         else if(w1 < w2) {
-            return s1;
-         }
 
-         return Math.max(s1, s2);
+         return s1;
       }
 
       int style = Math.max(s1 & WIDTH_MASK, s2 & WIDTH_MASK) |
@@ -2463,7 +2462,9 @@ public class Util implements inetsoft.report.StyleConstants {
       }
 
       // count has not relationship with original value (e.g. currency, date)
-      if(aggr instanceof CountFormula || aggr instanceof DistinctCountFormula) {
+      if(aggr instanceof CountFormula || aggr instanceof DistinctCountFormula ||
+         aggr instanceof CorrelationFormula)
+      {
          info.setXFormatInfo(null);
          info.setXDrillInfo(null);
          return;
@@ -3201,6 +3202,12 @@ public class Util implements inetsoft.report.StyleConstants {
       return renameScriptDepended(oname, nname, script, null);
    }
 
+   public static String renameScriptRefDepended(final String oname,
+                                                final String nname, String script)
+   {
+      return renameScriptRefDepended(oname, nname, script, null);
+   }
+
    /**
     * Rename the depended in a script.
     *
@@ -3210,6 +3217,43 @@ public class Util implements inetsoft.report.StyleConstants {
     *
     * @return the renamed script.
     */
+   public static String renameScriptRefDepended(final String oname,
+                                                final String nname, String script,
+                                                Function<String, Boolean> acceptFunc)
+   {
+      if(script == null || script.length() == 0) {
+         return script;
+      }
+
+      final StringBuilder sb = new StringBuilder();
+
+      ScriptIterator.ScriptListener listener = (ScriptIterator.Token token,
+                                                ScriptIterator.Token pref,
+                                                ScriptIterator.Token cref) ->
+      {
+         if(token.isRef() && token.val.equals(oname) && (cref == null || !"[".equals(cref.val)) &&
+            (acceptFunc == null || acceptFunc.apply(sb.toString())))
+         {
+            sb.append(new ScriptIterator.Token(token.type, nname, token.length));
+         }
+         else if(token.type == ScriptIterator.Token.TEXT && token.val.contains("['" + oname + "']")
+            && (acceptFunc == null || acceptFunc.apply(sb.toString())))
+         {
+            sb.append(new ScriptIterator.Token(token.type, token.val.replace(oname, nname),
+               token.length));
+         }
+         else {
+            sb.append(token);
+         }
+      };
+
+      ScriptIterator iterator = new ScriptIterator(script);
+      iterator.addScriptListener(listener);
+      iterator.iterate();
+
+      return sb.toString();
+   }
+
    public static String renameScriptDepended(final String oname,
                                              final String nname, String script,
                                              Function<String, Boolean> acceptFunc)
@@ -3224,18 +3268,7 @@ public class Util implements inetsoft.report.StyleConstants {
                                                 ScriptIterator.Token pref,
                                                 ScriptIterator.Token cref) ->
       {
-         if(token.isRef() && token.val.equals(oname) && (cref == null || !"[".equals(cref)) &&
-            (acceptFunc == null || acceptFunc.apply(sb.toString())))
-         {
-            sb.append(new ScriptIterator.Token(token.type, nname, token.length));
-         }
-         else if(token.type == ScriptIterator.Token.TEXT && token.val.contains("['" + oname + "']")
-            && (acceptFunc == null || acceptFunc.apply(sb.toString())))
-         {
-            sb.append(new ScriptIterator.Token(token.type, token.val.replace(oname, nname),
-               token.length));
-         }
-         else if(token.val.contains(oname)) {
+         if(token.val.contains(oname)) {
             sb.append(token.val.replace(oname, nname));
          }
          else {
@@ -3289,7 +3322,6 @@ public class Util implements inetsoft.report.StyleConstants {
       builder.append(")");
       builder.append(fileExtension);
       String nfilePath = builder.toString();
-
       file = new File(nfilePath);
 
       if(!file.exists()) {
@@ -3323,10 +3355,25 @@ public class Util implements inetsoft.report.StyleConstants {
       return lastName.substring(0, idx) + index;
    }
 
+   public static void drawWatermark(Graphics g, Dimension size) {
+      Font ofont = g.getFont();
+      g.setColor(Color.lightGray);
+
+      for(int y = 100; y < size.height - 40; y += 180) {
+         int x = (y / 4) + 80;
+         g.setFont(WATER_FONT);
+         g.drawString("Licensed hours exhausted", x, y);
+      }
+
+      g.setColor(Color.black);
+      g.setFont(ofont);
+   }
+
    public static String BASE_MAX_ROW_KEY = "^_base_^";
    public static String SUB_MAX_ROW_KEY = "^_sub_^";
    public static String HINT_MAX_ROW_KEY = "^_hint_maxrow_^";
 
+   private static final Font WATER_FONT = new StyleFont(StyleFont.DEFAULT_FONT_FAMILY, Font.BOLD, 22);
    public static final String DATE_PART_COLUMN = "date_part_column";
 
    private static final int MAX_ROW_COUNT = 0;

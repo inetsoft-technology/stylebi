@@ -185,9 +185,6 @@ public class UnionTableNode extends XTableNode {
       if(type.equals("int")) {
          return XIntegerColumn.getCreator();
       }
-      else if(type.equals("dateTime")) {
-         return XTimestampColumn.getCreator();
-      }
       else if(type.equals("boolean")) {
          return XBooleanColumn.getCreator();
       }

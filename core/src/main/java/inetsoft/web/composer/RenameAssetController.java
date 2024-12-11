@@ -70,6 +70,14 @@ public class RenameAssetController {
    {
       AssetEntry entry = event.entry();
 
+      // log action
+      String actionName = ActionRecord.ACTION_NAME_RENAME;
+      String objectName = entry.getDescription();
+      String objectType = AssetEventUtil.getObjectType(entry);
+      Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
+      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName,
+         objectName, objectType, actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE, null);
+
       try {
          assetRepository.checkAssetPermission(principal, entry, ResourceAction.DELETE);
 
@@ -82,6 +90,12 @@ public class RenameAssetController {
          messageCommand.setMessage(Catalog.getCatalog().getString("composer.nopermission.rename",
                                                                   entry.getName()));
          messageCommand.setType(MessageCommand.Type.ERROR);
+
+         if(actionRecord != null) {
+            actionRecord.setActionError("Permission denied to rename: " + entry.getName());
+            Audit.getInstance().auditAction(actionRecord, principal);
+         }
+
          return messageCommand;
       }
 
@@ -122,15 +136,6 @@ public class RenameAssetController {
          messageCommand.setType(MessageCommand.Type.ERROR);
          return messageCommand;
       }
-
-      // log action
-      String actionName = ActionRecord.ACTION_NAME_RENAME;
-      String objectName = entry.getDescription();
-      String objectType = AssetEventUtil.getObjectType(entry);
-      Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
-      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), actionName, objectName,
-                                                   objectType, actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE,
-                                                   null);
 
       try {
          ResourceType resourceType = AssetUtil.isLibraryType(entry) ?

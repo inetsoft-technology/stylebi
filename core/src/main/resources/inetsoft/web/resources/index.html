@@ -18,7 +18,7 @@
 <!DOCTYPE html>
 <head>
   <meta charset="utf-8">
-  <title>StyleBI</title>
+  <title data-th-text="#{index.stylebi}">StyleBI</title>
   <meta name="description" content="StyleBI">
   <meta name="author" content="InetSoft Technology Corp">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
@@ -28,17 +28,17 @@
   <link rel="shortcut icon" href="images/favicon.png">
 </head>
 <body>
-<nav class="navbar navbar-light bg-light">
-  <span class="navbar-brand mb-0 title">StyleBI</span>
-  <span class="title2">Cloud Native Open Source BI and Data Visualization</span>
+<nav class="navbar navbar-light header-band">
+  <div class="navbar-brand mb-0 title" data-th-text="#{index.stylebi}">StyleBI</div>
+  <span class="title2" data-th-text="#{index.cloud}">Cloud Optimized Open Source BI and Data Visualization</span>
 </nav>
-<div class="container">
+<div class="container card-container">
   <div class="row">
     <div class="col-lg-6">
       <a href="app/portal" class="text-decoration-none">
         <div class="card card-margin">
           <div class="card-header no-border">
-            <h5 class="card-title">User & Designer</h5>
+            <h5 class="card-title" data-th-text="#{index.userdesigner}">User & Designer</h5>
           </div>
           <div class="card-body pt-0">
             <div class="widget-49">
@@ -47,16 +47,16 @@
                   <img src="images/dashboard.svg" width="32" height="32">
                 </div>
                 <div class="widget-49-module-info">
-                  <span class="widget-49-pro-title">Dashboard Portal</span>
-                  <span class="widget-49-module-time">Design and View Dashboards</span>
+                  <span class="widget-49-pro-title" data-th-text="#{index.portal}">Dashboard Portal</span>
+                  <span class="widget-49-module-time" data-th-text="#{index.design.view.dashboards}">Design and View Dashboards</span>
                 </div>
               </div>
               <ul class="widget-49-module-points">
-                <li class="widget-49-module-item"><span>Dashboard Repository</span></li>
-                <li class="widget-49-module-item"><span>Connect to Data Sources</span></li>
-                <li class="widget-49-module-item"><span>Upload Data Files</span></li>
-                <li class="widget-49-module-item"><span>Create Queries/Data Worksheets</span></li>
-                <li class="widget-49-module-item"><span>Design Dashboards</span></li>
+                <li class="widget-49-module-item"><span data-th-text="#{index.dashboard.repository}">Dashboard Repository</span></li>
+                <li class="widget-49-module-item"><span data-th-text="#{index.connect.sources}">Connect to Data Sources</span></li>
+                <li class="widget-49-module-item"><span data-th-text="#{index.upload.files}">Upload Data Files</span></li>
+                <li class="widget-49-module-item"><span data-th-text="#{index.create.queries.worksheets}">Create Queries Data Worksheets</span></li>
+                <li class="widget-49-module-item"><span data-th-text="#{index.design.dashboards}">Design Dashboards</span></li>
               </ul>
             </div>
           </div>
@@ -67,7 +67,7 @@
       <a href="em" class="text-decoration-none">
         <div class="card card-margin">
           <div class="card-header no-border">
-            <h5 class="card-title">Administrator</h5>
+            <h5 class="card-title" data-th-text="#{index.administrator}">Administrator</h5>
           </div>
           <div class="card-body pt-0">
             <div class="widget-49">
@@ -76,15 +76,15 @@
                   <img src="images/admin.svg" width="32" height="32">
                 </div>
                 <div class="widget-49-module-info">
-                  <span class="widget-49-pro-title">Enterprise Manager</span>
-                  <span class="widget-49-module-time">Manage Users, Dashboards, and more...</span>
+                  <span class="widget-49-pro-title" data-th-text="#{index.em}">Enterprise Manager</span>
+                  <span class="widget-49-module-time" data-th-text="#{index.manage.users.dashboards.more}">Manage Users, Dashboards, and more...</span>
                 </div>
               </div>
               <ul class="widget-49-module-points">
-                <li class="widget-49-module-item"><span>Security and Permissions</span></li>
-                <li class="widget-49-module-item"><span>Scheduling</span></li>
-                <li class="widget-49-module-item"><span>Contents and Presentation</span></li>
-                <li class="widget-49-module-item"><span>Monitoring and Auditing</span></li>
+                <li class="widget-49-module-item"><span data-th-text="#{index.security.permissions}">Security and Permissions</span></li>
+                <li class="widget-49-module-item"><span data-th-text="#{index.scheduling}">Scheduling</span></li>
+                <li class="widget-49-module-item"><span data-th-text="#{index.contents.presentation}">Contents and Presentation</span></li>
+                <li class="widget-49-module-item"><span data-th-text="#{index.monitoring.auditing}">Monitoring and Auditing</span></li>
                 <li class="widget-49-module-item"><span>...</span></li>
               </ul>
             </div>
@@ -93,4 +93,7 @@
       </a>
     </div>
   </div>
+</div>
+<div class="attribution"><a href="https://www.freepik.com" target="freepik">Image from Freepik</a>
+  <div>
 </body>

@@ -72,7 +72,7 @@ public class Role extends AbstractIdentity {
 
       if(roleIdentity != null) {
          this.name = roleIdentity.name;
-         this.organization = roleIdentity.organization;
+         this.organizationID = roleIdentity.orgID;
       }
 
       this.roles = roles;
@@ -97,9 +97,8 @@ public class Role extends AbstractIdentity {
    /**
     * Get organization ID assigned to the user.
     */
-   @Override
-   public String getOrganization() {
-      return this.organization;
+   public String getOrganizationID() {
+      return this.organizationID;
    }
 
    /**
@@ -118,7 +117,7 @@ public class Role extends AbstractIdentity {
          IdentityID[] croles = new IdentityID[roles.length];
          System.arraycopy(roles, 0, croles, 0, roles.length);
 
-         Role role = new Role(new IdentityID(name, organization), croles);
+         Role role = new Role(new IdentityID(name, organizationID), croles);
          return role;
       }
       catch(Exception ex) {
@@ -137,7 +136,7 @@ public class Role extends AbstractIdentity {
 
    @Override
    public IdentityID getIdentityID() {
-      return new IdentityID(name, organization);
+      return new IdentityID(name, organizationID);
    }
 
    /**
@@ -183,7 +182,7 @@ public class Role extends AbstractIdentity {
    }
 
    protected String name;
-   protected String organization;
+   protected String organizationID;
    protected IdentityID[] roles;
    protected String desc;
    protected boolean defaultRole;

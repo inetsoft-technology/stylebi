@@ -53,11 +53,11 @@ public final class AutoSaveUtils {
        String type = paths[1];
        String ouser = paths[2];
        String name = paths[3];
-       String orgId = paths.length > 4 ? paths[4] : null;
+       String ip = paths.length > 4 ? paths[4] : null;
 
        String typeStr = "VIEWSHEET".equals(type) ? "^128^" : "^2^";
        AssetEntry entry = AssetEntry.createAssetEntry(scope + typeStr + ouser + "^" + name +
-                                                         "^" + orgId);
+                                                         "^" + ip);
        entry.setProperty("openAutoSaved", "true");
        entry.setProperty("autoFileName", autoFile);
        entry.setProperty("isRecycle", "true");
@@ -102,7 +102,7 @@ public final class AutoSaveUtils {
                if(Tool.equals(userName, user) && Tool.equals(ipString, attrs[4])) {
                   try {
                      if("WORKSHEET".equals(attrs[1])) {
-                        IdentityID realUser = "_NULL_".equals(attrs[2]) ? null : new IdentityID(attrs[2], OrganizationManager.getCurrentOrgName());
+                        IdentityID realUser = "_NULL_".equals(attrs[2]) ? null : new IdentityID(attrs[2], OrganizationManager.getInstance().getCurrentOrgID());
                         AssetEntry entry = new AssetEntry(
                            Integer.parseInt(attrs[0]), AssetEntry.Type.WORKSHEET, attrs[3], realUser);
 

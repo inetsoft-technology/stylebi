@@ -17,7 +17,10 @@
  */
 package inetsoft.web.admin.security;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.sree.security.*;
+import inetsoft.util.Tool;
 import inetsoft.util.data.MapModel;
 import inetsoft.report.internal.Util;
 import inetsoft.web.admin.general.DatabaseSettingsService;
@@ -152,12 +155,36 @@ public class AuthenticationProviderController {
                                                        Principal principal)
    {
       DatabaseAuthenticationProviderModel dbProviderModel = model.dbProviderModel();
+      String username = null;
+      String password = null;
+
+      if(dbProviderModel != null) {
+         if(dbProviderModel.useCredential()) {
+            String secretId = dbProviderModel.secretId();
+
+            try {
+               JsonNode jsonNode = Tool.loadCredentials(secretId);
+
+               if(jsonNode != null) {
+                  username = jsonNode.get("user").asText();
+                  password = jsonNode.get("password").asText();
+               }
+            }
+            catch(Exception e) {
+            }
+         }
+         else {
+            username = dbProviderModel.user();
+            password = dbProviderModel.password();
+         }
+      }
+
       DatabaseSettingsModel databaseSettingsModel = DatabaseSettingsModel.builder()
          .driver(Objects.requireNonNull(dbProviderModel).driver())
          .databaseURL(dbProviderModel.url())
          .requiresLogin(dbProviderModel.requiresLogin())
-         .username(dbProviderModel.user())
-         .password(dbProviderModel.password())
+         .username(username)
+         .password(password)
          .defaultDB("")
          .build();
       return databaseSettingsService.testConnection(databaseSettingsModel, principal);
@@ -206,13 +233,13 @@ public class AuthenticationProviderController {
       return authenticationProviderService.getOrganizations(model);
    }
 
-   @PostMapping("/api/em/security/get-organizationId/**")
+   @PostMapping("/api/em/security/get-organizationName/**")
    @DeniedMultiTenancyOrgUser
-   public String getOrganizationId(@RemainingPath String name,
+   public String getOrganizationName(@RemainingPath String id,
                                               @RequestBody AuthenticationProviderModel model)
       throws Exception
    {
-      return authenticationProviderService.getOrganizationId(model, name);
+      return authenticationProviderService.getOrganizationName(model, id);
    }
 
    @PostMapping("/api/em/security/group/users/**")
@@ -254,7 +281,12 @@ public class AuthenticationProviderController {
 
    @GetMapping("/api/em/security/get-default-organization")
    public String getDefaultOrganization() {
-      return Organization.getDefaultOrganizationName();
+      return Organization.getDefaultOrganizationID();
+   }
+
+   @GetMapping("/api/em/security/isCloudSecrets")
+   public boolean isCloudSecrets() {
+      return Tool.isCloudSecrets();
    }
 
    private final AuthenticationProviderService authenticationProviderService;

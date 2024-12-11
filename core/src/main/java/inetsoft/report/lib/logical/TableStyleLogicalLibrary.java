@@ -320,13 +320,17 @@ public class TableStyleLogicalLibrary extends AbstractLogicalLibrary<XTableStyle
    /**
     * Find table style by name instead of id.
     */
-   public XTableStyle getByName(String name) {
+   public XTableStyle getByName(String name, boolean fuzzy) {
       return getNameToEntryMap(null).values().stream()
          .filter(entry -> Objects.equals(name, entry.asset().getName()) ||
             // name could be folder~name
-            entry.asset().getName().endsWith("~" + name))
+            fuzzy && entry.asset().getName().endsWith("~" + name))
          .map(entry -> entry.asset())
          .findFirst().orElse(null);
+   }
+
+   public XTableStyle getByName(String name) {
+      return getByName(name, true);
    }
 
    private boolean requiresUserDefinedStyleFolder = false;

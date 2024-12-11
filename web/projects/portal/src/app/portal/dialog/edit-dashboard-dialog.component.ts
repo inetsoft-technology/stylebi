@@ -206,7 +206,7 @@ export class EditDashboardDialog implements OnInit {
       }
    }
 
-   isValid(): boolean {
+   isValid = () => {
       return this.nameControl && this.nameControl.valid &&
          (!!this.dashboard.path || this.compose);
    }

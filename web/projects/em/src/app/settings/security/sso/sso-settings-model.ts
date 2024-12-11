@@ -60,6 +60,7 @@ export interface SamlAttributesModel extends SSOAttributesModel {
 }
 
 export interface OpenIdAttributesModel extends SSOAttributesModel {
+   secretId: string;
    clientId: string;
    clientSecret: string;
    scopes?: string;

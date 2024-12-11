@@ -300,7 +300,8 @@ public class InputVSAQuery extends VSAQuery {
       Object[] formats = ldata.getFormats();
 
       // create list in order to distinguish same labels
-      ArrayList<Integer> distinguish = new ArrayList<>();
+      Set<Integer> distinguish = new HashSet<>();
+
       // sort values based on the sorted label
       for(int i = 0; i < newOrders.length && values.length == newOrders.length;
          i++)

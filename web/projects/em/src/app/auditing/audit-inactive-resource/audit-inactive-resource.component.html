@@ -18,29 +18,29 @@
 <em-audit-table-view [dateRangeVisible]="false" [displayedColumns]="getDisplayedColumns()" [columnRenderers]="columnRenderers" [parameterForm]="form"
                      [fetchParameters]="fetchParameters" [fetchData]="fetchData" [isIdentityInfo]="true" [orgNames]="orgNames">
   <section class="flex-row" [formGroup]="form">
-    <mat-form-field *ngIf="organizationFilter" appearance="outline" color="primary" class="flex">
-      <mat-label>_#(Identity Organizations)</mat-label>
+    <mat-form-field *ngIf="organizationFilter" appearance="outline" color="accent" class="flex">
+      <mat-label>_#(Resource Organizations)</mat-label>
       <mat-select formControlName="selectedOrganizations" multiple>
-        <mat-option *ngFor="let org of organizations" [value]="org">{{org}}</mat-option>
+        <mat-option *ngFor="let org of organizationNames; let i = index" [value]="org">{{organizationNames[i]}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Resource Types)</mat-label>
       <mat-select formControlName="selectedTypes" multiple>
-        <mat-option *ngFor="let type of objectTypes" [value]="type">{{getAssetTypeLabel(type)}}</mat-option>
+        <mat-option *ngFor="let type of objectTypes" [value]="type.value">{{getAssetTypeLabel(type.label)}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Hosts)</mat-label>
       <mat-select formControlName="selectedHosts" multiple>
         <mat-option *ngFor="let host of hosts" [value]="host">{{host}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(inactive.least.days)</mat-label>
       <input matInput type="number" [min]="minStartDuration" [max]="maxStartDuration" formControlName="minDuration"/>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(inactive.most.days)</mat-label>
       <input matInput type="number" [min]="minEndDuration" [max]="maxEndDuration" formControlName="maxDuration"/>
     </mat-form-field>

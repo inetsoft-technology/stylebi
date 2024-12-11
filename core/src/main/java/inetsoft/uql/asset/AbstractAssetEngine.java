@@ -18,6 +18,7 @@
 package inetsoft.uql.asset;
 
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.util.gui.ObjectInfo;
 import inetsoft.mv.*;
@@ -236,7 +237,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return false;
       };
 
-      storage.getKeys(filter);
+      storage.getKeys(filter, entry.getOrgID());
       return entryList.toArray(new AssetEntry[0]);
    }
 
@@ -384,7 +385,26 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             "common.invalidStorage", entry));
       }
 
-      XMLSerializable obj = storage.getXMLSerializable(identifier, null);
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      //pass default org global repository if inside global visible folder
+      if(SUtil.isDefaultVSGloballyVisible(user) &&
+         Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID()) &&
+         Tool.equals(entry.getPath(), OrganizationManager.getGlobalDefOrgFolderName()))
+      {
+         identifier = "1^4097^__NULL__^/^host-org";
+         orgID = Organization.getDefaultOrganizationID();
+      }
+      XMLSerializable obj = storage.getXMLSerializable(identifier, null, orgID);
+
+      //catch default org folder by checking as host org
+      if(obj == null && SUtil.isDefaultVSGloballyVisible(user) &&
+         !Tool.equals(identifier, "1^4097^__NULL__^/^"+Organization.getSelfOrganizationID()) &&
+         !Tool.equals(identifier, "1^1^__NULL__^/^"+Organization.getSelfOrganizationID())
+      ) {
+         AssetEntry tmp = (AssetEntry) entry.clone();
+         tmp.setOrgID(Organization.getDefaultOrganizationID());
+         obj = storage.getXMLSerializable(tmp.toIdentifier(true), null, Organization.getDefaultOrganizationID());
+      }
 
       if(obj instanceof AssetFolder) {
          AssetFolder folder = (AssetFolder) obj;
@@ -1946,7 +1966,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
             info.setRenameInfo(newAssetEntry, renameInfos);
          }
 
-         RenameTransformHandler.getTransformHandler().addTransformTask(info);
+         RenameTransformHandler.getTransformHandler().addTransformTask(info, true);
       });
    }
 
@@ -2050,7 +2070,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          nentries[i] = entry2;
 
          if(entry2.isViewsheet() && RecycleUtils.isInRecycleBin(npath)) {
-            manager.viewsheetRemoved(entries[i]);
+            manager.viewsheetRemoved(entries[i], entries[i].getOrgID());
          }
       }
 
@@ -2713,7 +2733,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
                if(vsInfo.isComposedDashboard() && !SecurityEngine.getSecurity().isSecurityEnabled()
                        && user != null && Tool.equals(XPrincipal.ANONYMOUS, entry.getUser()))
                {
-                  bookmarkUser = new XPrincipal(new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationName()));
+                  bookmarkUser = new XPrincipal(new IdentityID(XPrincipal.ANONYMOUS, Organization.getDefaultOrganizationID()));
                }
             }
 
@@ -2991,7 +3011,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       AbstractSheet sheet = (AbstractSheet)
-         ostorage.getXMLSerializable(oidentifier, null);
+         ostorage.getXMLSerializable(oidentifier, null, oentry.getOrgID());
       Principal principal = ThreadContext.getContextPrincipal();
 
       // @by stephenwebster, related to bug1408723303556
@@ -3437,6 +3457,19 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return true;
       }
 
+      //give permission if default org globally visible
+      if(Tool.equals(permission, ResourceAction.READ) && SUtil.isDefaultVSGloballyVisible(user) &&
+                           Organization.getDefaultOrganizationID().equals(entry.getOrgID()) &&
+                           user != null && !((XPrincipal)user).getOrgId().equals(Organization.getDefaultOrganizationID())) {
+         return true;
+      }
+
+      //reject if attempting to get another organization's assets
+      if(!OrganizationManager.getInstance().isSiteAdmin(user) && user != null &&
+         !((XPrincipal)user).getOrgId().equalsIgnoreCase(entry.getOrgID())) {
+         return false;
+      }
+
       ResourceType type = getAssetResourceType(entry);
       String path = entry.getPath();
 
@@ -3836,7 +3869,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       int oscope = entry.getScope();
       String identifier = entry.toIdentifier();
       AbstractSheet sheet = (AbstractSheet)
-         storage.getXMLSerializable(identifier, AssetContent.NO_DATA);
+         storage.getXMLSerializable(identifier, AssetContent.NO_DATA, entry.getOrgID());
 
       // @by stephenwebster, related to bug1408723303556
       // Handle an exception case where a folder points to an asset that does
@@ -4507,8 +4540,8 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    private DataCache<String, AssetFolder> foldermap = new DataCache<>(5000, 3600000);
    private DataCache<String, VSBookmark> bookmarkmap = new DataCache<>(200, 3600000);
    private long lastMod = 0;
-   private static final String TABLE_STYLE = "Table Style";
-   private static final String SCRIPT = "Script Function";
+   private static final String TABLE_STYLE = "Table Styles";
+   private static final String SCRIPT = "Scripts";
 
    private final ReentrantLock writeLock = new ReentrantLock();
    private final AtomicBoolean disposed = new AtomicBoolean(false);

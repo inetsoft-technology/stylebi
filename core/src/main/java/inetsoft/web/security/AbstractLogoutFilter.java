@@ -19,6 +19,7 @@ package inetsoft.web.security;
 
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.uql.XPrincipal;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
@@ -91,8 +92,9 @@ public abstract class AbstractLogoutFilter extends AbstractSecurityFilter {
 
       if(session != null) {
          Principal principal = (Principal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+         IdentityID currUser = IdentityID.getIdentityIDFromKey(principal.getName());
 
-         if(principal != null && XPrincipal.ANONYMOUS.equals(principal.getName())) {
+         if(principal != null && XPrincipal.ANONYMOUS.equals(currUser.getName())) {
             SecurityEngine engine = getSecurityEngine();
 
             if(engine != null && engine.containsAnonymous() || showLogin) {

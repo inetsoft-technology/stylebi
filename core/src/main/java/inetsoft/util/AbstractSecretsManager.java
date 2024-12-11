@@ -17,8 +17,14 @@
  */
 package inetsoft.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nimbusds.jose.*;
 import inetsoft.util.config.SecretsConfig;
+import inetsoft.util.credential.Credential;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.crypto.SecretKey;
 import java.io.IOException;
@@ -28,8 +34,57 @@ import java.util.function.Function;
 public abstract class AbstractSecretsManager extends AbstractPasswordEncryption {
    public AbstractSecretsManager(SecretsConfig secretsConfig) {
       this.secretsConfig = secretsConfig;
-      localEncryption = secretsConfig.isFipsComplianceMode() ?
-         new FipsPasswordEncryption() : new JcePasswordEncryption();
+      localEncryption = PasswordEncryption.newLocalInstance(secretsConfig);
+   }
+
+   /**
+    * Get credential detail data.
+    * @param credential avoid json string include credential type, here we use credential but not id
+    *                   to get secrets values.
+    * @return
+    */
+   public Credential getCredential(Credential credential) {
+      if(credential == null || credential.getId() == null) {
+         return credential;
+      }
+
+      String id = credential.getId();
+      ObjectMapper mapper = new ObjectMapper();
+
+      try {
+         String dbType = credential.getDBType();
+         String result = null;
+
+         if(Tool.isVaultDatabaseSecretsEngine(dbType)) {
+            result = decryptDBPassword(id, dbType);
+         }
+         else {
+            result = decryptPassword(id);
+         }
+
+         Credential converted = mapper.convertValue(mapper.readTree(result), credential.getClass());
+         converted.setId(id);
+
+         return converted;
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to decrypt password", ex);
+      }
+
+      return null;
+   }
+
+   public String encryptCredential(Credential credential) {
+      if(credential == null || credential.isEmpty()) {
+         return null;
+      }
+
+      // only consume secrets, so just return the secret id.
+//      ObjectMapper mapper = new ObjectMapper();
+//      ObjectNode jsonNode = (ObjectNode) mapper.convertValue(credential, JsonNode.class);
+//      return encryptPassword0(jsonNode.toString(), credential.getId());
+
+      return credential.getId();
    }
 
    @Override
@@ -42,10 +97,22 @@ public abstract class AbstractSecretsManager extends AbstractPasswordEncryption 
          return encryptMasterPassword(input);
       }
 
-      return encryptPassword0(input);
+      // only consume secrets, so here must be a secret id, need doing nothing here.
+      return input;
    }
 
-   protected abstract String encryptPassword0(String input);
+   private String encryptPassword0(String input) {
+      // only consume secrets, so here must be a secret id, need doing nothing here.
+//      return encryptPassword0(input, null);
+      return input;
+   }
+
+   /**
+    * @param input   the input need to be encrypted.
+    * @param id      the id to used as the secret name.
+    * @return
+    */
+   protected abstract String encryptPassword0(String input, String id);
 
    /**
     * One other consideration is that when exported, we encrypt the passwords with the master password.
@@ -66,6 +133,11 @@ public abstract class AbstractSecretsManager extends AbstractPasswordEncryption 
       }
 
       return decryptPassword(input);
+   }
+
+   @Override
+   public String decryptDBPassword(String input, String dbType) {
+      return null;
    }
 
    @Override
@@ -113,4 +185,5 @@ public abstract class AbstractSecretsManager extends AbstractPasswordEncryption 
 
    protected SecretsConfig secretsConfig;
    protected PasswordEncryption localEncryption;
+   private static final Logger LOG = LoggerFactory.getLogger(AbstractSecretsManager.class);
 }

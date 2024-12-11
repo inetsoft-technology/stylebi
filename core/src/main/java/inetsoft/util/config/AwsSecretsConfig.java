@@ -19,6 +19,7 @@ package inetsoft.util.config;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.util.config.crd.CRDProperty;
 import inetsoft.util.config.json.PasswordDeserializer;
 import inetsoft.util.config.json.PasswordSerializer;
 
@@ -80,9 +81,14 @@ public class AwsSecretsConfig implements Serializable, Cloneable{
       return config;
    }
 
+   @CRDProperty(description = "The name of the default region")
    private String region;
+   @CRDProperty(description = "The access key ID for the IAM account", secret = true)
    private String accessKeyId;
+   @CRDProperty(description = "The secret access key for the IAM account", secret = true)
    private String secretAccessKey;
+   @CRDProperty(description = "The ARN, key ID or alias of the KMS key that the Secrets Manager uses for encryption")
    private String kmsKeyId;
+   @CRDProperty(description = "The endpoint URL for the Secrets Manager service")
    private String endpoint;
 }

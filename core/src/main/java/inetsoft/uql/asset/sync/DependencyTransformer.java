@@ -19,6 +19,8 @@ package inetsoft.uql.asset.sync;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
@@ -633,13 +635,28 @@ public abstract class DependencyTransformer {
 
             AssetEntry entry = AssetEntry.createAssetEntry(key);
 
-            if(entry == null || !entry.isPhysicalTable()) {
+            if(entry == null || !entry.isPhysicalTable() && !entry.isPartition()) {
                continue;
             }
 
             String id = entry.getPath();
 
             if(!id.contains("/")) {
+               continue;
+            }
+
+            if(entry.isPartition()) {
+               int idx = id.lastIndexOf("/");
+               String source = id.substring(0, idx);
+               String table = id.substring(idx + 1);
+
+               if(Tool.equals(oldSourceName, source)) {
+                  String nid = newSourceName + "/" + table;
+                  entry.setPath(nid);
+                  String nkey = key.replace(id, nid);
+                  service.rename(key, nkey, OrganizationManager.getInstance().getCurrentOrgID());
+               }
+
                continue;
             }
 
@@ -935,7 +952,7 @@ public abstract class DependencyTransformer {
 
       try {
          DependencyStorageService service = DependencyStorageService.getInstance();
-         service.rename(getOldKey(rinfo), getNewKey(rinfo));
+         service.rename(getOldKey(rinfo), getNewKey(rinfo), rinfo.getOrganizationId());
       }
       catch(Exception e) {
          LOG.error("Failed to rename dependency storage: ", e);
@@ -1142,7 +1159,6 @@ public abstract class DependencyTransformer {
    protected boolean replaceAttribute(Element elem, String key, String oname, String nname,
                                       boolean isTotal)
    {
-      nname = Tool.escape(nname);
       String attr = Tool.getAttribute(elem, key);
       boolean success = false;
 

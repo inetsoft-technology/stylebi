@@ -23,6 +23,8 @@ export class VSBookmarkInfoModel {
    type?: number;
    owner?: IdentityId;
    label?: string;
+
+   editable?: string;
    defaultBookmark?: boolean;
    currentBookmark?: boolean;
    tooltip?: string;

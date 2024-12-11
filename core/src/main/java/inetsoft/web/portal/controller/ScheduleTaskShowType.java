@@ -23,7 +23,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 public class ScheduleTaskShowType {
-   @Autowired
    public ScheduleTaskShowType() {
    }
 

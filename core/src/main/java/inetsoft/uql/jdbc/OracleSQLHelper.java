@@ -316,6 +316,11 @@ class OracleSQLHelper extends SQLHelper {
       return buffer.toString();
    }
 
+   @Override
+   public int getInClauseLimit() {
+      return 1000;
+   }
+
    private static Set keywords = new HashSet(); // keywords
 
    static {

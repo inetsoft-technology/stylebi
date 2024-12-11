@@ -351,10 +351,6 @@ public class RunningTotalColumn extends AbstractColumn {
          return list;
       }
 
-      if(values == null || values.size() == 0) {
-         return list;
-      }
-
       int idx = values.indexOf(value);
 
       if(idx == -1) {

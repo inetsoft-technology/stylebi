@@ -456,7 +456,10 @@ public class TableAssemblyOperator implements AssetObject {
    public boolean isOuterJoin() {
       for(int i = 0; i < getOperatorCount(); i++) {
          Operator operator = getOperator(i);
-         return operator.isOuterJoin();
+
+         if(operator.isOuterJoin()) {
+            return true;
+         }
       }
 
       return false;

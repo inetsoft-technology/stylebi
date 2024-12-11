@@ -32,11 +32,9 @@ public class FavoritesController {
    public FavoriteList getFavorites(Principal user) {
       FavoriteList list = favorites.get(user.getName());
 
-
       if(list == null) {
-         list = FavoriteList.builder()
-            .favorites(Collections.emptyList())
-            .build();
+         list = new FavoriteList();
+         list.setFavorites(Collections.emptyList());
       }
 
       return list;
@@ -44,7 +42,7 @@ public class FavoritesController {
 
    @PutMapping("/api/em/favorites")
    public void setFavorites(@RequestBody FavoriteList userFavorites, Principal user) {
-      if(userFavorites.favorites().isEmpty()) {
+      if(userFavorites.getFavorites().isEmpty()) {
          favorites.remove(user.getName());
       }
       else {

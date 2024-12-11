@@ -16,24 +16,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { DOCUMENT } from "@angular/common";
-import {
-   AfterViewInit,
-   Component,
-   Inject,
-   NgZone,
-   OnDestroy,
-   OnInit,
-   ViewChild
-} from "@angular/core";
+import { Component, Inject, NgZone, OnDestroy, OnInit, ViewChild } from "@angular/core";
 import { NavigationEnd, Router } from "@angular/router";
 import { NgbModal, NgbModalRef } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { SsoHeartbeatDispatcherService } from "../../../shared/sso/sso-heartbeat-dispatcher.service";
 import { StompClientConnection } from "../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../shared/stomp/stomp-client.service";
+import { LogoutService } from "../../../shared/util/logout.service";
+import { SessionExpirationModel } from "../../../shared/util/model/session-expiration-model";
+import { ComponentTool } from "./common/util/component-tool";
+import { SessionExpirationDialog } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
 import { NotificationsComponent } from "./widget/notifications/notifications.component";
-import { GettingStartedService } from "./widget/dialog/getting-started-dialog/service/getting-started.service";
-import { FeatureFlagsService, FeatureFlagValue } from "../../../shared/feature-flags/feature-flags.service";
 
 declare const window: any;
 
@@ -55,11 +49,13 @@ export class AppComponent implements OnInit, OnDestroy {
    private windowListener: EventListener;
    private subscription: Subscription = new Subscription();
    private connection: StompClientConnection;
+   private sessionWarningDisplayed = false;
 
    constructor(private router: Router, private stompClient: StompClientService,
                private modalService: NgbModal, private zone: NgZone,
                @Inject(DOCUMENT) document: Document,
-               private ssoHeartbeatDispatcher: SsoHeartbeatDispatcherService)
+               private ssoHeartbeatDispatcher: SsoHeartbeatDispatcherService,
+               private logoutService: LogoutService)
    {
       const subscription = router.events.subscribe((e) => {
          if(e instanceof NavigationEnd) {
@@ -96,6 +92,10 @@ export class AppComponent implements OnInit, OnDestroy {
          this.subscription.add(connection.subscribe(
             "/user/notifications",
             (message) => this.zone.run(() => this.notify(JSON.parse(message.frame.body)))));
+         this.subscription.add(connection.subscribe(
+            "/user/session-expiration",
+            (message) => this.zone.run(
+               () => this.showSessionExpiringDialog(JSON.parse(message.frame.body)))));
       });
 
       this.ssoHeartbeatDispatcher.dispatch();
@@ -134,5 +134,24 @@ export class AppComponent implements OnInit, OnDestroy {
    closeNotificationDialog() {
       this.notificationDialog.close();
       this.notificationMessage = "";
+   }
+
+   private showSessionExpiringDialog(model: SessionExpirationModel): void {
+      if(this.sessionWarningDisplayed) {
+         return;
+      }
+
+      this.sessionWarningDisplayed = true;
+      const dialog = ComponentTool.showDialog(this.modalService,
+         SessionExpirationDialog, () => {
+            this.connection.send("/user/session/refresh", null, null);
+            this.sessionWarningDisplayed = false;
+         }, {backdrop: "static"}, () => this.sessionWarningDisplayed = false);
+
+      dialog.remainingTime = model.remainingTime;
+      dialog.onLogout.subscribe(() => {
+         this.sessionWarningDisplayed = false;
+         this.logoutService.logout();
+      });
    }
 }

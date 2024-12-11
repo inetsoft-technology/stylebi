@@ -19,4 +19,7 @@ export interface AuthenticationDetailsModel {
    required: boolean;
    userName?: string;
    password?: string;
+   useCredentialId?: boolean;
+   credentialId?: string;
+   credentialVisible?: boolean;
 }

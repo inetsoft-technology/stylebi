@@ -875,12 +875,8 @@ export namespace Tool {
 
       model.selectedHeaders.forEach((cols: number[], row: number) => {
          cols.forEach(col => {
-            if(row - startRow >= 0) {
-               cell = model.cells[row - startRow][col];
-            }
-            else if(row < model.headerRowCount) {
-               cell = model.tableHeaderCells[row][col];
-            }
+            let rowNumber = Math.max(0, row - startRow);
+            cell = model.cells[rowNumber][col];
 
             if(cell && (!!cell.drillOp || !onlyDrillable)) {
                drillCells.push(cell);

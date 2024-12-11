@@ -115,6 +115,10 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
       return wsId;
    }
 
+   public void setWsId(String wsId) {
+      this.wsId = wsId;
+   }
+
    public String getWsPath() {
       return AssetEntry.createAssetEntry(wsId).getPath();
    }
@@ -468,6 +472,40 @@ public class MVMetaData implements XMLSerializable, Serializable, Cloneable {
    public Object clone() {
       try {
          MVMetaData def = (MVMetaData) super.clone();
+         return def;
+      }
+      catch(Exception ex) {
+         LOG.error(
+            "Failed to clone materialized view meta data", ex);
+      }
+
+      return null;
+   }
+
+   public MVMetaData deepClone() {
+      try {
+         MVMetaData def = (MVMetaData) super.clone();
+
+         if(sheetIds != null) {
+            def.sheetIds = (Set<String>) Tool.clone(sheetIds);
+         }
+
+         if(invalidSheets != null) {
+            def.invalidSheets = (Set<String>) Tool.clone(invalidSheets);
+         }
+
+         if(invalidSheets != null) {
+            def.invalidSheets = (Set<String>) Tool.clone(invalidSheets);
+         }
+
+         if(tableNameMap  != null) {
+            def.tableNameMap  = (Map<String, Set<String>>) Tool.clone(tableNameMap);
+         }
+
+         if(columns != null) {
+            def.columns  = columns.clone();
+         }
+
          return def;
       }
       catch(Exception ex) {

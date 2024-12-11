@@ -253,7 +253,7 @@ public class HttpServiceRequest implements ServiceRequest {
          // the anonymous user -- this is an initial request before
          // authentication
          fireEvent = SecurityEngine.getSecurity().getSecurityProvider().isVirtual()
-            || remoteUser != null && !ClientInfo.ANONYMOUS.equals(remoteUser);
+            || remoteUser != null && !ClientInfo.ANONYMOUS.equals(remoteUser.name);
       }
       catch(Exception exc) {
          LOG.debug("Failed to get security engine", exc);

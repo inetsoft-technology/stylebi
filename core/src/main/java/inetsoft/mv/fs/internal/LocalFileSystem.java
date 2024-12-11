@@ -23,6 +23,7 @@ import inetsoft.mv.data.SubMV;
 import inetsoft.mv.fs.*;
 import inetsoft.mv.util.SeekableInputStream;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XNode;
 import inetsoft.util.Tool;
 import inetsoft.util.swap.XSwapUtil;
@@ -42,6 +43,19 @@ import java.util.*;
  * @version 10.2
  */
 public final class LocalFileSystem extends AbstractFileSystem {
+   /**
+    * Constructor.
+    */
+   public LocalFileSystem(XServerNode server, String orgId) {
+      super(server, orgId);
+
+      // get block system from data node. For local system, server node is
+      // also data node, so here we just get block system from data node
+      FSService service = FSService.getService();
+      XDataNode node = FSService.getDataNode();
+      bsys = node.getBSystem();
+   }
+
    /**
     * Constructor.
     */
@@ -316,6 +330,15 @@ public final class LocalFileSystem extends AbstractFileSystem {
     */
    @Override
    public boolean rename(String from, String to) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+      return rename(from, currentOrgID, to, currentOrgID, false);
+   }
+
+   /**
+    * Copy one XFile.
+    */
+   @Override
+   public boolean rename(String from, String fromOrgId, String to, String toOrgId, boolean keepGlobalFile) {
       if(bsys == null) {
          return false;
       }
@@ -327,14 +350,14 @@ public final class LocalFileSystem extends AbstractFileSystem {
 
          if(file == null) {
             throw new RuntimeException("File " + from +
-               " does not exist in this distributed file system!");
+                                          " does not exist in this distributed file system!");
          }
 
          XFile newfile = get(to);
 
          if(newfile != null) {
             throw new RuntimeException("File " + to +
-               " already exists in this distributed file system!");
+                                          " already exists in this distributed file system!");
          }
 
          file.getWriteLock().lock();
@@ -364,7 +387,7 @@ public final class LocalFileSystem extends AbstractFileSystem {
                   SNBlock nsn = new SNBlock(to, blkid);
                   nsn.setLength(snblock.getLength());
 
-                  NBlock block = bsys.rename(snblock, nsn);
+                  NBlock block = !keepGlobalFile ? bsys.rename(snblock, nsn) : bsys.copy(snblock, fromOrgId, nsn, toOrgId);
 
                   if(block == null) {
                      LOG.warn(Tool.convertUserLogInfo(
@@ -377,6 +400,7 @@ public final class LocalFileSystem extends AbstractFileSystem {
             }
 
             newfile = new XFile(to, nsblocks);
+
             xfilemap.remove(file.getName());
             xfilemap.put(newfile.getName(), newfile);
             save();

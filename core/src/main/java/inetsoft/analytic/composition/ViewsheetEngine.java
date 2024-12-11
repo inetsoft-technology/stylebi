@@ -224,7 +224,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       VSUtil.resetRuntimeValues(vs, true);
       vs.update(engine, oentry, user);
       AssetEntry entry = new AssetEntry(oentry.getScope(), oentry.getType(),
-                                        oentry.getPath(), oentry.getUser());
+                                        oentry.getPath(), oentry.getUser(), oentry.getOrgID());
       entry.copyProperties(oentry);
 
       if(oentry.getAlias() != null && oentry.getAlias().length() > 0) {
@@ -754,7 +754,7 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
             if(sheet instanceof Viewsheet) {
                Viewsheet vsheet = (Viewsheet) sheet;
                ViewsheetInfo vinfo = vsheet.getViewsheetInfo();
-               long touchInterval = vinfo.getTouchInterval() * 1000;// s -> ms
+               long touchInterval = vinfo.getTouchInterval() * 1000L;// s -> ms
 
                if(!vinfo.isUpdateEnabled() ||
                   current - changeTime > 2 * touchInterval)

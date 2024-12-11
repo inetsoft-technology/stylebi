@@ -34,6 +34,7 @@ export interface LogonHistory {
    opError: string;
    serverHostName: string;
    organizationId: string;
+   dateFormat: string;
 }
 
 export interface LogonHistoryList extends AuditRecordList<LogonHistory> {

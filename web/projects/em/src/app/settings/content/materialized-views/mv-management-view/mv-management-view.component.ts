@@ -148,7 +148,7 @@ export class MvManagementViewComponent implements OnInit, OnDestroy {
    }
 
    ngOnInit(): void {
-      this.pageTitle.title = "Materialized Views";
+      this.pageTitle.title = "_#(js:Materialized Views)";
       this.refreshMVList(true);
    }
 

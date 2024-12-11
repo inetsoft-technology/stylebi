@@ -19,16 +19,18 @@ package inetsoft.web.security;
 
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.apache.commons.lang.StringUtils;
+import org.apache.hc.core5.net.InetAddressUtils;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.URLEncoder;
+import java.net.*;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -81,9 +83,26 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
                sep + httpRequest.getQueryString() : "";
 
             String redirectUrl = LinkUriArgumentResolver.getLinkUri(httpRequest) + LOGIN_PAGE +
-               "?requestedUrl=" + URLEncoder.encode(requestedUrl + queryString, "UTF-8");
+               "?requestedUrl=" +
+               URLEncoder.encode(requestedUrl + queryString, StandardCharsets.UTF_8);
 
-            if(orgID != null) {
+            if(orgID == null) {
+               Cookie[] cookies = httpRequest.getCookies();
+
+               if(cookies != null) {
+                  for(Cookie cookie : cookies) {
+                     if(cookie.getName().equals(ORG_COOKIE)) {
+                        // clear any existing cookie
+                        Cookie cleared = (Cookie) cookie.clone();
+                        cleared.setValue("");
+                        cleared.setMaxAge(0);
+                        ((HttpServletResponse) response).addCookie(cleared);
+                        break;
+                     }
+                  }
+               }
+            }
+            else {
                ((HttpServletResponse) response).addCookie(new Cookie(ORG_COOKIE, orgID));
             }
 
@@ -111,30 +130,31 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
    }
 
    private String getLoginOrganization(HttpServletRequest request) {
-      String type = SreeEnv.getProperty("security.login.orgLocation", "domain");
       String orgID = null;
 
-      if("path".equals(type)) {
-         // get as the first directory of the url, of the form "http://somehost.com/orgID/"
+      if(SUtil.isMultiTenant()) {
+         String type = SreeEnv.getProperty("security.login.orgLocation", "domain");
+
+         if("path".equals(type)) {
             URI uri = URI.create(LinkUriArgumentResolver.getLinkUri(request));
             String requestedPath = request.getPathInfo();
 
             if(requestedPath == null) {
-               String uriPath = uri.getRawPath();
+               requestedPath = uri.getRawPath();
+            }
 
-               if(uriPath != null) {
-                  if(uriPath.startsWith("/")) {
-                     uriPath = uriPath.substring(1);
-                  }
+            if(requestedPath != null) {
+               if(requestedPath.startsWith("/")) {
+                  requestedPath = requestedPath.substring(1);
+               }
 
-                  int index = uriPath.indexOf('/');
+               int index = requestedPath.indexOf('/');
 
-                  if(index < 0) {
-                     orgID = uriPath;
-                  }
-                  else {
-                     orgID = uriPath.substring(0, index);
-                  }
+               if(index < 0) {
+                  orgID = requestedPath;
+               }
+               else {
+                  orgID = requestedPath.substring(0, index);
                }
             }
          }
@@ -142,7 +162,7 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
             // get the lowest level subdomain, of the form "http://orgID.somehost.com/"
             String host = LinkUriArgumentResolver.getRequestHost(request);
 
-            if(host != null) {
+            if(host != null && !isIpHost(host)) {
                int index = host.indexOf('.');
 
                if(index >= 0) {
@@ -150,7 +170,46 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
                }
             }
          }
+
+         if(orgID != null) {
+            boolean matched = false;
+
+            for(String org : SecurityEngine.getSecurity().getOrganizations()) {
+               if(orgID.equalsIgnoreCase(org)) {
+                  matched = true;
+                  orgID = org;
+               }
+            }
+
+            if(!matched) {
+               orgID = null;
+            }
+         }
+      }
+
       return orgID;
+   }
+
+   private boolean isIpHost(String host) {
+      if(host == null) {
+         return false;
+      }
+
+      int index = host.lastIndexOf(":");
+      String hostName = host;
+
+      if(index > 0) {
+         String port = host.substring(index + 1);
+
+         if(!StringUtils.isNumeric(port)) {
+            return false;
+         }
+
+         hostName = host.substring(0, index - 1);
+      }
+
+
+      return InetAddressUtils.isIPv4Address(hostName);
    }
 
    public static final String LOGIN_PAGE = "login.html";

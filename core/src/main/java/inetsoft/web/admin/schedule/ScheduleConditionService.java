@@ -226,7 +226,7 @@ public class ScheduleConditionService {
                   formatParameterValue(repRequest, type, ((DynamicValueModel) value).getValue(), paramName));
             }
          }
-         else if(!(value instanceof DynamicParameterValue)) {
+         else {
             vals = array ? (Object[]) value : null;
             value = formatParameterValue(repRequest, type, value, paramName);
          }

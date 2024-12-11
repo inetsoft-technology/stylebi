@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.erm;
 
-import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.XFactory;
@@ -27,7 +26,7 @@ import inetsoft.uql.asset.sync.RenameTransformHandler;
 import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.schema.XVariable;
 import inetsoft.uql.service.DataSourceRegistry;
-import inetsoft.uql.util.XUtil;
+import inetsoft.uql.util.ConnectionProcessor;
 import inetsoft.util.*;
 import inetsoft.util.xml.XMLStorage.XMLFragment;
 import org.slf4j.Logger;
@@ -1499,7 +1498,7 @@ public class XLogicalModel
     * invisible entities and attributes.
     */
    protected XLogicalModel applyRuntime(Principal principal, boolean hideAttributes) {
-      String ds = XUtil.getAdditionalDatasource(principal, getDataSource());
+      String ds = ConnectionProcessor.getInstance().getAdditionalDatasource(principal, getDataSource(), null);
       JDBCDataSource jdbcDataSource = getJDBCDataSource();
       XLogicalModel model = getLogicalModelByConnection(ds, false, jdbcDataSource, principal);
 

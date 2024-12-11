@@ -23,4 +23,5 @@ export interface ScheduleStatusModel {
    running: boolean;
    action?: string;
    clusterStatusTable?: ScheduleClusterStatusModel[];
+   externalStoragePath: string;
 }

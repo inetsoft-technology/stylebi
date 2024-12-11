@@ -17,10 +17,14 @@
  */
 import { HttpParams } from "@angular/common/http";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { Observable } from "rxjs";
+import { Tool } from "../../../../../shared/util/tool";
 import { SourceChangeModel } from "../../composer/data/vs/source-change-model";
 import { ModelService } from "../../widget/services/model.service";
 import { AssetEntry } from "../../../../../shared/data/asset-entry";
 import { DataTransfer, DropTarget } from "../data/dnd-transfer";
+import { CalcTableCell } from "../data/tablelayout/calc-table-cell";
+import { ComponentTool } from "../util/component-tool";
 import { ViewsheetClientService } from "../viewsheet-client";
 import { DndService } from "./dnd.service";
 import { VSDndEvent } from "./vs-dnd-event";
@@ -89,8 +93,30 @@ export class VSDndService extends DndService {
       const objtype = this.getObjectType(dropTarget.objectType ? dropTarget.objectType
                                          : transfer.objectType);
       const assembly = dropTarget.assembly ? dropTarget.assembly : transfer.assembly;
-
       let url = "/events/" + objtype + "/dnd/addRemoveColumns";
+
+      if(objtype == "vscrosstab") {
+         let evt = new VSDndEvent(assembly, transfer, dropTarget, null);
+         const params: HttpParams = new HttpParams()
+            .set("vsId", Tool.byteEncode(this.clientService.runtimeId))
+
+         this.modelService.putModel("../api/vscrosstab/dnd/checktrap", evt, params).subscribe(
+            (res: any) => {
+               if(res != null && res.body == true) {
+                  ComponentTool.showTrapAlert(this.modalService, false).then((result: string) => {
+                     if(result == "yes") {
+                        this.clientService.sendEvent(url, new VSDndEvent(assembly, transfer, dropTarget, null));
+                     }
+                  });
+               }
+               else {
+                  this.clientService.sendEvent(url, new VSDndEvent(assembly, transfer, dropTarget, null));
+               }
+            }
+         );
+         return;
+      }
+
       this.clientService.sendEvent(url, new VSDndEvent(assembly, transfer, dropTarget, null));
    }
 }

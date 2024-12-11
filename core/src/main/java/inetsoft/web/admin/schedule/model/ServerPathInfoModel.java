@@ -40,6 +40,14 @@ public abstract class ServerPathInfoModel {
    @Nullable
    public abstract String password();
 
+   @Nullable
+   public abstract String secretId();
+
+   @Value.Default
+   public boolean useCredential() {
+      return false;
+   }
+
    @Value.Default
    public boolean ftp() {
       return false;
@@ -52,9 +60,16 @@ public abstract class ServerPathInfoModel {
    public static class Builder extends ImmutableServerPathInfoModel.Builder {
       public Builder from(ServerPathInfo info) {
          path(info.getPath());
-         username(info.getUsername());
-         password(info.getPassword());
+         useCredential(info.isUseCredential());
          ftp(info.isFTP());
+
+         if(info.isUseCredential()) {
+            secretId(info.getSecretId());
+         }
+         else {
+            username(info.getUsername());
+            password(info.getPassword());
+         }
 
          return this;
       }

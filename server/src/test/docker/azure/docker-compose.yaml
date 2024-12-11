@@ -25,4 +25,8 @@ services:
   cosmosdb:
     image: 'mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator:latest'
     ports:
-      - '8081:8081'
+      - '8083:8081'
+  mongo:
+    image: 'mongo:7.0.11'
+    ports:
+      - '27017:27017'

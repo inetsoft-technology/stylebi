@@ -1,0 +1,38 @@
+<!--
+  ~ This file is part of StyleBI.
+  ~ Copyright (C) 2024  InetSoft Technology
+  ~
+  ~ This program is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU Affero General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ This program is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU Affero General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU Affero General Public License
+  ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
+  -->
+<em-modal-header [title]="'_#(Session Timeout)'">
+</em-modal-header>
+<div mat-dialog-content>
+  <div class="flex-row">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="50" height="50" class="warning-icon">
+      <path d="M12 2a1 1 0 0 1 .87.5l9 15.5a1 1 0 0 1-.87 1.5H3a1 1 0 0 1-.87-1.5l9-15.5A1 1 0 0 1 12 2zM11 8.5v4.5a1 1 0 0 0 2 0V8.5a1 1 0 0 0-2 0zm1 9a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/>
+    </svg>
+    <div class="warning-message-container">
+      <div class="warning-message flex-col">
+        <div>_#(login.session.expiring.warning)</div>
+      </div>
+      <div class="countdown-timer">
+        {{ duration }}
+      </div>
+    </div>
+  </div>
+</div>
+<div mat-dialog-actions>
+  <button mat-raised-button color="primary" (click)="stayLoggedInClicked()">_#(Stay Logged In)</button>
+  <button mat-button (click)="logoutClicked()">_#(Logout)</button>
+</div>

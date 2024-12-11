@@ -284,9 +284,6 @@ public class JSObject extends NativeJavaObject {
          else if(type == boolean.class || type == Boolean.class) {
             return Boolean.valueOf(val.toString());
          }
-         else if(type == double.class || type == Double.class) {
-            return Double.valueOf(val.toString());
-         }
          else if(type == double[].class) {
             return splitN(val);
          }

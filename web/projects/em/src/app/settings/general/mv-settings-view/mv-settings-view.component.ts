@@ -43,7 +43,7 @@ import { MVSettingsModel, MVType } from "./mv-settings-model";
 })
 @ContextHelp({
    route: "/settings/general#mv",
-   link: "EMGeneralMaterializedViews"
+   link: "EMGeneralMaterializedViewOptions"
 })
 @Component({
    selector: "em-mv-settings-view",
@@ -76,7 +76,6 @@ export class MVSettingsViewComponent {
 
    initForm() {
       this.form = this.formBuilder.group({
-         type: [this.model.type, Validators.required],
          onDemand: [this.model.onDemand],
          onDemandDefault: [this.model.onDemandDefault],
          defaultCycle: [this.model.defaultCycle],

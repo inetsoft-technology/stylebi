@@ -15,11 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+@import '~node_modules/ckeditor5/dist/ckeditor5.css';
+
 .main-container {
   font-family: "Roboto", "Helvetica Neue Light", "Helvetica Neue", Helvetica, Arial, "Lucida Grande", sans-serif;
-  width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .ck-content {
@@ -29,34 +28,34 @@
 }
 //.compact {
 //  .ck.ck-content {
-//    p {
-//      margin-bottom: 0 !important;
-//    }
-//  }
+//     p {
+//       margin-bottom: 0 !important;
+//     }
+//   }
 //}
-//
-//.ck.ck-dropdown .ck-dropdown__panel.ck-dropdown__panel-visible {
-//  min-width: 100px;
-//  max-height: 40vh;
-//}
-//
-//.ck.ck-dropdown .ck-font-size-dropdown, .ck.ck-dropdown .ck-font-family-dropdown,
-//.ck.ck-dropdown.ck-font-size-dropdown, .ck.ck-dropdown.ck-font-family-dropdown{
-//  .ck.ck-list {
-//    max-height: 200px;
-//    overflow-y: scroll;
-//  }
-//}
-//
-//.modal-body .ck-editor__editable {
-//  min-height: 40vh;
-//  max-height: 40vh;
-//}
-//
-//.schedule-delivery-message .ck-editor__editable {
-//  min-height: 200px;
-//  max-height: 200px;
-//}
+
+.ck.ck-dropdown .ck-dropdown__panel.ck-dropdown__panel-visible {
+  min-width: 100px;
+  max-height: 40vh;
+}
+
+.ck.ck-dropdown .ck-font-size-dropdown, .ck.ck-dropdown .ck-font-family-dropdown,
+.ck.ck-dropdown.ck-font-size-dropdown, .ck.ck-dropdown.ck-font-family-dropdown{
+  .ck.ck-list {
+    max-height: 200px;
+    overflow-y: scroll;
+  }
+}
+
+.modal-body .ck-editor__editable {
+  min-height: 40vh;
+  max-height: 40vh;
+}
+
+.schedule-delivery-message .ck-editor__editable {
+  min-height: 200px;
+  max-height: 200px;
+}
 //
 //:root {
 //  --ck-color-base-foreground: var(--inet-toolbar-bg-color) !important;

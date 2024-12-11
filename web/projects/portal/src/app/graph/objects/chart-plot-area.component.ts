@@ -35,6 +35,7 @@ import { SafeStyle } from "@angular/platform-browser";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { ComponentTool } from "../../common/util/component-tool";
 import { GuiTool } from "../../common/util/gui-tool";
+import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { SelectionBoxEvent } from "../../widget/directive/selection-box.directive";
 import { DebounceService } from "../../widget/services/debounce.service";
 import { ModelService } from "../../widget/services/model.service";
@@ -142,7 +143,8 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
                private modelService: ModelService,
                private http: HttpClient,
                private modal: NgbModal,
-               scaleService: ScaleService)
+               scaleService: ScaleService,
+               private contextProvider: ContextProvider)
    {
       super(chartService, scaleService);
    }
@@ -281,7 +283,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             this.chartService.clearCanvas(context);
 
             if(region) {
-               ChartTool.drawReferenceLine(context, region, this.canvasX, this.canvasY);
+               ChartTool.drawReferenceLine(context, region, this.canvasX, this.canvasY, this.viewsheetScale);
             }
          }
       }
@@ -417,8 +419,8 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
    onContextMenu(event: any): void {
       const objLeft = this.clientRect.left;
       const objTop = this.clientRect.top;
-      const x = event.clientX - objLeft + this.scrollLeft;
-      const y = event.clientY - objTop + this.scrollTop;
+      const x = (event.clientX - objLeft) / this.viewsheetScale + this.scrollLeft;
+      const y = (event.clientY - objTop) / this.viewsheetScale + this.scrollTop;
       const regions = this.getTreeRegions(x, y).filter((region) => {
          return !!region && !region.noselect;
       });
@@ -565,7 +567,14 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
             const uri = this.getSrc(this.chartObject.tiles[0], this.container);
             this.http.get(uri + "", { responseType: "text" }).subscribe(
                data => {},
-               err => ComponentTool.showHttpError("_#(js:Error)", err, this.modal)
+               err => {
+                  if(this.contextProvider.embed) {
+                     console.error(err);
+                  }
+                  else {
+                     ComponentTool.showHttpError("_#(js:Error)", err, this.modal);
+                  }
+               }
             );
          }
       }

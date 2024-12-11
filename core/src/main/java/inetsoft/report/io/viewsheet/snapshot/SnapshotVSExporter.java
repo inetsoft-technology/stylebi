@@ -22,6 +22,7 @@ import inetsoft.report.composition.WorksheetWrapper;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.*;
 import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.*;
@@ -145,7 +146,14 @@ public class SnapshotVSExporter {
             PartialDeploymentJarInfo.SelectedAsset sel = new PartialDeploymentJarInfo.SelectedAsset();
             sel.setType(asset0.getType());
             sel.setPath(asset0.getPath());
-            sel.setUser(asset0.getUser());
+
+            if(asset0.getUser() == null) {
+               sel.setUser(new IdentityID(XAsset.NULL, OrganizationManager.getInstance().getCurrentOrgID()));
+            }
+            else {
+               sel.setUser(asset0.getUser());
+            }
+
             sel.setIcon("/inetsoft/sree/web/images/viewsheet.gif");
             sel.setLastModifiedTime(asset0.getLastModifiedTime());
             selectedEntries.add(sel);

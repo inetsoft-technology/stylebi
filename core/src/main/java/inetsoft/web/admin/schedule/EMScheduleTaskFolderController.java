@@ -120,6 +120,10 @@ public class EMScheduleTaskFolderController {
       AssetFolder folder = scheduleTaskFolderService.getTaskFolder(entry.toIdentifier());
       List<ContentRepositoryTreeNode> nodes = new ArrayList<>();
 
+      if(folder == null) {
+         return nodes;
+      }
+
       for(AssetEntry value : folder.getEntries()) {
          if(!value.isScheduleTaskFolder() || !scheduleTaskFolderService.checkFolderPermission(
             value.getPath(), principal, ResourceAction.READ))
@@ -149,7 +153,7 @@ public class EMScheduleTaskFolderController {
          .getScheduleTaskList("", "", entry, principal);
 
       return taskListModel.tasks().stream()
-         .anyMatch(t -> principal.getName().equals(t.owner()) ||
+         .anyMatch(t -> principal.getName().equals(t.owner().convertToKey()) ||
             scheduleService.isGroupShare(t, principal)
          );
    }

@@ -44,7 +44,7 @@ public class DefaultVSGauge extends VSGauge {
     */
    @Override
    public BufferedImage getContentImage() {
-      adjust(true);
+      adjust();
 
       BufferedImage image = new BufferedImage(contentSize.width,
          contentSize.height, BufferedImage.TYPE_4BYTE_ABGR);
@@ -82,7 +82,7 @@ public class DefaultVSGauge extends VSGauge {
    @Override
    public Graphics2D getContentSvg(boolean isShadow) {
       Graphics2D g = null;
-      adjust(false);
+      adjust();
 
       try {
          GaugeVSAssemblyInfo info = getGaugeAssemblyInfo();

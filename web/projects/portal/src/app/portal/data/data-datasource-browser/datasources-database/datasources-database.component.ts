@@ -70,6 +70,7 @@ import {
    GettingStartedService, StepIndex
 } from "../../../../widget/dialog/getting-started-dialog/service/getting-started.service";
 import { PortalDataType } from "../../data-navigation-tree/portal-data-type";
+import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 
 const CHECK_DELETE_ADDITIONAL = "../api/portal/data/databases/additional/check/";
 const DATABASES_URI: string = "../api/data/databases";
@@ -115,6 +116,7 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
    _testQuery: string;
    selectedProperty: any[] = [];
    private routeParamSubscription: Subscription;
+   enterprise: boolean;
 
    searchFunc: (text: Observable<string>) => Observable<any[]> = (text: Observable<string>) =>
       text.pipe(
@@ -132,6 +134,7 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
                private httpClient: HttpClient,
                private modalService: NgbModal,
                private featureFlagsService: FeatureFlagsService,
+               private appInfoService: AppInfoService,
                private gettingStartedService: GettingStartedService)
    {
       super(httpClient);
@@ -139,6 +142,8 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
 
    ngOnInit() {
       super.ngOnInit();
+      this.appInfoService.isEnterprise().subscribe(info => this.enterprise = info);
+
       if(this.additionalVisible) {
          // subscribe to route parameters and update current database model
          this.routeParamSubscription = this.route.paramMap.pipe(
@@ -634,8 +639,8 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
       return url;
    }
 
-   typeChanged(newType: DatasourceDatabaseType): void {
-      super.typeChanged(newType);
+   typeChanged(newType: DatasourceDatabaseType, supportToggleCredential: boolean, useCredentialId: boolean): void {
+      super.typeChanged(newType, supportToggleCredential, useCredentialId);
       this.refreshDefaultTestQuery();
    }
 

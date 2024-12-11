@@ -53,6 +53,7 @@ inetsoft.uql.rest.datasource.insightly.InsightlyService
 inetsoft.uql.rest.datasource.intervals.IntervalsService
 inetsoft.uql.rest.datasource.jira.JiraService
 inetsoft.uql.rest.datasource.jive.JiveService
+inetsoft.uql.rest.datasource.keap.KeapService
 inetsoft.uql.rest.datasource.lighthouse.LighthouseService
 inetsoft.uql.rest.datasource.linkedin.LinkedinService
 inetsoft.uql.rest.datasource.liveagent.LiveAgentService

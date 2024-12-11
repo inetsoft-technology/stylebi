@@ -46,6 +46,11 @@ public class StorageBlockFile implements BlockFile {
    }
 
    @Override
+   public long length(String orgId) {
+      return BlockFileStorage.getInstance().length(name, orgId);
+   }
+
+   @Override
    public boolean exists() {
       return BlockFileStorage.getInstance().exists(name);
    }
@@ -68,8 +73,18 @@ public class StorageBlockFile implements BlockFile {
    }
 
    @Override
+   public SeekableInputStream openInputStream(String orgId) throws IOException {
+      return new StorageBlockFileStream(name, orgId);
+   }
+
+   @Override
    public TransactionChannel openWriteChannel() throws IOException {
       return new StorageBlockFileChannel(name);
+   }
+
+   @Override
+   public TransactionChannel openWriteChannel(String orgId) throws IOException {
+      return new StorageBlockFileChannel(name, orgId);
    }
 
    @Override
@@ -80,9 +95,13 @@ public class StorageBlockFile implements BlockFile {
    private final String name;
 
    private static final class StorageBlockFileStream implements SeekableInputStream {
-      public StorageBlockFileStream(String name) throws IOException {
+      public StorageBlockFileStream(String name, String orgId) throws IOException {
          this.name = name;
-         this.delegate = BlockFileStorage.getInstance().openReadChannel(name);
+         this.delegate = BlockFileStorage.getInstance().openReadChannel(name, orgId);
+      }
+
+      public StorageBlockFileStream(String name) throws IOException {
+         this(name, null);
       }
 
       @Override
@@ -151,8 +170,12 @@ public class StorageBlockFile implements BlockFile {
 
    private static final class StorageBlockFileChannel implements TransactionChannel {
       public StorageBlockFileChannel(String name) throws IOException {
+         this(name, null);
+      }
+
+      public StorageBlockFileChannel(String name, String orgId) throws IOException {
          this.name = name;
-         this.tx = BlockFileStorage.getInstance().beginTransaction();
+         this.tx = BlockFileStorage.getInstance().beginTransaction(orgId);
          this.delegate = tx.newChannel(name, new BlockFileStorage.Metadata());
       }
 

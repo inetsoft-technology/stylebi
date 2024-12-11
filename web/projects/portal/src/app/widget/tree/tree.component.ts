@@ -140,7 +140,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
                updatedNode = GuiTool.findNode(root, (n) => this.nodeEqualsFun(node, n));
             }
             else {
-               updatedNode = GuiTool.getNodeByPath(node.data?.path, root);
+               updatedNode = GuiTool.getNodeByPath(node.data?.path, root, node.data?.defaultOrgAsset);
             }
 
             node.data = !!updatedNode ? updatedNode.data : node.data;
@@ -229,10 +229,6 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
 
       if(useVirtualScrollChange && !useVirtualScrollChange.currentValue) {
          this.unSubscribeVScroll();
-      }
-
-      if(this.outerScrollContainer) {
-         needRefreshVirtualScroll = false;
       }
 
       if(needRefreshVirtualScroll) {
@@ -345,6 +341,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
 
    private fixSelectedNodes() {
       let fixedSelectedNodes: TreeNodeModel[] = [];
+      let nodes = this.selectedNodes;
 
       if(!!this.selectedNodes) {
          for(let selectedNode of this.selectedNodes) {
@@ -352,7 +349,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
                if(!selectedNode.data.hasOwnProperty("path")) {
                   return;
                }
-               else if(GuiTool.getNodeByPath(selectedNode.data.path, this.root) != null) {
+               else if(GuiTool.getNodeByPath(selectedNode.data.path, this.root, selectedNode.data.defaultOrgAsset) != null) {
                   fixedSelectedNodes.push(selectedNode);
                }
             }
@@ -749,7 +746,27 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
       }
    }
 
+   public isHostGlobalParent(node: TreeNodeModel): boolean {
+      let parentNode = this.getParentNode(node);
+
+      while(parentNode) {
+         if(parentNode != null && parentNode.data != null &&
+            GuiTool.isHostGlobalNode(parentNode.data))
+         {
+            return true;
+         }
+
+         parentNode = this.getParentNode(parentNode);
+      }
+
+      return false;
+   }
+
    private nodeEquals(node1: any, node2: any): boolean {
+      if(!!node1 && !!node2 && node1.defaultOrgAsset != node2.defaultOrgAsset) {
+         return false;
+      }
+
       if(!node1 || !node2) {
          return Tool.isEquals(node1, node2);
       }

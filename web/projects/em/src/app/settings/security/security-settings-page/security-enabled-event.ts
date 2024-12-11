@@ -21,4 +21,5 @@ export interface SecurityEnabledEvent {
    ldapProviderUsed: boolean;
    warning?: string;
    passOrgIdAs?: string;
+   cloudPlatform?: boolean;
 }

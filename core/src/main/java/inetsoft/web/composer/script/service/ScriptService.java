@@ -234,7 +234,7 @@ public class ScriptService {
          return null;
       }
 
-      return "https://www.inetsoft.com/docs/2023/functions/userhelp/index.html#cshid=" +
+      return "https://www.inetsoft.com/docs/stylebi/index.html#cshid=" +
          FUNCTION_CSHIDS.get(funcName);
    }
 

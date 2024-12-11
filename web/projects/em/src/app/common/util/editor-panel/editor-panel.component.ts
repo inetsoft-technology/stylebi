@@ -29,6 +29,8 @@ import {
    SimpleChanges,
    ViewEncapsulation
 } from "@angular/core";
+import { debounceTime } from "rxjs/operators";
+import { Subject } from "rxjs";
 import { TopScrollSupport } from "../../../top-scroll/top-scroll-support";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
@@ -56,11 +58,17 @@ export class EditorPanelComponent implements OnChanges, AfterViewInit, AfterCont
    @Output() applyClicked = new EventEmitter<any>();
    @Output() resetClicked = new EventEmitter<any>();
    @Output() unsavedChanges = new EventEmitter<boolean>();
+   private applyClickSubject = new Subject<Event>();
 
    constructor(private hostElement: ElementRef, private renderer: Renderer2,
                private breakpointObserver: BreakpointObserver,
                private scrollSupport: TopScrollSupport)
    {
+      this.applyClickSubject.pipe(
+         debounceTime(200)
+      ).subscribe(event => {
+         this.applyClicked.emit(event);
+      });
    }
 
    ngOnChanges(changes: SimpleChanges) {
@@ -105,5 +113,9 @@ export class EditorPanelComponent implements OnChanges, AfterViewInit, AfterCont
 
    isScreenSmall(): boolean {
       return this.breakpointObserver.isMatched(`(max-width: ${SMALL_WIDTH_BREAKPOINT}px)`);
+   }
+
+   handleClick(event: MouseEvent) {
+      this.applyClickSubject.next(event);
    }
 }

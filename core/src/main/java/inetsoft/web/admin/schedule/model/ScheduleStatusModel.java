@@ -44,6 +44,8 @@ public interface ScheduleStatusModel {
    @Nullable
    String action();
 
+   String externalStorageLocation();
+
    static Builder builder() {
       return new ScheduleStatusModel.Builder();
    }

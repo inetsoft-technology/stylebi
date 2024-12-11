@@ -157,6 +157,7 @@ Math
 	CALC.tan(number)	CALC.tan()
 	CALC.tanh(number)	CALC.tanh()
 	CALC.trunc(number, num_digits)	CALC.trunc()
+	CALC.weightedavg(xarray, yarray)	CALC.weightedavg()
 Text
 	CALC.character(number)	CALC.character()
 	CALC.code(string)	CALC.code()

@@ -148,6 +148,14 @@ export abstract class DataSourceSettingsPage implements OnInit {
       return this.database.info as SQLServerDatabaseInfoModel;
    }
 
+   get supportToggleCredential() {
+      return this.database?.authentication?.credentialVisible;
+   }
+
+   get useCredentialId() {
+      return !this.database?.authentication?.useCredentialId;
+   }
+
    constructor(protected http: HttpClient) {
    }
 
@@ -203,7 +211,7 @@ export abstract class DataSourceSettingsPage implements OnInit {
     * Called when user selects a new database type. Set up initial data and downloadUrl.
     * @param newType
     */
-   typeChanged(newType: DatasourceDatabaseType): void {
+   typeChanged(newType: DatasourceDatabaseType, supportToggleCredential: boolean, useCredentialId: boolean): void {
       if(!!this.driverAvailability) {
          const driver: DriverInfo = this.driverAvailability.drivers
             .find(driverInfo => driverInfo.type === newType);
@@ -233,7 +241,10 @@ export abstract class DataSourceSettingsPage implements OnInit {
          this.database.authentication = {
             required: false,
             userName: null,
-            password: null
+            password: null,
+            useCredentialId: useCredentialId,
+            credentialId: null,
+            credentialVisible: supportToggleCredential
          };
 
          if(newType == DatasourceDatabaseType.ACCESS) {

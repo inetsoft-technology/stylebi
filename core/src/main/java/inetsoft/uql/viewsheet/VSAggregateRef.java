@@ -685,7 +685,6 @@ public class VSAggregateRef extends AbstractDataRef implements ContentObject, XA
       if(all && aggregated) {
          cprefix = calculator == null ? "" : calculator.getPrefixView();
          cprefix = cprefix == null ? "" : cprefix;
-         cprefix = catalog.getString(cprefix);
       }
 
       AggregateFormula formula = getFormula();

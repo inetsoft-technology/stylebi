@@ -21,15 +21,18 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("domain"),
-   @View1("domainSuffix"),
-   @View1("apiKey"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "domain", visibleMethod = "useCredential"),
+   @View1(value = "domainSuffix", visibleMethod = "useCredential"),
+   @View1(value = "apiKey", visibleMethod = "useCredential"),
    @View1("URL")
 })
 public class FreshsalesDataSource extends EndpointJsonDataSource<FreshsalesDataSource> {
@@ -41,16 +44,23 @@ public class FreshsalesDataSource extends EndpointJsonDataSource<FreshsalesDataS
       setHttpParameter("Content-Type", "application/json", HttpParameter.ParameterType.HEADER);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_KEY;
+   }
+
    @Property(label = "API Key", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
-      return apiKey;
+      return ((ApiKeyCredential) getCredential()).getApiKey();
    }
 
    public void setApiKey(String apiKey) {
-      this.apiKey = apiKey;
+      ((ApiKeyCredential) getCredential()).setApiKey(apiKey);
    }
 
    @Property(label = "Domain", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getDomain() {
       return domain;
    }
@@ -60,7 +70,8 @@ public class FreshsalesDataSource extends EndpointJsonDataSource<FreshsalesDataS
    }
 
    @Property(label = "Domain Suffix", required = true)
-   @PropertyEditor(tags={".freshsales.io", ".freshworks.com/crm/sales", ".myfreshworks.com/crm/sales"})
+   @PropertyEditor(tags={".freshsales.io", ".freshworks.com/crm/sales",
+                         ".myfreshworks.com/crm/sales"}, dependsOn = "useCredentialId")
    public String getDomainSuffix() {
       return domainSuffix;
    }
@@ -99,7 +110,7 @@ public class FreshsalesDataSource extends EndpointJsonDataSource<FreshsalesDataS
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)
             .name("Authorization")
-            .value(AUTH_VALUE_PREFIX + apiKey)
+            .value(AUTH_VALUE_PREFIX + getApiKey())
             .build()
       };
    }
@@ -120,10 +131,6 @@ public class FreshsalesDataSource extends EndpointJsonDataSource<FreshsalesDataS
       if(domainSuffix != null) {
          writer.format("<domainSuffix><![CDATA[%s]]></domainSuffix>%n", domainSuffix);
       }
-
-      if(apiKey != null) {
-         writer.format("<apiKey><![CDATA[%s]]></apiKey>%n", Tool.encryptPassword(apiKey));
-      }
    }
 
    @Override
@@ -132,7 +139,6 @@ public class FreshsalesDataSource extends EndpointJsonDataSource<FreshsalesDataS
       domain = Tool.getChildValueByTagName(root, "domain");
       domainSuffix = Tool.getChildValueByTagName(root, "domainSuffix");
       domainSuffix = domainSuffix == null ? ".freshsales.io" : domainSuffix;
-      apiKey = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiKey"));
    }
 
    @Override
@@ -156,17 +162,15 @@ public class FreshsalesDataSource extends EndpointJsonDataSource<FreshsalesDataS
 
       FreshsalesDataSource that = (FreshsalesDataSource) o;
       return Objects.equals(domain, that.domain) &&
-         Objects.equals(domainSuffix, that.domainSuffix) &&
-         Objects.equals(apiKey, that.apiKey);
+         Objects.equals(domainSuffix, that.domainSuffix);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), domain, apiKey);
+      return Objects.hash(super.hashCode(), domain, getApiKey());
    }
 
    public static final String AUTH_VALUE_PREFIX = "Token token=";
    private String domain;
    private String domainSuffix;
-   private String apiKey;
 }

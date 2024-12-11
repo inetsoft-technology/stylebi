@@ -47,6 +47,8 @@ export interface BackupPathsSave {
    enabled: boolean;
    path: string;
    ftp?: boolean;
+   useCredential?: boolean;
+   secretId?: string;
    username?: string;
    password?: string;
    assets: SelectedAssetModel[];
@@ -74,6 +76,8 @@ export class BackupFileComponent implements OnDestroy {
       if(!!p) {
          this.backupForm.get("path").setValue(p.path, { emitEvent: false });
          this.backupForm.get("ftp").setValue(p.ftp, { emitEvent: false });
+         this.backupForm.get("useCredential").setValue(p.useCredential, { emitEvent: false });
+         this.backupForm.get("secretId").setValue(p.secretId, { emitEvent: false });
          this.backupForm.get("username").setValue(p.username, { emitEvent: false });
          this.backupForm.get("password").setValue(p.password, { emitEvent: false });
          this.toggleFTP();
@@ -81,6 +85,7 @@ export class BackupFileComponent implements OnDestroy {
    }
 
    @Input() selectedEntities: SelectedAssetModel[] = [];
+   @Input() cloudSecrets: boolean;
    @Output() backupPathsChanged = new EventEmitter<BackupPathsSave>();
 
    FeatureFlagValue = FeatureFlagValue;
@@ -104,14 +109,20 @@ export class BackupFileComponent implements OnDestroy {
       this.backupForm = this.fb.group({
          path: ["", [Validators.required]],
          ftp: [false],
+         useCredential: [false],
+         secretId: [""],
          username: [""],
          password: [""]
       });
 
       this.backupForm.get("path").valueChanges.subscribe(() => this.fireBackupChanged());
       this.backupForm.get("ftp").valueChanges.subscribe(() => this.fireBackupChanged());
+      this.backupForm.get("useCredential").valueChanges.subscribe(() => this.fireBackupChanged());
+      this.backupForm.get("secretId").valueChanges.subscribe(() => this.fireBackupChanged());
       this.backupForm.get("username").valueChanges.subscribe(() => this.fireBackupChanged());
       this.backupForm.get("password").valueChanges.subscribe(() => this.fireBackupChanged());
+      this.backupForm.get("useCredential").disable();
+      this.backupForm.get("secretId").disable();
       this.backupForm.get("username").disable();
       this.backupForm.get("password").disable();
 
@@ -194,6 +205,8 @@ export class BackupFileComponent implements OnDestroy {
          enabled: this.enabled,
          path: this.backupForm.get("path").value,
          ftp: this.backupForm.get("ftp").value,
+         useCredential: this.backupForm.get("useCredential").value,
+         secretId: this.backupForm.get("secretId").value?.trim(),
          username: this.backupForm.get("username").value,
          password: this.backupForm.get("password").value,
          assets: this.selectedEntities
@@ -220,7 +233,8 @@ export class BackupFileComponent implements OnDestroy {
    add() {
       const assetEntities = this.exportableNodes
          .filter((node) =>
-            !this.selectedEntities.some((entity) => entity.path == node.data.path))
+            !this.selectedEntities.some((entity) =>
+               entity.path == node.data.path && entity.type == node.data.type))
          .map((node) => <SelectedAssetModel>{
             label: this.getExportableLabel(node.data),
             path: node.data.path ? node.data.path : node.data.label,
@@ -240,7 +254,7 @@ export class BackupFileComponent implements OnDestroy {
          return node.label;
       }
       else if(node.type === RepositoryEntryType.SCHEDULE_TASK || !node.path) {
-         return removeOrganization(node.path, node.owner.organization);
+         return removeOrganization(node.path, node.owner.orgID);
       }
       else {
          return node.path;
@@ -481,10 +495,14 @@ export class BackupFileComponent implements OnDestroy {
 
    toggleFTP() {
       if(this.backupForm.get("ftp").value) {
+         this.backupForm.get("useCredential").enable({ emitEvent: false });
+         this.backupForm.get("secretId").enable({ emitEvent: false });
          this.backupForm.get("username").enable({ emitEvent: false });
          this.backupForm.get("password").enable({ emitEvent: false });
       }
       else {
+         this.backupForm.get("useCredential").disable({ emitEvent: false });
+         this.backupForm.get("secretId").disable({ emitEvent: false });
          this.backupForm.get("username").disable({ emitEvent: false });
          this.backupForm.get("password").disable({ emitEvent: false });
       }

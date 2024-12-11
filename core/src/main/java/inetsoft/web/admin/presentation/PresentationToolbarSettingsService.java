@@ -93,7 +93,7 @@ public class PresentationToolbarSettingsService {
             SreeEnv.setProperty(element.name, "true", !globalSettings);
          }
          else {
-            SreeEnv.remove(element.name);
+            SreeEnv.resetProperty(element.name,  !globalSettings);
          }
       }
 

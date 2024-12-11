@@ -54,9 +54,9 @@ public final class MVQueryBuilder {
    /**
     * Create an instance of MVQueryBuilder.
     */
-   public MVQueryBuilder(TableAssembly table, MV mv, VariableTable vars, XPrincipal user) {
+   public MVQueryBuilder(TableAssembly table, MV mv, VariableTable vars, XPrincipal user, String orgID) {
       this();
-      init(table, mv, vars);
+      init(table, mv, vars, orgID);
    }
 
    /**
@@ -125,8 +125,8 @@ public final class MVQueryBuilder {
    /**
     * Initialize MVQuery and SubMVQuery with the specified table, mv and vars.
     */
-   private void init(TableAssembly table, MV mv, VariableTable vars) {
-      MVDef def = mv.getDef();
+   private void init(TableAssembly table, MV mv, VariableTable vars, String orgID) {
+      MVDef def = mv.getDef(false, orgID);
       final MVQueryTransformation queries = transform(table, mv, def, vars);
       query = queries.query;
       subquery = queries.subQuery;

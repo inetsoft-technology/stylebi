@@ -34,13 +34,30 @@ public class TextSizeLimitTableLens extends AbstractTableLens implements TableFi
     * Constructor.
     */
    public TextSizeLimitTableLens(TableLens table, int size) {
+      super();
+
       this.table = table;
       this.size = size;
    }
 
-   private static String getTextLimitNotification() {
-      return Tool.TEXT_LIMIT_PREFIX + Util.getTextLimitMessage() + Tool.TEXT_LIMIT_SUFFIX;
+   private String getTextLimitNotification() {
+      StringBuilder notificationBuilder = new StringBuilder();
+      notificationBuilder.append(Tool.TEXT_LIMIT_PREFIX);
+      notificationBuilder.append(Util.getTextLimitMessage());
+      notificationBuilder.append(Tool.TEXT_LIMIT_SUFFIX);
+
+      return notificationBuilder.toString();
    }
+
+   private String getLimitText(Object obj) {
+      StringBuilder notificationBuilder = new StringBuilder();
+      notificationBuilder.append(((String) obj).substring(0, size));
+      notificationBuilder.append("...");
+
+      return notificationBuilder.toString();
+   }
+
+
 
    public void setTable(TableLens table) {
       this.table = table;
@@ -91,7 +108,7 @@ public class TextSizeLimitTableLens extends AbstractTableLens implements TableFi
       if(obj instanceof String && size > 0 && ((String) obj).length() > size) {
          Tool.addUserMessage(getTextLimitNotification());
 
-         return ((String) obj).substring(0, size) + "...";
+         return getLimitText(obj);
       }
 
       return obj;
@@ -110,13 +127,7 @@ public class TextSizeLimitTableLens extends AbstractTableLens implements TableFi
 
    @Override
    public boolean moreRows(int row) {
-      synchronized(rlock) {
-         if(table == null) {
-            throw new RuntimeException("Table is disposed: " + this);
-         }
-
-         return table.moreRows(row);
-      }
+      return table.moreRows(row);
    }
 
    /**

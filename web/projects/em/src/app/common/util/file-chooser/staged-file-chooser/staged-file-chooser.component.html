@@ -18,7 +18,7 @@
 <mat-card class="mat-elevation-z0" [class.empty-file-list]="(!value || !value.length) && !header">
   <mat-card-header *ngIf="header">{{ header }}</mat-card-header>
   <mat-card-content *ngIf="value && value.length">
-    <mat-list *ngIf="!uploading">
+    <mat-list *ngIf="!uploading && displayList">
       <ng-container *ngFor="let file of value">
         <mat-list-item role="listitem">
           <div class="fileListItem">
@@ -31,6 +31,13 @@
         <mat-divider [inset]="true"></mat-divider>
       </ng-container>
     </mat-list>
+    <ng-container *ngIf="!uploading && !displayList">
+      <form>
+        <mat-form-field class="file-item-input">
+          <input type="text" matInput [value]="getDisplayValueStr()"  readonly/>
+        </mat-form-field>
+      </form>
+    </ng-container>
     <ng-container *ngIf="uploading">
       <div>_#(Uploading)...</div>
       <mat-progress-bar mode="determinate" [value]="progress"></mat-progress-bar>

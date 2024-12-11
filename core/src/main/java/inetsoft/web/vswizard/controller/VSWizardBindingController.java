@@ -285,8 +285,13 @@ public class VSWizardBindingController {
 
          wizardRecommendation(entries, rvs, vsTemporaryInfo, id, linkUri, dispatcher,
                               principal, event.reload());
-         DataRefModel[] grayedOutFields = assemblyHandler.getGrayedOutFields(rvs);
+         ChartVSAssembly temp = (ChartVSAssembly) vs.getAssembly(VSWizardConstants.TEMP_CHART_NAME);
+         VSChartInfo oinfo = temp.getVSChartInfo().clone();
+         temp.getVSChartInfo().clearRuntime();
+         DataRefModel[] grayedOutFields = entries.length == 0 ? new DataRefModel[0] :
+            assemblyHandler.getGrayedOutFields(rvs);
          dispatcher.sendCommand(new SetGrayedOutFieldsCommand(grayedOutFields));
+         temp.setVSChartInfo(oinfo);
       }
       finally {
          box.unlockWrite();

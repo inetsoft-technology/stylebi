@@ -24,7 +24,6 @@ import inetsoft.sree.internal.*;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
-import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
@@ -76,7 +75,7 @@ public class DeployService {
 
       List<String> fileOrders = new ArrayList<>();
       Map<String, String> names = new HashMap<>();
-      String cacheFolder = DeployManagerService.setJarFile(in, fileOrders, names);
+      String cacheFolder = DeployManagerService.setJarFile(in, fileOrders, names, true);
 
       return ImportJarProperties.builder()
          .unzipFolderPath(cacheFolder)
@@ -104,8 +103,9 @@ public class DeployService {
          .map(entry -> {
             SelectedAssetModel.Builder builder = SelectedAssetModel.builder()
                .path(getSelectedAssetPath(entry))
-               .label(getSelectedAssetLabel(getSelectedAssetPath(entry),
-                  DeployUtil.toRepositoryEntryType(entry.getType())))
+               .label(SUtil.getTaskNameWithoutOrg(
+                  getSelectedAssetLabel(getSelectedAssetPath(entry),
+                  DeployUtil.toRepositoryEntryType(entry.getType()))))
                .type(DeployUtil.toRepositoryEntryType(entry.getType()))
                .typeName(entry.getType())
                .typeLabel(getTypeLabel(entry.getType(), catalog))
@@ -130,8 +130,9 @@ public class DeployService {
                   }
                }
                else {
-                  builder.appliedTargetLabel(getSelectedAssetLabel(getSelectedAssetPath(entry),
-                     DeployUtil.toRepositoryEntryType(entry.getType())));
+                  String selectedAssetLabel = getSelectedAssetLabel(getSelectedAssetPath(entry),
+                                                                    DeployUtil.toRepositoryEntryType(entry.getType()));
+                  builder.appliedTargetLabel(SUtil.getTaskNameWithoutOrg(selectedAssetLabel));
                }
             }
 
@@ -299,17 +300,17 @@ public class DeployService {
       String path;
 
       if(WorksheetAsset.WORKSHEET.equalsIgnoreCase(type)) {
-         path = "My Reports/Worksheets/" + entryPath;
+         path = Tool.MY_DASHBOARD + "/Worksheets/" + entryPath;
       }
       else if(DashboardAsset.DASHBOARD.equalsIgnoreCase(type)) {
-         path = "My Dashboards/" + entryPath;
+         path = Tool.MY_DASHBOARD + "/" + entryPath;
       }
       else if(ScheduleTaskAsset.SCHEDULETASK.equalsIgnoreCase(type))
       {
          path = entryPath;
       }
       else {
-         path = "My Reports/" + entryPath;
+         path = Tool.MY_DASHBOARD + "/" + entryPath;
       }
 
       return path;
@@ -322,10 +323,21 @@ public class DeployService {
       throws Exception
    {
       Set<IdentityID> users = new HashSet<>();
+      List<String> ignoreUserAssets = new ArrayList<>();
       boolean isAutoSave = false;
       boolean onlyScheduleTaskUsers = true;
+      OrganizationManager manager = OrganizationManager.getInstance();
+      boolean siteAdmin = manager.isSiteAdmin(principal);
 
       for(PartialDeploymentJarInfo.SelectedAsset entry : info.getSelectedEntries()) {
+         if(!siteAdmin && !Tool.equals(entry.getUser().orgID, manager.getCurrentOrgID())) {
+            ArrayList<String> errors = new ArrayList<>();
+            errors.add(Catalog.getCatalog().getString("em.import.ignoreOtherOrgAssetsForOrgAdmin"));
+            return ImportAssetResponse.builder()
+               .failedAssets(errors)
+               .failed(true).build();
+         }
+
          if(VSAutoSaveAsset.AUTOSAVEVS.equals(entry.getType()) ||
             WSAutoSaveAsset.AUTOSAVEWS.equals(entry.getType()))
          {
@@ -337,6 +349,10 @@ public class DeployService {
             }
 
             users.add(entry.getUser());
+
+            if(!Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), entry.getUser().orgID)) {
+               ignoreUserAssets.add(entry.getPath());
+            }
          }
       }
 
@@ -347,6 +363,10 @@ public class DeployService {
             }
 
             users.add(asset.getUser());
+
+            if(!Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), asset.getUser().orgID)) {
+               ignoreUserAssets.add(asset.getPath());
+            }
          }
       }
 
@@ -383,15 +403,25 @@ public class DeployService {
       AnalyticRepository repository = SUtil.getRepletRepository();
 
       if(repository instanceof RepletEngine) {
+         List<String> list = new ArrayList<>();
+         list.addAll(ignoreUserAssets);
+         List<String> privateSembeddedData = info.getJarInfo().getDependeciesMap().get("privateSembeddedData");
+
+         if(privateSembeddedData != null) {
+            list.addAll(privateSembeddedData);
+         }
+
          List<String> failedAssets = ((RepletEngine) repository).importAssets(
-           overwriting, info.getProperties().fileOrders(), info, false, principal, ignoreList,
-            targetFolderInfo, actionRecord);
+            overwriting, info.getProperties().fileOrders(), info, false, principal, ignoreList,
+            targetFolderInfo, actionRecord, list);
          return ImportAssetResponse.builder()
             .failed(!failedAssets.isEmpty())
+            .ignoreUserAssets(ignoreUserAssets)
             .failedAssets(failedAssets).build();
       }
 
       return ImportAssetResponse.builder()
+         .ignoreUserAssets(new ArrayList<>())
          .failedAssets(new ArrayList<>())
          .failed(true).build();
    }
@@ -401,7 +431,7 @@ public class DeployService {
 
       for(IdentityID user : users) {
          if(provider.getUser(user) == null && !unregistered.contains(user)) {
-            throw new Exception(Catalog.getCatalog().getString("em.import.missingUser", user));
+            throw new Exception(Catalog.getCatalog().getString("em.import.missingUser", user.getName()));
          }
       }
    }
@@ -741,7 +771,7 @@ public class DeployService {
          index++;
       }
       else if("user".equals(scope)) {
-         user = new IdentityID(items[1], OrganizationManager.getCurrentOrgName());
+         user = new IdentityID(items[1], OrganizationManager.getInstance().getCurrentOrgID());
          index += 2;
       }
 
@@ -935,7 +965,7 @@ public class DeployService {
                String typeName = repositoryEntryTypeToAssetType(entity.type());
                permittedEntities.add(SelectedAssetModel.builder()
                                         .from(entity)
-                                        .label(getSelectedAssetLabel(entity.path(), entity.type()))
+                                        .label(SUtil.getTaskNameWithoutOrg(getSelectedAssetLabel(entity.path(), entity.type())))
                                         .typeName(typeName)
                                         .typeLabel(getTypeLabel(typeName, catalog))
                                         .lastModifiedTime(lastModifiedTime)
@@ -1364,7 +1394,7 @@ public class DeployService {
 
          if(matcher.matches()) {
             try {
-               user = new IdentityID(matcher.group(1), OrganizationManager.getCurrentOrgName());
+               user = new IdentityID(matcher.group(1), OrganizationManager.getInstance().getCurrentOrgID());
                type = matcher.group(2);
                path = matcher.group(3);
             }

@@ -25,8 +25,11 @@ import {
    ElementRef
 } from "@angular/core";
 import { HttpClient, HttpParams } from "@angular/common/http";
-import { Observable, of } from "rxjs";
+import { Observable, of, Subscription } from "rxjs";
 import { catchError, timeout } from "rxjs/operators";
+import { AssetEntry, createAssetEntry } from "../../../../../../shared/data/asset-entry";
+import { AppInfoService } from "../../../../../../shared/util/app-info.service";
+import { CommonKVModel } from "../../../common/data/common-kv-model";
 import { ViewsheetPropertyDialogModel } from "../../data/vs/viewsheet-property-dialog-model";
 import { UntypedFormGroup } from "@angular/forms";
 import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-pane-tree-model";
@@ -51,11 +54,17 @@ export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent imple
    @Output() onCommit: EventEmitter<ViewsheetPropertyDialogModel> =
       new EventEmitter<ViewsheetPropertyDialogModel>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
+   private orgInfo: CommonKVModel<string, string> = null;
 
    constructor(private httpClient: HttpClient, private modalService: NgbModal,
-               protected renderer: Renderer2, protected element: ElementRef)
+               protected renderer: Renderer2, protected element: ElementRef,
+               private appInfoService: AppInfoService)
    {
       super(renderer, element);
+
+      this.appInfoService.getCurrentOrgInfo().subscribe((orgInfo) => {
+         this.orgInfo = orgInfo;
+      })
    }
 
    formValid = () => {
@@ -130,5 +139,14 @@ export class ViewsheetPropertyDialog extends BaseResizeableDialogComponent imple
       }
 
       return of(error)
+   }
+
+   isDefaultOrgAsset() {
+      if(!this.viewsheet || !this.viewsheet.id) {
+         return false;
+      }
+
+      let assetEntry: AssetEntry = createAssetEntry(this.viewsheet.id);
+      return assetEntry?.organization != this.orgInfo.key;
    }
 }

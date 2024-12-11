@@ -216,7 +216,7 @@ public class DataDependencyTransformer extends DependencyTransformer {
          }
 
          rinfos.add(ninfo);
-         service.rename(key, key.replace(table, ntableName));
+         service.rename(key, key.replace(table, ntableName), ninfo.getOrganizationId());
       }
    }
 
@@ -596,7 +596,10 @@ public class DataDependencyTransformer extends DependencyTransformer {
          String schema = schemaVal == null ? null : schemaVal + "";
 
          String ntableName = getQualifiedTableName(tableName, info.getNewOption(), metadata, additional);
-         partition.renameTable(tableName, ntableName, catalog, schema);
+
+         if(catalog != null) {
+            partition.renameTable(tableName, ntableName, catalog, schema);
+         }
 
          RenameInfo rinfo = new RenameInfo(tableName, ntableName, RenameInfo.PHYSICAL_TABLE);
 

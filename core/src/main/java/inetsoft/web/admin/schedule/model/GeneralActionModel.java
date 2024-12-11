@@ -80,6 +80,12 @@ public abstract class GeneralActionModel extends ScheduleActionModel {
    public abstract Boolean bundledAsZip();
 
    @Nullable
+   public abstract Boolean useCredential();
+
+   @Nullable
+   public abstract String secretId();
+
+   @Nullable
    public abstract String password();
 
    @Nullable

@@ -23,8 +23,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import org.w3c.dom.Element;
 
-import java.io.PrintWriter;
-import java.io.Serializable;
+import java.io.*;
 import java.util.Objects;
 
 /**
@@ -35,15 +34,15 @@ import java.util.Objects;
  */
 @JsonSerialize(as = IdentityID.class)
 @JsonDeserialize(as = IdentityID.class)
-public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSerializable {
+public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSerializable, Cloneable {
 
    /**
     * @param name   the identity name.
-    * @param organization the organization name of the identity.
+    * @param orgID the organization id of the identity.
     */
-   public IdentityID(String name, String organization) {
+   public IdentityID(String name, String orgID) {
       this.name = name;
-      this.organization = organization;
+      this.orgID = orgID;
    }
 
    public IdentityID() {
@@ -61,25 +60,20 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
    /**
     * @return organization name of the identity.
     */
-   public String getOrganization(){
-      return this.organization;
+   public String getOrgID(){
+      return this.orgID;
    }
 
    /**
-    * Set organization name of the identity.
-    * @param organization
+    * Set organization id of the identity.
+    * @param orgID
     */
-   public void setOrganization(String organization){
-      this.organization = organization;
-   }
-
-   @Override
-   public String toString() {
-      return convertToKey();
+   public void setOrgID(String orgID){
+      this.orgID = orgID;
    }
 
    public String convertToKey() {
-      String org = this.organization;
+      String org = this.orgID;
 
       if(org == null) {
          org = GLOBAL_ORG_KEY;
@@ -99,19 +93,19 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
       int deliminator = key.indexOf(KEY_DELIMITER);
       if(deliminator > 0) {
          String name = key.substring(0, deliminator);
-         String org = key.substring(deliminator + KEY_DELIMITER.length());
+         String orgID = key.substring(deliminator + KEY_DELIMITER.length());
 
-         if(org.equals(GLOBAL_ORG_KEY) || org.equals("null")) {
-            org = null;
+         if(orgID.equals(GLOBAL_ORG_KEY) || orgID.equals("null")) {
+            orgID = null;
          }
-         return new IdentityID(name, org);
+         return new IdentityID(name, orgID);
       }
       else {
          XPrincipal principal = (XPrincipal) ThreadContext.getPrincipal();
          principal = principal == null ? (XPrincipal) ThreadContext.getContextPrincipal() : principal;
-         String pOrg = principal == null ? Organization.getDefaultOrganizationName() :
-                        IdentityID.getIdentityIDFromKey(principal.getName()).organization;
-         return new IdentityID(key, pOrg);
+         String pOrgID = principal == null ? Organization.getDefaultOrganizationID() :
+                        IdentityID.getIdentityIDFromKey(principal.getName()).orgID;
+         return new IdentityID(key, pOrgID);
       }
    }
 
@@ -125,23 +119,36 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
          return false;
       }
 
-      return Objects.equals(name, that.name) && Objects.equals(organization, that.organization);
+      return Objects.equals(name, that.name) && Objects.equals(orgID, that.orgID);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(name, organization);
+      return Objects.hash(name, orgID);
    }
 
    public boolean equalsIgnoreCase(IdentityID other) {
       return Tool.equals(this.name, other.name, false) &&
-         Tool.equals(this.organization, other.organization, false);
+         Tool.equals(this.orgID, other.orgID, false);
+   }
+
+   @Override
+   public Object clone() throws CloneNotSupportedException {
+      return super.clone();
    }
 
    @Override
    public int compareTo(IdentityID o) {
       int nameComp = this.name.compareTo(o.name);
-      return nameComp != 0 ? nameComp : Tool.compare(this.organization, o.organization);
+      return nameComp != 0 ? nameComp : Tool.compare(this.orgID, o.orgID);
+   }
+
+   @Override
+   public String toString() {
+      return "IdentityID{" +
+         "name='" + name + '\'' +
+         ", orgID='" + orgID + '\'' +
+         '}';
    }
 
    @Override
@@ -156,9 +163,9 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
          writer.print("</name>");
       }
 
-      if(organization != null) {
+      if(orgID != null) {
          writer.print("<organization>");
-         writer.print("<![CDATA[" + organization + "]]>");
+         writer.print("<![CDATA[" + orgID + "]]>");
          writer.print("</organization>");
       }
 
@@ -171,12 +178,26 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
          return;
       }
       this.name = Tool.getChildValueByTagName(tag, "name");
-      this.organization = Tool.getChildValueByTagName(tag, "organization");
+      this.orgID = Tool.getChildValueByTagName(tag, "organization");
+   }
+
+   public static String getConvertKey(String idName) {
+      return getConvertKey(idName, null);
+   }
+
+   public static String getConvertKey(String idName, String orgId) {
+      if(orgId == null || orgId.isEmpty()) {
+         orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      }
+
+      idName = !idName.startsWith(idName + IdentityID.KEY_DELIMITER) ?
+         idName + IdentityID.KEY_DELIMITER + orgId : idName;
+
+      return idName;
    }
 
    public String name;
-   public String organization;
+   public String orgID;
    public final static String KEY_DELIMITER = "~;~";
    private final static String GLOBAL_ORG_KEY = "__GLOBAL__";
-
 }

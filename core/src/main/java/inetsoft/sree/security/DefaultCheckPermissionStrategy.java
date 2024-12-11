@@ -18,6 +18,7 @@
 package inetsoft.sree.security;
 
 import inetsoft.sree.internal.SUtil;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -46,7 +47,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       IdentityID[] groups = null;
       String organization = null;
       PermissionChecker checker = new PermissionChecker(provider);
-      IdentityID curOrgID = new IdentityID(OrganizationManager.getCurrentOrgName(),OrganizationManager.getCurrentOrgName());
+      IdentityID curOrgID = new IdentityID(OrganizationManager.getCurrentOrgName(),
+                                           OrganizationManager.getInstance().getCurrentOrgID());
 
       //check admin permissions at org level
       if(isSecurityIdentity(type) && isNotGlobalRole(type, IdentityID.getIdentityIDFromKey(resource)) && provider.getPermission(ResourceType.SECURITY_ORGANIZATION, curOrgID) != null) {
@@ -59,15 +61,37 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
 
       if(identity.getType() == Identity.USER) {
-         identity = (principal instanceof SRPrincipal) ?
+         Identity ssoIdentity = principal instanceof SRPrincipal ?
             ((SRPrincipal) principal).createUser() : null;
-         identity = identity == null ? provider.getUser(pId) : identity;
+         identity = provider.getUser(pId);
 
-         if(identity != null) {
+         if(ssoIdentity != null) {
+            roles = ssoIdentity.getRoles();
+            String identityOrg = ssoIdentity.getOrganizationID();
+            groups = Arrays.stream(ssoIdentity.getGroups()).map(u -> new IdentityID(u,identityOrg)).toArray(IdentityID[]::new);
+            organization = ssoIdentity.getOrganizationID();
+
+            if(identity != null) {
+               Set<IdentityID> combinedRoles = new HashSet<>();
+               Collections.addAll(combinedRoles, roles);
+               Collections.addAll(combinedRoles, identity.getRoles());
+               roles = combinedRoles.toArray(new IdentityID[0]);
+
+               Set<IdentityID> combinedGroups = new HashSet<>();
+               Collections.addAll(combinedGroups, groups);
+               Collections.addAll(combinedGroups, Arrays.stream(identity.getGroups()).map(u ->
+                                  new IdentityID(u, identityOrg)).toArray(IdentityID[]::new));
+               groups = combinedGroups.toArray(new IdentityID[0]);
+            }
+            else {
+               identity = ssoIdentity;
+            }
+         }
+         else if(identity != null) {
             roles = identity.getRoles();
-            String identityOrg = identity.getOrganization();
+            String identityOrg = identity.getOrganizationID();
             groups = Arrays.stream(identity.getGroups()).map(u -> new IdentityID(u,identityOrg)).toArray(IdentityID[]::new);
-            organization = identity.getOrganization();
+            organization = identity.getOrganizationID();
          }
       }
       else if(identity.getType() == Identity.GROUP) {
@@ -75,9 +99,9 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
          if(identity != null) {
             roles = identity.getRoles();
-            String identityOrg = identity.getOrganization();
+            String identityOrg = identity.getOrganizationID();
             groups = Arrays.stream(identity.getGroups()).map(u -> new IdentityID(u,identityOrg)).toArray(IdentityID[]::new);
-            organization = identity.getOrganization();
+            organization = identity.getOrganizationID();
          }
       }
       else if(identity.getType() == Identity.ROLE) {
@@ -89,15 +113,16 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
       else if(identity.getType() == Identity.ORGANIZATION) {
          identity = provider.getOrganization(pId.name);
+
          if(identity != null) {
-            organization = identity.getName();
+            organization = identity.getOrganizationID();
          }
       }
       else {
          identity = null;
          roles = provider.getRoles(pId);
-         groups = Arrays.stream(provider.getUserGroups(pId)).map(u -> new IdentityID(u,pId.organization)).toArray(IdentityID[]::new);
-         organization = provider.getOrganization(pId.name).name;
+         groups = Arrays.stream(provider.getUserGroups(pId)).map(u -> new IdentityID(u,pId.orgID)).toArray(IdentityID[]::new);
+         organization = provider.getOrganization(pId.orgID).getOrganizationID();
       }
 
       //return true if admin permissions over root role
@@ -107,7 +132,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          Role role = provider.getRole(IdentityID.getIdentityIDFromKey(resource));
          Permission orgRoleRootPer;
 
-         if(role != null && role.getOrganization() != null) {
+         if(role != null && role.getOrganizationID() != null) {
             orgRoleRootPer = provider.getPermission(type, rootOrgRole);
          }
          else {
@@ -115,14 +140,14 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          }
 
          if(orgRoleRootPer != null && (role == null ||
-            Tool.equals(role.getOrganization(), OrganizationManager.getCurrentOrgName())) &&
+            Tool.equals(role.getOrganizationID(), OrganizationManager.getInstance().getCurrentOrgID())) &&
             checker.checkPermission(identity, orgRoleRootPer, action, true))
          {
             return true;
          }
       }
       else if(type.equals(ResourceType.SECURITY_GROUP)) {
-         IdentityID rootGroup = new IdentityID(Catalog.getCatalog(principal).getString("Groups"), OrganizationManager.getCurrentOrgName());
+         IdentityID rootGroup = new IdentityID("Groups", OrganizationManager.getInstance().getCurrentOrgID());
          Permission rootGroupPerm = provider.getPermission(type, rootGroup);
 
          if(rootGroupPerm != null && checker.checkPermission(identity, rootGroupPerm, action, true))
@@ -132,7 +157,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
       //return true if admin permissions over root role
       else if(type.equals(ResourceType.SECURITY_USER)) {
-         IdentityID rootUser = new IdentityID(Catalog.getCatalog(principal).getString("Users"), OrganizationManager.getCurrentOrgName());
+         IdentityID rootUser = new IdentityID("Users", OrganizationManager.getInstance().getCurrentOrgID());
          Permission rootUserPerm = provider.getPermission(type, rootUser);
 
          if(rootUserPerm != null && checker.checkPermission(identity, rootUserPerm, action, true))
@@ -144,7 +169,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          User resourceUser = provider.getUser((IdentityID.getIdentityIDFromKey(resource)));
          String[] userGroups = resourceUser == null ? null : resourceUser.getGroups();
           if(userGroups != null && userGroups.length > 0) {
-            IdentityID rootGroup = new IdentityID(Catalog.getCatalog(principal).getString("Groups"), OrganizationManager.getCurrentOrgName());
+            IdentityID rootGroup = new IdentityID("Groups", OrganizationManager.getInstance().getCurrentOrgID());
             Permission rootGroupPerm = provider.getPermission(ResourceType.SECURITY_GROUP, rootGroup);
 
             if(rootGroupPerm != null && checker.checkPermission(identity, rootGroupPerm, action, true))
@@ -154,41 +179,45 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          }
       }
 
+      XPrincipal xPrincipal = (principal instanceof XPrincipal) ? (XPrincipal) principal
+         : new XPrincipal(new IdentityID(principal.getName(), pId.getOrgID()));
+
+      xPrincipal.setRoles(roles);
+
+      if(groups != null) {
+         xPrincipal.setGroups(Arrays.stream(groups).map(g -> g.getName()).toArray(String[]::new));
+      }
+
       // Bug #40590, always check permission for additional connection (backward
       // compatibility)
       if((roles != null || groups != null || organization != null) &&
          !(action == ResourceAction.READ && (type == ResourceType.DATA_SOURCE ||
             type == ResourceType.DATA_SOURCE_FOLDER) && resource.contains("::")))
       {
-         final HashSet<IdentityID> baseRoles = new HashSet<>();
-
-         if(roles != null) {
-            baseRoles.addAll(Arrays.asList(roles));
-         }
-
-         //check base roles of assigned Organization
-         if(identity.getOrganization() != null && provider.getOrganization(identity.getOrganization()) != null) {
-            IdentityID[] orgRoles = provider.getOrganization(identity.getOrganization()).getRoles();
-
-            if(orgRoles != null) {
-               baseRoles.addAll(Arrays.asList(orgRoles));
-            }
-         }
-
-         if(groups != null) {
-            Arrays.stream(provider.getAllGroups(groups))
-               .map(name -> provider.getGroup(name))
-               .filter(Objects::nonNull)
-               .flatMap(g -> Arrays.stream(g.getRoles()))
-               .forEach(baseRoles::add);
-         }
-
-         final boolean isSysAdmin = Arrays
-            .stream(provider.getAllRoles(baseRoles.toArray(new IdentityID[0])))
+        final boolean isSysAdmin = Arrays.stream(xPrincipal.getAllRoles(provider))
             .anyMatch(provider::isSystemAdministratorRole);
 
          if(isSysAdmin || OrganizationManager.getInstance().isSiteAdmin(principal)) {
             return true;
+         }
+
+         final boolean isOrgAdministrator = Arrays.stream(xPrincipal.getAllRoles(provider))
+            .anyMatch(provider::isOrgAdministratorRole);
+
+         if(isOrgAdministrator && type == ResourceType.EM_COMPONENT &&
+            "settings/content/data-space".equals(resource))
+         {
+            return true;
+         }
+
+         if(isOrgAdministrator) {
+            IdentityID identityID = IdentityID.getIdentityIDFromKey(resource);
+
+            if(identityID != null && "INETSOFT_SYSTEM".equals(identityID.name) &&
+               identityID.orgID.endsWith("DataCycle Task"))
+            {
+               return true;
+            }
          }
 
          //if admin permissions to this resource, return true
@@ -201,7 +230,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             return true;
          }
 
-         if(checkOrgAdminPermission(type, resource, organization, baseRoles, principal)) {
+         if(checkOrgAdminPermission(type, resource, organization, xPrincipal)) {
             return true;
          }
       }
@@ -289,7 +318,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
 
       if(type == ResourceType.SECURITY_ROLE) {
-         Permission rolePerm = provider.getPermission(type, new IdentityID(Catalog.getCatalog().getString("Organization Roles"), organization));
+         Permission rolePerm = provider.getPermission(type, new IdentityID("Organization Roles", organization));
 
          if(rolePerm != null && checker.checkPermission(identity, rolePerm, action, true)) {
             return true;
@@ -414,8 +443,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
    private boolean isNotGlobalRole(ResourceType type, IdentityID name) {
       return !type.equals(ResourceType.SECURITY_ROLE) || provider.getRole(name) == null ||
-             (provider.getRole(name).getOrganization() != null &&
-             !provider.getRole(name).getOrganization().isEmpty());
+             (provider.getRole(name).getOrganizationID() != null &&
+             !provider.getRole(name).getOrganizationID().isEmpty());
    }
 
    private boolean isSecurityIdentity(ResourceType type) {
@@ -425,8 +454,8 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          type.equals(ResourceType.SECURITY_ORGANIZATION);
    }
 
-   private boolean checkOrgAdminPermission(ResourceType type, String resource, String organization,
-                                           HashSet<IdentityID> baseRoles, Principal principal)
+   private boolean checkOrgAdminPermission(ResourceType type, String resource, String orgID,
+                                           XPrincipal principal)
    {
       AuthenticationProvider currProvider =
          !(principal instanceof SRPrincipal) || SUtil.isInternalUser(principal) ?
@@ -434,26 +463,25 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       currProvider = currProvider == null ? provider : currProvider;
       boolean isSiteAdmin;
       final boolean isOrgAdmin = Arrays
-         .stream(currProvider.getAllRoles(baseRoles.toArray(new IdentityID[0])))
+         .stream(principal.getAllRoles(currProvider))
          .anyMatch(currProvider::isOrgAdministratorRole);
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       IdentityID resourceID = IdentityID.getIdentityIDFromKey(resource);
-      String orgId = currProvider.getOrgId(organization);
-      IdentityID orgIdentityID = new IdentityID(organization, organization);
+      IdentityID orgIdentityID = new IdentityID(currProvider.getOrgNameFromID(orgID), orgID);
       Permission orgPermissions = provider.getPermission(ResourceType.SECURITY_ORGANIZATION, orgIdentityID);
-      final boolean hasOrgAdminPermission = organization != null &&
-            orgPermissions != null && orgPermissions.getOrgScopedUserGrants(ResourceAction.ADMIN, orgId) != null &&
-            orgPermissions.getOrgScopedUserGrants(ResourceAction.ADMIN, orgId).contains(pId);
+      final boolean hasOrgAdminPermission = orgID != null &&
+            orgPermissions != null && orgPermissions.getOrgScopedUserGrants(ResourceAction.ADMIN, orgID) != null &&
+            orgPermissions.getOrgScopedUserGrants(ResourceAction.ADMIN, orgID).contains(pId);
 
       if(!isOrgAdmin && !hasOrgAdminPermission) {
          return false;
       }
 
-      // Org Admin has permission over all identities within an organization except site admins
+      // Org Admin has permission over all identities within an orgID except site admins
       switch(type) {
       case SECURITY_USER:
-         if(resource.equals(new IdentityID("*", organization).convertToKey()) ||
-            new IdentityID(Catalog.getCatalog(principal).getString("Users"), organization).convertToKey().equals(resource))
+         if(resource.equals(new IdentityID("*", orgID).convertToKey()) ||
+            new IdentityID("Users", orgID).convertToKey().equals(resource))
          {
             return true;
          }
@@ -462,23 +490,18 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
          // Bug #66393, SSO user do not in provider, so just equals org name.
          if(user == null) {
-            return Objects.equals(resourceID.getOrganization(), organization);
+            return Objects.equals(resourceID.getOrgID(), orgID);
          }
 
          IdentityID[] userRoles = currProvider.getRoles(user.getIdentityID());
          isSiteAdmin = Arrays.stream(currProvider.getAllRoles(userRoles))
             .anyMatch(currProvider::isSystemAdministratorRole);
 
-         return !isSiteAdmin && organization.equals(currProvider.getUser(resourceID).getOrganization());
+         return !isSiteAdmin && orgID.equals(currProvider.getUser(resourceID).getOrganizationID());
       case SECURITY_GROUP:
-         if(resource.equals(new IdentityID("*",organization).convertToKey())) {
-            return false;
-         }
-
-         String groupRoot =
-            Catalog.getCatalog(principal).getString("Groups");
-
-         if(resource.equals(new IdentityID(groupRoot, organization).convertToKey())) {
+         if(resource.equals(new IdentityID("*",orgID).convertToKey()) ||
+            resource.equals(new IdentityID("Groups", orgID).convertToKey()))
+         {
             return true;
          }
 
@@ -488,11 +511,11 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
             .anyMatch(currProvider::isSystemAdministratorRole);
 
          return !isSiteAdmin && currProvider.getGroup(resourceID) != null &&
-            organization.equals(currProvider.getGroup(resourceID).getOrganization());
+            orgID.equals(currProvider.getGroup(resourceID).getOrganizationID());
       case SECURITY_ROLE:
-         String roleRoot = new IdentityID(Catalog.getCatalog(principal).getString("Roles"), organization).convertToKey();
-         String roleOrgRoot = new IdentityID(Catalog.getCatalog(principal).getString("Organization Roles"),organization).convertToKey();
-         IdentityID identityID = new IdentityID("*", organization);
+         String roleRoot = new IdentityID("Roles", orgID).convertToKey();
+         String roleOrgRoot = new IdentityID("Organization Roles", orgID).convertToKey();
+         IdentityID identityID = new IdentityID("*", orgID);
 
          if(resource.equals(roleRoot) || resource.equals(roleOrgRoot) ||
             identityID.convertToKey().equals(resource))
@@ -510,14 +533,15 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          isSiteAdmin = Arrays.stream(currProvider.getAllRoles(roles))
             .anyMatch(currProvider::isSystemAdministratorRole);
 
-         return !isSiteAdmin && (currProvider.getRole(resourceID).getOrganization() == null ||
-                 organization.equals(currProvider.getRole(resourceID).getOrganization()));
+         return !isSiteAdmin && (currProvider.getRole(resourceID).getOrganizationID() == null ||
+                 orgID.equals(currProvider.getRole(resourceID).getOrganizationID()));
       case SECURITY_ORGANIZATION:
          if(resource.equals("*")) {
             return false;
          }
 
-         return Tool.equals(organization, resource) || new IdentityID(organization, organization).convertToKey().equals(resource);
+         return Tool.equals(orgID, resourceID.getOrgID()) ||
+            new IdentityID(currProvider.getOrgNameFromID(orgID), orgID).convertToKey().equals(resource);
       default:
          return isOrgAdmin && ActionPermissionService.isOrgAdminAction(type, resource);
       }
@@ -647,7 +671,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
          if(currentType == ResourceType.SECURITY_USER) {
             // check for the user/role wildcard
-            perm = provider.getPermission(currentType, new IdentityID(Catalog.getCatalog().getString("Users"), OrganizationManager.getCurrentOrgName()));
+            perm = provider.getPermission(currentType, new IdentityID("Users", OrganizationManager.getInstance().getCurrentOrgID()));
 
             if(perm != null) {
                users.addAll(perm.getOrgScopedUserGrants(action, orgId));
@@ -658,7 +682,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          }
          else if(currentType == ResourceType.SECURITY_ROLE) {
 
-            perm = provider.getPermission(currentType, new IdentityID(Catalog.getCatalog().getString("Organization Roles"), OrganizationManager.getCurrentOrgName()));
+            perm = provider.getPermission(currentType, new IdentityID("Organization Roles", OrganizationManager.getInstance().getCurrentOrgID()));
 
             if(perm != null) {
                users.addAll(perm.getOrgScopedUserGrants(action, orgId));
@@ -667,7 +691,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
                organizations.addAll(perm.getOrgScopedOrganizationGrants(action, orgId));
             }
 
-            perm = provider.getPermission(currentType, new IdentityID(Catalog.getCatalog().getString("Roles"), OrganizationManager.getCurrentOrgName()));
+            perm = provider.getPermission(currentType, new IdentityID("Roles", OrganizationManager.getInstance().getCurrentOrgID()));
 
             if(perm != null) {
                users.addAll(perm.getOrgScopedUserGrants(action, orgId));
@@ -692,7 +716,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
 
    private boolean isActualResource(String currentResource, ResourceType resourceType) {
       if(isSecurityIdentity(resourceType) && resourceType != ResourceType.SECURITY_ORGANIZATION) {
-         String rootIDKey = new IdentityID("*", OrganizationManager.getCurrentOrgName()).convertToKey();
+         String rootIDKey = new IdentityID("*", OrganizationManager.getInstance().getCurrentOrgID()).convertToKey();
          return !"/".equals(currentResource) && !rootIDKey.equals(currentResource) ||
             (rootIDKey.equals(currentResource) && (ResourceType.SCRIPT_LIBRARY == resourceType) ||
                ResourceType.TABLE_STYLE_LIBRARY == resourceType);
@@ -714,17 +738,17 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       Catalog catalog = Catalog.getCatalog();
 
       if(resource.getType() == ResourceType.SECURITY_USER &&
-         !new IdentityID(catalog.getString("Users"), org).convertToKey().equals(resource.getPath()))
+         !new IdentityID("Users", org).convertToKey().equals(resource.getPath()))
       {
          groups = provider.getUserGroups(resourceID);
       }
       else if(resource.getType() == ResourceType.SECURITY_GROUP &&
-         !new IdentityID(catalog.getString("Groups"), org).convertToKey().equals(resource.getPath()))
+         !new IdentityID("Groups", org).convertToKey().equals(resource.getPath()))
       {
          groups = provider.getGroupParentGroups(resourceID);
       }
       else if((resource.getType() == ResourceType.SECURITY_GROUP ||
-         resource.getType() == ResourceType.SECURITY_USER) && new IdentityID(catalog.getString("Groups"), org).convertToKey().equals(resource.getPath()) &&
+         resource.getType() == ResourceType.SECURITY_USER) && new IdentityID("Groups", org).convertToKey().equals(resource.getPath()) &&
          !Tool.isEmptyString(org))
       {
          return Collections.singleton(new Resource(ResourceType.SECURITY_ORGANIZATION, org));
@@ -737,9 +761,9 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
          return Collections.emptySet();
       }
       else if(groups.length == 0 && resource.getType() == ResourceType.SECURITY_GROUP &&
-         !new IdentityID(catalog.getString("Groups"), org).convertToKey().equals(resource.getPath()))
+         !new IdentityID("Groups", org).convertToKey().equals(resource.getPath()))
       {
-         return Collections.singleton(new Resource(ResourceType.SECURITY_GROUP, new IdentityID(catalog.getString("Groups"), org).convertToKey()));
+         return Collections.singleton(new Resource(ResourceType.SECURITY_GROUP, new IdentityID("Groups", org).convertToKey()));
       }
       else if(groups.length == 0 && resource.getType() == ResourceType.SECURITY_USER &&
          !Tool.isEmptyString(org))
@@ -748,7 +772,7 @@ public class DefaultCheckPermissionStrategy implements CheckPermissionStrategy {
       }
       else {
          return Arrays.stream(groups)
-            .map(name -> new IdentityID(name, resourceID.organization))
+            .map(name -> new IdentityID(name, resourceID.orgID))
             .map(g -> new Resource(ResourceType.SECURITY_GROUP, g.convertToKey()))
             .collect(Collectors.toSet());
       }

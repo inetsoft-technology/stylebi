@@ -17,11 +17,11 @@
  */
 export interface IdentityId {
    name: string;
-   organization: string | null;
+   orgID: string | null;
 }
 
 export function convertToKey(id: IdentityId) {
-   return id.name + KEY_DELIMITER + id.organization;
+   return id.name + KEY_DELIMITER + id.orgID;
 }
 
 export function convertKeyToID(key: string) {
@@ -30,15 +30,15 @@ export function convertKeyToID(key: string) {
    if(ind > 0) {
       let name = key.substring(0,ind);
       let org = key.substring(ind+KEY_DELIMITER.length);
-      return {name: name, organization: org};
+      return {name: name, orgID: org};
    }
    else {
-      return {name: key, organization: ""};
+      return {name: key, orgID: ""};
    }
 }
 
 export function equalsIdentity(id: IdentityId, id2: IdentityId) {
-   return id?.name === id2?.name && id?.organization === id2?.organization;
+   return id?.name === id2?.name && id?.orgID === id2?.orgID;
 }
 
 export function removeOrganization(key: string, organization: string) {

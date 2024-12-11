@@ -48,7 +48,7 @@
 </div>
 <span class="visually-hidden" role="heading" aria-label="_#(viewer.welcomePage.mainDes)"></span>
 <div class="repository-tree">
-  <repository-tree  [root]="currentRootNode" [showRoot]="true" [class.mobile-tree]="isMobile"
+  <repository-tree  [root]="currentRootNode" [showRoot]="currentRootNode?.type !== 'None'" [class.mobile-tree]="isMobile"
     [showContextMenu]="true" [isMobile]="isMobile"
     [expandAll]="searchMode ? false : model.expandAllNodes"
     [showTooltip]="true" [showFavoriteIcon]="true"

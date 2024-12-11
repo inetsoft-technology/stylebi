@@ -24,4 +24,5 @@ export interface CubeModel {
    measures: CubeMeasureModel[];
    type: string;
    caption: string;
+   decimalFmts?: string[];
 }

@@ -2156,7 +2156,7 @@ public final class VSUtil {
          // @by ChrisS 2014-5-22: bug1400577032157 fix#2a
          // removed storing of one (Home) bookmark, instead of sorting it
 
-         if(user.getName().equals(owner) ||
+         if(user.getName().equals(owner.convertToKey()) ||
             VSBookmark.HOME_BOOKMARK.equals(info.getName()))
          {
             currentUserBookmark.add(info);
@@ -4919,6 +4919,10 @@ public final class VSUtil {
     * @return the table style object.
     */
    public static TableStyle getTableStyle(String name) {
+      return getTableStyle(name, null);
+   }
+
+   public static TableStyle getTableStyle(String name, String orgID) {
       if(name == null || name.length() == 0) {
          return null;
       }
@@ -4926,7 +4930,7 @@ public final class VSUtil {
       TableStyle style = null;
 
       if(style == null) {
-         style = StyleTreeModel.get(name);
+         style = StyleTreeModel.get(name, orgID);
       }
 
       if(style == null) {
@@ -6716,7 +6720,7 @@ public final class VSUtil {
          IdentityID[] users;
 
          if(provider == null) {
-            users = new IdentityID[] { new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getCurrentOrgName()) };
+            users = new IdentityID[] { new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID()) };
          }
          else if(aEntry.getOrgID().equals(Organization.getSelfOrganizationID())) {
             users = new IdentityID[] {currUser};
@@ -6786,7 +6790,7 @@ public final class VSUtil {
                                                      VSBookmarkInfo.ALLSHARE,
                                                      currUser, false,
                                                      new java.util.Date().getTime());
-            bookmarks.add(info);
+            bookmarks.add(0, info);
          }
       }
    }
@@ -8568,6 +8572,19 @@ public final class VSUtil {
       }
 
       return flyovers;
+   }
+
+   public static boolean hideActionsForHostAssets(AssetEntry entry, Principal principal) {
+      if(entry == null || principal == null) {
+         return false;
+      }
+
+      String orgId = ((XPrincipal) principal).getProperty("curr_org_id") != null ?
+         ((XPrincipal) principal).getProperty("curr_org_id") : ((XPrincipal) principal).getOrgId();
+
+      return SUtil.isDefaultVSGloballyVisible(principal) &&
+         !orgId.equals(Organization.getDefaultOrganizationID()) &&
+         Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID());
    }
 
    private static InheritableThreadLocal<Boolean> IGNORE_CSS = new InheritableThreadLocal<>();

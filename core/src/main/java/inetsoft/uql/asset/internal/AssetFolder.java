@@ -30,6 +30,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.util.FileVersions;
 import inetsoft.util.Tool;
+import org.apache.ignite.binary.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -48,7 +49,7 @@ import java.util.stream.Collectors;
  */
 @JsonSerialize(using = AssetFolder.Serializer.class)
 @JsonDeserialize(using = AssetFolder.Deserializer.class)
-public class AssetFolder implements AssetObject {
+public class AssetFolder implements AssetObject, Binarylizable {
    /**
     * Constructor.
     */
@@ -232,6 +233,32 @@ public class AssetFolder implements AssetObject {
    private IdentityID owner; // for task folder.
    private transient HashMap<AssetEntry, AssetEntry> entryMap;
 
+   @Override
+   public void writeBinary(BinaryWriter writer) throws BinaryObjectException {
+      writer.writeObject("owner", owner);
+
+      synchronized(entryMap) {
+         writer.writeInt("size", entryMap.size());
+
+         for(AssetEntry entry : entryMap.keySet()) {
+            writer.writeObject("entry", entry);
+         }
+      }
+   }
+
+   @Override
+   public void readBinary(BinaryReader reader) throws BinaryObjectException {
+      IdentityID owner = reader.readObject("owner");
+      setOwner(owner);
+      int size = reader.readInt("size");
+      entryMap = new HashMap<>();
+
+      for(int i = 0; i < size; i++) {
+         AssetEntry entry = reader.readObject("entry");
+         entryMap.put(entry, entry);
+      }
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(AssetFolder.class);
 
    static final class Serializer extends StdSerializer<AssetFolder> {
@@ -247,14 +274,17 @@ public class AssetFolder implements AssetObject {
          gen.writeStringField("version", FileVersions.ASSET);
          gen.writeStringField("owner", value.owner == null ? null : value.owner.convertToKey());
          gen.writeArrayFieldStart("entries");
-         List<AssetEntry> entries = new ArrayList<>(value.entryMap.keySet()); // defensive copy
 
-         for(AssetEntry entry : entries) {
-            gen.writeObject(entry);
+         if(value.entryMap != null) {
+            List<AssetEntry> entries = new ArrayList<>(value.entryMap.keySet()); // defensive copy
+
+            for(AssetEntry entry : entries) {
+               gen.writeObject(entry);
+            }
+
+            gen.writeEndArray();
+            gen.writeEndObject();
          }
-
-         gen.writeEndArray();
-         gen.writeEndObject();
       }
    }
 

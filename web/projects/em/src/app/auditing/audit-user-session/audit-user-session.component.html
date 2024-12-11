@@ -17,17 +17,17 @@
   -->
 <em-audit-table-view [displayedColumns]="displayedColumns" [columnRenderers]="columnRenderers" [parameterForm]="form" [fetchParameters]="fetchParameters" [fetchData]="fetchData">
   <section class="flex-row" [formGroup]="form">
-    <mat-form-field appearance="outline" color="primary" class="flex">
+    <mat-form-field appearance="outline" color="accent" class="flex">
       <mat-label>_#(Users)</mat-label>
       <mat-select formControlName="selectedUsers" multiple>
         <mat-option *ngFor="let user of users" [value]="user">{{user}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(logged.least)</mat-label>
       <input matInput type="number" [min]="minStartDuration" [max]="maxStartDuration" formControlName="minDuration"/>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(logged.most)</mat-label>
       <input matInput type="number" [min]="minEndDuration" [max]="maxEndDuration" formControlName="maxDuration"/>
     </mat-form-field>

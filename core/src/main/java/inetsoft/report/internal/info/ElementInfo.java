@@ -358,9 +358,9 @@ public class ElementInfo implements Cloneable, Serializable {
    public boolean isNull() {
       return alignment == 0 && indent == 0 && font == null &&
              foreground == null && background == null && spacing == 0 &&
-             visible == true && keep == false && target == null &&
-             (cssClass == null || "".equals(cssClass)) &&
-             (attrmap == null || attrmap.size() == 0);
+             visible && !keep && target == null &&
+             (cssClass == null || cssClass.isEmpty()) &&
+             (attrmap == null || attrmap.isEmpty());
    }
 
    /**

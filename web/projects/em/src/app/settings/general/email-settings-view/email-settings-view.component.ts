@@ -64,6 +64,7 @@ export class EmailSettingsViewComponent implements OnDestroy {
       this._model = model;
 
       if(this.model) {
+         this.initForm();
          this.updateForm();
       }
    }
@@ -76,28 +77,6 @@ export class EmailSettingsViewComponent implements OnDestroy {
                private usersService: ScheduleUsersService,
                defaultErrorMatcher: ErrorStateMatcher)
    {
-      this.form = this.formBuilder.group({
-            smtpHost: [
-               "", [
-                  Validators.required,
-                  Validators.pattern("^(([\\w\\d\\-\\._]+)*[\\w\\d\\-\\_]+)(,([\\w\\d\\-\\._]+)*[\\w\\d\\-\\_]+)*$")
-               ]
-            ],
-            ssl: [""],
-            tls: [""],
-            jndiUrl: [""],
-            smtpAuthentication: [""],
-            smtpUser: ["", Validators.required],
-            smtpPassword: ["", Validators.required],
-            confirmSmtpPassword: ["", Validators.required],
-            historyEnabled: [""],
-            fromAddress: ["", [Validators.required, FormValidators.emailSpecialCharacters]],
-            deliveryMailSubjectFormat: [""],
-            notificationMailSubjectFormat: [""]
-         },
-         {
-            validator: FormValidators.passwordsMatch("smtpPassword", "confirmSmtpPassword")
-         });
       this.errorStateMatcher = {
          isErrorState: (control: UntypedFormControl | null, form: FormGroupDirective | NgForm | null) =>
             !!this.form.errors && !!this.form.errors.passwordsMatch ||
@@ -123,12 +102,44 @@ export class EmailSettingsViewComponent implements OnDestroy {
          this.model.smtpAuthentication != formVal.smtpAuthentication ||
          this.stringValueChanged(this.model.smtpUser, formVal.smtpUser) ||
          this.stringValueChanged(this.model.smtpPassword, formVal.smtpPassword) ||
+         this.stringValueChanged(this.model.smtpSecretId, formVal.smtpSecretId) ||
          this.stringValueChanged(this.model.confirmSmtpPassword, formVal.confirmSmtpPassword) ||
          this.stringValueChanged(this.model.fromAddress, formVal.fromAddress) ||
          this.booleanValueChanged(this.model.fromAddressEnabled, formVal.fromAddressEnabled) ||
          this.stringValueChanged(this.model.deliveryMailSubjectFormat, formVal.deliveryMailSubjectFormat) ||
          this.stringValueChanged(this.model.notificationMailSubjectFormat, formVal.notificationMailSubjectFormat) ||
          this.model.historyEnabled != formVal.historyEnabled;
+   }
+
+   initForm() {
+      this.form = this.formBuilder.group({
+            smtpHost: [
+               "", [
+                  Validators.required,
+                  Validators.pattern("^(([\\w\\d\\-\\._]+)*[\\w\\d\\-\\_]+)(,([\\w\\d\\-\\._]+)*[\\w\\d\\-\\_]+)*$")
+               ]
+            ],
+            ssl: [""],
+            tls: [""],
+            jndiUrl: [""],
+            smtpAuthentication: [""],
+            smtpUser: ["", Validators.required],
+            historyEnabled: [""],
+            fromAddress: ["", [Validators.required, FormValidators.emailSpecialCharacters]],
+            deliveryMailSubjectFormat: [""],
+            notificationMailSubjectFormat: [""]
+         },
+         {
+            validator: FormValidators.passwordsMatch("smtpPassword", "confirmSmtpPassword")
+         });
+
+      if(this.model.secretIdVisible) {
+         this.form.addControl("smtpSecretId", new UntypedFormControl("", Validators.required));
+      }
+      else {
+         this.form.addControl("smtpPassword", new UntypedFormControl("", Validators.required));
+         this.form.addControl("confirmSmtpPassword", new UntypedFormControl("", Validators.required));
+      }
    }
 
    updateForm() {
@@ -147,6 +158,7 @@ export class EmailSettingsViewComponent implements OnDestroy {
          this.model.jndiUrl = formVal.jndiUrl.trim();
          this.model.smtpAuthentication = formVal.smtpAuthentication;
          this.model.smtpUser = formVal.smtpUser;
+         this.model.smtpSecretId = formVal.smtpSecretId;
          this.model.smtpPassword = formVal.smtpPassword;
          this.model.confirmSmtpPassword = formVal.confirmSmtpPassword;
          this.model.historyEnabled = formVal.historyEnabled;
@@ -165,13 +177,25 @@ export class EmailSettingsViewComponent implements OnDestroy {
    smtpAuthenticationChanged(checked: boolean) {
       if(checked) {
          this.form.get("smtpUser").enable({emitEvent: false});
-         this.form.get("smtpPassword").enable({emitEvent: false});
-         this.form.get("confirmSmtpPassword").enable({emitEvent: false});
+
+         if(this.model.secretIdVisible) {
+            this.form.get("smtpSecretId").enable({emitEvent: false});
+         }
+         else {
+            this.form.get("smtpPassword").enable({emitEvent: false});
+            this.form.get("confirmSmtpPassword").enable({emitEvent: false});
+         }
       }
       else {
          this.form.get("smtpUser").disable({emitEvent: false});
-         this.form.get("smtpPassword").disable({emitEvent: false});
-         this.form.get("confirmSmtpPassword").disable({emitEvent: false});
+
+         if(this.model.secretIdVisible) {
+            this.form.get("smtpSecretId").disable({emitEvent: false});
+         }
+         else {
+            this.form.get("smtpPassword").disable({emitEvent: false});
+            this.form.get("confirmSmtpPassword").disable({emitEvent: false});
+         }
       }
    }
 
@@ -191,8 +215,8 @@ export class EmailSettingsViewComponent implements OnDestroy {
       }
 
       return value1 != value2;
-
    }
+
    private stringValueChanged(str1: string, str2: string): boolean {
       if((str1 == "" || str1 == null || str1 == undefined)
          && (str2 == "" || str2 == null || str2 == undefined))

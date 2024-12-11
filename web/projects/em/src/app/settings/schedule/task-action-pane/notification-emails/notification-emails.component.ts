@@ -36,11 +36,24 @@ export class NotificationEmailsComponent implements OnInit {
    @Input() notifyIfFailed: boolean = false;
    @Input() notifyLink: boolean = false;
    @Input() emailBrowserEnabled: boolean;
-   @Input() emails: string = "";
    @Input() users = [];
    @Input() groups = [];
    @Input() burst: boolean;
    @Output() notificationsChanged = new EventEmitter<NotificationEmails>();
+   _emails: string = "";
+
+   @Input()
+   get emails(): string {
+      return this._emails;
+   }
+
+   set emails(val: string) {
+      if(!!this.emails || !!val) {
+         this._emails = val;
+         this.emailControl.setValue(this._emails);
+      }
+   }
+
    emailControl = new UntypedFormControl();
 
    constructor() {

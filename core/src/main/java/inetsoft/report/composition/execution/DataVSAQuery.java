@@ -118,7 +118,8 @@ public abstract class DataVSAQuery extends VSAQuery {
             TableDataVSAssemblyInfo tinfo =
                (TableDataVSAssemblyInfo) assembly.getVSAssemblyInfo();
             String sname = tinfo.getTableStyle();
-            TableStyle style = VSUtil.getTableStyle(sname);
+            String orgID = box != null && box.getAssetEntry() != null ? box.getAssetEntry().getOrgID() : null;
+            TableStyle style = VSUtil.getTableStyle(sname, orgID);
 
             if(style != null) {
                style = (TableStyle) style.clone();

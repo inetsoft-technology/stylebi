@@ -22,6 +22,7 @@ import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.CredentialType;
 import org.apache.http.HttpHeaders;
 import org.w3c.dom.Element;
 
@@ -55,6 +56,16 @@ public class QuickbooksReportsDataSource
 {
    public QuickbooksReportsDataSource() {
       super(TYPE, QuickbooksReportsDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.AUTH_TOKENS;
+   }
+
+   @Override
+   protected boolean supportCredentialId() {
+      return false;
    }
 
    @Override

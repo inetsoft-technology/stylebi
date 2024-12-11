@@ -177,7 +177,7 @@ public class SearchController {
       // loop into orgAdminExclusions, if this exists there, do not return
       List<Resource> orgAdminExclusions = Arrays.stream(ActionPermissionService.orgAdminActionExclusions).toList();
       for(Resource ex : orgAdminExclusions) {
-         if(ex.getPath().equals(route)) {
+         if(route.contains(ex.getPath())) {
             return false;
          }
       }

@@ -19,10 +19,8 @@ import { HttpClient } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { MatDialog } from "@angular/material/dialog";
 import { MatSlideToggleChange } from "@angular/material/slide-toggle";
-import { event } from "jquery";
-import { info } from "ng-packagr/lib/utils/log";
 import { finalize, takeUntil } from "rxjs/operators";
-import { Tool } from "../../../../../../shared/util/tool";
+import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { AuthorizationService } from "../../../authorization/authorization.service";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { PageHeaderService } from "../../../page-header/page-header.service";
@@ -52,11 +50,13 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
    usersVisible = false;
    actionsVisible = false;
    ssoVisible = false;
+   googleSsoVisible = false;
    isRefreshed = true;
    isOrgAdminOnly = true;
    selfSignupEnabled = false;
    enterprise: boolean;
    orgIDPassOptions: string[] = ["domain", "path"];
+   cloudPlatform = false;
    private destroy$ = new Subject<void>();
 
    constructor(private pageTitle: PageHeaderService,
@@ -64,7 +64,8 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
                private orgDropdownService: OrganizationDropdownService,
                private dialog: MatDialog,
                private appInfoService: AppInfoService,
-               private httpClient: HttpClient)
+               private httpClient: HttpClient,
+               private userService: ScheduleUsersService)
    {
    }
 
@@ -86,6 +87,7 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
             this.ldapProviderUsed = event.ldapProviderUsed;
             this.appInfoService.setLdapProviderUsed(this.ldapProviderUsed);
             this.passOrgIdAs = event.passOrgIdAs;
+            this.cloudPlatform = event.cloudPlatform;
             this.isOrgAdminOnly = event.warning && event.warning === "isOrgAdmin";
          });
 
@@ -94,6 +96,7 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
          this.usersVisible = p.permissions.users;
          this.actionsVisible = p.permissions.actions;
          this.ssoVisible = p.permissions.sso;
+         this.googleSsoVisible = p.permissions.googleSignIn;
       });
 
       this.httpClient.get("../api/em/security/get-enable-self-signup")
@@ -112,10 +115,13 @@ export class SecuritySettingsPageComponent implements OnInit, OnDestroy {
          toggleDisabled: this.securityToggleDisabled,
          ldapProviderUsed: this.ldapProviderUsed
       };
-      this.httpClient.post("../api/em/security/set-enable-security", request).pipe(
-         finalize(() => this.securityToggleDisabled = false)
-      )
-         .subscribe((event: SecurityEnabledEvent) => this.securityEnabled = event.enable);
+
+      this.httpClient.post("../api/em/security/set-enable-security", request)
+         .pipe(finalize(() => this.securityToggleDisabled = false))
+         .subscribe((event: SecurityEnabledEvent) => {
+            this.securityEnabled = event.enable;
+            this.userService.loadScheduleUsers();
+         });
    }
 
    toggleEnterpriseToggle(toggleChange: MatSlideToggleChange) {

@@ -23,7 +23,6 @@ import inetsoft.web.admin.server.ServerMetrics;
 
 import java.rmi.Remote;
 import java.rmi.RemoteException;
-import java.security.Principal;
 import java.util.Date;
 
 /**
@@ -43,7 +42,7 @@ public interface Schedule extends Remote, TestableRemote {
    /**
     * Run a task now
     */
-   void runNow(String task, Principal principal) throws RemoteException;
+   void runNow(String task) throws RemoteException;
 
    /**
     * Stop a task now

@@ -33,7 +33,6 @@ import java.util.Map;
 @JsonDeserialize(as = ImmutableLicenseKeySettingsModel.class)
 public interface LicenseKeySettingsModel {
    @Nullable List<LicenseKeyModel> serverKeys();
-   @Nullable List<LicenseKeyModel> schedulerKeys();
    @Nullable @AllowNulls
    Map<String, String> clusterKeys();
 

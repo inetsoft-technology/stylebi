@@ -20,8 +20,10 @@ package inetsoft.mv.mr;
 import inetsoft.mv.MVExecutionException;
 import inetsoft.mv.fs.*;
 import inetsoft.mv.mr.internal.XJobStatus;
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.GroupedThread;
 import inetsoft.util.TimedQueue;
+import inetsoft.mv.MVJob;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,34 +41,49 @@ public final class XJobPool extends GroupedThread {
     * Add one map result to the associated job.
     * @return true if the task is fulfilled.
     */
-   public static boolean addResult(XMapResult result) throws Exception {
-      return getPool().addResult0(result);
+   public static boolean addResult(XMapResult result, String orgID) throws Exception {
+      return getPool(orgID).addResult0(result);
    }
 
    /**
     * Add one map failure to the associated job.
     */
-   public static void addFailure(XMapFailure failure) {
-      getPool().addFailure0(failure);
+   public static void addFailure(XMapFailure failure, String orgID) {
+      getPool(orgID).addFailure0(failure);
    }
 
    /**
     * Execute one XJob.
     */
-   public static Object execute(XJob job) throws Exception {
+   public static Object execute(XJob job, String orgID) throws Exception {
       try {
-         return getPool().execute0(job);
+         return getPool(orgID).execute0(job);
       }
       catch(Exception ex) {
          throw new MVExecutionException(ex);
       }
    }
 
+   public static void resetOrgCache(String orgID) {
+      if(pool != null) {
+         plock.lock();
+
+         try {
+            if(pool != null) {
+               pool.fsystemOrgMap.remove(orgID);
+            }
+         }
+         finally {
+            plock.unlock();
+         }
+      }
+   }
+
    /**
     * Cancel the job.
     */
-   public static void cancel(String id) {
-      XJobStatus status = getPool().smap.get(id);
+   public static void cancel(String id, String orgID) {
+      XJobStatus status = getPool(orgID).smap.get(id);
 
       if(status != null) {
          status.cancel();
@@ -76,13 +93,13 @@ public final class XJobPool extends GroupedThread {
    /**
     * Get the job pool.
     */
-   private static final XJobPool getPool() {
+   private static final XJobPool getPool(String orgID) {
       if(pool == null) {
          plock.lock();
 
          try {
             if(pool == null) {
-               pool = new XJobPool();
+               pool = new XJobPool(orgID);
                pool.start(); // start sanity check thread
             }
          }
@@ -97,16 +114,15 @@ public final class XJobPool extends GroupedThread {
    /**
     * Create an instance of XJobPool.
     */
-   private XJobPool() {
+   private XJobPool(String curOrg) {
       super();
 
-      if(FSService.getServer() == null) {
+      if(FSService.getServer(curOrg) == null) {
          throw new RuntimeException("This host is not server node!");
       }
 
-      fsystem = FSService.getServer().getFSystem();
-      FSConfig config = fsystem.getConfig();
-      period = config.getJobCheckPeriod();
+      String periodValue = SreeEnv.getProperty("fs.job.check.period");
+      period = periodValue != null ? Integer.parseInt(periodValue) : 500;
    }
 
    /**
@@ -170,7 +186,8 @@ public final class XJobPool extends GroupedThread {
     */
    private Object execute0(XJob job) throws Exception {
       String fname = job.getXFile();
-      XFile fobj = fsystem.get(fname);
+      String orgID = ((MVJob) job).getOrgId();
+      XFile fobj = getOrgFSystem(orgID).get(fname);
 
       if(fobj == null) {
          throw new Exception("File not found: " + fname);
@@ -288,10 +305,14 @@ public final class XJobPool extends GroupedThread {
       }
    }
 
+   private XFileSystem getOrgFSystem(String org) {
+      return fsystemOrgMap.computeIfAbsent(org, k -> FSService.getServer(k).getFSystem());
+   }
+
    private static final Lock plock = new ReentrantLock();
    private static XJobPool pool;
    private final int period;
-   private final XFileSystem fsystem;
+   private final Map<String, XFileSystem> fsystemOrgMap = new HashMap<>();
    private final Map<String, XJobStatus> smap = new HashMap<>();
    private final Lock lock = new ReentrantLock();
    private final Condition lockcnd = lock.newCondition();

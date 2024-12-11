@@ -19,7 +19,6 @@ package inetsoft.sree.security;
 
 import inetsoft.sree.schedule.TimeRange;
 import inetsoft.storage.*;
-import inetsoft.uql.util.Identity;
 import inetsoft.util.SingletonManager;
 import inetsoft.util.Tuple3;
 import org.slf4j.Logger;
@@ -79,13 +78,6 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          pair -> {
             String key = pair.getKey();
             int delimiter = key.indexOf(":");
-            boolean scheduleTask = delimiter != -1 && "SCHEDULE_TASK".equals(key.substring(0, delimiter));
-
-            if(!scheduleTask && key.substring(delimiter+1).contains(":")) {
-               //parse org from orgScoped permission
-               key = key.substring(delimiter + 1);
-               delimiter = key.indexOf(":");
-            }
 
             ResourceType type = ResourceType.valueOf(key.substring(0, delimiter));
             String path = key.substring(delimiter + 1);
@@ -157,6 +149,8 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
             Permission permission = permissionSet.getThird();
             if(permission.isOrgInPerm(action, orgId)) {
                permission.cleanOrganizationFromPermission(action, orgId);
+               permission.removeGrantAllByOrg(orgId);
+               setPermission(permissionSet.getFirst(),permissionSet.getSecond(), permission);
             }
          }
       }
@@ -203,7 +197,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
                Set<Permission.PermissionIdentity> identities = perm.getGrants(action, type);
 
                if(identities.remove(oldID) && !removed) {
-                  identities.add(new Permission.PermissionIdentity(newID.name, newID.organization));
+                  identities.add(new Permission.PermissionIdentity(newID.name, newID.orgID));
                   perm.setGrants(action, type, identities);
                   changed = true;
                }
@@ -235,7 +229,6 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
       protected Class<Permission> initialize(Map<String, Permission> map) {
          addDefaultAdminPermissions(Organization.getDefaultOrganizationID(), map);
          addDefaultAdminPermissions(Organization.getSelfOrganizationID(), map);
-         addDefaultAdminPermissions(Organization.getTemplateOrganizationID(), map);
 
          addDefaultRoleGrants(map);
          addDefaultPermissionForSelfOrg(map);
@@ -260,25 +253,28 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          String defaultorgName = Organization.getDefaultOrganizationName();
          String defaultorgId = Organization.getDefaultOrganizationID();
 
-         String templateorgName = Organization.getTemplateOrganizationName();
-         String templateorgId = Organization.getTemplateOrganizationID();
-
          String selforgName = Organization.getSelfOrganizationName();
          String selforgId = Organization.getSelfOrganizationID();
 
-         Map<String, Boolean> dataEdited = new HashMap<>();
-         dataEdited.put(selforgId, true);
+         perm = new Permission();
+         Map<String, Boolean> defedited = new HashMap<>();
+         defedited.put(defaultorgId, true);
+
+         String name = "Advanced";
+         perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), defaultorgId);
+         perm.setOrgEditedGrantAll(defedited);
+
+         map.put(getResourceKey(ResourceType.SCHEDULER, "*"), perm);
+
+         //self org permissions for remaining
+         Map<String, Boolean> edited = new HashMap<>();
+         edited.put(defaultorgId, true);
+         edited.put(selforgId, true);
 
          perm = new Permission();
-         Map<String, Boolean> edited = new HashMap<>();
-         edited.put(selforgId, true);
-         edited.put(defaultorgId, true);
-         edited.put(templateorgId, true);
 
-         String name = "Designer";
+         name = "Designer";
          perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), defaultorgId);
-         perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), templateorgId);
-         perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), selforgId);
          perm.setOrganizationGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(selforgName), selforgId);
          perm.setOrgEditedGrantAll(edited);
 
@@ -291,23 +287,21 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          name = "Designer";
          perm.setRoleGrantsForOrg(ResourceAction.READ, Collections.singleton(name), defaultorgId);
          perm.setRoleGrantsForOrg(ResourceAction.WRITE, Collections.singleton(name), defaultorgId);
-         perm.setRoleGrantsForOrg(ResourceAction.READ, Collections.singleton(name), templateorgId);
-         perm.setRoleGrantsForOrg(ResourceAction.WRITE, Collections.singleton(name), templateorgId);
          perm.setOrganizationGrantsForOrg(ResourceAction.READ, Collections.singleton(selforgName), selforgId);
          perm.setOrganizationGrantsForOrg(ResourceAction.WRITE, Collections.singleton(selforgName), selforgId);
          perm.setOrgEditedGrantAll(edited);
 
          map.put(getResourceKey(ResourceType.DASHBOARD, "*"), perm);
 
+         for(TimeRange range : TimeRange.getTimeRanges()) {
+            map.put(getResourceKey(ResourceType.SCHEDULE_TIME_RANGE, range.getName()), perm);
+         }
+
          perm = new Permission();
 
          name = "Advanced";
          perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), defaultorgId);
-         perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), templateorgId);
-         perm.setRoleGrantsForOrg(ResourceAction.ACCESS, Collections.singleton(name), selforgId);
          perm.setOrgEditedGrantAll(edited);
-
-         map.put(getResourceKey(ResourceType.SCHEDULER, "*"), perm);
 
          for(TimeRange range : TimeRange.getTimeRanges()) {
             map.put(getResourceKey(ResourceType.SCHEDULE_TIME_RANGE, range.getName()), perm);
@@ -329,6 +323,7 @@ public class FileAuthorizationProvider extends AbstractAuthorizationProvider {
          map.put(getResourceKey(ResourceType.PORTAL_TAB, "Data"), perm);
          map.put(getResourceKey(ResourceType.PHYSICAL_TABLE, "*"), perm);
          map.put(getResourceKey(ResourceType.CROSS_JOIN, "*"), perm);
+         map.put(getResourceKey(ResourceType.FREE_FORM_SQL, "*"), perm);
 
          perm = new Permission();
          perm.setOrganizationGrantsForOrg(ResourceAction.READ,

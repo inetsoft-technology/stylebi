@@ -126,10 +126,17 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       ds.setDatasourceInfo(definition.getDatasourceInfo());
       ds.setCatalogName(definition.getCatalogName());
       ds.setURL(definition.getUrl());
-      ds.setUser(definition.getUser());
-      ds.setPassword(definition.getPassword());
       ds.setRequireLogin(definition.isLogin());
       ds.setDescription(definition.getDescription());
+      ds.initCredential(!definition.isUseCredential());
+
+      if(definition.isUseCredential()) {
+         ds.setCredentialId(definition.getCredentialId());
+      }
+      else {
+         ds.setUser(definition.getUser());
+         ds.setPassword(definition.getPassword());
+      }
 
       return ds;
    }
@@ -429,6 +436,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       cubeModel.setName(cube.getName());
       cubeModel.setType(cube.getType());
       cubeModel.setCaption(cube.getCaption());
+      cubeModel.setDecimalFmts(ExtendedDecimalFormat.getSuffix().toArray(new String[0]));
       List<CubeDimensionModel> dimensions = new ArrayList<>();
       List<CubeMeasureModel> measures = new ArrayList<>();
       cubeModel.setDimensions(dimensions);

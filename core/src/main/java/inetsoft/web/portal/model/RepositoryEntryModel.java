@@ -21,8 +21,6 @@ import com.fasterxml.jackson.annotation.*;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.util.XUtil;
-import org.apache.ignite.internal.processors.affinity.IdealAffinityAssignment;
 import org.springframework.stereotype.Component;
 
 import java.util.EnumSet;
@@ -52,6 +50,7 @@ public class RepositoryEntryModel<T extends RepositoryEntry> {
       favoritesUser = entry.getFavoritesUser();
       this.entry = entry.getAssetEntry();
       htmlType = entry.getHtmlType();
+      defaultOrgAsset = entry.isDefaultOrgAsset();
       classType = "RepositoryEntry";
    }
 
@@ -67,6 +66,7 @@ public class RepositoryEntryModel<T extends RepositoryEntry> {
       entry.setType(type);
       entry.setOwner(owner);
       entry.setAssetEntry(this.entry);
+      entry.setDefaultOrgAsset(defaultOrgAsset);
    }
 
    public String getName() {
@@ -125,6 +125,14 @@ public class RepositoryEntryModel<T extends RepositoryEntry> {
       this.favoritesUser = favoritesUser;
    }
 
+   public boolean isDefaultOrgAsset() {
+      return defaultOrgAsset;
+   }
+
+   public void setDefaultOrgAsset(boolean defaultOrgAsset) {
+      this.defaultOrgAsset = defaultOrgAsset;
+   }
+
    private String name;
    private int type;
    private String path;
@@ -133,6 +141,7 @@ public class RepositoryEntryModel<T extends RepositoryEntry> {
    private AssetEntry entry;
    private int htmlType;
    private String classType;
+   private boolean defaultOrgAsset = false;
    private EnumSet<RepositoryTreeAction> op = EnumSet.noneOf(RepositoryTreeAction.class);
    private boolean favoritesUser; // Be collect in Favorites.(Add/Remove for Favorites)
 

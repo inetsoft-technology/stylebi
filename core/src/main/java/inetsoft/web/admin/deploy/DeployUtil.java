@@ -405,7 +405,7 @@ public class DeployUtil {
             // if it's anchive replet, ignore it
             // if it's the asset is additional connection, don't show to user
             // check if new dependedXAsset exists in the key of depAssetsMap
-            if(newDAsset.isVisible()) {
+            if(newDAsset.isVisible() && !entryAssets.contains(newDAsset)) {
                addDependentAsset(dependency, newDAsset, depAssetsMap);
             }
          }
@@ -440,13 +440,13 @@ public class DeployUtil {
       result.setLastModifiedTime(asset.getLastModifiedTime());
 
       if(asset.getUser() == null) {
-         result.setUser(new IdentityID(XAsset.NULL, OrganizationManager.getCurrentOrgName()));
+         result.setUser(new IdentityID(XAsset.NULL, OrganizationManager.getInstance().getCurrentOrgID()));
       }
       else {
          result.setUser(asset.getUser());
       }
 
-      if(DashboardAsset.DASHBOARD.equals(asset.getType()) && result.getUser().equals(XAsset.NULL) &&
+      if(DashboardAsset.DASHBOARD.equals(asset.getType()) && result.getUser().name.equals(XAsset.NULL) &&
          !result.getPath().endsWith("__GLOBAL"))
       {
          result.setPath(result.getPath() + "__GLOBAL");
@@ -593,7 +593,7 @@ public class DeployUtil {
       case "dashboard":
          type = DashboardAsset.DASHBOARD;
 
-         if((selected.getUser() == null || selected.getUser().equals(XAsset.NULL)) &&
+         if((selected.getUser() == null || selected.getUser().name.equals(XAsset.NULL)) &&
             !selected.getPath().endsWith("__GLOBAL"))
          {
             selected.setPath(selected.getPath() + "__GLOBAL");

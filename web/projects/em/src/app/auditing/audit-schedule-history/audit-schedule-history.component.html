@@ -17,25 +17,31 @@
   -->
 <em-audit-table-view [displayedColumns]="getDisplayedColumns()" [columnRenderers]="columnRenderers" [parameterForm]="form" [fetchParameters]="fetchParameters" [fetchData]="fetchData">
   <section class="flex-row" [formGroup]="form">
-    <mat-form-field *ngIf="organizations != null && organizations.length > 0" appearance="outline" color="primary" class="flex">
-      <mat-label>_#(Select Organization)</mat-label>
+    <mat-form-field *ngIf="organizationFilter" appearance="outline" color="accent" class="flex">
+      <mat-label>_#(Select Organizations)</mat-label>
       <mat-select formControlName="selectOrganization" multiple>
-        <mat-option *ngFor="let org of organizations" [value]="org">{{org}}</mat-option>
+        <mat-option *ngFor="let org of organizationNames; let i = index" [value]="org">{{organizationNames[i]}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Tasks and Cycles)</mat-label>
-      <mat-select formControlName="selectedTasks" multiple>
+      <mat-select formControlName="selectedTasks" multiple (selectionChange)="clearFolders($event)">
         <mat-option *ngFor="let task of tasks" [value]="task.assetId">{{task.label}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
+      <mat-label>_#(Schedule User)</mat-label>
+      <mat-select formControlName="selectedUsers" multiple (selectionChange)="clearFolders($event)">
+        <mat-option *ngFor="let user of users" [value]="user">{{user}}</mat-option>
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Folder)</mat-label>
-      <mat-select formControlName="selectedFolders" multiple>
+      <mat-select formControlName="selectedFolders" multiple (selectionChange)="clearTasks($event)">
         <mat-option *ngFor="let folder of folders" [value]="folder">{{folder}}</mat-option>
       </mat-select>
     </mat-form-field>
-    <mat-form-field appearance="outline" color="primary" class="flex margin-left">
+    <mat-form-field appearance="outline" color="accent" class="flex margin-left">
       <mat-label>_#(Hosts)</mat-label>
       <mat-select formControlName="selectedHosts" multiple>
         <mat-option *ngFor="let host of hosts" [value]="host">{{host}}</mat-option>

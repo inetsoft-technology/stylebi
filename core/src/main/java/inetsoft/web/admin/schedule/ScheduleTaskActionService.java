@@ -107,10 +107,12 @@ public class ScheduleTaskActionService {
       return scheduleService.getActionModel(action, principal, em);
    }
 
-   public void deleteTaskActions(String taskName, int[] items, Principal principal)
+   public void deleteTaskActions(String taskName, String taskOwner, int[] items, Principal principal)
       throws Exception
    {
-      taskName = scheduleService.getTaskName(Tool.byteDecode(taskName), principal);
+      taskName = Tool.byteDecode(taskName);
+      taskName = taskName.startsWith(Tool.byteDecode(taskOwner) + IdentityID.KEY_DELIMITER) ? taskName :
+         scheduleService.getTaskName(taskName, principal);
       Catalog catalog = Catalog.getCatalog(principal);
 
       if(taskName == null || "".equals(taskName)) {

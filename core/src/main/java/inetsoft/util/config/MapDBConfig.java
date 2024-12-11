@@ -17,6 +17,8 @@
  */
 package inetsoft.util.config;
 
+import inetsoft.util.config.crd.CRDProperty;
+
 import java.io.Serializable;
 import java.util.Objects;
 
@@ -37,5 +39,6 @@ public class MapDBConfig implements Serializable {
       this.directory = directory;
    }
 
+   @CRDProperty(description = "The path to the directory where the MapDB files are stored", mountPoint = true)
    private String directory;
 }

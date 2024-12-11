@@ -150,10 +150,6 @@ public class ChartVSAQuery extends CubeVSAQuery implements BindableVSAQuery {
          ((VSChartAggregateRef) path).setSupportsLine(GraphTypes.supportsLine(ctype, info));
       }
 
-      if(data instanceof TableLens) {
-         data = new TextSizeLimitTableLens((TableLens) data, Util.getOrganizationMaxCellSize());
-      }
-
       // @by davyc, use this logic to handle sort by value will cause multi
       // threading problem, at same time, if group is merged, we will not
       // generate SummaryFilter, this mechanism still have problem, if we

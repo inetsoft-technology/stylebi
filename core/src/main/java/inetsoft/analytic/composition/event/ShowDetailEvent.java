@@ -972,8 +972,12 @@ public class ShowDetailEvent extends ViewsheetEvent {
          }
       }
 
-      if((lens instanceof CrossFilter) && pathLength > 1) {
-         CrossFilter crosstab = (CrossFilter) lens;
+      boolean isCrosstab = lens instanceof TextSizeLimitTableLens &&
+         ((TextSizeLimitTableLens) lens).getTable() instanceof CrossFilter;
+
+      if((lens instanceof CrossFilter || isCrosstab) && pathLength > 1) {
+         CrossFilter crosstab = lens instanceof CrossFilter ? (CrossFilter) lens :
+            (CrossFilter) ((TextSizeLimitTableLens) lens).getTable();
 
          if(iscol) {
             for(int i = 0; i < pathLength - 1 && i < crosstab.getColHeaderCount(); i++) {

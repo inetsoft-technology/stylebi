@@ -25,6 +25,7 @@ import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.schedule.InternalScheduledTaskService;
 import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.authz.ComponentAuthorizationService;
@@ -49,9 +50,10 @@ public class ActionPermissionService {
       if(SUtil.isMultiTenant()) {
          if(principal != null) {
             SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-            IdentityID[] roles = provider.getRoles(IdentityID.getIdentityIDFromKey(principal.getName()));
+            List<IdentityID> roles = new ArrayList<>(Arrays.stream(provider.getRoles(IdentityID.getIdentityIDFromKey(principal.getName()))).toList());
+            roles.addAll(Arrays.stream(((XPrincipal)principal).getRoles()).toList());
             isOrgAdmin = Arrays
-               .stream(provider.getAllRoles(roles))
+               .stream(provider.getAllRoles(roles.toArray(IdentityID[]::new)))
                .noneMatch(provider::isSystemAdministratorRole);
          }
          else {
@@ -59,7 +61,6 @@ public class ActionPermissionService {
          }
       }
 
-      IdentityID principalID = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       Catalog catalog = Catalog.getCatalog(principal);
       ActionTreeNode.Builder root = ActionTreeNode.builder()
          .label("")
@@ -152,8 +153,8 @@ public class ActionPermissionService {
 
       root.addFilteredChildren(getPortalTabsNode(catalog));
       root.addFilteredChildren(getScheduleOptionsNode(principal, catalog));
-      root.addFilteredChildren(getInternalScheduleTasksNode(principal, catalog));
-      root.addFilteredChildren(getEnterpriseManagerNode(catalog, isOrgAdmin));
+      root.addFilteredChildren(getInternalScheduleTasksNode(principal, catalog, isOrgAdmin));
+      root.addFilteredChildren(getEnterpriseManagerNode(catalog, isOrgAdmin, principal));
       root.addFilteredChildren(getChartTypesNode(catalog));
       root.addFilteredChildren(getBookmarkNode(catalog));
 
@@ -172,7 +173,7 @@ public class ActionPermissionService {
 
       if(principal != null) {
          if(OrganizationManager.getInstance().isSiteAdmin(principal) ||
-            !LicenseManager.getInstance().isEnterprise())
+            !LicenseManager.getInstance().isEnterprise() || !SUtil.isMultiTenant())
          {
             root.addFilteredChildren(ActionTreeNode.builder()
                                         .label(catalog.getString("Upload Drivers"))
@@ -450,11 +451,14 @@ public class ActionPermissionService {
       return builder.build();
    }
 
-   private ActionTreeNode getInternalScheduleTasksNode(Principal principal, Catalog catalog) {
+   private ActionTreeNode getInternalScheduleTasksNode(Principal principal, Catalog catalog,
+                                                       boolean orgAdmin)
+   {
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       ActionTreeNode.Builder builder = ActionTreeNode.builder()
          .label(catalog.getString("Internal Schedule Tasks"))
          .folder(true)
+         .orgAdmin(orgAdmin)
          .actions(EnumSet.noneOf(ResourceAction.class));
 
       if(principal != null) {
@@ -493,7 +497,7 @@ public class ActionPermissionService {
       return builder.build();
    }
 
-   private ActionTreeNode getEnterpriseManagerNode(Catalog catalog, boolean isOrgAdmin) {
+   private ActionTreeNode getEnterpriseManagerNode(Catalog catalog, boolean isOrgAdmin, Principal principal) {
       ActionTreeNode.Builder builder = ActionTreeNode.builder()
          .label(catalog.getString("Enterprise Manager"))
          .resource("*")
@@ -502,38 +506,73 @@ public class ActionPermissionService {
          .type(ResourceType.EM)
          .actions(EnumSet.of(ResourceAction.ACCESS));
 
-      addEnterpriseManagerNodes(catalog, builder, componentService.getComponentTree(), "", isOrgAdmin);
+      addEnterpriseManagerNodes(catalog, builder, componentService.getComponentTree(), "",
+                                isOrgAdmin, principal);
 
       return builder.build();
    }
 
    private void addEnterpriseManagerNodes(Catalog catalog, ActionTreeNode.Builder parent,
-                                          ViewComponent component, String path, boolean isOrgAdmin)
+                                          ViewComponent component, String path, boolean isOrgAdmin,
+                                          Principal principal)
    {
       boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      boolean isSiteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
       component.children().values().stream()
          .filter(ViewComponent::available)
-         .filter(c -> !Tool.equals("auditing", c.name()) &&
-            !Tool.equals("org-settings", c.name()) && !Tool.equals("themes", c.name()) || enterprise)
+         .filter(c -> isEMActionVisible(c, path, isSiteAdmin))
+         .filter(c -> enterprise || !Tool.equals("auditing", c.name()) &&
+            !Tool.equals("sso", c.name()) && !Tool.equals("googleSignIn", c.name()) &&
+            !Tool.equals("org-settings", c.name()) &&
+            !Tool.equals("themes", c.name()) && !Tool.equals("cluster", c.name()))
          .sorted(Comparator.comparing(ViewComponent::name))
-         .map(c -> getEnterpriseManagerNode(catalog, path, c, isOrgAdmin))
+         .map(c -> getEnterpriseManagerNode(catalog, path, c, isOrgAdmin, principal))
          .filter(Objects::nonNull)
          .forEach(parent::addFilteredChildren);
    }
 
+   private boolean isEMActionVisible(ViewComponent c, String path, boolean isSiteAdmin) {
+      if(!LicenseManager.getInstance().isEnterprise() && Tool.equals("auditing", c.name()) ||
+         !SUtil.isMultiTenant() && Tool.equals("org-settings", c.name()))
+      {
+         return false;
+      }
+
+      if(isSiteAdmin && !Tool.equals("notification", c.name())) {
+         return true;
+      }
+
+      if(SUtil.isMultiTenant()) {
+         if((path == null || path.isEmpty())) {
+            return !Tool.equals("notification", c.name());
+         }
+         else if(Tool.equals(path, "monitoring/")) {
+            return !Tool.equals("cache", c.name()) && !Tool.equals("cluster", c.name()) &&
+               !Tool.equals("summary", c.name()) && !Tool.equals("log", c.name());
+         }
+         else if(Tool.equals(path, "settings/")) {
+            return !Tool.equals("general", c.name()) &&
+               !Tool.equals("properties", c.name()) && !Tool.equals("logging", c.name());
+         }
+      }
+
+      return true;
+   }
+
    private ActionTreeNode getEnterpriseManagerNode(Catalog catalog, String path,
-                                                   ViewComponent component, boolean isOrgAdmin)
+                                                   ViewComponent component, boolean isOrgAdmin,
+                                                   Principal principal)
    {
       String resource = path + component.name();
       ActionTreeNode.Builder builder = ActionTreeNode.builder()
-         .label(catalog.getString(component.label()))
+         .label(Catalog.getCatalog().getString(component.label()))
          .resource(resource)
          .folder(!component.children().isEmpty())
          .grant(false)
          .orgAdmin(isOrgAdmin)
          .type(ResourceType.EM_COMPONENT)
          .actions(EnumSet.of(ResourceAction.ACCESS));
-      addEnterpriseManagerNodes(catalog, builder, component, resource + "/", isOrgAdmin);
+      addEnterpriseManagerNodes(catalog, builder, component, resource + "/", isOrgAdmin, principal);
       return builder.build();
    }
 
@@ -732,6 +771,7 @@ public class ActionPermissionService {
       new Resource(ResourceType.EM_COMPONENT, "settings/properties"),
       new Resource(ResourceType.EM_COMPONENT, "settings/security/provider"),
       new Resource(ResourceType.EM_COMPONENT, "settings/security/sso"),
+      new Resource(ResourceType.EM_COMPONENT, "settings/security/googleSignIn"),
       new Resource(ResourceType.EM_COMPONENT, "settings/content/data-space"),
       new Resource(ResourceType.EM_COMPONENT, "settings/content/drivers-and-plugins"),
       new Resource(ResourceType.EM_COMPONENT, "settings/logging"),
@@ -740,6 +780,7 @@ public class ActionPermissionService {
       new Resource(ResourceType.EM_COMPONENT, "notification"),
       new Resource(ResourceType.SCHEDULE_TASK, "__asset file backup__"),
       new Resource(ResourceType.SCHEDULE_TASK, "__balance tasks__"),
+      new Resource(ResourceType.SCHEDULE_TASK, "__update assets dependencies__"),
       new Resource(ResourceType.UPLOAD_DRIVERS, "*")
    };
 

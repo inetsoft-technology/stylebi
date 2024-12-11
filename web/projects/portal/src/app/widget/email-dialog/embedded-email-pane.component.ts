@@ -87,7 +87,7 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
 
    constructor(private modelService: ModelService) {
       let params = new HttpParams()
-         .set("name", "_#(js:Users)")
+         .set("name", "Users")
          .set("type", String(IdentityType.USERS));
 
       this.modelService.getCurrentOrganization().subscribe((org)=>{this.currOrg=org;});
@@ -236,7 +236,7 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
    }
 
    addIdentity(node: TreeNodeModel) {
-      let identity: IdentityModel = {identityID: {name:node.label, organization: node.organization}, type: parseInt(node.type, 10), alias: node.alias};
+      let identity: IdentityModel = {identityID: {name:node.label, orgID: node.organization}, type: parseInt(node.type, 10), alias: node.alias};
 
       if(node.type == IdentityType.USER + "" && this.findIdentityIndex(this.addedIdentities, identity) === -1) {
          this.addedIdentities.push(identity);
@@ -248,7 +248,7 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
          let strs: string[] = path.split("/");
 
          for(let str of strs) {
-            if(this.findIdentityIndex(this.addedIdentities, {identityID: {name: str, organization: node.organization}, type: identity.type}) != -1) {
+            if(this.findIdentityIndex(this.addedIdentities, {identityID: {name: str, orgID: node.organization}, type: identity.type}) != -1) {
                return;
             }
 
@@ -384,13 +384,13 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
             if(addrs[i].endsWith(Tool.USER_SUFFIX)) {
                let name = addrs[i].substring(0, addrs[i].lastIndexOf(Tool.USER_SUFFIX));
                this.addedIdentities.push({
-                  identityID: {name: name, organization: this.currOrg},
+                  identityID: {name: name, orgID: this.currOrg},
                   type: IdentityType.USER,
                   alias: this.getUserAlias(name)
                });
             }
             else if(addrs[i].endsWith(Tool.GROUP_SUFFIX)) {
-               this.addedIdentities.push({identityID: {name: addrs[i].substring(0, addrs[i].lastIndexOf(Tool.GROUP_SUFFIX)), organization: this.currOrg},
+               this.addedIdentities.push({identityID: {name: addrs[i].substring(0, addrs[i].lastIndexOf(Tool.GROUP_SUFFIX)), orgID: this.currOrg},
                   type: IdentityType.GROUP});
             }
             else if(Tool.isValidEmail(addrs[i])) {
@@ -415,7 +415,7 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
             }
 
             this.addedIdentities.push({
-               identityID: {name: addrs[0], organization: this.currOrg},
+               identityID: {name: addrs[0], orgID: this.currOrg},
                type: IdentityType.USER,
                alias: this.getUserAlias(addrs[0])
             });
@@ -432,7 +432,7 @@ export class EmbeddedEmailPane implements OnInit, OnDestroy {
                const nextUser = addr.substring(addr.lastIndexOf(",") + 1);
                this.addedEmails.push(email);
                this.addedIdentities.push({
-                  identityID: {name: nextUser, organization: this.currOrg},
+                  identityID: {name: nextUser, orgID: this.currOrg},
                   type: IdentityType.USER,
                   alias: this.getUserAlias(nextUser)
                });

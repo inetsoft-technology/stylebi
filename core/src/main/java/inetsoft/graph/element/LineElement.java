@@ -25,6 +25,7 @@ import inetsoft.graph.data.*;
 import inetsoft.graph.geometry.LineGeometry;
 import inetsoft.graph.internal.GTool;
 import inetsoft.graph.scale.Scale;
+import inetsoft.util.Tool;
 import org.apache.commons.lang3.ArrayUtils;
 
 import java.awt.*;
@@ -635,6 +636,12 @@ public class LineElement extends StackableElement {
     * Check if the field is a dimension.
     */
    private boolean isDim(String fld) {
+      Object mapTextDim = getHint("_map_text_dim_");
+
+      if(mapTextDim != null && Tool.equals(fld, mapTextDim.toString())) {
+         return true;
+      }
+
       Object[] geofields = (Object[]) getHint("geofields");
       Object[][] arrs = (geofields != null)
          ? new Object[][] {getDims(), geofields} : new Object[][] {getDims()};

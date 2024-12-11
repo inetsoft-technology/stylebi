@@ -75,6 +75,7 @@ export class SQLQueryDialog implements OnInit {
    @Input() tables: AbstractTableAssembly[];
    @Input() controller: SqlQueryDialogController;
    @Input() mashUpData: boolean;
+   @Input() helpLinkKey: string = "DatabaseQuery";
    @Output() onApply: EventEmitter<any> = new EventEmitter<any>();
    @Output() onCommit: EventEmitter<any> = new EventEmitter<any>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
@@ -382,6 +383,7 @@ export class SQLQueryDialog implements OnInit {
    onSwitchChange(event: any): void {
       if(event.target.checked) {
          this.model.name = !!this.initTableName ? this.initTableName : (<any> this.controller).tableName;
+         this.helpLinkKey = "AdvancedQuery";
          this.refreshModelOnModeChange(true);
       }
       else {

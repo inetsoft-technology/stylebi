@@ -2415,7 +2415,7 @@ public class VSWizardBindingHandler {
       else {
          if(formatObj != null) {
             formatObj.setFormatValue(format.getFormat());
-            formatObj.setFormatExtentValue(format.getFormatExtentValue());
+            formatObj.setFormatExtentValue(format.getFormatExtent());
          }
          else {
             format = format.clone();

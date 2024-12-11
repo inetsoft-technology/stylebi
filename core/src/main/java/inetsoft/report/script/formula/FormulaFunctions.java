@@ -132,7 +132,6 @@ public class FormulaFunctions {
       }
 
       sortList(arr, opt, comp);
-      String dtype = XSchema.STRING;
       String remainder = opt.getString("remainder", null);
       String dataType = getDataType(arr, remainder);
 
@@ -177,7 +176,8 @@ public class FormulaFunctions {
       }
       // not sort by value but exist ranking n
       else if(opt.getOption("maxrows", null) != null &&
-         opt.getString("manualvalues", null) == null)
+         opt.getString("manualvalues", null) == null &&
+         (opt.getString("sorton", null) == null || opt.getOption("sort2", null) != null))
       {
          sortList(arr, opt, null, true);
       }
@@ -928,12 +928,13 @@ public class FormulaFunctions {
    {
       sortByManualOrder(arr, opt, dataType2, false, map);
    }
+
    /**
     * Sort the values by the manual sort order if present
     *
     * @param arr      the list of values to sort
     * @param opt      the options that may contain 'manualvalues'
-    * @param dataType2 timestamp value will be changed to date after normalize logic, then
+    * @param dataType timestamp value will be changed to date after normalize logic, then
     *                  the toString value not match the tostring in manuallist, need to
     *                  convert the manual values according to the original type.
     * @param mixedType true if exist namegroup or group others.

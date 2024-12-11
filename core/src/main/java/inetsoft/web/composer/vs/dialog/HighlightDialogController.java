@@ -274,7 +274,7 @@ public class HighlightDialogController {
             HighlightRef highlightRef = (HighlightRef)
                HyperlinkDialogController.getMeasure(chartInfo, colName, true, isAxis, isText);
             boolean wordCloud = GraphTypeUtil.isWordCloud(chartInfo);
-            boolean boxplot = colName.startsWith(BoxDataSet.MAX_PREFIX);
+            boolean boxplot = colName != null && colName.startsWith(BoxDataSet.MAX_PREFIX);
             boolean geo = GraphTypes.isGeo(chartInfo.getChartType());
 
             if(highlightRef instanceof VSChartDimensionRef ||

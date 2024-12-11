@@ -32,9 +32,6 @@ public interface LogViewLinks {
    @Nullable
    String logViewUrl();
 
-   @Nullable
-   String auditViewUrl();
-
    static Builder builder() {
       return new Builder();
    }

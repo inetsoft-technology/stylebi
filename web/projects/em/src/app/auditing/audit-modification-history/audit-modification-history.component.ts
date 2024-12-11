@@ -18,7 +18,8 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { FormBuilder, FormGroup } from "@angular/forms";
-import { tap } from "rxjs/operators";
+import { catchError, tap } from "rxjs/operators";
+import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
@@ -30,7 +31,7 @@ import {
    ModificationHistoryList,
    ModificationHistoryParameters
 } from "./modification-history";
-import { Subscription } from "rxjs";
+import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 import { Tool } from "../../../../../shared/util/tool";
 
@@ -45,7 +46,7 @@ import { Tool } from "../../../../../shared/util/tool";
 })
 @ContextHelp({
    route: "/auditing/modification-history",
-   link: "EMAuditingModificationHistory"
+   link: "EMViewAudit"
 })
 @Component({
   selector: "em-audit-modification-history",
@@ -56,9 +57,10 @@ export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
    users: string[] = [];
    objectTypes: string[] = [];
    hosts: string[] = [];
-   organizations: string[] = [];
+   organizationNames: string[] = [];
+   modifyStatuses: string[] = [];
    form: FormGroup;
-   systemAdministrator = false;
+   organizationFilter = false;
    private subscriptions = new Subscription();
    private _displayedColumns = [
       "userName", "objectName", "objectType", "modifyType", "modifyTime", "modifyStatus", "message",
@@ -68,7 +70,7 @@ export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
       { name: "userName", label: "_#(js:User Name)", value: (r: ModificationHistory) => r.userName },
       { name: "objectName", label: "_#(js:Object Name)", value: (r: ModificationHistory) => r.objectName },
       { name: "objectType", label: "_#(js:Object Type)", value: (r: ModificationHistory) => r.objectType },
-      { name: "modifyTime", label: "_#(js:Modify Time)", value: (r: ModificationHistory) => AuditTableViewComponent.getDisplayDate(r.modifyTime) },
+      { name: "modifyTime", label: "_#(js:Modify Time)", value: (r: ModificationHistory) => AuditTableViewComponent.getDisplayDate(r.modifyTime, r.dateFormat) },
       { name: "modifyStatus", label: "_#(js:Modify Status)", value: (r: ModificationHistory) => r.modifyStatus },
       { name: "message", label: "_#(js:Message)", value: (r: ModificationHistory) => r.message },
       { name: "modifyType", label: "_#(js:Modify Type)", value: (r: ModificationHistory) => r.modifyType },
@@ -81,13 +83,15 @@ export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
    }
 
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
-               private pageTitle: PageHeaderService, fb: FormBuilder)
+               private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
+               fb: FormBuilder)
    {
       this.form = fb.group({
          selectedUsers: [[]],
          selectedTypes: [[]],
          selectedHosts: [[]],
-         selectedOrganizations: [[]]
+         selectedOrganizations: [[]],
+         selectedStatuses: [[]],
       });
    }
 
@@ -98,13 +102,25 @@ export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchParameters = () => {
       return this.http.get<ModificationHistoryParameters>("../api/em/monitoring/audit/modificationHistoryParameters")
-         .pipe(tap(params => {
-            this.users = params.users;
-            this.objectTypes = params.objectTypes;
-            this.hosts = params.hosts;
-            this.systemAdministrator = params.systemAdministrator;
-            this.organizations = params.organizations;
-         }));
+         .pipe(
+            catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
+               users: [],
+               objectTypes: [],
+               hosts: [],
+               organizationFilter: true,
+               organizationNames: [],
+               modifyStatuses: [],
+               startTime: 0,
+               endTime: 0
+            }))),
+            tap(params => {
+               this.users = params.users;
+               this.objectTypes = params.objectTypes;
+               this.hosts = params.hosts;
+               this.organizationFilter = params.organizationFilter;
+               this.organizationNames = params.organizationNames;
+               this.modifyStatuses = params.modifyStatuses;
+            }));
    };
 
    // use arrow function instead of member method to hold the right context (i.e. this)
@@ -134,7 +150,17 @@ export class AuditModificationHistoryComponent implements OnInit, OnDestroy {
          selectedOrgs.forEach(h => params = params.append("organizations", h));
       }
 
-      return this.http.get<ModificationHistoryList>("../api/em/monitoring/audit/modificationHistory", {params});
+      const selectedStatuses: string[] = additional.selectedStatuses;
+
+      if(!!selectedStatuses && selectedStatuses.length > 0) {
+         selectedStatuses.forEach(h => params = params.append("modifyStatuses", h));
+      }
+
+      return this.http.get<ModificationHistoryList>("../api/em/monitoring/audit/modificationHistory", {params})
+         .pipe(catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to run query)", () => of({
+            totalRowCount: 0,
+            rows: []
+         }))));
    };
 
    getAssetTypeLabel(value: string): string {

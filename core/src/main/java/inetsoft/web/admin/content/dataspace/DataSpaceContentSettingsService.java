@@ -22,10 +22,10 @@ import inetsoft.report.io.Builder;
 import inetsoft.report.io.ExportType;
 import inetsoft.sree.internal.HTMLUtil;
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.XSessionService;
+import inetsoft.uql.viewsheet.graph.aesthetic.ImageShapes;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
@@ -50,16 +50,10 @@ public class DataSpaceContentSettingsService {
       String[] childEntries = space.list(parentPath);
       childEntries = sortEntry(parentPath, childEntries, space);
       List<DataSpaceTreeNodeModel> nodes = new ArrayList<>();
-      boolean containsDefaultOrgFolder = false;
 
       for(String name : childEntries) {
          String nonOrgName = getDisplayName(name);
          String path = getPath(parentPath, name);
-
-         if(!LicenseManager.getInstance().isEnterprise() && isDefaultOrgFolder(path)) {
-            containsDefaultOrgFolder = true;
-            continue;
-         }
 
          DataSpaceTreeNodeModel node = DataSpaceTreeNodeModel.builder()
             .label(nonOrgName)
@@ -67,10 +61,6 @@ public class DataSpaceContentSettingsService {
             .folder(space.isDirectory(path))
             .build();
          nodes.add(node);
-      }
-
-      if(containsDefaultOrgFolder) {
-         loadDefaultOrgFolderChildren(space, nodes);
       }
 
       // if root
@@ -89,6 +79,102 @@ public class DataSpaceContentSettingsService {
          .nodes(nodes)
          .build();
    }
+
+
+   public DataSpaceTreeModel getTree(String parentPath, List<String> expandNodes) throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String[] childEntries = space.list(parentPath);
+      childEntries = sortEntry(parentPath, childEntries, space);
+      List<DataSpaceTreeNodeModel> nodes = new ArrayList<>();
+
+      for(String name : childEntries) {
+         String nonOrgName = getDisplayName(name);
+         String path = getPath(parentPath, name);
+
+         if(expandNodes.isEmpty() || !space.isDirectory(path)) {
+            DataSpaceTreeNodeModel node = DataSpaceTreeNodeModel.builder()
+               .label(nonOrgName)
+               .path(path)
+               .folder(space.isDirectory(path))
+               .build();
+            nodes.add(node);
+         }
+         else {
+            List<DataSpaceTreeNodeModel> children = getSubTree(path, expandNodes);
+            DataSpaceTreeNodeModel node = DataSpaceTreeNodeModel.builder()
+               .label(getDisplayName(path))
+               .path(path)
+               .folder(true)
+               .children(children)
+               .build();
+            nodes.add(node);
+         }
+      }
+
+      // if root
+      if(parentPath == null) {
+         DataSpaceTreeNodeModel rootNode = DataSpaceTreeNodeModel.builder()
+            .label(Catalog.getCatalog().getString("Data Space"))
+            .path("/")
+            .folder(true)
+            .children(nodes)
+            .build();
+         nodes = new ArrayList<>();
+         nodes.add(rootNode);
+      }
+
+      return DataSpaceTreeModel.builder()
+         .nodes(nodes)
+         .build();
+   }
+
+   private List<DataSpaceTreeNodeModel> getSubTree(String folderPath, List<String> expandNodes) throws Exception {
+      DataSpace space = DataSpace.getDataSpace();
+      String[] childEntries = space.list(folderPath);
+      childEntries = sortEntry(folderPath, childEntries, space);
+      List<DataSpaceTreeNodeModel> children = new ArrayList<>();
+
+      for(String name : childEntries) {
+         String nonOrgName = getDisplayName(name);
+         String path = getPath(folderPath, name);
+
+         if(space.isDirectory(path)) {
+            for(String expandPath : expandNodes) {
+               if(path.equals(expandPath)) {
+                  List<DataSpaceTreeNodeModel> subChildren = getSubTree(path, expandNodes);
+                  DataSpaceTreeNodeModel node = DataSpaceTreeNodeModel.builder()
+                     .label(nonOrgName)
+                     .path(path)
+                     .folder(true)
+                     .children(subChildren)
+                     .build();
+                  children.add(node);
+                  break;
+               }
+               else {
+                  DataSpaceTreeNodeModel node = DataSpaceTreeNodeModel.builder()
+                     .label(nonOrgName)
+                     .path(path)
+                     .folder(true)
+                     .build();
+                  children.add(node);
+                  break;
+               }
+            }
+         }
+         else {
+            DataSpaceTreeNodeModel node = DataSpaceTreeNodeModel.builder()
+               .label(nonOrgName)
+               .path(path)
+               .folder(false)
+               .build();
+            children.add(node);
+         }
+      }
+
+      return children;
+   }
+
 
    public DataSpaceTreeNodeModel getTreeNode(String path) {
       DataSpace space = DataSpace.getDataSpace();
@@ -125,7 +211,8 @@ public class DataSpaceContentSettingsService {
       String objectType = isFolder ? ActionRecord.OBJECT_TYPE_FOLDER :
          ActionRecord.OBJECT_TYPE_FILE;
       Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
-      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal), objectType, path,
+      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
+                                                   ActionRecord.ACTION_NAME_DELETE, path,
                                                    objectType, actionTimestamp,
                                                    ActionRecord.ACTION_STATUS_SUCCESS, null);
 
@@ -134,6 +221,13 @@ public class DataSpaceContentSettingsService {
       }
 
       dataSpace.delete(null, path);
+
+      if(path.startsWith("portal/" + OrganizationManager.getInstance().getCurrentOrgID() + "/shapes/") ||
+         path.startsWith("portal/shapes/"))
+      {
+         ImageShapes.clearShapes();
+      }
+
       Audit.getInstance().auditAction(actionRecord, principal);
    }
 
@@ -303,7 +397,7 @@ public class DataSpaceContentSettingsService {
       }
 
       String defaultOrgFolderStr = IdentityID.KEY_DELIMITER +
-         Organization.getDefaultOrganizationName();
+         Organization.getDefaultOrganizationID();
 
       if(fullName.endsWith(defaultOrgFolderStr)) {
          return fullName.substring(0, fullName.length() - defaultOrgFolderStr.length());
@@ -315,7 +409,7 @@ public class DataSpaceContentSettingsService {
          return fullName.substring(0, fullName.length() - defaultOrgXmlStr.length()) + ".xml";
       }
 
-      String hostOrgStr = "host-org__";
+      String hostOrgStr = Organization.getDefaultOrganizationID()+"__";
 
       if(fullName.startsWith(hostOrgStr)) {
          return fullName.substring(hostOrgStr.length());
@@ -332,13 +426,13 @@ public class DataSpaceContentSettingsService {
       }
 
       String defaultOrgStr = IdentityID.KEY_DELIMITER +
-         Organization.getDefaultOrganizationName() + ".xml";
+         Organization.getDefaultOrganizationID() + ".xml";
 
       if(oldName.endsWith(defaultOrgStr) && newName.endsWith(".xml")) {
          newName = newName.substring(0, newName.length() - 4) + defaultOrgStr;
       }
 
-      String hostOrgStr = "host-org__";
+      String hostOrgStr = Organization.getDefaultOrganizationID()+ "__";
 
       if(oldName.startsWith(hostOrgStr)) {
          newName = hostOrgStr + newName;

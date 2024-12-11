@@ -171,7 +171,7 @@ public class AssetTreeController {
    {
       LoadAssetTreeNodesValidator result;
       TreeNodeModel treeNodeModel;
-      Catalog catalog = Catalog.getCatalog(principal, Catalog.REPORT);
+      Catalog catalog = Catalog.getCatalog(principal);
       IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       AssetEntry expandedEntry = event.targetEntry();
       AssetEntry.Selector assetSelector = physical ?
@@ -625,7 +625,7 @@ public class AssetTreeController {
                   LibManager manager = LibManager.getManager();
 
                   if(asset.isTableStyle()) {
-                     XTableStyle style = manager.getTableStyle(asset.getName());
+                     XTableStyle style = manager.getTableStyleByName(asset.getProperty("styleName"));
                      return style != null;
                   }
                   else if(asset.isScript()) {
@@ -776,19 +776,29 @@ public class AssetTreeController {
          "/", user);
       TreeNodeModel userWSRootModel =
          createNodeFromEntry(userWSRootEntry, Catalog.getCatalog().getString("User Worksheet"));
+      Optional<LoadAssetTreeNodesEvent> childEventOptional = event.expandedDescendants()
+         .stream().filter((e) -> e.targetEntry() != null &&
+            e.targetEntry().toIdentifier().equals(userWSRootEntry.toIdentifier())).findFirst();
+      LoadAssetTreeNodesEvent childEvent = null;
 
       if(event.loadAll()) {
-         LoadAssetTreeNodesEvent childEvent = LoadAssetTreeNodesEvent.builder().from(event)
+         childEvent = LoadAssetTreeNodesEvent.builder().from(event)
             .targetEntry(userWSRootEntry)
             .loadAll(true)
             .build();
+      }
+      else if(childEventOptional.isPresent()) {
+         childEvent = childEventOptional.get();
+      }
 
+      if(childEvent != null) {
          userWSRootModel = TreeNodeModel.builder().from(userWSRootModel)
             .addAllChildren(getNodes(includeDatasources, includeColumns, includeWorksheets,
                                      includeViewsheets, includeTableStyles, includeScripts, includeLibrary,
                                      reportRepositoryEnabled, readOnly,
                                      physical, childEvent, principal)
                                .treeNodeModel().children())
+            .expanded(childEventOptional.isPresent())
             .build();
       }
 
@@ -845,18 +855,29 @@ public class AssetTreeController {
       TreeNodeModel userVSRootModel =
          createNodeFromEntry(userVSRootEntry, Catalog.getCatalog().getString("User Viewsheet"));
 
+      Optional<LoadAssetTreeNodesEvent> childEventOptional = event.expandedDescendants()
+         .stream().filter((e) -> e.targetEntry() != null &&
+            e.targetEntry().toIdentifier().equals(userVSRootEntry.toIdentifier())).findFirst();
+      LoadAssetTreeNodesEvent childEvent = null;
+
       if(event.loadAll()) {
-         LoadAssetTreeNodesEvent childEvent = LoadAssetTreeNodesEvent.builder().from(event)
+         childEvent = LoadAssetTreeNodesEvent.builder().from(event)
             .targetEntry(userVSRootEntry)
             .loadAll(true)
             .build();
+      }
+      else if(childEventOptional.isPresent()) {
+         childEvent = childEventOptional.get();
+      }
 
+      if(childEvent != null) {
          userVSRootModel = TreeNodeModel.builder().from(userVSRootModel)
             .addAllChildren(getNodes(includeDatasources, includeColumns, includeWorksheets,
                                      includeViewsheets, false, false, false,
                                      reportRepositoryEnabled, readOnly,
                                      physical, childEvent, principal)
                                .treeNodeModel().children())
+            .expanded(childEventOptional.isPresent())
             .build();
       }
 

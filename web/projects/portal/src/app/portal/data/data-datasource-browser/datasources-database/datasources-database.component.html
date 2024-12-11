@@ -50,7 +50,7 @@
                     [class.is-invalid]="databaseTypeCtrl.invalid"
                     class="form-control"
                     [(ngModel)]="database.type"
-                    (ngModelChange)="typeChanged($event)"
+                    (ngModelChange)="typeChanged($event, supportToggleCredential, useCredentialId)"
                     required>
               <option *ngFor="let option of databaseOptions" [value]="option.value">
                 {{option.label}}
@@ -251,24 +251,47 @@
                        [(ngModel)]="database.authentication.required"/>_#(data.databases.authenticationRequired)
               </label>
             </div>
+            <ng-container *ngIf="database.authentication.credentialVisible">
+              <div class="form-check form-group">
+                <label class="form-check-label">
+                  <input type="checkbox"
+                         name="credential"
+                         class="form-check-input"
+                         [disabled]="!database.authentication.required"
+                         [(ngModel)]="database.authentication.useCredentialId"/>_#(Use Secret ID)
+                </label>
+              </div>
+            </ng-container>
             <fieldset [disabled]="!database.authentication.required">
-              <div class="form-group form-floating">
-                <input type="text" #userNameCtrl="ngModel"
-                       name="userName"
-                       class="form-control"
-                       [class.is-invalid]="userNameCtrl.invalid"
-                       [(ngModel)]="database.authentication.userName">
-                <label><span>_#(Username)</span></label>
-                <span class="invalid-feedback" *ngIf="userNameCtrl.invalid">_#(data.databases.enterUsername)</span>
-              </div>
-              <div class="form-group form-floating">
-                <input type="password" #passwordCtrl="ngModel"
-                       name="password"
-                       class="form-control"
-                       [class.is-invalid]="passwordCtrl.invalid"
-                       [(ngModel)]="database.authentication.password">
-                <label><span>_#(Password)</span></label>
-              </div>
+              <ng-container *ngIf="database.authentication.credentialVisible && database.authentication.useCredentialId">
+                <div class="form-group form-floating">
+                  <input type="text" #credentialCtrl="ngModel"
+                         name="userName"
+                         class="form-control"
+                         [class.is-invalid]="credentialCtrl.invalid"
+                         [(ngModel)]="database.authentication.credentialId">
+                  <label><span>_#(Secret ID)</span></label>
+                </div>
+              </ng-container>
+              <ng-container *ngIf="!database.authentication.credentialVisible || !database.authentication.useCredentialId">
+                <div class="form-group form-floating">
+                  <input type="text" #userNameCtrl="ngModel"
+                         name="userName"
+                         class="form-control"
+                         [class.is-invalid]="userNameCtrl.invalid"
+                         [(ngModel)]="database.authentication.userName">
+                  <label><span>_#(Username)</span></label>
+                  <span class="invalid-feedback" *ngIf="userNameCtrl.invalid">_#(data.databases.enterUsername)</span>
+                </div>
+                <div class="form-group form-floating">
+                  <input type="password" #passwordCtrl="ngModel"
+                         name="password"
+                         class="form-control"
+                         [class.is-invalid]="passwordCtrl.invalid"
+                         [(ngModel)]="database.authentication.password">
+                  <label><span>_#(Password)</span></label>
+                </div>
+              </ng-container>
             </fieldset>
           </ng-container>
           <ng-container *ngIf="!driverAvailable">
@@ -346,7 +369,7 @@
             </select>
             <label><span>_#(Table Name)</span></label>
           </div>
-          <ng-container *ngIf="additionalVisible">
+          <ng-container *ngIf="additionalVisible && enterprise">
             <div class="row">
               <div class="col">
                 <label class="addition-label">_#(Additional Connections) :</label>

@@ -20,18 +20,18 @@ package inetsoft.uql.rest.datasource.zendesksell;
 import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.Tool;
+import inetsoft.util.credential.CredentialType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Element;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("clientId"),
-   @View1("clientSecret"),
-   @View1("accessToken"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "clientId", visibleMethod = "useCredential"),
+   @View1(value = "clientSecret", visibleMethod = "useCredential"),
+   @View1(value = "accessToken", visibleMethod = "useCredential"),
 })
 public class ZendeskSellDataSource extends EndpointJsonDataSource<ZendeskSellDataSource> {
    static final String TYPE = "Rest.ZendeskSell";
@@ -41,31 +41,24 @@ public class ZendeskSellDataSource extends EndpointJsonDataSource<ZendeskSellDat
       setAuthType(AuthType.NONE);
    }
 
-   @Property(label = "App Client ID")
-   public String getClientId() {
-      return clientId;
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.CLIENT_GRANT;
    }
 
-   public void setClientId(String clientId) {
-      this.clientId = clientId;
+   @Property(label = "App Client ID")
+   public String getClientId() {
+      return super.getClientId();
    }
 
    @Property(label = "App Client Secret", password = true)
    public String getClientSecret() {
-      return clientSecret;
-   }
-
-   public void setClientSecret(String clientSecret) {
-      this.clientSecret = clientSecret;
+      return super.getClientSecret();
    }
 
    @Property(label = "Access Token", required = true, password = true)
    public String getAccessToken() {
-      return accessToken;
-   }
-
-   public void setAccessToken(String accessToken) {
-      this.accessToken = accessToken;
+      return super.getAccessToken();
    }
 
    @Override
@@ -89,7 +82,7 @@ public class ZendeskSellDataSource extends EndpointJsonDataSource<ZendeskSellDat
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)
             .name("Authorization")
-            .value("Bearer " + accessToken)
+            .value("Bearer " + getAccessToken())
             .build()
       };
    }
@@ -97,33 +90,6 @@ public class ZendeskSellDataSource extends EndpointJsonDataSource<ZendeskSellDat
    @Override
    public void setQueryHttpParameters(HttpParameter[] parameters) {
       // no-op
-   }
-
-   @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(clientId != null) {
-         writer.format("<clientId><![CDATA[%s]]></clientId>%n", clientId);
-      }
-
-      if(clientSecret != null) {
-         writer.format(
-            "<clientSecret><![CDATA[%s]]></clientSecret>%n", Tool.encryptPassword(clientSecret));
-      }
-
-      if(accessToken != null) {
-         writer.format(
-            "<accessToken><![CDATA[%s]]></accessToken>%n", Tool.encryptPassword(accessToken));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      clientId = Tool.getChildValueByTagName(root, "clientId");
-      clientSecret = Tool.decryptPassword(Tool.getChildValueByTagName(root, "clientSecret"));
-      accessToken = Tool.decryptPassword(Tool.getChildValueByTagName(root, "accessToken"));
    }
 
    @Override
@@ -141,25 +107,14 @@ public class ZendeskSellDataSource extends EndpointJsonDataSource<ZendeskSellDat
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      ZendeskSellDataSource that = (ZendeskSellDataSource) o;
-      return Objects.equals(clientId, that.clientId) &&
-         Objects.equals(clientSecret, that.clientSecret) &&
-         Objects.equals(accessToken, that.accessToken);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
       return Objects.hash(
-         super.hashCode(), clientId, clientSecret, accessToken);
+         super.hashCode(), getClientId(), getClientSecret(), getAccessToken());
    }
-
-   private String clientId;
-   private String clientSecret;
-   private String accessToken;
 
    private static final Logger LOG = LoggerFactory.getLogger(ZendeskSellDataSource.class);
 }

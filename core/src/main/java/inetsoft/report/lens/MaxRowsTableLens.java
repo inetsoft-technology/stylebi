@@ -661,15 +661,6 @@ public class MaxRowsTableLens extends AbstractTableLens implements TableFilter,
    }
 
    /**
-    * Finalize the distinct table lens.
-    */
-   @Override
-   protected void finalize() throws Throwable {
-      super.finalize();
-      dispose();
-   }
-
-   /**
     * Dispose the distinct table lens.
     */
    @Override

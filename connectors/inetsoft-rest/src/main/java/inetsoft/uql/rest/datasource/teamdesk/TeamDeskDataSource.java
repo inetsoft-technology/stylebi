@@ -21,6 +21,7 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -28,8 +29,10 @@ import java.util.Objects;
 
 @View(vertical = true, value = {
    @View1("domain"),
-   @View1("applicationId"),
-   @View1("authorizationToken")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "applicationId", visibleMethod = "useCredential"),
+   @View1(value = "authorizationToken", visibleMethod = "useCredential")
 })
 public class TeamDeskDataSource extends EndpointJsonDataSource<TeamDeskDataSource> {
    static final String TYPE = "Rest.TeamDesk";
@@ -37,6 +40,11 @@ public class TeamDeskDataSource extends EndpointJsonDataSource<TeamDeskDataSourc
    public TeamDeskDataSource() {
       super(TYPE, TeamDeskDataSource.class);
       setAuthType(AuthType.NONE);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.AUTHORIZATION_TOKEN;
    }
 
    @Property(label = "Domain", required = true)
@@ -49,26 +57,28 @@ public class TeamDeskDataSource extends EndpointJsonDataSource<TeamDeskDataSourc
    }
 
    @Property(label = "Application ID", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApplicationId() {
-      return applicationId;
+      return ((AuthorizationTokenCredential) getCredential()).getApplicationId();
    }
 
    public void setApplicationId(String applicationId) {
-      this.applicationId = applicationId;
+      ((AuthorizationTokenCredential) getCredential()).setApplicationId(applicationId);
    }
 
    @Property(label = "Authorization Token", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getAuthorizationToken() {
-      return authorizationToken;
+      return ((AuthorizationTokenCredential) getCredential()).getAuthorizationToken();
    }
 
    public void setAuthorizationToken(String authorizationToken) {
-      this.authorizationToken = authorizationToken;
+      ((AuthorizationTokenCredential) getCredential()).setAuthorizationToken(authorizationToken);
    }
 
    @Override
    public String getURL() {
-      return "https://" + domain + "/secure/api/v2/" + applicationId;
+      return "https://" + domain + "/secure/api/v2/" + getApplicationId();
    }
 
    @Override
@@ -82,7 +92,7 @@ public class TeamDeskDataSource extends EndpointJsonDataSource<TeamDeskDataSourc
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)
             .name("Authorization")
-            .value("Bearer " + authorizationToken)
+            .value("Bearer " + getAuthorizationToken())
             .build()
       };
    }
@@ -104,25 +114,12 @@ public class TeamDeskDataSource extends EndpointJsonDataSource<TeamDeskDataSourc
       if(domain != null) {
          writer.format("<domain><![CDATA[%s]]></domain>%n", domain);
       }
-
-      if(applicationId != null) {
-         writer.format("<applicationId><![CDATA[%s]]></applicationId>%n", applicationId);
-      }
-
-      if(authorizationToken != null) {
-         writer.format(
-            "<authorizationToken><![CDATA[%s]]></authorizationToken>%n",
-            Tool.encryptPassword(authorizationToken));
-      }
    }
 
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       domain = Tool.getChildValueByTagName(root, "domain");
-      applicationId = Tool.getChildValueByTagName(root, "applicationId");
-      authorizationToken =
-         Tool.decryptPassword(Tool.getChildValueByTagName(root, "authorizationToken"));
    }
 
    @Override
@@ -140,17 +137,13 @@ public class TeamDeskDataSource extends EndpointJsonDataSource<TeamDeskDataSourc
       }
 
       TeamDeskDataSource that = (TeamDeskDataSource) o;
-      return Objects.equals(domain, that.domain) &&
-         Objects.equals(applicationId, that.applicationId) &&
-         Objects.equals(authorizationToken, that.authorizationToken);
+      return Objects.equals(domain, that.domain);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), domain, applicationId, authorizationToken);
+      return Objects.hash(super.hashCode(), domain, getApplicationId(), getAuthorizationToken());
    }
 
    private String domain = "www.teamdesk.net";
-   private String applicationId;
-   private String authorizationToken;
 }

@@ -25,6 +25,7 @@ import inetsoft.sree.web.SessionLicenseManager;
 import inetsoft.sree.web.SessionLicenseService;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.util.ConnectionProcessor;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
 import inetsoft.util.audit.Audit;
@@ -42,6 +43,7 @@ import java.security.Principal;
 import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 /**
  * Class that supplies support for web authentication and session management.
@@ -102,7 +104,8 @@ public class AuthenticationService {
       // log action
       String xSessionId = XSessionService.createSessionID(XSessionService.USER, userId.name);
       String opType = SessionRecord.OP_TYPE_LOGON;
-      Timestamp opTimestamp = new Timestamp(System.currentTimeMillis());
+      Long time = System.currentTimeMillis();
+      Timestamp opTimestamp = new Timestamp(time);
       IdentityID user = SUtil.getUserID(userId, loginAsUser);
       SessionRecord sessionRecord = new SessionRecord(
          user.convertToKey(), remoteAddr, null, null, xSessionId, opType, opTimestamp,
@@ -128,6 +131,7 @@ public class AuthenticationService {
 
                if(principal instanceof XPrincipal) {
                   ((XPrincipal) principal).setProperty(SUtil.TICKET, userId + ":" + password);
+                  ((XPrincipal) principal).setProperty(SUtil.LONGON_TIME, time + "");
                }
             }
             catch(Throwable exc) {
@@ -195,9 +199,21 @@ public class AuthenticationService {
             !"true".equals(((XPrincipal) principal).getProperty("__login_audited")))
          {
             ((XPrincipal) principal).setProperty("__login_audited", "true");
+            List<String> groups = Arrays.asList(((XPrincipal) principal).getGroups());
+            List<String> roles = Arrays.stream(((XPrincipal) principal).getRoles()).map(id -> id.name).toList();
+
+            sessionRecord.setUserGroup(groups);
+            sessionRecord.setUserRole(roles);
             Audit.getInstance().auditSession(sessionRecord, principal);
          }
          else if(principal == null && userId != null) {
+            User u = SecurityEngine.getSecurity().getSecurityProvider().getUser(userId);
+
+            if(u != null) {
+               sessionRecord.setUserGroup(Arrays.asList(u.getGroups()));
+               sessionRecord.setUserRole(Arrays.stream(u.getRoles()).map(id -> id.name).toList());
+            }
+
             Audit.getInstance().auditSession(sessionRecord, principal);
          }
       }
@@ -347,17 +363,24 @@ public class AuthenticationService {
                       boolean invalidateSession)
    {
       String opType = SessionRecord.OP_TYPE_LOGOFF;
-      String userGroup =
-         Tool.arrayToString(((XPrincipal) principal).getGroups(), "#");
-      String[] roles = Arrays.stream(((XPrincipal) principal).getRoles())
-         .map(role -> role.getName()).toArray(String[]::new);
-      String userRole = Tool.arrayToString(roles, "#");
+      List<String> userGroup = Arrays.asList(((XPrincipal) principal).getGroups());
+      IdentityID[] roles = ((XPrincipal) principal).getRoles();
+      List<String> userRole = roles != null
+         ? Arrays.stream(roles).map(IdentityID::getName).collect(Collectors.toList())
+         : new ArrayList<>();
       String sessionId = ((XPrincipal) principal).getSessionID();
       Timestamp opTimestamp = new Timestamp(System.currentTimeMillis());
-      IdentityID principalID = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+      IdentityID principalID = IdentityID.getIdentityIDFromKey(principal.getName());
       SessionRecord sessionRecord = new SessionRecord(
          principalID.convertToKey(), remoteHost, userGroup, userRole,
          sessionId, opType, opTimestamp, SessionRecord.OP_STATUS_SUCCESS, null, logoffReason);
+      String logonTime = ((XPrincipal) principal).getProperty(SUtil.LONGON_TIME);
+      sessionRecord.setLogonTime(logonTime == null || logonTime.isEmpty() ?
+                          new Timestamp(System.currentTimeMillis()) : new Timestamp(Long.parseLong(logonTime)));
+      sessionRecord.setServerHostName(Tool.getHost());
+      Timestamp diffMillis = new Timestamp(sessionRecord.getOpTimestamp().getTime() -
+                                              sessionRecord.getLogonTime().getTime());
+      sessionRecord.setDuration(diffMillis);
 
       try {
          logout(principal, invalidateSession);
@@ -473,11 +496,11 @@ public class AuthenticationService {
       boolean result = true;
 
       if(principal != null) {
-         sessionRecord.setUserGroup(
-            Tool.arrayToString(((XPrincipal) principal).getGroups(), "#"));
-         String[] roles = Arrays.stream(((XPrincipal) principal).getRoles())
-            .map(role -> role.getName()).toArray(String[]::new);
-         sessionRecord.setUserRole(Tool.arrayToString(roles, "#"));
+         sessionRecord.setUserGroup(Arrays.asList(((XPrincipal) principal).getGroups()));
+         List<String> roles = Arrays.stream(((XPrincipal) principal).getRoles())
+            .map(IdentityID::getName)
+            .collect(Collectors.toList());
+         sessionRecord.setUserRole(roles);
          sessionRecord.setUserSessionID(
             ((XPrincipal) principal).getSessionID());
          sessionRecord.setOpStatus(SessionRecord.OP_STATUS_SUCCESS);
@@ -520,7 +543,7 @@ public class AuthenticationService {
          indexedStorage.setInitialized(orgID);
       }
 
-      SUtil.setAdditionalDatasource(principal);
+      ConnectionProcessor.getInstance().setAdditionalDatasource(principal);
    }
 
    private final List<SessionListener> listeners = new CopyOnWriteArrayList<>();

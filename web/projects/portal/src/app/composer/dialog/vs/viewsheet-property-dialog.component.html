@@ -16,12 +16,13 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <w-tabbed-dialog [title]="'_#(Viewsheet Options)'" (onClose)="cancelChanges()"
-                 [defaultTab]="openToScript ? 'Script' : null"
+                 [defaultTab]="openToScript ? '_#(Script)' : null"
                  [submitOnEnter]="formValid" (onSubmit)="saveChanges()">
   <ng-container *ngIf="!viewsheet.preview">
     <ng-template wDialogTab title="_#(Options)">
       <viewsheet-options-pane *ngIf="model" [model]="model.vsOptionsPane"
                               [runtimeId]="viewsheet?.runtimeId"
+                              [defaultOrgAsset]="isDefaultOrgAsset()"
                               [form]="form.controls['viewsheetOptionsPaneForm']">
       </viewsheet-options-pane>
     </ng-template>

@@ -191,6 +191,20 @@ public class ChartPropertyDialogController {
       String srctbl = chartAssemblyInfo.getTableName();
       tipPaneModel.setDataViewEnabled(srctbl != null && !VSUtil.isVSAssemblyBinding(srctbl));
 
+      boolean tipViewInPopComponents = false;
+      //prevent broken tipView after passing invalid string
+      for(String popComp : tipPaneModel.getPopComponents()) {
+
+         if(Tool.equals(popComp, tipPaneModel.getTipView())) {
+            tipViewInPopComponents = true;
+            break;
+         }
+      }
+
+      if(!tipViewInPopComponents) {
+         tipPaneModel.setTipView(null);
+      }
+
       Point pos = dialogService.getAssemblyPosition(chartAssemblyInfo, vs);
       Dimension size = dialogService.getAssemblySize(chartAssemblyInfo, vs);
 
@@ -487,7 +501,7 @@ public class ChartPropertyDialogController {
       if(assemblyInfo.getTipViewValue() != null) {
          VSAssembly tip = viewsheet.getViewsheet().getAssembly(assemblyInfo.getTipViewValue());
 
-         if(tip.getTipConditionList() != null) {
+         if(tip != null && tip.getTipConditionList() != null) {
             tip.setTipConditionList(null);
          }
       }

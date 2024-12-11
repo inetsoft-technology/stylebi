@@ -17,15 +17,19 @@
  */
 package inetsoft.uql.asset.sync;
 
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.storage.KeyValuePair;
 import inetsoft.storage.KeyValueStorage;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.AssetObject;
+import inetsoft.uql.asset.internal.AssetFolder;
 import inetsoft.util.*;
+import inetsoft.util.migrate.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -64,11 +68,13 @@ public final class DependencyStorageService implements AutoCloseable {
       return (RenameTransformQueue) getDependencyStorage().get(QUEUE_KEY);
    }
 
-   /**
-    * Rename key.
-    */
-   public boolean rename(String oldKey, String newKey) {
-      KeyValueStorage<RenameTransformObject> storage = getDependencyStorage();
+   public boolean rename(String oldKey, String newKey, String organizationId) {
+      KeyValueStorage<RenameTransformObject> storage = getDependencyStorage(organizationId);
+
+      oldKey = AssetEntry.createAssetEntry(oldKey)
+         .cloneAssetEntry(organizationId, "").toIdentifier();
+      newKey = AssetEntry.createAssetEntry(newKey)
+         .cloneAssetEntry(organizationId, "").toIdentifier();
 
       if(!storage.contains(oldKey)) {
          return false;
@@ -103,7 +109,7 @@ public final class DependencyStorageService implements AutoCloseable {
 
    public void clear() {
       Set<String> keys = getKeys(null);
-      keys.stream().forEach(key -> getDependencyStorage().remove(key));
+      getDependencyStorage().removeAll(keys);
    }
 
    public void removeDependencyStorage(String orgID) throws Exception {
@@ -111,21 +117,104 @@ public final class DependencyStorageService implements AutoCloseable {
       getDependencyStorage(orgID).close();
    }
 
-   public void migrateStorageData(String oId, String id) throws Exception {
-      KeyValueStorage<RenameTransformObject> oStorage = getDependencyStorage(oId);
-      KeyValueStorage<RenameTransformObject> nStorage = getDependencyStorage(id);
+   public void migrateStorageData(Organization oOrg, Organization nOrg, boolean removeOld) throws Exception {
+      KeyValueStorage<RenameTransformObject> oStorage = getDependencyStorage(oOrg.getId());
+      KeyValueStorage<RenameTransformObject> nStorage = getDependencyStorage(nOrg.getId());
       SortedMap<String, RenameTransformObject> data = new TreeMap<>();
-      oStorage.stream().forEach(pair -> data.put(pair.getKey(), pair.getValue()));
+      oStorage.stream().forEach(pair -> {
+         AssetEntry entry = AssetEntry.createAssetEntry(pair.getKey());
+         String nkey = entry.cloneAssetEntry(nOrg).toIdentifier(true);
+         data.put(nkey, syncDependencyData(pair.getValue(), nOrg));
+      });
       nStorage.putAll(data);
-      removeDependencyStorage(oId);
+
+      if(removeOld) {
+         removeDependencyStorage(oOrg.getId());
+      }
    }
 
-   public void copyStorageData(String oId, String id) {
-      KeyValueStorage<RenameTransformObject> oStorage = getDependencyStorage(oId);
-      KeyValueStorage<RenameTransformObject> nStorage = getDependencyStorage(id);
+   public void migrateStorageData(IdentityID oldUser, IdentityID newUser) throws Exception {
+      KeyValueStorage<RenameTransformObject> oStorage = getDependencyStorage(oldUser.getOrgID());
+      KeyValueStorage<RenameTransformObject> nStorage = getDependencyStorage(newUser.getOrgID());
       SortedMap<String, RenameTransformObject> data = new TreeMap<>();
-      oStorage.stream().forEach(pair -> data.put(pair.getKey(), pair.getValue()));
+
+      oStorage.stream().forEach(pair -> {
+         AssetEntry entry = AssetEntry.createAssetEntry(pair.getKey());
+         String nkey = entry.cloneAssetEntry(oldUser, newUser).toIdentifier(true);
+         data.put(nkey, syncDependencyUser(pair.getValue(), oldUser, newUser));
+      });
+
       nStorage.putAll(data);
+   }
+
+   private RenameTransformObject syncDependencyUser(RenameTransformObject obj, IdentityID oldUser,
+                                                    IdentityID newUser) {
+      if(!(obj instanceof DependenciesInfo)) {
+         return obj;
+      }
+
+      DependenciesInfo dinfo = (DependenciesInfo) obj;
+      dinfo.setDependencies(syncUserDependencies(dinfo.getDependencies(), oldUser, newUser));
+      return dinfo;
+   }
+
+   private List<AssetObject> syncUserDependencies(List<AssetObject> dependencies,
+                                                  IdentityID oldUser, IdentityID newUser) {
+      if(dependencies == null || dependencies.isEmpty()) {
+         return dependencies;
+      }
+
+      return dependencies.stream().map(d -> {
+         if(d instanceof AssetEntry) {
+            AssetEntry old = (AssetEntry) d;
+
+            // if the asset entry base on the renamed user, should change it.
+            if(Tool.equals(old.getUser(), oldUser)) {
+               return old.cloneAssetEntry(oldUser, newUser);
+            }
+
+            // schedule task user is always null, its user is in path.
+            if(old.isScheduleTask() && old.getUser() == null) {
+               return old.cloneAssetEntry(oldUser, newUser);
+            }
+         }
+
+         return d;
+      }).collect(Collectors.toList());
+   }
+
+   public void copyStorageData(Organization oOrg, Organization nOrg) {
+      try {
+         migrateStorageData(oOrg, nOrg, false);
+      }
+      catch(Exception e) {
+         LOG.error(Catalog.getCatalog().getString("Failed to copy storage from {0} to {1}", oOrg, nOrg));
+      }
+   }
+
+   private RenameTransformObject syncDependencyData(RenameTransformObject obj, Organization nOrg) {
+      if(!(obj instanceof DependenciesInfo)) {
+         return obj;
+      }
+
+      DependenciesInfo dinfo = (DependenciesInfo) obj;
+      dinfo.setDependencies(syncDependencies(dinfo.getDependencies(), nOrg));
+      dinfo.setEmbedDependencies(syncDependencies(dinfo.getEmbedDependencies(), nOrg));
+      return dinfo;
+   }
+
+   private List<AssetObject> syncDependencies(List<AssetObject> dependencies, Organization nOrg) {
+      if(dependencies == null || dependencies.isEmpty()) {
+         return dependencies;
+      }
+
+      return dependencies.stream().map(d -> {
+         if(d instanceof AssetEntry) {
+            return ((AssetEntry) d).cloneAssetEntry(nOrg);
+         }
+
+         return d;
+      }).collect(Collectors.toList());
    }
 
    public Set<String> getKeys(IndexedStorage.Filter filter) {

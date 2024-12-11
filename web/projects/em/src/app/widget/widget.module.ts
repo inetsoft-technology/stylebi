@@ -40,6 +40,7 @@ import { DatepickerModule } from "../common/util/datepicker/datepicker.module";
 import { MatTooltipModule } from "@angular/material/tooltip";
 import { CodemirrorService } from "../../../../shared/util/codemirror/codemirror.service";
 import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/default-codemirror.service";
+import { SessionExpirationDialog } from "./dialog/session-expiration-dialog/session-expiration-dialog.component";
 
 @NgModule({
    imports: [
@@ -75,7 +76,8 @@ import { DefaultCodemirrorService } from "../../../../shared/util/codemirror/def
       DynamicComboBoxComponent,
       FormulaEditorDialogComponent,
       ScriptPaneComponent,
-      ScriptTreeViewComponent
+      ScriptTreeViewComponent,
+      SessionExpirationDialog
    ],
    providers: [
       FormulaEditorService,

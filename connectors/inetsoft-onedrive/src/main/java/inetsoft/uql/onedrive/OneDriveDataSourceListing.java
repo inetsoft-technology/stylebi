@@ -22,7 +22,7 @@ import inetsoft.uql.XDataSource;
 
 public class OneDriveDataSourceListing extends DataSourceListing {
    public OneDriveDataSourceListing() {
-      super("One Drive", "Data File", "/inetsoft/uql/onedrive/one-drive.svg");
+      super("OneDrive", "Data File", "/inetsoft/uql/onedrive/one-drive.svg");
    }
 
    @Override

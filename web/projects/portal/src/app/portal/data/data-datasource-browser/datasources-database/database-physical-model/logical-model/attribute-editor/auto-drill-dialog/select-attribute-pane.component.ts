@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import {
    EntityModel
 } from "../../../../../../model/datasources/database/physical-model/logical-model/entity-model";
@@ -26,17 +26,22 @@ import { Tool } from "../../../../../../../../../../../shared/util/tool";
    selector: "select-attribute-pane",
    templateUrl: "select-attribute-pane.component.html"
 })
-export class SelectAttributePaneComponent {
+export class SelectAttributePaneComponent implements OnInit{
    @Input() entities: EntityModel[];
    selectedItem: SelectedItem;
+   _expanded: EntityModel[] = [];
    expanded: EntityModel[] = [];
 
    @Input() set info(_info: {expanded: EntityModel[], selectedItem: SelectedItem}) {
-      this.expanded = _info.expanded;
+      this._expanded = _info.expanded;
       this.selectedItem = _info.selectedItem;
    }
 
    @Output() onSelectItem: EventEmitter<string> = new EventEmitter<string>();
+
+   ngOnInit() {
+      this.expanded = this._expanded;
+   }
 
    updateSelectedItem(label: string): void {
       if(!label || label.indexOf(".") == -1) {
@@ -76,6 +81,7 @@ export class SelectAttributePaneComponent {
       this.selectedItem = item;
 
       if(item.entity == -1 || item.attribute == -1) {
+         this.onSelectItem.emit();
          return;
       }
 

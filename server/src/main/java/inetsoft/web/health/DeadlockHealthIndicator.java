@@ -18,6 +18,7 @@
 package inetsoft.web.health;
 
 import inetsoft.util.health.*;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
@@ -45,6 +46,8 @@ public class DeadlockHealthIndicator implements HealthIndicator {
             threadDetails.put("lockOwnerName", thread.getLockOwnerName());
          }
 
+         LoggerFactory.getLogger(getClass()).error(
+            "DeadlockHealthIndicator DOWN: details={}", details);
          return Health.down().withDetails(details).build();
       }
 

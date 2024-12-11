@@ -19,6 +19,7 @@ package inetsoft.uql.hive;
 
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -34,8 +35,10 @@ import java.util.Objects;
    @View1("dbName"),
    @View1("hiveType"),
    @View1(type=ViewType.LABEL, text="authentication.required.text", col=1, paddingLeft=3),
-   @View1("user"),
-   @View1("password")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "password", visibleMethod = "useCredential")
 })
 public class HiveDataSource extends TabularDataSource<HiveDataSource> {
    public static final String TYPE = "Hive";
@@ -45,6 +48,11 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
     */
    public HiveDataSource () {
       super(TYPE, HiveDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD;
    }
 
    /**
@@ -123,8 +131,9 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
     * @return user name
     */
    @Property(label="User", required=true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getUser() {
-      return user;
+      return ((PasswordCredential) getCredential()).getUser();
    }
 
    /**
@@ -133,7 +142,7 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
     * @param user user name
     */
    public void setUser(String user) {
-      this.user = user;
+      ((PasswordCredential) getCredential()).setUser(user);
    }
 
    /**
@@ -142,8 +151,9 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
     * @return password
     */
    @Property(label="Password", password=true, required=true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getPassword() {
-      return password;
+      return ((PasswordCredential) getCredential()).getPassword();
    }
 
    /**
@@ -151,7 +161,7 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
     * @param password password
     */
    public void setPassword(String password) {
-      this.password = password;
+      ((PasswordCredential) getCredential()).setPassword(password);
    }
 
    /**
@@ -192,15 +202,6 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
          writer.println("<db><![CDATA[" + dbName + "]]></db>");
       }
 
-      if(user != null) {
-         writer.println("<user><![CDATA[" + user + "]]></user>");
-      }
-
-      if(password != null) {
-         writer.println("<password><![CDATA[" + Tool.encryptPassword(password) +
-                           "]]></password>");
-      }
-
       if(hiveType != null) {
          writer.println("<hiveType><![CDATA[" + hiveType + "]]></hiveType>");
       }
@@ -222,9 +223,6 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
       host = Tool.getChildValueByTagName(root, "host");
       dbName = Tool.getChildValueByTagName(root, "db");
       hiveType = Tool.getChildValueByTagName(root, "hiveType");
-      user = Tool.getChildValueByTagName(root, "user");
-      password =
-         Tool.decryptPassword(Tool.getChildValueByTagName(root, "password"));
    }
 
    @Override
@@ -236,18 +234,28 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
             port == ds.port &&
             Objects.equals(hiveType, ds.hiveType) &&
             Objects.equals(dbName, ds.dbName) &&
-            Objects.equals(user, ds.user) &&
-            Objects.equals(password, ds.password);
+            Objects.equals(getCredential(), ds.getCredential());
       }
       catch(Exception ex) {
          return false;
       }
    }
 
+   @Override
+   public Object clone() {
+      HiveDataSource source = (HiveDataSource) super.clone();
+
+      try {
+         source.setCredential((Credential) getCredential().clone());
+      }
+      catch(CloneNotSupportedException ignore) {
+      }
+
+      return source;
+   }
+
    private String host;
    private int port = 10000;
    private String hiveType;
    private String dbName = "default";
-   private String user;
-   private String password;
 }

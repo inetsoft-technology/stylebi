@@ -123,7 +123,7 @@ public abstract class AbstractStorageTransfer implements StorageTransfer {
       Principal oPrincipal = ThreadContext.getPrincipal();
 
       if(oPrincipal == null) {
-         IdentityID tempPID = new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getCurrentOrgName());
+         IdentityID tempPID = new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID());
          XPrincipal tempPrincipal = new XPrincipal(tempPID, new IdentityID[0], new String[0],
                                                    Organization.getDefaultOrganizationID());
          ThreadContext.setPrincipal(tempPrincipal);
@@ -146,6 +146,8 @@ public abstract class AbstractStorageTransfer implements StorageTransfer {
    protected abstract void putKeyValue(String id, String key, Object value);
 
    protected abstract void saveBlob(String id, String digest, Path file) throws IOException;
+
+   protected abstract Blob<?> updateRegistryBlob(Blob<?> blob, String id, String key, Path file) throws IOException;
 
    private void importKeyValues(ZipFile zip) throws IOException {
       ZipEntry entry = zip.getEntry("key-value-index.json");
@@ -194,6 +196,9 @@ public abstract class AbstractStorageTransfer implements StorageTransfer {
                try(InputStream input = zip.getInputStream(entry)) {
                   Files.copy(input, temp, StandardCopyOption.REPLACE_EXISTING);
                }
+
+               blob = updateRegistryBlob(blob, id, key, temp);
+               digest = blob.getDigest();
 
                saveBlob(id, digest, temp);
                Files.delete(temp);

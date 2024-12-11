@@ -72,7 +72,7 @@ public class ScheduleTaskFormulaService {
 
             ObjectNode node = mapper.createObjectNode();
             node.put("prototype", "{}");
-            node.put("!url", Tool.getHelpBaseURL() + "userhelp/#cshid=EMAddParameter");
+            node.put("!url", Tool.getHelpBaseURL() + "#cshid=EMAddParameter");
             root.put(id.toString(), node);
          }
       }

@@ -197,7 +197,7 @@ public class CSVInfo implements inetsoft.util.XMLSerializable {
             }
             else {
                if(i < line.length() - 1 && line.charAt(i + 1) != delim) {
-                  if(i < line.length() - 1 && line.charAt(i + 1) == '\"') {
+                  if(line.charAt(i + 1) == '\"') {
                      i++;
                      continue;
                   }

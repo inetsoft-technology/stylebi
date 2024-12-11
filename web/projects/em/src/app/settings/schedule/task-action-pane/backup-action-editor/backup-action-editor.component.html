@@ -21,6 +21,7 @@
     [path]="actionModel?.backupPath"
     [serverPath]="actionModel?.backupServerPath"
     [selectedEntities]="actionModel?.assets"
+    [cloudSecrets]="model.cloudSecrets"
     (backupPathsChanged)="onBackupPathsChanged($event)"
   >
   </em-backup-file>

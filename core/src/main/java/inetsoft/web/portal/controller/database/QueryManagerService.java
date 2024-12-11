@@ -2469,7 +2469,7 @@ public class QueryManagerService {
          }
 
          entry.setProperty("quoteTableName", expandedEntry.getProperty("quoteTableName"));
-         entry.setProperty("quoteColumnName", XUtil.quoteAlias(entry.getName(), helper));
+         entry.setProperty("quoteColumnName", XUtil.quoteNameSegment(entry.getName(), helper));
          TreeNodeModel.Builder child = TreeNodeModel.builder()
             .label(entry.getName())
             .data(entry)

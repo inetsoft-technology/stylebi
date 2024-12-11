@@ -17,7 +17,6 @@
  */
 export interface LicenseKeySettingsModel {
    serverKeys: LicenseKeyModel[];
-   schedulerKeys: LicenseKeyModel[];
    clusterKeys: {[key: string]: string};
 }
 

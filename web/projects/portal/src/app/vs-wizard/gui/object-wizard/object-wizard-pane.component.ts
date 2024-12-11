@@ -361,7 +361,15 @@ export class ObjectWizardPane extends CommandProcessor implements OnInit, OnDest
          }
 
          if(typeChanged) {
-            this.vsObject = model;
+            if(this.vsObject.objectType == "VSChart" ) {
+               let oldSelection = Tool.clone((<VSChartModel> this.vsObject).chartSelection);
+               this.vsObject = model;
+               (<VSChartModel> this.vsObject).chartSelection = oldSelection;
+            }
+            else {
+               this.vsObject = model;
+            }
+
             this.changeSubtype(this.currentSubType);
          }
          else {

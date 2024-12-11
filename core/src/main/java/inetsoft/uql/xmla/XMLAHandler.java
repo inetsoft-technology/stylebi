@@ -89,6 +89,7 @@ public class XMLAHandler extends XHandler {
    public void testDataSource(XDataSource datasource, VariableTable params)
       throws Exception
    {
+      Tool.refreshDatabaseCredentials(datasource);
       connect(datasource, params);
       String[] catalogs = getCatalogs(
          ((XMLADataSource) datasource).getCatalogName());

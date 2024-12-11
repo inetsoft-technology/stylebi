@@ -17,22 +17,11 @@
  */
 package inetsoft.report.internal.license;
 
-import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.cluster.*;
-import inetsoft.util.*;
-import org.springframework.util.DigestUtils;
+import inetsoft.sree.internal.cluster.MessageEvent;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.util.Tool;
 
-import java.io.IOException;
-import java.lang.ref.WeakReference;
-import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.locks.Lock;
-import java.util.function.Predicate;
-import java.util.function.ToIntFunction;
-import java.util.stream.Collectors;
 
 /**
  * {@code LicenseManager} manages the installed license keys and provides information about them.
@@ -44,87 +33,93 @@ public class NoopLicenseStrategy extends LicenseStrategy {
       return Optional.ofNullable(license);
    }
 
+   @Override
    public Set<License> getClaimedLicenses() {
       return Collections.singleton(getClaimedLicense().orElse(null));
    }
 
+   @Override
    public Set<License> getInstalledLicenses() {
       return getClaimedLicenses();
    }
 
+   @Override
    public Set<License> getValidLicenses() {
       return getClaimedLicenses();
    }
 
+   @Override
    public Map<String, String> getClaimedClusterLicenses() {
       return Collections.emptyMap();
    }
 
+   @Override
    public Map<String, String> getClaimedNodeLicenses() {
       return Collections.emptyMap();
    }
 
+   @Override
    public boolean isMasterLicense() {
       return true;
    }
 
+   @Override
    public int getLicensedCpuCount() {
       return 0;
    }
 
+   @Override
    public int getConcurrentSessionCount() {
       return 0;
    }
 
+   @Override
    public int getNamedUserCount() {
       return 0;
    }
 
+   @Override
    public int getViewerSessionCount() {
       return 0;
    }
 
+   @Override
    public int getNamedUserViewerSessionCount() {
       return 0;
    }
 
-   public Set<License> getSchedulerLicenses() {
-      return getClaimedLicenses();
-   }
-
-   public Set<String> getNamedUsers() {
+   @Override
+   public Set<IdentityID> getNamedUsers() {
       return null;
    }
 
+   @Override
    public void addLicense(String key) {
    }
 
+   @Override
    public void removeLicense(String key) {
    }
 
+   @Override
    public void replaceLicense(String oldKey, String newKey) {
    }
 
-   public void addSchedulerLicense(String key) {
-   }
-
-   public void removeSchedulerLicense(String key) {
-   }
-
-   public void replaceSchedulerLicense(String oldKey, String newKey) {
-   }
-
+   @Override
    public void reload() {
    }
 
+   @Override
    public int getAvailableCpuCount() {
       return Math.max(2, Tool.getAvailableCPUCores());
    }
 
+   @Override
    public boolean isAffinitySet() {
       return false;
    }
 
+   @Override
    public int[] calculateThreadPoolSize(int softLimitCpuFactor, String hardLimitProperty,
                                         int hardLimitFactor)
    {
@@ -142,23 +137,66 @@ public class NoopLicenseStrategy extends LicenseStrategy {
    public void messageReceived(MessageEvent event) {
    }
 
+   @Override
    public String getLicenseHash() {
       return "noop";
    }
 
+   @Override
    public void startDuplicateLicenseServer() {
    }
 
+   @Override
    public void addKeyViolation(String message, String id) {
    }
 
+   @Override
    public License parseLicense(String key) {
       return License.builder().build();
    }
 
+   @Override
    public void addClaimedLicenseListener(ClaimedLicenseListener l) {
    }
 
+   @Override
    public void removeClaimedLicenseListener(ClaimedLicenseListener l) {
+   }
+
+   @Override
+   public void userChanged() {
+   }
+
+   @Override
+   public void startElasticPolling() {
+   }
+
+   @Override
+   public int getElasticRemainingHours() {
+      return 0;
+   }
+
+   @Override
+   public int getElasticGraceHours() {
+      return 0;
+   }
+
+   @Override
+   public boolean startHostedSession(String orgId, String user) {
+      return false;
+   }
+
+   @Override
+   public void stopHostedSession(String orgId, String user) {
+   }
+
+   @Override
+   public int getHostedRemainingHours(String orgId, String user) {
+      return 0;
+   }
+
+   @Override
+   public int getHostedGraceHours(String orgId, String user) {
+      return 0;
    }
 }

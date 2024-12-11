@@ -20,23 +20,31 @@ package inetsoft.uql.rest.datasource.sfreports;
 import inetsoft.uql.rest.datasource.salesforce.SalesforceDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.CredentialType;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
    @View1("accountType"),
    @View1("apiVersion"),
-   @View1("user"),
-   @View1("password"),
-   @View1("securityToken")
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "password", visibleMethod = "useCredential"),
+   @View1(value = "securityToken", visibleMethod = "useCredential")
 })
 public class SalesforceReportsDataSource extends SalesforceDataSource<SalesforceReportsDataSource> {
    static final String TYPE = "Rest.SalesforceReports";
-   
+
    public SalesforceReportsDataSource() {
       super(TYPE, SalesforceReportsDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD_SECURITY_TOKEN;
    }
 
    @Property(label = "Account Type", required = true)

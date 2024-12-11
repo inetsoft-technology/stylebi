@@ -194,17 +194,19 @@ private boolean isSameTable(String expr1, String expr2) {
       return true;
    }
 
-   SQLHelper helper = SQLHelper.getSQLHelper(uniSql.getDataSource());
+   if(uniSql != null) {
+      SQLHelper helper = SQLHelper.getSQLHelper(uniSql.getDataSource());
 
-   for(int i = 0; i < uniSql.getTableCount(); i++) {
-      String tableName = Tool.toString(uniSql.getSelectTable(i).getName());
-      String tableAlias = uniSql.getSelectTable(i).getAlias();
-      String quotedTableAlias = !Tool.equals(tableAlias, tableName) ?
-         XUtil.quoteAlias(tableAlias, helper) : helper.quoteTableName(tableAlias);
-      String prefix = quotedTableAlias + ".";
+      for(int i = 0; i < uniSql.getTableCount(); i++) {
+         String tableName = Tool.toString(uniSql.getSelectTable(i).getName());
+         String tableAlias = uniSql.getSelectTable(i).getAlias();
+         String quotedTableAlias = !Tool.equals(tableAlias, tableName) ?
+            XUtil.quoteAlias(tableAlias, helper) : helper.quoteTableName(tableAlias);
+         String prefix = quotedTableAlias + ".";
 
-      if(expr1.startsWith(prefix) && expr2.startsWith(prefix)) {
-         return true;
+         if(expr1.startsWith(prefix) && expr2.startsWith(prefix)) {
+            return true;
+         }
       }
    }
 

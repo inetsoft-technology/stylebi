@@ -18,6 +18,7 @@
 package inetsoft.util;
 
 import inetsoft.sree.security.Organization;
+import inetsoft.uql.util.AbstractIdentity;
 import org.w3c.dom.Document;
 
 import java.beans.PropertyChangeListener;
@@ -110,7 +111,20 @@ public interface IndexedStorage {
     * @param doc the document after transformation.
     * @param className the asset sheet class name.
     */
-   void putDocument(String key, Document doc, String className);
+   default void putDocument(String key, Document doc, String className) {
+      putDocument(key, doc, className, null);
+   }
+
+   /**
+    * This is for rename transformation,
+    * save document directly insteadof parse -> write to improve performance.
+    *
+    * @param key the asset identifier.
+    * @param doc the document after transformation.
+    * @param className the asset sheet class name.
+    * @param orgID the target organization id.
+    */
+   void putDocument(String key, Document doc, String className, String orgID);
 
    /**
     * This is for rename transformation.
@@ -118,7 +132,17 @@ public interface IndexedStorage {
     * @param key the asset identifier.
     * @return the asset document.
     */
-   Document getDocument(String key);
+   default Document getDocument(String key) {
+      return getDocument(key, null);
+   }
+
+   /**
+    * This is for rename transformation.
+    * Get the asset document, and transformation document directly to improve performance.
+    * @param key the asset identifier.
+    * @return the asset document.
+    */
+   Document getDocument(String key, String orgID);
 
    /**
     * Gets the data value that is associated with the specified key.
@@ -286,9 +310,9 @@ public interface IndexedStorage {
     * Gets the list of keys in this indexed storage. If the filter is specified,
     * it is used to determine which keys are returned. If the filter is
     * <tt>null</tt>, all keys will be returned.
-    * 
+    *
     * @param filter the filter, may be <tt>null</tt>.
-    *               
+    *
     * @return the matching keys.
     */
    Set<String> getKeys(Filter filter);
@@ -326,17 +350,27 @@ public interface IndexedStorage {
     *
     * @since 14.0
     */
-   void migrateStorageData(Organization oorg, Organization norg) throws Exception;
+   void migrateStorageData(AbstractIdentity oorg, AbstractIdentity norg) throws Exception;
 
    /**
     * Copies data over from one store to another
     *
-    * @param oId the orgId used for the old storage
-    * @param nId the orgId used for the old storage
+    * @param oname the oname
+    * @param nname the nname
     *
     * @since 14.0
     */
-   void copyStorageData(String oId, String nId) throws Exception;
+   void migrateStorageData(String  oname, String nname) throws Exception;
+
+   /**
+    * Copies data over from one store to another
+    *
+    * @param oOrg the oOrg used for the old storage
+    * @param nOrg the nOrg used for the old storage
+    *
+    * @since 14.0
+    */
+   void copyStorageData(Organization oOrg, Organization nOrg) throws Exception;
 
    /**
     * Deletes an indexed storage store

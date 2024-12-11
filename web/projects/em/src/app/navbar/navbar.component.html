@@ -34,6 +34,7 @@
   <a mat-icon-button class="em-button" routerLink="/settings" routerLinkActive="active" aria-label="_#(Settings)" [title]="'_#(Settings)'">
     <mat-icon fontSet="ineticons" fontIcon="setting-icon"></mat-icon>
   </a>
+  <span *ngIf="model?.elasticLicenseExhausted">_#(elastic.license.exhausted)</span>
   <div class="flex-spacer"></div>
   <a mat-icon-button *ngIf="notifyVisible" class="em-button" aria-label="_#(Send Notification)" title="_#(Send Notification)" (click)="showNotifyDialog()">
     <mat-icon fontSet="ineticons" fontIcon="message-icon"></mat-icon>
@@ -49,7 +50,7 @@
   </a>
   <mat-menu #userOptionsMenu="matMenu">
     <a mat-menu-item class="em-navbar-name-menu" *ngIf="name" disabled>{{ name }}</a>
-    <a mat-menu-item [disabled]="model?.ssoUser" routerLink="/password">_#(Change Password)</a>
+    <a mat-menu-item [disabled]="model?.ssoUser" [class.disabled-item]="model?.ssoUser" routerLink="/password">_#(Change Password)</a>
     <a mat-menu-item [matMenuTriggerFor]="favoritesMenu">_#(Favorites)</a>
     <button mat-menu-item (click)="logout()">_#(Log Out)</button>
   </mat-menu>

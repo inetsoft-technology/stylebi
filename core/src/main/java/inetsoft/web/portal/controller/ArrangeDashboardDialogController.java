@@ -50,7 +50,7 @@ public class ArrangeDashboardDialogController {
    {
       IdentityID name = SecurityEngine.getSecurity().isSecurityEnabled() ?
          IdentityID.getIdentityIDFromKey(principal.getName()) :
-         new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getCurrentOrgName());
+         new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID());
       Identity identity = getIdentity((XPrincipal) principal);
       DashboardManager manager = DashboardManager.getManager();
 

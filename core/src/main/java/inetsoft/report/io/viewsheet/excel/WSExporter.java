@@ -19,6 +19,7 @@ package inetsoft.report.io.viewsheet.excel;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.internal.ColumnInfo;
 
 import java.io.IOException;
@@ -54,4 +55,21 @@ public interface WSExporter {
     * @param lens the specified VSTableLens.
     */
    public void writeTable(TableLens lens, List<ColumnInfo> cinfos);
+
+   /**
+    * Get the max cell count of per page.
+    */
+   static int getPageMaxCellCount() {
+      String maxCountStr = SreeEnv.getProperty("ws.export.page.max.cell");
+      int defaultMaxCellCount = 500000;
+
+      try {
+         int maxCount = Integer.parseInt(maxCountStr);
+
+         return maxCount > 0 ? maxCount : defaultMaxCellCount;
+      }
+      catch(Exception e) {
+         return defaultMaxCellCount;
+      }
+   }
 }

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.security;
 
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
@@ -25,6 +26,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.config.*;
 import inetsoft.web.admin.security.action.ActionPermissionService;
 import inetsoft.web.portal.model.CurrentUserModel;
 import inetsoft.web.viewsheet.Audited;
@@ -32,6 +34,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.security.Principal;
 import java.util.*;
 
@@ -63,6 +67,11 @@ public class SecurityConfigController {
       return getEnableSecurity(principal);
    }
 
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_EDIT,
+      objectName = "Multi-Tenancy",
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
    @PostMapping("/api/em/security/set-multi-tenancy")
    public SecurityEnabledEvent setEnableMultiTenancy(@RequestBody SecurityEnabledEvent event, Principal principal)
    {
@@ -70,13 +79,21 @@ public class SecurityConfigController {
 
       if(event.enable()) {
          SUtil.setMultiTenant(true);
+
+         if(LicenseManager.getInstance().hasNamedUserKeys()) {
+            warning = Catalog.getCatalog().getString("em.security.namedUserKeyError");
+         }
       }
       else {
          if(hasAddedOrganizations()) {
             warning = Catalog.getCatalog().getString("em.security.addedOrganizations");
          }
+         else if(selfOrganizationHasUsers()) {
+            warning = Catalog.getCatalog().getString("em.security.selfOrganizationHasUsers");
+         }
          else {
             SUtil.setMultiTenant(false);
+            OrganizationManager.getInstance().setCurrentOrgID(Organization.getDefaultOrganizationID());
          }
       }
 
@@ -88,14 +105,22 @@ public class SecurityConfigController {
 
    private boolean hasAddedOrganizations() {
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      for(String orgName : provider.getOrganizations()) {
-         if(!orgName.equals(Organization.getDefaultOrganizationName()) &&
-            !orgName.equals(Organization.getSelfOrganizationName()) &&
-            !orgName.equals(Organization.getTemplateOrganizationName())) {
+
+      for(String orgID : provider.getOrganizationIDs()) {
+         if(!orgID.equals(Organization.getDefaultOrganizationID()) &&
+            !orgID.equals(Organization.getSelfOrganizationID())) {
             return true;
          }
       }
+
       return false;
+   }
+
+   private boolean selfOrganizationHasUsers() {
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+
+      return Arrays.stream(provider.getUsers())
+         .anyMatch(u -> Tool.equals(u.orgID, Organization.getSelfOrganizationID()));
    }
 
    @GetMapping("/api/em/security/get-enable-security")
@@ -121,11 +146,12 @@ public class SecurityConfigController {
       }
 
       return SecurityEnabledEvent.builder()
-         .enable(SUtil.isMultiTenant())
+         .enable(Boolean.parseBoolean(SreeEnv.getProperty("security.users.multiTenant", "false")))
          .passOrgIdAs(SreeEnv.getProperty("security.login.orgLocation", "domain"))
          .toggleDisabled(securityEnabled && !siteAdmin)
          .ldapProviderUsed(ldapProviderUsed)
          .warning(isOrgAdminOnly ? "isOrgAdmin" : null)
+         .cloudPlatform(isCloudPlatform())
          .build();
    }
 
@@ -145,16 +171,23 @@ public class SecurityConfigController {
       }
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
 
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+
       return CurrentUserModel.builder()
          .anonymous(principal == null || principal.getName().equals(XPrincipal.ANONYMOUS))
-         .name(principal == null ? new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getCurrentOrgName()) : pId)
-         .orgID(principal instanceof XPrincipal ? ((XPrincipal)principal).getOrgId() : OrganizationManager.getInstance().getCurrentOrgID())
+         .name(principal == null ? new IdentityID(XPrincipal.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID()) : pId)
+         .org(pId == null ? OrganizationManager.getCurrentOrgName() : provider.getOrgNameFromID(pId.getOrgID()))
          .isSysAdmin(principal == null ? false : OrganizationManager.getInstance().isSiteAdmin(principal))
          .localeLanguage(localeLanguage)
          .localeCountry(localeCountry)
          .build();
    }
 
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_EDIT,
+      objectName = "Enable-Self-Signup",
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
    @PostMapping("/api/em/security/set-enable-self-signup")
    public SecurityEnabledEvent setEnableSelfSignup(@RequestBody SecurityEnabledEvent event)
       throws Exception
@@ -181,6 +214,30 @@ public class SecurityConfigController {
       return SecurityEnabledEvent.builder()
          .enable(securityEngine.isSelfSignupEnabled())
          .build();
+   }
+
+   private boolean isCloudPlatform() {
+      InetsoftConfig instance = InetsoftConfig.getInstance();
+      CloudRunnerConfig cloudRunner = instance.getCloudRunner();
+
+      if(cloudRunner == null) {
+         return false;
+      }
+
+      String type = cloudRunner.getType();
+      boolean aws = "fargate".equals(type);
+      boolean azure = "azure".equals(type);
+      boolean google = "google".equals(type);
+
+      if(aws || azure || google) {
+         return true;
+      }
+
+      BlobConfig blob = instance.getBlob();
+      String blobType = blob.getType();
+
+      return "kubernetes".equals(type) &&
+         ("azure".equals(blobType) || "s3".equals(blobType) || "gcs".equals(blobType));
    }
 
    private String getDataSourceResourceName(String resourcePath) {

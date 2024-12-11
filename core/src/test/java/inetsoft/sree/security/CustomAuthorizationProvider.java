@@ -18,9 +18,8 @@
 package inetsoft.sree.security;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.*;
+import com.fasterxml.jackson.databind.*;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -138,23 +137,23 @@ public class CustomAuthorizationProvider extends AbstractAuthorizationProvider {
             ResourceAction action = ResourceAction.valueOf(e.getKey());
             permission.setUserGrants(action, e.getValue().users.stream()
                .map(id -> {
-                  permission.updateGrantAllByOrg(id.getOrganization(), true);
-                  return new Permission.PermissionIdentity(id.getName(), id.getOrganization());
+                  permission.updateGrantAllByOrg(id.getOrgID(), true);
+                  return new Permission.PermissionIdentity(id.getName(), id.getOrgID());
                }).collect(Collectors.toSet()));
             permission.setGroupGrants(action, e.getValue().groups.stream()
                .map(id -> {
-                  permission.updateGrantAllByOrg(id.getOrganization(), true);
-                  return new Permission.PermissionIdentity(id.getName(), id.getOrganization());
+                  permission.updateGrantAllByOrg(id.getOrgID(), true);
+                  return new Permission.PermissionIdentity(id.getName(), id.getOrgID());
                }).collect(Collectors.toSet()));
             permission.setRoleGrants(action, e.getValue().roles.stream()
                .map(id -> {
-                  permission.updateGrantAllByOrg(id.getOrganization(), true);
-                  return new Permission.PermissionIdentity(id.getName(), id.getOrganization());
+                  permission.updateGrantAllByOrg(id.getOrgID(), true);
+                  return new Permission.PermissionIdentity(id.getName(), id.getOrgID());
                }).collect(Collectors.toSet()));
             permission.setOrganizationGrants(action, e.getValue().organizations.stream()
                .map(id -> {
-                  permission.updateGrantAllByOrg(id.getOrganization(), true);
-                  return new Permission.PermissionIdentity(id.getName(), id.getOrganization());
+                  permission.updateGrantAllByOrg(id.getOrgID(), true);
+                  return new Permission.PermissionIdentity(id.getName(), id.getOrgID());
                }).collect(Collectors.toSet()));
          }
 
@@ -177,17 +176,17 @@ public class CustomAuthorizationProvider extends AbstractAuthorizationProvider {
 
       public GrantConfig(ResourceAction action, Permission permission) {
          users = permission.getUserGrants(action).stream()
-            .map(u -> new IdentityID(u.getName(), u.getOrganization()))
+            .map(u -> new IdentityID(u.getName(), u.getOrganizationID()))
             .collect(Collectors.toSet());
          groups = permission.getGroupGrants(action).stream()
-            .map(u -> new IdentityID(u.getName(), u.getOrganization()))
+            .map(u -> new IdentityID(u.getName(), u.getOrganizationID()))
             .collect(Collectors.toSet());
          roles = permission.getRoleGrants(action).stream()
-            .map(u -> new IdentityID(u.getName(), u.getOrganization()))
-            .collect(Collectors.toSet());;
+            .map(u -> new IdentityID(u.getName(), u.getOrganizationID()))
+            .collect(Collectors.toSet());
          organizations = permission.getOrganizationGrants(action).stream()
-            .map(u -> new IdentityID(u.getName(), u.getOrganization()))
-            .collect(Collectors.toSet());;
+            .map(u -> new IdentityID(u.getName(), u.getOrganizationID()))
+            .collect(Collectors.toSet());
       }
 
       @JsonIgnore

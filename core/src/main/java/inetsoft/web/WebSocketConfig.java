@@ -59,11 +59,11 @@ public class WebSocketConfig<S extends Session> extends
    AbstractSessionWebSocketMessageBrokerConfigurer<S>
 {
    @Autowired
-   public WebSocketConfig(ObjectMapper objectMapper, MapSessionRepository sessionRepository,
+   public WebSocketConfig(ObjectMapper objectMapper, MapSessionRepository mapSessionRepository,
                           SessionConnectionService connectionService)
    {
       this.objectMapper = objectMapper;
-      this.sessionRepository = sessionRepository;
+      this.mapSessionRepository = mapSessionRepository;
       this.connectionService = connectionService;
    }
 
@@ -95,7 +95,8 @@ public class WebSocketConfig<S extends Session> extends
          "/asset-changed", "/repository-changed", "/schedule-changed", "/em-schedule-changed",
          "/composer-client", "/monitoring", "/topic", "/team", "/notifications",
          "/em-content-changed", "/data-changed", "/report-export-changed",
-         "/schedule-folder-changed", "/em-mv-changed")
+         "/schedule-folder-changed", "/em-mv-changed", "/em-plugin-changed",
+         "/session-expiration")
               .setTaskScheduler(taskScheduler())
               .setHeartbeatValue(new long[] {25000L, 25000L});
       registry.setUserDestinationPrefix("/user");
@@ -135,7 +136,7 @@ public class WebSocketConfig<S extends Session> extends
       registration
          .interceptors(new MessageScopeInterceptor(),
                        messageInterceptor,
-                       new SessionAccessInterceptor(sessionRepository, objectMapper))
+                       new SessionAccessInterceptor(mapSessionRepository, objectMapper))
          // This is the thread pool used to process asset events. In 12.2 we just spawned a new
          // thread every time that an event was received, so it was basically an unbounded pool.
          .taskExecutor(executor).corePoolSize(executor.getCorePoolSize());
@@ -233,7 +234,7 @@ public class WebSocketConfig<S extends Session> extends
    }
 
    private ObjectMapper objectMapper;
-   private MapSessionRepository sessionRepository;
+   private MapSessionRepository mapSessionRepository;
    private SessionConnectionService connectionService;
    private static final Logger LOG = LoggerFactory.getLogger(WebSocketConfig.class);
 }

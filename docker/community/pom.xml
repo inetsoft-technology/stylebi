@@ -32,7 +32,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <community.docker.tags>"${inetsoft.docker.repository}/stylebi-community:14.0","${inetsoft.docker.repository}/stylebi-community:14.0.${docker.build.version}","${inetsoft.docker.repository}/stylebi-community:latest"</community.docker.tags>
+    <community.docker.tags>"${inetsoft.docker.repository}/stylebi-community:1.0","${inetsoft.docker.repository}/stylebi-community:1.0.${docker.build.version}","${inetsoft.docker.repository}/stylebi-community:latest"</community.docker.tags>
   </properties>
 
   <dependencies>
@@ -252,22 +252,6 @@
         <version>3.3.1</version>
         <executions>
           <execution>
-            <id>copy-resources</id>
-            <phase>package</phase>
-            <goals>
-              <goal>copy-resources</goal>
-            </goals>
-            <configuration>
-              <outputDirectory>${project.build.directory}/docker</outputDirectory>
-              <resources>
-                <resource>
-                  <directory>${project.basedir}/src/main/docker</directory>
-                  <filtering>true</filtering>
-                </resource>
-              </resources>
-            </configuration>
-          </execution>
-          <execution>
             <id>copy-test-resources</id>
             <phase>process-test-resources</phase>
             <goals>
@@ -292,7 +276,7 @@
         <executions>
           <execution>
             <id>assemble</id>
-            <phase>package</phase>
+            <phase>process-resources</phase>
             <goals>
               <goal>single</goal>
             </goals>
@@ -300,12 +284,51 @@
               <appendAssemblyId>false</appendAssemblyId>
               <attach>false</attach>
               <descriptorSourceDirectory>${basedir}/src/main/assembly</descriptorSourceDirectory>
-              <finalName>docker</finalName>
+              <finalName>docker-build</finalName>
             </configuration>
           </execution>
         </executions>
       </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>dockerImage</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>io.fabric8</groupId>
+            <artifactId>docker-maven-plugin</artifactId>
+            <version>0.45.0</version>
+            <configuration>
+              <images>
+                <image>
+                  <name>${inetsoft.docker.repository}/stylebi-community</name>
+                  <build>
+                    <contextDir>${project.build.directory}/docker-build</contextDir>
+                    <tags>
+                      <tag>1.0</tag>
+                      <tag>1.0.${docker.build.version}</tag>
+                      <tag>latest</tag>
+                    </tags>
+                  </build>
+                </image>
+              </images>
+            </configuration>
+            <executions>
+              <execution>
+                <id>build-docker-image</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>build</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 
 </project>

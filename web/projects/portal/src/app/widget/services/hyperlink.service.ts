@@ -15,6 +15,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { AssetEntry, createAssetEntry } from "../../../../../shared/data/asset-entry";
+import { AppInfoService } from "../../../../../shared/util/app-info.service";
+import { CommonKVModel } from "../../common/data/common-kv-model";
 import { DropdownOptions } from "../fixed-dropdown/dropdown-options";
 import { AssemblyActionGroup } from "../../common/action/assembly-action-group";
 import { FixedDropdownService } from "../fixed-dropdown/fixed-dropdown.service";
@@ -50,10 +53,12 @@ export abstract class HyperlinkService implements OnDestroy {
    public singleClick = false;
    openLinkSubject: Subject<any> = new Subject<any>();
    backToPreviousLinkSubject: Subject<any> = new Subject<any>();
+   private orgInfo: CommonKVModel<string, string> = null;
 
    constructor(protected zone: NgZone, protected modelService: ModelService,
                 protected modalService: NgbModal, protected router: Router,
-                protected viewDataService: ViewDataService)
+                protected viewDataService: ViewDataService,
+               protected appInfoService: AppInfoService)
    {
       this.inPortal = !!router.url && router.url.startsWith("/portal/");
       this.inComposer = !!router.url && router.url.split("?")[0].endsWith("/composer");
@@ -68,6 +73,10 @@ export abstract class HyperlinkService implements OnDestroy {
             this.inDashboard = !!url && url.startsWith("/portal/tab/dashboard/");
          }
       ));
+
+      this.subscriptions.add(this.appInfoService.getCurrentOrgInfo().subscribe((orgInfo) => {
+         this.orgInfo = orgInfo;
+      }));
    }
 
    ngOnDestroy(): void {
@@ -140,6 +149,16 @@ export abstract class HyperlinkService implements OnDestroy {
    public clickLink(link: HyperlinkModel, runtimeId?: string,
                     linkUri?: string, params?: ParameterValueModel[]): void
    {
+      if(link.linkType == LinkType.VIEWSHEET_LINK) {
+         let entry: AssetEntry = createAssetEntry(link.link);
+
+         if(this.orgInfo.key != entry.organization && entry.user != null) {
+            ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+               "_#(js:deny.access.private.resources.of.default.org)");
+            return;
+         }
+      }
+
       if(link.query != null || link.wsIdentifier != null) {
          this.loadShowDrillModel(link, runtimeId, linkUri);
       }

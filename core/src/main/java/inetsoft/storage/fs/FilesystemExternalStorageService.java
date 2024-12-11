@@ -17,11 +17,14 @@
  */
 package inetsoft.storage.fs;
 
+import inetsoft.sree.internal.SUtil;
 import inetsoft.storage.ExternalStorageService;
+import inetsoft.util.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
+import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -33,14 +36,21 @@ public class FilesystemExternalStorageService implements ExternalStorageService 
    @Override
    public void write(String path, Path file) throws IOException {
       Path targetPath = Paths.get(path);
+      Path target = base.resolve(targetPath).toAbsolutePath();
+      Files.createDirectories(target.getParent());
+      Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
+   }
+
+   @Override
+   public void write(String path, Path file, Principal principal) throws IOException {
+      Path targetPath = Paths.get(path);
 
       if(targetPath.isAbsolute()) {
          targetPath = targetPath.getRoot().relativize(targetPath);
       }
 
-      Path target = base.resolve(targetPath).toAbsolutePath();
-      Files.createDirectories(target.getParent());
-      Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
+      path = SUtil.addUserSpacePathPrefix(principal, targetPath.toString());
+      write(path, file);
    }
 
    @Override
@@ -90,6 +100,38 @@ public class FilesystemExternalStorageService implements ExternalStorageService 
       if(filePath.toFile().isFile()) {
          Files.delete(filePath);
       }
+   }
+
+   @Override
+   public void renameFolder(String ofolder, String nfolder) throws IOException {
+      try {
+         String path = base.toAbsolutePath() + File.separator + ofolder;
+         FileSystemService fileSystemService = FileSystemService.getInstance();
+         File folder = fileSystemService.getFile(path);
+
+         if(!folder.exists()) {
+            return;
+         }
+
+         String npath = base.toAbsolutePath() + File.separator + nfolder;
+         File newFolder = fileSystemService.getFile(npath);
+
+         if(newFolder.exists()) {
+            fileSystemService.deleteFile(newFolder);
+         }
+
+         fileSystemService.rename(folder, newFolder);
+      }
+      catch(Exception e) {
+         Tool.addUserMessage("Failed to rename folder " + ofolder + " to " + nfolder + ":" + e.getMessage());
+      }
+   }
+
+
+
+   @Override
+   public String getStorageLocation() {
+      return base.toString();
    }
 
    private final Path base;

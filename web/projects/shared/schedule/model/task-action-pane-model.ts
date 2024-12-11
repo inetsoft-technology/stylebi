@@ -46,4 +46,5 @@ export interface TaskActionPaneModel {
    mailHistoryEnabled?: boolean;
    serverLocations?: ServerLocation[];
    fipsMode?: boolean;
+   cloudSecrets?: boolean;
 }

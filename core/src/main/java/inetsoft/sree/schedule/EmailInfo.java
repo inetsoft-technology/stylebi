@@ -223,10 +223,10 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
       if(getCCAddresses() != null) {
          writer.print(" ccAddresses=\"" + Tool.escape(byteEncode(getCCAddresses())) + "\"");
       }
+
       if(getBCCAddresses() != null) {
          writer.print(" bccAddresses=\"" + Tool.escape(byteEncode(getBCCAddresses())) + "\"");
       }
-
 
       if(getFileFormat() != null) {
          writer.print(" format=\"" + byteEncode(getFileFormat()) + "\"");
@@ -234,13 +234,19 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
          writer.print(" matched=\"" + isMatchLayout() + "\"");
          writer.print(" expandSelections=\"" + isExpandSelections() + "\"");
          writer.print(" onlyDataComponents=\"" + isOnlyDataComponents() + "\"");
-
-
          writer.print(" exportAllTabbedTables=\"" + isExportAllTabbedTables() + "\"");
+         writer.print(" useCredential=\"" + isUseCredential() + "\"");
 
-         if(getPassword() != null && getPassword().length() > 0) {
-            writer.print(" password=\"" +
-               Tool.encryptPassword(byteEncode(getPassword())) + "\"");
+         if(!Tool.isEmptyString(getSecretId()) || !Tool.isEmptyString(getPassword())) {
+            if(isUseCredential()) {
+               String secretId = getSecretId() != null ? byteEncode(getSecretId()) : "";
+               writer.print(" secretId=\"" + secretId + "\"");
+            }
+            else {
+               String password =
+                  getPassword() != null ? Tool.encryptPassword(byteEncode(getPassword())) : "";
+               writer.print(" password=\"" + password + "\"");
+            }
          }
       }
 
@@ -315,10 +321,13 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
       expandSelections = "true".equals(tag.getAttribute("expandSelections"));
       onlyDataComponents = "true".equals(tag.getAttribute("onlyDataComponents"));
       exportAllTabbedTables = "true".equals(tag.getAttribute("exportAllTabbedTables"));
+      useCredential = "true".equals(tag.getAttribute("useCredential"));
 
-      password = tag.getAttribute("password");
-
-      if(password != null && password.length() > 0) {
+      if(useCredential) {
+         secretId = byteDecode(tag.getAttribute("secretId"));
+      }
+      else {
+         password = tag.getAttribute("password");
          password = byteDecode(Tool.decryptPassword(password));
       }
 
@@ -480,6 +489,22 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
       return onlyDataComponents;
    }
 
+   public boolean isUseCredential() {
+      return useCredential;
+   }
+
+   public void setUseCredential(boolean useCredential) {
+      this.useCredential = useCredential;
+   }
+
+   public String getSecretId() {
+      return secretId;
+   }
+
+   public void setSecretId(String secretId) {
+      this.secretId = secretId;
+   }
+
    /**
     * Set the encrypt zip file password.
     * @param password the encrypt file password.
@@ -554,6 +579,8 @@ class EmailInfo implements Cloneable, Serializable, HttpXMLSerializable {
    // Indicates whether the file is to be zipped up
    // before deliverying it.
    private boolean compressFile = false;
+   private boolean useCredential = false;
+   private String secretId;
    private String password = null;
    private boolean matched = false;
    private boolean expandSelections = false;

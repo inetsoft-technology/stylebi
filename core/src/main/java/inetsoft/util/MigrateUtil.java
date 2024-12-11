@@ -32,6 +32,8 @@ import inetsoft.uql.viewsheet.internal.*;
 
 import java.util.Map;
 
+import static inetsoft.sree.security.IdentityID.KEY_DELIMITER;
+
 public class MigrateUtil {
    public static void updateAllAssemblyHyperlink(Viewsheet viewsheet, Organization oorg, Organization norg) {
       Assembly[] assemblies = viewsheet.getAssemblies();
@@ -65,7 +67,7 @@ public class MigrateUtil {
             }
          }
          else {
-            updateHyperlink(info.getHyperlinkValue(), norg, oorg);
+            updateHyperlink(info.getHyperlinkValue(), oorg, norg);
          }
       }
    }
@@ -74,6 +76,11 @@ public class MigrateUtil {
                                                 Organization oorg, Organization norg)
    {
       TableHyperlinkAttr hyperlinkAttr = info.getHyperlinkAttr();
+
+      if(hyperlinkAttr == null) {
+         return;
+      }
+
       Map<TableDataPath, Hyperlink> hyperlinkMap = hyperlinkAttr.getHyperlinkMap();
 
       if(hyperlinkMap == null || hyperlinkMap.isEmpty()) {
@@ -92,7 +99,7 @@ public class MigrateUtil {
       }
 
       String link = hyperlink.getDLink().getDValue();
-      String newIdentify = getNewIdentify(link, oorg, norg);
+      String newIdentify = getNewIdentifier(link, norg);
 
       if(!Tool.equals(link, newIdentify)) {
          hyperlink.setLink(newIdentify);
@@ -103,10 +110,6 @@ public class MigrateUtil {
       if(bookmarkUser != null) {
          IdentityID identityID = IdentityID.getIdentityIDFromKey(bookmarkUser);
 
-         if(!Tool.equals(oorg.getName(), norg.getName())) {
-            identityID.setOrganization(norg.getName());
-         }
-
          String newIdentity = identityID.convertToKey();
 
          if(!Tool.equals(bookmarkUser, newIdentity)) {
@@ -115,19 +118,53 @@ public class MigrateUtil {
       }
    }
 
-   public static String getNewIdentify(String oidentify, Organization oorg, Organization norg) {
-      String oId = oorg.getId();
-      String nId = norg.getId();
-      String oname = oorg.getName();
-      String nname = norg.getName();
-      AssetEntry assetEntry = AssetEntry.createAssetEntry(oidentify);
-      assetEntry = !Tool.equals(oId, nId) ? assetEntry.cloneAssetEntry(nId) : assetEntry;
-      IdentityID user = assetEntry.getUser();
-
-      if(user != null && Tool.equals(oname, nname)) {
-         user.setOrganization(nname);
-      }
+   public static String getNewIdentifier(String oidentifier, Organization norg) {
+      AssetEntry assetEntry = AssetEntry.createAssetEntry(oidentifier).cloneAssetEntry(norg);
 
       return assetEntry.toIdentifier(true);
+   }
+
+   public static String getNewOrgTaskName(String taskName, String oorgID, String norgID) {
+      if(Tool.equals(norgID, oorgID)) {
+         return taskName;
+      }
+
+      int index = taskName.indexOf(":");
+
+      if(index > 0) {
+         String name = taskName.substring(0, index);
+
+         if(!name.contains(IdentityID.KEY_DELIMITER)) {
+            return taskName;
+         }
+
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(taskName.substring(0, index));
+
+         if(Tool.equals(oorgID, identityID.orgID)) {
+            identityID.setOrgID(norgID);
+            taskName = identityID.convertToKey() + taskName.substring(index);
+         }
+      }
+
+      return taskName;
+   }
+
+   public static String getNewUserTaskName(String taskName, String oName, String nName) {
+      if(Tool.equals(oName, nName)) {
+         return taskName;
+      }
+
+      String[] split = taskName.split(":");
+
+      if(split.length == 2) {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(split[0]);
+
+         if(Tool.equals(oName, identityID.name)) {
+            identityID.setName(nName);
+            taskName = identityID.convertToKey() + ":" + split[1];
+         }
+      }
+
+      return taskName;
    }
 }

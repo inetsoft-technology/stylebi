@@ -642,6 +642,8 @@ public class FormatPainterController {
             ChartVSAssembly assembly = (ChartVSAssembly) viewsheet.getAssembly(name);
             ChartVSAssemblyInfo info = assembly.getChartInfo();
             VSChartInfo chartInfo = info.getVSChartInfo();
+            Color plotbg = info.getChartDescriptor().getPlotDescriptor().getBackground();
+
             Boolean hasResetClist = false;
 
             if(ChartFormatConstants.VO.equals(event.getRegions()[i]) &&
@@ -687,6 +689,7 @@ public class FormatPainterController {
                               event.isReset(), principal);
             }
 
+            info.getChartDescriptor().getPlotDescriptor().setBackground(plotbg);
             int hint = VSAssembly.VIEW_CHANGED;
 
             VSChartInfo cinfo = assembly.getVSChartInfo();

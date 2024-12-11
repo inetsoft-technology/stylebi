@@ -404,7 +404,7 @@ public class TextElementDef extends BaseElement
       boolean firstsec = inSection && ptext == null;
       boolean firstfixed = inFixed && ptext == null;
 
-      if(inSection && true && presenter_ != null) {
+      if(inSection && presenter_ != null) {
          try {
             Presenter presenter = presenter_.createPresenter();
             presenter.setFont(getFont());

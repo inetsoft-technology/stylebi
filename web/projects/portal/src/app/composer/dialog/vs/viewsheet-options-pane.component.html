@@ -33,7 +33,7 @@
           </button>
         </div>
       </div>
-      <div *ngIf="isLogicModelDataSource()" class="row form-row-float-label">
+      <div *ngIf="isLogicModelDataSource() && !defaultOrgAsset" class="row form-row-float-label">
         <div class="col-12">
           <span class="href-style" (click)="convertToWorksheet()">_#(convert.source.to.worksheet)</span>
         </div>

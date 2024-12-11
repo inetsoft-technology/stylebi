@@ -471,7 +471,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable {
       Catalog catalog = Catalog.getCatalog();
       int hoff = getHourOffset();
       setCurrTimeformat();
-      boolean twelveHourSystem = SreeEnv.getBooleanProperty("schedule.time.12-hours");
+      boolean twelveHourSystem = SreeEnv.getBooleanProperty("schedule.time.12hours");
 
       if(type == AT) {
          TimeZone serverTZ = TimeZone.getDefault();

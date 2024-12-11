@@ -774,7 +774,7 @@ public class XDimDictionary extends XSwappable implements Cloneable {
          return 0;
       }
 
-      return getAgePriority(XSwapper.cur - accessed, alive * 2);
+      return getAgePriority(XSwapper.cur - accessed, alive * 2L);
    }
 
    /**

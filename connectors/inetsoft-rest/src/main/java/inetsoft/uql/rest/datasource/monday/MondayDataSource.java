@@ -19,20 +19,24 @@ package inetsoft.uql.rest.datasource.monday;
 
 import inetsoft.uql.rest.datasource.graphql.AbstractGraphQLDataSource;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.CoreTool;
-import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.apache.http.HttpHeaders;
-import org.w3c.dom.Element;
 
-import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(value= {
-   @View1("apiKey")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiKey", visibleMethod = "useCredential")
 })
 public class MondayDataSource extends AbstractGraphQLDataSource<MondayDataSource> {
    public MondayDataSource() {
       super(TYPE, MondayDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_KEY;
    }
 
    @Override
@@ -41,7 +45,7 @@ public class MondayDataSource extends AbstractGraphQLDataSource<MondayDataSource
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)
             .name(HttpHeaders.AUTHORIZATION)
-            .value(apiKey)
+            .value(getApiKey())
             .build()
       };
    }
@@ -52,27 +56,13 @@ public class MondayDataSource extends AbstractGraphQLDataSource<MondayDataSource
    }
 
    @Property(label = "API Key", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
-      return apiKey;
+      return ((ApiKeyCredential) getCredential()).getApiKey();
    }
 
    public void setApiKey(String apiKey) {
-      this.apiKey = apiKey;
-   }
-
-   @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-
-      if(apiKey != null) {
-         writer.format("<apiKey>%s</apiKey>\n", Tool.encryptPassword(apiKey));
-      }
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      apiKey = Tool.decryptPassword(CoreTool.getChildValueByTagName(root, "apiKey"));
+      ((ApiKeyCredential) getCredential()).setApiKey(apiKey);
    }
 
    @Override
@@ -85,19 +75,13 @@ public class MondayDataSource extends AbstractGraphQLDataSource<MondayDataSource
          return false;
       }
 
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      MondayDataSource that = (MondayDataSource) o;
-      return Objects.equals(apiKey, that.apiKey);
+      return super.equals(o);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), apiKey);
+      return Objects.hash(super.hashCode(), getApiKey());
    }
 
    static String TYPE = "monday.com";
-   private String apiKey;
 }

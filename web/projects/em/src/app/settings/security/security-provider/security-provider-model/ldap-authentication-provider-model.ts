@@ -24,6 +24,8 @@ export interface LdapAuthenticationProviderModel {
    hostPort: number;
    rootDN: string;
    adminID: string;
+   useCredential: boolean;
+   secretId: string;
    password: string;
    userFilter: string;
    userBase: string;

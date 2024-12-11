@@ -31,7 +31,6 @@ import java.util.List;
 @Component
 public class CrosstabBindingHandler {
 
-   @Autowired
    public CrosstabBindingHandler() {
    }
 

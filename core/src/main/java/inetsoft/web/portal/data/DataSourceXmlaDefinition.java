@@ -32,13 +32,20 @@ public class DataSourceXmlaDefinition extends BaseDataSourceDefinition {
       datasourceInfo = xmlaDataSource.getDatasourceInfo();
       catalogName = xmlaDataSource.getCatalogName();
       url = xmlaDataSource.getURL();
-      user = xmlaDataSource.getUser();
-      password = xmlaDataSource.getPassword();
       login = xmlaDataSource.isRequireLogin();
       setDescription(xmlaDataSource.getDescription());
       String path = xmlaDataSource.getFullName();
       setParentPath(path.lastIndexOf("/") > 0 ?
          path.substring(0, path.lastIndexOf("/")) : "");
+
+      if(xmlaDataSource.isUseCredential()) {
+         credentialId = xmlaDataSource.getCredentialId();
+         useCredential = true;
+      }
+      else {
+         user = xmlaDataSource.getUser();
+         password = xmlaDataSource.getPassword();
+      }
    }
 
    public String getDatasource() {
@@ -97,6 +104,30 @@ public class DataSourceXmlaDefinition extends BaseDataSourceDefinition {
       this.password = password;
    }
 
+   public boolean isUseCredential() {
+      return useCredential;
+   }
+
+   public void setUseCredential(boolean useCredential) {
+      this.useCredential = useCredential;
+   }
+
+   public String getCredentialId() {
+      return credentialId;
+   }
+
+   public void setCredentialId(String credentialId) {
+      this.credentialId = credentialId;
+   }
+
+   public boolean isCredentialVisible() {
+      return credentialVisible;
+   }
+
+   public void setCredentialVisible(boolean credentialVisible) {
+      this.credentialVisible = credentialVisible;
+   }
+
    public boolean isLogin() {
       return login;
    }
@@ -116,6 +147,11 @@ public class DataSourceXmlaDefinition extends BaseDataSourceDefinition {
    public void updateDataSource(XMLADataSource source) {
       String sourceName = "/".equals(getParentPath()) || Tool.isEmptyString(getParentPath()) ?
          getName() : getParentPath() + getName();
+
+      if(Tool.equals(source.isUseCredential(), useCredential)) {
+         source.initCredential(useCredential);
+      }
+
       source.setName(sourceName);
       source.setDataSource(datasource);
       source.setDatasourceName(datasourceName);
@@ -124,6 +160,7 @@ public class DataSourceXmlaDefinition extends BaseDataSourceDefinition {
       source.setURL(url);
       source.setUser(user);
       source.setPassword(password);
+      source.setCredentialId(credentialId);
       source.setRequireLogin(login);
       source.setDescription(getDescription());
    }
@@ -135,6 +172,9 @@ public class DataSourceXmlaDefinition extends BaseDataSourceDefinition {
    private String url = null;
    private String user = null;
    private String password = null;
+   private boolean useCredential = false;
+   private String credentialId = null;
+   private boolean credentialVisible = Tool.isCloudSecrets();
    private boolean login = false;
    private DomainModel domain;
 }

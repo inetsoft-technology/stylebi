@@ -17,14 +17,11 @@
  */
 package inetsoft.sree.internal.cluster.ignite;
 
-import org.apache.ignite.Ignite;
-import org.apache.ignite.IgniteCache;
-import org.apache.ignite.cache.*;
-import org.apache.ignite.configuration.CacheConfiguration;
-import org.apache.ignite.resources.IgniteInstanceResource;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
 
-import javax.cache.Cache;
 import java.io.Serializable;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
 
@@ -35,20 +32,13 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
    @Override
    public void init() throws Exception {
       executor = Executors.newSingleThreadScheduledExecutor();
-
-      CacheConfiguration<String, ScheduledExecutorCommand> cacheConfiguration =
-         new CacheConfiguration<>("IgniteScheduledExecutorServiceCache");
-      cacheConfiguration.setBackups(2);
-      cacheConfiguration.setCacheMode(CacheMode.PARTITIONED);
-      cacheConfiguration.setAtomicityMode(CacheAtomicityMode.TRANSACTIONAL);
-      cacheConfiguration.setRebalanceMode(CacheRebalanceMode.SYNC);
-      cacheConfiguration.setWriteSynchronizationMode(CacheWriteSynchronizationMode.FULL_SYNC);
-      cache = ignite.getOrCreateCache(cacheConfiguration);
+      Cluster cluster = Cluster.getInstance();
+      map = cluster.getMap("IgniteScheduledExecutorServiceCache");
    }
 
    @Override
    public void execute() throws Exception {
-      for(Cache.Entry<String, ScheduledExecutorCommand> entry : cache) {
+      for(Map.Entry<String, ScheduledExecutorCommand> entry : map.entrySet()) {
          String id = entry.getKey();
          ScheduledExecutorCommand command = entry.getValue();
 
@@ -73,24 +63,27 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
    @Override
    public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
       String id = UUID.randomUUID().toString();
-      cache.put(id, new ScheduledExecutorCommand((Serializable) command, delay, 0, unit));
+      map.put(id, new ScheduledExecutorCommand((Serializable) command, delay, 0, unit));
       return scheduleCommand(id, command, delay, unit);
    }
 
    @Override
    public <V> ScheduledFuture<V> schedule(Callable<V> command, long delay, TimeUnit unit) {
       String id = UUID.randomUUID().toString();
-      cache.put(id, new ScheduledExecutorCommand((Serializable) command, delay, 0, unit));
+      map.put(id, new ScheduledExecutorCommand((Serializable) command, delay, 0, unit));
       return scheduleCommand(id, command, delay, unit);
    }
 
    @Override
-   public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long initialDelay, long period,
-                                                 TimeUnit unit)
+   public void scheduleAtFixedRate(Runnable command, long initialDelay, long period,
+                                   TimeUnit unit)
    {
-      String id = UUID.randomUUID().toString();
-      cache.put(id, new ScheduledExecutorCommand((Serializable) command, initialDelay, period, unit));
-      return scheduleCommandAtFixedRate(id, command, initialDelay, period, unit);
+      String id = command.getClass().getName();
+
+      if(!map.containsKey(id)) {
+         map.put(id, new ScheduledExecutorCommand((Serializable) command, initialDelay, period, unit));
+         scheduleCommandAtFixedRate(id, command, initialDelay, period, unit);
+      }
    }
 
    @Override
@@ -120,9 +113,7 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
       return executor.scheduleAtFixedRate(command, initialDelay, period, unit);
    }
 
-   @IgniteInstanceResource
-   private Ignite ignite;
-   private IgniteCache<String, ScheduledExecutorCommand> cache;
+   private DistributedMap<String, ScheduledExecutorCommand> map;
    private ScheduledExecutorService executor;
 
    private static final class ScheduledExecutorCommand implements Serializable {
@@ -146,8 +137,8 @@ public class IgniteScheduledExecutorServiceImpl implements IgniteScheduledExecut
 
       @Override
       public void run() {
-         if(cache != null) {
-            cache.remove(id);
+         if(map != null) {
+            map.remove(id);
          }
       }
 

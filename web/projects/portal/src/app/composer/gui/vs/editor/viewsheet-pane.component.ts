@@ -33,9 +33,10 @@ import {
 } from "@angular/core";
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Subject, Subscription } from "rxjs";
-import { AssetEntry } from "../../../../../../../shared/data/asset-entry";
+import { AssetEntry, createAssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
+import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { RefreshBindingTreeCommand } from "../../../../binding/command/refresh-binding-tree-command";
 import { SetGrayedOutFieldsCommand } from "../../../../binding/command/set-grayed-out-fields-command";
@@ -46,6 +47,7 @@ import { AssemblyActionEvent } from "../../../../common/action/assembly-action-e
 import { AssemblyActionGroup } from "../../../../common/action/assembly-action-group";
 import { ChatService } from "../../../../common/chat/chat.service";
 import { AssetEntryHelper } from "../../../../common/data/asset-entry-helper";
+import { CommonKVModel } from "../../../../common/data/common-kv-model";
 import { DataRef } from "../../../../common/data/data-ref";
 import { DragEvent } from "../../../../common/data/drag-event";
 import { Line } from "../../../../common/data/line";
@@ -283,6 +285,8 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
    textLimitConfirmed: boolean = false;
    columnLimitConfirmed: boolean = false;
    mobileDevice = GuiTool.isMobileDevice();
+   private orgInfo: CommonKVModel<string, string> = null;
+   subscriptions = new Subscription();
 
    draggableRestriction = (x: number, y: number, element: any) => {
       if(!this.draggableRestrictionRects) {
@@ -440,13 +444,18 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
                private domService: DomService,
                private chatService: ChatService,
                private resizeHandlerService: ResizeHandlerService,
-               private composerVsSearchService: ComposerVsSearchService)
+               private composerVsSearchService: ComposerVsSearchService,
+               private appInfoService: AppInfoService)
    {
       super(viewsheetClient, zone, true);
       actionFactory.stateProvider = {
          isActionEnabled: (id: string, model: VSObjectModel) => this.isActionEnabled(id, model),
          isActionVisible: (id: string, model: VSObjectModel) => true
       };
+
+      this.subscriptions.add(this.appInfoService.getCurrentOrgInfo().subscribe((orgInfo) => {
+         this.orgInfo = orgInfo;
+      }));
    }
 
    getAssemblyName(): string {
@@ -605,6 +614,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
       this.mouseUpResizeListener();
       this.chatService.closeSession();
+      this.subscriptions.unsubscribe();
    }
 
    /** Open an existing viewsheet. In the case that it is autosaved, show a message. */
@@ -1100,6 +1110,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.composerObjectService.removeObjectFromList(this.vs, absoulateName);
       this.dialogService.objectDelete(absoulateName);
       this.dataTipService.clearDataTips(absoulateName);
+      this.viewsheetClient.sendEvent("/events/vs/bindingtree/gettreemodel", new RefreshBindingTreeEvent(absoulateName));
 
       // Update z-indexes
       for(let object of this.vs.vsObjects) {
@@ -2648,5 +2659,10 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
 
    getSearchResultLabel(): string {
       return this._searchResultLabel;
+   }
+
+   isDefaultOrgAsset() {
+      let assetEntry: AssetEntry = createAssetEntry(this.vs.id);
+      return assetEntry?.organization != this.orgInfo.key;
    }
 }

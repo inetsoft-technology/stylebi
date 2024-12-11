@@ -30,6 +30,7 @@ export interface InactiveUser {
    duration: number;
    server: string;
    organizationId: string;
+   dateFormat: string;
 }
 
 export interface InactiveUserList extends AuditRecordList<InactiveUser> {

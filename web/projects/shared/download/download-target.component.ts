@@ -19,6 +19,7 @@ import {
    Component,
    ElementRef,
    EventEmitter,
+   Input,
    OnDestroy,
    OnInit,
    Output,
@@ -34,7 +35,9 @@ import { HttpClient } from "@angular/common/http";
    styleUrls: ["download-target.component.scss"]
 })
 export class DownloadTargetComponent implements OnInit, OnDestroy {
+   @Input()  emitError: boolean;
    @Output() downloadStarted = new EventEmitter<string>();
+   @Output() onError = new EventEmitter<string>();
    @ViewChild("frame") frame: ElementRef;
    private subscription: Subscription;
    private contentSource: string;
@@ -87,7 +90,12 @@ export class DownloadTargetComponent implements OnInit, OnDestroy {
                   this.frame.nativeElement.setAttribute("src", url);
                }
                else {
-                  alert(error.error.message);
+                  if(this.emitError) {
+                     this.onError.emit(error.error.message)
+                  }
+                  else {
+                     alert(error.error.message);
+                  }
                }
             }
          );

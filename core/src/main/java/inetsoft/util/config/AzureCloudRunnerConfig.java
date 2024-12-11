@@ -149,6 +149,22 @@ public class AzureCloudRunnerConfig implements Serializable {
       this.containerRegistryPassword = containerRegistryPassword;
    }
 
+   public double getCpu() {
+      return cpu;
+   }
+
+   public void setCpu(double cpu) {
+      this.cpu = cpu;
+   }
+
+   public String getMemory() {
+      return memory;
+   }
+
+   public void setMemory(String memory) {
+      this.memory = memory;
+   }
+
    private String tenantId;
    private String subscriptionId;
    private String clientId;
@@ -160,4 +176,6 @@ public class AzureCloudRunnerConfig implements Serializable {
    private String containerRegistryServer;
    private String containerRegistryUsername;
    private String containerRegistryPassword;
+   private double cpu = 1;
+   private String memory = "2Gi";
 }

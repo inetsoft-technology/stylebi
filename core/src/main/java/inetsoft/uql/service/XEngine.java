@@ -17,14 +17,12 @@
  */
 package inetsoft.uql.service;
 
-import inetsoft.sree.security.OrganizationManager;
+import inetsoft.sree.security.*;
 import inetsoft.uql.erm.vpm.VpmProcessor;
 import inetsoft.report.XSessionManager;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
-import inetsoft.sree.security.ResourceAction;
-import inetsoft.sree.security.ResourceType;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.SourceInfo;
 import inetsoft.uql.asset.sync.*;
@@ -46,6 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.lang.SecurityException;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
@@ -135,6 +134,15 @@ public class XEngine implements XRepository, XQueryRepository {
    }
 
    /**
+    * Get full names of all the data sources in this repository.
+    * @return full names of all the data sources.
+    */
+   @Override
+   public String[] getDataSourceFullNames(IdentityID organizationId) {
+      return getDSRegistry().getDataSourceFullNames(organizationId);
+   }
+
+   /**
     * Get all data source folder names in repository.
     * @return names of all the data source folders.
     */
@@ -158,6 +166,22 @@ public class XEngine implements XRepository, XQueryRepository {
    @Override
    public XDataSource getDataSource(String dsname) {
       return getDataSource(dsname, true);
+   }
+
+   /**
+    * Get the named data source.
+    */
+   @Override
+   public XDataSource getDataSource(String dsname, String orgId) {
+      XDataSource dx = getDSRegistry().getDataSource(dsname, orgId);
+
+         try {
+            dx = (XDataSource) dx.clone();
+         }
+         catch(Exception ignore) {
+         }
+
+      return dx;
    }
 
    /**
@@ -862,8 +886,8 @@ public class XEngine implements XRepository, XQueryRepository {
    {
       if(query.startsWith(":")) {
          String ds = query.substring(1);
-         String ads =
-            XUtil.getAdditionalDatasource(ThreadContext.getContextPrincipal(), ds);
+         String ads = ConnectionProcessor.getInstance().getAdditionalDatasource(
+            ThreadContext.getContextPrincipal(), ds, null);
          XDataSource xds = getDataSource(ds);
 
          if(ads != null) {
@@ -914,14 +938,7 @@ public class XEngine implements XRepository, XQueryRepository {
          throw new RemoteException("Data source not found:");
       }
 
-      if(dx instanceof AdditionalConnectionDataSource) {
-         String ds2 = XUtil.getAdditionalDatasource(
-            ThreadContext.getContextPrincipal(), dx.getFullName());
-
-         if(ds2 != null && ((AdditionalConnectionDataSource<?>) dx).containDatasource(ds2)) {
-            dx = ((AdditionalConnectionDataSource<?>) dx).getDataSource(ds2);
-         }
-      }
+      dx = ConnectionProcessor.getInstance().getAdditionalConnection(dx);
 
       XAgent agent = XAgent.getAgent(dx);
       Pair pair = new Pair(session, dx);
@@ -956,14 +973,7 @@ public class XEngine implements XRepository, XQueryRepository {
 
       XDataSource dx = xquery.getDataSource();
 
-      if(dx instanceof AdditionalConnectionDataSource) {
-         String ds2 = XUtil.getAdditionalDatasource(
-            ThreadContext.getContextPrincipal(), dx.getFullName());
-
-         if(ds2 != null && ((AdditionalConnectionDataSource<?>) dx).containDatasource(ds2)) {
-            dx = ((AdditionalConnectionDataSource<?>) dx).getDataSource(ds2);
-         }
-      }
+      dx = ConnectionProcessor.getInstance().getAdditionalConnection(dx);
 
       Pair pair = new Pair(session, dx);
       XHandler handler = sessionrun.get(pair);
@@ -1490,8 +1500,8 @@ public class XEngine implements XRepository, XQueryRepository {
          dx = ((AdditionalConnectionDataSource<?>) dx).getDataSource(additional);
       }
       // shouldn't load data by user for portal data model.
-      else if(!portal_data && !dx.isFromPortal()) {
-         dx = XUtil.getDatasource(user, dx, additional);
+      else if(!portal_data && dx != null && !dx.isFromPortal()) {
+         dx = ConnectionProcessor.getInstance().getDatasource(user, dx, additional);
       }
 
       if(dx == null) {

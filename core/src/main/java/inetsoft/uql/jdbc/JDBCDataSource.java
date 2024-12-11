@@ -25,6 +25,7 @@ import inetsoft.uql.jdbc.util.JDBCUtil;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
+import inetsoft.util.credential.*;
 import inetsoft.web.admin.content.database.*;
 import inetsoft.web.admin.content.database.types.*;
 import org.slf4j.Logger;
@@ -229,6 +230,7 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
     */
    public JDBCDataSource() {
       super(JDBC, JDBCDataSource.class);
+      initCredential(false);
    }
 
    /**
@@ -509,14 +511,14 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
     * Set the user id.
     */
    public void setUser(String user) {
-      this.user = user;
+      this.credential.setUser(user);
    }
 
    /**
     * Get the used user id.
     */
    public String getUser() {
-      return this.user;
+      return this.credential.getUser();
    }
 
    /**
@@ -533,14 +535,63 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
     * Set the user password.
     */
    public void setPassword(String password) {
-      this.password = password;
+      credential.setPassword(password);
    }
 
    /**
     * Get the used user password.
     */
    public String getPassword() {
-      return this.password;
+      return credential.getPassword();
+   }
+
+   /**
+    * Set the authentication credential id.
+    */
+   public void setCredentialId(String id) {
+      credential.setId(id);
+   }
+
+   /**
+    * Get the authentication credential id.
+    */
+   public String getCredentialId() {
+      return credential.getId();
+   }
+
+   /**
+    * Set the database type in credential.
+    */
+   public void setDBType(String dbType) {
+      credential.setDBType(dbType);
+   }
+
+   /**
+    * Get the database type in credential.
+    */
+   public String getDBType() {
+      return credential.getDBType();
+   }
+
+   /**
+    * Get the authentication credential.
+    */
+   public PasswordCredential getCredential() {
+      return credential;
+   }
+
+   /**
+    * Set the authentication credential.
+    */
+   public void setCredential(PasswordCredential credential) {
+      this.credential = credential;
+   }
+
+   /**
+    * Check whether the authentication credential is used.
+    */
+   public boolean isUseCredentialId() {
+      return credential instanceof AbstractCloudCredential;
    }
 
    /**
@@ -801,10 +852,7 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
          else if(isRequireLogin() != jdbcObj.isRequireLogin()) {
             result = false;
          }
-         else if(isRequireLogin() && !Tool.equals(user, jdbcObj.user)) {
-            result = false;
-         }
-         else if(isRequireLogin() && !Tool.equals(password, jdbcObj.password)) {
+         else if(isRequireLogin() && !Tool.equals(credential, jdbcObj.credential)) {
             result = false;
          }
          else if(isCustomEditMode() != jdbcObj.isCustomEditMode()) {
@@ -871,11 +919,23 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
          this.defaultdb = null;
       }
 
-      this.user = Tool.getAttribute(root, "user");
-      this.password = Tool.decryptPassword(Tool.getAttribute(root, "password"));
+      Element credentialNode = Tool.getChildNodeByTagName(root, "PasswordCredential");
+
+      if(credentialNode != null) {
+         String className = Tool.getAttribute(credentialNode, "class");
+         Class<?> clazz = Class.forName(className);
+         credential = (PasswordCredential) clazz.getDeclaredConstructor().newInstance();
+         credential.setDBType(SQLHelper.getProductName(this));
+         credential.parseXML(credentialNode);
+      }
+      else {
+         credential.setUser(Tool.getAttribute(root, "user"));
+         credential.setPassword(Tool.decryptPassword(Tool.getAttribute(root, "password")));
+      }
+
       attr = Tool.getAttribute(root, "save");
-      this.save = attr == null && user != null && user.length() > 0 ||
-         "true".equals(attr);
+      this.save = attr == null && credential.getUser() != null &&
+         credential.getUser().length() > 0 || "true".equals(attr);
       this.product = Tool.getAttribute(root, "product");
       this.version = Tool.getAttribute(root, "version");
       this.custom = "true".equals(Tool.getAttribute(root, "custom"));
@@ -932,11 +992,6 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
          unasgn = "true".equalsIgnoreCase(attr);
       }
 
-      // password should be non-null
-      if(this.password == null) {
-         this.password = "";
-      }
-
       setDatabaseType0();
       resetDatabaseDefinition();
    }
@@ -962,11 +1017,6 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
          writer.print(" defaultDB=\"" + Tool.escape(defaultdb) + "\"");
       }
 
-      if(user != null) {
-         writer.print(" user=\"" + Tool.escape(user) + "\" password=\"" +
-                         Tool.escape(Tool.encryptPassword(password)) + "\"");
-      }
-
       if(product != null) {
          writer.print(" product=\"" + Tool.escape(product) + "\"");
       }
@@ -976,6 +1026,10 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
       }
 
       writer.println(">");
+
+      if(credential != null) {
+         credential.writeXML(writer);
+      }
 
       if(poolProperties != null && !poolProperties.isEmpty()) {
          writer.print("<poolProperties>");
@@ -1306,7 +1360,7 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
     * Identity of an datasource.
     */
    public String getIdentity() {
-      return url + "__USER__" + user + "__DEFDB__" + defaultdb;
+      return url + "__USER__" + credential.getUser() + "__DEFDB__" + defaultdb;
    }
 
    /*
@@ -1464,7 +1518,7 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
       url = rurl = customUrl = null;
       databaseDefinition = null;
       // clean user name and password.
-      user = password = null;
+      credential.reset();
    }
 
    public void resetDatabaseDefinition() {
@@ -1477,8 +1531,7 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
 
          return Objects.equals(driver, jdbc.driver) &&
             Objects.equals(url, jdbc.url) &&
-            Objects.equals(user, jdbc.user) &&
-            Objects.equals(password, jdbc.password) &&
+            Objects.equals(credential, jdbc.credential) &&
             Objects.equals(defaultdb, jdbc.defaultdb);
       }
       catch(Exception ex) {
@@ -1496,8 +1549,13 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
    public Object clone() {
       JDBCDataSource source = (JDBCDataSource) super.clone();
       source.poolProperties = Tool.deepCloneMap(poolProperties);
-
+      source.credential = (PasswordCredential) credential.clone();
       return source;
+   }
+
+   public void initCredential(boolean forceLocal) {
+      credential =
+         (PasswordCredential) CredentialService.newCredential(CredentialType.PASSWORD, forceLocal);
    }
 
    private String[] systemSchemas = null;
@@ -1513,8 +1571,7 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
    private transient String rurl;
    private boolean login = true; // need login
    private boolean save = true; // save user/password
-   private String user = ""; // user id
-   private String password = "";  // password
+   private PasswordCredential credential = null;
    private String product = null; // database product name
    private String version = null; // database product version
    private String defaultdb = null; // set the default database

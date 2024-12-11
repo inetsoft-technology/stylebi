@@ -28,6 +28,8 @@ public interface ClusterEnabledModel {
 
    boolean enabled();
 
+   boolean pauseEnabled();
+
    static Builder builder() {
       return new Builder();
    }

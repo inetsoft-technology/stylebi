@@ -21,6 +21,7 @@ import inetsoft.mv.MVDef;
 import inetsoft.mv.MVManager;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.script.VariableScriptable;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.ViewsheetVSAssemblyInfo;
@@ -64,6 +65,12 @@ public class ViewsheetVSAScriptable extends VSAScriptable {
       addProperty("viewsheetName", null);
       addProperty("viewsheetPath", null);
       addProperty("viewsheetAlias", null);
+
+      if(!ViewsheetScope.VIEWSHEET_SCRIPTABLE.equals(assembly)) {
+         ViewsheetSandbox myBox = box.getSandbox(assembly);
+         // thisParameter points to parameters in the embedded vs instead of the containing vs
+         addProperty("thisParameter", new VariableScriptable(myBox.getVariableTable()));
+      }
 
       if(getInfo().isEmbedded()) {
          addProperty("visible", "isVisible", "setVisible", String.class, getClass(), this);

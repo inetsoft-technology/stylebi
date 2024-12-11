@@ -45,6 +45,16 @@ public class LicenseInfo {
    public static final String NAMED_USER = "NamedUser";
 
    /**
+    * The elastic vCPU type.
+    */
+   public static final String ELASTIC = "ElasticVCPU";
+
+   /**
+    * The per-user hosted type.
+    */
+   public static final String HOSTED = "PerUserHosted";
+
+   /**
     * The invalid type.
     */
    public static final String INVALID = "Invalid";
@@ -113,6 +123,18 @@ public class LicenseInfo {
       if(license.type() == LicenseType.NAMED_USER) {
          count = license.namedUserCount();
          type = NAMED_USER;
+         return;
+      }
+
+      if(license.type() == LicenseType.ELASTIC) {
+         count = 1;
+         type = ELASTIC;
+         return;
+      }
+
+      if(license.type() == LicenseType.HOSTED) {
+         count = 1;
+         type = HOSTED;
          return;
       }
 

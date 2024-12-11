@@ -19,9 +19,12 @@ package inetsoft.uql.elasticrest;
 
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
+import inetsoft.util.credential.*;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.LineIterator;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.testcontainers.elasticsearch.ElasticsearchContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -33,6 +36,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.Mockito.mock;
 
 @Testcontainers
 @Disabled
@@ -45,6 +49,12 @@ class ElasticRestRuntimeTests {
 
    @BeforeAll
    static void loadData() throws IOException {
+      MockedStatic<CredentialService> mockedCredentialService = Mockito.mockStatic(CredentialService.class);
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD))
+         .thenReturn(mock(LocalPasswordCredential.class));
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD, false))
+         .thenReturn(mock(LocalPasswordCredential.class));
+
       try(InputStream input = ElasticRestRuntimeTests.class.getResourceAsStream("earthquakes.ndjson")) {
          assert input != null;
 

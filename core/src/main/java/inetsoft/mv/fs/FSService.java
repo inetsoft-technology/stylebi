@@ -19,14 +19,14 @@ package inetsoft.mv.fs;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.ConfigurationContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.*;
-import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -42,6 +42,39 @@ public final class FSService {
     */
    public static XServerNode getServer() {
       return getService().getServer0();
+   }
+
+   /**
+    * Get the server node.
+    */
+   public static XServerNode getServer(String orgID) {
+      return getService().getServer0(orgID);
+   }
+
+   public static void copyServerNode(String oldOrgId, String newOrgId, boolean doCopy) {
+      FSService service = getService();
+      XServerNode oldServer = service.getServer0(oldOrgId);
+      XServerNode newServer = service.getServer0(newOrgId);
+      XFileSystem oldFSystem = oldServer.getFSystem();
+      XFileSystem newFSystem = newServer.getFSystem();
+
+      if(oldFSystem != null && newFSystem != null) {
+         oldFSystem.copyTo(newFSystem);
+         service.servers.remove(newOrgId);
+      }
+
+      if(!doCopy) {
+         service.servers.remove(oldOrgId);
+      }
+   }
+
+   /**
+    * Clear the server node cache.
+    *
+    * @param orgID organization id.
+    */
+   public static void clearServerNodeCache(String orgID) {
+      getService().clearCache(orgID);
    }
 
    /**
@@ -139,7 +172,18 @@ public final class FSService {
     * Get the server node.
     */
    private XServerNode getServer0() {
-      if(server == null) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      return getServer0(currentOrgID);
+   }
+
+   /**
+    * Get the server node.
+    */
+   private XServerNode getServer0(String orgId) {
+      XServerNode xServerNode = servers.get(orgId);
+
+      if(xServerNode == null) {
          lock.lock();
 
          try {
@@ -147,8 +191,9 @@ public final class FSService {
                return null;
             }
 
-            if(server == null) {
-               server = createServer();
+            if(xServerNode == null) {
+               xServerNode = createServer(orgId);
+               servers.put(orgId, xServerNode);
             }
          }
          finally {
@@ -156,15 +201,23 @@ public final class FSService {
          }
       }
 
-      return server;
+      return xServerNode;
+   }
+
+   private void clearCache(String orgId) {
+      XServerNode removeNode = servers.remove(orgId);
+
+      if(removeNode != null) {
+         removeNode.getFSystem().dispose();
+      }
    }
 
    /**
     * Instantiate the data server.
     */
-   private XServerNode createServer() {
+   private XServerNode createServer(String orgId) {
       LOG.info("Starting data server");
-      XServerNode server = new XServerNode(config);
+      XServerNode server = new XServerNode(config, orgId);
 
       return server;
    }
@@ -214,6 +267,7 @@ public final class FSService {
          String val = SreeEnv.getProperty("mv.data.directory");
 
          if(val == null) { // backward compatibility (< 12.2)
+            // always localhost
             val = SreeEnv.getProperty("fs.workdir." + node);
          }
 
@@ -248,6 +302,7 @@ public final class FSService {
    private static Lock slock = new ReentrantLock();
    private FSConfig config = new FSConfigImpl();
    private XServerNode server;
+   private Map<String, XServerNode>  servers = new ConcurrentHashMap<>();
    private XDataNode data;
    private Lock lock = new ReentrantLock();
    private static final Logger LOG =

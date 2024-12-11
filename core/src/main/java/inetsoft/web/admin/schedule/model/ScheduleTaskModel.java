@@ -24,6 +24,7 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.util.Catalog;
+import inetsoft.web.admin.content.repository.MVSupportService;
 import inetsoft.web.admin.schedule.ScheduleService;
 import org.immutables.value.Value;
 
@@ -61,7 +62,7 @@ public interface ScheduleTaskModel {
 
    final class Builder extends ImmutableScheduleTaskModel.Builder {
       public Builder fromTask(ScheduleTask task, ScheduleService scheduleService, Catalog catalog) {
-         TaskActivity activity = scheduleService.getActivity(task.getName());
+         TaskActivity activity = scheduleService.getActivity(task.getTaskId());
          boolean securityEnabled = scheduleService.isSecurityEnabled();
          return fromTask(task, activity, catalog, securityEnabled);
       }
@@ -69,20 +70,21 @@ public interface ScheduleTaskModel {
       public Builder fromTask(ScheduleTask task, TaskActivity activity,
                               Catalog catalog, boolean securityEnabled)
       {
-         String name = task.getName();
+         String taskId = task.getTaskId();
 
-         if(task.getCycleInfo() != null && name.indexOf("__") != -1) {
-            name = name.substring(name.indexOf("__") + 2);
+         if(task.getCycleInfo() != null && taskId.indexOf("__") != -1) {
+            taskId = taskId.substring(taskId.indexOf("__") + 2);
          }
 
-         if(!securityEnabled && !name.startsWith(DataCycleManager.TASK_PREFIX) &&
-            !name.startsWith("MV Task:") && !name.startsWith("MV Task Stage 2:") &&
-            name.indexOf(":") != -1)
+         if(!securityEnabled && !taskId.startsWith(DataCycleManager.TASK_PREFIX) &&
+            !taskId.startsWith(MVSupportService.MV_TASK_PREFIX) &&
+            !taskId.startsWith(MVSupportService.MV_TASK_STAGE_PREFIX) &&
+            taskId.indexOf(":") != -1)
          {
-            name = name.substring(name.indexOf(":") + 1);
+            taskId = taskId.substring(taskId.indexOf(":") + 1);
          }
 
-         name(name);
+         name(taskId);
          owner(task.getOwner());
          ownerAlias(SUtil.getUserAlias(task.getOwner()));
          path(task.getPath());
@@ -99,16 +101,17 @@ public interface ScheduleTaskModel {
             status(ScheduleTaskStatusModel.builder().from(activity).build());
          }
 
-         int index = task.getName().indexOf(':');
+         int index = task.getTaskId().indexOf(':');
 
          if(index >= 0) {
-            label(task.getName().substring(index + 1));
+            String label = task.getTaskId() == null ? task.getName() : task.getTaskId();
+            label(label.substring(index + 1));
          }
-         else if(ScheduleManager.isInternalTask(task.getName())) {
-            label(catalog.getString(task.getName()));
+         else if(ScheduleManager.isInternalTask(task.getTaskId())) {
+            label(catalog.getString(task.getTaskId()));
          }
          else {
-            label(task.getName());
+            label(task.getTaskId());
          }
 
          enabled(task.isEnabled());

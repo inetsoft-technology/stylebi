@@ -181,7 +181,7 @@ public class CSRFFilter extends AbstractSecurityFilter {
     *         otherwise.
     */
    private boolean isCsrfProtectionRequired(HttpServletRequest request) {
-      return isApi(request) && !isPublicApi(request);
+      return isApi(request) && !isPublicApi(request) && !isApiImage(request);
    }
 
    private boolean isEnabled() {

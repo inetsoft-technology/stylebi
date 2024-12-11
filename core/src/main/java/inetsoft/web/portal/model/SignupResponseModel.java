@@ -40,6 +40,10 @@ public class SignupResponseModel {
       return redirectUri;
    }
 
+   public String getEmail() {return email;}
+
+   public void setEmail(String email) {this.email = email; }
+
    @Nullable
    public void setRedirectUri(String redirectUri) {
       this.redirectUri = redirectUri;
@@ -48,4 +52,5 @@ public class SignupResponseModel {
    private boolean success = true;
    private String errorMessage;
    private String redirectUri;
+   private String email = null;
 }

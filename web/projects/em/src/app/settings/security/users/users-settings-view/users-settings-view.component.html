@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<mat-form-field appearance="outline" color="accent" *ngIf="isSysAdmin">
+<mat-form-field appearance="outline" color="accent" *ngIf="isMultiTenant && isSysAdmin || !isMultiTenant">
   <mat-label>_#(Provider Name)</mat-label>
   <mat-select [(value)]="selectedProvider"
               (selectionChange)="securityTree.clearTreeData(); providerChanged.emit(selectedProvider)">
@@ -47,7 +47,7 @@
     </div>
   </mat-drawer>
   <mat-drawer-content [class.security-tree-editor]="!isScreenSmall()">
-    <ng-container *ngIf="selectedIdentity && !selectedIdentity.readOnly; else description">
+    <ng-container *ngIf="showPageEdit(); else description">
       <em-edit-identity-pane [treeData]="treeData" [selectedIdentity]="selectedIdentity"
                              [provider]="selectedProvider"
                              [smallDevice]="isScreenSmall()"
@@ -59,13 +59,12 @@
                              (groupSettingsChanged)="groupSettingsChanged.emit($event); editing = false"
                              (roleSettingsChanged)="roleSettingsChanged.emit($event); editing = false"
                              (organizationSettingsChanged)="organizationSettingsChanged.emit($event); editing = false"
-                             (setTemplateOrganizationClicked)="setTemplateOrganizationClicked.emit($event); editing = false"
                              (loadIdentityError)="onLoadIdentityError()"
                              (pageEdited)="onPageChanged($event)">
       </em-edit-identity-pane>
     </ng-container>
     <ng-template #description>
-      <div *ngIf="!selectedIdentity" class="description-view">_#(em.users.defaultPassword)</div>
+      <div *ngIf="!selectedIdentity" class="description-view">{{getDescriptionText()}}</div>
     </ng-template>
   </mat-drawer-content>
 </mat-drawer-container>

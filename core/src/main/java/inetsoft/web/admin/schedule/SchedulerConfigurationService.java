@@ -22,7 +22,9 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
+import inetsoft.storage.ExternalStorageService;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.admin.schedule.model.*;
@@ -53,6 +55,7 @@ public class SchedulerConfigurationService {
    {
       this.scheduleClient = scheduleClient;
       this.permissionService = permissionService;
+      this.externalStorageService = ExternalStorageService.getInstance();
    }
 
    public ScheduleConfigurationModel getConfiguration(Principal principal) throws Exception {
@@ -85,9 +88,10 @@ public class SchedulerConfigurationService {
          .shareTaskInSameGroup(getBooleanProperty("schedule.options.shareTaskInGroup"))
          .deleteTaskOnlyByOwner(getBooleanProperty("schedule.options.deleteTaskOnlyByOwner"))
          .timeRanges(ranges)
-         .serverLocations(getServerLocations())
+         .serverLocations(SUtil.getServerLocations())
          .saveAutoSuffix(SreeEnv.getProperty("schedule.save.autoSuffix"))
          .securityEnable(isSecurityOn())
+         .cloudSecrets(Tool.isCloudSecrets())
          .build();
    }
 
@@ -137,7 +141,8 @@ public class SchedulerConfigurationService {
       boolean running = this.scheduleClient.isReady();
       Catalog catalog = Catalog.getCatalog();
       boolean cluster = isClusterServer();
-      ScheduleStatusModel.Builder builder = ScheduleStatusModel.builder().cluster(cluster);
+      ScheduleStatusModel.Builder builder = ScheduleStatusModel.builder().cluster(cluster)
+         .externalStorageLocation(externalStorageService.getStorageLocation());
 
       if(cluster) {
          List<ScheduleClusterStatusModel> clusterList = new ArrayList<>();
@@ -280,52 +285,6 @@ public class SchedulerConfigurationService {
       }
    }
 
-   private List<ServerLocation> getServerLocations() {
-      List<ServerLocation> locations = new ArrayList<>();
-      String property = SreeEnv.getProperty("server.save.locations");
-
-      if(property != null && !property.trim().isEmpty()) {
-         for(String str : property.trim().split(";")) {
-            String[] pathProperties = str.split("\\|");
-            String path;
-            String label;
-            String username = null;
-            String password = null;
-
-            if(pathProperties.length < 0) {
-               path = pathProperties[0];
-               label = pathProperties[0];
-            }
-            else {
-               path = pathProperties[0];
-               label = pathProperties[1];
-
-               if(pathProperties.length > 2) {
-                  username = pathProperties[2];
-               }
-
-               if(pathProperties.length > 3) {
-                  password = pathProperties[3];
-               }
-            }
-
-            path = path.replaceAll("[/\\\\]+$", "");
-            ServerPathInfoModel pathInfoModel = ServerPathInfoModel.builder()
-               .path(path)
-               .username(username)
-               .password(password)
-               .ftp(!(username == null || username.isEmpty()) ||
-                       path.toLowerCase().startsWith("ftp://") ||
-                       path.toLowerCase().startsWith("sftp://"))
-               .build();
-            locations.add(ServerLocation.builder().path(path).label(label).pathInfoModel(pathInfoModel).build());
-         }
-      }
-
-      locations.sort(Comparator.comparing(ServerLocation::label));
-      return locations;
-   }
-
    private void setServerLocations(List<ServerLocation> locations) {
       if(locations == null || locations.isEmpty()) {
          SreeEnv.setProperty("server.save.locations", null);
@@ -334,17 +293,40 @@ public class SchedulerConfigurationService {
          ArrayList<String> paths = new ArrayList<>();
 
          for(ServerLocation location : locations) {
-            StringBuilder pathInfo = new StringBuilder(location.path() + "|" + location.label());
+            String path = location.path();
+            String label = location.label();
+            StringBuilder pathInfo = new StringBuilder();
+            ServerPathInfoModel infoModel = location.pathInfoModel();
 
-            if(location.pathInfoModel() != null) {
-               ServerPathInfoModel infoModel = location.pathInfoModel();
+            if(infoModel != null) {
+               if(infoModel.ftp()) {
+                  if(infoModel.useCredential()) {
+                     boolean emptySecretId = Tool.isEmptyString(infoModel.secretId());
 
-               if(infoModel.ftp() && infoModel.username() != null && !infoModel.username().isEmpty()) {
-                  pathInfo.append("|" + infoModel.username());
+                     if(!emptySecretId) {
+                        path = path + "?useSecretId=" + infoModel.useCredential();
+                     }
 
-                  if(infoModel.password() != null && !infoModel.password().isEmpty()) {
-                     pathInfo.append("|" + infoModel.password());
+                     pathInfo.append(path).append("|").append(label);
+
+                     if(!emptySecretId) {
+                        pathInfo.append("|").append(infoModel.secretId());
+                     }
                   }
+                  else {
+                     String username =
+                        !Tool.isEmptyString(infoModel.username()) ? infoModel.username() : null;
+                     String password = username != null &&
+                        !Tool.isEmptyString(infoModel.password()) ? infoModel.password() : null;
+                     pathInfo.append(path).append("|").append(label);
+
+                     if(username != null) {
+                        pathInfo.append("|").append(username).append("|").append(password);
+                     }
+                  }
+               }
+               else {
+                  pathInfo.append(path).append("|").append(label);
                }
             }
 
@@ -358,6 +340,7 @@ public class SchedulerConfigurationService {
 
    private final ScheduleClient scheduleClient;
    private final ResourcePermissionService permissionService;
+   private final ExternalStorageService externalStorageService;
 
    private static final Logger LOG = LoggerFactory.getLogger(SchedulerConfigurationService.class);
 }

@@ -32,6 +32,7 @@ export interface UserSession {
    userName: string;
    logonTime: number;
    organizationId: string;
+   dateFormat: string;
 }
 
 export interface UserSessionList extends AuditRecordList<UserSession> {

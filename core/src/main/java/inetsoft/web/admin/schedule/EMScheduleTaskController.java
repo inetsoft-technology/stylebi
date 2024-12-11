@@ -23,6 +23,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.web.admin.content.repository.ContentRepositoryTreeNode;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.security.RequiredPermission;
@@ -118,7 +119,7 @@ public class EMScheduleTaskController {
       throws Exception
    {
       try {
-         taskName = URLDecoder.decode(taskName, "UTF-8");
+         taskName = Tool.byteDecode(taskName);
       }
       catch(Exception ignore) {
       }
@@ -194,7 +195,7 @@ public class EMScheduleTaskController {
    public ExecuteAsIdentitiesModel getExecuteAsUsers(@RequestParam("owner") String owner,
                                                      Principal principal)
    {
-      IdentityID ownerId = new IdentityID(owner, OrganizationManager.getCurrentOrgName());
+      IdentityID ownerId = new IdentityID(owner, OrganizationManager.getInstance().getCurrentOrgID());
       ExecuteAsIdentitiesModel model = new ExecuteAsIdentitiesModel();
       model.setUsers(this.scheduleTaskService.getExecuteAsUsers(ownerId, principal)
                         .stream()

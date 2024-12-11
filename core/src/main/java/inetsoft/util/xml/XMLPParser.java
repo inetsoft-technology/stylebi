@@ -480,13 +480,13 @@ public class XMLPParser {
          processNamespaces = state;
       }
       else if(FEATURE_NAMES_INTERNED.equals(name)) {
-         if(state != false) {
+         if(state) {
             throw new RuntimeException(
                   "interning names in this implementation is not supported");
          }
       }
       else if(FEATURE_PROCESS_DOCDECL.equals(name)) {
-         if(state != false) {
+         if(state) {
             throw new RuntimeException("processing DOCDECL is not supported");
          }
       }
@@ -600,7 +600,7 @@ public class XMLPParser {
    }
 
    public int getNamespaceCount(int depth) {
-      if(processNamespaces == false || depth == 0) {
+      if(!processNamespaces || depth == 0) {
          return 0;
       }
 
@@ -841,7 +841,7 @@ public class XMLPParser {
       if(eventType != START_TAG)
          throw new IndexOutOfBoundsException(
                "only START_TAG can have attributes");
-      if(processNamespaces == false)
+      if(!processNamespaces)
          return NO_NAMESPACE;
       if(index < 0 || index >= attributeCount)
          throw new IndexOutOfBoundsException("attribute position must be 0.."
@@ -873,7 +873,7 @@ public class XMLPParser {
       if(eventType != START_TAG)
          throw new IndexOutOfBoundsException(
                "only START_TAG can have attributes");
-      if(processNamespaces == false)
+      if(!processNamespaces)
          return null;
       if(index < 0 || index >= attributeCount)
          throw new IndexOutOfBoundsException("attribute position must be 0.."
@@ -955,7 +955,7 @@ public class XMLPParser {
    }
 
    public void require(int type, String namespace, String name) throws IOException {
-      if(processNamespaces == false && namespace != null) {
+      if(!processNamespaces && namespace != null) {
          throw new RuntimeException(
                "processing namespaces must be enabled on parser (or factory)"
                      + " to have possible namespaces declared on elements"
@@ -1249,8 +1249,7 @@ public class XMLPParser {
                hadCharData = true;
 
                boolean normalizedCR = false;
-               final boolean normalizeInput = tokenize == false
-                     || roundtripSupported == false;
+               final boolean normalizeInput = !tokenize || !roundtripSupported;
                // use loop locality here!!!!
                boolean seenBracket = false;
                boolean seenBracketBracket = false;
@@ -1362,8 +1361,7 @@ public class XMLPParser {
       seenMarkup = false;
       boolean gotS = false;
       posStart = pos - 1;
-      final boolean normalizeIgnorableWS = tokenize == true
-            && roundtripSupported == false;
+      final boolean normalizeIgnorableWS = tokenize && !roundtripSupported;
       boolean normalizedCR = false;
       while(true) {
          // deal with Misc
@@ -1486,8 +1484,7 @@ public class XMLPParser {
          return eventType = END_DOCUMENT;
       }
       boolean gotS = false;
-      final boolean normalizeIgnorableWS = tokenize == true
-            && roundtripSupported == false;
+      final boolean normalizeIgnorableWS = tokenize && !roundtripSupported;
       boolean normalizedCR = false;
       try {
          // epilog: Misc*
@@ -2327,8 +2324,7 @@ public class XMLPParser {
       final int curLine = lineNumber;
       final int curColumn = columnNumber;
       try {
-         final boolean normalizeIgnorableWS = tokenize == true
-               && roundtripSupported == false;
+         final boolean normalizeIgnorableWS = tokenize && !roundtripSupported;
          boolean normalizedCR = false;
 
          boolean seenDash = false;
@@ -2427,8 +2423,7 @@ public class XMLPParser {
       final int curColumn = columnNumber;
       int piTargetStart = pos + bufAbsoluteStart;
       int piTargetEnd = -1;
-      final boolean normalizeIgnorableWS = tokenize == true
-            && roundtripSupported == false;
+      final boolean normalizeIgnorableWS = tokenize && !roundtripSupported;
       boolean normalizedCR = false;
 
       try {
@@ -2747,7 +2742,7 @@ public class XMLPParser {
       // [28] doctypedecl ::= '<!DOCTYPE' S Name (S ExternalID)? S? ('['
       // (markupdecl | DeclSep)* ']' S?)? '>'
       int bracketLevel = 0;
-      final boolean normalizeIgnorableWS = tokenize == true && roundtripSupported == false;
+      final boolean normalizeIgnorableWS = tokenize && !roundtripSupported;
       boolean normalizedCR = false;
       while(true) {
          ch = more();
@@ -2836,7 +2831,7 @@ public class XMLPParser {
       final int cdStart = pos + bufAbsoluteStart;
       final int curLine = lineNumber;
       final int curColumn = columnNumber;
-      final boolean normalizeInput = tokenize == false || roundtripSupported == false;
+      final boolean normalizeInput = !tokenize || !roundtripSupported;
 
       try {
          if(normalizeInput) {

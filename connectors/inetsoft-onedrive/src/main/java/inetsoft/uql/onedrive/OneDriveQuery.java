@@ -386,41 +386,39 @@ public class OneDriveQuery extends SelectableTabularQuery  {
 
    public void initDelimiter() {
       if(isText() && temp != null) {
-         if(temp != null) {
-            InputStreamReader reader = null;
-            List<String> content = null;
+         InputStreamReader reader = null;
+         List<String> content = null;
 
-            try {
-               String encoding = getEncoding();
+         try {
+            String encoding = getEncoding();
 
-               if(encoding == null) {
-                  encoding = CSVInfo.getFileEncode(temp);
-               }
-
-               reader = new InputStreamReader(
-                  new FileInputStream(temp), encoding);
-               content = IOUtils.readLines(reader);
-            }
-            catch(Exception exc) {
-               LOG.warn("Failed to read FileFolder", exc);
-            }
-            finally {
-               IOUtils.closeQuietly(reader);
+            if(encoding == null) {
+               encoding = CSVInfo.getFileEncode(temp);
             }
 
-            assert content != null;
-            String[] lines = content.toArray(new String[0]);
-            CSVInfo csvInfo = CSVInfo.getCSVInfo(lines);
+            reader = new InputStreamReader(
+               new FileInputStream(temp), encoding);
+            content = IOUtils.readLines(reader);
+         }
+         catch(Exception exc) {
+            LOG.warn("Failed to read FileFolder", exc);
+         }
+         finally {
+            IOUtils.closeQuietly(reader);
+         }
 
-            String dlimit = "";
+         assert content != null;
+         String[] lines = content.toArray(new String[0]);
+         CSVInfo csvInfo = CSVInfo.getCSVInfo(lines);
 
-            if(csvInfo != null) {
-               dlimit = csvInfo.getDelimiter() + "";
-            }
+         String dlimit = "";
 
-            if(!dlimit.equals("\t")) {
-               this.delimiter = dlimit;
-            }
+         if(csvInfo != null) {
+            dlimit = csvInfo.getDelimiter() + "";
+         }
+
+         if(!dlimit.equals("\t")) {
+            this.delimiter = dlimit;
          }
       }
 

@@ -17,8 +17,7 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.web.admin.security.user.SecurityTreeRootModel;
-import inetsoft.web.admin.security.user.UserTreeService;
+import inetsoft.web.admin.security.user.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,17 +26,18 @@ import java.security.Principal;
 @RestController
 public class ResourcePermissionTreeController {
    @Autowired
-   public ResourcePermissionTreeController(UserTreeService userTreeService) {
-      this.userTreeService = userTreeService;
+   public ResourcePermissionTreeController(SecurityTreeServer userTreeService) {
+      this.securityTreeServer = userTreeService;
    }
 
    @GetMapping("/api/em/settings/content/resource-tree")
    public SecurityTreeRootModel getResourceTree(
       @RequestParam(value = "provider", required = false) String provider,
+      @RequestParam(value = "hideOrgAdminRole", required = false) boolean hideOrgAdminRole,
       Principal principal)
    {
-      return userTreeService.getSecurityTree(provider, principal, true);
+      return securityTreeServer.getSecurityTree(provider, principal, true, false, hideOrgAdminRole);
    }
 
-   private final UserTreeService userTreeService;
+   private final SecurityTreeServer securityTreeServer;
 }

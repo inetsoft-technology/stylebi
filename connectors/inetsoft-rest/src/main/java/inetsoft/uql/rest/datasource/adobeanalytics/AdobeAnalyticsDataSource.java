@@ -21,6 +21,7 @@ import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.CoreTool;
+import inetsoft.util.credential.CredentialType;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -28,8 +29,10 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 @View(vertical = true, value = {
-   @View1("apiKey"),
-   @View1("globalCompanyId"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiKey", visibleMethod = "useCredential"),
+   @View1(value = "globalCompanyId", visibleMethod = "useCredential"),
    @View1(
       type = ViewType.BUTTON,
       text = "Authorize",
@@ -48,7 +51,12 @@ public class AdobeAnalyticsDataSource extends OAuthEndpointJsonDataSource<AdobeA
       super(TYPE, AdobeAnalyticsDataSource.class);
    }
 
-   @PropertyEditor(enabled = false)
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_KEY_AUTH_TOKENS;
+   }
+
+   @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
    @Property(label = "API Key", required = true)
    public String getApiKey() {
       return apiKey;
@@ -59,6 +67,7 @@ public class AdobeAnalyticsDataSource extends OAuthEndpointJsonDataSource<AdobeA
    }
 
    @Property(label = "Global Company ID", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getGlobalCompanyId() {
       return globalCompanyId;
    }

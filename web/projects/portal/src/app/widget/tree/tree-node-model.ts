@@ -41,4 +41,5 @@ export interface TreeNodeModel {
    childrenLoaded?: boolean;
    parent?: TreeNodeModel;
    treeView?: number;
+   defaultOrgAsset?: boolean;
 }

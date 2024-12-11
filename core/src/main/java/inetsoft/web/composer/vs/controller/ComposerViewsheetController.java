@@ -613,14 +613,14 @@ public class ComposerViewsheetController {
    @GetMapping("/api/composer/viewsheet/help-url")
    @ResponseBody
    public String getHelpUrL() {
-      return Encode.forUri(Tool.getHelpURL(true));
+      return Encode.forUri(Tool.getHelpBaseURL());
    }
 
    @GetMapping("/api/composer/viewsheet/script-help-url")
    @ResponseBody
    public String getScriptHelpUrL() {
       String base = Tool.getHelpBaseURL();
-      return Encode.forUri(base + "functions/userhelp/index.html#cshid=GeneralScriptFunctions");
+      return Encode.forUri(base + "#cshid=GeneralScriptFunctions");
    }
 
    @GetMapping("/api/composer/viewsheet/checkDependChanged")

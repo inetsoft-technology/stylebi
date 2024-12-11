@@ -120,5 +120,5 @@ public class GoogleCloudRunnerConfig implements Serializable {
    private String vpcNetwork;
    private String vpcSubnet;
    private String cpu = "2";
-   private String memory = "1Gi";
+   private String memory = "2Gi";
 }

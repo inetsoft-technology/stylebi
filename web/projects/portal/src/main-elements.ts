@@ -31,11 +31,18 @@ window.inetsoftLogin = function inetsoftLogin(userName: string, password: string
          "X-Requested-With": "XMLHttpRequest",
          "Authorization": "Basic " + btoa(encodeURIComponent(userName) + ":" + encodeURIComponent(password)),
       }
-   }).then((res) => {
-      if(res.ok && res.status == 200) {
-         window.inetsoftConnected.next(true);
-      }
-   });
+   })
+      .then((res) => {
+         if(res.ok && res.status == 200) {
+            window.inetsoftConnected.next(true);
+         }
+         else if(res.status == 401) {
+            console.error("Authentication credentials are incorrect.");
+         }
+      })
+      .catch((error) => {
+         console.error(error);
+      });
 };
 
 window.inetsoftSSOLogin = async function inetsoftSSOLogin(options: RequestInit = null): Promise<Response> {
@@ -46,6 +53,9 @@ window.inetsoftSSOLogin = async function inetsoftSSOLogin(options: RequestInit =
 
       if(res.ok && res.status == 200 && !res.redirected) {
          window.inetsoftConnected.next(true);
+      }
+      else if(res.status == 401) {
+         console.error("Authentication credentials are incorrect.");
       }
    });
 
@@ -75,7 +85,9 @@ function getInetsoftBase() {
 /**
  * Check inetsoft connection
  */
-window.checkInetsoftConnection = function checkInetsoftConnection(options: RequestInit = null) {
+window.checkInetsoftConnection = function checkInetsoftConnection(options: RequestInit = null,
+                                                                  logError: boolean = true)
+{
    fetch(getInetsoftBase(), options)
       .then((res) => {
          if(res.ok && res.status == 200 && !res.redirected) {
@@ -83,7 +95,9 @@ window.checkInetsoftConnection = function checkInetsoftConnection(options: Reque
          }
       })
       .catch((error) => {
-         // do nothing
+         if(logError) {
+            console.error(error);
+         }
       });
 };
 
@@ -91,4 +105,4 @@ window.checkInetsoftConnection = function checkInetsoftConnection(options: Reque
  * Check if inetsoft is connected on app load in case there is no need to log in such as when
  * security is disabled or there is an active session
  */
-window.checkInetsoftConnection();
+window.checkInetsoftConnection(null, false);

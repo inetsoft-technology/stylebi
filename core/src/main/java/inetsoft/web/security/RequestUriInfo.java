@@ -18,17 +18,32 @@
 package inetsoft.web.security;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequestWrapper;
+import org.springframework.util.StringUtils;
 
 public class RequestUriInfo {
    public RequestUriInfo(HttpServletRequest request) {
       String ip = request.getHeader("remote_ip");
 
       if(ip == null || ip.isEmpty()) {
-         ip = request.getHeader("X-Forwarded-For");
+         ip = request.getRemoteAddr();
       }
 
-      if(ip == null || ip.isEmpty()) {
-         ip = request.getRemoteAddr();
+      /**
+       * For google cloud run, it will add header forwarded: for="0.0.0.0";proto=https,for="127.0.0.1";proto=https
+       * get request.getRemoteAddr() will be 0.0.0.0. so try to get the remote address by the X-Forwarded-For.
+       */
+      if("0.0.0.0".equals(ip) && request instanceof HttpServletRequestWrapper &&
+         ((HttpServletRequestWrapper) request).getRequest() instanceof HttpServletRequest)
+      {
+         HttpServletRequestWrapper wrapper = (HttpServletRequestWrapper) request;
+         HttpServletRequest orequest = (HttpServletRequest) wrapper.getRequest();
+
+         try {
+            ip = StringUtils.tokenizeToStringArray(orequest.getHeader("X-Forwarded-For"), ",")[0];
+         }
+         catch(Exception ignore) {
+         }
       }
 
       StringBuilder uri = new StringBuilder()

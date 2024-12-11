@@ -474,8 +474,16 @@ export class VSComboBox extends NavigationComponent<VSComboBoxModel> implements 
    }
 
    getTimeInstant(str: string) {
-      let instant: TimeInstant = DateTypeFormatter.toTimeInstant(str,
-         "YYYY-MM-DD HH:mm:ss");
+      let fmt: string = "YYYY-MM-DD HH:mm:ss";
+
+      if (this.model.serverTZ) {
+         // first format to a string and then parse date in the server timezone
+         return dayjs.tz(
+            str,
+            fmt, this.model.serverTZID).toDate();
+      }
+
+      let instant: TimeInstant = DateTypeFormatter.toTimeInstant(str, fmt);
       return DateTypeFormatter.timeInstantToDate(instant);
    }
 

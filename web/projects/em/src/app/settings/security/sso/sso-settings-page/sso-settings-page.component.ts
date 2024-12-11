@@ -81,7 +81,10 @@ export class SsoSettingsPageComponent implements OnDestroy {
    public readonly ssoTypes = SSOType;
    public selection = SSOType.NONE;
    public isMultiTenant: boolean = false;
+   public cloudSecrets: boolean = false;
+   public changed = false;
    private readonly subscription: Subscription;
+   private formSubscription: Subscription;
    private _openIdModel: OpenIdAttributesModel;
 
    get openIdModel(): OpenIdAttributesModel {
@@ -118,19 +121,39 @@ export class SsoSettingsPageComponent implements OnDestroy {
       ).subscribe(model => this.applySSOSettings(model));
 
       this.httpClient.get<boolean>("../api/em/navbar/isMultiTenant")
-         .subscribe(multiTenant => this.isMultiTenant = multiTenant);
+         .subscribe(multiTenant => {
+            this.isMultiTenant = multiTenant
+            this.reset();
+         });
+
+      this.httpClient.get<boolean>("../api/em/security/isCloudSecrets")
+         .subscribe(cloudSecrets => {
+            this.cloudSecrets = cloudSecrets
+         });
    }
 
    ngOnDestroy(): void {
       this.subscription.unsubscribe();
+
+      if(this.formSubscription != null) {
+         this.formSubscription.unsubscribe();
+      }
    }
 
    public changeSelection(): void {
       this.scrollService.scroll("up");
+      this.logoutUrl = "";
+      this.logoutPath = "";
+      this.changed = true;
+   }
+
+   public setChanged(): void {
+      this.changed = true;
    }
 
    public clearRoles(): void {
       this.roleSelectionRef.options.forEach(option => option.deselect());
+      this.changed = true;
    }
 
    public submit(): void {
@@ -167,6 +190,7 @@ export class SsoSettingsPageComponent implements OnDestroy {
       model.logoutPath = this.logoutPath;
       model.fallbackLogin = this.fallbackLogin;
       this.httpClient.post("../api/sso/settings", model).subscribe();
+      this.changed = false;
    }
 
    reset(): void {
@@ -175,6 +199,10 @@ export class SsoSettingsPageComponent implements OnDestroy {
    }
 
    private applySSOSettings(model: SSOSettingsModel) {
+      if(this.formSubscription != null) {
+         this.formSubscription.unsubscribe();
+      }
+
       this.selection = model.activeFilterType;
       this.roles = model.roles.sort((a, b) => a.name.localeCompare(b.name));
       this.selectedRoles = model.selectedRoles;
@@ -182,10 +210,12 @@ export class SsoSettingsPageComponent implements OnDestroy {
       this.logoutPath = model.logoutPath;
       this.fallbackLogin = model.fallbackLogin;
       this.samlForm = this.ssoModelToForm(model.samlAttributesModel);
+      this.formSubscription = this.samlForm.valueChanges.subscribe(value => this.setChanged());
       this.openIdModel = model.openIdAttributesModel;
       this.customModel = Object.assign(
          {useJavaClass: true, useInlineGroovy: false}, model.customAttributesModel);
       this.customModel.useJavaClass = !this.customModel.useInlineGroovy;
+      this.changed = false;
    }
 
    private ssoModelToForm<T>(model: T): UntypedFormGroup {

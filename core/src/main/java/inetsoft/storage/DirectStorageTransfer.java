@@ -18,11 +18,22 @@
 package inetsoft.storage;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+import inetsoft.sree.FolderContext;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.internal.AssetFolder;
+import inetsoft.util.*;
+import inetsoft.web.admin.general.DataSpaceSettingsService;
+import liquibase.util.StringUtil;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.*;
 
-import java.io.IOException;
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
@@ -54,14 +65,20 @@ public class DirectStorageTransfer extends AbstractStorageTransfer {
       AtomicBoolean first = new AtomicBoolean(true);
       AtomicBoolean blob = new AtomicBoolean(false);
       AtomicBoolean empty = new AtomicBoolean(true);
+      Set<String> blobIncludedKeys = DataSpaceSettingsService.getBlobIncludedKeys(id);
 
       keyValueEngine.stream(id).forEach(pair -> {
          try {
-            export(id, pair, first.get(), kvGenerator, blobGenerator, blobDir);
+            boolean includedInBlob = pair.getValue() instanceof Blob && blobIncludedKeys != null &&
+               !blobIncludedKeys.isEmpty() && !blobIncludedKeys.contains(pair.getKey());
 
-            if(first.compareAndSet(true, false)) {
-               blob.set(pair.getValue() instanceof Blob);
-               empty.set(false);
+            if(!includedInBlob) {
+               export(id, pair, first.get(), kvGenerator, blobGenerator, blobDir);
+
+               if(first.compareAndSet(true, false)) {
+                  blob.set(pair.getValue() instanceof Blob);
+                  empty.set(false);
+               }
             }
          }
          catch(RuntimeException e) {
@@ -129,6 +146,21 @@ public class DirectStorageTransfer extends AbstractStorageTransfer {
 
    @Override
    protected void putKeyValue(String id, String key, Object value) {
+      if(id.endsWith("__indexedStorage") && key.startsWith("1^4097^")) {
+         // Fix children for imported AssetFolders
+         Blob<?> oblob = keyValueEngine.get(id, key);
+
+         if(oblob != null) {
+            Blob<?> nblob = (Blob<?>) value;
+            AssetFolder newAssetFolder = ((BlobIndexedStorage.Metadata) nblob.getMetadata()).getFolder();
+            AssetFolder oldAssetFolder = ((BlobIndexedStorage.Metadata) oblob.getMetadata()).getFolder();
+
+            for(AssetEntry entry : oldAssetFolder.getEntries()) {
+               newAssetFolder.addEntry(entry);
+            }
+         }
+      }
+
       keyValueEngine.put(id, key, value);
    }
 
@@ -137,6 +169,143 @@ public class DirectStorageTransfer extends AbstractStorageTransfer {
       blobEngine.write(id, digest, file);
    }
 
+   @Override
+   protected Blob<?> updateRegistryBlob(Blob<?> blob, String id, String key, Path file) throws IOException {
+      if(id.equals("dataSpace")) {
+         if(registryNames == null) {
+            initRegistryNames();
+         }
+
+         for(String registryName : registryNames) {
+            if(key.equals(registryName)) {
+               Blob<?> oldBlob = keyValueEngine.get(id, key);
+
+               if(oldBlob == null) {
+                  break;
+               }
+
+               // Rewrite the new registry file to the temp file and get the new digest
+               Path temp = Files.createTempFile("import-storage", ".dat");
+               String oldDigest = oldBlob.getDigest();
+               blobEngine.read(id, oldDigest, temp);
+               String digest;
+
+               Hashtable<String, Hashtable<String, FolderContext>> folders = new Hashtable<>();
+
+               try(InputStream input = new FileInputStream(file.toFile())) {
+                  readFolders(folders, input);
+               }
+
+               try(InputStream input = new FileInputStream(temp.toFile())) {
+                  readFolders(folders, input);
+               }
+
+               try(OutputStream output = new FileOutputStream(file.toFile())) {
+                  save(output, folders);
+               }
+
+               try(InputStream input = new FileInputStream(file.toFile())) {
+                  digest = DigestUtils.md5Hex(input);
+               }
+
+               Files.delete(temp);
+               return new Blob<>(blob.getPath(), digest, file.toFile().length(),
+                                  blob.getLastModified(), blob.getMetadata());
+            }
+         }
+      }
+
+      return blob;
+   }
+
+   private void initRegistryNames() {
+      String repfiles = keyValueEngine.get("sreeProperties", "replet.repository.file");
+      repfiles = repfiles == null ? "repository.xml" : repfiles;
+      registryNames = StringUtil.splitAndTrim(repfiles, ";");
+   }
+
+   private void readFolders(Hashtable<String, Hashtable<String, FolderContext>> folders,
+                            InputStream input) throws IOException
+   {
+      try {
+         Document doc = Tool.parseXML(input);
+         NodeList replets = doc.getElementsByTagName("Replet");
+
+         for(int i = 0; i < replets.getLength(); i++) {
+            Element elem = (Element) replets.item(i);
+            String name = elem.getAttribute("name");
+            String alias = elem.getAttribute("alias");
+            String orgId = elem.getAttribute("orgID");
+            String favoritesUser = elem.getAttribute("favoritesUser");
+            String description = elem.getTextContent();
+            description = description == null ? "" : description;
+
+            FolderContext context = new FolderContext(name, description, alias);
+            context.addFavoritesUser(favoritesUser);
+
+            Hashtable<String, FolderContext> orgFolders =
+               folders.computeIfAbsent(orgId, k -> new Hashtable<>());
+            orgFolders.putIfAbsent(name, context);
+         }
+      }
+      catch(ParserConfigurationException e) {
+         throw new RuntimeException(e);
+      }
+   }
+
+   /**
+    * Save the registry to a specific stream.
+    *
+    * @param stream the registry stream.
+    */
+   private synchronized void save(OutputStream stream,
+                                  Hashtable<String, Hashtable<String, FolderContext>> folders)
+      throws IOException
+   {
+      try {
+         PrintWriter writer =
+            new PrintWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8));
+
+         writer.println("<?xml version=\"1.0\"  encoding=\"UTF-8\"?>");
+         writer.println("<Registry>");
+         writer.println("<Version>" + FileVersions.REPOSITORY + "</Version>");
+
+         writeRegistryFoldersAndProtos(writer, folders);
+         writer.println("</Registry>");
+         writer.flush();
+      }
+      catch(Throwable ex) {
+         throw new IOException("Failed to save registry file", ex);
+      }
+   }
+
+   /**
+    * Write folder.
+    */
+   private synchronized void writeRegistryFoldersAndProtos(PrintWriter writer,
+                                                           Hashtable<String, Hashtable<String, FolderContext>> folders)
+   {
+      for(String orgID : folders.keySet()) {
+         Hashtable<String, FolderContext> orgFolders = folders.get(orgID);
+
+         for(String name : orgFolders.keySet()) {
+            FolderContext folder = orgFolders.get(name);
+            String alias = folder.getAlias();
+            writer.print("<Replet name=\"" + Tool.escape(folder.getName()) + "\"" +
+                            (alias == null ? "" : " alias=\"" + Tool.escape(alias) + "\"") +
+                            " orgID=\"" + orgID + "\" folder=\"true\"" +
+                            " favoritesUser=\"" + folder.getFavoritesUser() + "\"" + ">");
+
+            if(folder.getDescription() != null) {
+               writer.print("<![CDATA[" + folder.getDescription() + "]]>");
+            }
+
+            writer.println("</Replet>");
+         }
+      }
+   }
+
    private final KeyValueEngine keyValueEngine;
    private final BlobEngine blobEngine;
+   private List<String> registryNames;
 }

@@ -17,6 +17,8 @@
  */
 package inetsoft.util.config;
 
+import inetsoft.util.config.crd.CRDProperty;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,19 +49,19 @@ public class GoogleCloudSecretsConfig implements Serializable, Cloneable {
       this.projectId = projectId;
    }
 
-   public List<String> getLocations() {
+   public String[] getLocations() {
       return locations;
    }
 
-   public void setLocations(List<String> locations) {
+   public void setLocations(String[] locations) {
       this.locations = locations;
    }
 
-   public List<String> getKmsKeyNames() {
+   public String[] getKmsKeyNames() {
       return kmsKeyNames;
    }
 
-   public void setKmsKeyNames(List<String> kmsKeyNames) {
+   public void setKmsKeyNames(String[] kmsKeyNames) {
       this.kmsKeyNames = kmsKeyNames;
    }
 
@@ -77,17 +79,30 @@ public class GoogleCloudSecretsConfig implements Serializable, Cloneable {
       clone.setServiceAccountFile(serviceAccountFile);
       clone.setServiceAccountJson(serviceAccountJson);
       clone.setProjectId(projectId);
-      clone.setLocations(new ArrayList<>(locations));
-      clone.setKmsKeyNames(new ArrayList<>(kmsKeyNames));
       clone.setAutoReplication(autoReplication);
+
+      if(locations != null) {
+         clone.locations = new String[locations.length];
+         System.arraycopy(locations, 0, clone.locations, 0, locations.length);
+      }
+
+      if(kmsKeyNames != null) {
+         clone.kmsKeyNames = new String[kmsKeyNames.length];
+         System.arraycopy(kmsKeyNames, 0, clone.kmsKeyNames, 0, kmsKeyNames.length);
+      }
 
       return clone;
    }
 
    private String serviceAccountFile;
+   @CRDProperty(description = "The base-64 encoded service account JSON", secret = true)
    private String serviceAccountJson;
+   @CRDProperty(description = "The project ID")
    private String projectId;
-   private List<String> locations;
-   private List<String> kmsKeyNames;
+   @CRDProperty(description = "The canonical IDs of the location to replicate data")
+   private String[] locations;
+   @CRDProperty(description = "The resource name of the Cloud KMS CryptoKey used to encrypt secret payloads")
+   private String[] kmsKeyNames;
+   @CRDProperty(description = "A flag that indicates if the secret's replication policy is automatically managed by google or a user-defined location")
    private boolean autoReplication;
 }

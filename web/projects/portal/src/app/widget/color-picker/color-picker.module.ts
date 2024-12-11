@@ -19,6 +19,7 @@ import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { FixedDropdownModule } from "../fixed-dropdown/fixed-dropdown.module";
+import { ModalHeaderModule } from "../modal-header/modal-header.module";
 import { ColorComponentEditor } from "./color-component-editor.component";
 import { ColorDropdown } from "./color-dropdown.component";
 import { ColorEditorDialog } from "./color-editor-dialog.component";
@@ -39,6 +40,7 @@ import { RecentColorService } from "./recent-color.service";
       FormsModule,
       FixedDropdownModule,
       MouseEventModule,
+      ModalHeaderModule,
    ],
    declarations: [
       ColorComponentEditor,

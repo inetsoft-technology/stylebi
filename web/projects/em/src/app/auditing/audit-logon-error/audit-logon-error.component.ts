@@ -18,14 +18,15 @@
 import { HttpClient, HttpParams } from "@angular/common/http";
 import { Component, OnDestroy, OnInit } from "@angular/core";
 import { FormBuilder, FormGroup } from "@angular/forms";
-import { tap } from "rxjs/operators";
+import { catchError, tap } from "rxjs/operators";
+import { ErrorHandlerService } from "../../common/util/error/error-handler.service";
 import { ContextHelp } from "../../context-help";
 import { PageHeaderService } from "../../page-header/page-header.service";
 import { Searchable } from "../../searchable";
 import { Secured } from "../../secured";
 import { AuditTableViewComponent } from "../audit-table-view/audit-table-view.component";
 import { LogonError, LogonErrorList, LogonErrorParameters } from "./logon-error";
-import { Subscription } from "rxjs";
+import { of, Subscription } from "rxjs";
 import { ActivatedRoute } from "@angular/router";
 
 @Secured({
@@ -39,7 +40,7 @@ import { ActivatedRoute } from "@angular/router";
 })
 @ContextHelp({
    route: "/auditing/logon-error",
-   link: "EMAuditingLogonError"
+   link: "EMViewAudit"
 })
 @Component({
    selector: "em-audit-logon-error",
@@ -57,7 +58,7 @@ export class AuditLogonErrorComponent implements OnInit, OnDestroy {
       { name: "server", label: "_#(js:Server)", value: (r: LogonError) => r.server },
       { name: "userName", label: "_#(js:User Name)", value: (r: LogonError) => r.userName },
       { name: "userHost", label: "_#(js:User Host)", value: (r: LogonError) => r.userHost },
-      { name: "logonTime", label: "_#(js:Logon Time)", value: (r: LogonError) => AuditTableViewComponent.getDisplayDate(r.logonTime) },
+      { name: "logonTime", label: "_#(js:Logon Time)", value: (r: LogonError) => AuditTableViewComponent.getDisplayDate(r.logonTime, r.dateFormat) },
       { name: "errorMessage", label: "_#(js:Error Message)", value: (r: LogonError) => r.errorMessage },
       { name: "organizationId", label: "_#(js:Organization ID)", value: (r: LogonError) => r.organizationId }
    ];
@@ -67,7 +68,8 @@ export class AuditLogonErrorComponent implements OnInit, OnDestroy {
    }
 
    constructor(private http: HttpClient, private activatedRoute: ActivatedRoute,
-               private pageTitle: PageHeaderService, fb: FormBuilder)
+               private pageTitle: PageHeaderService, private errorService: ErrorHandlerService,
+               fb: FormBuilder)
    {
       this.form = fb.group({
          selectedUsers: [[]],
@@ -82,11 +84,18 @@ export class AuditLogonErrorComponent implements OnInit, OnDestroy {
    // use arrow function instead of member method to hold the right context (i.e. this)
    fetchParameters = () => {
       return this.http.get<LogonErrorParameters>("../api/em/monitoring/audit/logonErrorParameters")
-         .pipe(tap(params => {
-            this.users = params.users;
-            this.hosts = params.hosts;
-            this.systemAdministrator = params.systemAdministrator;
-         }));
+         .pipe(
+            catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to get query parameters)", () => of({
+               users: [],
+               hosts: [],
+               startTime: 0,
+               endTime: 0
+            }))),
+            tap(params => {
+               this.users = params.users;
+               this.hosts = params.hosts;
+               this.systemAdministrator = params.systemAdministrator;
+            }));
    };
 
    // use arrow function instead of member method to hold the right context (i.e. this)
@@ -104,7 +113,11 @@ export class AuditLogonErrorComponent implements OnInit, OnDestroy {
          selectedHosts.forEach(h => params = params.append("hosts", h));
       }
 
-      return this.http.get<LogonErrorList>("../api/em/monitoring/audit/logonErrors", {params});
+      return this.http.get<LogonErrorList>("../api/em/monitoring/audit/logonErrors", {params})
+         .pipe(catchError(error => this.errorService.showSnackBar(error, "_#(js:Failed to run query)", () => of({
+            totalRowCount: 0,
+            rows: []
+         }))));
    };
 
    ngOnDestroy(): void {

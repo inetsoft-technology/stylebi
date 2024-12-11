@@ -22,9 +22,9 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.web.HttpServiceRequest;
+import inetsoft.storage.*;
 import inetsoft.uql.viewsheet.graph.GraphTypes;
-import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.graphics.SVGSupport;
 import inetsoft.web.admin.cache.CacheService;
 import inetsoft.web.admin.monitoring.*;
@@ -52,6 +52,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.*;
 import java.util.zip.GZIPOutputStream;
@@ -60,6 +61,7 @@ import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.lang.StringUtils;
+import org.awaitility.Awaitility;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -87,6 +89,9 @@ public class ServerMonitoringController {
       this.schedulerMonitoringService = schedulerMonitoringService;
       this.client = client;
       this.usageHistoryService = usageHistoryService;
+      this.externalStorageService = ExternalStorageService.getInstance();
+      this.scheduleCluster = "server_cluster".equals(SreeEnv.getProperty("server.type")) ||
+         ScheduleClient.getScheduleClient().isCluster();
    }
 
    @SubscribeMapping("/monitoring/server/charts")
@@ -133,6 +138,7 @@ public class ServerMonitoringController {
             .serverDateTimeMap(serverDateTimeMap)
             .schedulerUpTimeMap(schedulerUpTimeMap)
             .timestamp(timestamp)
+            .externalStoragePath(externalStorageService.getStorageLocation())
             .build();
       });
    }
@@ -193,7 +199,7 @@ public class ServerMonitoringController {
 
       for(String node : cluster.getClusterNodes()) {
          boolean isScheduleNode = Boolean.TRUE.equals(cluster.getClusterNodeProperty(node, "scheduler"));
-         String nodeIp = node != null && node.indexOf(":") != -1 ? node.substring(0, node.indexOf(":")) : node;
+         String nodeIp = node != null && node.contains(":") ? node.substring(0, node.indexOf(":")) : node;
 
          if((Tool.isEmptyString(clusterNode) || clusterNode.equals(nodeIp)) &&  isScheduleNode) {
             try {
@@ -251,15 +257,22 @@ public class ServerMonitoringController {
       }
    }
 
-   @GetMapping("/em/monitoring/scheduler/get-heap-dump")
-   public void getSchedulerHeapDump(@RequestParam(value = "clusterNode", required = false) String clusterNode,
-                                    HttpServletResponse response)
-      throws Exception
-   {
-      writeSchedulerHeapDump(clusterNode, response);
+   @PostMapping("/api/em/monitoring/scheduler/get-heap-dump")
+   public void getSchedulerHeapDump(@RequestBody HeapDumpRequest request) {
+      ThreadPool.addOnDemand(new Runnable() {
+         @Override
+         public void run() {
+            try {
+               writeSchedulerHeapDump(request.clusterNode());
+            }
+            catch(Exception e) {
+               LOG.error("Failed to get scheduler heap dump", e);
+            }
+         }
+      });
    }
 
-   private boolean writeSchedulerHeapDump(String clusterNode, HttpServletResponse response)
+   private boolean writeSchedulerHeapDump(String clusterNode)
       throws Exception
    {
       final Cluster cluster = Cluster.getInstance();
@@ -269,7 +282,7 @@ public class ServerMonitoringController {
          String nodeIp = node != null && node.contains(":") ? node.substring(0, node.indexOf(":")) : node;
 
          if((Tool.isEmptyString(clusterNode) || clusterNode.equals(nodeIp)) &&  isScheduleNode) {
-            writeHeapDump(node, response);
+            writeHeapDump(node);
             return true;
          }
       }
@@ -277,31 +290,42 @@ public class ServerMonitoringController {
       return false;
    }
 
-   @GetMapping("/em/monitoring/server/get-heap-dump")
-   public void getHeapDump(@RequestParam(value = "clusterNode", required = false) String clusterNode,
-                           HttpServletResponse response) throws Exception
-   {
-      String node = clusterNode == null ? Cluster.getInstance().getLocalMember() :
-         SUtil.computeServerClusterNode(clusterNode);
+   @PostMapping("/api/em/monitoring/server/get-heap-dump")
+   public void getHeapDump(@RequestBody HeapDumpRequest request) {
+      String node = request.clusterNode() == null ? Cluster.getInstance().getLocalMember() :
+         SUtil.computeServerClusterNode(request.clusterNode());
 
-      // try the scheduler if there is no such server
-      if(node == null && clusterNode != null) {
-         if(writeSchedulerHeapDump(clusterNode, response)) {
-            return;
+      ThreadPool.addOnDemand(new Runnable() {
+         @Override
+         public void run() {
+            try {
+               // try the scheduler if there is no such server
+               if(node == null && request.clusterNode() != null) {
+                  if(writeSchedulerHeapDump(request.clusterNode())) {
+                     return;
+                  }
+               }
+
+               writeHeapDump(node);
+            }
+            catch(Exception e) {
+               LOG.error("Failed to get heap dump", e);
+            }
          }
-      }
+      });
 
-      writeHeapDump(node, response);
+
    }
 
-   private void writeHeapDump(String clusterNode, HttpServletResponse response) throws Exception {
+   private void writeHeapDump(String clusterNode) throws Exception {
       String heapId = null;
+      LOG.info("Writing heap dump for " + clusterNode);
 
       try {
-         heapId = writeHeapDumpResponse(clusterNode, response);
+         heapId = writeHeapDumpResponse(clusterNode);
       }
       catch(IOException ex) {
-         LOG.debug("Failed to write response: " + ex, ex);
+         LOG.debug("Failed to write file: " + ex, ex);
       }
       catch(Exception ex) {
          LOG.error("Failed to get heap dump", ex);
@@ -309,40 +333,48 @@ public class ServerMonitoringController {
       finally {
          if(heapId != null) {
             serverService.disposeHeapDump(heapId, clusterNode);
+            LOG.info("Finished writing heap dump for " + clusterNode);
          }
       }
    }
 
-   private String writeHeapDumpResponse(String clusterNode, HttpServletResponse response) throws Exception {
+   private String writeHeapDumpResponse(String clusterNode) throws Exception {
       String heapId;
       String fileName = getClusterFileName(clusterNode, "HeapDump", ".hprof.gz");
-      String header = "attachment; filename=\"" + fileName + "\"";
-
-      if(SUtil.isHttpHeadersValid(header)) {
-         response.setHeader("Content-Disposition", StringUtils.normalizeSpace(header));
-      }
-
-      response.setContentType("application/octet-stream");
+      File file = null;
 
       heapId = serverService.createHeapDump(clusterNode);
-
-      while(!serverService.isHeapDumpComplete(heapId, clusterNode)) {
-         Thread.sleep(1000L);
-      }
+      Awaitility.await()
+         .pollInterval(1L, TimeUnit.SECONDS)
+         .atMost(10L, TimeUnit.MINUTES)
+         .until(() -> serverService.isHeapDumpComplete(heapId, clusterNode));
 
       int length = serverService.getHeapDumpLength(heapId, clusterNode);
 
       if(length > 0) {
-         int bufferSize = 1024 * 1024 * 1024;
-         int offset = 0;
+         try {
+            int bufferSize = 1024 * 1024 * 1024;
+            int offset = 0;
+            file = FileSystemService.getInstance().getCacheTempFile("HeapDump", ".hprof.gz");
 
-         try(OutputStream output = response.getOutputStream()) {
-            while(offset < length) {
-               int toRead = Math.min(bufferSize, length - offset);
-               byte[] buffer =
-                  serverService.getHeapDumpContent(heapId, offset, toRead, clusterNode);
-               output.write(buffer);
-               offset += buffer.length;
+            try(OutputStream output = new FileOutputStream(file)) {
+               while(offset < length) {
+                  int toRead = Math.min(bufferSize, length - offset);
+                  byte[] buffer =
+                     serverService.getHeapDumpContent(heapId, offset, toRead, clusterNode);
+                  output.write(buffer);
+                  offset += buffer.length;
+               }
+            }
+
+            ExternalStorageService.getInstance().write("heapdump/" + fileName, file.toPath(), null);
+         }
+         catch(Exception e) {
+            LOG.error("Failed to get heap dump: " + e.getMessage(), e);
+         }
+         finally {
+            if(file != null && file.exists()) {
+               Tool.deleteFile(file);
             }
          }
       }
@@ -554,11 +586,7 @@ public class ServerMonitoringController {
                                .build());
       }
 
-      String[] scheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
-
-      if(scheduleServers == null) {
-         scheduleServers = new String[0];
-      }
+      String[] scheduleServers = getScheduleServers();
 
       for(String scheduleServer : scheduleServers) {
          if(ScheduleClient.getScheduleClient().isReady(scheduleServer)) {
@@ -604,12 +632,7 @@ public class ServerMonitoringController {
       Catalog catalog = Catalog.getCatalog();
       boolean clusterEnabled = "server_cluster".equals(SreeEnv.getProperty("server.type"));
       Set<String> clusterNodes = getServerClusterNodes();
-      String[] scheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
-
-      if(scheduleServers == null) {
-         scheduleServers = new String[0];
-      }
-
+      String[] scheduleServers = getScheduleServers();
       MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
       long max = 0L;
 
@@ -726,15 +749,17 @@ public class ServerMonitoringController {
 
          title = catalog.getString("GC Count");
 
-         for(int i = 1; i < data[0].length; i++) {
-            final int index = i;
-            long max0 = Arrays.stream(data)
-               .skip(1L)
-               .mapToLong(r -> safeMapToLong(r[index]))
-               .max()
-               .orElse(1L);
+         if(data != null) {
+            for(int i = 1; i < data[0].length; i++) {
+               final int index = i;
+               long max0 = Arrays.stream(data)
+                  .skip(1L)
+                  .mapToLong(r -> safeMapToLong(r[index]))
+                  .max()
+                  .orElse(1L);
 
-            max = Math.max(max, max0);
+               max = Math.max(max, max0);
+            }
          }
       }
       else if("gcTime".equals(imageId)) {
@@ -770,7 +795,7 @@ public class ServerMonitoringController {
 
          title = catalog.getString("GC Time");
 
-         for(int i = 1; i < data[0].length; i++) {
+         for(int i = 1; i < (data != null ? data[0].length : 0); i++) {
             final int index = i;
             long max0 = Arrays.stream(data)
                .skip(1L)
@@ -1004,6 +1029,20 @@ public class ServerMonitoringController {
       return n == null ? 0 : (Integer) n;
    }
 
+   private String[] getScheduleServers() {
+      String[] scheduleServers = null;
+
+      if(!scheduleCluster) {
+         scheduleServers = ScheduleClient.getScheduleClient().getScheduleServers();
+      }
+
+      if(scheduleServers == null) {
+         scheduleServers = new String[0];
+      }
+
+      return scheduleServers;
+   }
+
    private final ServerService serverService;
    private final MonitoringDataService monitoringDataService;
    private final CacheService cacheService;
@@ -1012,6 +1051,8 @@ public class ServerMonitoringController {
    private final SchedulerMonitoringService schedulerMonitoringService;
    private final ServerClusterClient client;
    private final UsageHistoryService usageHistoryService;
+   private final ExternalStorageService externalStorageService;
+   private final boolean scheduleCluster;
    private static final String[] COLOR_PALETTE = {
       "#5a9bd4", "#f15a60", "#7ac36a",
       "#737373", "#faa75b", "#9e67ab",

@@ -33,9 +33,7 @@ import inetsoft.report.StyleConstants;
 import inetsoft.report.StyleFont;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.PortalThemesManager;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.OrganizationManager;
-import inetsoft.sree.security.SRPrincipal;
+import inetsoft.sree.security.*;
 import inetsoft.uql.viewsheet.BorderColors;
 import inetsoft.util.*;
 import org.apache.commons.lang3.SystemUtils;
@@ -148,15 +146,8 @@ public class CSSDictionary {
     */
    public static CSSDictionary getDictionary(String cssDir, String cssFile, boolean isReport) {
       final MapKey key;
-      IdentityID user = null;
       final Principal contextPrincipal = ThreadContext.getContextPrincipal();
-
-      if(contextPrincipal instanceof SRPrincipal) {
-         final SRPrincipal srPrincipal = (SRPrincipal) contextPrincipal;
-         user = srPrincipal.getClientUserID();
-      }
-
-      key = new MapKey(cssDir, cssFile, isReport, user);
+      key = new MapKey(cssDir, cssFile, isReport, OrganizationManager.getInstance().getCurrentOrgID());
 
       Map<MapKey, CSSDictionary> map;
       CSSDictionary dictionary;
@@ -222,10 +213,9 @@ public class CSSDictionary {
 
                if(!isReport) {
                   if(contextPrincipal instanceof SRPrincipal) {
-                     final SRPrincipal srPrincipal = (SRPrincipal) contextPrincipal;
                      final PortalThemesManager manager = PortalThemesManager.getManager();
                      final Map<String, String> cssEntries = manager.getCssEntries();
-                     final String orgFile = cssEntries.get(OrganizationManager.getCurrentOrgName());
+                     final String orgFile = cssEntries.get(OrganizationManager.getInstance().getCurrentOrgID());
 
                      if(orgFile != null) {
                         cssFiles.add(orgFile);
@@ -2189,16 +2179,16 @@ public class CSSDictionary {
    }
 
    private static final class MapKey {
-      MapKey(String cssDir, String cssFile, boolean isReport, IdentityID user) {
+      MapKey(String cssDir, String cssFile, boolean isReport, String orgId) {
          this.cssDir = cssDir;
          this.cssFile = cssFile;
          this.isReport = isReport;
-         this.user = user;
+         this.orgId = orgId;
       }
 
       @Override
       public String toString() {
-         return "(" + cssDir + "," + cssFile + "," + user+ ")";
+         return "(" + cssDir + "," + cssFile + "," + orgId+ ")";
       }
 
       @Override
@@ -2212,20 +2202,20 @@ public class CSSDictionary {
          }
 
          MapKey mapKey = (MapKey) o;
-         return (isReport == mapKey.isReport && Objects.equals(user, mapKey.user) || !isReport) &&
+         return (isReport == mapKey.isReport && Objects.equals(orgId, mapKey.orgId) || !isReport) &&
             Objects.equals(cssDir, mapKey.cssDir) &&
             Objects.equals(cssFile, mapKey.cssFile);
       }
 
       @Override
       public int hashCode() {
-         return Objects.hash(cssDir, cssFile, isReport, user);
+         return Objects.hash(cssDir, cssFile, isReport, orgId);
       }
 
       private final String cssDir;
       private final String cssFile;
       private final boolean isReport;
-      private final IdentityID user;
+      private final String orgId;
    }
 
    private long ts; // last modified timestamp

@@ -61,7 +61,7 @@ public class EMScheduleBatchActionController {
 
    @GetMapping("/api/em/schedule/batch-action/scheduled-tasks")
    public ScheduleTaskList getScheduledTasks(
-      @RequestParam("taskName") String taskName,
+      @RequestParam("taskName") String taskId,
       @PermissionUser Principal principal) throws Exception
    {
       Catalog catalog = Catalog.getCatalog(principal);
@@ -74,7 +74,7 @@ public class EMScheduleBatchActionController {
       List<ScheduleTaskModel> taskModels = new ArrayList<>();
 
       for(ScheduleTask task : tasks) {
-         if(Tool.equals(taskName, task.getName())) {
+         if(Tool.equals(taskId, task.getTaskId())) {
             continue;
          }
 
@@ -83,22 +83,22 @@ public class EMScheduleBatchActionController {
          {
             ScheduleTaskModel.Builder taskBuilder = ScheduleTaskModel.builder()
                .fromTask(task, scheduleService, catalog);
-            String name = task.getName();
-            String label = name;
+            String id = task.getTaskId();
+            String label = id;
 
             if(!LicenseManager.getInstance().isEnterprise()) {
-               int index = name.indexOf(":");
+               int index = id.indexOf(":");
 
                if(index != -1) {
-                  String userId = name.substring(0, index);
+                  String userId = id.substring(0, index);
 
                   if(userId != null && userId.contains(IdentityID.KEY_DELIMITER)) {
                      IdentityID identityID = IdentityID.getIdentityIDFromKey(userId);
-                     label = identityID.getName() + ":" + name.substring(index + 1);
+                     label = identityID.getName() + ":" + id.substring(index + 1);
                   }
                }
                else {
-                  label = name;
+                  label = id;
                }
             }
 

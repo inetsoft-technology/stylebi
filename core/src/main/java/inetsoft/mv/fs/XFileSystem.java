@@ -81,6 +81,11 @@ public interface XFileSystem {
    boolean rename(String from, String to);
 
    /**
+    * Rename one XFile.
+    */
+   boolean rename(String from, String fromOrgId, String to, String toOrgId, boolean keepGlobalFile);
+
+   /**
     * Remove the XFile for the given name.
     */
    boolean remove(String name);
@@ -121,4 +126,7 @@ public interface XFileSystem {
     * Updates the in-memory cache from the configuration file.
     */
    void refresh(XBlockSystem bsys, boolean force);
+
+   default void copyTo(XFileSystem target) {
+   }
 }

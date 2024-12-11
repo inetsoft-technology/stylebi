@@ -138,7 +138,7 @@ public class SRIdentityFinder implements XIdentityFinder {
 
       for(String agroup : identity.getGroups()) {
          if(agroup.equals(group) ||
-            isParentGroup(new Group(new IdentityID(agroup, identity.getOrganization())), group, provider))
+            isParentGroup(new Group(new IdentityID(agroup, identity.getOrganizationID())), group, provider))
          {
             return true;
          }
@@ -202,7 +202,7 @@ public class SRIdentityFinder implements XIdentityFinder {
       String[] groups = identity.getGroups();
 
       for(int i = 0; groups != null && i < groups.length; i++) {
-         getRoles(new DefaultIdentity(groups[i], OrganizationManager.getCurrentOrgName(),
+         getRoles(new DefaultIdentity(groups[i], OrganizationManager.getInstance().getCurrentOrgID(),
             Identity.GROUP), set, provider);
       }
    }
@@ -233,14 +233,14 @@ public class SRIdentityFinder implements XIdentityFinder {
       String[] groups = identity.getGroups();
 
       for(int i = 0; groups != null && i < groups.length; i++) {
-         getGroups(new DefaultIdentity(groups[i], OrganizationManager.getCurrentOrgName(),
+         getGroups(new DefaultIdentity(groups[i], OrganizationManager.getInstance().getCurrentOrgID(),
             Identity.GROUP), set, provider);
       }
    }
 
    @Override
    public String getUserOrganizationId(Principal user) {
-      return user == null ? null : getOrgId(IdentityID.getIdentityIDFromKey(user.getName()).organization);
+      return user == null ? null : IdentityID.getIdentityIDFromKey(user.getName()).orgID;
    }
 //
 //   public String getOrganization(String orgName) {
@@ -276,7 +276,12 @@ public class SRIdentityFinder implements XIdentityFinder {
          return null;
       }
 
-      return provider.getOrganization(orgName).getId();
+      for(String oid : provider.getOrganizationIDs()) {
+         if(provider.getOrganization(oid).getName().equals(orgName)) {
+            return oid;
+         }
+      }
+      return null;
    }
 
    /**
@@ -294,7 +299,7 @@ public class SRIdentityFinder implements XIdentityFinder {
       }
 
       if(provider == null) {
-         return new IdentityID[] {new IdentityID("anonymous", Organization.getDefaultOrganizationName())};
+         return new IdentityID[] {new IdentityID("anonymous", Organization.getDefaultOrganizationID())};
       }
 
       return provider.getUsers();

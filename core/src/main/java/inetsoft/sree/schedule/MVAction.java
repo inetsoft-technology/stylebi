@@ -253,7 +253,7 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable {
 
          if(createInScheduler) {
             MVCallable creator = new MVCallable(mv, principal);
-            Future<String> future = Cluster.getInstance().submit(creator);
+            Future<String> future = Cluster.getInstance().submit(creator, true);
             String message = future.get();
 
             if(message != null) {
@@ -264,12 +264,16 @@ public class MVAction implements AssetSupport, Cloneable, XMLSerializable {
                thisMv.setUpdated(exists);
             }
          }
-         else if(createMV0(mv)) {
-            thisMv.setSuccess(true);
-            thisMv.setUpdated(exists);
+         else {
+            FSService.refresh();
 
-            if(thisMv.isSuccess()) {
-               ClusterUtil.setUp();
+            if(createMV0(mv)) {
+               thisMv.setSuccess(true);
+               thisMv.setUpdated(exists);
+
+               if(thisMv.isSuccess()) {
+                  ClusterUtil.setUp();
+               }
             }
          }
       }

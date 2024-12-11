@@ -87,42 +87,51 @@ public abstract class AbstractSecurityProvider implements SecurityProvider {
    }
 
    /**
-    * Gets a list of all Organizations in the system.
+    * Gets a list of all Organization ids in the system.
     *
     * @return an array of Organizations.
     */
    @Override
-   public String[] getOrganizations() {
-      return authentication.getOrganizations();
+   public String[] getOrganizationIDs() {
+      return authentication.getOrganizationIDs();
    }
 
    /**
-    * Get an Organization by name.
+    * Gets a list of all Organization names in the system.
     *
-    * @param name the unique identifier of the Organization.
+    * @return an array of Organizations.
+    */
+   @Override
+   public String[] getOrganizationNames() {
+      return authentication.getOrganizationNames();
+   }
+
+   /**
+    * Get an Organization by id.
+    *
+    * @param id the unique identifier of the Organization.
     *
     * @return the Organization object that encapsulates the properties of the organization.
     */
    @Override
-   public Organization getOrganization(String name) {
-      return authentication.getOrganization(name);
+   public Organization getOrganization(String id) {
+      return authentication.getOrganization(id);
    }
 
    @Override
-   public String getOrgId(String name) {
-      return getOrganization(name) == null ? Organization.getDefaultOrganizationID() :
-                                             getOrganization(name).getId();
+   public String getOrgIdFromName(String name) {
+      for(String oid : getOrganizationIDs()) {
+         if(getOrganization(oid).getName().equals(name)) {
+            return oid;
+         }
+      }
+      return null;
    }
 
    @Override
    public String getOrgNameFromID(String id) {
-      for(String org : getOrganizations()) {
-         if(getOrganization(org) != null && getOrganization(org).getId() != null &&
-               getOrganization(org).getId().equalsIgnoreCase(id)) {
-            return org;
-         }
-      }
-      return null;
+      return id == null || getOrganization(id) == null ? null : getOrganization(id).name;
+
    }
 
    /**
@@ -234,8 +243,8 @@ public abstract class AbstractSecurityProvider implements SecurityProvider {
    }
 
    @Override
-   public String[] getOrganizationMembers(String organization) {
-      return authentication.getOrganizationMembers(organization);
+   public String[] getOrganizationMembers(String organizationID) {
+      return authentication.getOrganizationMembers(organizationID);
    }
 
    @Override

@@ -541,7 +541,7 @@ public class PainterElementDef extends BaseElement
          TextLens lens = ((TextPainter) painter).getTextLens();
 
          // check if this text as {P} tag and the page number is < 1, skip
-         if(!false && (lens instanceof HeaderTextLens) &&
+         if((lens instanceof HeaderTextLens) &&
             (lens.getText().toUpperCase().indexOf("{P}") >= 0 ||
             lens.getText().toUpperCase().indexOf("{P,") >= 0))
          {
@@ -924,7 +924,7 @@ public class PainterElementDef extends BaseElement
       s.defaultReadObject();
 
       try {
-         if(s.readBoolean() == true) {
+         if(s.readBoolean()) {
             anchorElem = new BaseElement();
             ((BaseElement) anchorElem).readObjectMin(s);
             anchorElem = (ReportElement) ObjectCache.get(anchorElem);

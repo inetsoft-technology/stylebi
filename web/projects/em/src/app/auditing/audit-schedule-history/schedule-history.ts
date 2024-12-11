@@ -20,9 +20,10 @@ import { AuditRecordList, AuditRecordParameters } from "../audit-table-view/audi
 
 export interface ScheduleHistoryParameters extends AuditRecordParameters {
    tasks: AssetModel[];
+   users: string[];
    hosts: string[];
    folders: string[];
-   organizations: string[];
+   organizationFilter: boolean;
 }
 
 export interface ScheduleHistory {
@@ -35,6 +36,7 @@ export interface ScheduleHistory {
    message: string;
    server: string;
    organizationId: string;
+   dateFormat: string;
 }
 
 export interface ScheduleHistoryList extends AuditRecordList<ScheduleHistory> {

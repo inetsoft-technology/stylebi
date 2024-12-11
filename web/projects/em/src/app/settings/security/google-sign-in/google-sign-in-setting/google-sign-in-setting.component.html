@@ -1,0 +1,18 @@
+<em-editor-panel (applyClicked)="submit()" (resetClicked)="reset()" [applyDisabled]="!changed" [resetDisabled]="!changed">
+  <div class="em-content-container">
+    <mat-card appearance="outlined" class="em-card">
+      <mat-card-content>
+        <mat-slide-toggle class="mat-checkbox-field" [checked]="model?.enable" (change)="toggle()">
+          _#(Enable)
+        </mat-slide-toggle>
+        <ng-container *ngIf="model?.enable">
+          <em-openid-settings-form [googleSignIn]="true"
+                                   [cloudSecrets]="model.cloudSecrets"
+                                   [model]="model.openIdAttributesModel"
+                                   (modelChange)="modelChanged($event)">
+          </em-openid-settings-form>
+        </ng-container>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</em-editor-panel>

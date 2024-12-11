@@ -57,22 +57,27 @@ export class RepositoryTreeService implements OnDestroy {
                  checkDetailType: boolean = false,
                  isReport: boolean = true,
                  isGlobal: boolean = false,
-                 showBurstReport: boolean = true): Observable<TreeNodeModel>
+                 showBurstReport: boolean = true,
+                 isPortalRepo: boolean = false,
+                 isDefaultOrgAsset: boolean = false): Observable<TreeNodeModel>
    {
       return this.getFolder("/", permission, selector, detailType, isFavoritesTree, null,
-         checkDetailType, isReport, isGlobal, false, false, showBurstReport);
+         checkDetailType, isReport, isGlobal, false, false, showBurstReport, isPortalRepo, isDefaultOrgAsset);
    }
 
    getFolder(path: string, permission?: ResourceAction, selector?: number,
              detailType?: string, isFavoritesTree?: boolean, isArchive?: boolean,
              checkDetailType: boolean = false,
-             isReport: boolean = true, isGlobal: boolean = false,
-             isPortalData = false, showVS: boolean = false, showBurstReport: boolean = true): Observable<TreeNodeModel>
+             isReport: boolean = true, isGlobal: boolean = false, isPortalData = false,
+             showVS: boolean = false, showBurstReport: boolean = true, isPortalRepo: boolean = false,
+             isDefaultOrgAsset: boolean = false): Observable<TreeNodeModel>
    {
       let params = new HttpParams()
          .set("path", path)
          .set("checkDetailType", checkDetailType + "")
          .set("isReport", isReport + "")
+         .set("isPortalRepo", isPortalRepo + "")
+         .set("isDefaultOrgAsset", isDefaultOrgAsset + "")
          .set("showBurstReport", showBurstReport + "");
 
       if(permission) {

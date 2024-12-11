@@ -37,10 +37,10 @@ import { ModelService } from "../../widget/services/model.service";
 import { ProfileTableDataEvent } from "../model/profile-table-data-event";
 import { DownloadService } from "../../../../../shared/download/download.service";
 
-const GET_PROFILE_CHART: string = "../portal/profile/image";
-const GET_PROFILE_TABLE_URL = "../portal/profile/table";
-const GET_PROFILE_GROUPBY = "../portal/profile/group-by";
-const GET_PROFILE_EXPORT = "../portal/profile/table-export";
+const GET_PROFILE_CHART: string = "../api/image/portal/profile/image";
+const GET_PROFILE_TABLE_URL = "../api/portal/profile/table";
+const GET_PROFILE_GROUPBY = "../api/portal/profile/group-by";
+const GET_PROFILE_EXPORT = "../api/portal/profile/table-export";
 
 interface GroupByField {
    label: string;

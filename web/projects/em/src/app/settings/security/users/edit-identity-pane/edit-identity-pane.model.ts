@@ -47,10 +47,12 @@ export interface EditUserPaneModel extends EditIdentityPaneModel {
    password?: string;
    currentUser: boolean;
    localesList: string[];
+   supportChangePassword?: boolean;
 }
 
 export interface EditIdentityPaneModel {
    name: string;
+   label?: string;
    organization: string;
    root: boolean;
    identityNames: IdentityId[];

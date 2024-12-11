@@ -72,7 +72,7 @@ public class ViewsheetMonitorController extends AbstractMonitoringController {
       });
    }
 
-   @PostMapping("/em/monitoring/viewsheets/remove/**")
+   @PostMapping("/api/em/monitoring/viewsheets/remove/**")
    public void closeViewsheets(@RemainingPath String server,
                                @RequestBody() String[] viewsheetIds) throws Exception
    {

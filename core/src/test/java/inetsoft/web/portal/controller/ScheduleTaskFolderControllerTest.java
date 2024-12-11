@@ -55,7 +55,7 @@ class ScheduleTaskFolderControllerTest {
       ScheduleService scheduleService = Mockito.mock(ScheduleService.class);
       scheduleTaskFolderController = new ScheduleTaskFolderController(scheduleTaskFolderService, scheduleService);
 
-      admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationName()), new IdentityID[] { new IdentityID("Administrator", null)}, new String[0], "host_org",
+      admin = new SRPrincipal(new IdentityID("admin", Organization.getDefaultOrganizationID()), new IdentityID[] { new IdentityID("Administrator", null)}, new String[0], "host_org",
                               Tool.getSecureRandom().nextLong());
    }
 
@@ -73,7 +73,7 @@ class ScheduleTaskFolderControllerTest {
    void checkAddTaskFolderAction() throws Exception {
       NewTaskFolderEvent newTaskFolderEvent = new NewTaskFolderEvent();
       newTaskFolderEvent.setParent(new AssetEntry(AssetRepository.GLOBAL_SCOPE,
-                                                  AssetEntry.Type.SCHEDULE_TASK_FOLDER, "/", new IdentityID("admin", Organization.getDefaultOrganizationName())));
+                                                  AssetEntry.Type.SCHEDULE_TASK_FOLDER, "/", new IdentityID("admin", Organization.getDefaultOrganizationID())));
       newTaskFolderEvent.setFolderName("f1");
       boolean isDuplacate = scheduleTaskFolderController.checkAddItemDuplicate(newTaskFolderEvent, admin).isDuplicate();
 
@@ -87,7 +87,7 @@ class ScheduleTaskFolderControllerTest {
          .folderName("f1_new")
          .oldPath("f1")
          .adminName("admin")
-         .owner(new IdentityID("admin", Organization.getDefaultOrganizationName()))
+         .owner(new IdentityID("admin", Organization.getDefaultOrganizationID()))
          .securityEnabled(true)
          .build();
       scheduleTaskFolderController.renameFolder(editTaskFolderDialogModel, admin);

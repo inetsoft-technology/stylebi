@@ -24,9 +24,10 @@ import { MatTableModule } from "@angular/material/table";
 import { FormsModule } from "@angular/forms";
 import { CommonModule } from "@angular/common";
 import { NgModule } from "@angular/core";
+import { LocalizedMatPaginator } from "../../../../../../shared/util/localized-mat-paginator";
 import { SecurityTableViewComponent } from "./security-table-view.component";
 import { SecurityTreeDialogModule } from "../security-tree-dialog/security-tree-dialog.module";
-import { MatPaginatorModule } from "@angular/material/paginator";
+import { MatPaginatorIntl, MatPaginatorModule } from "@angular/material/paginator";
 @NgModule({
    imports: [
       CommonModule,
@@ -45,6 +46,12 @@ import { MatPaginatorModule } from "@angular/material/paginator";
    ],
    declarations: [
       SecurityTableViewComponent
+   ],
+   providers: [
+      {
+         provide: MatPaginatorIntl,
+         useClass: LocalizedMatPaginator
+      }
    ]
 })
 export class SecurityTableViewModule {

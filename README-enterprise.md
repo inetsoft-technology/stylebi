@@ -12,6 +12,11 @@ you have the `JAVA_HOME` environment variable set correctly.
 
 ## Initial Setup
 
+If you are viewing this file directly on the Git server, to check out this project:
+
+* Create a new project from version control in Intellij or run `git clone https://USERNAME@repo.inetsoft.com/stylebi/stylebi --recurse-modules`
+* In the project root directory, run `git submodule foreach git switch master`
+
 Make sure you have a [GitHub account](https://github.com/signup). Create a [classic personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens).
 
 Create the `~/.m2/settings.xml` file with the following, replacing `YOUR_GITHUB_UESRNAME` and `YOUR_GITHUB_ACCESS_TOKEN` with your GitHub username and access token, respectively:

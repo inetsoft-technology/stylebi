@@ -62,6 +62,15 @@ const routes: Routes = [
             }
          },
          {
+            path: "googleSignIn",
+            loadChildren: () => import("./google-sign-in/google-sign-in.module").then(m => m.GoogleSignInModule),
+            canActivate: [AuthorizationGuard],
+            data: {
+               permissionParentPath: "settings/security",
+               permissionChild: "googleSignIn"
+            }
+         },
+         {
             path: "**",
             redirectTo: "provider"
          }

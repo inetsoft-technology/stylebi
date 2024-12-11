@@ -44,6 +44,7 @@ export class VsBookmarkPaneComponent implements OnInit {
    @Input() saveCurrentBookmarkDisabled;
    @Input() setDefaultBookmarkDisabled;
    @Input() principal: string;
+   @Input() isDefaultOrgAsset: boolean;
    @Output() onSetDefaultBookmark: EventEmitter<VSBookmarkInfoModel> = new EventEmitter<VSBookmarkInfoModel>();
    @Output() onEditBookmark: EventEmitter<VSBookmarkInfoModel> = new EventEmitter<VSBookmarkInfoModel>();
    @Output() onDeleteBookmark: EventEmitter<VSBookmarkInfoModel> = new EventEmitter<VSBookmarkInfoModel>();

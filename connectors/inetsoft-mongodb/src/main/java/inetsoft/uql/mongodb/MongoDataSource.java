@@ -20,6 +20,7 @@ package inetsoft.uql.mongodb;
 import com.mongodb.*;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -36,16 +37,23 @@ import java.util.stream.Collectors;
       @View1("SSL"),
       @View1("replicaSet"),
       @View1("DB"),
+      @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+      @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
       @View1(type=ViewType.LABEL, text="mongodb.credentials.instructions", col=1, paddingLeft=3),
-      @View1("user"),
-      @View1("password"),
-      @View1("authDB")
+      @View1(value = "user", visibleMethod = "useCredential"),
+      @View1(value = "password", visibleMethod = "useCredential"),
+      @View1(value = "authDB", visibleMethod = "useCredential")
    })
 public class MongoDataSource extends TabularDataSource<MongoDataSource> {
    public static final String TYPE = "Mongo";
 
    public MongoDataSource() {
       super(TYPE, MongoDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD;
    }
 
    @Property(label="Host")
@@ -77,24 +85,27 @@ public class MongoDataSource extends TabularDataSource<MongoDataSource> {
    }
 
    @Property(label="User")
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getUser() {
-      return user;
+      return ((PasswordCredential) getCredential()).getUser();
    }
 
    public void setUser(String user) {
-      this.user = user;
+      ((PasswordCredential) getCredential()).setUser(user);
    }
 
    @Property(label="Password", password=true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getPassword() {
-      return password;
+      return ((PasswordCredential) getCredential()).getPassword();
    }
 
    public void setPassword(String password) {
-      this.password = password;
+      ((PasswordCredential) getCredential()).setPassword(password);
    }
 
    @Property(label="Authentication Database")
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getAuthDB() {
       return authDB;
    }
@@ -157,14 +168,14 @@ public class MongoDataSource extends TabularDataSource<MongoDataSource> {
       MongoClient client;
       MongoCredential credential = null;
 
-      if(user != null && user.length() > 0 && password != null) {
+      if(getUser() != null && getUser().length() > 0 && getPassword() != null) {
          String authDB = this.authDB;
 
          if(authDB == null) {
             authDB = (this.db == null) ? "admin" : this.db;
          }
 
-         credential = MongoCredential.createCredential(user, authDB, password.toCharArray());
+         credential = MongoCredential.createCredential(getUser(), authDB, getPassword().toCharArray());
       }
 
       MongoClientOptions.Builder options = new MongoClientOptions.Builder();
@@ -223,15 +234,6 @@ public class MongoDataSource extends TabularDataSource<MongoDataSource> {
          writer.println("<host><![CDATA[" + host + "]]></host>");
       }
 
-      if(user != null) {
-         writer.println("<user><![CDATA[" + user + "]]></user>");
-      }
-
-      if(password != null) {
-         writer.println("<password><![CDATA[" + Tool.encryptPassword(password) +
-                        "]]></password>");
-      }
-
       if(authDB != null) {
          writer.println("<authDB><![CDATA[" + authDB + "]]></authDB>");
       }
@@ -263,9 +265,7 @@ public class MongoDataSource extends TabularDataSource<MongoDataSource> {
       host = Tool.getChildValueByTagName(root, "host");
       db = Tool.getChildValueByTagName(root, "db");
       authDB = Tool.getChildValueByTagName(root, "authDB");
-      user = Tool.getChildValueByTagName(root, "user");
       replicaSet = Tool.getChildValueByTagName(root, "replicaSet");
-      password = Tool.decryptPassword(Tool.getChildValueByTagName(root, "password"));
    }
 
    @Override
@@ -275,8 +275,7 @@ public class MongoDataSource extends TabularDataSource<MongoDataSource> {
 
          return Objects.equals(host, dx.host) &&
             Objects.equals(db, dx.db) &&
-            Objects.equals(user, dx.user) &&
-            Objects.equals(password, dx.password) &&
+            Objects.equals(getCredential(), dx.getCredential()) &&
             Objects.equals(authDB, dx.authDB) &&
             Objects.equals(replicaSet, dx.replicaSet) &&
             port == dx.port && ssl == dx.ssl;
@@ -289,11 +288,8 @@ public class MongoDataSource extends TabularDataSource<MongoDataSource> {
    private String host;
    private int port = 27017;
    private String db;
-   private String user;
-   private String password;
    private String authDB;
    private boolean ssl;
    private String replicaSet;
-
    private static final Logger LOG = LoggerFactory.getLogger(MongoDataSource.class.getName());
 }

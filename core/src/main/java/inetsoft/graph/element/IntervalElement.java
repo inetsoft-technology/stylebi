@@ -236,11 +236,12 @@ public class IntervalElement extends StackableElement {
             }
 
             double interval2;
+            double from;
 
             switch(coord.getDimCount()) {
             case 1:
                interval = coord.getValue(tuple, 0);
-               double from = (interval < base && negGrp) ? negtop : top;
+               from = (interval < base && negGrp) ? negtop : top;
                vtuple = new double[] {getBase(scale, from)};
                interval2 = getInterval(scale, from, interval, base, first);
                gobj = new IntervalGeometry(this, graph, vname, i, vmodel, vtuple, interval2);

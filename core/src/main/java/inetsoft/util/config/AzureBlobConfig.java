@@ -19,6 +19,7 @@ package inetsoft.util.config;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.util.config.crd.CRDProperty;
 import inetsoft.util.config.json.PasswordDeserializer;
 import inetsoft.util.config.json.PasswordSerializer;
 
@@ -67,7 +68,10 @@ public class AzureBlobConfig implements Serializable  {
       this.container = container;
    }
 
+   @CRDProperty(description = "The connection string for the web service", secret = true)
    private String connectionString;
+   @CRDProperty(description = "The endpoint for the web service using the default Azure credential")
    private String endpoint;
+   @CRDProperty(description = "The name of the container")
    private String container;
 }

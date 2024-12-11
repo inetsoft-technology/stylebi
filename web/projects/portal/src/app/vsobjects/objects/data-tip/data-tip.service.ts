@@ -280,6 +280,10 @@ export class DataTipService {
       return this.hasDataTipShowing() && name && name == this._parentName;
    }
 
+   public isDataTipShow(name: string) {
+      return this._dataTipName != null && name != null && this._dataTipName == name;
+   }
+
    public hasDataTipShowing(): boolean {
       return !!this._dataTipName && this.isDataTipVisible(this._dataTipName);
    }

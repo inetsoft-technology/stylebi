@@ -102,7 +102,7 @@ public abstract class AbstractIdentity implements Identity {
     * Get the organization ID assigned to the identity
     */
    @Override
-   public String getOrganization() {
+   public String getOrganizationID() {
       return null;
    }
 
@@ -111,7 +111,7 @@ public abstract class AbstractIdentity implements Identity {
     * @return the string representation.
     */
    public String toString() {
-      return "Identity:[" + getName() + "," + getType() + "," + getOrganization() + "]";
+      return "Identity:[" + getName() + "," + getType() + "," + getOrganizationID() + "]";
    }
 
    /**

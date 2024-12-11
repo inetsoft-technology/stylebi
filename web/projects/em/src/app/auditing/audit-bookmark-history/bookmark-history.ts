@@ -43,6 +43,7 @@ export interface BookmarkHistory {
    activeStatus: string;
    server: string;
    organization: string;
+   dateFormat: string;
 }
 
 export interface BookmarkHistoryList extends AuditRecordList<BookmarkHistory> {

@@ -15,14 +15,10 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<div class="modal-header">
-  <h3 class="modal-title">_#(Schedule)</h3>
-  <div class="d-flex align-items-center">
-    <i [helpLink]="isReport ? 'ScheduleReport' : 'ScheduleDashboard'" tabindex="0"
-       aria-label="_#(Help Information)" role="link" enterClick></i>
-    <button type="button" class="btn-close" (click)="cancel()" aria-label="_#(Close)" title="_#(Close)"></button>
-  </div>
-</div>
+<modal-header [title]="'_#(Schedule)'"
+              [cshid]="isReport ? 'ScheduleReport' : 'ScheduleDashboard'"
+              (onCancel)="cancel()">
+</modal-header>
 <div class="modal-body" enterSubmit (onEnter)="ok()">
   <form (submit)="$event.preventDefault()" class="container-fluid" [formGroup]="form">
     <fieldset>
@@ -184,39 +180,42 @@
                   [disabled]="!model.userDialogEnabled && !isReport" aria-label="_#(Email Browser)">...</button>
         </div>
       </div>
-      <div class="form-row-float-label row">
-        <div class="col">
-          <div class="form-check">
-            <input type="radio" name="emailFreq" class="form-check-input" id="daily"
-                 [value]="TimeConditionType.EVERY_DAY" [ngModelOptions]="{standalone: true}"
-                 [(ngModel)]="model.timeConditionModel.type">
-            <label class="form-check-label" for="daily">
-              _#(Daily)
-            </label>
-          </div>
-        </div>
-        <div class="col">
-          <div class="form-check">
-            <input type="radio" name="emailFreq" class="form-check-input" id="weekly"
-                 [value]="TimeConditionType.EVERY_WEEK" [ngModelOptions]="{standalone: true}"
-                 [(ngModel)]="model.timeConditionModel.type">
-            <label class="form-check-label" for="weekly">
-              _#(Weekly)
-            </label>
-          </div>
-        </div>
-        <div class="col">
-          <div class="form-check">
-            <input type="radio" name="emailFreq" class="form-check-input" id="monthly"
-                   [value]="TimeConditionType.EVERY_MONTH" [ngModelOptions]="{standalone: true}"
-                   [(ngModel)]="model.timeConditionModel.type"
-                   (click)="selectConditionType(TimeConditionType.EVERY_MONTH)">
-            <label class="form-check-label" for="monthly">_#(Monthly)</label>
-          </div>
-        </div>
-      </div>
     </fieldset>
     </div>
+
+    <fieldset>
+      <div class="form-row-float-label row">
+      <div class="col">
+        <div class="form-check">
+          <input type="radio" name="emailFreq" class="form-check-input" id="daily"
+                 [value]="TimeConditionType.EVERY_DAY" [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.timeConditionModel.type">
+          <label class="form-check-label" for="daily">
+            _#(Daily)
+          </label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-check">
+          <input type="radio" name="emailFreq" class="form-check-input" id="weekly"
+                 [value]="TimeConditionType.EVERY_WEEK" [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.timeConditionModel.type">
+          <label class="form-check-label" for="weekly">
+            _#(Weekly)
+          </label>
+        </div>
+      </div>
+      <div class="col">
+        <div class="form-check">
+          <input type="radio" name="emailFreq" class="form-check-input" id="monthly"
+                 [value]="TimeConditionType.EVERY_MONTH" [ngModelOptions]="{standalone: true}"
+                 [(ngModel)]="model.timeConditionModel.type"
+                 (ngModelChange)="selectConditionType(TimeConditionType.EVERY_MONTH)">
+          <label class="form-check-label" for="monthly">_#(Monthly)</label>
+        </div>
+      </div>
+    </div>
+    </fieldset>
 
     <fieldset>
       <w-start-time-editor
@@ -368,7 +367,7 @@
   </form>
 </div>
 <div class="modal-footer">
-  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!!form && !form.valid" #okButton>_#(Finish)</button>
+  <button type="button" class="btn btn-primary" (click)="ok()" [disabled]="!!form && !form.valid || isEmptyTable()" #okButton>_#(Finish)</button>
   <button type="button" class="btn btn-default" (click)="cancel()">_#(Cancel)</button>
 </div>
 

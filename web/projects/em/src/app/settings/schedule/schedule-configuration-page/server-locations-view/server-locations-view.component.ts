@@ -36,8 +36,8 @@ import { ServerLocationEditorComponent } from "../server-location-editor/server-
    styleUrls: ["./server-locations-view.component.scss"]
 })
 export class ServerLocationsViewComponent implements OnInit, OnChanges {
-   @Output()
-   serverLocationsChange = new EventEmitter<ServerLocation[]>();
+   @Input() cloudSecrets: boolean;
+   @Output() serverLocationsChange = new EventEmitter<ServerLocation[]>();
 
    @Input()
    get serverLocations(): ServerLocation[] {
@@ -60,6 +60,10 @@ export class ServerLocationsViewComponent implements OnInit, OnChanges {
 
    ngOnInit(): void {
       this.displayedColumns = ["select", "label", "path", "username", "password"];
+
+      if(this.cloudSecrets) {
+         this.displayedColumns.push("secretId");
+      }
    }
 
    ngOnChanges(changes: SimpleChanges): void {
@@ -112,7 +116,8 @@ export class ServerLocationsViewComponent implements OnInit, OnChanges {
          disableClose: true,
          data: {
             location: oldLocation || this.createServerLocation(),
-            locations: this.serverLocations
+            locations: this.serverLocations,
+            cloudSecrets: this.cloudSecrets
          }
       };
       this.dialog.open(ServerLocationEditorComponent, config).afterClosed().subscribe(
@@ -136,5 +141,9 @@ export class ServerLocationsViewComponent implements OnInit, OnChanges {
          label: null,
          path: null
       };
+   }
+
+   maskPassword(password: string): string {
+      return password ? "*".repeat(password.length) : "";
    }
 }

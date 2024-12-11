@@ -190,6 +190,7 @@ export class CalcGroupOption implements OnInit, OnChanges {
                const dialog = ComponentTool.showDialog(this.dialogService, ManualOrderingDialog,
                   (result: string[]) => this.cellBinding.order.manualOrder = result);
                dialog.manualOrders = Tool.clone(this.getSortedManualOrders(res.list));
+               dialog.helpLinkKey = "CreatingFreehandSortandRank";
                dialog.valueLabelList = res.list;
             });
       });

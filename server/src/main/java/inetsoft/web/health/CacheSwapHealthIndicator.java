@@ -19,6 +19,7 @@ package inetsoft.web.health;
 
 import inetsoft.util.health.CacheSwapHealthService;
 import inetsoft.util.health.CacheSwapStatus;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
@@ -34,6 +35,10 @@ public class CacheSwapHealthIndicator implements HealthIndicator {
       CacheSwapStatus status = service.getStatus();
 
       if(status.isCriticalMemory() || status.isExcessiveWaiting()) {
+         LoggerFactory.getLogger(getClass()).error(
+            "CacheSwapHealthIndicator DOWN: criticalMemory={}, criticalMemoryStart={}, excessiveWaiting={}, excessiveWaitingStart={}",
+            status.isCriticalMemory(), status.getCriticalMemoryStart(), status.isExcessiveWaiting(),
+            status.getExcessiveWaitingStart());
          return Health.down()
             .withDetail("criticalMemory", status.isCriticalMemory())
             .withDetail("criticalMemoryStart", status.getCriticalMemoryStart())

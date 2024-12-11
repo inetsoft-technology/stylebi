@@ -114,22 +114,22 @@ public class ImportTaskController {
 
       for(int i=0; i < tasklist.size(); i++) {
          ScheduleTask task = tasklist.get(i);
-         String tname = task.getName();
+         String taskId = task.getTaskId();
          String path = task.getPath();
 
-         ScheduleTask oldTask =  scheduleManager.getScheduleTask(tname);
+         ScheduleTask oldTask =  scheduleManager.getScheduleTask(taskId);
          Boolean taskExists = oldTask != null;
 
          if(taskExists && overwriting && oldTask.isEditable() &&
-            !engine.checkPermission(principal, ResourceType.SCHEDULER, tname, ResourceAction.ACCESS))
+            !engine.checkPermission(principal, ResourceType.SCHEDULER, taskId, ResourceAction.ACCESS))
          {
-            failedList.add(tname);
+            failedList.add(taskId);
             continue;
          }
 
-         if(selectedTasks.contains(tname) && (!taskExists || overwriting)) {
+         if(selectedTasks.contains(taskId) && (!taskExists || overwriting)) {
             updateTaskInfo(task, linkURI);
-            scheduleManager.setScheduleTask(tname, task, principal);
+            scheduleManager.setScheduleTask(taskId, task, principal);
          }
 
          AssetEntry parentEntry = new AssetEntry(
@@ -149,7 +149,7 @@ public class ImportTaskController {
 
    private void moveTask(ScheduleTask task, String path, Principal principal) throws Exception {
       ScheduleTaskModel model = ScheduleTaskModel.builder()
-         .name(task.getName())
+         .name(task.getTaskId())
          .owner(task.getOwner())
          .ownerAlias(SUtil.getUserAlias(task.getOwner()))
          .path("/")

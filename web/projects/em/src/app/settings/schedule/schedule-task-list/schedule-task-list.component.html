@@ -78,7 +78,7 @@
             <th mat-header-cell *matHeaderCellDef mat-sort-header> _#(Name) </th>
             <td mat-cell [title]="element.label" *matCellDef="let element" class="element-name">
               <a *ngIf="canEditTask(element) && !element.entry; else taskNameText" class="links task-name-cell" [title]="element.label"
-                 [routerLink]="['/settings/schedule/tasks', getTaskName(element)]" [queryParams]="getEditorQueryParams()">
+                 [routerLink]="['/settings/schedule/tasks', getEncodedTaskName(element)]" [queryParams]="getEditorQueryParams()">
                 {{isDataCycle(element) ? element.name : element.label}}
               </a>
               <ng-template #taskNameText>
@@ -115,7 +115,7 @@
           <ng-container matColumnDef="nextRunStart">
             <th mat-header-cell *matHeaderCellDef mat-sort-header> _#(Next Run Starting) </th>
             <td mat-cell *matCellDef="let element"  [title]="element.status ? element.status.nextRunStart : ''">
-              {{element.status ? element.status.nextRunStart : ""}}
+              {{element.status && element.enabled ? element.status.nextRunStart : ""}}
             </td>
           </ng-container>
 

@@ -289,14 +289,7 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
     * @param unassigned true to use the unused colors.
     */
    private Color getColor(int index, int oindex, boolean negative, boolean unassigned) {
-      Color color = null;
-
-      // fix bug1427856645861, if no css parent parameter is set but usercolor
-      // is setted, should get the user defined color.
-      // doesn't make sense to check for user color if the index is unassigned. (59491)
-      if(!unassigned) {
-         color = userColors.get(negative ? -(oindex + 1) : oindex);
-      }
+      Color color = userColors.get(negative ? -(oindex + 1) : oindex);
 
       if(parentParams != null && color == null) {
          color = cssColors.get(negative ? -(oindex + 1) : oindex);
@@ -364,6 +357,10 @@ public class CategoricalColorFrame extends ColorFrame implements CategoricalFram
          unassignedScale.setValues(values.toArray());
          this.unusedColors = colors;
       }
+   }
+
+   public void clearUserColors() {
+      this.userColors.clear();
    }
 
    /**

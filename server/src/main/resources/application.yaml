@@ -21,6 +21,7 @@ spring:
     enabled: false
   main:
     banner-mode: off
+    lazy-initialization: true
   servlet:
     multipart:
       max-file-size: 25MB

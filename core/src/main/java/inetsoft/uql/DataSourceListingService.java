@@ -91,7 +91,7 @@ public interface DataSourceListingService {
          Plugins.getInstance().getServices(DataSourceListingService.class, null))
       {
          for(DataSourceListing listing: service.getDataSourceListings()) {
-            if((includeFilter.isEmpty() || includeFilter.contains(listing.getName())) &&
+            if((includeFilter.isEmpty( ) || includeFilter.contains(listing.getName())) &&
                (excludeFilter.isEmpty() || !excludeFilter.contains(listing.getName())))
             {
                listings.add(listing);

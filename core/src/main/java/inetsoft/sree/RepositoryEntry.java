@@ -36,7 +36,7 @@ import java.util.Locale;
  * @author InetSoft Technology Corp.
  * @version 8.5
  */
-public class RepositoryEntry implements Serializable, Comparable, XMLSerializable {
+public class RepositoryEntry implements Serializable, Comparable, Cloneable, XMLSerializable {
    /**
     * Flag indicating the entry is a folder.
     */
@@ -641,6 +641,14 @@ public class RepositoryEntry implements Serializable, Comparable, XMLSerializabl
       return this.favoritesUser;
    }
 
+   public boolean isDefaultOrgAsset() {
+      return defaultOrgAsset;
+   }
+
+   public void setDefaultOrgAsset(boolean global) {
+      defaultOrgAsset = global;
+   }
+
    // @by davyc, if init CT in static variable, KeyRing.init will be called,
    // KeyRing will call System.getProperty, this will casue security problem,
    // seems like should not call System.getProperty in static sequence in RMI
@@ -652,4 +660,5 @@ public class RepositoryEntry implements Serializable, Comparable, XMLSerializabl
    private int htmlType;
    private AssetEntry entry;
    private boolean favoritesUser = false;
+   private boolean defaultOrgAsset = false;
 }

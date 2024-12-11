@@ -30,6 +30,9 @@ import { ThemePropertiesModel } from "./theme-properties-model";
    styleUrls: ["./theme-properties-view.component.scss"]
 })
 export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
+   @Input() isMultiTenant = false;
+   @Input() orgId: string;
+
    @Input() get theme() {
       return this._theme;
    }
@@ -40,13 +43,15 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
       if(!!value) {
          const jar = value.jar ? [value.jar] : [];
          this.form.get("name").setValue(value.name, { emitEvent: false });
-         this.form.get("defaultTheme").setValue(value.defaultTheme, { emitEvent: false });
+         this.form.get("defaultThemeGlobal").setValue(value.defaultThemeGlobal, { emitEvent: false });
+         this.form.get("defaultThemeOrg").setValue(value.defaultThemeOrg, { emitEvent: false });
          this.form.get("globalTheme").setValue(value.global, { emitEvent: false });
          this.form.get("jar").setValue(jar, { emitEvent: false });
 
-         if(this.isSiteAdmin) {
+         if(!this.isMultiTenant || this.isSiteAdmin) {
             this.form.enable({ emitEvent: false });
             this.form.get("globalTheme").enable({ emitEvent: false });
+            this.form.get("defaultThemeGlobal").enable({ emitEvent: false });
          }
          else {
             if(value.global) {
@@ -55,8 +60,11 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
             else {
                this.form.enable();
                this.form.get("globalTheme").disable({ emitEvent: false });
+               this.form.get("defaultThemeGlobal").disable({ emitEvent: false });
             }
          }
+
+         this.form.get("defaultThemeOrg").enable({ emitEvent: false });
       }
    }
 
@@ -89,12 +97,16 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
             this.form.enable();
          }
 
-         if(isSiteAdmin) {
+         if(!this.isMultiTenant || isSiteAdmin) {
             this.form.get("globalTheme").enable();
+            this.form.get("defaultThemeGlobal").enable();
          }
          else {
             this.form.get("globalTheme").disable();
+            this.form.get("defaultThemeGlobal").disable();
          }
+
+         this.form.get("defaultThemeOrg").enable();
       }
    }
 
@@ -109,7 +121,8 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
    constructor(fb: UntypedFormBuilder) {
       this.form = fb.group({
          name: ["", [Validators.required, FormValidators.duplicateName(() => this.themeNames)]],
-         defaultTheme: [false],
+         defaultThemeOrg: [false],
+         defaultThemeGlobal: [{value: false, disabled: !this.isSiteAdmin}],
          globalTheme: [{value: false, disabled: !this.isSiteAdmin}],
          jar: [[]]
       });
@@ -137,11 +150,20 @@ export class ThemePropertiesViewComponent implements OnInit, OnDestroy {
       this.destroy$.unsubscribe();
    }
 
+   get defaultThemeGlobalLable(): string {
+      return this.isMultiTenant ? "_#(Default for All Organizations)" : "_#(Default)";
+   }
+
+   get hostOrg() {
+      return this.orgId == "host-org";
+   }
+
    private fireThemePropertiesChanged(): void {
       this.themePropertiesChanged.emit({
          id: this.theme.id,
          name: this.form.get("name").value,
-         defaultTheme: this.form.get("defaultTheme").value,
+         defaultThemeGlobal: this.form.get("defaultThemeGlobal").value,
+         defaultThemeOrg: this.form.get("defaultThemeOrg").value,
          globalTheme: this.form.get("globalTheme").value,
          jar: this.getFile(this.form.get("jar")),
          valid: this.form.valid

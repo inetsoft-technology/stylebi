@@ -245,7 +245,7 @@ export class PermissionsTableComponent implements OnChanges, AfterViewInit, Sele
    }
 
    private getPermissionKey(p: ResourcePermissionTableModel): string {
-      let tempID: IdentityId = {name: p.identityID.name, organization: p.identityID.organization};
+      let tempID: IdentityId = {name: p.identityID.name, orgID: p.identityID.orgID};
       return convertToKey(tempID) + "," + p.type;
    }
 }

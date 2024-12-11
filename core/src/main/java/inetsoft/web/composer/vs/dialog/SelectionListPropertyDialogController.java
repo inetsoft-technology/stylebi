@@ -332,7 +332,11 @@ public class SelectionListPropertyDialogController {
       setAssemblyInfoDataRefs(newAssemblyInfo, selectionListPaneModel);
       setAssemblyInfoMeasure(newAssemblyInfo, selectionMeasurePaneModel);
 
-      return trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
+      rvs.getViewsheet().getAssembly(objectId).setVSAssemblyInfo(newAssemblyInfo);
+      VSTableTrapModel trap = trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
+      rvs.getViewsheet().getAssembly(objectId).setVSAssemblyInfo(oldAssemblyInfo);
+
+      return trap;
    }
 
    @PostMapping("api/composer/vs/selection-list-property-dialog-model/getGrayedOutFields/{objectId}/**")
@@ -371,11 +375,20 @@ public class SelectionListPropertyDialogController {
    {
       VSModelTrapContext context = new VSModelTrapContext(rvs, true);
       context.checkTrap(oinfo, ninfo);
-      DataRef[] refs = context.getGrayedFields();;
+      DataRef[] refs = context.getGrayedFields();
       List<DataRefModel> fields = new ArrayList<>();
+      boolean isws = rvs.getViewsheet().getBaseEntry().isWorksheet();
 
       for(DataRef ref : refs) {
-         fields.add(dataRefService.createDataRefModel(ref));
+         DataRefModel model = dataRefService.createDataRefModel(ref);
+
+         if(isws && model.getEntity() != null) {
+            model.setEntity(null);
+            model.setName(model.getAttribute());
+            model.setView(model.getAttribute());
+         }
+
+         fields.add(model);
       }
 
       return fields;

@@ -736,7 +736,7 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
    @Override
    protected void finalize() throws Throwable {
       super.finalize();
-      dispose();
+      disposeRows();
    }
 
    /**
@@ -744,11 +744,18 @@ public class SelfJoinTableLens extends AbstractTableLens implements TableFilter,
     */
    @Override
    public synchronized void dispose() {
+      disposeRows();
+      disposeTable();
+   }
+
+   private void disposeRows() {
       if(rows != null) {
          rows.dispose();
          rows = null;
       }
+   }
 
+   private void disposeTable() {
       if(table != null) {
          table.dispose();
          table = null;

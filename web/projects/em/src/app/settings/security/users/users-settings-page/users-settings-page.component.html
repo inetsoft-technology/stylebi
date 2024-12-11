@@ -23,8 +23,10 @@
   [selectedNodes]="selectedNodes"
   [providerEditable]="providerEditable"
   [identityEditable]="identityEditable"
+  [currOrg]="currOrg"
   [isSysAdmin]="isSysAdmin"
   [isLoadingTemplate]="isLoadingTemplate"
+  [isMultiTenant]="isMultiTenant"
   (providerChanged)="changeProvider($event)"
   (newUser)="newUser($event)"
   (newGroup)="newGroup($event)"
@@ -35,9 +37,8 @@
   (roleSettingsChanged)="setRole($event)"
   (groupSettingsChanged)="setGroup($event)"
   (organizationSettingsChanged)="setOrganization($event)"
-  (setTemplateOrganizationClicked)="updateTemplateOrganization($event)"
   (deleteIdentities)="deleteIdentities()"
   (treeUpdated)="expandNode($event)"
-  (pageChangedEmitter)="pageChanged = $event"
->
+  (pageChangedEmitter)="pageChanged = $event">
 </em-users-settings-view>
+<em-loading-spinner [loading]="loading"></em-loading-spinner>

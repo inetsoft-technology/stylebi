@@ -62,7 +62,7 @@ public class XAssetUtil {
       if(xAsset instanceof AbstractSheetAsset) {
          AbstractSheetAsset sheetAsset = (AbstractSheetAsset) xAsset;
          AssetEntry assetEntry = sheetAsset.getAssetEntry();
-         ((AbstractSheetAsset) xAsset).setAssetEntry(assetEntry.cloneAssetEntry(OrganizationManager.getInstance().getCurrentOrgID()));
+         ((AbstractSheetAsset) xAsset).setAssetEntry(assetEntry.cloneAssetEntry(OrganizationManager.getInstance().getCurrentOrgID(), ""));
       }
 
       return xAsset;

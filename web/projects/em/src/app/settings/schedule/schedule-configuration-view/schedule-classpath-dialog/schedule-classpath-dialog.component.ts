@@ -191,7 +191,7 @@ export class ScheduleClasspathDialogComponent implements OnInit {
 
   private autoScroll() {
     if(this.scrollViewport && this.scrollViewport.nativeElement) {
-      let pathItemHeight = 35;
+      let pathItemHeight = 41;
       let scrollElement = this.scrollViewport.nativeElement;
       let scrollTop = scrollElement.scrollTop;
       let pathItemOffset = (this.selectedIndex + 1) * pathItemHeight;

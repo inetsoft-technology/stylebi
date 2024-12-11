@@ -18,7 +18,6 @@
 package inetsoft.web.admin.monitoring;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
@@ -31,7 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
 import java.util.*;
-import java.util.function.Function;
+import java.util.function.*;
 
 /**
  * The abstract monitor defines methods for checking if monitoring level is met for an action
@@ -152,7 +151,7 @@ public abstract class MonitorLevelService {
       String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      Organization org = Arrays.stream(provider.getOrganizations())
+      Organization org = Arrays.stream(provider.getOrganizationIDs())
          .map(provider::getOrganization)
          .filter((o) -> o.getOrganizationID().equals(orgID))
          .findFirst()
@@ -164,10 +163,10 @@ public abstract class MonitorLevelService {
       else {
          boolean siteAdmin = OrganizationManager.getInstance().isSiteAdmin(principal);
 
-         return Arrays.stream(provider.getUsers())
+         List<IdentityID> list = Arrays.stream(provider.getUsers())
             .map(provider::getUser)
             .filter(u -> {
-               if((u == null) || !org.getName().equals(u.getOrganization())) {
+               if((u == null) || !org.getId().equals(u.getOrganizationID())) {
                   return false;
                }
                if(siteAdmin) {
@@ -177,6 +176,9 @@ public abstract class MonitorLevelService {
                return !OrganizationManager.getInstance().isSiteAdmin(userID);
             })
             .map(User::getIdentityID).toList();
+
+         list = appendSSoUser(list, principal, org);
+         return list;
       }
    }
 
@@ -186,7 +188,7 @@ public abstract class MonitorLevelService {
 
    private List<IdentityID> getOrgUsers0(String orgID) {
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      Organization org = Arrays.stream(provider.getOrganizations())
+      Organization org = Arrays.stream(provider.getOrganizationIDs())
          .map(provider::getOrganization)
          .filter((o) -> o.getOrganizationID().equals(orgID))
          .findFirst()
@@ -198,27 +200,34 @@ public abstract class MonitorLevelService {
       else {
          List<IdentityID> list = Arrays.stream(provider.getUsers())
             .map(provider::getUser)
-            .filter(u -> (u != null) && org.getName().equals(u.getOrganization()))
+            .filter(u -> (u != null) && org.getId().equals(u.getOrganizationID()))
             .map(User::getIdentityID).toList();
 
          Principal principal = ThreadContext.getContextPrincipal();
-         boolean ssoUser = principal instanceof XPrincipal &&
-            !"true".equals(((XPrincipal) principal).getProperty("__internal__"));
-
-         if(!ssoUser) {
-            return list;
-         }
-
-         List<IdentityID> dlist = new ArrayList<>();
-         dlist.addAll(list);
-         IdentityID id = ((XPrincipal) principal).getIdentityID();
-
-         if(!dlist.contains(id)) {
-            dlist.add(id);
-         }
-
-         return dlist;
+         list = appendSSoUser(list, principal, org);
+         return list;
       }
+   }
+
+   private List<IdentityID> appendSSoUser(List<IdentityID> userList,
+                                          Principal principal, Organization org)
+   {
+      boolean ssoUser = principal instanceof XPrincipal &&
+         !"true".equals(((XPrincipal) principal).getProperty("__internal__"));
+
+      if(!ssoUser) {
+         return userList;
+      }
+
+      List<IdentityID> dlist = new ArrayList<>();
+      dlist.addAll(userList);
+      IdentityID id = ((XPrincipal) principal).getIdentityID();
+
+      if(id != null && Tool.equals(org.getId(), id.getOrgID()) && !dlist.contains(id)) {
+         dlist.add(id);
+      }
+
+      return dlist;
    }
 
    // attribute fields populated/defined in subclasses

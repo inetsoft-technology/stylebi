@@ -51,7 +51,6 @@ import inetsoft.uql.viewsheet.vslayout.LayoutInfo;
 import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
 import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
-import inetsoft.web.RecycleUtils;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1049,7 +1048,7 @@ public class LocalDependencyHandler implements DependencyHandler {
          String entryPaths = base.getPath();
          final List<String> allTableTypes = new ArrayList<>(Arrays.asList(
             "EXTERNAL TABLE", "TABLE", "VIEW", "SYNONYM", "ALIAS",
-            "MATERIALIZED VIEW", "BASE TABLE"));
+            "MATERIALIZED VIEW", "BASE TABLE", "PARTITIONED TABLE"));
          String type = null;
          int typeIndexInPath;
 
@@ -1193,7 +1192,7 @@ public class LocalDependencyHandler implements DependencyHandler {
 
       int scope = Tool.equals(arr[1], "global") ?
          AssetRepository.GLOBAL_SCOPE : AssetRepository.USER_SCOPE;
-      IdentityID user = scope == AssetRepository.USER_SCOPE ? new IdentityID(arr[1], OrganizationManager.getCurrentOrgName()) : null;
+      IdentityID user = scope == AssetRepository.USER_SCOPE ? new IdentityID(arr[1], OrganizationManager.getInstance().getCurrentOrgID()) : null;
       String path = arr[2]; // {Folder1/Folder 2/.../}datasetName
       path = path.replace("{", "");
       path = path.replace("}", "");
@@ -1879,11 +1878,12 @@ public class LocalDependencyHandler implements DependencyHandler {
    }
 
    public void updateDashboardDependencies(IdentityID user, String name, boolean add) {
-      AssetEntry entry = new AssetEntry(AssetRepository.USER_SCOPE,
-         AssetEntry.Type.DASHBOARD, name, user);
+      AssetEntry entry = new AssetEntry(user == null ? AssetRepository.GLOBAL_SCOPE :
+         AssetRepository.USER_SCOPE, AssetEntry.Type.DASHBOARD, name, user);
 
       VSDashboard dashboard = (VSDashboard) DashboardRegistry.getRegistry(user).getDashboard(name);
-      String id = dashboard.getViewsheet().getIdentifier();
+      String id = dashboard == null || dashboard.getViewsheet() == null ? null :
+         dashboard.getViewsheet().getIdentifier();
 
       if(id != null) {
          if(add) {
@@ -1941,7 +1941,7 @@ public class LocalDependencyHandler implements DependencyHandler {
       }
 
       AssetEntry tentry = new AssetEntry(AssetRepository.GLOBAL_SCOPE,
-         AssetEntry.Type.SCHEDULE_TASK, "/" + task.getName(), null);
+         AssetEntry.Type.SCHEDULE_TASK, "/" + task.getTaskId(), null);
 
       for(int i = 0; i < task.getActionCount(); i++) {
          ScheduleAction action = task.getAction(i);

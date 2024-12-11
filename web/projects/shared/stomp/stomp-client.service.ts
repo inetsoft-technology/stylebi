@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable, NgZone } from "@angular/core";
-import { Observable } from "rxjs";
+import { Observable, Subject } from "rxjs";
 import { SsoHeartbeatService } from "../sso/sso-heartbeat.service";
 import { LogoutService } from "../util/logout.service";
 import { StompClient } from "./stomp-client";
@@ -32,6 +32,7 @@ import { BaseHrefService } from "../../portal/src/app/common/services/base-href.
 })
 export class StompClientService {
    private clients: Map<string, StompClient> = new Map<string, StompClient>();
+   private disconnectSubject = new Subject<void>();
    private _reloadOnFailure: boolean = false;
 
    constructor(private zone: NgZone, private ssoHeartbeatService: SsoHeartbeatService,
@@ -39,14 +40,16 @@ export class StompClientService {
    {
    }
 
-   connect(endpoint: string, em: boolean = false, customElement: boolean = false): Observable<StompClientConnection> {
+   connect(endpoint: string, em: boolean = false, customElement: boolean = false): Observable<StompClientConnection>
+   {
       return this.zone.runOutsideAngular(() => {
          let client = this.clients.get(endpoint);
 
          if(!client) {
             client = new StompClient(
-               endpoint, (key) => this.onDisconnect(key), this.ssoHeartbeatService,
-               this.logoutService, em, this.baseHrefService.getBaseHref(), customElement);
+               endpoint, (key) => this.onDisconnect(key),
+               this.ssoHeartbeatService, this.logoutService, em, this.baseHrefService.getBaseHref(),
+               customElement);
             this.clients.set(endpoint, client);
          }
 
@@ -61,5 +64,10 @@ export class StompClientService {
 
    private onDisconnect(endpoint: string) {
       this.clients.delete(endpoint);
+      this.disconnectSubject.next();
+   }
+
+   whenDisconnected(): Observable<void> {
+      return this.disconnectSubject.asObservable();
    }
 }

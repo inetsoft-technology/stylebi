@@ -32,6 +32,7 @@ export interface LogonError {
    logonTime: number;
    errorMessage: string;
    organizationId: string;
+   dateFormat: string;
 }
 
 export interface LogonErrorList extends AuditRecordList<LogonError> {

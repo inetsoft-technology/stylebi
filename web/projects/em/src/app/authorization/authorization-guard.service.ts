@@ -54,23 +54,6 @@ export class AuthorizationGuard implements CanActivate {
                            :`${parent}/${redirect}` : redirect;
                   this.router.navigate([uri]);
                }
-
-               this.http.get("../api/em/navbar/isMultiTenant").subscribe((isMultiTenant: boolean) =>
-               {
-                  if(isMultiTenant == false || parent != "settings") {
-                     if(!h[child]) {
-                        this.dialog.open(MessageDialog, <MatDialogConfig>{
-                           width: "350px",
-                           data: {
-                              title: "_#(js:Error)",
-                              content: "_#(js:em.security.permit.view) " + (parent? parent: child) +
-                                 (redirect ? ". _#(js:em.security.permit.redirect) " + l[redirect] : ""),
-                              type: MessageDialogType.ERROR
-                           }
-                        });
-                     }
-                  }
-               })
             }
 
             return allowed;

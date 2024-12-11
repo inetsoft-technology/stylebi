@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 import java.util.concurrent.locks.Lock;
 import java.util.stream.Collectors;
 
@@ -58,6 +58,37 @@ public class ScheduleManager {
       return InternalScheduledTaskService.isInternalTask(taskName);
    }
 
+   public static String getTaskId(String owner, String taskName, String orgId) {
+      orgId = orgId == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgId;
+
+      if(owner.contains(IdentityID.KEY_DELIMITER)) {
+         return getTaskId(owner, taskName);
+      }
+
+      return getTaskId(new IdentityID(owner, orgId).convertToKey(), taskName);
+   }
+
+   public static String getTaskId(String ownerID, String taskName) {
+      if(taskName.startsWith(ownerID + ":")) {
+         return taskName;
+      }
+
+      return ownerID + ":" + taskName;
+   }
+
+   public static IdentityID getOwner(String taskId) {
+      return IdentityID.getIdentityIDFromKey(taskId.split(":")[0]);
+   }
+
+   public static ScheduleTaskMetaData getTaskMetaData(String taskId) {
+      if(taskId.contains(":")) {
+         return new ScheduleTaskMetaData(taskId.split(":")[1], taskId.split(":")[0]);
+      }
+      else {
+         return new ScheduleTaskMetaData(taskId, null);
+      }
+   }
+
    /**
     * @return the names of the internal tasks that have the write permission.
     */
@@ -69,7 +100,42 @@ public class ScheduleManager {
     * Create a schedule manager.
     */
    public ScheduleManager() {
+      initMap();
       extensionLock = Cluster.getInstance().getLock(EXTENSION_LOCK);
+   }
+
+   /**
+    * populate map of organization scoped scheduleTaskMap
+    */
+   public void initMap() {
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      for(String org : provider.getOrganizationIDs())
+      {
+         taskMap.put(org, new ScheduleTaskMap(org));
+      }
+   }
+
+   public List<ScheduleTask> getAllScheduleTasks() {
+      List<ScheduleTask> tasks = new ArrayList<>();
+
+      for(ScheduleTaskMap map : taskMap.values()) {
+         tasks.addAll(map.values());
+      }
+
+      return tasks.stream().distinct().collect(Collectors.toList());
+   }
+
+   public ScheduleTaskMap getOrgTaskMap(String orgID) {
+      ScheduleTaskMap map = taskMap.get(orgID);
+
+      if(map != null) {
+         return map;
+      }
+
+      //add this org id to task map
+      taskMap.put(orgID, new ScheduleTaskMap(orgID));
+
+      return taskMap.get(orgID);
    }
 
    /**
@@ -103,7 +169,7 @@ public class ScheduleManager {
                      }
                      catch(RemoteException e) {
                         LOG.error("Failed to update scheduler with extension task: " +
-                           task.getName(), e);
+                           task.getTaskId(), e);
                      }
                   }
                }
@@ -130,9 +196,8 @@ public class ScheduleManager {
       }
    }
 
-
    private ExtTaskKey createExtensionTaskKey(ScheduleTask task) {
-      String name = task.getName();
+      String taskId = task.getTaskId();
       String orgId;
 
       if(task.getCycleInfo() != null) {
@@ -142,7 +207,7 @@ public class ScheduleManager {
          orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      return new ExtTaskKey(name, orgId);
+      return new ExtTaskKey(taskId, orgId);
    }
 
    private boolean updateExtensionEnabled(ScheduleTask task) {
@@ -158,10 +223,10 @@ public class ScheduleManager {
       for(ScheduleExt ext : extensions) {
          // for a schedule task in a schedule extension, we
          // should not save it but only change enable option
-         if(ext.containsTask(task.getName(), orgId)) {
-            if(ext.isEnable(task.getName(), orgId) != task.isEnabled())
+         if(ext.containsTask(task.getTaskId(), orgId)) {
+            if(ext.isEnable(task.getTaskId(), orgId) != task.isEnabled())
             {
-               ext.setEnable(task.getName(), orgId, task.isEnabled());
+               ext.setEnable(task.getTaskId(), orgId, task.isEnabled());
                changed = true;
             }
 
@@ -181,27 +246,9 @@ public class ScheduleManager {
 
       try {
          for(ScheduleTask task : tasks) {
-            if(updateExtensionEnabled(task)) {
+            if(save(task, orgID)) {
                extChanged = true;
-               continue;
             }
-
-            ScheduleTaskMessage.Action action;
-
-            if(this.tasks.containsKey(getTaskIdentifier(task.getName(), orgID))) {
-               action = ScheduleTaskMessage.Action.MODIFIED;
-            }
-            else {
-               action = ScheduleTaskMessage.Action.ADDED;
-            }
-
-            this.tasks.put(getTaskIdentifier(task.getName(), orgID), task);
-            ScheduleClient.getScheduleClient().taskAdded(task);
-            ScheduleTaskMessage message = new ScheduleTaskMessage();
-            message.setTaskName(task.getName());
-            message.setTask(task);
-            message.setAction(action);
-            Cluster.getInstance().sendMessage(message);
          }
       }
       catch(Throwable exc) {
@@ -214,23 +261,50 @@ public class ScheduleManager {
    }
 
    /**
+    * Save the all the schedule task.
+    */
+   private boolean save(ScheduleTask task, String orgID) throws Exception {
+      if(updateExtensionEnabled(task)) {
+         return true;
+      }
+
+      ScheduleTaskMessage.Action action;
+
+      if(this.getOrgTaskMap(orgID).containsKey(getTaskIdentifier(task.getTaskId(), orgID))) {
+         action = ScheduleTaskMessage.Action.MODIFIED;
+      }
+      else {
+         action = ScheduleTaskMessage.Action.ADDED;
+      }
+
+      this.getOrgTaskMap(orgID).put(getTaskIdentifier(task.getTaskId(), orgID), task);
+      ScheduleClient.getScheduleClient().taskAdded(task);
+      ScheduleTaskMessage message = new ScheduleTaskMessage();
+      message.setTaskName(task.getTaskId());
+      message.setTask(task);
+      message.setAction(action);
+      Cluster.getInstance().sendMessage(message);
+      return false;
+   }
+
+   /**
     * Save the all the schedule tasks.
     * @param tasks all the schedule tasks which might be changed.
     */
    public synchronized void save(Collection<ScheduleTask> tasks) throws Exception {
-      this.save(tasks, null);
+      this.save(tasks, OrganizationManager.getInstance().getCurrentOrgID());
    }
 
    /**
     * Get schedule tasks.
     */
    public Vector<ScheduleTask> getScheduleTasks() {
-      Vector<ScheduleTask> list = new Vector<>(tasks.values());
+      Vector<ScheduleTask> list = new Vector<>(getAllScheduleTasks());
       extensionLock.lock();
 
       try {
-         for(ScheduleTask task : getFilteredExtensionTasks(OrganizationManager.getInstance().getCurrentOrgID())) {
-            if(list.stream().noneMatch(t -> t != null && t.getName().equals(task.getName()))) {
+         for(ScheduleTask task : getExtensionTasks()) {
+            if(list.stream().noneMatch(t -> t != null && t.getTaskId().equals(task.getTaskId()))) {
                list.add(task);
             }
          }
@@ -251,14 +325,41 @@ public class ScheduleManager {
    /**
     * Get schedule tasks.
     */
-   public Vector<ScheduleTask> getScheduleTasks(AssetEntry[] taskEntries, boolean loadExtension, boolean loadInternal) {
-      Set<String> allNames =
-         Arrays.stream(taskEntries).map(AssetEntry::getName).collect(Collectors.toSet());
-      Vector<ScheduleTask> list = new Vector<>(tasks.values());
+   public Vector<ScheduleTask> getScheduleTasks(String orgID) {
+      Vector<ScheduleTask> list = new Vector<>(getOrgTaskMap(orgID).values());
+      extensionLock.lock();
+
+      try {
+         for(ScheduleTask task : getFilteredExtensionTasks(orgID)) {
+            if(list.stream().noneMatch(t -> t != null && t.getTaskId().equals(task.getTaskId()))) {
+               list.add(task);
+            }
+         }
+      }
+      finally {
+         extensionLock.unlock();
+      }
 
       for(int i = list.size() - 1; i >= 0; i--) {
-         if(list.get(i) == null || (!allNames.contains(list.get(i).getName()) &&
-            !(loadInternal && isInternalTask(list.get(i).getName()))))
+         if(list.get(i) == null) {
+            list.remove(i);
+         }
+      }
+
+      return list;
+   }
+
+   /**
+    * Get schedule tasks.
+    */
+   public Vector<ScheduleTask> getScheduleTasks(AssetEntry[] taskEntries, boolean loadExtension, boolean loadInternal, String orgID) {
+      Set<String> allNames =
+         Arrays.stream(taskEntries).map(AssetEntry::getName).collect(Collectors.toSet());
+      Vector<ScheduleTask> list = new Vector<>(getOrgTaskMap(orgID).values());
+
+      for(int i = list.size() - 1; i >= 0; i--) {
+         if(list.get(i) == null || (!allNames.contains(list.get(i).getTaskId()) &&
+            !(loadInternal && isInternalTask(list.get(i).getTaskId()))))
          {
             list.remove(i);
          }
@@ -268,9 +369,9 @@ public class ScheduleManager {
          extensionLock.lock();
 
          try {
-            for(ScheduleTask task : getFilteredExtensionTasks(OrganizationManager.getInstance().getCurrentOrgID())) {
-               if(list.stream().noneMatch(t -> t != null && t.getName().equals(task.getName())) &&
-                  !allNames.contains(task.getName()))
+            for(ScheduleTask task : getFilteredExtensionTasks(orgID)) {
+               if(list.stream().noneMatch(t -> t != null && t.getTaskId().equals(task.getTaskId())) &&
+                  !allNames.contains(task.getTaskId()))
                {
                   list.add(task);
                }
@@ -285,30 +386,30 @@ public class ScheduleManager {
    }
 
    /**
-    * Get a schedule task with a schedule task name.
+    * Get a schedule task with a schedule task id.
     */
-   public synchronized ScheduleTask getScheduleTask(String taskName) {
-      return getScheduleTask(taskName, null);
+   public synchronized ScheduleTask getScheduleTask(String taskId) {
+      return getScheduleTask(taskId, null);
    }
 
-   public synchronized ScheduleTask getScheduleTask(String taskName, String orgID) {
+   public synchronized ScheduleTask getScheduleTask(String taskId, String orgID) {
       if(orgID == null) {
          orgID = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      ScheduleTask task = extensionTasks.get(new ExtTaskKey(taskName, orgID));
+      ScheduleTask task = extensionTasks.get(new ExtTaskKey(taskId, orgID));
 
-      if(InternalScheduledTaskService.isInternalTask(taskName)) {
+      if(InternalScheduledTaskService.isInternalTask(taskId)) {
          orgID = Organization.getDefaultOrganizationID();
       }
 
       if(task == null) {
-         task = tasks.get(getTaskIdentifier(taskName, orgID), orgID);
+         task = getOrgTaskMap(orgID).get(getTaskIdentifier(taskId, orgID));
       }
 
       // older version (pre 13.1) doesn't have user name as part of the task name (48791).
-      if(task == null && taskName.contains(":")) {
-         task = tasks.get(getTaskIdentifier(taskName.substring(taskName.indexOf(':') + 1), orgID));
+      if(task == null && taskId != null && taskId.contains(":")) {
+         task = getOrgTaskMap(orgID).get(getTaskIdentifier(taskId.substring(taskId.indexOf(':') + 1), orgID));
       }
 
       return task;
@@ -366,7 +467,7 @@ public class ScheduleManager {
       }
       return extensionTasks.keySet()
          .stream()
-         .filter(key -> Tool.equals(key.orgId, orgId))
+         .filter(key -> Tool.equals(key.orgId, orgId0))
          .map(extensionTasks::get)
          .collect(Collectors.toCollection(HashSet::new));
    }
@@ -393,7 +494,7 @@ public class ScheduleManager {
    }
 
    public Vector<ScheduleTask> getScheduleTasks(Principal principal,
-                                                Collection<ScheduleTask> allTasks)
+                                                Collection<ScheduleTask> allTasks, String orgID)
       throws Exception
    {
       RepletRepository engine = SUtil.getRepletRepository();
@@ -401,7 +502,7 @@ public class ScheduleManager {
       Vector<ScheduleTask> vec = new Vector<>();
 
       for(String taskName : taskNames) {
-         ScheduleTask task = engine.getScheduleTask(taskName, OrganizationManager.getInstance().getCurrentOrgID());
+         ScheduleTask task = engine.getScheduleTask(taskName, orgID);
 
          if(task != null) {
             vec.addElement(task);
@@ -411,24 +512,24 @@ public class ScheduleManager {
       return vec;
    }
 
-   public synchronized void setScheduleTask(String taskName, ScheduleTask task,
+   public synchronized void setScheduleTask(String taskId, ScheduleTask task,
                                             Principal principal)
            throws Exception
    {
-      setScheduleTask(taskName, task, null, principal);
+      setScheduleTask(taskId, task, null, principal);
    }
 
-   public synchronized void setScheduleTask(String taskName, ScheduleTask task, AssetEntry parent,
+   public synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
                                             Principal principal)
       throws Exception
    {
-      setScheduleTask(taskName, task, parent, ScheduleManager.isInternalTask(taskName), principal);
+      setScheduleTask(taskId, task, parent, ScheduleManager.isInternalTask(taskId), principal);
    }
 
    /**
     * Save a schedule task.
     */
-   public synchronized void setScheduleTask(String taskName, ScheduleTask task, AssetEntry parent,
+   public synchronized void setScheduleTask(String taskId, ScheduleTask task, AssetEntry parent,
                                             boolean internal, Principal principal)
       throws Exception
    {
@@ -444,7 +545,7 @@ public class ScheduleManager {
          orgID = Organization.getDefaultOrganizationID();
       }
       else {
-         orgID = OrganizationManager.getInstance().getCurrentOrgID();
+         orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       }
 
       if(principal == null) {
@@ -457,13 +558,13 @@ public class ScheduleManager {
             LOG.warn("Failed to get local IP address", e);
          }
 
-         IdentityID clientID = new IdentityID(ClientInfo.ANONYMOUS, Organization.getDefaultOrganizationName());
+         IdentityID clientID = new IdentityID(ClientInfo.ANONYMOUS, Organization.getDefaultOrganizationID());
          principal = new SRPrincipal(new ClientInfo(clientID, addr),
                                      new IdentityID[0], new String[0], null, 1L);
          ((SRPrincipal) principal).setProperty("__internal__", "true");
       }
 
-      IdentityID user = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+      IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
 
       // if a task is not removable, it's an internally created task. the schedule permission
       // is used to control whether a user can create schedule tasks (from the gui). internal
@@ -473,7 +574,7 @@ public class ScheduleManager {
       if(!internal && task.isRemovable() &&
          !engine.checkPermission(principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
       {
-         throw new IOException(user + " doesn't have schedule permission.");
+         throw new IOException("User '" + user.getName() + "' doesn't have schedule permission.");
       }
 
       // @by mikec, here we shouldn't modify the task's owner.
@@ -483,40 +584,28 @@ public class ScheduleManager {
       // The rule here should be, any role have permisstion on the task
       // (currently it is the admin) should be able to change the task,
       // but the owner should not be changed.
-      OrganizationManager organizationManager = OrganizationManager.getInstance();
-      String currOrgName = organizationManager.getCurrentOrgName();
-
-      if(user != null && !Tool.equals(user.getOrganization(), currOrgName)) {
-         IdentityID[] orgUsers = SecurityEngine.getSecurity().getOrgUsers(currOrgName);
-
-         if(orgUsers != null) {
-            IdentityID orgAdmin = Arrays.stream(orgUsers)
-               .filter(id -> organizationManager.isOrgAdmin(id))
-               .findFirst()
-               .orElse(null);
-            user = orgAdmin == null ? user : orgAdmin;
-         }
-      }
+      user = SUtil.getOwnerForNewTask(user);
 
       if(task.getOwner() == null) {
          task.setOwner(user);
+         taskId = task.getTaskId();
       }
 
       ScheduleTaskMessage.Action action;
 
-      if(tasks.containsKey(getTaskIdentifier(taskName, orgID), orgID)) {
+      if(getOrgTaskMap(orgID).containsKey(getTaskIdentifier(taskId, orgID), orgID)) {
          action = ScheduleTaskMessage.Action.MODIFIED;
-         DependencyHandler.getInstance().updateTaskDependencies(tasks.get(getTaskIdentifier(taskName, orgID)), false);
+         DependencyHandler.getInstance().updateTaskDependencies(getOrgTaskMap(orgID).get(getTaskIdentifier(taskId, orgID)), false);
       }
       else {
          action = ScheduleTaskMessage.Action.ADDED;
       }
 
-      tasks.put(getTaskIdentifier(taskName, orgID), task, parent, orgID);
+      getOrgTaskMap(orgID).put(getTaskIdentifier(taskId, orgID), task, parent, orgID);
       DependencyHandler.getInstance().updateTaskDependencies(task, true);
       ScheduleClient.getScheduleClient().taskAdded(task);
       ScheduleTaskMessage message = new ScheduleTaskMessage();
-      message.setTaskName(taskName);
+      message.setTaskName(taskId);
       message.setTask(task);
       message.setAction(action);
       Cluster.getInstance().sendMessage(message);
@@ -524,19 +613,19 @@ public class ScheduleManager {
       IdentityID owner = task.getOwner();
 
       try {
-         if(!internal) {
+         if(!internal && Tool.equals(owner.orgID, OrganizationManager.getInstance().getCurrentOrgID())) {
             Permission perm = new Permission();
-            String orgId = getTaskOrgID(taskName);
+            String orgId = getTaskOrgID(taskId);
             Set<Permission.PermissionIdentity> users = Collections.singleton(new Permission.PermissionIdentity(owner.name, orgId));
             perm.setUserGrants(ResourceAction.READ, users);
             perm.setUserGrants(ResourceAction.WRITE, users);
             perm.setUserGrants(ResourceAction.DELETE, users);
-            engine.setPermission(principal, ResourceType.SCHEDULE_TASK, task.getName(), perm);
+            engine.setPermission(principal, ResourceType.SCHEDULE_TASK, task.getTaskId(), perm);
          }
       }
       catch(SRSecurityException e) {
          LOG.error("Failed to set permission on scheduled task " +
-               task.getName() + " for user " + owner, e);
+               task.getTaskId() + " for user " + owner.getName(), e);
       }
    }
 
@@ -584,7 +673,7 @@ public class ScheduleManager {
 
       //possible site admin created in other organization
       if(task == null) {
-         task = getScheduleTask(taskName, OrganizationManager.getInstance().getCurrentOrgID());
+         task = getScheduleTask(taskName, OrganizationManager.getInstance().getCurrentOrgID(principal));
       }
 
       // for dynamically created tasks (e.g. mv background creation),
@@ -592,7 +681,7 @@ public class ScheduleManager {
       // throw an exception and can just silently remove it.
       if(task != null) {
          if(!task.isRemovable()) {
-            throw new IOException("Task is not removable: " + taskName);
+            throw new IOException("Task is not removable: " + task.getName());
          }
 
          boolean adminPermission = SecurityEngine.getSecurity().checkPermission(
@@ -613,7 +702,7 @@ public class ScheduleManager {
       boolean ext = false;
       Vector<ScheduleExt> extensions = getExtensions();
       boolean extChanged = false;
-      orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
 
       for(ScheduleExt extension : extensions) {
          if(extension.containsTask(taskName, orgID)) {
@@ -626,7 +715,7 @@ public class ScheduleManager {
       // not an ext task? check if a normal task
       if(!ext) {
          if(task != null) {
-            tasks.removeKey(getTaskIdentifier(task.getName(), orgID), orgID);
+            getOrgTaskMap(orgID).remove(getTaskIdentifier(task.getTaskId(), orgID));
             DependencyHandler.getInstance().updateTaskDependencies(task, false);
          }
 
@@ -649,8 +738,8 @@ public class ScheduleManager {
       }
    }
 
-   private String getTaskOrgID(String taskName) {
-      int index = taskName.indexOf(':');
+   private String getTaskOrgID(String taskId) {
+      int index = taskId.indexOf(':');
 
       if(index == -1) {
          return null;
@@ -658,17 +747,16 @@ public class ScheduleManager {
 
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
-      String ownerName = taskName.substring(0, index);
-      int idx  = ownerName.lastIndexOf(IdentityID.KEY_DELIMITER);
-      ownerName = idx != -1 ? ownerName.substring(0, idx) : ownerName;
-      IdentityID owner = new IdentityID(ownerName, OrganizationManager.getCurrentOrgName());
-      User user = provider.getUser(owner);
+      IdentityID taskUser = IdentityID.getIdentityIDFromKey(taskId.substring(0,index));
+
+      User user = provider.getUser(taskUser);
 
       if(user == null) {
-         return null;
+         return taskUser.getOrgID() != null ? taskUser.getOrgID() :
+                  OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      return provider.getOrganization(user.getOrganization()).getOrganizationID();
+      return user.getOrganizationID();
    }
 
    /**
@@ -773,26 +861,26 @@ public class ScheduleManager {
    /**
     * Check task dependency for rename &amp; delete action.
     */
-   public boolean hasDependency(Vector<ScheduleTask> allTasks, String taskName) {
+   public boolean hasDependency(Vector<ScheduleTask> allTasks, String taskId) {
       boolean dependency = false;
 
       for(Iterator<ScheduleTask> i = allTasks.iterator(); i.hasNext();) {
          ScheduleTask task = i.next();
-         String name = task.getName();
+         String id = task.getTaskId();
 
-         if(name.equals(taskName)) {
+         if(id.equals(taskId)) {
             i.remove();
             break;
          }
       }
 
       for(ScheduleTask task : allTasks) {
-         String name = task.getName();
-         task = getScheduleTask(name);
+         String id = task.getTaskId();
+         task = getScheduleTask(id);
          Enumeration<String> en = task.getDependency();
 
          while(en.hasMoreElements()) {
-            if(taskName.equals(en.nextElement())) {
+            if(taskId.equals(en.nextElement())) {
                dependency = true;
                break;
             }
@@ -808,7 +896,8 @@ public class ScheduleManager {
 
    public List<AssetObject> getDependentTasks(String target, String orgId) {
       String taskName = AssetEntry.createAssetEntry(target).getName();
-      return tasks.entrySet(orgId).stream()
+      return getOrgTaskMap(orgId).entrySet(orgId).stream()
+         .filter(entry -> entry.getValue() != null)
          .filter(entry -> isDependent(taskName, entry.getValue()))
          .map(Map.Entry::getKey)
          .map(identifier -> (AssetObject) AssetEntry.createAssetEntry(identifier))
@@ -834,25 +923,24 @@ public class ScheduleManager {
       Set<ScheduleTask> changedTasks = new HashSet<>();
       int type = identity.getType();
       IdentityID identityID = identity.getIdentityID();
-      String orgName;
+      String orgID;
 
       switch(identity.getType()) {
          case Identity.USER:
-            orgName = eprovider.getUser(identityID).getOrganization();
+            orgID = eprovider.getUser(identityID).getOrganizationID();
             break;
          case Identity.GROUP:
-            orgName = eprovider.getGroup(identityID).getOrganization();
+            orgID = eprovider.getGroup(identityID).getOrganizationID();
             break;
          case Identity.ORGANIZATION:
-            orgName = identityID.name;
+            orgID = identityID.orgID;
             break;
          default:
-            orgName = Organization.getDefaultOrganizationName();
+            orgID = Organization.getDefaultOrganizationID();
             break;
       }
 
-      String orgID = SecurityEngine.getSecurity().getSecurityProvider().getOrgId(orgName);
-      Iterator<ScheduleTask> i = tasks.values().iterator();
+      Iterator<ScheduleTask> i = getOrgTaskMap(orgID).values().iterator();
 
       while(i.hasNext()) {
          ScheduleTask task = i.next();
@@ -901,26 +989,24 @@ public class ScheduleManager {
       String name = identity.getName();
       IdentityID id = identity.getIdentityID();
       SecurityProvider securityProvider = SecurityEngine.getSecurity().getSecurityProvider();
-      String orgID = identity instanceof FSOrganization ? securityProvider.getOrganizationId(oname.name) :
-               identity.getOrganization() == null ? null :
-               securityProvider.getOrganizationId(identity.getOrganization());
+      String orgID = identity instanceof FSOrganization ? oname.orgID :
+               identity.getOrganizationID() == null ? null : identity.getOrganizationID();
 
-      for(ScheduleTask task : tasks.values()) {
+      for(ScheduleTask task : getOrgTaskMap(orgID).values()) {
          if(task == null) {
             continue;
          }
 
          if(type == Identity.USER && oname.equals(task.getOwner())) {
-            this.tasks.remove(getTaskIdentifier(task.getName(), orgID));
-            task.setName(task.getName().replaceFirst(oname.name, name));
+            this.getOrgTaskMap(orgID).remove(getTaskIdentifier(task.getTaskId(), orgID));
             task.setOwner(id);
             changedTasks.add(task);
          }
 
          Identity iden = task.getIdentity();
 
-         if(iden != null && type == iden.getType() && oname.equals(iden.getName())) {
-            this.tasks.remove(getTaskIdentifier(task.getName(), orgID));
+         if(iden != null && type == iden.getType() && oname.equals(iden.getIdentityID())) {
+            this.getOrgTaskMap(orgID).remove(getTaskIdentifier(task.getTaskId(), orgID));
             task.setIdentity(identity);
             changedTasks.add(task);
          }
@@ -928,6 +1014,7 @@ public class ScheduleManager {
          for(int j = 0; j < task.getActionCount(); j++) {
             ScheduleAction action = task.getAction(j);
             updateNotifications(action, id, task, changedTasks);
+            updateScheduleAction(action, oname, id, task, changedTasks);
          }
       }
 
@@ -943,6 +1030,37 @@ public class ScheduleManager {
          ext.identityRenamed(oname.name, identity);
       }
    }
+
+   public synchronized void migrateScheduleTask(String orgID, String nOrgId) {
+      // clear cache
+      this.getOrgTaskMap(orgID).clearCache();
+
+      if(!Tool.equals(orgID, nOrgId)) {
+         this.taskMap.remove(orgID);
+      }
+   }
+
+   private void updateScheduleAction(ScheduleAction action,
+                                     IdentityID oid, IdentityID id,
+                                     ScheduleTask task,
+                                     Set<ScheduleTask> changedTasks)
+   {
+      if(action instanceof ViewsheetAction) {
+         updateViewsheets(action, oid, id, task, changedTasks);
+      }
+      else if(action instanceof BatchAction) {
+         BatchAction batchAction = (BatchAction) action;
+         String taskId = batchAction.getTaskId();
+         ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(taskId);
+
+         if(taskMetaData.getTaskOwnerId().equals(oid.convertToKey()) &&
+            !taskMetaData.getTaskOwnerId().equals(id.convertToKey()))
+         {
+            batchAction.setTaskId(id.convertToKey() + ":" + taskMetaData.getTaskName());
+         }
+      }
+   }
+
 
    private void updateNotifications(ScheduleAction action, IdentityID id,
                                     ScheduleTask task,
@@ -964,20 +1082,45 @@ public class ScheduleManager {
       }
    }
 
+   private void updateViewsheets(ScheduleAction action,
+                                     IdentityID oid, IdentityID id,
+                                     ScheduleTask task,
+                                     Set<ScheduleTask> changedTasks)
+   {
+      if(action instanceof ViewsheetAction) {
+         ViewsheetAction vaction = (ViewsheetAction) action;
+
+         if(vaction.getViewsheet() != null) {
+            IdentityID oldUser = vaction.getViewsheetEntry().getUser();
+
+            if(oldUser != null && oldUser.equals(oid) && !oldUser.equals(id)) {
+               String newViewsheet = vaction.getViewsheet().replace(oldUser.convertToKey(), id.convertToKey());
+               vaction.setViewsheet(newViewsheet);
+               changedTasks.add(task);
+            }
+
+            IdentityID[] bookmarkUsers = Arrays.stream(vaction.getBookmarkUsers())
+               .map((boomarkUser) -> boomarkUser.equals(oid) ? id : boomarkUser)
+               .toArray(IdentityID[]::new);
+            vaction.setBookmarkUsers(bookmarkUsers);
+         }
+      }
+   }
+
    /**
     * Method will be invoked when asset is renamed.
     * @param oentry the specified old entry.
     * @param nentry the specified new entry.
     */
-   public synchronized void assetRenamed(AssetEntry oentry, AssetEntry nentry) {
+   public synchronized void assetRenamed(AssetEntry oentry, AssetEntry nentry, String orgID) {
       if(nentry != null && RecycleUtils.isInRecycleBin(nentry.getPath())) {
-         assetRemoved(oentry);
+         assetRemoved(oentry, orgID);
          return;
       }
 
       Set<ScheduleTask> changedTasks = new HashSet<>();
 
-      for(ScheduleTask task : tasks.values()) {
+      for(ScheduleTask task : getOrgTaskMap(orgID).values()) {
          if(task == null) {
             continue;
          }
@@ -990,7 +1133,7 @@ public class ScheduleManager {
                if(entry2.equals(oentry)) {
                   action.setEntry(nentry);
                   LOG.debug(
-                     "Schedule action in task " + task.getName() +
+                     "Schedule action in task " + task.getTaskId() +
                         " is changed for asset " + oentry + " is renamed to " +
                         nentry);
                   changedTasks.add(task);
@@ -1003,7 +1146,7 @@ public class ScheduleManager {
                if(Tool.equals(queryEntry, oentry)) {
                   action.setQueryEntry(nentry);
                   LOG.debug(
-                     "Schedule action in task " + task.getName() +
+                     "Schedule action in task " + task.getTaskId() +
                         " is changed for asset " + oentry + " is renamed to " +
                         nentry);
                   changedTasks.add(task);
@@ -1025,7 +1168,7 @@ public class ScheduleManager {
     * Method will be invoked when asset is removed.
     * @param entry the specified asset entry.
     */
-   public synchronized void assetRemoved(AssetEntry entry) {
+   public synchronized void assetRemoved(AssetEntry entry, String orgID) {
       // Bug #65532, optimization, ignore any assets other than ws or vs
       if(entry == null || !entry.isSheet()) {
          return;
@@ -1033,7 +1176,7 @@ public class ScheduleManager {
 
       Set<ScheduleTask> changedTasks = new HashSet<>();
 
-      for(ScheduleTask task : tasks.values()) {
+      for(ScheduleTask task : getOrgTaskMap(orgID).values()) {
          if(task == null) {
             continue;
          }
@@ -1049,7 +1192,7 @@ public class ScheduleManager {
             if(Tool.equals(entry, entry2)) {
                task.removeAction(j);
                LOG.debug(
-                           "Schedule action in task " + task.getName() +
+                           "Schedule action in task " + task.getTaskId() +
                            " is removed for asset " + entry + " is removed");
                changedTasks.add(task);
             }
@@ -1164,13 +1307,13 @@ public class ScheduleManager {
     * @param owner the specified user.
     */
    public synchronized void viewSheetRenamed(String oviewSheet,
-                                             String nviewSheet, String owner)
+                                             String nviewSheet, String owner, String orgID)
    {
       AssetEntry nentry = AssetEntry.createAssetEntry(nviewSheet);
       AssetEntry oentry = AssetEntry.createAssetEntry(oviewSheet);
 
       if(nentry.isViewsheet() && RecycleUtils.isInRecycleBin(nentry.getPath())) {
-         viewsheetRemoved(oentry);
+         viewsheetRemoved(oentry, orgID);
          return;
       }
 
@@ -1181,7 +1324,7 @@ public class ScheduleManager {
 
       Set<ScheduleTask> changedTasks = new HashSet<>();
 
-      for(ScheduleTask task : tasks.values()) {
+      for(ScheduleTask task : getOrgTaskMap(orgID).values()) {
          if(task == null) {
             continue;
          }
@@ -1199,7 +1342,7 @@ public class ScheduleManager {
             {
                action.setViewsheetName(nviewSheet);
                LOG.debug(
-                           "Schedule action in task " + task.getName() +
+                           "Schedule action in task " + task.getTaskId() +
                               " is changed for viewsheet " + name + " is renamed to " +
                               nviewSheet);
                changedTasks.add(task);
@@ -1227,10 +1370,10 @@ public class ScheduleManager {
       }
    }
 
-   public synchronized void viewsheetRemoved(AssetEntry entry) {
+   public synchronized void viewsheetRemoved(AssetEntry entry, String orgID) {
       Set<ScheduleTask> changedTasks = new HashSet<>();
 
-      for(ScheduleTask task : tasks.values()) {
+      for(ScheduleTask task : getOrgTaskMap(orgID).values()) {
          if(task == null) {
             continue;
          }
@@ -1246,7 +1389,7 @@ public class ScheduleManager {
             if(entry.toIdentifier().equals(vsId)) {
                task.removeAction(j);
                LOG.debug(
-                  "Schedule action in task " + task.getName() +
+                  "Schedule action in task " + task.getTaskId() +
                      " is removed after viewsheet " + entry + " is removed");
                changedTasks.add(task);
             }
@@ -1308,11 +1451,11 @@ public class ScheduleManager {
     * @param owner the specified user.
     */
    public synchronized void folderRenamed(String opath, String npath,
-                                          String owner)
+                                          String owner, String orgID)
    {
       Set<ScheduleTask> changedTasks = new HashSet<>();
 
-      for(ScheduleTask task : tasks.values()) {
+      for(ScheduleTask task : getOrgTaskMap(orgID).values()) {
          if(task == null) {
             continue;
          }
@@ -1333,7 +1476,7 @@ public class ScheduleManager {
                   AssetEntry newVSEntry = new AssetEntry(vsEntry.getScope(), vsEntry.getType(),
                      newName, vsEntry.getUser());
                   vsAction.setViewsheet(newVSEntry.toIdentifier());
-                  LOG.info("Schedule action in task " + task.getName() +
+                  LOG.info("Schedule action in task " + task.getTaskId() +
                      " is changed for viewsheet " + path + " is renamed to " + newName + "!");
                   changedTasks.add(task);
                }
@@ -1367,7 +1510,7 @@ public class ScheduleManager {
       throws Exception
    {
       if(nentry != null && nentry.isViewsheet() && RecycleUtils.isInRecycleBin(nentry.getPath())) {
-         viewsheetRemoved(oentry);
+         viewsheetRemoved(oentry, nentry.getOrgID());
          return;
       }
 
@@ -1424,20 +1567,20 @@ public class ScheduleManager {
     * @return the asset identifier.
     */
    private String getTaskIdentifier(ScheduleTask task) {
-      return getTaskIdentifier(task.getName(), null);
+      return getTaskIdentifier(task.getTaskId(), null);
    }
 
    /**
     * Gets the asset identifier for a schedule task.
     *
-    * @param taskName the name of the task.
+    * @param taskId the name of the task.
     *
     * @return the asset identifier.
     */
-   private String getTaskIdentifier(String taskName, String orgID) {
+   private String getTaskIdentifier(String taskId, String orgID) {
       return new AssetEntry(
          AssetRepository.GLOBAL_SCOPE,
-         AssetEntry.Type.SCHEDULE_TASK, "/" + taskName, null, orgID)
+         AssetEntry.Type.SCHEDULE_TASK, "/" + taskId, SUtil.getTaskOwner(taskId), orgID)
          .toIdentifier();
    }
 
@@ -1454,7 +1597,7 @@ public class ScheduleManager {
       return getScheduleTask(InternalScheduledTaskService.BALANCE_TASKS, Organization.getDefaultOrganizationID());
    }
 
-   private final ScheduleTaskMap tasks = new ScheduleTaskMap();
+   private final Map<String, ScheduleTaskMap> taskMap = new HashMap<>();
    private final Vector<ScheduleExt> extensions = new Vector<>();
    private final Map<ExtTaskKey, ScheduleTask> extensionTasks = new ConcurrentHashMap<>();
    private final Lock extensionLock;
@@ -1476,16 +1619,14 @@ public class ScheduleManager {
 
             try {
                if(manager == null) {
-                  ScheduleManager initManager = new ScheduleManager();
+                  manager = new ScheduleManager();
 
                   try {
-                     new InternalScheduledTaskService(initManager).initInternalTasks();
+                     new InternalScheduledTaskService(manager).initInternalTasks();
                   }
                   catch(Exception ex) {
                      LOG.error("Failed to initialize internal tasks.");
                   }
-
-                  manager = initManager;
                }
             }
             finally {

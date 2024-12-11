@@ -21,6 +21,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.sree.internal.SUtil;
+import inetsoft.util.Tool;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,46 +33,91 @@ import java.util.stream.StreamSupport;
 public class CustomAuthenticationProvider extends AbstractAuthenticationProvider {
    @Override
    public IdentityID[] getUsers() {
-      return users.keySet().toArray(new IdentityID[0]);
+      Set<IdentityID> idSet = users.keySet();
+
+      if(SUtil.isMultiTenant()) {
+         return idSet.toArray(new IdentityID[0]);
+      }
+
+      return idSet.stream().filter(this::isHostOrgIdentity).toArray(IdentityID[]::new);
    }
 
    @Override
    public User getUser(IdentityID userIdentity) {
+      if(!SUtil.isMultiTenant() && !isHostOrgIdentity(userIdentity)){
+         return null;
+      }
+
       return users.get(userIdentity);
    }
 
    @Override
-   public String[] getOrganizations() {
-      return organizations.keySet().toArray(new String[0]);
+   public String[] getOrganizationIDs() {
+      Set<String> orgSet = organizations.keySet();
+
+      if(SUtil.isMultiTenant()) {
+         return orgSet.toArray(new String[0]);
+      }
+
+      return orgSet.stream()
+         .filter(id -> Tool.equals(id, Organization.getDefaultOrganizationID()))
+         .toArray(String[]::new);
    }
 
    @Override
-   public Organization getOrganization(String name) {
-      return organizations.get(name);
+   public String[] getOrganizationNames() {
+      Set<String> orgSet = organizations.keySet();
+
+      if(SUtil.isMultiTenant()) {
+         return orgSet.stream()
+            .map(oid -> getOrganization(oid).name)
+            .toArray(String[]::new);
+      }
+
+      Organization org = getOrganization(Organization.getDefaultOrganizationID());
+      return org == null ? new String[0] : new String[] {org.name};
    }
 
    @Override
-   public String getOrgId(String name) {
-      return organizations.get(name).getId();
+   public Organization getOrganization(String id) {
+      return organizations.get(id);
    }
 
    @Override
-   public String getOrgNameFromID(String id) {
-      for(String org : getOrganizations()) {
-         if(getOrganization(org).getId().equalsIgnoreCase(id)) {
-            return org;
+   public String getOrgIdFromName(String name) {
+      for(String oid : getOrganizationIDs()) {
+         if(getOrganization(oid).getName().equals(name)) {
+            return oid;
          }
       }
+
       return null;
    }
 
    @Override
+   public String getOrgNameFromID(String id) {
+      if(!SUtil.isMultiTenant() && !Tool.equals(id, Organization.getDefaultOrganizationID())) {
+         return null;
+      }
+
+      return getOrganization(id) == null ? null : getOrganization(id).name;
+   }
+
+   @Override
    public Group getGroup(IdentityID groupIdentity) {
+      if(!SUtil.isMultiTenant() && !isHostOrgIdentity(groupIdentity)) {
+         return null;
+      }
+
       return groups.get(groupIdentity);
    }
 
    @Override
    public IdentityID[] getUsers(IdentityID groupIdentity) {
+      if(!SUtil.isMultiTenant() && !isHostOrgIdentity(groupIdentity)) {
+         return new IdentityID[0];
+      }
+
       return users.values().stream()
          .filter(u -> new HashSet<>(Arrays.asList(u.getGroups())).contains(groupIdentity.name))
          .map(FSUser::getIdentityID)
@@ -79,31 +126,61 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
 
    @Override
    public IdentityID[] getIndividualUsers() {
-      return users.values().stream()
+      IdentityID[] individualUsers = users.values().stream()
          .filter(u -> u.getGroups().length == 0)
          .map(FSUser::getIdentityID)
          .toArray(IdentityID[]::new);
+
+      if(!SUtil.isMultiTenant()) {
+         return Arrays.stream(individualUsers)
+            .filter(this::isHostOrgIdentity)
+            .toArray(IdentityID[]::new);
+      }
+
+      return individualUsers;
    }
 
    @Override
    public IdentityID[] getRoles() {
-      return roles.keySet().toArray(new IdentityID[0]);
+      Set<IdentityID> roleSet = roles.keySet();
+
+      if(SUtil.isMultiTenant()) {
+         return roleSet.toArray(new IdentityID[0]);
+      }
+
+      return roleSet.stream().filter(this::isHostOrgIdentity).toArray(IdentityID[]::new);
    }
 
    @Override
    public IdentityID[] getRoles(IdentityID roleIdentity) {
+      if(!SUtil.isMultiTenant() && roleIdentity != null &&
+         !Tool.equals(roleIdentity.getOrgID(), Organization.getDefaultOrganizationID()))
+      {
+         return new IdentityID[0];
+      }
+
       User userObject = users.get(roleIdentity);
       return userObject == null ? new IdentityID[0] : userObject.getRoles();
    }
 
    @Override
    public Role getRole(IdentityID roleIdentity) {
+      if(!SUtil.isMultiTenant() && !isHostOrgIdentity(roleIdentity)) {
+         return null;
+      }
+
       return roles.get(roleIdentity);
    }
 
    @Override
    public IdentityID[] getGroups() {
-      return groups.keySet().toArray(new IdentityID[0]);
+      Set<IdentityID> groupSet = groups.keySet();
+
+      if(SUtil.isMultiTenant()) {
+         return groupSet.toArray(new IdentityID[0]);
+      }
+
+      return groupSet.stream().filter(this::isHostOrgIdentity).toArray(IdentityID[]::new);
    }
 
    @Override
@@ -147,13 +224,7 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
 
    @Override
    public void readConfiguration(JsonNode configuration) {
-      List<String> globalRoles = Optional.ofNullable(configuration.get("roles"))
-         .map(roles -> StreamSupport.stream(roles.spliterator(), false)
-            .map(ObjectNode.class::cast)
-            .filter(node -> node.get("organization") == null)
-            .map(node -> node.get("name").asText())
-            .collect(Collectors.toList()))
-         .orElse(Collections.emptyList());
+      List<String> globalRoles = getGlobalRoles(configuration.get("roles"));
       Map<IdentityID, FSUser> userMap =
          StreamSupport.stream(configuration.get("users").spliterator(), false)
             .map(ObjectNode.class::cast)
@@ -173,7 +244,8 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
          StreamSupport.stream(configuration.get("organizations").spliterator(), false)
             .map(ObjectNode.class::cast)
             .map(this::readOrganization)
-            .collect(Collectors.toMap(FSOrganization::getName, Function.identity()));
+            .collect(Collectors.toMap(FSOrganization::getId, Function.identity()));
+
       users.clear();
       users.putAll(userMap);
 
@@ -215,7 +287,7 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
       array = mapper.createArrayNode();
       config.set("organizations", array);
       organizations.values().stream()
-         .sorted(Comparator.comparing(FSOrganization::getName))
+         .sorted(Comparator.comparing(FSOrganization::getId))
          .map(g -> writeOrganization(g, mapper))
          .forEach(array::add);
 
@@ -227,7 +299,7 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
    }
 
    private FSUser readUser(ObjectNode node, List<String> globalRoles) {
-      String organization = node.get("organization").asText();
+      String organization = getOrganizationID(node);
       return new FSUser(
          createIdentityID(node.get("name").asText(), organization),
          readStringArray(node, "emails"),
@@ -243,8 +315,8 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
       ObjectNode node = mapper.createObjectNode();
       node.put("name", user.getName());
 
-      if(user.getOrganization() != null) {
-         node.put("organization", user.getOrganization());
+      if(user.getOrganizationID() != null) {
+         node.put("organization", user.getOrganizationID());
       }
 
       node.set("emails", writeStringArray(user.getEmails(), mapper));
@@ -255,7 +327,7 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
    }
 
    private FSGroup readGroup(ObjectNode node, List<String> globalRoles) {
-      String organization = node.get("organization").asText();
+      String organization = getOrganizationID(node);
       return new FSGroup(
          createIdentityID(node.get("name").asText(), organization),
          null,
@@ -270,8 +342,8 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
       ObjectNode node = mapper.createObjectNode();
       node.put("name", group.getName());
 
-      if(group.getOrganization() != null) {
-         node.put("organization", group.getOrganization());
+      if(group.getOrganizationID() != null) {
+         node.put("organization", group.getOrganizationID());
       }
 
       node.set("groups", writeStringArray(group.getGroups(), mapper));
@@ -280,8 +352,7 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
    }
 
    private FSRole readRole(ObjectNode node, List<String> globalRoles) {
-      String organization =
-         node.get("organization") != null ? node.get("organization").asText() : null;
+      String organization = getOrganizationID(node);
       FSRole role = new FSRole(
          createIdentityID(node.get("name").asText(), organization),
          Arrays.stream(readStringArray(node, "roles"))
@@ -295,8 +366,8 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
       ObjectNode node = mapper.createObjectNode();
       node.put("name", role.getName());
 
-      if(role.getOrganization() != null) {
-         node.put("organization", role.getOrganization());
+      if(role.getOrganizationID() != null) {
+         node.put("organization", role.getOrganizationID());
       }
 
       node.set("roles", writeStringArray(Arrays.stream(role.getRoles()).map(IdentityID::getName).toArray(String[]::new), mapper));
@@ -317,7 +388,6 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
       node.put("name", organization.getName());
       node.put("organizationID", organization.getId());
       node.set("members", writeStringArray(organization.getMembers(), mapper));
-      node.set("roles", writeStringArray(Arrays.stream(organization.getRoles()).map(IdentityID::convertToKey).toArray(String[]::new), mapper));
       return node;
    }
 
@@ -339,6 +409,31 @@ public class CustomAuthenticationProvider extends AbstractAuthenticationProvider
 
    private IdentityID createIdentityID(String name, String organization) {
       return new IdentityID(name, organization);
+   }
+
+   private String getOrganizationID(ObjectNode node) {
+      return node.get("organization") != null ? node.get("organization").asText() : null;
+   }
+
+   private List<String> getGlobalRoles(JsonNode roleNode) {
+      return Optional.ofNullable(roleNode)
+         .map(roles -> StreamSupport.stream(roles.spliterator(), false)
+            .map(ObjectNode.class::cast)
+            .filter(node -> node.get("organization") == null)
+            .map(node -> node.get("name").asText())
+            .collect(Collectors.toList()))
+         .orElse(Collections.emptyList());
+   }
+
+   private boolean isHostOrgIdentity(IdentityID identity) {
+      if(identity == null) {
+         return false;
+      }
+      else if(identity.getOrgID() == null) {
+         return true;
+      }
+
+      return Tool.equals(identity.getOrgID(), Organization.getDefaultOrganizationID());
    }
 
    private final Map<IdentityID, FSUser> users = new ConcurrentHashMap<>();

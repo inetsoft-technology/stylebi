@@ -18,15 +18,20 @@
 package inetsoft.web.admin.content.repository;
 
 import inetsoft.report.LibManager;
+import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.internal.Util;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.util.Tool;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.ScriptSettingsModel;
 import inetsoft.web.admin.security.ResourcePermissionModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.sql.Timestamp;
 
 @RestController
 public class RepositoryScriptController {
@@ -61,38 +66,57 @@ public class RepositoryScriptController {
                               Principal principal)
       throws Exception
    {
+      Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
+      String objectName = "Script Function/" + model.oname();
+      ActionRecord actionRecord = new ActionRecord(SUtil.getUserName(principal),
+                                                   ActionRecord.ACTION_NAME_EDIT,
+                                                   objectName, ActionRecord.OBJECT_TYPE_SCRIPT,
+                                                   actionTimestamp, ActionRecord.ACTION_STATUS_FAILURE,
+                                                   null);
+
       LibManager manager = LibManager.getManager();
       boolean change = false;
       String npath = "";
 
-      if(!Tool.equals(manager.getScriptComment(path), model.description())) {
-         manager.setScriptComment(path, model.description());
-         change = true;
+      try {
+         if(!Tool.equals(manager.getScriptComment(path), model.description())) {
+            manager.setScriptComment(path, model.description());
+            change = true;
+         }
+
+         if(!Tool.equals(model.name(), model.oname())) {
+            actionRecord.setActionError("new name:" + model.name());
+            manager.renameScript(model.oname(), model.name());
+            npath = model.name();
+            change = true;
+         }
+
+         if(change) {
+            manager.save();
+         }
+
+         Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
+
+         if(npath != null && !npath.isEmpty()) {
+            SecurityEngine security = SecurityEngine.getSecurity();
+            Permission temp = security.getPermission(resource.getType(), path);
+            security.removePermission(resource.getType(), path);
+            security.setPermission(resource.getType(), npath, temp);
+         }
+
+         if(model.permissions() != null && model.permissions().changed()) {
+            String fullPath = Util.getObjectFullPath(type, path, principal);
+            this.resourcePermissionService.setResourcePermissions(
+               resource.getPath(), resource.getType(), fullPath, model.permissions(), principal);
+         }
       }
-
-      if(!Tool.equals(model.name(), model.oname())) {
-         manager.renameScript(model.oname(), model.name());
-         npath = model.name();
-         change = true;
+      catch(Exception e) {
+         actionRecord.setActionError(e.getMessage());
+         throw new RuntimeException(e);
       }
-
-      if(change) {
-         manager.save();
-      }
-
-      Resource resource = resourcePermissionService.getRepositoryResourceType(type, path);
-
-      if(npath != null && !npath.isEmpty()) {
-         SecurityEngine security = SecurityEngine.getSecurity();
-         Permission temp = security.getPermission(resource.getType(), path);
-         security.removePermission(resource.getType(), path);
-         security.setPermission(resource.getType(), npath, temp);
-      }
-
-      if(model.permissions() != null && model.permissions().changed()) {
-         String fullPath = Util.getObjectFullPath(type, path, principal);
-         this.resourcePermissionService.setResourcePermissions(
-            resource.getPath(), resource.getType(), fullPath, model.permissions(), principal);
+      finally {
+         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
+         Audit.getInstance().auditAction(actionRecord, principal);
       }
    }
 

@@ -287,7 +287,7 @@ public abstract class DatasourcesBaseService {
       actionName = ActionRecord.ACTION_NAME_CREATE,
       objectType = ActionRecord.OBJECT_TYPE_DATASOURCE
    )
-   public void createNewDataSource(@AuditObjectName("getName()") BaseDataSourceDefinition definition,
+   public void createNewDataSource(@AuditObjectName("getName()") BaseDataSourceDefinition definition, boolean isXmla,
                                    Principal principal)
       throws Exception
    {
@@ -323,8 +323,8 @@ public abstract class DatasourcesBaseService {
       if(ds != null) {
          String name = ds.getName();
          IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-         ds.setCreatedBy(pId);
-         ds.setLastModifiedBy(principal.getName());
+         ds.setCreatedBy(pId.getName());
+         ds.setLastModifiedBy(pId.getName());
          ds.setCreated(System.currentTimeMillis());
          ds.setLastModified(System.currentTimeMillis());
 
@@ -341,12 +341,13 @@ public abstract class DatasourcesBaseService {
             permission.setUserGrantsForOrg(ResourceAction.READ, users, orgId);
             permission.setUserGrantsForOrg(ResourceAction.WRITE, users, orgId);
             permission.setUserGrantsForOrg(ResourceAction.DELETE, users, orgId);
+            permission.updateGrantAllByOrg(orgId, true);
             securityProvider.setPermission(
                ResourceType.DATA_SOURCE, ds.getFullName(), permission);
          }
 
          AssetEntry entry = new AssetEntry(
-            AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, name, null);
+            AssetRepository.QUERY_SCOPE, isXmla ? AssetEntry.Type.DOMAIN : AssetEntry.Type.DATA_SOURCE, name, null);
          entry = getDataSourceAssetEntry(entry);
 
          if(entry != null) {
@@ -382,14 +383,12 @@ public abstract class DatasourcesBaseService {
       String nName = parentPath + definition.getName();
       XDataSource oldSrc = repository.getDataSource(oldName);
       checkUpdateDatasourcePermission(nName, oldSrc, principal);
-      XDataSource newSrc = createDataSource(definition, oldSrc);
+      XDataSource newSrc = createDataSource(definition, (XDataSource) Tool.clone(oldSrc));
 
       if(newSrc != null) {
          if(oldSrc == null) {
             throw new FileNotFoundException(oldName);
          }
-
-         updateDatasource(oldName, newSrc, definition);
 
          if(newSrc instanceof AdditionalConnectionDataSource &&
             definition instanceof DataSourceDefinition)
@@ -397,6 +396,8 @@ public abstract class DatasourcesBaseService {
             saveAdditionalConnections((DataSourceDefinition) definition,
                (AdditionalConnectionDataSource<?>) newSrc);
          }
+
+         updateDatasource(oldName, newSrc, definition);
       }
    }
 

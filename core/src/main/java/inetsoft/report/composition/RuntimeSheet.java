@@ -18,9 +18,9 @@
 package inetsoft.report.composition;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
-import inetsoft.util.FileSystemService;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.swap.*;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -79,6 +79,7 @@ public abstract class RuntimeSheet {
     */
    public RuntimeSheet() {
       super();
+      this.contextPrincipal = (XPrincipal) ThreadContext.getContextPrincipal();
 
       try {
          this.max = Integer.parseInt(SreeEnv.getProperty("asset.max.undoes"));
@@ -91,7 +92,7 @@ public abstract class RuntimeSheet {
       savePoint = 0;
       editable = true;
       isLockProcessed = false;
-      points = new XSwappableSheetList();
+      points = new XSwappableSheetList(this.contextPrincipal);
       events = new LinkedList<>();
 
       access(true);
@@ -560,8 +561,9 @@ public abstract class RuntimeSheet {
    }
 
    static final class XSwappableSheetList {
-      public XSwappableSheetList() {
+      public XSwappableSheetList(XPrincipal contextPrincipal) {
          this.values = new LinkedList<>();
+         this.contextPrincipal = contextPrincipal;
       }
 
       public int size() {
@@ -604,7 +606,7 @@ public abstract class RuntimeSheet {
          // the new sheet swappable immediately to free up memory faster.
          //XSwapper.getSwapper().waitForMemory();
 
-         XSwappableSheet swappable = new XSwappableSheet(element);
+         XSwappableSheet swappable = new XSwappableSheet(element, this.contextPrincipal);
          swappable.complete();
          values.add(index, swappable);
       }
@@ -632,12 +634,14 @@ public abstract class RuntimeSheet {
       }
 
       private final List<XSwappableSheet> values;
+      private XPrincipal contextPrincipal;
       private boolean disposed;
    }
 
    private static final class XSwappableSheet extends XSwappable {
-      public XSwappableSheet(AbstractSheet sheet) {
+      public XSwappableSheet(AbstractSheet sheet, XPrincipal contextPrincipal) {
          this.sheet = sheet;
+         this.contextPrincipal = contextPrincipal;
          this.valid = true;
          this.monitor = XSwapper.getMonitor();
 
@@ -739,13 +743,22 @@ public abstract class RuntimeSheet {
 
       @Override
       public synchronized boolean swap() {
-         if(getSwapPriority() == 0) {
-            return false;
-         }
+         XPrincipal oldContextPrincipal = (XPrincipal) ThreadContext.getContextPrincipal();
+         ThreadContext.setContextPrincipal(this.contextPrincipal);
 
-         valid = false;
-         _swap();
-         return true;
+         try {
+
+            if(getSwapPriority() == 0) {
+               return false;
+            }
+
+            valid = false;
+            _swap();
+            return true;
+         }
+         finally {
+            ThreadContext.setContextPrincipal(oldContextPrincipal);
+         }
       }
 
       private void _swap() {
@@ -806,6 +819,7 @@ public abstract class RuntimeSheet {
       }
 
       private AbstractSheet sheet = null;
+      private XPrincipal contextPrincipal;
       private boolean valid = false;
       private boolean lastValid = false;
       private boolean completed = false;
@@ -820,6 +834,7 @@ public abstract class RuntimeSheet {
    protected AssetEntry entry;      // asset entry
    protected long accessed;         // last accessed time
    protected Principal user;        // user who opened it
+   protected XPrincipal contextPrincipal;
    protected boolean editable;      // editable flag
    protected List<EventInfo> events; // event infos
    protected XSwappableSheetList points; // total points

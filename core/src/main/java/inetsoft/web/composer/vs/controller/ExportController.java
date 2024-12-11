@@ -427,6 +427,8 @@ public class ExportController {
       String name = fileName == null || "".equals(fileName) ? "ExportedWorksheet" : fileName;
       WSExporter exporter;
       String format = SreeEnv.getProperty("table.export.format");
+      int row = lens == null ? 1 : lens.getRowCount();
+      int col = lens == null ? 1 : lens.getColCount();
 
       // if the table has a lot of rows, use csv format to save memory
       if(lens != null && lens.moreRows(5000) && format == null || "csv".equals(format)) {
@@ -444,11 +446,8 @@ public class ExportController {
          }
       }
       else {
-         exporter = OfficeExporterFactory.getInstance().createWorksheetExporter();
+         exporter = OfficeExporterFactory.getInstance().createWorksheetExporter(row, col);
       }
-
-      int row = lens == null ? 1 : lens.getRowCount();
-      int col = lens == null ? 1 : lens.getColCount();
 
       try(OutputStream out = response.getOutputStream()) {
          VSExportService.setResponseHeader(new ExportResponse(response), suffix, disposition, name, mime);

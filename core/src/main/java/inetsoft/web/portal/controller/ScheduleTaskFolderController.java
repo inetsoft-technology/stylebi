@@ -152,7 +152,7 @@ public class ScheduleTaskFolderController {
          .getScheduleTaskList("", "", entry, principal);
 
       return taskListModel.tasks().stream()
-         .anyMatch(t -> principal.getName().equals(t.owner()) ||
+         .anyMatch(t -> principal.getName().equals(t.owner().convertToKey()) ||
             scheduleService.isGroupShare(t, principal)
          );
    }

@@ -20,8 +20,8 @@ package inetsoft.uql.xmla;
 import inetsoft.uql.XDataSource;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.util.XUtil;
-import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -38,6 +38,8 @@ public class XMLADataSource extends XDataSource {
     */
    public XMLADataSource() {
       super(XMLA);
+
+      initCredential(false);
    }
 
    /**
@@ -164,28 +166,56 @@ public class XMLADataSource extends XDataSource {
     * Set the user id.
     */
    public void setUser(String user) {
-      this.user = user;
+      credential.setUser(user);
    }
 
    /**
     * Get the used user id.
     */
    public String getUser() {
-      return this.user;
+      return this.credential.getUser();
    }
 
    /**
     * Set the user password.
     */
    public void setPassword(String password) {
-      this.password = password;
+      credential.setPassword(password);
    }
 
    /**
     * Get the used user password.
     */
    public String getPassword() {
-      return this.password;
+      return credential.getPassword();
+   }
+
+   /**
+    * Set the authentication credential id.
+    */
+   public void setCredentialId(String id) {
+      credential.setId(id);
+   }
+
+   /**
+    * Get the authentication credential id.
+    */
+   public String getCredentialId() {
+      return credential.getId();
+   }
+
+   /**
+    * Get the authentication credential.
+    */
+   public PasswordCredential getCredential() {
+      return credential;
+   }
+
+   /**
+    * Check whether the authentication credential is used.
+    */
+   public boolean isUseCredential() {
+      return credential != null && credential instanceof AbstractCloudCredential;
    }
 
    @Override
@@ -215,9 +245,7 @@ public class XMLADataSource extends XDataSource {
          }
 
 
-         if(isRequireLogin() && (!Tool.equals(user, jdbcObj.user) ||
-            !Tool.equals(password, jdbcObj.password)))
-         {
+         if(isRequireLogin() && !Tool.equals(credential, jdbcObj.credential)) {
             return false;
          }
 
@@ -225,6 +253,13 @@ public class XMLADataSource extends XDataSource {
       }
 
       return super.equals(obj);
+   }
+
+   @Override
+   public Object clone() {
+      XMLADataSource source = (XMLADataSource) super.clone();
+      source.credential = (PasswordCredential) credential.clone();
+      return source;
    }
 
    /**
@@ -256,17 +291,10 @@ public class XMLADataSource extends XDataSource {
          writer.print(" url=\"" + Tool.byteEncode(url) + "\"");
       }
 
-      if(user != null) {
-         writer.print(" user=\"" + Tool.byteEncode(user) + "\"");
-      }
-
-      if(password != null) {
-         writer.print(" password=\"" + Tool.escape(Tool.encryptPassword(password)) + "\""); // NOSONAR
-      }
-
       writer.print(" login=\"" + login + "\"");
       writer.print(">");
       super.writeXML(writer);
+      credential.writeXML(writer);
       writer.print("</ds_xmla>");
    }
 
@@ -308,18 +336,24 @@ public class XMLADataSource extends XDataSource {
          url = Tool.byteDecode(val);
       }
 
-      val = Tool.getAttribute(root, "user");
-
-      if(val != null) {
-         user = Tool.byteDecode(val);
-      }
-
-      password = Tool.decryptPassword(Tool.getAttribute(root, "password"));
       val = Tool.getAttribute(root, "login");
 
       if(val != null) {
          login = "true".equals(val);
       }
+
+      Element credentialNode = Tool.getChildNodeByTagName(root, "PasswordCredential");
+
+      if(credentialNode != null) {
+         String className = Tool.getAttribute(credentialNode, "class");
+         Class<?> clazz = Class.forName(className);
+         credential = (PasswordCredential) clazz.getDeclaredConstructor().newInstance();
+         credential.parseXML(credentialNode);
+      }
+   }
+
+   public void initCredential(boolean forceLocal) {
+      credential = (PasswordCredential) CredentialService.newCredential(CredentialType.PASSWORD, forceLocal);
    }
 
    private String datasource = null; // dx name
@@ -327,7 +361,6 @@ public class XMLADataSource extends XDataSource {
    private String datasourceInfo = null; // dx info
    private String catalogName = null; // dx catalog name
    private String url = null; // dx url
-   private String user = null; // dx user
-   private String password = null; // dx password
+   private PasswordCredential credential = null;
    private boolean login = false; // if requires login
 }

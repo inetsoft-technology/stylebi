@@ -22,6 +22,7 @@ import { MatSnackBar, MatSnackBarConfig } from "@angular/material/snack-bar";
 import { ActivatedRoute } from "@angular/router";
 import { Observable, Subject, throwError } from "rxjs";
 import { catchError, filter, map, takeUntil } from "rxjs/operators";
+import { CommonKVModel } from "../../../../../../portal/src/app/common/data/common-kv-model";
 import { Tool } from "../../../../../../shared/util/tool";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { ContextHelp } from "../../../context-help";
@@ -64,6 +65,7 @@ export class PresentationSettingsViewComponent implements OnInit, OnDestroy {
    currentView = "general-format";
    routingToView: boolean = false;
    isSysAdmin: boolean = false;
+   orgId: string;
 
    private destroy$ = new Subject();
 
@@ -96,9 +98,10 @@ export class PresentationSettingsViewComponent implements OnInit, OnDestroy {
          this.pageTitle.title = "_#(js:Presentation Settings)";
       }
 
-      this.http.get("../api/em/navbar/isSiteAdmin").subscribe((isSysAdmin: boolean) =>
+      this.http.get("../api/em/navbar/userInfo").subscribe((model: CommonKVModel<string, boolean>) =>
       {
-         this.isSysAdmin = isSysAdmin && !this.orgSettings;
+         this.isSysAdmin = model.value && !this.orgSettings;
+         this.orgId = model.key;
          const params = new HttpParams().set("orgSettings", !this.isSysAdmin);
 
          this.http.get<PresentationSettingsModel>("../api/em/settings/presentation/model", {params})
@@ -110,6 +113,8 @@ export class PresentationSettingsViewComponent implements OnInit, OnDestroy {
                   this.navLinks = [
                      new PresentationSettingsNavLink("general-format", "_#(js:General Format)"),
                      new PresentationSettingsNavLink("look-and-feel", "_#(js:Look and Feel)"),
+                     new PresentationSettingsNavLink("welcome-page", "_#(js:Welcome Page)"),
+                     new PresentationSettingsNavLink("login-banner", "_#(js:Login Banner)"),
                      new PresentationSettingsNavLink("composer-message", "_#(js:Composer Messages)"),
                      new PresentationSettingsNavLink("portal-integration", "_#(js:Portal Integration)"),
                      new PresentationSettingsNavLink("time-settings", "_#(js:Time Settings)"),

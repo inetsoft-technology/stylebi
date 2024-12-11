@@ -71,7 +71,7 @@ public class WSAutoSaveAsset extends WorksheetAsset {
 
    @Override
    public IdentityID getUser() {
-      return new IdentityID("__NULL__", OrganizationManager.getCurrentOrgName());
+      return new IdentityID("__NULL__", OrganizationManager.getInstance().getCurrentOrgID());
    }
 
    public int hashCode() {

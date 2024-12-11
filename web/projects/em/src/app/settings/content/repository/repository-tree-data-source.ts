@@ -62,7 +62,6 @@ export class RepositoryTreeDataSource
    hasMVPermission = false;
    contextMenusEnabled = false;
    searchQuery: string = null;
-   isSiteAdmin: boolean = false;
 
    get dataSubject(): Observable<void> {
       return this._data.asObservable();
@@ -133,12 +132,7 @@ export class RepositoryTreeDataSource
 
    constructor(private http: HttpClient, private client: StompClientService, private zone: NgZone) {
       super();
-      this.init().subscribe((nodes) => {
-         this.data = nodes;
-         this._data.next();
-         this._loading.next(false);
-         this.connectSocket();
-      });
+      this.connectSocket(true);
    }
 
    ngOnDestroy() {
@@ -148,13 +142,17 @@ export class RepositoryTreeDataSource
       this.disconnectSocket();
    }
 
-   private connectSocket(): void {
+   private connectSocket(init?: boolean): void {
       if(!this.connecting && !this.connection) {
          this.client.connect("../vs-events").subscribe(
             (connection) => {
                this.connecting = false;
                this.connection = connection;
                this.subscribeSocket();
+
+               if(init) {
+                  this.initTreeDate();
+               }
             },
             (error: any) => {
                this.connecting = false;
@@ -175,6 +173,14 @@ export class RepositoryTreeDataSource
          this.connection.disconnect();
          this.connection = null;
       }
+   }
+
+   private initTreeDate(): void {
+      this.init().subscribe((nodes) => {
+         this.data = nodes;
+         this._data.next();
+         this._loading.next(false);
+      });
    }
 
    /**
@@ -267,13 +273,15 @@ export class RepositoryTreeDataSource
          .set("filter", Tool.byteEncode(this.searchQuery));
       this.http.get<TreeDataModel<RepositoryTreeNode>>("../api/em/content/repository/tree/search", { params })
          .subscribe(model => {
-            this.data.slice()
-               .filter(n => this.isSearchResultNode(n))
-               .forEach(rootNode => {
-                  rootNode.data.children = model.nodes;
-                  this.sortSearchNodes(rootNode.data.children, query);
-                  this.processSearchResults(rootNode);
-               });
+            let searchResultNode = this.data.slice().find(n => this.isSearchResultNode(n));
+
+            if(searchResultNode) {
+               this.treeControl.collapse(searchResultNode);
+               searchResultNode.data.children = model.nodes;
+               this.sortSearchNodes(searchResultNode.data.children, query);
+               this.processSearchResults(searchResultNode);
+            }
+
             this.treeControl.expandAll();
             this.dataChange.next(this.data);
          });
@@ -592,7 +600,7 @@ export class RepositoryTreeDataSource
          (type & RepositoryEntryType.TRASHCAN) === RepositoryEntryType.TRASHCAN ||
          (type & RepositoryEntryType.CUBE) === RepositoryEntryType.CUBE ||
          (path && (path.indexOf(Tool.RECYCLE_BIN) == 0 || path.indexOf(Tool.MY_REPORTS_RECYCLE_BIN) == 0)) ||
-         builtIn || isAdditionalSource || !this.isSiteAdmin;
+         builtIn || isAdditionalSource;
 
       const newDashboardDisabled = readOnly ||
          (type & RepositoryEntryType.DASHBOARD_FOLDER) !== RepositoryEntryType.DASHBOARD_FOLDER ||

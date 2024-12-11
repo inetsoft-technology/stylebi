@@ -59,7 +59,7 @@ public class QueryMonitoringController extends AbstractMonitoringController {
       });
    }
 
-   @PostMapping("/em/monitoring/queries/remove/**")
+   @PostMapping("/api/em/monitoring/queries/remove/**")
    public void remove(@RequestBody String[] ids, @RemainingPath String server) {
       try {
          queryService.destroyClusterQueries(getServerClusterNode(server), ids);

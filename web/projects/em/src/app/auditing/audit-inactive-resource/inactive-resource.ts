@@ -20,8 +20,7 @@ import { AuditRecordList, AuditRecordParameters } from "../audit-table-view/audi
 export interface InactiveResourceParameters extends AuditRecordParameters {
    objectTypes: string[];
    hosts: string[];
-
-   organizations: string[];
+   organizationNames: string[];
    organizationFilter: boolean;
    minDuration: number;
    maxDuration: number;
@@ -34,6 +33,7 @@ export interface InactiveResource {
    duration: number;
    server: string;
    organizationId: string;
+   dateFormat: string;
 }
 
 export interface InactiveResourceList extends AuditRecordList<InactiveResource> {

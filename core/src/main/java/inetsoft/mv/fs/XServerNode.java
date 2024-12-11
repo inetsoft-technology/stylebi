@@ -31,6 +31,16 @@ public final class XServerNode implements FSConfigObserver {
    /**
     * Create an instance of XServerNode.
     */
+   public XServerNode(FSConfig config, String orgId) {
+      super();
+
+      this.config = config;
+      this.fs = AbstractFileSystem.createFileSystem(this, orgId);
+   }
+
+   /**
+    * Create an instance of XServerNode.
+    */
    public XServerNode(FSConfig config) {
       super();
 

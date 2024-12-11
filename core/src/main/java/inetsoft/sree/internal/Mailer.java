@@ -349,11 +349,11 @@ public class Mailer {
             bodyHtml = extractImages(bodyHtml, imgs);
             String plainText = getPlainText(bodyHtml);
 
-            if(bodyHtml != null) {
+            if(!Tool.isEmptyString(bodyHtml)) {
                email.setHtmlMsg(bodyHtml);
             }
 
-            if(plainText != null) {
+            if(!Tool.isEmptyString(plainText)) {
                email.setTextMsg(plainText);
             }
 
@@ -563,8 +563,8 @@ public class Mailer {
    }
 
    private String extractImages(String html, Map<String, byte[]> images) {
-      if(Tool.isEmptyString(html)) {
-         return null;
+      if(html == null) {
+         html = "";
       }
 
       Document document = Jsoup.parse(html);

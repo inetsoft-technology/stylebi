@@ -69,6 +69,10 @@ export class SelectionListPropertyDialog extends PropertyDialog implements OnIni
          this.model.selectionGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.name;
 
       this.originalSelectedColumn = Tool.clone(this.model.selectionListPaneModel.selectedColumn);
+
+      if(this.model.selectionListPaneModel.grayedOutFields != null) {
+         this.getGrayedOutFields();
+      }
    }
 
    get defaultTab(): string {
@@ -107,6 +111,7 @@ export class SelectionListPropertyDialog extends PropertyDialog implements OnIni
       this.modelService.sendModel<DataRef[]>(url, this.model).subscribe(
       (result) => {
          this.model.selectionListPaneModel.grayedOutFields = result.body;
+         console.log("====000======",this.model.selectionListPaneModel.grayedOutFields);
       });
    }
 

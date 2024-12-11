@@ -165,10 +165,19 @@ export class ReportTabComponent extends CommandProcessor implements OnInit, OnDe
          ([[url, entry], currentUrl]) => {
             //if no entry is being opening, refresh the tree
             if(!url && !entry && (!currentUrl || currentUrl.indexOf("hideWelcomePage=true") < 0)) {
-               this.repositoryTreeService.getRootFolder().subscribe(
+               this.repositoryTreeService.getRootFolder(undefined, undefined,
+                  undefined, undefined, undefined,undefined,
+                  undefined, undefined, true).subscribe(
                   (rootNode) => {
                      this.rootNode = rootNode;
-                     this.rootNode.expanded = true;
+
+                     if(this.rootNode.type !== "None") {
+                        this.rootNode.expanded = true;
+                     }
+                     else {
+                        const rootNode = this.rootNode.children.find(node => node.data.path === "/");
+                        rootNode.expanded = true;
+                     }
                   });
             }
 
@@ -188,10 +197,19 @@ export class ReportTabComponent extends CommandProcessor implements OnInit, OnDe
             }
 
             if(!this.rootNode) {
-               this.repositoryTreeService.getRootFolder().subscribe(
+               this.repositoryTreeService.getRootFolder(undefined, undefined,
+                  undefined, undefined, undefined,undefined,
+                  undefined, undefined, true).subscribe(
                   (rootNode) => {
                      this.rootNode = rootNode;
-                     this.rootNode.expanded = true;
+
+                     if(this.rootNode.type !== "None") {
+                        this.rootNode.expanded = true;
+                     }
+                     else {
+                        const rootNode = this.rootNode.children.find(node => node.data.path === "/");
+                        rootNode.expanded = true;
+                     }
                   });
             }
          }

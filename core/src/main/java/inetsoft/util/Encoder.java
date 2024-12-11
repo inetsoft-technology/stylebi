@@ -384,13 +384,13 @@ public class Encoder implements java.io.Serializable {
       @Override
       public void write(int b) throws IOException {
          if(pos == 0) {
-            buffer += (b << 24) & 0xff000000L;
+            buffer += ((long) b << 24) & 0xff000000L;
          }
          else if(pos == 1) {
-            buffer += (b << 16) & 0xff0000L;
+            buffer += ((long) b << 16) & 0xff0000L;
          }
          else if(pos == 2) {
-            buffer += (b << 8) & 0xff00L;
+            buffer += ((long) b << 8) & 0xff00L;
          }
          else {
             buffer += b & 0xffL;

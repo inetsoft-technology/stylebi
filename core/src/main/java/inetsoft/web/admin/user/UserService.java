@@ -181,12 +181,12 @@ public class UserService
    {
       boolean lastAccessEnabled = isLevelQualified("lastAccess");
       Catalog catalog = Catalog.getCatalog(principal);
-      String orgName = OrganizationManager.getInstance().getCurrentOrgName(principal);
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID(principal);
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
       return getModelData(address, u -> u.sessions().stream()
          .filter(i -> i.user() != null)
-         .filter(i -> Objects.equals(orgName, i.user().getOrganization()))
+         .filter(i -> Objects.equals(orgID, i.user().getOrgID()))
          .filter(user -> provider.checkPermission(principal, ResourceType.SECURITY_USER,
                                                   user.user().convertToKey(), ResourceAction.ADMIN))
          .map(s -> UserSessionMonitoringTableModel.builder()

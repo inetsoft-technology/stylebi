@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * @hidden
  */
-@ControllerAdvice(basePackages = { "inetsoft.web.admin" })
+@ControllerAdvice(basePackages = { "inetsoft.web.admin", "inetsoft.enterprise.web.admin" })
 public class AdminExceptionHandler {
    /**
     * Error handler for a request for a missing resource.

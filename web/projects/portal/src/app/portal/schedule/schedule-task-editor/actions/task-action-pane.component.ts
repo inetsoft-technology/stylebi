@@ -271,7 +271,7 @@ export class TaskActionPane implements OnInit {
                      .filter(b => !!bookmarks.find((i) =>
                         i.name === b.name &&
                         i.owner.name === b.owner.name &&
-                        i.owner.organization === b.owner.organization));
+                        i.owner.orgID === b.owner.orgID));
                }
 
                if(!this.generalActionModel.bookmarks ||
@@ -381,7 +381,8 @@ export class TaskActionPane implements OnInit {
          (result: string) => {
             if(result === "ok") {
                const params = new HttpParams()
-                  .set("name", Tool.byteEncode(this.oldTaskName));
+                  .set("name", Tool.byteEncode(this.oldTaskName))
+                  .set("owner", Tool.byteEncode(this.taskOwner));
                const actions: number[] = Tool.clone(this.selectedActions);
                actions.sort();
                actions.reverse();

@@ -179,6 +179,11 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
    }
 
    @Override
+   public String decryptDBPassword(String input, String dbType) {
+      return null;
+   }
+
+   @Override
    public HashedPassword hash(String password, String algorithm, String salt, boolean appendSalt) {
       try {
          if(algorithm == null || algorithm.equalsIgnoreCase("none")) {
@@ -479,8 +484,7 @@ abstract class LocalPasswordEncryption extends AbstractPasswordEncryption {
 
    private static final Logger LOG = LoggerFactory.getLogger(LocalPasswordEncryption.class);
 
-   static ThreadLocal<char[]> masterPassword =
-      ThreadLocal.withInitial(LocalPasswordEncryption::getMasterPassword);
+   static ThreadLocal<char[]> masterPassword = ThreadLocal.withInitial(LocalPasswordEncryption::getMasterPassword);
 
    private static char[] getMasterPassword() {
       String password = System.getenv("INETSOFT_MASTER_PASSWORD");

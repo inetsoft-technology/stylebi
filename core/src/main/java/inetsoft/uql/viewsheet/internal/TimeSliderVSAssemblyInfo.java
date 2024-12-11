@@ -51,6 +51,7 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       super();
 
       tinfo = new SingleTimeInfo();
+      timeSliderSelection = new TimeSliderSelection();
 
       setPixelSize(new Dimension(2 * AssetUtil.defw, 2 * AssetUtil.defh));
    }
@@ -582,9 +583,17 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       if(tinfo != null) {
          tinfo.writeXML(writer);
       }
+      boolean writeAllSelectedValues = true;
+
+      if(slist != null && slist.getSelectionValueCount() > 0 && timeSliderSelection != null &&
+         timeSliderSelection.getLabelFormat() != null && timeSliderSelection.getIncrement() != -1)
+      {
+         writeAllSelectedValues = false;
+         timeSliderSelection.writeXML(writer, slist);
+      }
 
       if(slist != null) {
-         slist.writeXML(writer);
+         slist.writeXML(writer, writeAllSelectedValues);
       }
    }
 
@@ -609,10 +618,15 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       }
 
       Element snode = Tool.getChildNodeByTagName(elem, "SelectionList");
+      Element tslnode = Tool.getChildNodeByTagName(elem, "TimeSliderSelection");
 
       if(snode != null) {
          slist = new SelectionList();
          slist.parseXML(snode);
+      }
+
+      if(tslnode != null) {
+         timeSliderSelection.parseXML(tslnode, slist);
       }
 
       titleInfo.parseXML(elem);
@@ -1049,6 +1063,14 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
       this.descriptionName = descriptionName;
    }
 
+   public TimeSliderSelection getTimeSliderSelection() {
+      return timeSliderSelection;
+   }
+
+   public void setTimeSliderSelection(TimeSliderSelection timeSliderSelection) {
+      this.timeSliderSelection = timeSliderSelection;
+   }
+
    // view
    private DynamicValue minVisibleValue = new DynamicValue("true", XSchema.BOOLEAN);
    private DynamicValue maxVisibleValue = new DynamicValue("true", XSchema.BOOLEAN);
@@ -1068,6 +1090,7 @@ public class TimeSliderVSAssemblyInfo extends MaxModeSelectionVSAssemblyInfo
    private boolean adhocFilter;
    private boolean hidden;
    private String descriptionName;
+   private TimeSliderSelection timeSliderSelection;
 
    private static final Logger LOG = LoggerFactory.getLogger(TimeSliderVSAssemblyInfo.class);
 }

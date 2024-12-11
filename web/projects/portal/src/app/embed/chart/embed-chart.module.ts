@@ -19,6 +19,7 @@ import { CommonModule } from "@angular/common";
 import { Injector, NgModule, Optional } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { DownloadModule } from "../../../../../shared/download/download.module";
+import { AngularResizeEventModule } from "../../../../../shared/resize-event/angular-resize-event.module";
 import { DndService } from "../../common/dnd/dnd.service";
 import { VSDndService } from "../../common/dnd/vs-dnd.service";
 import { FullScreenService } from "../../common/services/full-screen.service";
@@ -39,7 +40,6 @@ import { MiniToolbarService } from "../../vsobjects/objects/mini-toolbar/mini-to
 import { ShowHyperlinkService } from "../../vsobjects/show-hyperlink.service";
 import { CheckFormDataService } from "../../vsobjects/util/check-form-data.service";
 import { VSTabService } from "../../vsobjects/util/vs-tab.service";
-import { InteractService } from "../../widget/interact/interact.service";
 import { ModelService } from "../../widget/services/model.service";
 import { ScaleService } from "../../widget/services/scale/scale-service";
 import { VSScaleService } from "../../widget/services/scale/vs-scale.service";
@@ -55,6 +55,7 @@ import {
 } from "../../vsobjects/objects/data-tip/data-tip-directives.module";
 import { MiniToolbarModule } from "../../vsobjects/objects/mini-toolbar/mini-toolbar.module";
 import { createCustomElement } from "@angular/elements";
+import { InteractModule } from "../../widget/interact/interact.module";
 
 
 @NgModule({
@@ -65,6 +66,8 @@ import { createCustomElement } from "@angular/elements";
       VSChartModule,
       DataTipDirectivesModule,
       MiniToolbarModule,
+      AngularResizeEventModule,
+      InteractModule,
    ],
    declarations: [EmbedChartComponent],
    providers: [
@@ -74,7 +77,6 @@ import { createCustomElement } from "@angular/elements";
       VSChartService,
       SlideOutService,
       UIContextService,
-      InteractService,
       CheckFormDataService,
       ShowHyperlinkService,
       VSTabService,

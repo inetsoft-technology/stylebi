@@ -23,9 +23,7 @@ import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.ScheduleClient;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
-import inetsoft.uql.XPrincipal;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import inetsoft.web.admin.monitoring.*;
 import inetsoft.web.admin.schedule.ScheduleViewsheetsStatus;
@@ -345,10 +343,10 @@ public class ViewsheetService
          }
 
          // Filter viewsheets
-         String orgName = OrganizationManager.getInstance().getCurrentOrgName();
+         String orgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID();
          viewsheets = viewsheets.stream()
             .filter(vs -> vs.monitorUser() != null &&
-               Tool.equals(vs.monitorUser().getOrganization(), orgName))
+               Tool.equals(vs.monitorUser().getOrgID(), orgID))
             .collect(Collectors.toList());
 
          return viewsheets;
@@ -376,9 +374,10 @@ public class ViewsheetService
       }
 
       // Filter viewsheets
-      List<IdentityID> users = getOrgUsers();
+      String orgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID();
       viewsheets = viewsheets.stream()
-         .filter(vs -> users.contains(vs.monitorUser()))
+         .filter(vs -> vs.monitorUser() != null &&
+            Tool.equals(vs.monitorUser().getOrgID(), orgID))
          .collect(Collectors.toList());
 
       return viewsheets;
@@ -389,10 +388,10 @@ public class ViewsheetService
    {
       List<ViewsheetMonitoringTableModel> tableModels = new ArrayList<>();
       List<IdentityID> users = getOrgUsers(principal);
-      String currentOrgName = OrganizationManager.getInstance().getCurrentOrgName(principal);
+      String currentOrgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal);
 
       for(ViewsheetModel info : getViewsheets(ViewsheetModel.State.EXECUTING, server)) {
-         if(info.user() == null || !Tool.equals(info.user().organization, currentOrgName)) {
+         if(info.user() == null || !Tool.equals(info.user().orgID, currentOrgID)) {
             continue;
          }
 
@@ -411,10 +410,10 @@ public class ViewsheetService
    }
 
    List<ViewsheetMonitoringTableModel> getOpenViewsheets(String server, Principal principal) {
-      String orgName = OrganizationManager.getInstance().getCurrentOrgName();
+      String orgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID();
 
       return getViewsheets(ViewsheetModel.State.OPEN, server).stream()
-         .filter(vs -> vs.user() != null && Tool.equals(vs.user().getOrganization(), orgName))
+         .filter(vs -> vs.user() != null && Tool.equals(vs.user().getOrgID(), orgID))
          .map(vs -> ViewsheetMonitoringTableModel.builder().from(vs).build())
          .collect(Collectors.toList());
    }

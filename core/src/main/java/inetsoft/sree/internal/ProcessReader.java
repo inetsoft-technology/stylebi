@@ -110,7 +110,7 @@ public class ProcessReader {
 
                if(logLine) {
                   if(firstRecord) {
-                     setPrincipal(SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getCurrentOrgName()), null, false));
+                     setPrincipal(SUtil.getPrincipal(new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID()), null, false));
                      addRecord("External process");
                      firstRecord = false;
                   }

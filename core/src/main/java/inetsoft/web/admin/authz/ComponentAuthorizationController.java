@@ -46,25 +46,45 @@ public class ComponentAuthorizationController {
 
       if(component != null) {
          for(ViewComponent child : component.children().values()) {
-            String resource = path == null || path.isEmpty() ? child.name() :
+            String childPath = path == null || path.isEmpty() ? child.name() :
                path + "/" + child.name();
-            boolean authorized = child.available() && checkPermission(resource, principal);
-            boolean multiTenancyHidden = false;
 
-            if(child.hiddenForMultiTenancy() && SUtil.isMultiTenant()) {
-               multiTenancyHidden = !OrganizationManager.getInstance().isSiteAdmin(principal);
-            }
-
-            builder.putPermissions(child.name(), authorized && !multiTenancyHidden);
+            builder.putPermissions(child.name(), componentAvailable(path, child, principal) &&
+               anyChildAvailable(childPath, child, principal));
             builder.putLabels(child.name(), child.label());
-
-            if(multiTenancyHidden) {
-               builder.putMultiTenancyHiddenComponents(child.name(), true);
-            }
          }
       }
 
       return builder.build();
+   }
+
+   private boolean anyChildAvailable(String parentPath, ViewComponent parent,
+                                     Principal principal)
+   {
+      if(parentPath != null && parent.children().isEmpty()) {
+         return true;
+      }
+
+      for(ViewComponent child : parent.children().values()) {
+         if(componentAvailable(parentPath, child, principal)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   private boolean componentAvailable(String parentPath, ViewComponent component, Principal principal) {
+      String resource = parentPath == null || parentPath.isEmpty() ? component.name() :
+         parentPath + "/" + component.name();
+      boolean authorized = component.available() && checkPermission(resource, principal);
+      boolean multiTenancyHidden = false;
+
+      if(component.hiddenForMultiTenancy() && SUtil.isMultiTenant()) {
+         multiTenancyHidden = !OrganizationManager.getInstance().isSiteAdmin(principal);
+      }
+
+      return authorized && !multiTenancyHidden;
    }
 
    private boolean checkPermission(String resource, Principal principal) {
@@ -89,7 +109,8 @@ public class ComponentAuthorizationController {
                principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS);
          }
          else if(("settings/presentation/themes".equals(resource) ||
-            "settings/security/sso".equals(resource)) && !enterprise)
+            "settings/security/sso".equals(resource) ||
+            "settings/security/googleSignIn".equals(resource)) && !enterprise)
          {
             authorized = false;
          }

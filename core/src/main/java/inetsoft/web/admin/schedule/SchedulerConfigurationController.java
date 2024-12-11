@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.util.config.InetsoftConfig;
 import inetsoft.web.admin.schedule.model.CheckMailInfo;
 import inetsoft.web.admin.schedule.model.ScheduleConfigurationModel;
 import inetsoft.web.admin.schedule.model.ScheduleStatusModel;
@@ -65,6 +66,10 @@ public class SchedulerConfigurationController {
       return this.configService.checkMail(mailParams, principal);
    }
 
+   @GetMapping("/api/em/settings/schedule/cloudRunner")
+   public boolean isCloudRunner() {
+      return InetsoftConfig.getInstance().getCloudRunner() != null;
+   }
 
    private final SchedulerConfigurationService configService;
 }

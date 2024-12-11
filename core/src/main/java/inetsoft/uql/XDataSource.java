@@ -182,7 +182,7 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
     * Get the created person.
     * @return the created person.
     */
-   public IdentityID getCreatedBy() {
+   public String getCreatedBy() {
       return createdBy;
    }
 
@@ -190,7 +190,7 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
     * Set the created person
     * @param createdBy the created person.
     */
-   public void setCreatedBy(IdentityID createdBy) {
+   public void setCreatedBy(String createdBy) {
       this.createdBy = createdBy;
    }
 
@@ -255,13 +255,13 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
       nlist = Tool.getChildNodesByTagName(root, "createdUsername");
 
       if(nlist.getLength() > 0) {
-         createdBy = IdentityID.getIdentityIDFromKey(Tool.getValue(nlist.item(0)));
+         createdBy = Tool.getValue(nlist.item(0));
       }
 
       nlist = Tool.getChildNodesByTagName(root, "createdBy");
 
       if(nlist.getLength() > 0 && createdBy == null) {
-         createdBy = IdentityID.getIdentityIDFromKey(Tool.getValue(nlist.item(0)));
+         createdBy = Tool.getValue(nlist.item(0));
       }
 
       nlist = Tool.getChildNodesByTagName(root, "createdDate");
@@ -321,7 +321,7 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
       }
 
       if(createdBy != null) {
-         writer.println("<createdBy>" + Tool.escape(createdBy.convertToKey()) + "</createdBy>");
+         writer.println("<createdBy>" + Tool.escape(createdBy) + "</createdBy>");
       }
 
       if(modifiedBy != null) {
@@ -483,7 +483,7 @@ public abstract class XDataSource implements Serializable, Cloneable, XMLSeriali
    private String desc;
    private long created;
    private long modified;
-   private IdentityID createdBy;
+   private String createdBy;
    private String modifiedBy;
    private ArrayList<String> folders = new ArrayList<>();
    private HashSet dependencies = new HashSet();

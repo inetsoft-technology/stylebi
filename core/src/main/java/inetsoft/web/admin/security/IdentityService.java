@@ -17,37 +17,48 @@
  */
 package inetsoft.web.admin.security;
 
+import inetsoft.mv.MVManager;
 import inetsoft.mv.MVWorksheetStorage;
 import inetsoft.mv.data.MVStorage;
+import inetsoft.mv.fs.FSService;
 import inetsoft.mv.fs.internal.BlockFileStorage;
+import inetsoft.mv.mr.XJobPool;
 import inetsoft.report.LibManager;
+import inetsoft.report.composition.WorksheetWrapper;
+import inetsoft.report.composition.execution.AssetDataCache;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.schedule.ScheduleManager;
 import inetsoft.sree.security.*;
 import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
-import inetsoft.storage.BlobStorage;
-import inetsoft.storage.BlobTransaction;
+import inetsoft.storage.*;
 import inetsoft.uql.*;
-import inetsoft.uql.asset.EmbeddedTableStorage;
+import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.sync.DependencyStorageService;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.service.XEngine;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
+import inetsoft.util.config.*;
 import inetsoft.web.RecycleBin;
+import inetsoft.web.admin.favorites.FavoriteList;
 import inetsoft.web.admin.security.user.*;
 
 import java.io.*;
+import java.rmi.RemoteException;
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
+import org.hsqldb.jdbc.JDBCBlobClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,9 +67,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class IdentityService {
    @Autowired
-   public IdentityService(SecurityEngine securityEngine, SecurityProvider securityProvider) {
+   public IdentityService(SecurityEngine securityEngine,
+                          SecurityProvider securityProvider,
+                          IdentityThemeService themeService)
+   {
       this.securityEngine = securityEngine;
       this.securityProvider = securityProvider;
+      this.themeService = themeService;
    }
 
    private AuthenticationProvider getProvider(String providerName) {
@@ -178,7 +193,9 @@ public class IdentityService {
                warnings.add("Failed to delete identity " + identityId + ".");
             }
             finally {
-               if(!actionRecord.getActionStatus().equals(ActionRecord.ACTION_STATUS_FAILURE)) {
+               if(identityInfoRecord != null &&
+                  !actionRecord.getActionStatus().equals(ActionRecord.ACTION_STATUS_FAILURE))
+               {
                   Audit.getInstance().auditIdentityInfo(identityInfoRecord, principal);
                }
             }
@@ -244,7 +261,7 @@ public class IdentityService {
    }
 
    private IdentityID[] getRoleParents(IdentityID childId, IdentityID[] parentIDs, IdentityID parentID,
-                               List<IdentityID> childrenIDs)
+                                       List<IdentityID> childrenIDs)
    {
       List<IdentityID> list = new ArrayList<>();
       Collections.addAll(list, parentIDs);
@@ -302,7 +319,7 @@ public class IdentityService {
          identity = provider.getGroup(identityId);
       }
       else if(type == Identity.ORGANIZATION) {
-         identity = provider.getOrganization(identityId.name);
+         identity = provider.getOrganization(identityId.orgID);
       }
       else {
          identity = provider.getRole(identityId);
@@ -330,13 +347,15 @@ public class IdentityService {
       if(oID == null) {
          dmanager.setDashboards(nid, null);
          smanager.identityRemoved(identity, eprovider);
-         manager.clear(SUtil.getOrgID(identityId));
+         manager.clear(identityId.orgID);
       }
       else {
-         if(!identityId.equals(oID)) {
+         if((type == Identity.USER || type == Identity.GROUP) && !identityId.equals(oID)) {
             smanager.identityRenamed(oID, identity);
             dmanager.setDashboards(nid, dmanager.getDashboards(oid));
             dmanager.setDashboards(oid, null);
+            dmanager.removeDashboards(oid);
+            DashboardRegistry.clear(oID);
          }
       }
 
@@ -344,134 +363,119 @@ public class IdentityService {
 
       if(identity.getType() == Identity.USER) {
          //AssetRepository rep = AssetUtil.getAssetRepository(false);
-
          if(oID == null) {
             //delete user identityId inside of permissions
-            String orgId = eprovider.getOrgId(eprovider.getUser(identityId).getOrganization());
             RepletRegistry.removeUser(identityId);
             //rep.removeUser(identityId);
             DashboardRegistry.clear(identityId);
             eprovider.removeUser(identityId);
-            updateIdentityPermissions(type, identityId, null, orgId, orgId,true);
+            updateIdentityPermissions(type, identityId, null, identityId.orgID, identityId.orgID,true);
          }
          else {
             if(!identityId.equals(oID)) {
-               String orgId = SUtil.getOrgID(identityId);
+               String orgId = identityId.orgID;
                //rep.renameUser(oID, identityId);
                RepletRegistry.renameUser(oID, identityId);
+               DashboardRegistry.renameUser(oID, identityId);
                DashboardRegistry.clear(oID);
+               updateUserAutoSaveFiles(oID, identityId);
                //update user identityId inside of permissions
-               updateIdentityPermissions(type, oID, identityId,orgId,orgId, true);
+               updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
             }
 
             eprovider.setUser(oID, (User) identity);
          }
       }
       else if(identity.getType() == Identity.ORGANIZATION) {
-
          if(oID == null) {
-            String orgID = eprovider.getOrganization(identityId.name).getOrganizationID();
+            Organization oOrg = eprovider.getOrganization(identityId.orgID);
             DashboardRegistry.clear(identityId);
             clearDataSourceMetadata();
-            deleteOrganizationMembers(identityId.name, eprovider);
-            eprovider.removeOrganization(identityId.name);
 
-            // delete organization identityId inside of permissions
-            authoc.cleanOrganizationFromPermissions(orgID);
+            if(oOrg != null) {
+               String orgID = oOrg.getOrganizationID();
+               eprovider.removeOrganization(identityId.orgID);
+
+               // delete organization identityId inside of permissions
+               authoc.cleanOrganizationFromPermissions(orgID);
+
+               DataCycleManager.getDataCycleManager().clearDataCycles(orgID);
+               removeOrgProperties(orgID);
+               removeOrgScopedDataSpaceElements(oOrg);
+               updateRepletRegistry(orgID, null);
+               themeService.removeTheme(orgID);
+               removeStorages(orgID);
+               DataSourceRegistry.getRegistry().clearCache(orgID);
+               FSService.clearServerNodeCache(orgID);
+               XJobPool.resetOrgCache(orgID);
+            }
 
             // deleting current organization should reset curOrg
             OrganizationManager.getInstance().setCurrentOrgID(Organization.getDefaultOrganizationID());
-
-            removeStorages(orgID);
-            removeOrgProperties(orgID);
-            removeOrgScopedDataSpaceElements(orgID);
-            updateRepletRegistry(orgID, null);
          }
          else {
-            String oId = eprovider.getOrganization(oID.name).getId();
+            String oId = oID.orgID;
             String id = ((Organization) identity).getId();
+            Organization oldOrg = eprovider.getOrganization(oId);
 
             if(!identityId.equals(oID)) {
-               //update organization identityId inside of permissions
-               if(!id.equals(oId)) {
-                  updateIdentityPermissions(type, oID, identityId, oId, id, false);
-                  DataCycleManager.getDataCycleManager().migrateDataCycles(oId, id);
-               }
-               else {
-                  updateIdentityPermissions(type, oID, identityId,oId,oId, true);
-               }
-               DashboardRegistry.clear(oID);
-               clearDataSourceMetadata();
+               eprovider.copyOrganization(oldOrg, id, identity.getName(),this,
+                                          themeService, ThreadContext.getContextPrincipal(), true);
             }
-            else if (!id.equals(oId)) {
-               updateIdentityPermissions(type, oID, identityId,oId, id, false);
-               // delete organization identityId inside of permissions
-               authoc.cleanOrganizationFromPermissions(oId);
-               DataCycleManager.getDataCycleManager().migrateDataCycles(oId, id);
-            }
-
-            Organization oorg = new Organization(oID.getOrganization());
-            oorg.setId(oId);
-
-            if(!Tool.equals(oID.getOrganization(), identity.getName()) ||
-               !Tool.equals(oId, ((Organization) identity).getId()))
-            {
-               updateStorageNames(oorg, ((Organization) identity));
-               migrateDashboardRegistry(oorg, ((Organization) identity));
-               updateOrgProperties(oId, id);
-               updateAutoSaveFiles(oorg, ((Organization) identity));
-            }
-
-            eprovider.setOrganization(oID.name, (Organization) identity);
-            updateIdentityRootPermission(oID.getName(), identity.getName(),
-               ThreadContext.getContextPrincipal());
 
             // Update current orgID
             OrganizationManager.getInstance().setCurrentOrgID(id);
-            updateRepletRegistry(oId, id);
          }
       }
       else {
          if(oID == null) {
             if(type == Identity.GROUP) {
                //delete group identityId inside of permissions
-               String orgId = eprovider.getOrgId(eprovider.getGroup(identityId).getOrganization());
+               String orgId = eprovider.getGroup(identityId).getOrganizationID();
                eprovider.removeGroup(identityId);
                updateIdentityPermissions(type, identityId, null, orgId, orgId, true);
                updatePrincipalGroup(oID, identityId);
             }
             else {
                //delete role identityId inside of permissions
-               String orgId = eprovider.getOrgId(eprovider.getRole(identityId).getOrganization());
+               String orgId = eprovider.getRole(identityId).getOrganizationID();
                eprovider.removeRole(identityId);
                updateIdentityPermissions(type, identityId, null, orgId, orgId, true);
             }
          }
          else {
-            if(!identityId.equals(oID)) {
+            boolean changed = !identityId.equals(oID);
+
+            if(changed) {
                if(type == Identity.GROUP) {
                   //update group name inside of permissions
-                  String orgId = eprovider.getOrgId(eprovider.getGroup(oID).getOrganization());
+                  String orgId = eprovider.getGroup(oID).getOrganizationID();
                   updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
                   updatePrincipalGroup(oID, identityId);
                }
                else {
                   //update role identityId inside of permissions
-                  String orgId = eprovider.getRole(oID) != null && eprovider.getRole(oID).getOrganization() != null ?
-                     eprovider.getOrgId(eprovider.getRole(oID).getOrganization()) :
-                     null;
+                  String orgId = eprovider.getRole(oID) != null && eprovider.getRole(oID).getOrganizationID() != null ?
+                     eprovider.getRole(oID).getOrganizationID() : null;
                   updateIdentityPermissions(type, oID, identityId, orgId, orgId, true);
                   syncRoles(eprovider, oID, identityId);
                }
             }
 
             if(type == Identity.GROUP) {
-               eprovider.removeGroup(oID);
                eprovider.setGroup(identityId, (Group) identity);
             }
             else {
-               eprovider.removeRole(oID);
                eprovider.setRole(identityId, (Role) identity);
+            }
+
+            if(changed) {
+               if(type == Identity.GROUP) {
+                  eprovider.removeGroup(oID);
+               }
+               else {
+                  eprovider.removeRole(oID);
+               }
             }
          }
       }
@@ -500,7 +504,7 @@ public class IdentityService {
             .filter(inheritRole -> Tool.equals(inheritRole, oinheritRole))
             .forEach(inheritRole -> {
                inheritRole.setName(ninheritRole.name);
-               inheritRole.setOrganization(ninheritRole.organization);
+               inheritRole.setOrgID(ninheritRole.orgID);
             });
          eprovider.setRole(roleId, role);
       }
@@ -514,176 +518,171 @@ public class IdentityService {
                              Tool.replace(principal.getGroups(), oid.name, nid.name));
    }
 
-   private void updateIdentityRootPermission(String oldOrgName, String newOrgName,
-                                             Principal principal)
-   {
-      if(Objects.equals(oldOrgName, newOrgName)) {
+   private void updateOrgEditedGrantAll(Permission permission, String oorgId, String norgId) {
+      Map<String, Boolean> orgEditedGrantAll = permission.getOrgEditedGrantAll();
+      Map<String, Boolean> newOrgEditedGrantAll = Tool.deepCloneMap(orgEditedGrantAll);
+      boolean changed = !Tool.equals(oorgId, norgId);
+
+      if(!changed || !orgEditedGrantAll.keySet().contains(oorgId)) {
          return;
       }
 
-      String rootUser = Catalog.getCatalog(principal).getString("Users");
-      IdentityID oldUserRootID = new IdentityID(rootUser, oldOrgName);
-      IdentityID newUserRootID = new IdentityID(rootUser, newOrgName);
-      String rootGroup = Catalog.getCatalog(principal).getString("Groups");
-      IdentityID oldRootGroupID = new IdentityID(rootGroup, oldOrgName);
-      IdentityID newRootGroupID = new IdentityID(rootGroup, newOrgName);
-      String rootRole = Catalog.getCatalog(principal).getString("Roles");
-      IdentityID oldRootRoleID = new IdentityID(rootRole, oldOrgName);
-      IdentityID newRootRoleID = new IdentityID(rootRole, newOrgName);
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-
-      for(Tuple3<ResourceType, String, Permission> permissionSet : provider.getPermissions()) {
-         ResourceType resourceType = permissionSet.getFirst();
-         String sourceName = permissionSet.getSecond();
-         Permission permission = permissionSet.getThird();
-
-         if(resourceType == ResourceType.SECURITY_USER &&
-            Objects.equals(sourceName, oldUserRootID.convertToKey()))
-         {
-            provider.removePermission(resourceType, oldUserRootID.convertToKey());
-            provider.setPermission(resourceType, newUserRootID.convertToKey(), permission);
-         }
-         else if(resourceType == ResourceType.SECURITY_GROUP &&
-            Objects.equals(sourceName, oldRootGroupID.convertToKey()))
-         {
-            provider.removePermission(resourceType, oldRootGroupID.convertToKey());
-            provider.setPermission(resourceType, newRootGroupID.convertToKey(), permission);
-         }
-         else if(resourceType == ResourceType.SECURITY_ROLE &&
-            Objects.equals(sourceName, oldRootRoleID.convertToKey()))
-         {
-            provider.removePermission(resourceType, oldRootRoleID.convertToKey());
-            provider.setPermission(resourceType, newRootRoleID.convertToKey(), permission);
-         }
+      if(isOrgInPerm(permission, norgId)) {
+         newOrgEditedGrantAll.put(norgId, orgEditedGrantAll.get(oorgId));
       }
+
+      permission.setOrgEditedGrantAll(newOrgEditedGrantAll);
    }
 
-   public void deleteOrganizationMembers(String orgName, EditableAuthenticationProvider eprovider) {
+   private boolean isOrgInPerm(Permission permission, String norgId) {
+      for(ResourceAction action: ResourceAction.values()) {
+         if(permission.isOrgInPerm(action, norgId)) {
+            return true;
+         }
+      }
+
+      return false;
+   }
+
+   public void deleteOrganizationMembers(String orgID, EditableAuthenticationProvider eprovider) {
       IdentityID[] users = eprovider.getUsers();
       IdentityID[] groups = eprovider.getGroups();
       IdentityID[] roles = eprovider.getRoles();
+      KeyValueStorage<FavoriteList> favorites =
+         SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
 
-      for(int i=0;i<users.length;i++) {
+      for(int i = 0; i < users.length; i++) {
          FSUser user = (FSUser) eprovider.getUser(users[i]);
 
-         if(orgName.equals(user.getOrganization())) {
+         if(orgID.equals(user.getOrganizationID())) {
             //users are tied to org, delete if deleted
+            RepletRegistry.removeUser(user.getIdentityID());
             eprovider.removeUser(user.getIdentityID());
-            addCopiedIdentityPermission(user.getIdentityID(), null, "", Identity.USER);
+            addCopiedIdentityPermission(user.getIdentityID(), null, "", Identity.USER, false);
+            favorites.remove(user.getIdentityID().convertToKey());
          }
       }
 
-      for(int i=0;i<groups.length;i++) {
+      for(int i = 0; i < groups.length; i++) {
          FSGroup group = (FSGroup) eprovider.getGroup(groups[i]);
 
-         if(orgName.equals(group.getOrganization())) {
+         if(orgID.equals(group.getOrganizationID())) {
             //group is tied to org, delete if deleted
             eprovider.removeGroup(group.getIdentityID());
-            addCopiedIdentityPermission(group.getIdentityID(), null,"", Identity.GROUP);
+            addCopiedIdentityPermission(group.getIdentityID(), null,"", Identity.GROUP, false);
          }
       }
 
-      for(int i=0;i<roles.length;i++) {
+      for(int i = 0; i < roles.length; i++) {
          FSRole role = (FSRole) eprovider.getRole(roles[i]);
 
-         if(orgName.equals(role.getOrganization())) {
+         if(orgID.equals(role.getOrganizationID())) {
             //role is tied to org, delete if deleted
             eprovider.removeRole(role.getIdentityID());
-            addCopiedIdentityPermission(role.getIdentityID(), null, "", Identity.ROLE);
+            addCopiedIdentityPermission(role.getIdentityID(), null, "", Identity.ROLE, false);
          }
       }
 
    }
 
-   private void updateOrganizationMembers(Organization identity, EditableAuthenticationProvider eprovider) {
-      String orgName = identity.getName();
-      String oldOrgName = OrganizationManager.getCurrentOrgName();
+   private void updateOrganizationMembers(Organization identity, String oldOrgID,
+                                          EditableAuthenticationProvider eprovider)
+   {
+      String orgID = identity.getId();
       List<String> members = Arrays.asList(identity.getMembers());
-      IdentityID[] users = Arrays.stream(eprovider.getUsers()).filter(u -> Tool.equals(oldOrgName, u.organization)).toArray(IdentityID[]::new);
-      IdentityID[] groups = Arrays.stream(eprovider.getGroups()).filter(u -> Tool.equals(oldOrgName, u.organization)).toArray(IdentityID[]::new);
-      IdentityID[] roles = Arrays.stream(eprovider.getRoles()).filter(u -> Tool.equals(oldOrgName, u.organization)).toArray(IdentityID[]::new);
-      boolean orgIdChange = !OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId()) ||
-                            !oldOrgName.equals(identity.getName());
+      IdentityID[] users = Arrays.stream(eprovider.getUsers()).filter(u -> Tool.equals(oldOrgID, u.orgID)).toArray(IdentityID[]::new);
+      IdentityID[] groups = Arrays.stream(eprovider.getGroups()).filter(u -> Tool.equals(oldOrgID, u.orgID)).toArray(IdentityID[]::new);
+      IdentityID[] roles = Arrays.stream(eprovider.getRoles()).filter(u -> Tool.equals(oldOrgID, u.orgID)).toArray(IdentityID[]::new);
+      boolean orgIdChange = !OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId());
+      boolean orgNameChanged = !Tool.equals(orgIdChange, oldOrgID);
 
       AuthorizationChain authoc = ((AuthorizationChain) securityProvider.getAuthorizationProvider());
+      KeyValueStorage<FavoriteList> favorites =
+         SingletonManager.getInstance(KeyValueStorage.class, "emFavorites");
 
       for(int i = 0; i < users.length; i++) {
          FSUser user = (FSUser) eprovider.getUser(users[i]);
          IdentityID oldID = user.getIdentityID();
 
-         if(orgName.equals(user.getOrganization())) {
-            if(!members.contains(user.getName())) {
-               //remove permissions for this user
-               updateIdentityPermissions(Identity.USER, user.getIdentityID(), null, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
-               //user is tied to org, delete if removed as member
-               eprovider.removeUser(user.getIdentityID());
-            }
-            else if(orgIdChange) {
-               updateIdentityPermissions(Identity.USER, user.getIdentityID(), user.getIdentityID(),
-                  OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
-            }
-         }
-         else if(members.contains(user.getName())) {
+         if(orgIdChange && members.contains(user.getName())) {
             //add to this Organization
-            user.setOrganization(orgName);
+            user.setOrganization(orgID);
+            IdentityID[] userRoles = user.getRoles();
+
+            for(IdentityID identityID : userRoles) {
+               if(Tool.equals(identityID.getOrgID(), oldOrgID)) {
+                  identityID.setOrgID(orgID);
+               }
+            }
+
+            if(orgIdChange || orgNameChanged) {
+               //Update replet registry here.
+               RepletRegistry.changeOrgID(oldID, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId());
+               DashboardRegistry.migrateRegistry(oldID, securityProvider.getOrganization(OrganizationManager.getInstance().getCurrentOrgID()), identity);
+            }
+
             eprovider.setUser(user.getIdentityID(), user);
             eprovider.removeUser(oldID);
-            ScheduleManager smanager = ScheduleManager.getScheduleManager();
-            smanager.identityRenamed(oldID, user);
+            RepletRegistry.renameUser(oldID, user.getIdentityID());
+            // Move em favorites to new user
+            FavoriteList userFav = favorites.get(oldID.convertToKey());
+
+            if(userFav != null) {
+               favorites.put(user.getIdentityID().convertToKey(), userFav);
+               favorites.remove(oldID.convertToKey());
+            }
+         }
+         else if(!members.contains(user.getName())) {
+            eprovider.removeUser(oldID);
          }
       }
 
-      for(int i=0;i<groups.length;i++) {
+      for(int i = 0; i < groups.length; i++) {
          FSGroup group = (FSGroup) eprovider.getGroup(groups[i]);
 
-         if(orgName.equals(group.getOrganization())) {
+         if(orgID.equals(group.getOrganizationID())) {
             if(!members.contains(group.getName())) {
                //group is tied to org, delete if removed as member
                eprovider.removeGroup(group.getIdentityID());
-               //remove permissions for this group
-               updateIdentityPermissions(Identity.GROUP, group.getIdentityID(), null, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
             }
             //else if name change or id change, update permissions
             else if(orgIdChange) {
                //clone new group with correct name
-               updateGroupForOrg(identity, group, orgName, eprovider, authoc);
+               updateGroupForOrg(identity, group, orgID, eprovider, authoc);
             }
          }
          else if(members.contains(group.getName())) {
             //clone new group with correct name
-            updateGroupForOrg(identity, group, orgName, eprovider, authoc);
+            updateGroupForOrg(identity, group, orgID, eprovider, authoc);
          }
       }
 
-      for(int i=0;i<roles.length;i++) {
+      for(int i = 0; i < roles.length; i++) {
          FSRole role = (FSRole) eprovider.getRole(roles[i]);
 
-         if(orgName.equals(role.getOrganization())) {
+         if(orgID.equals(role.getOrganizationID())) {
             if(!members.contains(role.getName())) {
                //role is tied to org, delete if removed as member
                eprovider.removeRole(role.getIdentityID());
-               //delete role from permissions
-               updateIdentityPermissions(Identity.ROLE, role.getIdentityID(), null, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
-
             }
             else if(orgIdChange) {
-               updateRoleForOrg(identity, role, orgName, eprovider, authoc);
+               updateRoleForOrg(identity, role, orgID, eprovider, authoc);
             }
          }
          else if(members.contains(role.getName())) {
-            updateRoleForOrg(identity, role, orgName, eprovider, authoc);
+            updateRoleForOrg(identity, role, orgID, eprovider, authoc);
          }
       }
    }
 
-   private void updateRoleForOrg(Organization identity, FSRole role, String orgName,
+   private void updateRoleForOrg(Organization identity, FSRole role, String orgID,
                                  EditableAuthenticationProvider eprovider, AuthorizationChain authoc)
    {
       boolean authUpdated = false;
 
-      if(!OrganizationManager.getCurrentOrgName().equals(identity.getName())) {
+      if(!OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId())) {
          //clone new role with correct name
-         IdentityID newName = new IdentityID(role.getName(), orgName);
+         IdentityID newName = new IdentityID(role.getName(), orgID);
          FSRole newRole = new FSRole(newName, role.getRoles());
          newRole.setDesc(role.getDescription());
          newRole.setDefaultRole(role.isDefaultRole());
@@ -692,7 +691,7 @@ public class IdentityService {
          //do not overwrite existing role of this name
          if(eprovider.getRole(newName) == null) {
             //update role in permissions
-            updateIdentitiesContainingRole(role.getIdentityID(), newName, orgName, eprovider);
+            updateIdentitiesContainingRole(role.getIdentityID(), newName, orgID, eprovider);
             authUpdated = true;
             updateIdentityPermissions(Identity.ROLE, role.getIdentityID(), newName, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), true);
             eprovider.setRole(newName, newRole);
@@ -712,7 +711,7 @@ public class IdentityService {
                                   EditableAuthenticationProvider eprovider, AuthorizationChain authoc) {
       //if name change
       boolean authUpdated = false;
-      if(!OrganizationManager.getCurrentOrgName().equals(identity.getName())) {
+      if(!OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId())) {
          IdentityID newName = new IdentityID(group.getIdentityID().name, orgName);
          FSGroup newGroup = new FSGroup(newName, group.getLocale(),
                                         group.getGroups(), group.getRoles());
@@ -721,24 +720,26 @@ public class IdentityService {
             eprovider.setGroup(newName, newGroup);
             //update permission for this group
             authUpdated = true;
-            updateIdentityPermissions(Identity.GROUP, group.getIdentityID(), newName, OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), true);
-            eprovider.removeGroup(group.getIdentityID());
-            ScheduleManager smanager = ScheduleManager.getScheduleManager();
-            smanager.identityRenamed(group.getIdentityID(), newGroup);
+            updateIdentityPermissions(
+               Identity.GROUP, group.getIdentityID(), newName,
+               OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), true);
+            eprovider.removeGroup(group.getIdentityID(), false);
          }
          else {
-            eprovider.removeGroup(group.getIdentityID());
+            eprovider.removeGroup(group.getIdentityID(), false);
          }
       }
 
       if(!OrganizationManager.getInstance().getCurrentOrgID().equals(identity.getId()) && !authUpdated) {
-         updateIdentityPermissions(Identity.GROUP, group.getIdentityID(), group.getIdentityID(), OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
+         updateIdentityPermissions(
+            Identity.GROUP, group.getIdentityID(), group.getIdentityID(),
+            OrganizationManager.getInstance().getCurrentOrgID(), identity.getId(), false);
 
       }
 
    }
 
-   private void updateIdentitiesContainingRole(IdentityID oldID, IdentityID newID, String orgName,
+   private void updateIdentitiesContainingRole(IdentityID oldID, IdentityID newID, String orgID,
                                                EditableAuthenticationProvider eprovider) {
       IdentityID[] users = eprovider.getUsers();
       IdentityID[] groups = eprovider.getGroups();
@@ -747,7 +748,7 @@ public class IdentityService {
       for(IdentityID userName : users) {
          FSUser user = (FSUser) eprovider.getUser(userName);
 
-         if(orgName.equals(user.getOrganization()) && user.getRoles() != null &&
+         if(orgID.equals(user.getOrganizationID()) && user.getRoles() != null &&
             Arrays.asList(user.getRoles()).contains(oldID))
          {
             List<IdentityID> newRoles = new ArrayList<>(Arrays.asList(user.getRoles()));
@@ -760,7 +761,7 @@ public class IdentityService {
       for(IdentityID groupName : groups) {
          FSGroup group = (FSGroup) eprovider.getGroup(groupName);
 
-         if(orgName.equals(group.getOrganization()) && group.getRoles() != null &&
+         if(orgID.equals(group.getOrganizationID()) && group.getRoles() != null &&
             Arrays.asList(group.getRoles()).contains(oldID))
          {
             List<IdentityID> newRoles = new ArrayList<>(Arrays.asList(group.getRoles()));
@@ -773,7 +774,7 @@ public class IdentityService {
       for(IdentityID roleName : roles) {
          FSRole role = (FSRole) eprovider.getRole(roleName);
 
-         if(orgName.equals(role.getOrganization()) && role.getRoles() != null &&
+         if(orgID.equals(role.getOrganizationID()) && role.getRoles() != null &&
             Arrays.asList(role.getRoles()).contains(oldID))
          {
             List<IdentityID> newRoles = new ArrayList<>(Arrays.asList(role.getRoles()));
@@ -791,10 +792,14 @@ public class IdentityService {
          User user = provider.getUser(userID);
          for(IdentityID uRole : user.getRoles()) {
             if(uRole.equals(roleId)) {
+               String identityIDLabel = userID.getOrgID() != null ?
+                  provider.getOrgNameFromID(userID.getOrgID()) : null;
+
                roleMembers.add(
                   IdentityModel.builder()
                      .identityID(userID)
                      .type(Identity.USER)
+                     .identityIDLabel(identityIDLabel)
                      .build()
                );
             }
@@ -813,13 +818,13 @@ public class IdentityService {
             }
          }
       }
-      for(String orgName : provider.getOrganizations()) {
-         Organization org = provider.getOrganization(orgName);
+      for(String orgID : provider.getOrganizationIDs()) {
+         Organization org = provider.getOrganization(orgID);
          for(IdentityID uRole : org.getRoles()) {
             if(uRole.equals(roleId)) {
                roleMembers.add(
                   IdentityModel.builder()
-                     .identityID(new IdentityID(orgName, orgName))
+                     .identityID(new IdentityID(provider.getOrgNameFromID(orgID), orgID))
                      .type(Identity.ORGANIZATION)
                      .build()
                );
@@ -843,20 +848,43 @@ public class IdentityService {
       removeBlobStorage("__library", orgID, LibManager.Metadata.class);
    }
 
-   public void copyStorages(String oldOrgId, String newOrgId) {
+   public void copyStorages(Organization oOrg, Organization nOrg) {
       try {
-         DashboardManager.getManager().copyStorageData(oldOrgId, newOrgId);
-         DependencyStorageService.getInstance().copyStorageData(oldOrgId, newOrgId);
-         RecycleBin.getRecycleBin().copyStorageData(oldOrgId, newOrgId);
-         IndexedStorage.getIndexedStorage().copyStorageData(oldOrgId, newOrgId);
+         DashboardManager.getManager().copyStorageData(oOrg.getId(), nOrg.getId());
+         DependencyStorageService.getInstance().copyStorageData(oOrg, nOrg);
+         RecycleBin.getRecycleBin().copyStorageData(oOrg.getId(), nOrg.getId());
+         IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg);
+
+         FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
+         updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
+         MVManager.getManager().copyStorageData(oOrg, nOrg);
+         updateBlobStorageName("__mvws", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
+         updateBlobStorageName("__pdata", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
+
+         addNewOrgTaskToScheduleServer(nOrg.getOrganizationID());
+         updateLibraryStorage(oOrg.getId(), nOrg.getId(), true);
       }
       catch(Exception e) {
-         LOG.warn("Could not copy Storages from "+oldOrgId+" to "+newOrgId+", "+e);
+         LOG.warn("Could not copy Storages from "+ oOrg.getId() +" to "+ nOrg.getId() +", " + e);
+      }
+   }
+
+   private void addNewOrgTaskToScheduleServer(String orgId) throws RemoteException {
+      Vector<ScheduleTask> scheduleTasks =
+         ScheduleManager.getScheduleManager().getScheduleTasks(orgId);
+      ScheduleServer scheduleServer = ScheduleServer.getInstance();
+
+      if(scheduleTasks == null || scheduleServer == null) {
+         return;
+      }
+
+      for(ScheduleTask scheduleTask : scheduleTasks) {
+         ScheduleClient.getScheduleClient().taskAdded(scheduleTask);
       }
    }
 
    private <T extends Serializable> void removeBlobStorage(String suffix, String orgID,
-                             Class<T> type) throws Exception
+                                                           Class<T> type) throws Exception
    {
       BlobStorage<T> storage =
          SingletonManager.getInstance(BlobStorage.class, orgID.toLowerCase() + suffix, false);
@@ -877,70 +905,73 @@ public class IdentityService {
       }
    }
 
-   public void removeOrgScopedDataSpaceElements(String orgID) {
+   public void removeOrgScopedDataSpaceElements(Organization oorg) {
       DataSpace dataspace = DataSpace.getDataSpace();
-      String[] paths = DataSpace.getOrgScopedPaths(orgID);
+      String[] paths = dataspace.getOrgScopedPaths(oorg);
 
       for(String path : paths) {
          dataspace.delete(path,"");
       }
    }
 
-   private void updateRepletRegistry(String oOID, String nOID) throws Exception {
+   public void updateRepletRegistry(String oOID, String nOID) throws Exception {
       RepletRegistry registry = RepletRegistry.getRegistry();
       String[] oldFolders = registry.getAllFolders(oOID);
       boolean removeOrg = nOID == null;
 
       if(!Tool.equals(oOID, nOID)) {
          for(String oldFolder : oldFolders) {
-            registry.removeFolder(oldFolder, oOID);
+            registry.removeFolder(oldFolder, true, false, oOID, false);
 
             if(!removeOrg) {
-               registry.addFolder(oldFolder, nOID);
+               registry.addFolder(oldFolder, nOID, false);
             }
-         }
-      }
-
-      if(!removeOrg) {
-         for(String oldFolder : oldFolders) {
-            registry.addFolder(oldFolder, nOID);
          }
       }
    }
 
    public void copyRepletRegistry(String oOID, String nOID) {
+      String tempCurrID = OrganizationManager.getInstance().getCurrentOrgID();
+      OrganizationManager.getInstance().setCurrentOrgID(nOID);
+
       try {
          RepletRegistry registry = RepletRegistry.getRegistry();
          String[] oldFolders = registry.getAllFolders(oOID);
 
          for(String oldFolder : oldFolders) {
             if(!Tool.MY_DASHBOARD.equals(oldFolder)) {
-               registry.addFolder(oldFolder, nOID);
+               registry.addFolder(oldFolder, nOID, false);
             }
          }
+
+         registry.copyFolderContextMap(oOID, nOID);
+         IdentityID[] orgUsers = securityEngine.getOrgUsers(oOID);
+
+         if(orgUsers != null) {
+            for(IdentityID orgUser : orgUsers) {
+               IdentityID newUser = new IdentityID(orgUser.name, nOID);
+               RepletRegistry.copyUser(orgUser, newUser);
+            }
+         }
+
+         registry.save();
       }
       catch(Exception e) {
          LOG.warn("Could not copy registry from {} to {}", oOID, nOID, e);
       }
+
+      OrganizationManager.getInstance().setCurrentOrgID(tempCurrID);
    }
 
-   public void migrateDashboardRegistry(Organization oorg, Organization norg) {
-      DashboardRegistry.migrateRegistry(null, oorg, norg);
+   public void copyDashboardRegistry(Organization oorg, Organization norg) {
+      DashboardRegistry.copyRegistry(null, oorg, norg);
 
       for(IdentityID user : securityEngine.getUsers()) {
-         DashboardRegistry.migrateRegistry(user, oorg, norg);
+         DashboardRegistry.copyRegistry(user, oorg, norg);
       }
    }
 
-   public void copyDashboardRegistry(String oOID, String nOID) {
-      DashboardRegistry.copyRegistry(null, oOID, nOID);
-
-      for(IdentityID user : securityEngine.getUsers()) {
-         DashboardRegistry.copyRegistry(user, oOID, nOID);
-      }
-   }
-
-   private void clearDataSourceMetadata() throws Exception {
+   public void clearDataSourceMetadata() throws Exception {
       XRepository repository = XFactory.getRepository();
       String[] dsNames = repository.getDataSourceNames();
 
@@ -951,24 +982,8 @@ public class IdentityService {
       }
    }
 
-   private void updateStorageNames(Organization oorg, Organization norg) throws Exception {
-      String oId = oorg.getId();
-      String id = norg.getId();
-
-      DashboardManager.getManager().migrateStorageData(oId, id);
-      DependencyStorageService.getInstance().migrateStorageData(oId, id);
-      RecycleBin.getRecycleBin().migrateStorageData(oId, id);
-      IndexedStorage.getIndexedStorage().migrateStorageData(oorg, norg);
-
-      updateBlobStorageName("__mv", oId, id, MVStorage.Metadata.class);
-      updateBlobStorageName("__mvws", oId, id, MVWorksheetStorage.Metadata.class);
-      updateBlobStorageName("__mvBlock", oId, id, BlockFileStorage.Metadata.class);
-      updateBlobStorageName("__pdata", oId, id, EmbeddedTableStorage.Metadata.class);
-      updateLibraryStorage(oId, id);
-   }
-
    private <T extends Serializable> void updateBlobStorageName(String suffix, String oId, String id,
-                                                               Class<T> type) throws Exception
+                                                               Class<T> type, boolean copy) throws Exception
    {
       BlobStorage<T> oStorage =
          SingletonManager.getInstance(BlobStorage.class, oId.toLowerCase() + suffix, false);
@@ -987,38 +1002,47 @@ public class IdentityService {
          }
       }
 
-      oStorage.deleteBlobStorage();
+      if(!copy) {
+         oStorage.deleteBlobStorage();
+      }
    }
 
-   private void updateLibraryStorage(String oId, String id) throws Exception {
-      BlobStorage<LibManager.Metadata> oStorage =
-      SingletonManager.getInstance(BlobStorage.class, oId.toLowerCase() + "__library", false);
-      BlobStorage<LibManager.Metadata> nStorage =
-         SingletonManager.getInstance(BlobStorage.class, id.toLowerCase() + "__library", false);
+   private void updateLibraryStorage(String oId, String id, boolean copy) throws Exception {
+      try(BlobStorage<LibManager.Metadata> oStorage =
+             SingletonManager.getInstance(BlobStorage.class, oId.toLowerCase() + "__library", false);
+          BlobStorage<LibManager.Metadata> nStorage =
+             SingletonManager.getInstance(BlobStorage.class, id.toLowerCase() + "__library", false))
+      {
+         List<String> paths = oStorage.paths().collect(Collectors.toList());
 
-      List<String> paths = oStorage.paths().collect(Collectors.toList());
+         for(String path : paths) {
+            LibManager.Metadata metadata = oStorage.getMetadata(path);
 
-      for(String path : paths) {
-         LibManager.Metadata metadata = oStorage.getMetadata(path);
-
-         if(metadata.isDirectory()) {
-            nStorage.createDirectory(path, metadata);
-         }
-         else {
-            try(InputStream input = oStorage.getInputStream(path);
-                BlobTransaction<LibManager.Metadata> tx = nStorage.beginTransaction();
-                OutputStream output = tx.newStream(path, new LibManager.Metadata()))
-            {
-               IOUtils.copy(input, output);
-               tx.commit();
+            if(metadata.isDirectory()) {
+               nStorage.createDirectory(path, metadata);
+            }
+            else {
+               try(InputStream input = oStorage.getInputStream(path);
+                   BlobTransaction<LibManager.Metadata> tx = nStorage.beginTransaction();
+                   OutputStream output = tx.newStream(path, new LibManager.Metadata()))
+               {
+                  IOUtils.copy(input, output);
+                  tx.commit();
+               }
             }
          }
-      }
 
-      oStorage.deleteBlobStorage();
+         if(!copy) {
+            oStorage.deleteBlobStorage();
+         }
+      }
    }
 
-   private void updateOrgProperties(String oId, String id) {
+   public void updateOrgProperties(String oId, String id) {
+      if(Tool.equals(oId, id)) {
+         return;
+      }
+
       String oldPrefix = "inetsoft.org." + oId + ".";
       String newPrefix = "inetsoft.org." + id + ".";
 
@@ -1061,7 +1085,7 @@ public class IdentityService {
       Set<String> userGrants = new HashSet<>();
       IdentityID identity = IdentityID.getIdentityIDFromKey(principal.getName());
 
-      if(Tool.equals(identityID.getOrganization(), identity.getOrganization())) {
+      if(Tool.equals(identityID.getOrgID(), identity.getOrgID())) {
          userGrants.add(identity.getName());
       }
 
@@ -1070,7 +1094,7 @@ public class IdentityService {
    }
 
    public List<IdentityModel> getPermission(String resourceName, ResourceType resourceType,
-                                     Principal principal)
+                                            Principal principal)
    {
       ResourceAction action;
       EnumSet<ResourceAction> actions;
@@ -1104,15 +1128,10 @@ public class IdentityService {
    }
 
    public List<IdentityModel> getPermission(IdentityID resourceID, ResourceType resourceType, String orgID,
-                                     Principal principal)
+                                            Principal principal)
    {
-      String roleRootName = Catalog.getCatalog(principal).getString("Roles");
-      boolean roleRoot = resourceType == ResourceType.SECURITY_ROLE &&
-         resourceID.getName().equals(roleRootName);
-      ResourceAction action = roleRoot ?
-         ResourceAction.ASSIGN : ResourceAction.ADMIN;
-      EnumSet<ResourceAction> actions = roleRoot ?
-         EnumSet.of(ResourceAction.ASSIGN) : EnumSet.of(ResourceAction.ADMIN);
+      ResourceAction action = ResourceAction.ADMIN;;
+      EnumSet<ResourceAction> actions = EnumSet.of(ResourceAction.ADMIN);
 
       AuthorizationProvider authz = this.securityProvider.getAuthorizationProvider();
       Permission resourcePerm = authz.getPermission(resourceType, resourceID);
@@ -1138,39 +1157,27 @@ public class IdentityService {
          .collect(Collectors.toList());
    }
 
-   public void setIdentityPermissions(IdentityID oldID, IdentityID newID, ResourceType resourceType,
-                                      Principal principal, List<IdentityModel> permittedIdentities, String newOrg)
-   {
-      setIdentityPermissions(oldID, newID, resourceType, principal,
-         permittedIdentities, newOrg, null);
-   }
-
    public void setIdentityPermissions(IdentityID oldID, IdentityID newID,
                                       ResourceType resourceType, Principal principal,
-                                      List<IdentityModel> permittedIdentities, String newOrg,
+                                      List<IdentityModel> permittedIdentities,
                                       String newOrgId)
    {
-      String currOrg = newOrg;
+      String currOrgId = newOrgId;
 
-      if(newOrg == null || newOrg.isEmpty()) {
-         currOrg = OrganizationManager.getCurrentOrgName();
+      if(newOrgId == null || newOrgId.isEmpty()) {
+         currOrgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
       ResourceAction action;
-      EnumSet<ResourceAction> actions;
-      String rootOrgRoleName = new IdentityID(Catalog.getCatalog(principal).getString("Organization Roles"), newOrg).convertToKey();
+      String rootOrgRoleName = new IdentityID("Organization Roles", newOrgId).convertToKey();
 
       if(resourceType == ResourceType.SECURITY_ROLE &&
-         !Catalog.getCatalog(principal).getString("Roles").equals(newID.name) &&
-         !Objects.equals(rootOrgRoleName, newID.convertToKey()))
+         !"Roles".equals(newID.name) && !Objects.equals(rootOrgRoleName, newID.convertToKey()))
       {
          action = ResourceAction.ASSIGN;
-         // Bug #38498, admin permission on a role implicitly grants assign permission
-         actions = EnumSet.of(ResourceAction.ADMIN, ResourceAction.ASSIGN);
       }
       else {
          action = ResourceAction.ADMIN;
-         actions = EnumSet.of(ResourceAction.ADMIN);
       }
 
       AuthorizationProvider authzProvider = securityProvider.getAuthorizationProvider();
@@ -1191,7 +1198,7 @@ public class IdentityService {
                groupGrants.add(idModel.identityID().name);
                break;
             case Identity.ROLE:
-               if(idModel.identityID().organization == null) {
+               if(idModel.identityID().orgID == null) {
                   globalRoleGrants.add(idModel.identityID().name);
                }
                else {
@@ -1214,7 +1221,7 @@ public class IdentityService {
          for(Permission.PermissionIdentity userGrant : permission.getUserGrants(action)) {
             if(!securityProvider.checkAnyPermission(
                principal, getResourceType(Identity.USER),
-               new IdentityID(userGrant.getName(), userGrant.getOrganization()).convertToKey(),
+               new IdentityID(userGrant.getName(), userGrant.getOrganizationID()).convertToKey(),
                adminAction))
             {
                userGrants.add(userGrant.getName());
@@ -1224,7 +1231,7 @@ public class IdentityService {
          for(Permission.PermissionIdentity groupGrant : permission.getGroupGrants(action)) {
             if(!securityProvider.checkAnyPermission(
                principal, getResourceType(Identity.GROUP),
-               new IdentityID(groupGrant.getName(), groupGrant.getOrganization()).convertToKey(),
+               new IdentityID(groupGrant.getName(), groupGrant.getOrganizationID()).convertToKey(),
                adminAction))
             {
                groupGrants.add(groupGrant.getName());
@@ -1233,11 +1240,10 @@ public class IdentityService {
 
          for(Permission.PermissionIdentity roleGrant : permission.getRoleGrants(action)) {
             if(!securityProvider.checkAnyPermission(
-               principal, getResourceType(Identity.ROLE), new IdentityID(roleGrant.getName(),
-                  securityProvider.getOrgNameFromID(roleGrant.getOrganization())).convertToKey(),
+               principal, getResourceType(Identity.ROLE), new IdentityID(roleGrant.getName(), roleGrant.getOrganizationID()).convertToKey(),
                adminAction))
             {
-               if(roleGrant.getOrganization() == null) {
+               if(roleGrant.getOrganizationID() == null) {
                   globalRoleGrants.add(roleGrant.getName());
                }
                else {
@@ -1249,7 +1255,7 @@ public class IdentityService {
          for(Permission.PermissionIdentity orgGrant : permission.getOrganizationGrants(action)) {
             if(!securityProvider.checkAnyPermission(
                principal, getResourceType(Identity.ORGANIZATION),
-               new IdentityID(orgGrant.getName(), orgGrant.getOrganization()).convertToKey(),
+               new IdentityID(orgGrant.getName(), orgGrant.getOrganizationID()).convertToKey(),
                adminAction))
             {
                organizationGrants.add(orgGrant.getName());
@@ -1257,7 +1263,7 @@ public class IdentityService {
          }
       }
 
-      String orgId = newOrgId == null || Tool.isEmptyString(newOrgId) ? securityProvider.getOrgId(currOrg) : newOrgId;
+      String orgId = newOrgId == null || Tool.isEmptyString(newOrgId) ? currOrgId : newOrgId;
 
       if(permission == null) {
          permission = new Permission();
@@ -1268,7 +1274,11 @@ public class IdentityService {
       permission.setRoleGrantsForOrg(action, roleGrants, orgId);
       permission.setRoleGrantsForOrg(action, globalRoleGrants, null);
       permission.setOrganizationGrantsForOrg(action, organizationGrants, orgId);
-      permission.updateGrantAllByOrg(orgId, true);
+
+      if(permittedIdentities != null && !permittedIdentities.isEmpty()) {
+         permission.updateGrantAllByOrg(orgId, true);
+      }
+
       authzProvider.setPermission(resourceType, newID, permission);
    }
 
@@ -1321,7 +1331,7 @@ public class IdentityService {
          EditableAuthenticationProvider eprovider = (EditableAuthenticationProvider) provider;
          IdentityID[] pusers = provider.getUsers();
          IdentityID[] pgroups = provider.getGroups();
-         String[] porgs = provider.getOrganizations();
+         String[] porgs = provider.getOrganizationIDs();
          pgroups = (pgroups == null) ? new IdentityID[0] : pgroups;
          final List<IdentityModel> members = model.members();
          List<IdentityID> userV = new ArrayList<>();
@@ -1348,7 +1358,7 @@ public class IdentityService {
          }
 
          if(type == Identity.USER) {
-            setUserInfo((EditUserPaneModel) model, eprovider, groupV);
+            setUserInfo((FSUser) identity, (EditUserPaneModel) model, eprovider, groupV);
          }
          else if(type == Identity.GROUP) {
             setGroupInfo((FSGroup) identity, (EditGroupPaneModel) model, eprovider, pusers,
@@ -1360,7 +1370,7 @@ public class IdentityService {
          }
          else if(type == Identity.ORGANIZATION) {
             setOrganizationInfo((FSOrganization) identity, (EditOrganizationPaneModel) model,
-                        eprovider, principal);
+                                eprovider, principal);
          }
       }
       catch(Exception e) {
@@ -1378,6 +1388,10 @@ public class IdentityService {
          if(identityInfoRecord != null) {
             Audit.getInstance().auditIdentityInfo(identityInfoRecord, principal);
          }
+
+         if(!SUtil.isMultiTenant()) {
+            LicenseManager.getInstance().userChanged();
+         }
       }
    }
 
@@ -1389,7 +1403,7 @@ public class IdentityService {
       throws Exception
    {
       final String name = model.name();
-      actionRecord.setObjectName(name);
+      actionRecord.setObjectName(model.oldName());
       String state = IdentityInfoRecord.STATE_NONE;
 
       if(type == Identity.USER) {
@@ -1404,8 +1418,8 @@ public class IdentityService {
             identityIds = authenticationProvider.getGroups();
             break;
          case Identity.ORGANIZATION:
-            identityIds = Arrays.stream(authenticationProvider.getOrganizations())
-                           .map(o -> new IdentityID(o, oldID.organization)).toArray(IdentityID[]::new);
+            identityIds = Arrays.stream(authenticationProvider.getOrganizationNames())
+               .map(o -> new IdentityID(o, oldID.orgID)).toArray(IdentityID[]::new);
             break;
          case Identity.USER:
             identityIds = authenticationProvider.getUsers();
@@ -1415,12 +1429,14 @@ public class IdentityService {
             break;
          }
 
-         if(Tool.contains(identityIds, new IdentityID(name, oldID.organization))) {
+         if(Tool.contains(identityIds, new IdentityID(name, oldID.orgID))) {
             final String err = Catalog.getCatalog().getString("common.duplicateName");
             throw new Exception(err);
          }
 
-         return SUtil.getIdentityInfoRecord(new IdentityID(name, oldID.organization), type, IdentityInfoRecord.ACTION_TYPE_RENAME,
+         actionRecord.setActionError("new name:" + name);
+         return SUtil.getIdentityInfoRecord(new IdentityID(model.oldName(), oldID.orgID),
+                                            type, IdentityInfoRecord.ACTION_TYPE_RENAME,
                                             "Rename " + oldID.name + " to " + name, state);
       }
       else {
@@ -1429,7 +1445,7 @@ public class IdentityService {
       }
    }
 
-   private void setUserInfo(EditUserPaneModel model,
+   private void setUserInfo(FSUser ouser, EditUserPaneModel model,
                             EditableAuthenticationProvider eprovider,
                             List<IdentityID> groupV)
       throws Exception
@@ -1451,6 +1467,7 @@ public class IdentityService {
       user.setAlias(model.alias());
       user.setActive(model.status());
       user.setOrganization(model.organization());
+      user.setGoogleSSOId(ouser.getGoogleSSOId());
       addOrganizationMember(model.organization(),model.name(),eprovider);
 
       Properties localeProperties = SUtil.loadLocaleProperties();
@@ -1466,29 +1483,31 @@ public class IdentityService {
 
       user.setLocale(localeString);
 
-      IdentityID oIdentity = new IdentityID(model.oldName(), model.organization());
+      IdentityID oIdentity = IdentityID.getIdentityIDFromKey(model.oldIdentityKey());
       IdentityID[] groups = new IdentityID[groupV.size()];
       groupV.toArray(groups);
       user.setGroups(Arrays.stream(groups).map(id -> id.name).toArray(String[]::new));
       User oldUser = eprovider.getUser(oIdentity);
 
-      if(model.password() != null) {
-         HashedPassword npw = Tool.hash(model.password(), "bcrypt");
+      if(oldUser == null || Tool.isEmptyString(oldUser.getGoogleSSOId())) {
+         if(model.password() != null) {
+            HashedPassword npw = Tool.hash(model.password(), "bcrypt");
 
-         if(oldUser != null && npw != null) {
-            if(!npw.getHash().equals(oldUser.getPassword())) {
-               user.setPassword(npw.getHash());
-               user.setPasswordAlgorithm(npw.getAlgorithm());
-               user.setPasswordSalt(null);
-               user.setAppendPasswordSalt(false);
+            if(oldUser != null && npw != null) {
+               if(!npw.getHash().equals(oldUser.getPassword())) {
+                  user.setPassword(npw.getHash());
+                  user.setPasswordAlgorithm(npw.getAlgorithm());
+                  user.setPasswordSalt(null);
+                  user.setAppendPasswordSalt(false);
+               }
             }
          }
-      }
-      else {
-         user.setPassword(oldUser.getPassword());
-         user.setPasswordAlgorithm(oldUser.getPasswordAlgorithm());
-         user.setPasswordSalt(oldUser.getPasswordSalt());
-         user.setAppendPasswordSalt(oldUser.isAppendPasswordSalt());
+         else {
+            user.setPassword(oldUser.getPassword());
+            user.setPasswordAlgorithm(oldUser.getPasswordAlgorithm());
+            user.setPasswordSalt(oldUser.getPasswordSalt());
+            user.setAppendPasswordSalt(oldUser.isAppendPasswordSalt());
+         }
       }
 
       syncIdentity(eprovider, user, oIdentity);
@@ -1504,7 +1523,7 @@ public class IdentityService {
                              Map<IdentityID, String> memberMap) throws Exception
    {
       final IdentityID id = new IdentityID(model.name(), model.organization());
-      final IdentityID oID = new IdentityID(oldGroup.getName(), oldGroup.getOrganization());
+      final IdentityID oID = new IdentityID(oldGroup.getName(), oldGroup.getOrganizationID());
       final String locale = oldGroup.getLocale();
       final List<IdentityModel> members = model.members();
       final String[] memberNames = members.stream()
@@ -1532,8 +1551,11 @@ public class IdentityService {
       for(IdentityID pgroupID : pgroups) {
          FSGroup pgroup = (FSGroup) eprovider.getGroup(pgroupID);
 
-         if(pgroup != null && oID.name.equals(pgroup.getName()) &&
-            Tool.equals(oID.organization, pgroup.getOrganization()))
+         if(pgroup == null || !Tool.equals(pgroup.getOrganizationID(), group.getOrganizationID())) {
+            continue;
+         }
+
+         if(oID.name.equals(pgroup.getName()) && Tool.equals(oID.orgID, pgroup.getOrganizationID()))
          {
             group.setGroups(pgroup.getGroups());
             syncIdentity(eprovider, group, oID);
@@ -1551,7 +1573,7 @@ public class IdentityService {
       for(IdentityID puserID : pusers) {
          FSUser puser = (FSUser) eprovider.getUser(puserID);
 
-         if(puser == null || !Tool.equals(puser.getOrganization(),group.getOrganization())) {
+         if(puser == null || !Tool.equals(puser.getOrganizationID(), group.getOrganizationID())) {
             continue;
          }
 
@@ -1608,12 +1630,12 @@ public class IdentityService {
       for(IdentityID pgroupID : pgroups) {
          FSGroup pgroup = (FSGroup) eprovider.getGroup(pgroupID);
 
-         if(pgroup == null || !OrganizationManager.getCurrentOrgName().equals(pgroup.getOrganization())) {
+         if(pgroup == null || !OrganizationManager.getInstance().getCurrentOrgID().equals(pgroup.getOrganizationID())) {
             continue;
          }
 
          IdentityID[] arr = getRoleParents(pgroup.getIdentityID(), pgroup.getRoles(),
-                                   newOrgID, groupV);
+                                           newOrgID, groupV);
 
          if(arr != null) {
             pgroup.setRoles(arr);
@@ -1631,7 +1653,7 @@ public class IdentityService {
       }
 
       for(IdentityID puserName : pusers) {
-         if((role.getOrganization() != null && !Tool.equals(puserName.organization, role.getOrganization())))
+         if((role.getOrganizationID() != null && !Tool.equals(puserName.orgID, role.getOrganizationID())))
          {
             continue;
          }
@@ -1639,7 +1661,7 @@ public class IdentityService {
 
          FSUser puser = (FSUser) eprovider.getUser(puserName);
 
-         if(puser == null || (model.organization() != null && !OrganizationManager.getCurrentOrgName().equals(puser.getOrganization()))) {
+         if(puser == null || (model.organization() != null && !OrganizationManager.getInstance().getCurrentOrgID().equals(puser.getOrganizationID()))) {
             continue;
          }
 
@@ -1660,16 +1682,20 @@ public class IdentityService {
          }
       }
 
-      for(String porgName : porgs) {
-         FSOrganization porg = (FSOrganization) eprovider.getOrganization(porgName);
+      for(String porgId : porgs) {
+         FSOrganization porg = (FSOrganization) eprovider.getOrganization(porgId);
 
          if(porg == null) {
             continue;
          }
 
-         if(orgV.contains(porgName)) {
-            eprovider.setOrganization(porgName, porg);
+         if(orgV.contains(porgId)) {
+            eprovider.setOrganization(porgId, porg);
          }
+      }
+
+      if(!newOrgID.equals(oldOrgID) && principal instanceof XPrincipal) {
+         ((XPrincipal) principal).updateRoles(eprovider);
       }
    }
 
@@ -1679,8 +1705,19 @@ public class IdentityService {
    {
       final String name = model.name();
       final String id = model.id();
-      FSOrganization newOrg = new FSOrganization(name);
+      FSOrganization newOrg = new FSOrganization(id);
+      newOrg.setName(name);
       List<IdentityModel> members = model.members();
+
+      if(oldOrg != null && !Tool.equals(oldOrg.getName(), newOrg.getName()) &&
+         Tool.equals(oldOrg.getId(), newOrg.getId()))
+      {
+         Organization org = eprovider.getOrganization(id);
+         org.setName(newOrg.getName());
+         eprovider.setOrganization(id, org);
+
+         return;
+      }
 
       List<String> memberNames = members.stream()
          .map(IdentityModel::identityID)
@@ -1690,7 +1727,7 @@ public class IdentityService {
 
       if(oldMembers != null) {
          Arrays.stream(oldMembers)
-            .filter(m -> securityProvider.getUser(new IdentityID(m, oldOrg.getName())) != null)
+            .filter(m -> securityProvider.getUser(new IdentityID(m, oldOrg.getId())) != null)
             .filter(m -> !securityProvider.checkPermission(principal, ResourceType.SECURITY_USER,
                                                            m, ResourceAction.ADMIN))
             .forEach(m -> memberNames.add(m));
@@ -1701,32 +1738,29 @@ public class IdentityService {
             Role role = eprovider.getRole(member.identityID());
 
             //global roles cannot be assigned as members of an organization
-            if(role != null && role.getOrganization() == null) {
+            if(role != null && role.getOrganizationID() == null) {
                throw new MessageException(Catalog.getCatalog().getString("em.security.GlobalRoleMemberError"));
             }
          }
       }
 
-      newOrg.setId(id);
       newOrg.setMembers(memberNames.toArray(new String[0]));
       newOrg.setActive(model.status());
 
-      String fromOrgID = eprovider.getOrganization(model.oldName()) != null ?
-         eprovider.getOrganization(model.oldName()).getId() : null;
+      String oldID = eprovider.getOrgIdFromName(model.oldName());
+      Organization fromOrg = eprovider.getOrganization(oldID);
+      String fromOrgID = fromOrg != null ? fromOrg.getId() : null;
 
-      if(!memberNames.isEmpty() &&
-         (model.oldName() == null ||
+      if(model.oldName() == null ||
             !Tool.equals(oldOrg.getMembers(), memberNames) ||
-            !Tool.equals(model.oldName(), model.name()) ||
-            !Tool.equals(fromOrgID, model.id())))
+            !Tool.equals(fromOrgID, model.id()))
       {
-         updateOrganizationMembers(newOrg, eprovider);
+         updateOrganizationMembers(newOrg, oldID, eprovider);
       }
 
-
-
-      if(!Tool.equals(fromOrgID, model.id())) {
-         updateOrgScopedDataSpace(fromOrgID, model.id());
+      if(fromOrg != null && !Tool.equals(fromOrg, newOrg)) {
+         DashboardRegistry.migrateRegistry(null, fromOrg, newOrg);
+         updateOrgScopedDataSpace(fromOrg, newOrg);
       }
 
       Properties localeProperties = SUtil.loadLocaleProperties();
@@ -1739,30 +1773,47 @@ public class IdentityService {
          }
       }
 
+      if(fromOrg != null && Tool.equals(fromOrg.getId(), newOrg.getId()) &&
+         fromOrg instanceof FSOrganization)
+      {
+         ((FSOrganization) fromOrg).setLocale(localeString);
+         ((FSOrganization) fromOrg).setTheme(model.theme());
+         eprovider.setOrganization(fromOrgID, fromOrg);
+
+         return;
+      }
+
       newOrg.setLocale(localeString);
       newOrg.setTheme(model.theme());
-      syncIdentity(eprovider, newOrg, new IdentityID(model.oldName(), model.oldName()));
+      syncIdentity(eprovider, newOrg, new IdentityID(model.oldName(), eprovider.getOrgIdFromName(model.oldName())));
    }
 
-   private void updateOrgScopedDataSpace(String oldID, String newID) {
+   private void updateOrgScopedDataSpace(Organization oorg, Organization norg) {
       DataSpace dataspace = DataSpace.getDataSpace();
-      String[] paths = DataSpace.getOrgScopedPaths(oldID);
+      String[] paths = dataspace.getOrgScopedPaths(oorg);
 
       for(String path : paths) {
          if(!dataspace.exists(null, path)) {
             continue;
          }
 
-         String toPath = path.replace(oldID, newID);
+         String toPath;
+
+         toPath = path.replace(oorg.getId(), norg.getId());
+
+         if(Tool.equals(toPath, path)) {
+            continue;
+         }
+
          dataspace.rename(path, toPath);
       }
    }
 
-   private void addOrganizationMember(String orgName, String memberName, EditableAuthenticationProvider provider) {
-      Organization org = provider.getOrganization(orgName);
+   private void addOrganizationMember(String orgID, String memberName, EditableAuthenticationProvider provider) {
+      Organization org = provider.getOrganization(orgID);
       List<String> members = org.getMembers() != null ? new ArrayList<>(Arrays.asList(org.getMembers())) : new ArrayList<>();
       members.add(memberName);
-      provider.setOrganization(orgName, org);
+      provider.setOrganization(orgID, org);
    }
 
    /**
@@ -1785,7 +1836,7 @@ public class IdentityService {
          }
 
          for(String pgroupName : pgroups) {
-            final Group childGroup = provider.getGroup(new IdentityID(pgroupName, group.getOrganization()));
+            final Group childGroup = provider.getGroup(new IdentityID(pgroupName, group.getOrganizationID()));
             checkInheritGroups(memberOfGroup, provider, (FSGroup) childGroup);
          }
       }
@@ -1817,52 +1868,63 @@ public class IdentityService {
       return Arrays.asList(principal.getRoles()).contains(identityID);
    }
 
-   public void clearRootPermittedIdentities(String orgName, String orgID, Principal principal) {
+   public void clearRootPermittedIdentities(String orgID, Principal principal) {
+      AuthorizationProvider authzProvider = securityProvider.getAuthorizationProvider();
       //Users
-      String rootUserName = Catalog.getCatalog().getString("Users");
-      IdentityID fromRootUserID = new IdentityID(rootUserName, orgName);
-
-      setIdentityPermissions(fromRootUserID, fromRootUserID, ResourceType.SECURITY_USER, principal,
-                             Collections.emptyList(), orgName, orgID);
+      String rootUserName = "Users";
+      IdentityID fromRootUserID = new IdentityID(rootUserName, orgID);
+      authzProvider.removePermission(ResourceType.SECURITY_USER, fromRootUserID);
 
       //Groups
-      String rootGroupName = Catalog.getCatalog().getString("Groups");
-      IdentityID fromRootGroupID = new IdentityID(rootGroupName, orgName);
-      setIdentityPermissions(fromRootGroupID, fromRootGroupID, ResourceType.SECURITY_GROUP, principal,
-                             Collections.emptyList(), orgName, orgID);
+      String rootGroupName = "Groups";
+      IdentityID fromRootGroupID = new IdentityID(rootGroupName, orgID);
+      authzProvider.removePermission(ResourceType.SECURITY_GROUP, fromRootGroupID);
 
       //Roles
-      String rootRoleName = Catalog.getCatalog().getString("Roles");
-      IdentityID fromRootID = new IdentityID(rootRoleName, orgName);
-      setIdentityPermissions(fromRootID, fromRootID, ResourceType.SECURITY_ROLE, principal,
-                             Collections.emptyList(), orgName, orgID);
+      String rootRoleName = "Roles";
+      IdentityID fromRootID = new IdentityID(rootRoleName, orgID);
+      authzProvider.removePermission(ResourceType.SECURITY_ROLE, fromRootID);
 
-      String rootOrgRoleName = Catalog.getCatalog().getString("Organization Roles");
-      IdentityID fromRootOrgRoleID = new IdentityID(rootOrgRoleName, orgName);
-      setIdentityPermissions(fromRootOrgRoleID, fromRootOrgRoleID, ResourceType.SECURITY_ROLE, principal,
-                             Collections.emptyList(), orgName, orgID);
+      String rootOrgRoleName = "Organization Roles";
+      IdentityID fromRootOrgRoleID = new IdentityID(rootOrgRoleName, orgID);
+      authzProvider.removePermission(ResourceType.SECURITY_ROLE, fromRootOrgRoleID);
 
       //Organization
-      IdentityID oldOrgID = new IdentityID(orgName, orgName);
-      setIdentityPermissions(oldOrgID, oldOrgID, ResourceType.SECURITY_ORGANIZATION, principal,
-                             Collections.emptyList(), orgName, orgID);
+      IdentityID oldOrgID = new IdentityID(securityProvider.getOrgNameFromID(orgID), orgID);
+      authzProvider.removePermission(ResourceType.SECURITY_ORGANIZATION, oldOrgID);
    }
 
    public void updateIdentityPermissions(int type, IdentityID oldName, IdentityID newName, String oldOrgId, String newOrgId, boolean doReplace) {
       SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      Organization oldOrganization = oldOrgId == null ?
-         null : provider.getOrganization(provider.getOrgNameFromID(oldOrgId));
+      Organization oldOrganization = oldOrgId == null || oldOrgId.isEmpty() ?
+         null : provider.getOrganization(oldOrgId);
 
       for(Tuple3<ResourceType, String, Permission> permissionSet : provider.getPermissions()) {
-         for (ResourceAction action : ResourceAction.values()) {
-            Permission permission = permissionSet.getThird();
+         String second = permissionSet.getSecond();
+         Permission permission = permissionSet.getThird();
 
+         if(permission == null) {
+            continue;
+         }
+
+         if(newName == null && second.contains(IdentityID.KEY_DELIMITER) && IdentityID.getIdentityIDFromKey(second).orgID != null &&
+               !Tool.equals(IdentityID.getIdentityIDFromKey(second).orgID,oldName.orgID) &&
+               !Tool.equals(IdentityID.getIdentityIDFromKey(second).orgID,oldOrgId)) {
+            //skip permissions not in this organization
+            continue;
+         }
+
+         if(containsOrgID(second, oldName.getOrgID()) && newName == null) {
+            provider.removePermission(permissionSet.getFirst(), second);
+         }
+
+         for(ResourceAction action : ResourceAction.values()) {
             if(permission != null) {
                if(type == Identity.USER) {
                   for(IdentityID granteeName : permission.getOrgScopedUserGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), permissionSet.getSecond(), doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), second, doReplace);
                      }
                   }
                }
@@ -1870,7 +1932,7 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedGroupGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), permissionSet.getSecond(), doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), second, doReplace);
                      }
                   }
                }
@@ -1878,137 +1940,254 @@ public class IdentityService {
                   for(IdentityID granteeName : permission.getOrgScopedRoleGrants(action, oldOrganization).toArray(new IdentityID[0])) {
                      if(oldName != null && oldName.name.equals(granteeName.name)) {
                         //rename old grantee to new name
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), permissionSet.getSecond(), doReplace);
+                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), second, doReplace);
                      }
                   }
                }
                else if(type == Identity.ORGANIZATION) {
-                  for(IdentityID granteeName : permission.getOrgScopedOrganizationGrants(action, oldOrganization).toArray(new IdentityID[0])) {
-                     if(oldName != null && oldName.name.equals(granteeName.name)) {
-                        updateIdentityPermission(type, newName, oldName, oldOrganization, newOrgId, permission, action, permissionSet.getFirst(), permissionSet.getSecond(), doReplace);
-                     }
-                  }
+                  updateOrgIdentitiesPermission(newName, oldName, oldOrganization, newOrgId, permission, action, doReplace);
                }
             }
          }
+
+         String oldOrgName;
+         String newOrgName;
+
+         if(type == Identity.ORGANIZATION &&
+            permissionSet.getFirst() == ResourceType.SECURITY_ORGANIZATION &&
+            newName != null && oldName != null)
+         {
+            oldOrgName = oldName.getName();
+            newOrgName = newName.getName();
+         }
+         else {
+            oldOrgName = oldName != null && oldName.getOrgID() != null ? oldName.getName() : null;
+            newOrgName = newName != null && newName.getName() != null ? newName.getName() : null;
+         }
+
+         updatePermission(provider, permissionSet, oldOrgName, newOrgName, oldOrgId, newOrgId, doReplace, type);
       }
    }
 
-   private void updateIdentityPermission(int type, IdentityID newName, IdentityID oldName, Organization oldOrg, String newOrgId, Permission permission,
-                                         ResourceAction action, ResourceType rType, String rpath, boolean doReplace) {
+   private void updatePermission(SecurityProvider provider,
+                                 Tuple3<ResourceType, String, Permission> permissionSet,
+                                 String oIdentityName, String nIdentityName, String oorgId,
+                                 String norgId, boolean doReplace, int changeIdentityType)
+   {
+      ResourceType type = permissionSet.getFirst();
+      String second = permissionSet.getSecond();
+      Permission permission = permissionSet.getThird();
+      updateOrgEditedGrantAll(permission, oorgId, norgId);
+      String newPath = getNewPermissionPath(permissionSet.getFirst(), second, oorgId, norgId,
+         oIdentityName, nIdentityName, changeIdentityType);
+
+      if(newPath != null) {
+         provider.setPermission(type, newPath, permission);
+      }
+      else {
+         provider.setPermission(type, second, permission);
+      }
+
+      if(doReplace && !Tool.equals(oorgId, norgId) && !Tool.equals(newPath, second)) {
+         provider.removePermission(type, second);
+      }
+   }
+
+   private boolean containsOrgID(String secondPath, String oorgID) {
+      if(secondPath != null && secondPath.contains(IdentityID.KEY_DELIMITER)) {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(secondPath);
+
+         return Tool.equals(oorgID, identityID.getOrgID());
+      }
+
+      return false;
+   }
+
+   private String getNewPermissionPath(ResourceType type, String secondPath,
+                                       String oorgID, String norgID, String oIdentityName,
+                                       String nIdentityName, int changeIdentityType)
+   {
+      if(type == ResourceType.SECURITY_ORGANIZATION &&
+         Tool.equals(secondPath, new IdentityID(oIdentityName, oorgID).convertToKey()))
+      {
+         return new IdentityID(nIdentityName, norgID).convertToKey();
+      }
+
+      if(type == ResourceType.SCHEDULE_TASK && changeIdentityType == Identity.USER) {
+         IdentityID oldIdentityID = new IdentityID(oIdentityName, oorgID);
+         IdentityID newIdentityID = new IdentityID(nIdentityName, norgID);
+         ScheduleTaskMetaData taskMetaData = ScheduleManager.getTaskMetaData(secondPath);
+
+         if(Tool.equals(taskMetaData.getTaskOwnerId(), oldIdentityID.convertToKey())) {
+            taskMetaData.setTaskOwnerId(newIdentityID.convertToKey());
+
+            return taskMetaData.getTaskId();
+         }
+      }
+
+      String newPath = secondPath;
+
+      if(containsOrgID(secondPath, oorgID) && !Tool.equals(oorgID, norgID)) {
+         IdentityID identityID = IdentityID.getIdentityIDFromKey(secondPath);
+         identityID.setOrgID(norgID);
+         newPath = identityID.convertToKey();
+      }
+
+      return newPath;
+   }
+
+   private void updateOrgIdentitiesPermission(IdentityID newName, IdentityID oldName,
+                                              Organization oldOrg, String newOrgId, Permission permission,
+                                              ResourceAction action, boolean doReplace)
+   {
       Set<String> userGrants = new HashSet<>();
       Set<String> groupGrants = new HashSet<>();
       Set<String> roleGrants = new HashSet<>();
       Set<String> organizationGrants = new HashSet<>();
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
       if(permission != null) {
-         if(doReplace) {
+         if(newName != null && !newName.name.isEmpty()) {
             permission.getOrgScopedUserGrants(action, oldOrg).stream()
                .map(id -> id.name)
-               .filter(u -> !u.equals(oldName.name))
                .forEach(userGrants::add);
             permission.getOrgScopedGroupGrants(action, oldOrg).stream()
                .map(id -> id.name)
-               .filter(u -> !u.equals(oldName.name))
                .forEach(groupGrants::add);
             permission.getOrgScopedRoleGrants(action, oldOrg).stream()
                .map(id -> id.name)
-               .filter(u -> !u.equals(oldName.name))
                .forEach(roleGrants::add);
             permission.getOrgScopedOrganizationGrants(action, oldOrg).stream()
-               .map(id -> id.name)
-               .filter(u -> !u.equals(oldName.name))
+               .map(id -> newName.getName())
                .forEach(organizationGrants::add);
-
-            permission.setUserGrantsForOrg(action, new HashSet<>(), oldOrg.getOrganizationID());
-            permission.setGroupGrantsForOrg(action, new HashSet<>(), oldOrg.getOrganizationID());
-            permission.setRoleGrantsForOrg(action, new HashSet<>(), oldOrg.getOrganizationID());
-            permission.setOrganizationGrantsForOrg(action, new HashSet<>(), oldOrg.getOrganizationID());
          }
       }
       else {
          permission = new Permission();
       }
 
-      if(newName !=null && !newName.name.isEmpty()) {
-         switch(type) {
-         case Identity.USER:
-            userGrants.add(newName.name);
-            break;
-         case Identity.GROUP:
-            groupGrants.add(newName.name);
-            break;
-         case Identity.ROLE:
-            roleGrants.add(newName.name);
-            break;
-         case Identity.ORGANIZATION:
-            organizationGrants.add(newName.name);
-            break;
+      if(newName != null && !newName.name.isEmpty() && !organizationGrants.contains(newName.name)) {
+         organizationGrants = organizationGrants.stream()
+            .map(org -> {
+               if(Tool.equals(org, oldName.getName())) {
+                  return newName.getName();
+               }
+
+               return org;
+            })
+            .collect(Collectors.toSet());
+      }
+
+      if(oldOrg != null) {
+         String oldOrgId = doReplace ? oldOrg.getOrganizationID() : null;
+
+         if(!userGrants.isEmpty()) {
+            permission.setUserGrantsForOrg(action, userGrants, oldOrgId, newOrgId);
+         }
+
+         if(!groupGrants.isEmpty()) {
+            permission.setGroupGrantsForOrg(action, groupGrants, oldOrgId, newOrgId);
+         }
+
+         if(!roleGrants.isEmpty()) {
+            permission.setRoleGrantsForOrg(action, roleGrants, oldOrgId, newOrgId);
+         }
+
+         if(!organizationGrants.isEmpty()) {
+            permission.setOrganizationGrantsForOrg(action, organizationGrants, oldOrgId, newOrgId);
+         }
+
+         if(permission.isOrgInPerm(action, newOrgId)) {
+            permission.updateGrantAllByOrg(newOrgId, true);
+
+            if(doReplace && !Tool.equals(oldOrgId, newOrgId)) {
+               permission.removeGrantAllByOrg(oldOrgId);
+            }
          }
       }
+   }
 
-      if(!userGrants.isEmpty()) {
-         permission.setUserGrantsForOrg(action, userGrants, newOrgId);
+   private void updateIdentityPermission(int type, IdentityID newIdentityID, IdentityID oldIdentityID, Organization oldOrg, String newOrgId, Permission permission,
+                                         ResourceAction action, ResourceType rType, String rpath, boolean doReplace) {
+      Set<String> identityGrants = new HashSet<>();
+
+      if(permission != null) {
+         if(doReplace || newIdentityID == null) {
+            Set<IdentityID> orgScopedGrants = null;
+
+            switch(type) {
+            case Identity.USER:
+               orgScopedGrants = permission.getOrgScopedUserGrants(action, oldOrg);
+               permission.setUserGrantsForOrg(action, new HashSet<>(), oldOrg.getId());
+               break;
+            case Identity.GROUP:
+               orgScopedGrants = permission.getOrgScopedGroupGrants(action, oldOrg);
+               permission.setGroupGrantsForOrg(action, new HashSet<>(), oldOrg.getId());
+               break;
+            case Identity.ROLE:
+               orgScopedGrants = permission.getOrgScopedRoleGrants(action, oldOrg);
+               permission.setRoleGrantsForOrg(action, new HashSet<>(), oldOrg.getId());
+               break;
+            case Identity.ORGANIZATION:
+               orgScopedGrants = permission.getOrgScopedOrganizationGrants(action, oldOrg);
+               permission.setOrganizationGrantsForOrg(action, new HashSet<>(), oldOrg.getId());
+               break;
+            }
+
+            if(orgScopedGrants != null) {
+               orgScopedGrants.stream()
+                  .map(id -> id.name)
+                  .filter(u -> !u.equals(oldIdentityID.name))
+                  .forEach(identityGrants::add);
+            }
+         }
+      }
+      else {
+         permission = new Permission();
       }
 
-      if(!groupGrants.isEmpty()) {
-         permission.setGroupGrantsForOrg(action, groupGrants, newOrgId);
+      if(newIdentityID != null && !newIdentityID.name.isEmpty()) {
+         identityGrants.add(newIdentityID.name);
       }
 
-      if(!roleGrants.isEmpty()) {
-         permission.setRoleGrantsForOrg(action, roleGrants, newOrgId);
-      }
-
-      if(!organizationGrants.isEmpty()) {
-         permission.setOrganizationGrantsForOrg(action, organizationGrants, newOrgId);
+      switch(type) {
+      case Identity.USER:
+         permission.setUserGrantsForOrg(action, identityGrants, newOrgId);
+         break;
+      case Identity.GROUP:
+         permission.setGroupGrantsForOrg(action, identityGrants, newOrgId);
+         break;
+      case Identity.ROLE:
+         permission.setRoleGrantsForOrg(action, identityGrants, newOrgId);
+         break;
+      case Identity.ORGANIZATION:
+         permission.setOrganizationGrantsForOrg(action, identityGrants, newOrgId);
+         break;
       }
 
       if(permission.isOrgInPerm(action, newOrgId)) {
          permission.updateGrantAllByOrg(newOrgId, true);
       }
-
-      provider.setPermission(rType, rpath, permission);
    }
 
 
-   public void addCopiedIdentityPermission(IdentityID fromIdentity, IdentityID newIdentity, String newOrgId, int type) {
+   public void addCopiedIdentityPermission(IdentityID fromIdentity, IdentityID newIdentity,
+                                           String newOrgId, int type, boolean replace) {
       //delete organization name inside of permissions
       if(type == Identity.ORGANIZATION) {
-         String oid = SecurityEngine.getSecurity().getSecurityProvider().getOrganization(fromIdentity.organization).getId();
-         String id = SecurityEngine.getSecurity().getSecurityProvider().getOrganization(newIdentity.organization) != null ?
-                     SecurityEngine.getSecurity().getSecurityProvider().getOrganization(newIdentity.organization).getId():
-                     newIdentity.name.equals(Organization.getTemplateOrganizationName()) ?
-                     Organization.getTemplateOrganizationID() :
-                        newOrgId;
-         updateIdentityPermissions(type, fromIdentity, newIdentity, oid , id, false);
+         String oid = fromIdentity.orgID;
+         String id = newIdentity.orgID;
+         updateIdentityPermissions(type, fromIdentity, newIdentity, oid , id, replace);
       }
       else {
-         String orgName;
+         String orgId = fromIdentity.getOrgID();
          SecurityProvider sProvider = SecurityEngine.getSecurity().getSecurityProvider();
 
-         switch(type) {
-            case(Identity.USER):
-               orgName = sProvider.getUser(fromIdentity) != null ? sProvider.getUser(fromIdentity).getOrganization() :
-                                                               OrganizationManager.getCurrentOrgName();
-               break;
-            case(Identity.GROUP):
-               orgName = sProvider.getGroup(fromIdentity) != null ? sProvider.getGroup(fromIdentity).getOrganization() :
-                                                                OrganizationManager.getCurrentOrgName();
-               break;
-            default:
-               orgName = sProvider.getRole(fromIdentity) != null ? sProvider.getRole(fromIdentity).getOrganization() :
-                                                               OrganizationManager.getCurrentOrgName();
-               break;
-         }
-
-         String orgId = sProvider.getOrgId(orgName);
-         updateIdentityPermissions(type, fromIdentity, newIdentity, orgId, newOrgId, false);
+         updateIdentityPermissions(type, fromIdentity, newIdentity, orgId, newOrgId, replace);
       }
    }
 
-   private void updateAutoSaveFiles(Organization oorg, Organization norg) {
-      if(oorg.getName().equals(norg.getName())) {
+   public void updateAutoSaveFiles(Organization oorg, Organization norg) {
+      if(oorg.getId().equals(norg.getId())) {
          return;
       }
 
@@ -2045,8 +2224,8 @@ public class IdentityService {
 
             IdentityID userID = IdentityID.getIdentityIDFromKey(user);
 
-            if(oorg.getName().equals(userID.getOrganization())) {
-               userID.setOrganization(norg.getName());
+            if(oorg.getId().equals(userID.getOrgID())) {
+               userID.setOrgID(norg.getId());
                attrs[2] = userID.convertToKey();
                String newFilePath = path + "/" + String.join("^", attrs);
                File newFile = fileSystemService.getFile(newFilePath);
@@ -2056,7 +2235,113 @@ public class IdentityService {
       }
    }
 
+   public void updateTaskSaveFiles(Organization oorganization, Organization norganization) {
+      String oorg = oorganization.getId();
+      String norg = norganization.getId();
+
+      if(Tool.equals(oorg, norg)) {
+         return;
+      }
+
+      try {
+         ExternalStorageService.getInstance().renameFolder(oorg, norg);
+      }
+      catch(Exception e) {
+         LOG.warn("Failed to rename folder for organization", oorg, e);
+      }
+   }
+
+   private void updateUserAutoSaveFiles(IdentityID oID, IdentityID nID) {
+      if(oID.equals(nID)) {
+         return;
+      }
+
+      FileSystemService fileSystemService = FileSystemService.getInstance();
+      String path = SreeEnv.getProperty("sree.home") + "/" + "autoSavedFile/recycle";
+      File folder = fileSystemService.getFile(path);
+
+      if(!folder.exists()) {
+         return;
+      }
+
+      File[] list = folder.listFiles();
+
+      if(list == null) {
+         return;
+      }
+
+      for(File file : list) {
+         String asset = file.getName();
+
+         if(!file.isFile()) {
+            continue;
+         }
+
+         String[] attrs = Tool.split(asset, '^');
+
+         if(attrs.length > 3) {
+            String fileUser = attrs[2];
+            fileUser = "anonymous".equals(fileUser) ? "_NULL_" : fileUser;
+
+            if(fileUser == null || Tool.equals(fileUser, "_NULL_")) {
+               continue;
+            }
+
+            IdentityID fileUserID = IdentityID.getIdentityIDFromKey(fileUser);
+
+            if(fileUserID.equals(oID)) {
+               attrs[2] = nID.convertToKey();
+               String newFilePath = path + "/" + String.join("^", attrs);
+               File newFile = fileSystemService.getFile(newFilePath);
+               fileSystemService.rename(file, newFile);
+            }
+         }
+      }
+   }
+
+   public String getOrganizationDetailString(String orgKey, Principal principal) {
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      IdentityID orgIdentityID = IdentityID.getIdentityIDFromKey(orgKey);
+
+      String dataBaseListString = getOrganizationDatabaseListString(orgIdentityID, principal);
+
+      int orgUsers = (int) Arrays.stream(provider.getUsers())
+         .filter(user -> user.orgID.equals(orgIdentityID.orgID))
+         .count();
+
+      return
+         Catalog.getCatalog().getString("em.security.orgDetailString",orgIdentityID.name,dataBaseListString, orgUsers);
+   }
+
+   private String getOrganizationDatabaseListString(IdentityID orgIdentityID, Principal principal) {
+      final DataSourceRegistry registry = DataSourceRegistry.getRegistry();
+
+      List<String> dataSourceNames = new ArrayList<>(registry.getSubfolderNames(null, false, orgIdentityID.orgID));
+      dataSourceNames.addAll(new ArrayList<>(registry.getSubDataSourceNames(null, false, orgIdentityID.orgID)));
+      Collections.sort(dataSourceNames);
+
+      StringBuilder datasourceListString = new StringBuilder("{ ");
+
+      for(int i=0; i< dataSourceNames.size();i++) {
+         if(i != dataSourceNames.size() - 1) {
+            datasourceListString.append(dataSourceNames.get(i)).append(", ");
+
+            if(i>4 && i%5 == 0) {
+               //line break every 5 datasources
+               datasourceListString.append("\n");
+            }
+         }
+         else {
+           datasourceListString.append(dataSourceNames.get(i));
+         }
+      }
+      datasourceListString.append(" }\n");
+
+      return datasourceListString.toString();
+   }
+
    private final SecurityEngine securityEngine;
    private final SecurityProvider securityProvider;
+   private final IdentityThemeService themeService;
    private final Logger LOG = LoggerFactory.getLogger(IdentityService.class);
 }

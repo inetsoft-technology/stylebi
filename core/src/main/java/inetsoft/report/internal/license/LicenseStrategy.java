@@ -17,9 +17,9 @@
  */
 package inetsoft.report.internal.license;
 
-import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.internal.cluster.MessageListener;
+import inetsoft.sree.security.IdentityID;
 
-import java.lang.ref.WeakReference;
 import java.util.*;
 
 /**
@@ -127,18 +127,11 @@ public abstract class LicenseStrategy implements AutoCloseable, MessageListener 
    public abstract int getNamedUserViewerSessionCount();
 
    /**
-    * Gets the installed scheduler instance licenses.
-    *
-    * @return the scheduler licenses.
-    */
-   public abstract Set<License> getSchedulerLicenses();
-
-   /**
     * Gets the user names of the licensed named users.
     *
     * @return the named users or {@code null} if no named users are licensed.
     */
-   public abstract Set<String> getNamedUsers();
+   public abstract Set<IdentityID> getNamedUsers();
 
    /**
     * Adds a server license key.
@@ -161,28 +154,6 @@ public abstract class LicenseStrategy implements AutoCloseable, MessageListener 
     * @param newKey the new key.
     */
    public abstract void replaceLicense(String oldKey, String newKey);
-
-   /**
-    * Adds a scheduler instance license.
-    *
-    * @param key the key to add.
-    */
-   public abstract void addSchedulerLicense(String key);
-
-   /**
-    * Removes an installed scheduler instance license.
-    *
-    * @param key the key to remove.
-    */
-   public abstract void removeSchedulerLicense(String key);
-
-   /**
-    * Replaces an installed scheduler instance license.
-    *
-    * @param oldKey the key to replace.
-    * @param newKey the new key.
-    */
-   public abstract void replaceSchedulerLicense(String oldKey, String newKey);
 
    /**
     * Reloads the licenses from the properties file.
@@ -259,4 +230,24 @@ public abstract class LicenseStrategy implements AutoCloseable, MessageListener 
     * @param l the listener to remove.
     */
    public abstract void removeClaimedLicenseListener(ClaimedLicenseListener l);
+
+   /**
+    * Process the user, role, group changed, it may cause the count of the administrators is changed.
+    * named user will sort administrators come first, so clear the cache.
+    */
+   public abstract void userChanged();
+
+   public abstract void startElasticPolling();
+
+   public abstract int getElasticRemainingHours();
+
+   public abstract int getElasticGraceHours();
+
+   public abstract boolean startHostedSession(String orgId, String user);
+
+   public abstract void stopHostedSession(String orgId, String user);
+
+   public abstract int getHostedRemainingHours(String orgId, String user);
+
+   public abstract int getHostedGraceHours(String orgId, String user);
 }

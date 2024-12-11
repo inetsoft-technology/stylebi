@@ -56,6 +56,10 @@ export class SecurityTreeDialogComponent implements OnInit {
          params = params.set("provider", this.dialogData.provider);
       }
 
+      if(this.dialogData && this.dialogData.hideOrgAdminRole) {
+         params = params.set("hideOrgAdminRole", this.dialogData.hideOrgAdminRole);
+      }
+
       return this.http.get<SecurityTreeRootModel>("../api/em/settings/content/resource-tree",
          { params: params })
          .pipe(
@@ -82,15 +86,15 @@ export class SecurityTreeDialogComponent implements OnInit {
 
                      //filter out children that are not enabled
                      if(this.dialogData.usersEnabled == null || !this.dialogData.usersEnabled) {
-                        model.organizations.children = model.organizations.children.filter(child => child.identityID.name !== "_#(js:Users)");
+                        model.organizations.children = model.organizations.children.filter(child => child.identityID.name !== "Users");
                      }
 
                      if(!this.dialogData.groupsEnabled) {
-                        model.organizations.children =  model.organizations.children.filter(child => child.identityID.name !== "_#(js:Groups)");
+                        model.organizations.children =  model.organizations.children.filter(child => child.identityID.name !== "Groups");
                      }
 
                      if(!this.dialogData.rolesEnabled) {
-                        model.organizations.children =  model.organizations.children.filter(child => child.identityID.name !== "_#(js:Organization Roles)");
+                        model.organizations.children =  model.organizations.children.filter(child => child.identityID.name !== "Organization Roles");
                      }
 
                      treeData.push(this.treeService.createSecurityTreeNode(model.organizations));
@@ -102,9 +106,9 @@ export class SecurityTreeDialogComponent implements OnInit {
                      }
                   }
                   else {
-                     let users = model.organizations.children.find(child => child.identityID.name === "_#(js:Users)");
-                     let groups = model.organizations.children.find(child => child.identityID.name === "_#(js:Groups)");
-                     let orgRoles = model.organizations.children.find(child => child.identityID.name === "_#(js:Organization Roles)");
+                     let users = model.organizations.children.find(child => child.identityID.name === "Users");
+                     let groups = model.organizations.children.find(child => child.identityID.name === "Groups");
+                     let orgRoles = model.organizations.children.find(child => child.identityID.name === "Organization Roles");
                      let globalRoles = model.roles;
 
                      if(this.dialogData.usersEnabled) {

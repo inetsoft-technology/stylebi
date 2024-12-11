@@ -11,6 +11,7 @@ Global
 	getImage(imageResource)	getImage()
 	importClass(string)	importClass()
 	importPackage(string)	importPackage()
+	registerPackage(string)	registerPackage()
 	indexOf(array, object)	indexOf()
 	isCancelled()	isCancelled()
 	isFinite(number)	isFinite()

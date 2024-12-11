@@ -67,7 +67,7 @@ public class ImportXLSController {
     * @param file      The excel file to upload
     */
    @PostMapping(
-      value = "/vs/importXLS/upload/{type}/**",
+      value = "/api/vs/importXLS/upload/{type}/**",
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
    @ResponseBody
    public void processGetAssemblyImage(@RemainingPath String runtimeId,

@@ -17,6 +17,8 @@
  */
 package inetsoft.util.config;
 
+import inetsoft.util.config.crd.CRDProperty;
+
 @InetsoftConfigBean
 public class AzureKeyVaultConfig {
 
@@ -63,8 +65,12 @@ public class AzureKeyVaultConfig {
       return config;
    }
 
+   @CRDProperty(description = "The tenant ID", secret = true)
    private String tenantId;
+   @CRDProperty(description = "The client ID", secret = true)
    private String clientId;
+   @CRDProperty(description = "The client secret", secret = true)
    private String clientSecret;
+   @CRDProperty(name = "keyVaultUri", description = "The key value URI")
    private String keyVaultURI;
 }

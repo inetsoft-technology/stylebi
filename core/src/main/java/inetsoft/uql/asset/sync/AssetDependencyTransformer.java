@@ -226,7 +226,7 @@ public class AssetDependencyTransformer extends DependencyTransformer {
       }
       else {
          synchronized(storage) {
-            doc = storage.getDocument(identifier);
+            doc = storage.getDocument(identifier, asset.getOrgID());
          }
       }
 
@@ -277,7 +277,7 @@ public class AssetDependencyTransformer extends DependencyTransformer {
     */
    private void saveAssets(IndexedStorage storage, String identifier, Document doc) {
       synchronized(storage) {
-         storage.putDocument(identifier, doc, getAssetClassName());
+         storage.putDocument(identifier, doc, getAssetClassName(), asset.getOrgID());
       }
    }
 
@@ -301,7 +301,7 @@ public class AssetDependencyTransformer extends DependencyTransformer {
          return XLogicalModel.class.getName();
       }
 
-      if(asset.isPartition()) {
+      if(asset.isPartition() || asset.getType().isExtendedPartition()) {
          return XPartition.class.getName();
       }
 
@@ -579,7 +579,7 @@ public class AssetDependencyTransformer extends DependencyTransformer {
       if(table != null) {
          String tableName = Tool.getValue(table);
 
-         if(!Tool.equals(info.getSource(), tableName)) {
+         if(!Tool.equals(info.getSource(), tableName) && !Tool.equals(info.getTable(), tableName)) {
             return;
          }
       }
@@ -1284,7 +1284,7 @@ public class AssetDependencyTransformer extends DependencyTransformer {
             String[] paths = path.split("/");
             final List<String> allTableTypes = new ArrayList<>(Arrays.asList(
                "EXTERNAL TABLE", "TABLE", "VIEW", "SYNONYM", "ALIAS",
-               "MATERIALIZED VIEW", "BASE TABLE"));
+               "MATERIALIZED VIEW", "BASE TABLE", "PARTITIONED TABLE"));
             String type = null;
             int tableIdx = -1;
 

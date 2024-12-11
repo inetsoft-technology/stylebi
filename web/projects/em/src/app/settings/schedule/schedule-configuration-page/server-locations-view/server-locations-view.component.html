@@ -52,8 +52,13 @@
       </ng-container>
       <ng-container matColumnDef="password">
         <th mat-header-cell *matHeaderCellDef>_#(Password)</th>
+        <td mat-cell class="server-location-user-password" *matCellDef="let row">
+          {{maskPassword(row.pathInfoModel.password)}}</td>
+      </ng-container>
+      <ng-container *ngIf="cloudSecrets" matColumnDef="secretId">
+        <th mat-header-cell *matHeaderCellDef>_#(Secret ID)</th>
         <td mat-cell class="server-location-user-password" *matCellDef="let row"
-            [title]="row.pathInfoModel.password">{{row.pathInfoModel.password}}</td>
+            [title]="row.pathInfoModel.secretId">{{row.pathInfoModel.secretId}}</td>
       </ng-container>
       <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
       <tr mat-row *matRowDef="let row; columns: displayedColumns;" (click)="selection.toggle(row)"></tr>

@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -653,7 +654,8 @@ public abstract class InputVSAssemblyInfo extends VSAssemblyInfo {
    private DynamicValue columnValue;
    private DynamicValue rowValue;
    private String dtype;
-   private DynamicValue autoRefresh = new DynamicValue("true", XSchema.BOOLEAN);
+   private DynamicValue autoRefresh = new DynamicValue(
+      SreeEnv.getProperty("input.autoRefresh.defaultValue", "true"), XSchema.BOOLEAN);
    // runtime
    private DataRef column;
    private boolean variable = false;

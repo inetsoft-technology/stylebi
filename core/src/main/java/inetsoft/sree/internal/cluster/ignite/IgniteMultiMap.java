@@ -21,9 +21,11 @@ import inetsoft.sree.internal.cluster.MultiMap;
 import inetsoft.util.Tool;
 import org.apache.ignite.IgniteCache;
 
+import javax.cache.CacheException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Supplier;
 
 public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
    public IgniteMultiMap(IgniteCache<K, Collection<V>> cache) {
@@ -32,152 +34,179 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
 
    @Override
    public void put(K key, V value) {
-      Collection<V> list = cache.get(key);
+      executeWithRetry(() -> {
+         Collection<V> list = cache.get(key);
 
-      if(list == null) {
-         list = new ArrayList<>();
-      }
+         if(list == null) {
+            list = new ArrayList<>();
+         }
 
-      list.add(value);
-      cache.put(key, list);
+         list.add(value);
+         cache.put(key, list);
+         return null;
+      });
    }
 
    @Override
    public Collection<V> get(K key) {
-      return cache.get(key);
+      return executeWithRetry(() -> cache.get(key));
    }
 
    @Override
    public void remove(K key, V value) {
-      Collection<V> list = cache.get(key);
+      executeWithRetry(() -> {
+         Collection<V> list = cache.get(key);
 
-      if(list != null) {
-         list.remove(value);
+         if(list != null) {
+            list.remove(value);
 
-         if(list.isEmpty()) {
-            cache.remove(key);
+            if(list.isEmpty()) {
+               cache.remove(key);
+            }
+            else {
+               cache.put(key, list);
+            }
          }
-         else {
-            cache.put(key, list);
-         }
-      }
+
+         return null;
+      });
    }
 
    @Override
    public Collection<V> remove(K key) {
-      return cache.getAndRemove(key);
+      return executeWithRetry(() -> cache.getAndRemove(key));
    }
 
    @Override
    public void delete(K key) {
-      cache.remove(key);
+      executeWithRetry(() -> {
+         cache.remove(key);
+         return null;
+      });
    }
 
    @Override
    public Set<K> keySet() {
-      Set<K> set = new HashSet<>();
+      return executeWithRetry(() -> {
+         Set<K> set = new HashSet<>();
 
-      for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-         set.add(entry.getKey());
-      }
+         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
+            set.add(entry.getKey());
+         }
 
-      return set;
+         return set;
+      });
    }
 
    @Override
    public Collection<V> values() {
-      List<V> allValues = new ArrayList<>();
+      return executeWithRetry(() -> {
+         List<V> allValues = new ArrayList<>();
 
-      for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-         Collection<V> list = entry.getValue();
+         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
+            Collection<V> list = entry.getValue();
 
-         if(list != null) {
-            allValues.addAll(list);
+            if(list != null) {
+               allValues.addAll(list);
+            }
          }
-      }
 
-      return allValues;
+         return allValues;
+      });
    }
 
    @Override
    public Set<Map.Entry<K, V>> entrySet() {
-      Set<Map.Entry<K, V>> set = new HashSet<>();
+      return executeWithRetry(() -> {
+         Set<Map.Entry<K, V>> set = new HashSet<>();
 
-      for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-         Collection<V> list = entry.getValue();
+         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
+            Collection<V> list = entry.getValue();
 
-         if(list != null) {
-            for(V value : list) {
-               set.add(new AbstractMap.SimpleEntry<>(entry.getKey(), value));
+            if(list != null) {
+               for(V value : list) {
+                  set.add(new AbstractMap.SimpleEntry<>(entry.getKey(), value));
+               }
             }
          }
-      }
 
-      return set;
+         return set;
+      });
    }
 
    @Override
    public boolean containsKey(K key) {
-      return cache.containsKey(key);
+      return executeWithRetry(() -> cache.containsKey(key));
    }
 
    @Override
    public boolean containsValue(V value) {
-      for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-         Collection<V> list = entry.getValue();
+      return executeWithRetry(() -> {
+         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
+            Collection<V> list = entry.getValue();
 
-         if(list != null) {
-            for(V val : list) {
-               if(Tool.equals(value, val)) {
-                  return true;
+            if(list != null) {
+               for(V val : list) {
+                  if(Tool.equals(value, val)) {
+                     return true;
+                  }
                }
             }
          }
-      }
 
-      return false;
+         return false;
+      });
    }
 
    @Override
    public boolean containsEntry(K key, V value) {
-      Collection<V> list = cache.get(key);
+      return executeWithRetry(() -> {
+         Collection<V> list = cache.get(key);
 
-      if(list != null) {
-         return list.contains(value);
-      }
+         if(list != null) {
+            return list.contains(value);
+         }
 
-      return false;
+         return false;
+      });
    }
 
    @Override
    public int size() {
-      int size = 0;
+      return executeWithRetry(() -> {
+         int size = 0;
 
-      for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
-         Collection<V> list = entry.getValue();
+         for(IgniteCache.Entry<K, Collection<V>> entry : cache) {
+            Collection<V> list = entry.getValue();
 
-         if(list != null) {
-            size += list.size();
+            if(list != null) {
+               size += list.size();
+            }
          }
-      }
 
-      return size;
+         return size;
+      });
    }
 
    @Override
    public void clear() {
-      cache.clear();
+      executeWithRetry(() -> {
+         cache.clear();
+         return null;
+      });
    }
 
    @Override
    public int valueCount(K key) {
-      Collection<V> list = cache.get(key);
+      return executeWithRetry(() -> {
+         Collection<V> list = cache.get(key);
 
-      if(list != null) {
-         return list.size();
-      }
+         if(list != null) {
+            return list.size();
+         }
 
-      return 0;
+         return 0;
+      });
    }
 
    @Override
@@ -206,23 +235,55 @@ public class IgniteMultiMap<K, V> implements MultiMap<K, V> {
 
    @Override
    public void unlock(K key) {
-      Lock lock = getLock(key);
-      lock.unlock();
-      lockMap.get().remove(key);
+      executeWithRetry(() -> {
+         Lock lock = getLock(key);
+         lock.unlock();
+         lockMap.get().remove(key);
+         return null;
+      });
    }
 
    private Lock getLock(K key) {
-      Lock lock = lockMap.get().get(key);
+      return executeWithRetry(() -> {
+         Lock lock = lockMap.get().get(key);
 
-      if(lock == null) {
-         lock = cache.lock(key);
-         lockMap.get().put(key, lock);
+         if(lock == null) {
+            lock = cache.lock(key);
+            lockMap.get().put(key, lock);
+         }
+
+         return lock;
+      });
+   }
+
+   private <T> T executeWithRetry(Supplier<T> operation) {
+      int retries = 0;
+
+      while(retries < MAX_RETRIES) {
+         try {
+            return operation.get();
+         }
+         catch(CacheException e) {
+            retries++;
+
+            if(retries == MAX_RETRIES) {
+               throw e;
+            }
+            else {
+               try {
+                  Thread.sleep(200);
+               }
+               catch(InterruptedException ex) {
+                  throw new RuntimeException(ex);
+               }
+            }
+         }
       }
 
-      return lock;
+      throw new RuntimeException("Operation failed after retries.");
    }
 
    private final IgniteCache<K, Collection<V>> cache;
-   private final ThreadLocal<Map<K, Lock>> lockMap =
-      ThreadLocal.withInitial(HashMap::new);
+   private final ThreadLocal<Map<K, Lock>> lockMap = ThreadLocal.withInitial(HashMap::new);
+   private static final int MAX_RETRIES = 5;
 }

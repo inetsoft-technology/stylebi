@@ -19,6 +19,7 @@ package inetsoft.web.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.internal.SUtil;
@@ -52,11 +53,13 @@ public class AnonymousUserFilter extends AbstractSecurityFilter {
                SRPrincipal principal = authenticateAnonymous(request);
 
                if(principal != null) {
-                  authenticate(request, new IdentityID(ClientInfo.ANONYMOUS, OrganizationManager.getCurrentOrgName()), null, null, SUtil.MY_LOCALE);
+                  authenticate(request, new IdentityID(ClientInfo.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID()), null, null, SUtil.MY_LOCALE);
                }
             }
             catch(AuthenticationFailureException e) {
-               if(e.getReason() == AuthenticationFailureReason.SESSION_EXCEEDED) {
+               if(e.getReason() == AuthenticationFailureReason.SESSION_EXCEEDED ||
+                  e.getReason() == AuthenticationFailureReason.NOT_NAMED_USER)
+               {
                   if("XMLHttpRequest".equalsIgnoreCase(httpRequest.getHeader("X-Requested-With")))
                   {
                      HttpServletResponse httpResponse = (HttpServletResponse) response;
@@ -75,7 +78,7 @@ public class AnonymousUserFilter extends AbstractSecurityFilter {
                      request.setAttribute("authenticationFailure", e);
                      final String endpoint;
 
-                     if(isSecurityEnabled()) {
+                     if(isSecurityEnabled() || hasSessionKey()) {
                         endpoint = SessionErrorController.SESSIONS_EXCEEDED;
                      }
                      else {
@@ -96,5 +99,9 @@ public class AnonymousUserFilter extends AbstractSecurityFilter {
       }
 
       chain.doFilter(request, response);
+   }
+
+   private boolean hasSessionKey() {
+      return LicenseManager.getInstance().getConcurrentSessionCount() > 0;
    }
 }

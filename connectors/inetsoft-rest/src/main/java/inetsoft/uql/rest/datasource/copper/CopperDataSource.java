@@ -21,14 +21,17 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
 import java.util.Objects;
 
 @View(vertical = true, value = {
-   @View1("userEmail"),
-   @View1("apiKey")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "userEmail", visibleMethod = "useCredential"),
+   @View1(value = "apiKey", visibleMethod = "useCredential")
 })
 public class CopperDataSource extends EndpointJsonDataSource<CopperDataSource> {
    static String TYPE = "Rest.Copper";
@@ -38,12 +41,18 @@ public class CopperDataSource extends EndpointJsonDataSource<CopperDataSource> {
       setAuthType(AuthType.NONE);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_KEY;
+   }
+
    /**
     * Gets the user email address for the account.
     *
     * @return the email address.
     */
    @Property(label = "Email", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getUserEmail() {
       return userEmail;
    }
@@ -63,8 +72,9 @@ public class CopperDataSource extends EndpointJsonDataSource<CopperDataSource> {
     * @return the API key.
     */
    @Property(label = "API Key", required = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
-      return apiKey;
+      return ((ApiKeyCredential) getCredential()).getApiKey();
    }
 
    /**
@@ -73,7 +83,7 @@ public class CopperDataSource extends EndpointJsonDataSource<CopperDataSource> {
     * @param apiKey the API key.
     */
    public void setApiKey(String apiKey) {
-      this.apiKey = apiKey;
+      ((ApiKeyCredential) getCredential()).setApiKey(apiKey);
    }
 
    @Override
@@ -96,7 +106,8 @@ public class CopperDataSource extends EndpointJsonDataSource<CopperDataSource> {
       typeParam.setValue("application/json");
       typeParam.setType(HttpParameter.ParameterType.HEADER);
       keyParam.setName("X-PW-AccessToken");
-      keyParam.setValue(apiKey);
+      keyParam.setSecret(true);
+      keyParam.setValue(getApiKey());
       keyParam.setType(HttpParameter.ParameterType.HEADER);
       emailParam.setName("X-PW-UserEmail");
       emailParam.setValue(userEmail);
@@ -119,17 +130,12 @@ public class CopperDataSource extends EndpointJsonDataSource<CopperDataSource> {
       if(userEmail != null) {
          writer.format("<userEmail><![CDATA[%s]]></userEmail>%n", userEmail);
       }
-
-      if(apiKey != null) {
-         writer.format("<apiKey><![CDATA[%s]]></apiKey>%n", Tool.encryptPassword(apiKey));
-      }
    }
 
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
       userEmail = Tool.getChildValueByTagName(root, "userEmail");
-      apiKey = Tool.decryptPassword(Tool.getChildValueByTagName(root, "apiKey"));
    }
 
    @Override
@@ -152,15 +158,13 @@ public class CopperDataSource extends EndpointJsonDataSource<CopperDataSource> {
       }
 
       CopperDataSource that = (CopperDataSource) o;
-      return Objects.equals(userEmail, that.userEmail) &&
-         Objects.equals(apiKey, that.apiKey);
+      return Objects.equals(userEmail, that.userEmail);
    }
 
    @Override
    public int hashCode() {
-      return Objects.hash(super.hashCode(), userEmail, apiKey);
+      return Objects.hash(super.hashCode(), userEmail, getApiKey());
    }
 
    private String userEmail;
-   private String apiKey;
 }

@@ -22,7 +22,8 @@ export interface CustomThemeModel {
    id: string;
    name: string;
    global?: boolean;
-   defaultTheme?: boolean;
+   defaultThemeOrg?: boolean;
+   defaultThemeGlobal?: boolean;
    jar?: FileData;
    portalCss?: ThemeCssModel;
    emCss?: ThemeCssModel;

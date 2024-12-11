@@ -59,7 +59,7 @@ public class TabularHandler extends XHandler {
       TabularQuery oquery = (TabularQuery) query;
       query = (TabularQuery) query.clone();
       TabularDataSource<?> xds =
-         (TabularDataSource<?>) XUtil.getDatasource(user, query.getDataSource()).clone();
+         (TabularDataSource<?>) ConnectionProcessor.getInstance().getDatasource(user, query.getDataSource()).clone();
       query.setDataSource(xds);
       TabularUtil.replaceVariables(xds, params);
       TabularUtil.replaceVariables(query, params);

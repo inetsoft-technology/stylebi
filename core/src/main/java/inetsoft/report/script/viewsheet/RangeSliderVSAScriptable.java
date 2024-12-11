@@ -193,6 +193,12 @@ public class RangeSliderVSAScriptable extends SelectionVSAScriptable {
       if(assembly instanceof TimeSliderVSAssembly) {
          final TimeSliderVSAssembly timeSlider = (TimeSliderVSAssembly) assembly;
 
+         // the min/max may not be in the slist, in which case the setting will be lost.
+         // we remember it in the runtime min/max to check when refreshing the selection list
+         // in RangeSliderVSAQuery.
+         timeSlider.setRuntimeMin(min);
+         timeSlider.setRuntimeMax(max);
+
          // all values
          final SelectionList slist = timeSlider.getSelectionList();
 
@@ -334,8 +340,7 @@ public class RangeSliderVSAScriptable extends SelectionVSAScriptable {
          TimeInfo timeinfo = timeSliderInfo.getTimeInfo();
 
          // composite time info?
-         if(timeSliderInfo.isComposite())
-         {
+         if(timeSliderInfo.isComposite()) {
             CompositeTimeInfo ctimeinfo =
                timeinfo instanceof CompositeTimeInfo ?
                (CompositeTimeInfo) timeinfo : new CompositeTimeInfo();
@@ -375,8 +380,7 @@ public class RangeSliderVSAScriptable extends SelectionVSAScriptable {
             }
          }
          // normal time info?
-         else if(!timeSliderInfo.isComposite())
-         {
+         else {
             SingleTimeInfo stimeinfo =
                timeinfo instanceof SingleTimeInfo ?
                (SingleTimeInfo) timeinfo : new SingleTimeInfo();

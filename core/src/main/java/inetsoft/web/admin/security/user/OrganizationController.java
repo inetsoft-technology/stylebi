@@ -19,7 +19,9 @@ package inetsoft.web.admin.security.user;
 
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
-import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.Tool;
+import inetsoft.util.UserMessage;
+import inetsoft.web.admin.security.AuthenticationProviderService;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.factory.DecodePathVariable;
 import inetsoft.web.security.*;
@@ -37,9 +39,12 @@ import java.util.*;
 public class OrganizationController {
    @Autowired
    public OrganizationController(UserTreeService userTreeService,
-                                 IdentityService identityService) {
+                                 IdentityService identityService,
+                                 AuthenticationProviderService authenticationProviderService)
+   {
       this.userTreeService = userTreeService;
       this.identityService = identityService;
+      this.authenticationProviderService = authenticationProviderService;
    }
 
 
@@ -48,7 +53,14 @@ public class OrganizationController {
                                        @DecodePathVariable("provider") String provider,
                                        @RequestBody CreateEntityRequest createRequest)
    {
-      return userTreeService.createOrganization(provider, principal);
+      String copyFromOrgID = createRequest.parentGroup();
+
+      if(copyFromOrgID != null && !Tool.isEmptyString(copyFromOrgID)) {
+         return userTreeService.createOrganization(copyFromOrgID, provider, null, null, principal);
+      }
+      else {
+         return userTreeService.createOrganization(null, provider, null, null, principal);
+      }
    }
 
    @GetMapping("/api/em/security/providers/{provider}/organization/{organization}/")
@@ -62,72 +74,74 @@ public class OrganizationController {
                                     Principal principal)
    {
       IdentityID identityID = IdentityID.getIdentityIDFromKey(organizationId);
-      return userTreeService.getOrganizationModel(provider, identityID.getName(), principal);
+      return userTreeService.getOrganizationModel(provider, identityID, principal);
    }
 
-   @GetMapping("/api/em/security/users/get-all-organizations/")
-   public List<String> getAllOrganizations(Principal principal)
+   @GetMapping("/api/em/security/users/get-all-organization-names/")
+   public List<String> getAllOrganizationNames(Principal principal)
    {
       if(!SUtil.isMultiTenant()) {
          return new ArrayList<>();
       }
 
-      return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizations()).toList();
+      return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationNames()).toList();
    }
 
-   @GetMapping("/api/em/security/providers/{provider}/get-is-template/{orgName}")
-   public boolean getIsTemplate(@DecodePathVariable("provider") String provider,
-                                @DecodePathVariable("orgName") String orgName,
-                                           Principal principal)
+   @GetMapping("/api/em/security/users/get-all-organizations")
+   public List<IdentityID> getAllOrganizationIdentityIDs(@RequestParam("name") String name,
+                                                         Principal principal)
    {
-      String org = IdentityID.getIdentityIDFromKey(orgName).name;
-      return org != null && !org.isEmpty() && org.equals(Organization.getTemplateOrganizationName());
+      if(!SUtil.isMultiTenant()) {
+         return new ArrayList<>();
+      }
+
+      AuthenticationProvider provider = authenticationProviderService.getProviderByName(name);
+
+      return Arrays.stream(provider.getOrganizationIDs())
+         .map(id -> new IdentityID(provider.getOrgNameFromID(id), id)).toList();
    }
 
-   @PostMapping("/api/em/security/users/edit-organization/{provider}")
-   @Audited(
-      actionName = ActionRecord.ACTION_NAME_EDIT,
-      objectType = ActionRecord.OBJECT_TYPE_USERPERMISSION
-   )
+   @GetMapping("/api/em/security/users/get-organization-detail-string/{orgID}")
    @Secured({
       @RequiredPermission(
          resourceType = ResourceType.SECURITY_ORGANIZATION,
          actions = ResourceAction.ADMIN
       )
    })
-   public void editOrganization(HttpServletRequest request,
+   public String getOrganizationDetailString(Principal principal,
+                                             @PermissionPath @DecodePathVariable("orgID") String orgKey)
+   {
+     return identityService.getOrganizationDetailString(orgKey, principal);
+   }
+
+   @PostMapping("/api/em/security/users/edit-organization/{provider}")
+   @Secured({
+      @RequiredPermission(
+         resourceType = ResourceType.SECURITY_ORGANIZATION,
+         actions = ResourceAction.ADMIN
+      )
+   })
+   public String editOrganization(HttpServletRequest request,
                                 @RequestBody @PermissionPath("oldName()") @AuditObjectName("oldName()") EditOrganizationPaneModel model,
                                 @DecodePathVariable("provider") String provider,
                                 @AuditUser Principal principal) throws Exception
    {
       userTreeService.editOrganization(model, provider, principal);
       OrganizationManager.getInstance().reset();
-   }
+      UserMessage message = Tool.getUserMessage();
 
-   @PostMapping("/api/em/security/users/save-organization-template/{provider}")
-   @Secured({
-      @RequiredPermission(
-         resourceType = ResourceType.SECURITY_ORGANIZATION,
-         actions = ResourceAction.ADMIN
-      )
-   })
-   public void saveOrganizationTemplate(HttpServletRequest request,
-                                @RequestBody @PermissionPath("oldName()") @AuditObjectName("oldName()") EditOrganizationPaneModel model,
-                                @DecodePathVariable("provider") String provider,
-                                @AuditUser Principal principal) throws Exception
-   {
-      userTreeService.saveOrganizationTemplate(provider, model.name(), principal);
-   }
+      if(message != null) {
+         String msg = message.getMessage();
+         Tool.clearUserMessage();
 
-   @PostMapping("/api/em/security/users/clear-organization-template/{provider}")
-   public String clearOrganizationTemplate(HttpServletRequest request, @DecodePathVariable("provider") String provider,
-                                         Principal principal) throws Exception
-   {
-      userTreeService.clearOrganizationTemplate(provider, principal);
-      return Organization.getTemplateOrganizationName();
+         return msg;
+      }
+
+      return "";
    }
 
    private final UserTreeService userTreeService;
    private final IdentityService identityService;
+   private final AuthenticationProviderService authenticationProviderService;
    private static final Logger LOG = LoggerFactory.getLogger(OrganizationController.class);
 }

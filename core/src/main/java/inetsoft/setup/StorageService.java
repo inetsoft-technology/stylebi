@@ -18,6 +18,7 @@
 package inetsoft.setup;
 
 import com.github.zafarkhaja.semver.Version;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.storage.*;
 import inetsoft.util.*;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -127,10 +128,17 @@ public class StorageService extends AbstractStorageService {
     * @throws IOException if an I/O error occurs.
     */
    public InputStream readAsset(String assetId) throws IOException {
-      Blob<BlobIndexedStorage.Metadata> blob = keyValueEngine.get("indexedStorage", assetId);
+      String storageId = getDatabaseId("indexedStorage");
+      Blob<BlobIndexedStorage.Metadata> blob = keyValueEngine.get(storageId, assetId);
       Path file = Files.createTempFile("storage", ".dat");
-      blobEngine.read("indexedStorage", blob.getDigest(), file);
+      blobEngine.read(storageId, blob.getDigest(), file);
       return new TempFileInputStream(file);
+   }
+
+   private String getDatabaseId(String databaseName) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+      return currentOrgID.toLowerCase() + "__" + databaseName;
    }
 
    /**
@@ -146,14 +154,15 @@ public class StorageService extends AbstractStorageService {
     * @throws IOException if an I/O error occurs.
     */
    public void replaceAsset(String assetId, File file) throws IOException {
+      String storageId = getDatabaseId("indexedStorage");
       String digest = digest(file);
-      blobEngine.write("indexedStorage", digest, file.toPath());
+      blobEngine.write(storageId, digest, file.toPath());
 
-      Blob<BlobIndexedStorage.Metadata> blob = keyValueEngine.get("indexedStorage", assetId);
+      Blob<BlobIndexedStorage.Metadata> blob = keyValueEngine.get(storageId, assetId);
       BlobIndexedStorage.Metadata metadata = blob.getMetadata();
       blob = new Blob<>(
          assetId, digest, file.length(), Instant.ofEpochMilli(file.lastModified()), metadata);
-      keyValueEngine.put("indexedStorage", assetId, blob);
+      keyValueEngine.put(storageId, assetId, blob);
    }
 
    /**
@@ -229,8 +238,12 @@ public class StorageService extends AbstractStorageService {
     * @throws IOException if an I/O error occurs.
     */
    public void uninstallPlugin(String pluginId) throws IOException {
+      Blob<Plugin.Descriptor> blob = keyValueEngine.get("plugins", pluginId);
       keyValueEngine.remove("plugins", pluginId);
-      blobEngine.delete("plugins", pluginId);
+
+      if(blob != null) {
+         blobEngine.delete("plugins", blob.getDigest());
+      }
    }
 
    @Override

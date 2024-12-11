@@ -110,6 +110,9 @@ public class SystemAdminService {
       final IdentityID removedSysAdmin = roleModifications.size() > 0 &&
          roleModifications.get(0).isSysAdminRemoved() ? roleModifications.get(0).getIdentityID() : null;
 
+      final List<IdentityID> removedRoles = roleModifications.size() > 0 ?
+         roleModifications.get(0).getRemovedRoles() : new ArrayList<>();
+
       // Always filter out all roles that are being deleted
       List<IdentityID> deletedRoles = roleModifications.stream()
          .filter(IdentityModification::isDelete)
@@ -119,7 +122,7 @@ public class SystemAdminService {
       // Roles with the system administrator property
       List<IdentityID> sysAdminRoles = Arrays.stream(securityProvider.getRoles())
          .filter(provider::isSystemAdministratorRole)
-         .filter(r -> !deletedRoles.contains(r) && !r.equals(removedSysAdmin))
+         .filter(r -> !deletedRoles.contains(r) && !r.equals(removedSysAdmin) && !removedRoles.contains(r))
          .collect(Collectors.toList());
 
       List<IdentityID> rolesQueue = new ArrayList<>(sysAdminRoles);
@@ -163,7 +166,7 @@ public class SystemAdminService {
       List<IdentityID> orgAdminRoles = Arrays.stream(securityProvider.getRoles())
          .filter(provider::isOrgAdministratorRole)
          .filter(r -> !deletedRoles.contains(r) && !r.equals(removedOrgAdmin))
-         .filter(r -> provider.getRole(r).getOrganization() == null) //global roles only
+         .filter(r -> provider.getRole(r).getOrganizationID() == null) //global roles only
          .collect(Collectors.toList());
 
       List<IdentityID> rolesQueue = new ArrayList<>(orgAdminRoles);
@@ -211,7 +214,7 @@ public class SystemAdminService {
                users.add(member.getIdentityID());
             }
             else if(member.getType() == Identity.ORGANIZATION) {
-               organizations.add(member.getName());
+               organizations.add(member.getOrganizationID());
             }
             else {
                groups.add(member.getIdentityID());
@@ -248,10 +251,10 @@ public class SystemAdminService {
       }
 
       while(organizations.size() > 0) {
-         String orgName = organizations.remove(0);
-         Organization org = securityProvider.getOrganization(orgName);
+         String orgID = organizations.remove(0);
+         Organization org = securityProvider.getOrganization(orgID);
          if(Arrays.asList(org.getRoles()).contains(roleId)) {
-            users.add(new IdentityID(orgName, roleId.organization));
+            users.add(new IdentityID(orgID, roleId.orgID));
          }
       }
 
@@ -287,7 +290,7 @@ public class SystemAdminService {
          return new Role(id);
       }
       else if(type == Identity.ORGANIZATION) {
-         return new Organization(id.name);
+         return new Organization(id);
       }
 
       return null;

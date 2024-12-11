@@ -83,7 +83,7 @@ public class BaseTableShowDetailsController extends BaseTableController<ShowDeta
     * @return
     * @throws Exception
     */
-   @PostMapping("/table/show-details/format-model")
+   @PostMapping("/api/table/show-details/format-model")
    @ResponseBody
    public FormatInfoModel getFormatModel(@DecodeParam("vsId") String vsId,
                                          @RequestBody ShowDetailsEvent event,
@@ -393,7 +393,8 @@ public class BaseTableShowDetailsController extends BaseTableController<ShowDeta
          String style = dinfo.getDetailStyle();
 
          if(style != null) {
-            TableStyle styleTable = VSUtil.getTableStyle(style);
+            String orgID = box != null && box.getAssetEntry() != null ? box.getAssetEntry().getOrgID() : null;
+            TableStyle styleTable = VSUtil.getTableStyle(style, orgID);
 
             if(styleTable != null) {
                styleTable = (TableStyle) styleTable.clone();

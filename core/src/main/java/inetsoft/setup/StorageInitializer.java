@@ -17,9 +17,10 @@
  */
 package inetsoft.setup;
 
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
-import inetsoft.util.HashedPassword;
-import inetsoft.util.PasswordEncryption;
+import inetsoft.storage.LoadKeyValueTask;
+import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.config.SecretsConfig;
 import org.apache.commons.lang3.StringUtils;
@@ -137,6 +138,10 @@ public class StorageInitializer implements Callable<Integer> {
                   service.installPlugin(file);
                }
             }
+
+            // send a message to reload the plugins from the kv store
+            Cluster.getInstance().submit("plugins",
+                                         new LoadKeyValueTask("plugins", true)).get();
          }
       }
    }
@@ -159,7 +164,7 @@ public class StorageInitializer implements Callable<Integer> {
       if(!StringUtils.isEmpty(password)) {
          HashedPassword hash = getPasswordEncryption().hash(password, "bcrypt", null, false);
          FSUser user =
-            new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationName()));
+            new FSUser(new IdentityID("admin", Organization.getDefaultOrganizationID()));
          user.setPassword(hash.getHash());
          user.setPasswordAlgorithm(hash.getAlgorithm());
          user.setPasswordSalt(null);
@@ -239,7 +244,7 @@ public class StorageInitializer implements Callable<Integer> {
          Method method = clientFactoryClass.getDeclaredMethod(
             "createLocalClient", String.class, IdentityID.class, String.class);
          String path = configDirectory.getAbsolutePath();
-         IdentityID username = new IdentityID("admin", Organization.getDefaultOrganizationName());
+         IdentityID username = new IdentityID("admin", Organization.getDefaultOrganizationID());
          String password = System.getenv("INETSOFT_ADMIN_PASSWORD");
 
          if(password == null) {

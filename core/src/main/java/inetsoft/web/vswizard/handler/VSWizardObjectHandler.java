@@ -497,7 +497,7 @@ public class VSWizardObjectHandler {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(rid, principal);
 
-      while(rvs != null && rvs.getOriginalID() != null) {
+      if(rvs != null && rvs.getOriginalID() != null) {
          return getOriginalRuntimeId(rvs.getOriginalID(), principal);
       }
 

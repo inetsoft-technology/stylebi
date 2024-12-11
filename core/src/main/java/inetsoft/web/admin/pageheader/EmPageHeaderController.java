@@ -22,14 +22,14 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.util.ConnectionProcessor;
 import inetsoft.uql.util.XUtil;
 import inetsoft.util.IndexedStorage;
 import inetsoft.util.Tool;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -52,19 +52,20 @@ public class EmPageHeaderController {
          providerName = !Tool.isEmptyString(providerName) ?
             providerName : ((XPrincipal) principal).getProperty("curr_provider_name");
          AuthenticationProvider provider = XUtil.getSecurityProvider(providerName);
+         Comparator<String> comp = XUtil.getOrganizationComparator();
 
-         orgs = Arrays.stream(provider.getOrganizations())
+         orgIDs = Arrays.stream(provider.getOrganizationIDs())
             .filter(o -> securityProvider.checkPermission(
                principal, ResourceType.SECURITY_ORGANIZATION, o, ResourceAction.ADMIN))
-            .sorted()
+            .sorted(comp)
             .collect(Collectors.toList());
 
-         orgIDs = orgs.stream()
-            .map(name -> securityProvider.getOrganization(name).getOrganizationID())
+         orgs = orgIDs.stream()
+            .map(id -> securityProvider.getOrganization(id).getName())
             .collect(Collectors.toList());
 
          if(propertyChanged) {
-            currOrgID = provider.getOrganizationId(provider.getOrganizations()[0]);
+            currOrgID = provider.getOrganizationIDs()[0];
             ((XPrincipal) principal).setProperty("curr_org_id", currOrgID);
             ((XPrincipal) principal).setProperty("curr_provider_name", providerName);
          }
@@ -108,7 +109,7 @@ public class EmPageHeaderController {
          indexedStorage.setInitialized(orgID);
       }
 
-      SUtil.setAdditionalDatasource((XPrincipal) principal);
+      ConnectionProcessor.getInstance().setAdditionalDatasource((XPrincipal) principal);
    }
 
 }

@@ -21,7 +21,9 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.ViewsheetEntry;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
+import inetsoft.uql.asset.DependencyHandler;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
 import inetsoft.util.log.LogManager;
@@ -31,6 +33,7 @@ import org.w3c.dom.*;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
@@ -72,7 +75,7 @@ public class DashboardRegistry implements SessionListener {
     * Return default registry.
     */
    public static synchronized DashboardRegistry getRegistry() {
-      return getRegistry(null);
+      return getRegistry((IdentityID) null);
    }
 
    private static String getRegistryKey(String user, String organizationId) {
@@ -90,8 +93,13 @@ public class DashboardRegistry implements SessionListener {
       return getRegistry(userName, true);
    }
 
+   public static DashboardRegistry getRegistry(String orgID) {
+      return getRegistry(null, orgID, true);
+   }
+
    private static DashboardRegistry getRegistry(IdentityID userId, boolean create) {
-      String orgID = SUtil.getOrgID(userId);
+      String orgID = userId == null || userId.orgID == null ?
+         OrganizationManager.getInstance().getCurrentOrgID() : userId.orgID;
 
       return getRegistry(userId, orgID, create);
    }
@@ -115,7 +123,7 @@ public class DashboardRegistry implements SessionListener {
                registry = new DashboardRegistry(orgID);
             }
             else {
-               registry = new UserDashboardRegistry(userId);
+               registry = new UserDashboardRegistry(userId, orgID);
             }
 
             registry.loadDashboard();
@@ -129,11 +137,58 @@ public class DashboardRegistry implements SessionListener {
       return registry;
    }
 
+   public static void copyRegistry(IdentityID identityID, Organization oorg, Organization norg) {
+      String name = identityID == null ? null : identityID.getName();
+      String nKey = getRegistryKey(name, norg.getOrganizationID());
+      DashboardRegistry registry = getRegistry(identityID, oorg.getId(), true);
+
+      REGISTRY_LOCK.lock();
+
+      try {
+         Map<String, DashboardRegistry> map = ConfigurationContext.getContext().get(REGISTRY_KEY);
+
+         if(map == null) {
+            ConfigurationContext.getContext().put(REGISTRY_KEY, map = new ConcurrentHashMap<>());
+         }
+
+         DashboardRegistry nregistry;
+
+         if(nKey != null && nKey.endsWith("__ADMIN__")) {
+            nregistry = new DashboardRegistry(norg.getId());
+         }
+         else {
+            nregistry = new UserDashboardRegistry(identityID);
+         }
+
+         String[] dashboardNames = registry.getDashboardNames();
+
+         for(String dashboardName : dashboardNames) {
+            Dashboard dashboard = registry.getDashboard(dashboardName);
+
+            if(dashboard != null) {
+               VSDashboard vsDashboard = (VSDashboard) dashboard;
+               nregistry.addDashboard(dashboardName, vsDashboard.cloneVSDashboard(norg));
+            }
+         }
+
+         if(nregistry != null) {
+            map.put(nKey, nregistry);
+         }
+      }
+      finally {
+         REGISTRY_LOCK.unlock();
+      }
+   }
+
    public static void migrateRegistry(IdentityID identityID, Organization oorg, Organization norg) {
+      if(identityID != null && !Tool.equals(identityID.getOrgID(), oorg.getId())) {
+         return;
+      }
+
       String userName = identityID == null ? null : identityID.getName();
-      String nOID = norg.getId();
+      String nOID = norg == null ? null : norg.getId();
       String oOID = oorg.getId();
-      String nKey = getRegistryKey(userName, nOID);
+      String nKey = nOID == null ? null :getRegistryKey(userName, nOID);
       DashboardRegistry registry = getRegistry(identityID, oOID, true);
 
       REGISTRY_LOCK.lock();
@@ -146,30 +201,49 @@ public class DashboardRegistry implements SessionListener {
          }
 
          if(registry != null) {
-            if(!nKey.endsWith("__ADMIN__") && registry.dashboardsMap.isEmpty()) {
-               registry = new UserDashboardRegistry(identityID);
-               String path = SreeEnv.getPath("$(sree.home)/portal/" +
-                  nOID + "/" + identityID.name + "/" + FILE_NAME);
-               registry.loadDashboard(path);
-            }
-
             String[] dashboardNames = registry.getDashboardNames();
             DashboardRegistry dashboardRegistry = registry;
-            boolean changeId = !Tool.equals(oorg.getId(), norg.getId());
+            boolean changeId = !Tool.equals(oOID, nOID);
+            String oldPath = registry.getPath();
 
-            Arrays.stream(dashboardNames).forEach(name -> {
-               Dashboard dashboard = dashboardRegistry.getDashboard(name);
+            if(norg != null) {
+               Arrays.stream(dashboardNames).forEach(name -> {
+                  Dashboard dashboard = dashboardRegistry.getDashboard(name);
 
-               if(dashboard != null) {
-                  VSDashboard vsDashboard = (VSDashboard) dashboard;
-                  migrateVSDashboard(vsDashboard, oorg, norg);
-               }
-            });
+                  if(dashboard != null) {
+                     VSDashboard vsDashboard = (VSDashboard) dashboard;
+                     migrateVSDashboard(vsDashboard, oorg, norg);
+                  }
+               });
 
-            map.put(nKey, registry);
+               map.put(nKey, registry);
+            }
 
             if(changeId) {
                clear(userName, oOID);
+
+               try {
+                  if(nKey == null) {
+                     DataSpace space = DataSpace.getDataSpace();
+                     space.delete(null, oldPath);
+                  }
+                  else {
+                     registry.modifyOrgId(nOID);
+                  }
+
+                  registry.save();
+               }
+               catch(Exception ex) {
+                  LOG.error(ex.getMessage(), ex);
+               }
+            }
+            else if(identityID != null && !Tool.equals(identityID.getOrgID(), norg.getId())) {
+               try {
+                  registry.save();
+               }
+               catch(Exception ex) {
+                  LOG.error(ex.getMessage(), ex);
+               }
             }
          }
       }
@@ -182,70 +256,29 @@ public class DashboardRegistry implements SessionListener {
                                           Organization oorg, Organization norg)
    {
       boolean changeId = !Tool.equals(oorg.getId(), norg.getId());
-      boolean changeName = !Tool.equals(oorg.getName(), norg.getName());
       ViewsheetEntry viewsheet = vsDashboard.getViewsheet();
-      String identifier = viewsheet.getIdentifier();
-      AssetEntry assetEntry = AssetEntry.createAssetEntry(identifier);
-      assetEntry = changeId ? assetEntry.cloneAssetEntry(norg.getId()) : assetEntry;
 
-      if(changeName) {
-         IdentityID owner = viewsheet.getOwner();
+      if(viewsheet != null) {
+         String identifier = viewsheet.getIdentifier();
+         AssetEntry assetEntry = AssetEntry.createAssetEntry(identifier);
+         assetEntry = changeId ? assetEntry.cloneAssetEntry(norg) : assetEntry;
 
-         if(owner != null) {
-            owner.setOrganization(norg.getName());
-            viewsheet.setOwner(owner);
+         if(changeId) {
+            IdentityID owner = viewsheet.getOwner();
+
+            if(owner != null) {
+               owner.setOrgID(norg.getId());
+               viewsheet.setOwner(owner);
+            }
+
+            IdentityID user = assetEntry.getUser();
+
+            if(user != null) {
+               user.setOrgID(norg.getId());
+            }
          }
 
-         IdentityID user = assetEntry.getUser();
-
-         if(user != null) {
-            user.setOrganization(norg.getName());
-         }
-
-         String createdBy = vsDashboard.getCreatedBy();
-
-         if(!Tool.isEmptyString(createdBy)) {
-            IdentityID createUser = IdentityID.getIdentityIDFromKey(createdBy);
-            createUser.setOrganization(norg.getName());
-            vsDashboard.setCreatedBy(createUser.convertToKey());
-         }
-
-         String lastModifiedBy = vsDashboard.getLastModifiedBy();
-
-         if(!Tool.isEmptyString(lastModifiedBy)) {
-            IdentityID modifyUser = IdentityID.getIdentityIDFromKey(lastModifiedBy);
-            modifyUser.setOrganization(norg.getName());
-            vsDashboard.setCreatedBy(modifyUser.convertToKey());
-         }
-      }
-
-      viewsheet.setIdentifier(assetEntry.toIdentifier(true));
-   }
-
-   /**
-    * Copy the contents of the registry in the current organizatio to a new organization
-    */
-   public static void copyRegistry(IdentityID identityID, String oOID, String nOID) {
-      String name = identityID == null ? null : identityID.getName();
-      String nKey = getRegistryKey(name, nOID);
-      String oKey = getRegistryKey(name, oOID);
-      DashboardRegistry registry = getRegistry(identityID, oKey, true);
-
-      REGISTRY_LOCK.lock();
-
-      try {
-         Map<String, DashboardRegistry> map = ConfigurationContext.getContext().get(REGISTRY_KEY);
-
-         if(map == null) {
-            ConfigurationContext.getContext().put(REGISTRY_KEY, map = new ConcurrentHashMap<>());
-         }
-
-         if(registry != null) {
-            map.put(nKey, registry);
-         }
-      }
-      finally {
-         REGISTRY_LOCK.unlock();
+         viewsheet.setIdentifier(assetEntry.toIdentifier());
       }
    }
 
@@ -283,17 +316,14 @@ public class DashboardRegistry implements SessionListener {
     * @param oname the old name of the user.
     * @param nname the new name of the user.
     */
-   public void renameUser(IdentityID oname, IdentityID nname) {
+   public static void renameUser(IdentityID oname, IdentityID nname) {
       DashboardRegistry registry = null;
 
       if(oname != null && nname != null && !oname.equals(nname)) {
          // rename
-         Map<String, Dashboard> dmap = DashboardRegistry.getRegistry(oname).dashboardsMap;
-         Map<String, Dashboard> dmap2 = new HashMap<>(dmap);
-         clear(oname);
-
-         registry = DashboardRegistry.getRegistry(nname);
-         registry.dashboardsMap = dmap2;
+         updateRegistry(DashboardRegistry.getRegistry(), oname, nname, true);
+         updateRegistry(DashboardRegistry.getRegistry(nname), oname, nname, false);
+         return;
       }
       else if(oname == null && nname != null) {
          // delete
@@ -314,7 +344,7 @@ public class DashboardRegistry implements SessionListener {
 
       if(registry != null) {
          try {
-            save();
+            registry.save();
          }
          catch(Exception ex) {
             LOG.error(ex.getMessage(), ex);
@@ -324,6 +354,46 @@ public class DashboardRegistry implements SessionListener {
             fireChangeEvent(DashboardChangeEvent.Type.REMOVED, name, null, oname);
             fireChangeEvent(DashboardChangeEvent.Type.CREATED, null, name, nname);
          }
+      }
+   }
+
+   private static void updateRegistry(DashboardRegistry registry, IdentityID oname, IdentityID nname, boolean global) {
+      if(oname == null || nname == null || Tool.equals(oname, nname) || registry == null) {
+         return;
+      }
+
+      Map<String, Dashboard> dmap = registry.dashboardsMap;
+      Map<String, Dashboard> dmap2 = new LinkedHashMap<>(dmap);
+
+      for(Dashboard d : dmap2.values()) {
+         if(d instanceof VSDashboard) {
+            ViewsheetEntry vs = ((VSDashboard) d).getViewsheet();
+
+            if(vs != null && vs.getOwner() != null && vs.getOwner().equals(oname)) {
+               vs.setOwner(nname);
+               AssetEntry assetEntry = AssetEntry.createAssetEntry(vs.getIdentifier());
+               AssetEntry newEntry = new AssetEntry(assetEntry.getScope(), assetEntry.getType(), assetEntry.getPath(), nname);
+
+               vs.setIdentifier(newEntry.toIdentifier());
+            }
+         }
+      }
+
+      registry = global ? registry : DashboardRegistry.getRegistry(nname);
+      clear(global ? null : oname);
+      registry.dashboardsMap = dmap2;
+
+      try {
+         registry.save();
+      }
+      catch(Exception ex) {
+         LOG.error(ex.getMessage(), ex);
+      }
+
+      for(String name : registry.dashboardsMap.keySet()) {
+         fireChangeEvent(DashboardChangeEvent.Type.REMOVED, name, null, oname);
+         fireChangeEvent(DashboardChangeEvent.Type.CREATED, null, name, nname);
+         DependencyHandler.getInstance().updateDashboardDependencies(global ? null : nname, name, true);
       }
    }
 
@@ -367,7 +437,7 @@ public class DashboardRegistry implements SessionListener {
       writer.println("<?xml version=\"1.0\"?>");
       writer.println("<dashboardRegistry>");
       writer.println("<Version>" + FileVersions.DASHBOARD_REGISTRY
-         + "</Version>");
+                        + "</Version>");
 
       for(Map.Entry<String, Dashboard> entry : dashboardsMap.entrySet()) {
          String name = entry.getKey();
@@ -401,7 +471,7 @@ public class DashboardRegistry implements SessionListener {
 
          if(className.equals("inetsoft.sree.web.dashboard.PortletDashboard")){
             LOG.info(
-                    "inetsoft.sree.web.dashboard.PortletDashboard class ignored.");
+               "inetsoft.sree.web.dashboard.PortletDashboard class ignored.");
             continue;
          }
 
@@ -454,6 +524,19 @@ public class DashboardRegistry implements SessionListener {
       }
    }
 
+   private void modifyOrgId(String orgId) {
+      if(Tool.equals(orgId, organizationId)) {
+         return;
+      }
+
+      DataSpace space = DataSpace.getDataSpace();
+      String oldPath = getPath();
+      dmgr.removeChangeListener(space, null, getPath(), changeListener);
+      organizationId = orgId;
+      dmgr.addChangeListener(space, null, getPath(), changeListener);
+      space.delete(null, oldPath);
+   }
+
    /**
     * Clear the listeners.
     */
@@ -466,8 +549,9 @@ public class DashboardRegistry implements SessionListener {
     * The next call to getRegistry will rebuild the registry.
     */
    public static void clear(IdentityID userID) {
-      String orgID = SUtil.getOrgID(userID);
-      clear(userID.getName(), orgID);
+      String orgID = userID == null ? null : userID.orgID;
+      String name = userID == null ? null : userID.getName();
+      clear(name, orgID);
    }
 
    /**
@@ -499,7 +583,7 @@ public class DashboardRegistry implements SessionListener {
     * Get file path.
     */
    protected String getPath() {
-      return SreeEnv.getPath("$(sree.home)/" + organizationId + "__" + FILE_NAME);
+      return SreeEnv.getPath("$(sree.home)/portal/" + organizationId + "/" + FILE_NAME);
    }
 
    /**
@@ -648,12 +732,24 @@ public class DashboardRegistry implements SessionListener {
 
    @Override
    public void loggedOut(SessionEvent event) {
-      clear(IdentityID.getIdentityIDFromKey(event.getPrincipal().getName()));
+      Principal principal = event.getPrincipal();
+
+      // use orgId from principal, since cannot find org id by org name when org name was renamed.
+      if(principal instanceof SRPrincipal) {
+         String orgId = ((SRPrincipal) principal).getOrgId();
+         IdentityID id = ((SRPrincipal) principal).getIdentityID();
+         clear(id.getName(), orgId);
+      }
    }
 
    static class UserDashboardRegistry extends DashboardRegistry {
       public UserDashboardRegistry(IdentityID user) {
          this.user = user;
+      }
+
+      public UserDashboardRegistry(IdentityID user, String orgID) {
+         this.user = user;
+         this.organizationId = orgID;
       }
 
       /**
@@ -662,7 +758,7 @@ public class DashboardRegistry implements SessionListener {
       @Override
       public synchronized void renameDashboard(String oname, String name) {
          try {
-            Identity identity = new DefaultIdentity(user, Identity.USER);
+            Identity identity = getIdentity(user);
             DashboardManager manager = DashboardManager.getManager();
             String[] dashboards = manager.getDashboards(identity);
             manager.setDashboards(identity, Tool.replace(dashboards, oname, name));
@@ -682,7 +778,7 @@ public class DashboardRegistry implements SessionListener {
       @Override
       public synchronized void removeDashboard(String name) {
          try {
-            Identity identity = new DefaultIdentity(user, Identity.USER);
+            Identity identity = getIdentity(user);
             DashboardManager manager = DashboardManager.getManager();
             String[] dashboards = manager.getDashboards(identity);
             manager.setDashboards(identity, Tool.remove(dashboards, name));
@@ -701,7 +797,14 @@ public class DashboardRegistry implements SessionListener {
       @Override
       protected String getPath() {
          return SreeEnv.getPath("$(sree.home)/portal/" +
-            SUtil.getOrgID(user) + "/" + user.name + "/" +  FILE_NAME);
+                                   (organizationId != null ? organizationId : user.orgID) + "/" + user.name + "/" +  FILE_NAME);
+      }
+
+      private Identity getIdentity(IdentityID user) {
+         boolean securityEnabled = SecurityEngine.getSecurity().isSecurityEnabled();
+
+         return securityEnabled ? new DefaultIdentity(user, Identity.USER) :
+            new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
       }
 
       /**
@@ -715,7 +818,7 @@ public class DashboardRegistry implements SessionListener {
       private final IdentityID user;
    }
 
-   private String organizationId;
+   protected String organizationId;
    private static final String FILE_NAME = "dashboard-registry.xml";
    protected Map<String, Dashboard> dashboardsMap = new LinkedHashMap<>();
    private DataChangeListenerManager dmgr = new DataChangeListenerManager();

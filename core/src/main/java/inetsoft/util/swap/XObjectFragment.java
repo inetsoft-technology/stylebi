@@ -62,7 +62,8 @@ public final class XObjectFragment<T> extends XSwappable {
    /**
     * Access the object fragment.
     */
-   public final void access() {
+   public final Object[] access() {
+      Object[] arr = this.arr;
       iaccessed = XSwapper.cur;
 
       if(isCountHM) {
@@ -76,17 +77,19 @@ public final class XObjectFragment<T> extends XSwappable {
          }
       }
 
-      if(!valid) {
+      if(!valid || arr == null) {
          DEBUG_LOG.debug("Validate swapped data: %s", this);
 
          XSwapper.getSwapper().waitForMemory();
 
          synchronized(this) {
-            if(!valid) {
-               validate0(false);
+            if(!valid || arr == null) {
+               arr = validate0(false);
             }
          }
       }
+
+      return arr;
    }
 
    @Override
@@ -159,12 +162,13 @@ public final class XObjectFragment<T> extends XSwappable {
    /**
     * Validate the object fragment internally.
     */
-   private synchronized void validate0(boolean reset) {
+   private synchronized Object[] validate0(boolean reset) {
       File file = getFile(prefix + "_0.tdat");
 
       RandomAccessFile fin = null;
       FileChannel channel = null;
       ByteBuffer buf = null;
+      ObjectArrayHolder holder =  null;
       int counter = 0;
 
       try {
@@ -181,10 +185,12 @@ public final class XObjectFragment<T> extends XSwappable {
          buf = XSwapUtil.uncompressByteBuffer(buf);
 
          if(disposed) {
-            return;
+            return this.arr;
          }
 
-         while(validate(buf) != -1) {
+        holder = new ObjectArrayHolder();
+
+         while(validate(buf, holder) != -1) {
             buf = null;
             channel.close();
             fin.close();
@@ -205,12 +211,34 @@ public final class XObjectFragment<T> extends XSwappable {
          }
 
          file = null;
-      }
-      catch(FileNotFoundException ex) {
-         return;
+         this.arr = holder.arr;
+         this.pos = holder.pos;
+         return holder.arr;
       }
       catch(Exception ex) {
-         LOG.error("Failed to read swap file: " + file, ex);
+         Object[] arr;
+
+         // since we ignore the exceptions, we should return whatever we managed to read
+         // up to the point until the exception was thrown
+         if(holder != null) {
+            arr = holder.arr;
+            this.arr = holder.arr;
+            this.pos = holder.pos;
+         }
+         else {
+            arr = this.arr;
+         }
+
+         if(ex instanceof FileNotFoundException) {
+            if(arr == null) {
+               LOG.debug("Null array. Failed to read swap file: " + file, ex);
+            }
+         }
+         else {
+            LOG.error("Failed to read swap file: " + file, ex);
+         }
+
+         return arr;
       }
       finally {
          valid = true;
@@ -230,10 +258,10 @@ public final class XObjectFragment<T> extends XSwappable {
          catch(Exception ex) {
             // ignore it
          }
-      }
 
-      if(reset) {
-         swapFileCount = 0;
+         if(reset) {
+            swapFileCount = 0;
+         }
       }
    }
 
@@ -448,8 +476,8 @@ public final class XObjectFragment<T> extends XSwappable {
     * @param r the specified row index.
     * @return the object value at the specified row.
     */
-   public T get(int r) {
-      if(r >= pos) {
+   private T get(Object[] arr, int r) {
+      if(arr == null || r >= arr.length) {
          return null;
       }
 
@@ -463,8 +491,8 @@ public final class XObjectFragment<T> extends XSwappable {
       holding.incrementAndGet();
 
       try {
-         access();
-         return get(r);
+         Object[] arr = access();
+         return get(arr, r);
       }
       finally {
 	 holding.decrementAndGet();
@@ -478,11 +506,10 @@ public final class XObjectFragment<T> extends XSwappable {
       holding.incrementAndGet();
 
       try {
-         access();
-         return arr;
+         return access();
       }
       finally {
-	 holding.decrementAndGet();
+         holding.decrementAndGet();
       }
    }
 
@@ -520,7 +547,7 @@ public final class XObjectFragment<T> extends XSwappable {
     * @param buf the specified byte buffer.
     * @return next position if any, <tt>-1</tt> otherwise.
     */
-   private int validate(ByteBuffer buf) {
+   private int validate(ByteBuffer buf, ObjectArrayHolder holder) {
       try {
          if(buf.capacity() - buf.position() < HEADER_LENGTH) {
             return spos;
@@ -532,7 +559,7 @@ public final class XObjectFragment<T> extends XSwappable {
             return spos;
          }
 
-         pos = XSwapUtil.readChar(buf);
+         holder.pos = XSwapUtil.readChar(buf);
          int count = XSwapUtil.readChar(buf);
          byte[] bytes = new byte[len];
          buf.get(bytes);
@@ -542,23 +569,19 @@ public final class XObjectFragment<T> extends XSwappable {
          Kryo kryo = kryoClass != null ? XSwapUtil.getKryo() : null;
          ObjectInputStream oin = kryoClass == null ? new ObjectInputStream(in) : null;
 
-         if(arr == null) {
-            arr = new Object[pos];
-         }
-
-         if(arr == null) {
-            arr = new Object[pos];
+         if(holder.arr == null) {
+            holder.arr = new Object[holder.pos];
          }
 
          for(int i = 0; i < count; i++) {
             Object obj = kryo != null ? kryo.readObject(kin, kryoClass)
                : oin.readObject();
-            arr[spos + i] = obj;
+            holder.arr[spos + i] = obj;
          }
 
          spos += count;
 
-         if(spos == pos) {
+         if(spos == holder.pos) {
             spos = 0;
             return -1;
          }
@@ -715,6 +738,10 @@ public final class XObjectFragment<T> extends XSwappable {
       return swapFiles.toArray(new File[0]);
    }
 
+   public boolean isDisposed() {
+      return disposed;
+   }
+
    private static final int HEADER_LENGTH = 8;
    private static final long MIN_SIZE = 131072L;
    private static final Logger LOG =
@@ -739,4 +766,9 @@ public final class XObjectFragment<T> extends XSwappable {
    private transient XSwappableMonitor monitor;
    private transient boolean isCountHM;
    private transient boolean isCountRW;
+
+   private static class ObjectArrayHolder {
+      private Object[] arr;
+      private char pos;
+   }
 }

@@ -17,6 +17,8 @@
  */
 package inetsoft.util.config;
 
+import inetsoft.util.config.crd.CRDProperty;
+
 import java.io.Serializable;
 import java.util.Objects;
 
@@ -92,10 +94,15 @@ public class BlobConfig implements Serializable {
       this.s3 = s3;
    }
 
+   @CRDProperty(description = "The type of blob store", allowedValues = { "azure", "filesystem", "gcs", "s3" })
    private String type;
    private String cacheDirectory;
+   @CRDProperty(description = "The Azure Blob storage configuration")
    private AzureBlobConfig azure;
+   @CRDProperty(description = "The shared filesystem storage configuration")
    private FilesystemConfig filesystem;
+   @CRDProperty(description = "The GCS blob storage configuration")
    private GCSConfig gcs;
+   @CRDProperty(description = "The S3 blob storage configuration")
    private S3Config s3;
 }

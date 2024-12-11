@@ -55,6 +55,7 @@ export class AuthenticationProviderDetailPageComponent extends ProviderDetailPag
    // Original provider name when page was opened
    name: string;
    isMultiTenant: boolean;
+   isCloudSecrets: boolean;
 
    constructor(private providerService: SecurityProviderService,
                private errorService: ErrorHandlerService,
@@ -77,6 +78,11 @@ export class AuthenticationProviderDetailPageComponent extends ProviderDetailPag
                   this.model = this.http.get<AuthenticationProviderModel>(GET_PROVIDER_INFO + Tool.byteEncodeURLComponent(this.name));
                }
             });
+         });
+
+      this.http.get<boolean>("../api/em/security/isCloudSecrets")
+         .subscribe(isCloudSecrets => {
+            this.isCloudSecrets = isCloudSecrets;
          });
    }
 

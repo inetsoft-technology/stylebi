@@ -17,24 +17,18 @@
   -->
 <ng-container *ngIf="(user || group || role || organization) && model" [formGroup]="form">
   <div class="identity-header">
-    <h3 *ngIf="user"><p>{{'_#(User): ' + model.name}}</p></h3>
-    <h3 *ngIf="group"><p>{{'_#(Group): ' + model.name}}</p></h3>
-    <h3 *ngIf="role"><p>{{'_#(Role): ' + model.name}}</p></h3>
+    <h3 *ngIf="user"><p>{{'_#(User): ' + (!!model.label ? model.label : model.name)}}</p></h3>
+    <h3 *ngIf="group"><p>{{'_#(Group): ' + (!!model.label ? model.label : model.name)}}</p></h3>
+    <h3 *ngIf="role"><p>{{'_#(Role): ' + (!!model.label ? model.label : model.name)}}</p></h3>
     <h3 *ngIf="organization"><p>{{'_#(Organization): ' + model.name}}</p></h3>
     <div *ngIf="!model.root && !organization" class="checkbox-block">
       <mat-checkbox *ngIf="user && model.editable" formControlName="active" class="margin-left flex">_#(Active)</mat-checkbox>
       <mat-checkbox *ngIf="role && showDefaultRoleOption()" formControlName="defaultRole" class="margin-left flex">_#(Default)</mat-checkbox>
       <mat-checkbox *ngIf="role && isSysAdmin && isMultiTenant && !isOrgAdminRole" formControlName="sysAdmin" class="margin-left flex">_#(em.security.systemAdmin)</mat-checkbox>
     </div>
-    <ng-container>
-      <button mat-raised-button *ngIf="organization && !isTemplateOrganization && isSysAdmin" (click)="updateTemplate()" [disabled]="!model.editable || !form.valid || isModelChanged() || isLoadingTemplate">
-        {{'_#(Save as Template)'}}</button>
-      <button mat-raised-button *ngIf="organization && isTemplateOrganization && isSysAdmin" (click)="resetTemplate()" [disabled]="!model.editable || !form.valid || isModelChanged() || isLoadingTemplate">
-        {{'_#(Reset Template)'}}</button>
-    </ng-container>
   </div>
   <em-editor-panel
-    [applyDisabled]="isLoadingTemplate || (model.editable && !form.valid || !isModelChanged())"
+    [applyDisabled]="isLoadingTemplate || !identityEditable || (model.editable && !form.valid || !isModelChanged())"
     (applyClicked)="apply()"
     (resetClicked)="reset()"
   >
@@ -112,7 +106,7 @@
               </mat-select>
             </mat-form-field>
           </div>
-          <ng-container *ngIf="user">
+          <ng-container *ngIf="user && userModel.supportChangePassword">
             <mat-checkbox class="mat-checkbox-field checkbox-block" formControlName="changePasswordEnabled"
                           (change)="updateModel()">
               _#(Change Password)

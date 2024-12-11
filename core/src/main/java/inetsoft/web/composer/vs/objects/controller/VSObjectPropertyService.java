@@ -885,7 +885,7 @@ public class VSObjectPropertyService {
    private void syncAssemblyVariables(String oAssemblyName, String nAssemblyName,
                                       VSAssembly assembly)
    {
-      if(assembly == null || oAssemblyName == null || oAssemblyName == null ||
+      if(assembly == null || oAssemblyName == null || nAssemblyName == null ||
          Tool.equals(assembly.getAbsoluteName(), nAssemblyName))
       {
          return;

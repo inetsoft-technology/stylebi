@@ -17,8 +17,10 @@
  */
 package inetsoft.sree.schedule;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.jcraft.jsch.*;
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Tool;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.net.ftp.*;
 import org.slf4j.Logger;
@@ -66,8 +68,27 @@ public class FTPUtil {
       int port = ftpURL.getPort();
       String ftpPath = ftpURL.getPath();
       String userInfo = ftpURL.getUserInfo() == null ? null : URLDecoder.decode(ftpURL.getUserInfo(), "UTF-8");
-      String user = pathInfo.getUsername();
-      String pass = pathInfo.getPassword();
+      String user = null;
+      String pass = null;
+
+      if(pathInfo.isUseCredential()) {
+         JsonNode credentials = Tool.loadCredentials(pathInfo.getSecretId());
+
+         if(credentials != null) {
+            if(credentials.has("username")) {
+               user = credentials.get("username").asText();
+            }
+
+            if(credentials.has("password")) {
+               pass = credentials.get("password").asText();
+            }
+         }
+      }
+      else {
+         user = pathInfo.getUsername();
+         pass = pathInfo.getPassword();
+      }
+
       int index = userInfo != null ? userInfo.indexOf(":") : -1;
 
       if(index == -1) {

@@ -22,7 +22,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.ScheduleClient;
-import inetsoft.sree.security.IdentityID;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.util.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
@@ -193,9 +193,9 @@ public class QueryService
       }
 
       // Filter viewsheets
-      List<IdentityID> users = getOrgUsers(principal);
+      String orgID = OrganizationManager.getInstance().getInstance().getCurrentOrgID(principal);
       queryModels = queryModels.stream()
-         .filter(model -> users.contains(model.user()))
+         .filter(model -> model.user() != null && Tool.equals(model.user().orgID, orgID))
          .collect(Collectors.toList());
 
       return queryModels.stream().map(q -> QueryMonitoringTableModel.builder().from(q).build())

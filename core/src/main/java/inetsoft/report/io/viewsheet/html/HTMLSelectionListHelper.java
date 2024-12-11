@@ -67,7 +67,8 @@ public class HTMLSelectionListHelper extends VSSelectionListHelper{
       Rectangle2D bounds = vHelper.getBounds(assembly, CoordinateHelper.ALL);
       VSCompositeFormat fmt = info.getFormat();
       StringBuffer slist = new StringBuffer("");
-      int titleH = !((TitledVSAssemblyInfo) info).isTitleVisible() ? 0 :
+      int titleH = !((TitledVSAssemblyInfo) info).isTitleVisible()  &&
+         (assembly.getContainer() == null || !(assembly.getContainer() instanceof CurrentSelectionVSAssembly)) ? 0 :
          ((TitledVSAssemblyInfo) info).getTitleHeight();
       String containerTitle = null;
       double titleRatio = 0.5;

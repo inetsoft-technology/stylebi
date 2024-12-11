@@ -278,6 +278,7 @@ export class VSChartActionHandler extends AbstractActionHandler {
       dialog.title = "_#(js:Group Name)";
       dialog.label = "_#(js:Group Name)";
       dialog.value = dialogName;
+      dialog.helpLinkKey = "GroupingChartLabels";
       dialog.validators = [
          FormValidators.required,
          //Validators.pattern(/^(([a-zA-Z])[\w ]*)$/)

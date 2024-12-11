@@ -20,17 +20,25 @@ package inetsoft.uql.rest.datasource.remedyforce;
 import inetsoft.uql.rest.datasource.salesforce.SalesforceDataSource;
 import inetsoft.uql.tabular.View;
 import inetsoft.uql.tabular.View1;
+import inetsoft.util.credential.CredentialType;
 
 @View(vertical = true, value = {
-   @View1("user"),
-   @View1("password"),
-   @View1("securityToken")
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "user", visibleMethod = "useCredential"),
+   @View1(value = "password", visibleMethod = "useCredential"),
+   @View1(value = "securityToken", visibleMethod = "useCredential"),
 })
 public class RemedyforceDataSource extends SalesforceDataSource<RemedyforceDataSource> {
    static final String TYPE = "Rest.Remedyforce";
-   
+
    public RemedyforceDataSource() {
       super(TYPE, RemedyforceDataSource.class);
+   }
+
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.PASSWORD_SECURITY_TOKEN;
    }
 
    @Override

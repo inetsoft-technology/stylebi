@@ -19,7 +19,10 @@ package inetsoft.uql.cassandra;
 
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
+import inetsoft.util.credential.*;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.testcontainers.containers.CassandraContainer;
 
 import java.util.HashMap;
@@ -28,6 +31,7 @@ import java.util.Map;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Integration tests for <tt>CassandraRuntime</tt>
@@ -36,6 +40,15 @@ class CassandraRuntimeTest {
    private CassandraContainer cassandraContainer;
    private String cassandraHost;
    private int cassandraPort;
+
+   @BeforeAll
+   static void mockService() {
+      MockedStatic<CredentialService> mockedCredentialService = Mockito.mockStatic(CredentialService.class);
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD))
+         .thenReturn(mock(LocalPasswordCredential.class));
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD, false))
+         .thenReturn(mock(LocalPasswordCredential.class));
+   }
 
    /**
     * Starts Cassandra.

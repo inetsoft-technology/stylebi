@@ -132,7 +132,7 @@ public interface ViewsheetSupport extends ScheduleAction {
       if(principal == null) {
          try {
             String ipAddress = Tool.getIP();
-            principal = new SRPrincipal(new ClientInfo(new IdentityID(ClientInfo.ANONYMOUS, OrganizationManager.getCurrentOrgName()),
+            principal = new SRPrincipal(new ClientInfo(new IdentityID(ClientInfo.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID()),
                ipAddress), new IdentityID[0], new String[0], null, 0L);
             ((SRPrincipal) principal).setProperty("__internal__", "true");
             SecurityEngine engine = SecurityEngine.getSecurity();

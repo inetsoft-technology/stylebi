@@ -19,5 +19,5 @@ export interface PreferencesDialogModel {
    email: string;
    changePasswordAvailable: boolean;
    historyBarEnabled: boolean;
-   ssouser?: boolean;
+   disable?: boolean;
 }

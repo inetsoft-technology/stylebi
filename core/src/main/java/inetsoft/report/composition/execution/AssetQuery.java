@@ -157,7 +157,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                   table = ntable;
                   box.resetDefaultColumnSelection(table.getName(), table.getWorksheet());
 
-                  if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+                  if("true".equals(SreeEnv.getProperty("mv.debug"))) {
                      LOG.debug("Asset query mvtable: {}, {}", mvtable, mvtable.addr());
                      StringBuilder sb = new StringBuilder();
                      table.print(0, sb);
@@ -176,7 +176,7 @@ public abstract class AssetQuery extends PreAssetQuery {
                      LOG.warn("MV ignored because aggregate is not combinable.");
                   }
 
-                  if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+                  if("true".equals(SreeEnv.getProperty("mv.debug"))) {
                      StringBuilder sb = new StringBuilder();
                      table.print(0, sb);
                      LOG.debug("mv table is not combinable: {}", sb);
@@ -2798,6 +2798,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          }
 
          ColumnIndexMap columnIndexMap = new ColumnIndexMap(base);
+         boolean creatingMV = box != null && box.isCreatingMV();
          // columns found by index, e.g. Column [1]
          BitSet columnsByIndex = new BitSet();
 
@@ -2809,7 +2810,7 @@ public abstract class AssetQuery extends PreAssetQuery {
             }
 
             // spark df may not have exact id. (51386)
-            int col = AssetUtil.findColumn(base, column, true, true, columnIndexMap);
+            int col = AssetUtil.findColumn(base, column, !creatingMV, true, columnIndexMap);
 
             if(col < 0) {
                if(this instanceof TabularBoundQuery) {
@@ -3405,7 +3406,7 @@ public abstract class AssetQuery extends PreAssetQuery {
          vars.put(XQuery.HINT_TIMEOUT, timeout + "");
       }
 
-      if("true".equals(SreeEnv.getProperty("mv_debug"))) {
+      if("true".equals(SreeEnv.getProperty("mv.debug"))) {
          LOG.debug("Execute generated asset query: {}, VariableTable: {}", query, vars);
       }
 
@@ -3621,6 +3622,38 @@ public abstract class AssetQuery extends PreAssetQuery {
 
       for(int i = 0; i < query.getChildCount(); i++) {
          getVPMKey0(query.getChild(i), sbuf);
+      }
+   }
+
+   /**
+    * Get the parameters used in the vpm that applyed
+    * to this query.
+    */
+   public Set<String> getVPMUsedParameters() throws Exception {
+      Set<String> parameters = new HashSet<>();
+      getVPMUsedParameters0(this, parameters);
+
+      return parameters;
+   }
+
+   /**
+    * Get the parameters used in the vpm that applyed
+    * to this query.
+    */
+   private void getVPMUsedParameters0(AssetQuery query, Set<String> parameters)
+      throws Exception
+   {
+      if(query instanceof BoundQuery && !(query instanceof TabularBoundQuery)) {
+         XQuery xquery = query.getQuery();
+         Object vpmParameters = xquery.getProperty("vpmUsedParameters");
+
+         if(vpmParameters instanceof Set) {
+            parameters.addAll((Set) vpmParameters);
+         }
+      }
+
+      for(int i = 0; i < query.getChildCount(); i++) {
+         getVPMUsedParameters0(query.getChild(i), parameters);
       }
    }
 

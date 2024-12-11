@@ -28,8 +28,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.*;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.*;
 import java.util.stream.Stream;
 
 /**
@@ -44,6 +43,20 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
     * Creates a new instance of <tt>SecurityChain</tt>.
     */
    public SecurityChain() {
+   }
+
+   /**
+    * add write lock for the providers.
+    */
+   public void writeLock() {
+      readWriteLock.writeLock().lock();
+   }
+
+   /**
+    * remove write lock for the providers.
+    */
+   public void writeUnlock() {
+      readWriteLock.writeLock().unlock();
    }
 
    // Initialize() must be be called by the subclass' constructor to ensure all instance
@@ -75,7 +88,14 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
     * @return the security providers.
     */
    public List<T> getProviders() {
-      return new ArrayList<>(getProviderList());
+      readWriteLock.readLock().lock();
+
+      try {
+         return new ArrayList<>(getProviderList());
+      }
+      finally {
+         readWriteLock.readLock().unlock();
+      }
    }
 
    /**
@@ -273,6 +293,7 @@ public abstract class SecurityChain<T extends JsonConfigurableProvider & Cachabl
    private volatile List<T> providers = new ArrayList<>();
    private volatile long timestamp = 0L;
    private final Lock lock = new ReentrantLock();
+   private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
    private static final Logger LOG = LoggerFactory.getLogger(SecurityChain.class);
 }

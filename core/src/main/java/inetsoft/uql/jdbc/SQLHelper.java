@@ -283,16 +283,16 @@ public class SQLHelper implements KeywordProvider {
       // and Sybase, but use the same driver.  This will cause the correct
       // SQLHelper to be selected for the corresponding database to better
       // support the full features of the database.
-      if(dx.getURL().contains("jtds:sqlserver")) {
+      if(dx.getURL() != null && dx.getURL().contains("jtds:sqlserver")) {
          type = "SQL Server";
       }
-      else if(dx.getURL().contains("jtds:sybase")) {
+      else if(dx.getURL() != null && dx.getURL().contains("jtds:sybase")) {
          type = "Sybase";
       }
-      else if(dx.getURL().contains("jdbc:h2")) {
+      else if(dx.getURL() != null && dx.getURL().contains("jdbc:h2")) {
          type = "H2";
       }
-      else if(dx.getURL().contains("jdbc:sqlite")) {
+      else if(dx.getURL() != null && dx.getURL().contains("jdbc:sqlite")) {
          type = "Sqlite";
       }
       else if(dx.getDatabaseType() == JDBCDataSource.JDBC_ODBC) {
@@ -539,7 +539,7 @@ public class SQLHelper implements KeywordProvider {
          return new SQLHelper();
       }
 
-      dx = XUtil.getDatasource(user, dx, additional);
+      dx = ConnectionProcessor.getInstance().getDatasource(user, dx, additional);
 
       try {
          SQLHelper helper = getSQLHelper(getProductName(dx));
@@ -1353,27 +1353,50 @@ public class SQLHelper implements KeywordProvider {
     * @return
     */
    private String updateExpressionWithSubAlias(String expression) {
-      final XSelection xselect = uniformSql.getSelection();
+      SelectTable[] selectTables = uniformSql.getSelectTable();
 
-      for(int i = 0; i < xselect.getColumnCount(); i++) {
-         String column = xselect.getColumn(i);
-         String table = uniformSql.getTable(column);
-         String subCol = uniformSql.getColumnFromPath(column);
-         String subalias = getValidSubAlias(table, subCol);
+      if(selectTables == null) {
+         return expression;
+      }
 
-         if(Tool.isEmptyString(table) || Tool.isEmptyString(subalias)) {
+      for(SelectTable selectTable : selectTables) {
+         Object name = selectTable.getName();
+
+         if(!(name instanceof UniformSQL)) {
             continue;
          }
 
-         String originalName = getOriginalColumnName(table, subalias);
+         UniformSQL subQuery = (UniformSQL) name;
+         XSelection selection = subQuery.getSelection();
+         String alias = selectTable.getAlias();
 
-         if(Tool.isEmptyString(originalName) || Tool.equals(subalias, originalName)) {
+         if(Tool.isEmptyString(alias)) {
             continue;
          }
 
-         String oldName = quoteTableAlias(table) + "." + quoteColumnAlias(originalName);
-         String newName = quoteTableAlias(table) + "." + quoteColumnAlias(subalias);
-         expression = expression.replace(oldName, newName);
+         for(int i = 0; i < selection.getColumnCount(); i++) {
+            String column = selection.getColumn(i);
+            String subCol = subQuery.getColumnFromPath(column);
+            String columnAlias = selection.getAlias(i);
+
+            if(!Tool.isEmptyString(columnAlias)) {
+               subCol = columnAlias;
+            }
+
+            String subalias = getValidSubAlias(alias, subCol);
+
+            if(Tool.isEmptyString(subalias)) {
+               continue;
+            }
+
+            if(Tool.isEmptyString(subCol) || Tool.equals(subalias, subCol)) {
+               continue;
+            }
+
+            String oldName = quoteTableAlias(alias) + "." + quoteColumnAlias(subCol);
+            String newName = quoteTableAlias(alias) + "." + quoteColumnAlias(subalias);
+            expression = expression.replace(oldName, newName);
+         }
       }
 
       return expression;
@@ -4201,6 +4224,14 @@ public class SQLHelper implements KeywordProvider {
          ORDER_BY = "order by ";
          GROUP_BY = "group by ";
       }
+   }
+
+   public int getInClauseLimit() {
+      return 0;
+   }
+
+   public String fixSQLExpression(String sql) {
+      return sql;
    }
 
    private static Hashtable<String, String> helperTable = null; // sql helper table

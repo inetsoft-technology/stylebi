@@ -1,303 +1,244 @@
 {
   "endpoints": [
     {
-      "name": "Search Tweets",
-      "paged": 2,
-      "suffix": "/1.1/search/tweets.json?q={Query}&geocode={GeoCode?}&lang={Language?}&locale={Locale?}&result_type={Result Type?:mixed|recent|popular}&count=100&until={Until?:YYYY-MM-DD}&since_id={Since ID?}&max_id={Max ID?}&include_entities={Include Entities?:true|false}"
+      "name": "Tweets by IDs",
+      "paged": 0,
+      "suffix": "/2/tweets?ids={Tweet IDs}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
     },
     {
-      "name": "Lists",
+      "name": "Tweet by ID",
       "paged": 0,
-      "suffix": "/1.1/lists/list.json?user_id={User ID?}&screen_name={Screen Name?}&reverse={Reverse?:true|false}",
-      "lookups": [
-        {
-          "endpoints": [
-            "List Members",
-            "List Show",
-            "List Statuses",
-            "List Subscribers"
-          ],
-          "jsonPath": "$.*",
-          "key": "id_str",
-          "parameterName": "List ID"
-        }
-      ]
+      "suffix": "/2/tweets/{Tweet ID}?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Tweets Liking Users",
+      "paged": 1,
+      "suffix": "/2/tweets/{Tweet ID}/liking_users?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Tweet Retweeted By",
+      "paged": 1,
+      "suffix": "/2/tweets/{Tweet ID}/retweeted_by?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Tweet Counts All",
+      "paged": 1,
+      "suffix": "/2/tweets/counts/all?query={Query}&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&granularity={Granularity?:minute|hour|day}&since_id={Since ID?}&until_id={Until ID?}"
+    },
+    {
+      "name": "Tweet Counts Recent",
+      "paged": 0,
+      "suffix": "/2/tweets/counts/recent?query={Query}&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}"
+    },
+    {
+      "name": "Search All Tweets",
+      "paged": 1,
+      "suffix": "/2/tweets/search/all?query={Query}&max_results=500&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}&sort_order={Sort Order?:recency|relevancy}"
+    },
+    {
+      "name": "Search Recent Tweets",
+      "paged": 1,
+      "suffix": "/2/tweets/search/recent?query={Query}&max_results=100&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}&sort_order={Sort Order?:recency|relevancy}"
+    },
+    {
+      "name": "Connect to Stream",
+      "paged": 0,
+      "suffix": "/2/tweets/search/stream?backfill_minutes={Backfill Minutes?}&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Stream Rules",
+      "paged": 1,
+      "suffix": "/2/tweets/search/stream/rules?ids={Rule IDs?}"
+    },
+    {
+      "name": "Users Liked Tweets",
+      "paged": 1,
+      "suffix": "/2/users/{User ID}/liked_tweets?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "User Mentions",
+      "paged": 1,
+      "suffix": "/2/users/{User ID}/mentions?max_results=100&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "User Reverse Chronological Timeline",
+      "paged": 1,
+      "suffix": "/2/users/{User ID}/timelines/reverse_chronological?start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Tweets by User ID",
+      "paged": 1,
+      "suffix": "/2/users/{User ID}/tweets?max_results=100&start_time={Start Time?:YYYY-MM-DD}&end_time={End Time?:YYYY-MM-DD}&exclude={Exclude?:retweets|replies}&since_id={Since ID?}&until_id={Until ID?}&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Reposts of Current User",
+      "paged": 1,
+      "suffix": "/2/users/reposts_of_me?max_results=100&expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "User by ID",
+      "paged": 0,
+      "suffix": "/2/users/{User ID}?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Users by IDs",
+      "paged": 0,
+      "suffix": "/2/users?{User IDs}&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Blocked Users",
+      "paged": 1,
+      "suffix": "/2/users/{User ID}/blocking?max_results=1000&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Muted Users",
+      "paged": 1,
+      "suffix": "/2/users/{User ID}/muting?max_results=1000&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Users by Usernames",
+      "paged": 0,
+      "suffix": "/2/users/by?usernames={Usernames}&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "User by Username",
+      "paged": 0,
+      "suffix": "/2/users/by/username/{Username}?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Current User Information",
+      "paged": 0,
+      "suffix": "/2/users/me?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Users by Query",
+      "paged": 1,
+      "suffix": "/2/users/search?query={Query}&max_results=1000&expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Spaces by IDs",
+      "paged": 0,
+      "suffix": "/2/spaces?ids={Space IDs}&expansions={Expansions?}&space.fields={Space Fields}&topic.fields={Topic Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Space by ID",
+      "paged": 0,
+      "suffix": "/2/spaces/{Space ID}?expansions={Expansions?}&space.fields={Space Fields}&topic.fields={Topic Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Space Buyers",
+      "paged": 1,
+      "suffix": "/2/spaces/{Space ID}/buyers?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Space Tweets",
+      "paged": 0,
+      "suffix": "/2/spaces/{Space ID}/tweets?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Spaces By Creator IDs",
+      "paged": 0,
+      "suffix": "/2/spaces/by/creator_ids?user_ids={User IDs}&expansions={Expansions?}&space.fields={Space Fields?}&topic.fields={Topic Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Spaces By Query",
+      "paged": 0,
+      "suffix": "/2/spaces/search?query={Query}&state={State?:all|live|scheduled}&expansions={Expansions?}&space.fields={Space Fields?}&topic.fields={Topic Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Direct Messages By Conversation ID",
+      "paged": 1,
+      "suffix": "/2/dm_conversations/{Direct Message Conversation ID}/dm_events?event_types={Event Types?:MessageCreate|ParticipantsJoin|ParticipantLeave}&dm_event.fields={DM Event Fields}&expansions={Expansions?}&media.fields={Media Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Direct Messages By Participant ID",
+      "paged": 1,
+      "suffix": "/2/dm_conversations/with/{Participant ID}/dm_events?event_types={Event Types?:MessageCreate|ParticipantsJoin|ParticipantLeave}&dm_event.fields={DM Event Fields}&expansions={Expansions?}&media.fields={Media Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Direct Messages In Past 30 Days",
+      "paged": 1,
+      "suffix": "/2/dm_events?event_types={Event Types?:MessageCreate|ParticipantsJoin|ParticipantLeave}&dm_event.fields={DM Event Fields}&expansions={Expansions?}&media.fields={Media Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Direct Messages By Event ID",
+      "paged": 0,
+      "suffix": "/2/dm_events/{Event ID}"
+    },
+    {
+      "name": "List by List ID",
+      "paged": 0,
+      "suffix": "/2/lists/{List ID}?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "User Owned Lists",
+      "paged": 1,
+      "suffix": "/2/users/{User ID}/owned_lists?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "Tweets by List ID",
+      "paged": 1,
+      "suffix": "/2/lists/{List ID}/tweets?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
+    },
+    {
+      "name": "User List Memberships",
+      "paged": 1,
+      "suffix": "/2/users/{User ID}/list_memberships?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}"
     },
     {
       "name": "List Members",
       "paged": 1,
-      "suffix": "/1.1/lists/members.json?list_id={List ID}&slug={Slug?}&owner_screen_name={Owner Screen Name?}&owner_id={Owner ID?}&include_entities={Include Entities?:true|false}&skip_status={Skip Status?:true|false}&count=5000"
+      "suffix": "/2/lists/{List ID}/members?expansions={Expansions?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
     },
     {
-      "name": "List Member Show",
-      "paged": 0,
-      "suffix": "/1.1/lists/members/show.json?list_id={List ID}&slug={Slug?}&user_id={User ID}&screen_name={Screen Name}&owner_screen_name={Owner Screen Name?}&owner_id={Owner ID?}&include_entities={Include Entities?:true|false}&skip_status={Skip Status?:true|false}&count=1000"
+      "name": "User Pinned Lists",
+      "paged": 2,
+      "suffix": "/2/users/{User ID}/pinned_lists?expansions={Expansions?}&list.fields={List Fields?}&user.fields={User Fields?}"
     },
     {
-      "name": "List Memberships",
+      "name": "User Bookmarks",
       "paged": 1,
-      "suffix": "/1.1/lists/memberships.json?user_id={User ID?}&screen_name={Screen Name?}&filter_to_owned_lists={Filter To Owned Lists?:true:false}"
+      "suffix": "/2/users/{User ID}/bookmarks?expansions={Expansions?}&media.fields={Media Fields?}&place.fields={Place Fields?}&poll.fields={Poll Fields?}&tweet.fields={Tweet Fields?}&user.fields={User Fields?}"
     },
     {
-      "name": "List Ownerships",
-      "paged": 1,
-      "suffix": "/1.1/lists/ownerships.json?user_id={User ID?}&screen_name={Screen Name?}&count=1000"
-    },
-    {
-      "name": "List Show",
+      "name": "Recent Compliance Jobs",
       "paged": 0,
-      "suffix": "/1.1/lists/show.json?list_id={List ID}&slug={Slug?}&owner_screen_name={Owner Screen Name?}&owner_id={Owner ID}"
+      "suffix": "/2/compliance/jobs?type={Type:users|tweets}&status={Status?:created|in_progress|failed|complete}"
     },
     {
-      "name": "List Statuses",
+      "name": "Compliance Job by Job ID",
       "paged": 0,
-      "suffix": "/1.1/lists/statuses.json?list_id={List ID}&slug={Slug?}&owner_screen_name={Owner Screen Name?}&owner_id={Owner ID?}&since_id={Since ID?}&max_id={Max ID?}&include_entities={Include Entities?:true|false}&include_rts={Include RTS?:true|false}&count={Count?}"
+      "suffix": "/2/compliance/jobs/{Job ID}"
     },
     {
-      "name": "List Subscribers",
-      "paged": 1,
-      "suffix": "/1.1/lists/subscribers.json?list_id={List ID}&slug={Slug?}&owner_screen_name={Owner Screen Name?}&owner_id={Owner ID?}&include_entities={Include Entities?:true|false}&skip_status={Skip Status?:true|false}"
-    },
-    {
-      "name": "List Subscribers Show",
+      "name": "Project Tweet Usage",
       "paged": 0,
-      "suffix": "/1.1/lists/subscribers/show.json?list_id={List ID}&slug={Slug?}&user_id={User ID}&screen_name={Screen Name}&owner_screen_name={Owner Screen Name?}&owner_id={Owner ID?}&include_entities={Include Entities?:true|false}&skip_status={Skip Status?:true|false}"
+      "suffix": "/2/usage/tweets?days={Days?}&usage.fields={Usage Fields?}"
     },
     {
-      "name": "List Subscriptions",
-      "paged": 1,
-      "suffix": "/1.1/lists/subscriptions.json?user_id={User ID?}&screen_name={Screen Name?}&count=1000"
-    },
-    {
-      "name": "Followers IDs",
-      "paged": 1,
-      "suffix": "/1.1/followers/ids.json?user_id={User ID?}&screen_name={Screen Name?}&stringify_ids={Stringify IDs?:true:false}&count=5000"
-    },
-    {
-      "name": "Followers List",
-      "paged": 1,
-      "suffix": "/1.1/followers/list.json?user_id={User ID?}&screen_name={Screen Name?}&skip_status={Skip Status?:true|false}&include_user_entities={Include User Entities?:true:false}&count=200"
-    },
-    {
-      "name": "Friends IDs",
-      "paged": 1,
-      "suffix": "/1.1/friends/ids.json?user_id={User ID}&screen_name={Screen Name}&stringify_ids={Stringify IDs?:true|false}&count=5000"
-    },
-    {
-      "name": "Friends List",
-      "paged": 1,
-      "suffix": "/1.1/friends/list.json?user_id={User ID?}&screen_name={Screen Name?}&skip_status={Skip Status?:true|false}&include_user_entities={Include User Entities?:true|false}&count=200"
-    },
-    {
-      "name": "Friendships Incoming",
-      "paged": 1,
-      "suffix": "/1.1/friendships/incoming.json?stringify_ids={Stringify IDs?:true|false}"
-    },
-    {
-      "name": "Friendships Lookup",
+      "name": "Trends by WOEID",
       "paged": 0,
-      "suffix": "/1.1/friendships/lookup.json?screen_name={Screen Name?}&user_id={User ID?}"
+      "suffix": "/2/trends/by/woeid/{WOEID}"
     },
     {
-      "name": "Friendships No Retweet IDs",
+      "name": "User Personalized Trends",
       "paged": 0,
-      "suffix": "/1.1/friendships/no_retweets/ids.json?stringify_ids={Stringify IDs?:true|false}"
+      "suffix": "/2/users/personalized_trends"
     },
     {
-      "name": "Friendships Outgoing",
-      "paged": 1,
-      "suffix": "/1.1/friendships/outgoing.json?stringify_ids={Stringify IDs?:true|false}"
-    },
-    {
-      "name": "Friendships Show",
+      "name": "Community by ID",
       "paged": 0,
-      "suffix": "/1.1/friendships/show.json?source_id={Source ID?}&source_screen_name={Source Screen Name?}&target_id={Target ID?}&target_screen_name={Target Screen Name?}"
+      "suffix": "/2/communities/{Community ID}?community.fields={Community Fields?}"
     },
     {
-      "name": "Users Lookup",
+      "name": "Communities by Query",
       "paged": 0,
-      "suffix": "/1.1/users/lookup.json?screen_name={Screen Name?}&user_id={User ID?}&include_entities={Include Entities?}&tweet_mode={Tweet Mode?}"
-    },
-    {
-      "name": "Users Search",
-      "paged": 3,
-      "suffix": "/1.1/users/search.json?q={Search Query}&include_entities={Include Entities?}&count=20"
-    },
-    {
-      "name": "Users Show",
-      "paged": 0,
-      "suffix": "/1.1/users/show.json?user_id={User ID}&screen_name={Screen Name}&include_entities={Include Entities?}"
-    },
-    {
-      "name": "Account Settings",
-      "paged": 0,
-      "suffix": "/1.1/account/settings.json"
+      "suffix": "/2/communities/search?query={query}&community.fields={Community Fields?}"
     },
     {
       "name": "Account Verify Credentials",
       "paged": 0,
       "suffix": "/1.1/account/verify_credentials.json?include_entities={Include Entities?:true|false}&skip_status={Skip Status?:true|false}&include_email={Include Email?:true|false}"
-    },
-    {
-      "name": "Saved Searches List",
-      "paged": 0,
-      "suffix": "/1.1/saved_searches/list.json"
-    },
-    {
-      "name": "Saved Searches Show",
-      "paged": 0,
-      "suffix": "/1.1/saved_searches/show/{ID}.json"
-    },
-    {
-      "name": "Users Profile Banner",
-      "paged": 0,
-      "suffix": "/1.1/users/profile_banner.json?user_id={User ID}&screen_name={Screen Name}"
-    },
-    {
-      "name": "Blocks IDs",
-      "paged": 1,
-      "suffix": "/1.1/blocks/ids.json?stringify_ids={Stringify IDs?:true|false}"
-    },
-    {
-      "name": "Blocks List",
-      "paged": 1,
-      "suffix": "/1.1/blocks/list.json?include_entities={Include Entities?:true|false}&skip_status={Skip Status?:true|false}"
-    },
-    {
-      "name": "Mutes Users IDs",
-      "paged": 1,
-      "suffix": "/1.1/mutes/users/ids.json?stringify_ids={Stringify IDs?:true|false}"
-    },
-    {
-      "name": "Mutes Users List",
-      "paged": 1,
-      "suffix": "/1.1/mutes/users/list.json?include_entities={Include Entities?:true|false}&skip_status={Skip Status?:true|false}"
-    },
-    {
-      "name": "Collections Entries",
-      "paged": 1,
-      "suffix": "/1.1/collections/entries.json?id={ID}&max_position={Max Position?}&min_position={Min Position?}&count=200"
-    },
-    {
-      "name": "Collections List",
-      "paged": 1,
-      "suffix": "/1.1/collections/list.json?user_id={User ID?}&screen_name={Screen Name?}&tweet_id={Tweet ID?}&count=200"
-    },
-    {
-      "name": "Collections Details",
-      "paged": 0,
-      "suffix": "/1.1/collections/show.json?id={Collection ID}"
-    },
-    {
-      "name": "Statuses Home Timeline",
-      "paged": 0,
-      "suffix": "/1.1/statuses/home_timeline.json?count=200&since_id={Since ID?}&max_id={Max ID?}&trim_user={Trim User?:true|false}&exclude_replies={Exclude Replies?:true|false}&include_entities={Include Entities?:true|false}"
-    },
-    {
-      "name": "Statuses Mentions Timeline",
-      "paged": 0,
-      "suffix": "/1.1/statuses/mentions_timeline.json?include_rts=1&count=200&since_id={Since ID?}&max_id={Max ID?}&trim_user={Trim User?:true|false}&include_entities={Include Entities?:true|false}"
-    },
-    {
-      "name": "Statuses User Timeline",
-      "paged": 0,
-      "suffix": "/1.1/statuses/user_timeline.json?include_rts={Include RTS?:true|false}&user_id={User ID?}&screen_name={Screen Name?}&since_id={Since ID?}&count=200&max_id={Max ID?}&trim_user={Trim User?:true|false}&exclude_replies={Exclude Replies?:true|false}",
-      "lookups": [
-        {
-          "endpoints": [
-            "Statuses Show",
-            "Metrics"
-          ],
-          "jsonPath": "$.*",
-          "key": "id_str",
-          "parameterName": "ID"
-        }
-      ]
-    },
-    {
-      "name": "Favorites List",
-      "paged": 0,
-      "suffix": "/1.1/favorites/list.json?user_id={User ID?}&screen_name={Screen Name?}&count=200&since_id={Since ID?}&max_id={Max ID?}&include_entities={Include Entities?:true|false}"
-    },
-    {
-      "name": "Statuses Lookup",
-      "paged": 0,
-      "suffix": "/1.1/statuses/lookup.json?id={ID}&include_entities={Include Entities?:true|false}&trim_user={Trim User?:true|false}&map={Map?:true|false}&include_ext_alt_text={Include External Alternate Text?:true|false}&include_card_uri={Include Card URI?:true|false}"
-    },
-    {
-      "name": "Statuses Retweeters IDs",
-      "paged": 1,
-      "suffix": "/1.1/statuses/retweeters/ids.json?id={Tweet ID}&stringify_ids={Stringify IDs?:true|false}&count=100"
-    },
-    {
-      "name": "Statuses Retweets",
-      "paged": 0,
-      "suffix": "/1.1/statuses/retweets/{Tweet ID}.json?count=100&trim_user={Trim User?:true|false}"
-    },
-    {
-      "name": "Statuses Retweets of Me",
-      "paged": 0,
-      "suffix": "/1.1/statuses/retweets_of_me.json?count=100&since_id={Since ID?}&max_id={Max ID?}&trim_user={Trim User?:true|false}&include_entities={Include Entities?:true|false}&include_user_entities={Include User Entities?:true|false}"
-    },
-    {
-      "name": "Statuses Show",
-      "paged": 0,
-      "suffix": "/1.1/statuses/show.json?id={ID}&trim_user={Trim User?:true|false}&include_my_retweet={Include My Retweet?:true|false}&include_entities={Include Entities?:true|false}&include_ext_alt_text={Include External Alternate Text?:true|false}&include_card_uri={Include Card URI?:true|false}"
-    },
-    {
-      "name": "Custom Profile",
-      "paged": 0,
-      "suffix": "/1.1/custom_profiles/{ID}.json"
-    },
-    {
-      "name": "Custom Profiles",
-      "paged": 1,
-      "suffix": "/1.1/custom_profiles/list.json?count=50"
-    },
-    {
-      "name": "Direct Message Events List",
-      "paged": 1,
-      "suffix": "/1.1/direct_messages/events/list.json?count=50"
-    },
-    {
-      "name": "Direct Message Event",
-      "paged": 0,
-      "suffix": "/1.1/direct_messages/events/show.json?id={ID}"
-    },
-    {
-      "name": "Direct Messages Welcome Messages List",
-      "paged": 1,
-      "suffix": "/1.1/direct_messages/welcome_messages/list.json"
-    },
-    {
-      "name": "Direct Messages Welcome Messages Rules List",
-      "paged": 1,
-      "suffix": "/1.1/direct_messages/welcome_messages/rules/list.json"
-    },
-    {
-      "name": "Direct Messages Welcome Messages Rules Show",
-      "paged": 0,
-      "suffix": "/1.1/direct_messages/welcome_messages/rules/show.json?id={ID}"
-    },
-    {
-      "name": "Direct Messages Welcome Message Show",
-      "paged": 0,
-      "suffix": "/1.1/direct_messages/welcome_messages/show.json?id={ID}"
-    },
-    {
-      "name": "Trends Available",
-      "paged": 0,
-      "suffix": "/1.1/trends/available.json"
-    },
-    {
-      "name": "Trends Closest",
-      "paged": 0,
-      "suffix": "/1.1/trends/closest.json?lat={Latitude}&long={Longitude}"
-    },
-    {
-      "name": "Metrics",
-      "paged": 0,
-      "suffix": "/2/tweets?ids={ID}&tweet.fields={Tweet Field Types?:public_metrics|non_public_metrics|organic_metrics}&expansions={Expansions?}&expansions={Expansions?}"
     }
   ]
 }

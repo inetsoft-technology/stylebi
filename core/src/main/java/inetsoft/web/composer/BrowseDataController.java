@@ -802,5 +802,5 @@ public class BrowseDataController {
    private XSourceInfo sinfo;
    private String vsAssemblyName;
 
-   private static final int MAX_ROW_COUNT = 1000;
+   public static final int MAX_ROW_COUNT = 1000;
 }

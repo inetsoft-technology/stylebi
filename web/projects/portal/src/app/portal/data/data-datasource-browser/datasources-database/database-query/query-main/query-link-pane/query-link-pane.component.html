@@ -32,7 +32,8 @@
                              [runtimeId]="runtimeID"
                              [selectedGraphNodePath]="selectedGraphNodePath"
                              (onNodeSelected)="onNodeSelected($event)"
-                             (onQueryPropertiesChanged)="queryModelService.emitModelChange()">
+                             (onQueryPropertiesChanged)="queryModelService.emitModelChange()"
+                             (editingJoinChanged)="editingJoinChanged.emit($event)">
       </query-link-graph-pane>
     </div>
   </div>

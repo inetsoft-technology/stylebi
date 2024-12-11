@@ -343,7 +343,7 @@ public class SectionElementDef extends BaseElement
          }
       }
 
-      if((!rc || printedOver) && true && lens != null) {
+      if((!rc || printedOver) && lens != null) {
          LOG.debug(
             "Section " + getID() + " finished processing: " +
                lens.getRowCount());
@@ -590,10 +590,10 @@ public class SectionElementDef extends BaseElement
                         band.removeAllValues();
                         }
                      */
-                  if(!true) {
+                  /*if(!true) {
                      nextRow();
                      continue;
-                  }
+                  }*/
                }
 
                lastType = BindingInfo.CONTENT;

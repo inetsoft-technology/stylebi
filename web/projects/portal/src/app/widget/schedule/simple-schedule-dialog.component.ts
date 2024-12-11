@@ -160,15 +160,7 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
             this.model.timeConditionModel.weekdayOnly = false;
          }
 
-         if(condition.type == TimeConditionType.EVERY_MONTH) {
-            this.model.timeConditionModel.dayOfMonth =
-               !condition.dayOfMonth || condition.dayOfMonth < 1 ? 1 : condition.dayOfMonth;
-            this.model.timeConditionModel.weekOfMonth =
-               !condition.weekOfMonth || condition.weekOfMonth < 1 ? 1 : condition.weekOfMonth;
-            this.model.timeConditionModel.dayOfWeek =
-               !condition.dayOfWeek || condition.dayOfWeek < 1 ? 1 : condition.dayOfWeek;
-         }
-
+         this.fixMonthCondition(condition);
          this.model.timeConditionModel.monthsOfYear = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
          this.setTimeZone();
       }
@@ -261,6 +253,17 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
       }
    }
 
+   private fixMonthCondition(condition: TimeConditionModel) {
+      if(condition?.type == TimeConditionType.EVERY_MONTH) {
+         this.model.timeConditionModel.dayOfMonth =
+            !condition.dayOfMonth || condition.dayOfMonth < 1 ? 1 : condition.dayOfMonth;
+         this.model.timeConditionModel.weekOfMonth =
+            !condition.weekOfMonth || condition.weekOfMonth < 1 ? 1 : condition.weekOfMonth;
+         this.model.timeConditionModel.dayOfWeek =
+            !condition.dayOfWeek || condition.dayOfWeek < 1 ? 1 : condition.dayOfWeek;
+      }
+   }
+
    private getEmailUsers(): string[] {
       let identities: string[] = [];
 
@@ -349,11 +352,15 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
    }
 
    selectConditionType(type: TimeConditionType): void {
-      if(type == TimeConditionType.EVERY_MONTH &&
-         this.model.timeConditionModel.monthlyDaySelected == null)
-      {
-         this.model.timeConditionModel.monthlyDaySelected = true;
+      if(type == TimeConditionType.EVERY_MONTH) {
+         if(this.model.timeConditionModel.monthlyDaySelected == null) {
+            this.model.timeConditionModel.monthlyDaySelected = true;
+         }
+
+         this.fixMonthCondition(this.model.timeConditionModel);
       }
+
+
    }
 
    updateOnlyDataComponents() {
@@ -599,6 +606,13 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
          minute: adjustedDate.getMinutes(),
          second: adjustedDate.getSeconds()
       };
+   }
+
+   isEmptyTable(): boolean {
+      return this.model && this.model.actionModel.emailInfoModel &&
+         this.model.actionModel.emailInfoModel.formatType == FileFormatType.EXPORT_TYPE_CSV &&
+         this.model.actionModel.emailInfoModel.csvConfigModel.selectedAssemblies != null &&
+         this.model.actionModel.emailInfoModel.csvConfigModel.selectedAssemblies.length == 0;
    }
 
    private getTimezoneOffset(timeZoneId: string): number {

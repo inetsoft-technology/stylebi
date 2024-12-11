@@ -19,50 +19,107 @@ package inetsoft.web.admin.presentation;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.DataSourceListingService;
+import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.data.CommonKVModel;
 import inetsoft.web.admin.presentation.model.PresentationDataSourceVisibilitySettingsModel;
+import inetsoft.web.viewsheet.Audited;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.*;
 
 @Service
 public class PresentationDataSourceVisibilitySettingsService {
 
    public PresentationDataSourceVisibilitySettingsModel getModel(boolean globalProperty) {
+      Map<String, String> visibleMap = new HashMap<>();
+      Map<String, String> hiddenMap = new HashMap<>();
+
       String visibleDataSources = SreeEnv.getProperty("visible.datasource.types", false, !globalProperty);
       String[] visibleArray = visibleDataSources == null || visibleDataSources.isEmpty() ?
           new String[0] : visibleDataSources.split(",");
       String hiddenDataSources = SreeEnv.getProperty("hidden.datasource.types", false, !globalProperty);
       String[] hiddenArray = hiddenDataSources == null || hiddenDataSources.isEmpty() ?
          new String[0] : hiddenDataSources.split(",");
+
+      Arrays.stream(visibleArray).forEach(k -> visibleMap.put(k, k));
+      Arrays.stream(hiddenArray).forEach(k -> hiddenMap.put(k, k));
+
       CommonKVModel<String, String>[] listingNames =
          DataSourceListingService.getAllDataSourceListings(false).stream()
-         .map(s -> new CommonKVModel(s.getName(), s.getDisplayName()))
+         .map(s -> {
+            String key = s.getName();
+            String label = s.getDisplayName();
+
+            if(visibleMap.containsKey(key)) {
+               visibleMap.put(key, label);
+            }
+
+            if(hiddenMap.containsKey(key)) {
+               hiddenMap.put(key, label);
+            }
+
+            return new CommonKVModel(key, label);
+         })
          .sorted((o1, o2) -> ((String) o1.getValue()).compareTo(((String) o2.getValue())))
          .toArray(CommonKVModel[]::new);
 
       return PresentationDataSourceVisibilitySettingsModel.builder()
-         .visibleDataSources(visibleArray)
-         .hiddenDataSources(hiddenArray)
+         .visibleDataSources(getCommonKVModels(visibleMap))
+         .hiddenDataSources(getCommonKVModels(hiddenMap))
          .dataSourceListings(listingNames)
          .build();
    }
 
+   private CommonKVModel<String, String>[] getCommonKVModels(Map<String, String> map) {
+      List<CommonKVModel<String, String>> list = new ArrayList<>();
+
+      for(Map.Entry<String, String> entry : map.entrySet()) {
+         list.add(new CommonKVModel(entry.getKey(), entry.getValue()));
+      }
+
+      return list.toArray(new CommonKVModel[list.size()]);
+   }
+
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_EDIT,
+      objectName = "Presentation-DataSource Visibility",
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
    public void setModel(PresentationDataSourceVisibilitySettingsModel model,
                         boolean globalSettings) throws IOException
    {
-      String visibleDataSources = model.visibleDataSources()  == null ||
-         model.visibleDataSources().length == 0  ?
-         null : String.join(",", model.visibleDataSources());
-      String hiddenDataSources = model.hiddenDataSources() == null  ||
-         model.hiddenDataSources().length == 0  ?
-         null : String.join(",", model.hiddenDataSources());
+      String visibleDataSources = getVisibilityItems(model.visibleDataSources());
+      String hiddenDataSources = getVisibilityItems(model.hiddenDataSources());
 
       SreeEnv.setProperty("visible.datasource.types", visibleDataSources, !globalSettings);
       SreeEnv.setProperty("hidden.datasource.types", hiddenDataSources, !globalSettings);
       SreeEnv.save();
    }
 
+   private String getVisibilityItems(CommonKVModel<String, String>[] arr) {
+      if(arr == null || arr.length == 0) {
+         return null;
+      }
+
+      StringBuilder builder = new StringBuilder();
+
+      for(int i = 0; i < arr.length; i++) {
+         if(i > 0) {
+            builder.append(",");
+         }
+
+         builder.append(arr[i].getKey());
+      }
+
+      return builder.toString();
+   }
+
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_EDIT,
+      objectName = "Presentation-DataSource Visibility",
+      objectType = ActionRecord.OBJECT_TYPE_EMPROPERTY
+   )
    public void resetSettings(boolean globalSettings) throws IOException {
       SreeEnv.resetProperty("visible.datasource.types", !globalSettings);
       SreeEnv.resetProperty("hidden.datasource.types", !globalSettings);

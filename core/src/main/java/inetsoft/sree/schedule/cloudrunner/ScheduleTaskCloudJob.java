@@ -17,9 +17,11 @@
  */
 package inetsoft.sree.schedule.cloudrunner;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.schedule.ScheduleTask;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
 import inetsoft.util.config.*;
 import org.apache.commons.io.IOUtils;
@@ -42,6 +44,7 @@ import java.util.concurrent.locks.Lock;
 public class ScheduleTaskCloudJob implements InterruptableJob {
    public ScheduleTaskCloudJob() {
       cluster = Cluster.getInstance();
+      timeout = Long.parseLong(SreeEnv.getProperty("schedule.task.timeout"));
    }
 
    @Override
@@ -94,7 +97,7 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
          }
 
          // timeout value might need to be configurable
-         if(!latch.await(5, TimeUnit.MINUTES)) {
+         if(!latch.await(timeout, TimeUnit.MILLISECONDS)) {
             if(job != null) {
                job.stop();
             }
@@ -151,9 +154,9 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
       try {
          DistributedMap<String, InetsoftConfig> configMap =
             cluster.getMap("cloud.runner.config");
+         InetsoftConfig config = InetsoftConfig.getInstance();
 
          if(!configMap.containsKey("config")) {
-            InetsoftConfig config = InetsoftConfig.getInstance();
             InetsoftConfig runnerConfig = new InetsoftConfig();
             runnerConfig.setVersion(config.getVersion());
             runnerConfig.setPluginDirectory("/var/lib/inetsoft/plugins");
@@ -171,11 +174,7 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
             runnerConfig.setBlob(blobConfig);
 
             ClusterConfig clusterConfig = new ClusterConfig();
-            clusterConfig.setTcpEnabled(true);
-            clusterConfig.setMulticastEnabled(false);
-            clusterConfig.setTcpMembers(cluster.getClusterAddresses().toArray(new String[0]));
-            clusterConfig.setClientMode(true);
-            copyRootCA(config.getCluster(), clusterConfig);
+            updateClusterConfig(config, clusterConfig);
             runnerConfig.setCluster(clusterConfig);
 
             ExternalStorageConfig externalConfig = new ExternalStorageConfig();
@@ -198,10 +197,32 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
             // add to distributed map
             configMap.put("config", runnerConfig);
          }
+         else {
+            InetsoftConfig oldConfig = configMap.get("config");
+            ClusterConfig clusterConfig = oldConfig.getCluster();
+            updateClusterConfig(config, clusterConfig);
+            configMap.put("config", oldConfig);
+         }
       }
       finally {
          lock.unlock();
       }
+   }
+
+   private void updateClusterConfig(InetsoftConfig config, ClusterConfig clusterConfig) {
+      IpFinderConfig ipFinder = config.getCluster().getIpFinder();
+
+      // do not user ip finder for aws, because do not determine the port of server node,
+      // registered addresses from aws.elb ip finder, it just use default port.
+      if(ipFinder != null && !"aws.elb".equals(ipFinder.getType())) {
+         clusterConfig.setIpFinder(config.getCluster().getIpFinder());
+      }
+
+      clusterConfig.setTcpEnabled(true);
+      clusterConfig.setMulticastEnabled(false);
+      clusterConfig.setTcpMembers(cluster.getClusterAddresses().toArray(new String[0]));
+      clusterConfig.setClientMode(true);
+      copyRootCA(config.getCluster(), clusterConfig);
    }
 
    private void copyRootCA(ClusterConfig inConfig, ClusterConfig outConfig) {
@@ -246,5 +267,6 @@ public class ScheduleTaskCloudJob implements InterruptableJob {
    private boolean interrupted = false;
    private CloudJobResult result;
    private final CountDownLatch latch = new CountDownLatch(1);
+   private final long timeout;
    private static final Logger LOG = LoggerFactory.getLogger(ScheduleTaskCloudJob.class);
 }

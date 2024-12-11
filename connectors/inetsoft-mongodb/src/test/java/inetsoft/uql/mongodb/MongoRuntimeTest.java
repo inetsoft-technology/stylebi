@@ -19,7 +19,10 @@ package inetsoft.uql.mongodb;
 
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XTableNode;
+import inetsoft.util.credential.*;
 import org.junit.jupiter.api.*;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.BindMode;
@@ -37,6 +40,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Integration tests for <tt>MongoRuntime</tt>.
@@ -45,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @Disabled
 class MongoRuntimeTest {
    private static final Logger LOG = LoggerFactory.getLogger(MongoRuntimeTest.class);
+
    @Container
    static MongoDbContainer container = new MongoDbContainer()
       .withEnv("MONGO_INITDB_ROOT_USERNAME", "root")
@@ -53,9 +58,15 @@ class MongoRuntimeTest {
       .waitingFor(Wait.forLogMessage(".*waiting for connections on port 27017.*\\n", 2))
       .withStartupTimeout(Duration.of(5L, ChronoUnit.MINUTES));
 
+
    @BeforeAll
    static void attachLogConsumer() {
       container.followOutput(new Slf4jLogConsumer(LOG));
+      MockedStatic<CredentialService> mockedCredentialService = Mockito.mockStatic(CredentialService.class);
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD))
+         .thenReturn(mock(LocalPasswordCredential.class));
+      mockedCredentialService.when(() -> CredentialService.newCredential(CredentialType.PASSWORD, false))
+         .thenReturn(mock(LocalPasswordCredential.class));
    }
 
    @Test

@@ -37,6 +37,7 @@ import {
 } from "../edit-identity-pane/edit-identity-pane.model";
 import { SecurityTreeViewComponent } from "../../security-tree-view/security-tree-view.component";
 import { MatSlideToggleChange } from "@angular/material/slide-toggle";
+import { CreateOrganizationDialogComponent } from "./create-organization-dialog.component";
 
 const SMALL_WIDTH_BREAKPOINT = 720;
 
@@ -49,10 +50,12 @@ export class UsersSettingsViewComponent implements OnInit {
    @Input() treeData: SecurityTreeNode[];
    @Input() authenticationProviders: string[];
    @Input() selectedProvider: string;
+   @Input() currOrg: string;
    @Input() providerEditable: boolean = true;
    @Input() isSysAdmin = false;
    @Input() isLoadingTemplate: boolean = false;
    @Input() identityEditable: Subject<boolean>;
+   @Input() isMultiTenant: boolean = false;
 
    @Output() providerChanged: EventEmitter<string> = new EventEmitter();
    @Output() newUser = new EventEmitter<String>();
@@ -63,14 +66,13 @@ export class UsersSettingsViewComponent implements OnInit {
    @Output() roleSettingsChanged = new EventEmitter<EditRolePaneModel>();
    @Output() groupSettingsChanged = new EventEmitter<EditGroupPaneModel>();
    @Output() organizationSettingsChanged = new EventEmitter<EditOrganizationPaneModel>();
-   @Output() setTemplateOrganizationClicked = new EventEmitter<EditOrganizationPaneModel>();
    @Output() deleteIdentities = new EventEmitter<void>();
    @Output() selectionChanged = new EventEmitter<SecurityTreeNode[]>();
    @Output() treeUpdated = new EventEmitter<FlatTreeControl<FlatSecurityTreeNode>>();
    @Output() pageChangedEmitter = new EventEmitter<boolean>();
    @ViewChild(SecurityTreeViewComponent) securityTree: SecurityTreeViewComponent;
    private _selectedNodes: SecurityTreeNode[] = [];
-   private rootNodes: string[] = ["_#(js:Users)", "_#(js:Groups)", "_#(js:Roles)", "_#(js:Organizations)", "_#(js:Organization Roles)"];
+   private rootNodes: string[] = ["Users", "Groups", "Roles", "Organizations", "Organization Roles"];
    pageChanged: boolean = false;
    isEnterprise: boolean;
    selectedIdentity: SecurityTreeNode;
@@ -213,7 +215,14 @@ export class UsersSettingsViewComponent implements OnInit {
    }
 
    createOrganization(): void {
-      this.emitNewIdentity(this.newOrganization);
+      this.triggerNewOrgDialog((newOrgString: string, proceed: boolean) => {
+         if(proceed && !!newOrgString && newOrgString != "") {
+            this.emitNewIdentity(this.newOrganization, newOrgString, true);
+         }
+         else if(proceed) {
+            this.emitNewIdentity(this.newOrganization, null, true);
+         }
+      });
    }
 
    delete() {
@@ -237,12 +246,19 @@ export class UsersSettingsViewComponent implements OnInit {
       this.selectedNodes = [];
    }
 
-   private emitNewIdentity(emitter: EventEmitter<String>): void {
+   private emitNewIdentity(emitter: EventEmitter<String>, orgName?: string, isOrg?: boolean): void {
       let parent: string = null;
 
       if(this.selectedIdentity && !this.selectedIdentity.root && this.selectedIdentity.type == IdentityType.GROUP)
       {
          parent = this.selectedIdentity.identityID.name;
+      }
+
+      if(!!orgName) {
+         parent = orgName;
+      }
+      else if(isOrg) {
+         parent = null;
       }
 
       emitter.emit(parent);
@@ -259,5 +275,36 @@ export class UsersSettingsViewComponent implements OnInit {
    newOrgEnabled(): boolean {
       const userRoot = this.treeData ? this.treeData.find(node => node.root && node.type === IdentityType.USER) : null;
       return (userRoot == null && this.isSysAdmin && this.isEnterprise);
+   }
+
+   showPageEdit(): boolean {
+      if(!this.selectedIdentity || this.selectedIdentity.readOnly) {
+         return false;
+      }
+
+      if(this.isMultiTenant) {
+         return !(this.selectedIdentity.root && this.selectedIdentity.type == IdentityType.ROLE && this.selectedIdentity.identityID.name != "Organization Roles");
+      }
+
+      return true;
+   }
+
+   triggerNewOrgDialog(callback: (newOrgString: string, proceed: boolean) => void): void {
+      this.dialog.open(CreateOrganizationDialogComponent, {
+         role: "dialog",
+         width: "350px",
+         maxWidth: "100%",
+         maxHeight: "100%",
+         disableClose: true,
+         data: {
+            name: this.selectedProvider
+         }
+      }).afterClosed().subscribe((result) => {
+         callback(result.newOrgString, result.proceed);
+      });
+   }
+
+   getDescriptionText(): string {
+      return this.currOrg == "host-org" ? "_#(js:em.users.defaultPassword.hostOrg)" : "_#(js:em.users.defaultPassword)"
    }
 }

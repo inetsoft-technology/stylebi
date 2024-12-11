@@ -40,4 +40,14 @@
       </includes>
     </dependencySet>
   </dependencySets>
+  <fileSets>
+    <fileSet>
+      <outputDirectory>/</outputDirectory>
+      <directory>${project.basedir}/src/main/docker</directory>
+      <includes>
+        <include>**/*</include>
+      </includes>
+      <filtered>true</filtered>
+    </fileSet>
+  </fileSets>
 </assembly>

@@ -37,7 +37,7 @@ public class DataSourceFolder implements java.io.Serializable, Cloneable, XMLSer
    public DataSourceFolder() {
    }
 
-   public DataSourceFolder(String name, LocalDateTime time, IdentityID user) {
+   public DataSourceFolder(String name, LocalDateTime time, String user) {
       this.name = name;
       this.createdDate = time;
       this.createdUsername = user;
@@ -86,7 +86,7 @@ public class DataSourceFolder implements java.io.Serializable, Cloneable, XMLSer
     * Get the created username
     * @return  the created username
     */
-   public IdentityID getCreatedUsername() {
+   public String getCreatedUsername() {
       return createdUsername;
    }
 
@@ -94,7 +94,7 @@ public class DataSourceFolder implements java.io.Serializable, Cloneable, XMLSer
     * Set the created username
     * @param createdUsername  the created username
     */
-   public void setCreatedUsername(IdentityID createdUsername) {
+   public void setCreatedUsername(String createdUsername) {
       this.createdUsername = createdUsername;
    }
 
@@ -136,9 +136,7 @@ public class DataSourceFolder implements java.io.Serializable, Cloneable, XMLSer
          name = val;
       }
 
-      if((val = Tool.getAttribute(element, "createdUsername")) != null) {
-         createdUsername = IdentityID.getIdentityIDFromKey(val);
-      }
+      createdUsername = Tool.getAttribute(element, "createdUsername");
 
       if((val = Tool.getAttribute(element, "createdDate")) != null) {
          createdDate = Tool.getDateTimeOfTimestamp(Long.parseLong(val));
@@ -217,6 +215,6 @@ public class DataSourceFolder implements java.io.Serializable, Cloneable, XMLSer
    }
 
    private String name;
-   private IdentityID createdUsername;
+   private String createdUsername;
    private LocalDateTime createdDate;
 }

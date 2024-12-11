@@ -22,6 +22,8 @@ import java.util.Optional;
 
 public enum LicenseComponent {
    ADHOC(0x0004, "inetsoft.analytic.adhoc.AdhocInitializer"),
+   CLOUD_DEVELOPMENT(0x0010, null),
+   CLOUD_TEST(0x0008, null),
    DASHBOARD(0x0002, "inetsoft.sree.web.dashboard.DashboardInitializer"),
    FORM(0x0080, "inetsoft.analytic.composition.FormInitializer"),
    MASTER(0x0040, null),

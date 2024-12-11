@@ -18,7 +18,6 @@
 package inetsoft.sree.web.dashboard;
 
 import inetsoft.sree.ClientInfo;
-import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
 import inetsoft.uql.util.*;
@@ -173,7 +172,10 @@ public class DashboardManager implements AutoCloseable {
 
       if(identity.getType() == Identity.USER) {
          IdentityID userId = identity.getIdentityID();
-         if(OrganizationManager.getInstance().isSiteAdmin(userId)) {
+
+         if(OrganizationManager.getInstance().isOrgAdmin(userId) ||
+            OrganizationManager.getInstance().isSiteAdmin(userId))
+         {
             List<String> selectedDashboards = Arrays.asList(getDashboards(identity, false));
 
             // go through all the global dashboards
@@ -359,12 +361,12 @@ public class DashboardManager implements AutoCloseable {
          Set<IdentityID> visitedRoles = new HashSet<>();
          Principal principal = new SRPrincipal(userIdentity.getIdentityID(), userIdentity.getRoles(),
                                                userIdentity.getGroups(),
-                                               userIdentity.getOrganization(), 0L);
+                                               userIdentity.getOrganizationID(), 0L);
 
          if(groups != null) {
             for(String groupName : groups) {
                if(!visitedGroups.contains(groupName)) {
-                  Group group = provider.getGroup(new IdentityID(groupName, userIdentity.getOrganization()));
+                  Group group = provider.getGroup(new IdentityID(groupName, userIdentity.getOrganizationID()));
 
                   if(group != null) {
                      getGroupDashboards(
@@ -423,7 +425,7 @@ public class DashboardManager implements AutoCloseable {
          for(String groupName : user.getGroups()) {
             if(!visitedGroups.contains(groupName)) {
                getGroupDashboards(
-                  provider.getGroup(new IdentityID(groupName, user.getOrganization())), provider, list, visitedGroups, visitedRoles, principal);
+                  provider.getGroup(new IdentityID(groupName, user.getOrganizationID())), provider, list, visitedGroups, visitedRoles, principal);
             }
          }
 
@@ -461,7 +463,7 @@ public class DashboardManager implements AutoCloseable {
       for(String groupName : group.getGroups()) {
          if(!visitedGroups.contains(groupName)) {
             getGroupDashboards(
-               provider.getGroup(new IdentityID(groupName, group.getOrganization())), provider, list, visitedGroups,
+               provider.getGroup(new IdentityID(groupName, group.getOrganizationID())), provider, list, visitedGroups,
                visitedRoles, principal);
          }
       }
@@ -561,6 +563,22 @@ public class DashboardManager implements AutoCloseable {
       }
    }
 
+   public void removeDashboards(Identity identity) {
+      init();
+      KeyValueStorage<DashboardData> dashboardStorage = getDashboardStorage();
+
+      if(identity.getName() != null) {
+         String key = getIdentityKey(identity);
+         DashboardData data = dashboardStorage.get(key);
+
+         if(data == null) {
+            return;
+         }
+
+         dashboardStorage.remove(key);
+      }
+   }
+
    /**
     * Sets the names of the global dashboards that have been deselected by a
     * user.
@@ -643,15 +661,6 @@ public class DashboardManager implements AutoCloseable {
    public void removeDashboardStorage(String orgID) throws Exception {
       getDashboardStorage(orgID).deleteStore();
       getDashboardStorage(orgID).close();
-   }
-
-   public void migrateStorageData(String oId, String id) throws Exception {
-      KeyValueStorage<DashboardData> oStorage = getDashboardStorage(oId);
-      KeyValueStorage<DashboardData> nStorage = getDashboardStorage(id);
-      SortedMap<String, DashboardData> data = new TreeMap<>();
-      oStorage.stream().forEach(pair -> data.put(pair.getKey(), pair.getValue()));
-      nStorage.putAll(data);
-      removeDashboardStorage(oId);
    }
 
    public void copyStorageData(String oId, String id) {
@@ -820,7 +829,7 @@ public class DashboardManager implements AutoCloseable {
       int index = key.indexOf(':');
       int type = index < 0 ? Identity.USER : Integer.parseInt(key.substring(0, index));
       String name = index < 0 ? key : key.substring(index + 1);
-      return new DefaultIdentity(name, type);
+      return new DefaultIdentity(name, this.orgID, type);
    }
 
    private String getIdentityKey(Identity identity) {

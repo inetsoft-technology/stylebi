@@ -445,8 +445,8 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
 
    private refreshAnchors(connection: any): void {
       // hidden all anchors
-      this.jsp.selectEndpoints({scope: connection.scope})
-         .setVisible(false, true, true);
+      // this.jsp.selectEndpoints({scope: connection.scope})
+      //    .setVisible(false, true, true);
 
       // show self anchor
       this.jsp.selectEndpoints({source: connection.sourceId})
@@ -511,7 +511,7 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    }
 
    addEndpoint(element: any, endpoint: any): void {
-      this.jsp.addEndpoint(element, endpoint).setVisible(false, true, true);
+      this.jsp.addEndpoint(element, endpoint).setVisible(true, true, true);
    }
 
    showEndpoints(params: {element: HTMLElement, [prop: string]: any}): void {
@@ -530,9 +530,9 @@ export class QueryNetworkGraphPaneComponent implements OnInit, AfterViewInit,
    }
 
    hideEndpoints(params: {element: HTMLElement, [prop: string]: any}): void {
-      params.scope = [JOIN];
-      const endpoints = this.jsp.selectEndpoints(params);
-      endpoints.setVisible(false, true, true);
+      // params.scope = [JOIN];
+      // const endpoints = this.jsp.selectEndpoints(params);
+      //endpoints.setVisible(false, true, true);
    }
 
    /**

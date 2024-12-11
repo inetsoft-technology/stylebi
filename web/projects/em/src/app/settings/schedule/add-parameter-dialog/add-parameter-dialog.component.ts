@@ -200,7 +200,7 @@ export class AddParameterDialogComponent implements OnInit {
    }
 
    private updateArrayStatus() {
-      if(this.model.value.type == ValueTypes.EXPRESSION) {
+      if(this.model.value.type == ValueTypes.EXPRESSION && this.model.value.value != "") {
          if(!this.form.controls["array"].disabled) {
             this.form.controls["array"].disable();
          }

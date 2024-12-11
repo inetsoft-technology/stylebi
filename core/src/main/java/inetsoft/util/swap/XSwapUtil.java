@@ -63,7 +63,7 @@ public final class XSwapUtil {
     * @return the byte length of this boolean array, <tt>-1</tt> unknown.
     */
    public static final long length(boolean[] arr, char size) {
-      return 2 + (size == 0 ? 0 : (unitIndex(size - 1) + 1) << 3);
+      return 2 + (size == 0 ? 0 : (long) (unitIndex(size - 1) + 1) << 3);
    }
 
    /**

@@ -2198,7 +2198,7 @@ public class TabularSheet extends ReportSheet {
       boolean autoWidth = prop != null && prop.equals("true");
       float pageWidthWithoutMargin = 0;
 
-       if(!false && autoWidth) {
+       if(autoWidth) {
          for(int col = 0; col < getColCount(); col++) {
             for(int row = 0; row < getRowCount(); row++) {
                for(int i = 0; i < getElementCount(row, col); i++) {

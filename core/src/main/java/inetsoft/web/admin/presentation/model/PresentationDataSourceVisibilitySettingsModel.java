@@ -29,10 +29,10 @@ import javax.annotation.Nullable;
 @JsonDeserialize(as = ImmutablePresentationDataSourceVisibilitySettingsModel.class)
 public interface PresentationDataSourceVisibilitySettingsModel {
    @Nullable
-   String[] visibleDataSources();
+   CommonKVModel<String, String>[] visibleDataSources();
 
    @Nullable
-   String[] hiddenDataSources();
+   CommonKVModel<String, String>[] hiddenDataSources();
 
    @Nullable
    CommonKVModel<String, String>[] dataSourceListings();

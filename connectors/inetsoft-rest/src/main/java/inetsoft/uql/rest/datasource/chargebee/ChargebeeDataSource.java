@@ -21,6 +21,7 @@ import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.EndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.Tool;
+import inetsoft.util.credential.*;
 import org.w3c.dom.Element;
 
 import java.io.PrintWriter;
@@ -28,7 +29,9 @@ import java.util.Objects;
 
 @View(vertical = true, value = {
    @View1("subdomain"),
-   @View1("apiKey"),
+   @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
+   @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "apiKey", visibleMethod = "useCredential"),
    @View1("URL")
 })
 public class ChargebeeDataSource extends EndpointJsonDataSource<ChargebeeDataSource> {
@@ -39,13 +42,19 @@ public class ChargebeeDataSource extends EndpointJsonDataSource<ChargebeeDataSou
       setAuthType(AuthType.BASIC);
    }
 
+   @Override
+   protected CredentialType getCredentialType() {
+      return CredentialType.API_KEY;
+   }
+
    @Property(label = "API Key", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
-      return getUser();
+      return ((ApiKeyCredential) getCredential()).getApiKey();
    }
 
    public void setApiKey(String apiKey) {
-      setUser(apiKey);
+      ((ApiKeyCredential) getCredential()).setApiKey(apiKey);
    }
 
    @Property(label = "Subdomain", required = true)
@@ -119,6 +128,11 @@ public class ChargebeeDataSource extends EndpointJsonDataSource<ChargebeeDataSou
    @Override
    public int hashCode() {
       return Objects.hash(super.hashCode(), subdomain);
+   }
+
+   @Override
+   public String getPassword() {
+      return "";
    }
 
    private String subdomain;

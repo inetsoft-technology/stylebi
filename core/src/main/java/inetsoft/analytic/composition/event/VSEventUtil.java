@@ -1831,24 +1831,6 @@ public final class VSEventUtil {
                   scaledAnnotationOffset.y = annotationOffset.y;
                }
 
-               if(parentCurrentSize != null) {
-                  if(scaledAnnotationOffset.x < 0) {
-                     scaledAnnotationOffset.x = 0;
-                  }
-
-                  if(scaledAnnotationOffset.x > parentCurrentSize.width) {
-                     scaledAnnotationOffset.x = parentCurrentSize.width;
-                  }
-
-                  if(scaledAnnotationOffset.y < 0) {
-                     scaledAnnotationOffset.y = 0;
-                  }
-
-                  if(scaledAnnotationOffset.y > parentCurrentSize.height) {
-                     scaledAnnotationOffset.y = parentCurrentSize.height;
-                  }
-               }
-
                ainfo.setScaledPosition(scaledAnnotationOffset);
 
                String line = ainfo.getLine();
@@ -5067,7 +5049,7 @@ public final class VSEventUtil {
     */
    public static RepositoryEntry[] getRepositoryEntries(
       AnalyticEngine engine, Principal user, ResourceAction action, int selector,
-      String detailType, RepositoryEntry[] pentries)
+      String detailType, RepositoryEntry[] pentries, boolean isDefaultOrgAsset)
    {
       List<RepositoryEntry> entrylist = new ArrayList<>();
       RepositoryEntry[] entries;
@@ -5079,7 +5061,7 @@ public final class VSEventUtil {
 
       try {
          for(RepositoryEntry pentry : pentries) {
-            entries = engine.getRepositoryEntries(pentry.getPath(), user, action, selector);
+            entries = engine.getRepositoryEntries(pentry.getPath(), user, action, selector, isDefaultOrgAsset);
 
             for(RepositoryEntry entry : entries) {
                if(!isDetailTypeMatched(entry, selector, detailType)
@@ -5096,7 +5078,7 @@ public final class VSEventUtil {
          try {
             pentries = new RepositoryEntry[1];
             pentries[0] = new RepositoryEntry("/", RepositoryEntry.FOLDER);
-            entries = engine.getRepositoryEntries(pentries[0].getPath(), user, action, selector);
+            entries = engine.getRepositoryEntries(pentries[0].getPath(), user, action, selector, isDefaultOrgAsset);
             entrylist = new ArrayList<>();
 
             for(RepositoryEntry entry : entries) {

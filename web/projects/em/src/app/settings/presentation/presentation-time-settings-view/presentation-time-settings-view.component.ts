@@ -24,7 +24,7 @@ import { ContextHelp } from "../../../context-help";
 
 @ContextHelp({
    route: "/settings/presentation/settings#time-settings",
-   link: "EMtime-settings"
+   link: "EMTimeSettings"
 })
 @Component({
   selector: "em-presentation-time-settings-view",

@@ -73,7 +73,7 @@ public class RepositoryTreeService {
       RepositoryEntry parentEntry = new RepositoryEntry(path, RepositoryEntry.FOLDER);
       RepositoryEntry[] entries = VSEventUtil.getRepositoryEntries(
          (AnalyticEngine) analyticRepository, principal, action, selector, detailType,
-         null);
+         null, false);
       List<TreeNodeModel> folderNodes = new ArrayList<>();
       List<TreeNodeModel> fileNodes = new ArrayList<>();
 
@@ -131,7 +131,7 @@ public class RepositoryTreeService {
       }
 
       AnalyticEngine engine = (AnalyticEngine) analyticRepository;
-      entries = engine.getRepositoryEntries(entry.getPath(), principal, action, selector);
+      entries = engine.getRepositoryEntries(entry.getPath(), principal, action, selector, false);
 
       return entries;
    }

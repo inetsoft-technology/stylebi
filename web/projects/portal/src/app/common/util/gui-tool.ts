@@ -460,6 +460,10 @@ export class GuiTool {
       window.open(url, target);
    }
 
+   static isHostGlobalNode(nodeData: any): boolean {
+      return nodeData?.path == "Host Organization Global Repository" && nodeData?.defaultOrgAsset;
+   }
+
    /**
     * Method for determining the css class of an entry by its AssetType
     */
@@ -990,9 +994,10 @@ export class GuiTool {
     * @param {TreeNodeModel} node treeNode
     * @returns {TreeNodeModel} If found, return the node, otherwise return null
     */
-   static getNodeByPath(path: string, node: TreeNodeModel): TreeNodeModel {
+   static getNodeByPath(path: string, node: TreeNodeModel, defaultOrgAsset: boolean = false): TreeNodeModel {
       if(path) {
-         return GuiTool.findNode(node, (n) => !!n.data && n.data.path === path);
+         return GuiTool.findNode(node, (n) => !!n.data &&
+            n.data.path === path && !!n.data.defaultOrgAsset == defaultOrgAsset);
       }
 
       return null;

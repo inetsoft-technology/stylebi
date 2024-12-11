@@ -313,10 +313,12 @@ public class AssetSQLTableDependencyTransformer extends AssetDependencyTransform
       String nname = getNewTableName(name, info, rinfos);
       String col = Tool.getValue(column);
 
-      replaceCDATANode(column, col.replace(oname, nname));
+      if(oname != null || nname != null) {
+         replaceCDATANode(column, col.replace(oname, nname));
 
-      if(Tool.equals(name, oname)) {
-         replaceCDATANode(node, nname);
+         if(Tool.equals(name, oname)) {
+            replaceCDATANode(node, nname);
+         }
       }
 
       column.appendChild(node1);

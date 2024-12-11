@@ -17,6 +17,8 @@
  */
 package inetsoft.web.portal.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
@@ -28,6 +30,8 @@ import inetsoft.web.portal.model.LocaleModel;
 import inetsoft.web.portal.model.LoginBannerModel;
 import inetsoft.web.viewsheet.service.LinkUri;
 import jakarta.servlet.http.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Controller;
@@ -37,6 +41,7 @@ import org.springframework.web.servlet.ModelAndView;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.util.*;
 
@@ -58,8 +63,17 @@ public class LoginController {
 
       PortalThemesManager manager = PortalThemesManager.getManager();
       CustomThemesManager themes = CustomThemesManager.getManager();
+      String recordedOrgID = getRecordedOrgId(request);
+      recordedOrgID = recordedOrgID == null ? Organization.getDefaultOrganizationID() : recordedOrgID;
       PortalWelcomePage welcomePage = manager.getWelcomePage();
-      boolean customLogo = PortalThemesManager.CUSTOM_LOGO.equals(manager.getLogoStyle());
+
+      if(SUtil.isMultiTenant() && recordedOrgID != null &&
+         manager.getWelcomePage(recordedOrgID) != null)
+      {
+         welcomePage = manager.getWelcomePage(recordedOrgID);
+      }
+
+      boolean customLogo = manager.hasCustomLogo(OrganizationManager.getInstance().getCurrentOrgID());
 
       model.addObject("customLogo", customLogo);
       model.addObject("linkUri", linkUri);
@@ -82,6 +96,13 @@ public class LoginController {
       String userName = principal != null ? principal.getName() : "";
       userName = userName != null ? IdentityID.getIdentityIDFromKey(userName).getName() : "";
       model.addObject("currentUser",  userName);
+
+      String error =  null;
+
+      if(session != null) {
+         error = (String) session.getAttribute(LoginController.LOGIN_ONLOAD_ERROR);
+         session.removeAttribute(LoginController.LOGIN_ONLOAD_ERROR);
+      }
 
       String locales = SreeEnv.getProperty("locale.available");
       List<LocaleModel> localeModels = new ArrayList<>();
@@ -111,11 +132,30 @@ public class LoginController {
       boolean googleSignInEnabled = SreeEnv.getBooleanProperty("security.googleSignIn.enabled");
 
       if(googleSignInEnabled) {
-         model.addObject("gClientId", SreeEnv.getProperty("styleBI.google.openid.client.id"));
-         String encodeUrl = requestedUrl == null ? null :
-            URLEncoder.encode(requestedUrl, "UTF-8");
-         model.addObject("gLoginUri", linkUri +
-            "login/googleSSO?requestedUrl=" + encodeUrl);
+         model.addObject("gClientId", getGoogleClientId());
+         model.addObject("gLoginUri", linkUri + "login/googleSSO");
+         model.addObject("gScopes", getGoogleScopes());
+
+         try {
+            String encodedUrl = requestedUrl == null ? null :
+               URLEncoder.encode(requestedUrl, StandardCharsets.UTF_8);
+
+            if(!Tool.isEmptyString(encodedUrl)) {
+               Map<String, String> stateMap = new HashMap<>();
+               stateMap.put("requestedUrl", linkUri + "login/googleSSO?requestedUrl=" + encodedUrl);
+               String stateJson = new ObjectMapper().writeValueAsString(stateMap);
+               String encodedState = Base64.getEncoder().encodeToString(stateJson.getBytes());
+               model.addObject("gState", encodedState);
+            }
+         }
+         catch(JsonProcessingException e) {
+            LOG.warn("Failed to generate google oauth state attribute", e);
+         }
+      }
+
+
+      if(!Tool.isEmptyString(error)) {
+         model.addObject("onloadError", error);
       }
 
       String header = CacheControl.noCache()
@@ -127,18 +167,33 @@ public class LoginController {
    }
 
    private boolean isNotTenantServer(HttpServletRequest request) {
-      Cookie[] cookies = request.getCookies();
-
-      if(cookies == null) {
-         return true;
-      }
-
-      String recordedOrgID = Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
-         .map(Cookie::getValue).findFirst().orElse(null);
+      String recordedOrgID = getRecordedOrgId(request);
       String recordedOrgName = recordedOrgID == null ? null : SecurityEngine.getSecurity().getSecurityProvider().getOrgNameFromID(recordedOrgID);
 
       return recordedOrgName == null  || Tool.equals(recordedOrgName, Organization.getDefaultOrganizationName());
    }
 
+   private String getRecordedOrgId(HttpServletRequest request) {
+      Cookie[] cookies = request.getCookies();
+
+      if(cookies == null) {
+         return null;
+      }
+
+      return Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
+         .map(Cookie::getValue).findFirst().orElse(null);
+   }
+
+   private String getGoogleClientId() {
+      return Tool.getClientSecretRealValue(
+         SreeEnv.getProperty("styleBI.google.openid.client.id"), "client_id");
+   }
+
+   private String getGoogleScopes() {
+      return SreeEnv.getProperty("styleBI.google.openid.scopes", "openid email profile");
+   }
+
    private static final String ORG_COOKIE = "X-INETSOFT-ORGID";
+   public static final String LOGIN_ONLOAD_ERROR = "LOGIN_ONLOAD_ERROR";
+   private static final Logger LOG = LoggerFactory.getLogger(LoginController.class);
 }

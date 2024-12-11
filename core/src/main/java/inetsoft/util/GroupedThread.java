@@ -242,7 +242,7 @@ public class GroupedThread extends Thread {
             String groups = String.join(",",
                Arrays.stream(principal.getGroups())
                   .map(g -> enterprise ?
-                     new IdentityID(g, userIdentity.getOrganization()).convertToKey() : g)
+                     new IdentityID(g, userIdentity.getOrgID()).convertToKey() : g)
                   .toArray(String[]::new));
             String roles = String.join(",",
                Arrays.stream(principal.getRoles())

@@ -131,6 +131,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the user name.
     * @return the specified user name.
     */
+   @AuditRecordProperty
    public String getUserName() {
       return userName;
    }
@@ -147,6 +148,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the user role.
     * @return the specified user role.
     */
+   @AuditRecordProperty
    public String getUserRole() {
       return userRole;
    }
@@ -163,6 +165,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the user active status.
     * @return the specified user active status.
     */
+   @AuditRecordProperty
    public String getUserActiveStatus() {
       return userActiveStatus;
    }
@@ -179,6 +182,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the user email.
     * @return the specified user email.
     */
+   @AuditRecordProperty
    public String getUserEmail() {
       return userEmail;
    }
@@ -195,6 +199,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the user last login time.
     * @return the specified user last login time.
     */
+   @AuditRecordProperty
    public Timestamp getUserLastLogin() {
       return userLastLogin;
    }
@@ -211,6 +216,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the action type.
     * @return the specified action type.
     */
+   @AuditRecordProperty
    public String getActionType() {
       return actionType;
    }
@@ -227,6 +233,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the action exec timestamp.
     * @return the specified action exec timestamp.
     */
+   @AuditRecordProperty
    public Timestamp getActionExecTimestamp() {
       return actionExecTimestamp;
    }
@@ -243,6 +250,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the dashboard name.
     * @return the specified dashboard name.
     */
+   @AuditRecordProperty
    public String getDashboardName() {
       return dashboardName;
    }
@@ -259,8 +267,9 @@ public class BookmarkRecord implements AuditRecord {
     * Get the dashboard alias.
     * @return the specified dashboard alias.
     */
+   @AuditRecordProperty
    public String getDashboardAlias() {
-      return dashboardAlias;
+      return dashboardAlias == null ? "" : dashboardAlias;
    }
 
    /**
@@ -275,6 +284,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the bookmark name.
     * @return the specified bookmark name.
     */
+   @AuditRecordProperty
    public String getBookmarkName() {
       return bookmarkName;
    }
@@ -291,6 +301,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the bookmark type.
     * @return the specified bookmark type.
     */
+   @AuditRecordProperty
    public String getBookmarkType() {
       return bookmarkType;
    }
@@ -307,6 +318,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the bookmark read-only.
     * @return the specified bookmark read-only.
     */
+   @AuditRecordProperty
    public String getBookmarkReadOnly() {
       return bookmarkReadOnly;
    }
@@ -323,6 +335,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the bookmark create date.
     * @return the specified bookmark create date.
     */
+   @AuditRecordProperty
    public Timestamp getBookmarkCreateDate() {
       return bookmarkCreateDate;
    }
@@ -339,6 +352,7 @@ public class BookmarkRecord implements AuditRecord {
     * Get the bookmark last update date.
     * @return the specified bookmark last update date.
     */
+   @AuditRecordProperty
    public Timestamp getBookmarkLastUpdateDate() {
       return bookmarkLastUpdateDate;
    }
@@ -351,6 +365,7 @@ public class BookmarkRecord implements AuditRecord {
       this.bookmarkLastUpdateDate = bookmarkLastUpdateDate;
    }
 
+   @AuditRecordProperty
    public String getServerHostName() {
       return serverHostName;
    }
@@ -359,6 +374,7 @@ public class BookmarkRecord implements AuditRecord {
       this.serverHostName = serverHostName;
    }
 
+   @AuditRecordProperty
    public String getOrganizationId() {
       return organizationId;
    }

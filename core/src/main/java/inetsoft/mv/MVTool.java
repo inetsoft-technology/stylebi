@@ -415,6 +415,7 @@ public class MVTool {
 
          for(int i = 0; i < size; i++) {
             Object obj = null;
+            byte b; int ival; long lval; short sval;
 
             switch(dataType) {
             case STRING_TYPE:
@@ -432,7 +433,7 @@ public class MVTool {
                }
                break;
             case BOOLEAN_TYPE:
-               byte b = input.readByte();
+               b = input.readByte();
                switch(b) {
                case 3:
                   obj = null;
@@ -445,16 +446,16 @@ public class MVTool {
                }
                break;
             case FLOAT_TYPE:
-               int ival = input.readInt();
+               ival = input.readInt();
                obj = ival == Tool.NULL_INTEGER ? null : Float.intBitsToFloat(ival);
                break;
             case DOUBLE_TYPE:
-               long lval = input.readLong();
+               lval = input.readLong();
                obj = lval == Tool.NULL_LONG ? null : Double.longBitsToDouble(lval);
                break;
             case CHAR_TYPE:
             case CHARACTER_TYPE:
-               short sval = input.readShort();
+               sval = input.readShort();
                obj = sval == Tool.NULL_SHORT ? null : (char) sval;
                break;
             case BYTE_TYPE:

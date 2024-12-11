@@ -79,12 +79,13 @@ public class PresentationSettingsController {
    {
       IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       boolean securityEnabled = !SecurityEngine.getSecurity().getSecurityProvider().isVirtual();
-      boolean globalProperty = (OrganizationManager.getInstance().isSiteAdmin(principal) && !orgSettings) || !securityEnabled;
+      boolean globalProperty = (OrganizationManager.getInstance().isSiteAdmin(principal) && !orgSettings)
+         || !securityEnabled || securityEnabled && !SUtil.isMultiTenant();
       return PresentationSettingsModel.builder()
          .lookAndFeelSettingsModel(lookAndFeelService.getModel(principal, globalProperty))
-         .welcomePageSettingsModel(welcomePageService.getModel())
+         .welcomePageSettingsModel(welcomePageService.getModel(globalProperty))
          .formatsSettingsModel(formatsSettingsService.getModel(globalProperty))
-         .loginBannerSettingsModel(loginBannerSettingsService.getModel())
+         .loginBannerSettingsModel(loginBannerSettingsService.getModel(globalProperty))
          .viewsheetToolbarOptionsModel(toolbarSettingsService.getViewsheetOptions(globalProperty))
          .portalIntegrationSettingsModel(portalIntegrationViewSettingsService.getModel(principal, globalProperty))
          .dashboardSettingsModel(dashboardSettingsService.getModel(globalProperty))
@@ -113,10 +114,10 @@ public class PresentationSettingsController {
    public PresentationSettingsModel applySettings(@RequestBody() PresentationSettingsModel model,
                                                   Principal principal) throws Exception
    {
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
       boolean securityEnabled = !SecurityEngine.getSecurity().getSecurityProvider().isVirtual();
       boolean globalSettings = OrganizationManager.getInstance().isSiteAdmin(principal) &&
-         (model.orgSettings() != null && !model.orgSettings()) || !securityEnabled;
+         (model.orgSettings() != null && !model.orgSettings()) || !securityEnabled ||
+         !SUtil.isMultiTenant();
 
       if(model.formatsSettingsModel() != null) {
          formatsSettingsService.setModel(model.formatsSettingsModel(), globalSettings);
@@ -127,7 +128,7 @@ public class PresentationSettingsController {
       }
 
       if(model.loginBannerSettingsModel() != null) {
-         loginBannerSettingsService.setModel(model.loginBannerSettingsModel());
+         loginBannerSettingsService.setModel(model.loginBannerSettingsModel(), globalSettings);
       }
 
       if(model.portalIntegrationSettingsModel() != null) {
@@ -144,7 +145,7 @@ public class PresentationSettingsController {
       }
 
       if(model.welcomePageSettingsModel() != null) {
-         welcomePageService.setModel(model.welcomePageSettingsModel());
+         welcomePageService.setModel(model.welcomePageSettingsModel(), globalSettings);
       }
 
       if(model.pdfGenerationSettingsModel() != null) {
@@ -204,10 +205,10 @@ public class PresentationSettingsController {
       dataSourceVisibilitySettingsService.resetSettings(globalSettings);
       webMapSettingsService.resetSettings(principal, globalSettings);
       dataSpaceContentSettingsService.deleteDataSpaceNode(ImageShapes.getShapesDirectory(), false);
+      welcomePageService.resetSettings(globalSettings);
+      loginBannerSettingsService.resetSettings(globalSettings);
 
       if(globalSettings) {
-         loginBannerSettingsService.resetSettings();
-         welcomePageService.resetSettings();
          fontMappingSettingsService.resetSettings();
       }
 

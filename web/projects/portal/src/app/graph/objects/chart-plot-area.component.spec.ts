@@ -21,6 +21,7 @@ import { By } from "@angular/platform-browser";
 import { HttpClient } from "@angular/common/http";
 import { BehaviorSubject, Subject } from "rxjs";
 import { Rectangle } from "../../common/data/rectangle";
+import { ContextProvider } from "../../vsobjects/context-provider.service";
 import { SelectionBoxDirective } from "../../widget/directive/selection-box.directive";
 import { DomService } from "../../widget/dom-service/dom.service";
 import { MouseEventDirective } from "../../widget/mouse-event/mouse-event.directive";
@@ -302,6 +303,7 @@ describe("ChartPlotArea Integration Tests", () => {
    let modelService: any;
    let httpService = { get: jest.fn(), post: jest.fn() };
    let responseObservable = new BehaviorSubject(new Subject());
+   const contextProvider = {};
    httpService.get.mockImplementation(() => responseObservable);
    httpService.post.mockImplementation(() => responseObservable);
 
@@ -329,7 +331,10 @@ describe("ChartPlotArea Integration Tests", () => {
             },
             {
                provide: HttpClient, useValue: httpService
-            }
+            },
+            {
+               provide: ContextProvider, useValue: contextProvider
+            },
          ]
       });
 

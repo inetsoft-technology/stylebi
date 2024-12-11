@@ -17,8 +17,7 @@
  */
 package inetsoft.report.internal.table;
 
-import inetsoft.util.Tool;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import inetsoft.util.*;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 import java.util.*;
@@ -28,18 +27,21 @@ import java.util.*;
  * generated and the relation to the group that generated the cell.
  */
 public class CalcCellContext {
+   public CalcCellContext(CalcCellContext c1, CalcCellContext c2) {
+      this.groups = new DelayedMergeMap<>(c1.groups, c2.groups);
+      this.valueidx = new DelayedMergeIntMap<>(c1.valueidx, c2.valueidx);
+   }
+
+   public CalcCellContext() {
+      groups = new Object2ObjectOpenHashMap<>();
+      valueidx = new DelayedMergeIntMap<>();
+   }
+
    /**
     * Create a context by merging the groups in the two contexts.
     */
    public static CalcCellContext merge(CalcCellContext context1, CalcCellContext context2) {
-      CalcCellContext context = new CalcCellContext();
-
-      context.groups.putAll(context1.groups);
-      context.groups.putAll(context2.groups);
-      context.valueidx.putAll(context1.valueidx);
-      context.valueidx.putAll(context2.valueidx);
-
-      return context;
+      return new CalcCellContext(context1, context2);
    }
 
    /**
@@ -91,6 +93,13 @@ public class CalcCellContext {
     */
    public int getGroupCount() {
       return groups.size();
+   }
+
+   /**
+    * Get if groups in the context is empty
+    */
+   public boolean isGroupEmpty() {
+      return groups.isEmpty();
    }
 
    public Map<String,Integer> getValueidx() {
@@ -147,7 +156,13 @@ public class CalcCellContext {
       CalcCellContext obj = new CalcCellContext();
 
       obj.valueidx = valueidx.clone();
-      obj.groups = groups.clone();
+
+      if(groups instanceof DelayedMergeMap) {
+         obj.groups = ((DelayedMergeMap<String, Group>) groups).clone();
+      }
+      else {
+         obj.groups = ((Object2ObjectOpenHashMap<String, Group>) groups).clone();
+      }
 
       return obj;
    }
@@ -313,6 +328,6 @@ public class CalcCellContext {
    }
 
    // name -> Group
-   private Object2ObjectOpenHashMap<String, Group> groups = new Object2ObjectOpenHashMap<>();
-   private Object2IntOpenHashMap<String> valueidx = new Object2IntOpenHashMap<>(); // name -> index in value arr
+   public Map<String, Group> groups;
+   private DelayedMergeIntMap<String> valueidx; // name -> index in value arr
 }

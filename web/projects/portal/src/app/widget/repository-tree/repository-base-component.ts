@@ -70,6 +70,8 @@ export abstract class RepositoryBaseComponent {
       let groups = [group];
       let entry: RepositoryEntry = node.data;
       let entries: RepositoryEntry[] = selectedNodes.map((treeNode) => treeNode.data);
+      let defaultOrgAsset = (entry as RepositoryEntry).defaultOrgAsset ||
+                           entries.some((e) => (e as RepositoryEntry).defaultOrgAsset);
 
       // no action for file folder
       if(entry.fileFolder) {
@@ -87,7 +89,7 @@ export abstract class RepositoryBaseComponent {
 
          let deleteEnable: boolean = entry.op.includes(RepositoryTreeAction.DELETE);
 
-         if(deleteEnable && !this.isFavoritesTree) {
+         if(deleteEnable && !this.isFavoritesTree && !defaultOrgAsset) {
             group.actions.push(this.createDeleteEntryAction(entries, deleteEnable));
          }
 
@@ -98,49 +100,49 @@ export abstract class RepositoryBaseComponent {
       if(entry.path === "/" || entry.path === "My Reports") {
          let newEnable = entry.op.includes(RepositoryTreeAction.NEW_FOLDER);
 
-         if(newEnable && !this.isFavoritesTree) {
+         if(newEnable && !this.isFavoritesTree && !defaultOrgAsset) {
             group.actions.push(this.createNewFolderAction(entry, newEnable));
          }
       }
       else if(entry.type === RepositoryEntryType.FOLDER) {
          let renameEnable = entry.op.includes(RepositoryTreeAction.RENAME);
 
-         if(renameEnable && !this.isFavoritesTree) {
+         if(renameEnable && !this.isFavoritesTree && !defaultOrgAsset) {
             group.actions.push(this.createRenameEntryAction(node, renameEnable));
          }
 
          let deleteEnable = entry.op.includes(RepositoryTreeAction.DELETE);
 
-         if(deleteEnable && !this.isFavoritesTree) {
+         if(deleteEnable && !this.isFavoritesTree && !defaultOrgAsset) {
             group.actions.push(this.createDeleteEntryAction(entries, deleteEnable));
          }
 
          let newEnable = entry.op.includes(RepositoryTreeAction.NEW_FOLDER);
 
-         if(newEnable && !this.isFavoritesTree) {
+         if(newEnable && !this.isFavoritesTree && !defaultOrgAsset) {
             group.actions.push(this.createNewFolderAction(entry, newEnable));
          }
 
-         if(renameEnable && newEnable && !this.isFavoritesTree) {
+         if(renameEnable && newEnable && !this.isFavoritesTree && !defaultOrgAsset) {
             group.actions.push(this.createEditFolderAction(entry, renameEnable && newEnable));
          }
       }
       else if(entry.type === RepositoryEntryType.VIEWSHEET) {
          let renameEnable = entry.op.includes(RepositoryTreeAction.RENAME);
 
-         if(renameEnable && !this.isFavoritesTree) {
+         if(renameEnable && !this.isFavoritesTree && !defaultOrgAsset) {
             group.actions.push(this.createRenameEntryAction(node, renameEnable));
          }
 
          let deleteEnable = entry.op.includes(RepositoryTreeAction.DELETE);
 
-         if(deleteEnable && !this.isFavoritesTree) {
+         if(deleteEnable && !this.isFavoritesTree && !defaultOrgAsset) {
             group.actions.push(this.createDeleteEntryAction(entries, deleteEnable));
          }
 
          let materializeEnable = entry.op.includes(RepositoryTreeAction.MATERIALIZE);
 
-         if(materializeEnable && entry.type === RepositoryEntryType.VIEWSHEET) {
+         if(materializeEnable && entry.type === RepositoryEntryType.VIEWSHEET && !defaultOrgAsset) {
             group.actions.push(this.createMaterializeAction(entries, materializeEnable));
          }
 
@@ -156,7 +158,7 @@ export abstract class RepositoryBaseComponent {
       }
 
       if(entry.path != "/") {
-         if(!this.isFavoritesTree) {
+         if(!this.isFavoritesTree && !defaultOrgAsset) {
             group.actions.push(this.createAddFavoritesAction(entry));
          }
 
@@ -315,6 +317,7 @@ export abstract class RepositoryBaseComponent {
       dialog.title = "_#(js:Rename)";
       dialog.label = "_#(js:Name)";
       dialog.value = oldName;
+      dialog.helpLinkKey = "RenameAsset";
 
       if(node.data.classType === "RepletFolderEntry" ||
          node.data.classType === "ViewsheetEntry") {
@@ -439,6 +442,12 @@ export abstract class RepositoryBaseComponent {
    {
       let event = new ChangeRepositoryEntryEvent(parent, entry, confirmed);
 
+      if(GuiTool.isHostGlobalNode(entry)) {
+         ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+            "_#(js:deny.edit.default.organization)");
+         return;
+      }
+
       this.loading = true;
       this.modelService.sendModel<MessageCommand>(CHANGE_ENTRY_URI, event)
          .subscribe((res) => {
@@ -472,12 +481,12 @@ export abstract class RepositoryBaseComponent {
    }
 
    private materializeEntry(entries: RepositoryEntry[]): void {
-      let dialog: AnalyzeMVDialog = ComponentTool.showDialog(
-         this.modalService, AnalyzeMVDialog, () => this.refreshTree(),
-         {backdrop: "static", windowClass: "analyze-mv-dialog"},
-         () => this.refreshTree());
-      dialog.selectedNodes = entries.map(
-         entry => new MVTreeModel(entry.path, entry.entry.identifier, entry.type, !!entry.owner));
+   let dialog: AnalyzeMVDialog = ComponentTool.showDialog(
+      this.modalService, AnalyzeMVDialog, () => this.refreshTree(),
+      {backdrop: "static", windowClass: "analyze-mv-dialog"},
+      () => this.refreshTree());
+   dialog.selectedNodes = entries.map(
+      entry => new MVTreeModel(entry.path, entry.entry.identifier, entry.type, !!entry.owner));
    }
 
    public refreshTree(): void {

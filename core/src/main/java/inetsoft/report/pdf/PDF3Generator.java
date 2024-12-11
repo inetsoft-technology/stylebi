@@ -20,9 +20,12 @@ package inetsoft.report.pdf;
 import inetsoft.graph.internal.GTool;
 import inetsoft.report.*;
 import inetsoft.report.internal.*;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.paging.SwappedEnumeration;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.uql.viewsheet.internal.VsToReportConverter;
+import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.security.Principal;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
@@ -356,6 +360,25 @@ public class PDF3Generator extends inetsoft.report.io.AbstractGenerator {
 
             Common.startPage(g, pg);
             pg.paintBg(g, 1.0, 1.0);
+
+            LicenseManager licenseManager = LicenseManager.getInstance();
+
+            if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0)
+            {
+               Util.drawWatermark(g, pg.getPageDimension());
+            }
+            else if(licenseManager.isHostedLicense()) {
+               Principal user = ThreadContext.getContextPrincipal();
+
+               if(user instanceof SRPrincipal principal) {
+                  String orgId = principal.getOrgId();
+                  String username = principal.getName();
+
+                  if(licenseManager.getHostedRemainingHours(orgId, username) == 0) {
+                     Util.drawWatermark(g, pg.getPageDimension());
+                  }
+               }
+            }
 
             linkContext.lastNode = null;
             linkContext.lastElem = null;

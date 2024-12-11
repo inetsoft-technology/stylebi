@@ -47,6 +47,9 @@ public interface EmailSettingsModel {
    @Nullable
    String smtpPassword();
 
+   @Nullable
+   String smtpSecretId();
+
    @Value.Default
    default boolean historyEnabled() {
       return false;
@@ -54,6 +57,9 @@ public interface EmailSettingsModel {
 
    @Value.Default
    default boolean fromAddressEnabled() { return false; }
+
+   @Value.Default
+   default boolean secretIdVisible() { return false; }
 
    String fromAddress();
 

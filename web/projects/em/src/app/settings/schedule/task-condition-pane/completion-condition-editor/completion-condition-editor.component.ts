@@ -60,6 +60,11 @@ export class CompletionConditionEditorComponent implements OnInit {
             this.fireModelChanged();
          }
       }
+
+      if(!this.form.valid) {
+         //propogate an initial invalid state caused by resource visibility
+         this.fireModelChanged();
+      }
    }
 
    fireModelChanged() {

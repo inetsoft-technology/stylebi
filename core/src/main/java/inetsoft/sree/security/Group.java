@@ -56,7 +56,7 @@ public class Group extends AbstractIdentity {
    public Group(IdentityID groupIdentity, String locale, String[] groups, IdentityID[] roles) {
       super();
       this.name = groupIdentity == null ? null : groupIdentity.name;
-      this.organization =  groupIdentity == null ? null : groupIdentity.organization;
+      this.organizationID =  groupIdentity == null ? null : groupIdentity.orgID;
       this.roles = roles;
       this.locale = locale;
       this.groups = groups;
@@ -73,9 +73,8 @@ public class Group extends AbstractIdentity {
    /**
     * Get organization ID assigned to the group.
     */
-   @Override
-   public String getOrganization() {
-      return this.organization;
+   public String getOrganizationID() {
+      return this.organizationID;
    }
 
    /**
@@ -113,7 +112,7 @@ public class Group extends AbstractIdentity {
          String[] cgroups = new String[groups.length];
          System.arraycopy(groups, 0, cgroups, 0, groups.length);
 
-         Group group = new Group(new IdentityID(name, organization), locale, cgroups, croles);
+         Group group = new Group(new IdentityID(name, organizationID), locale, cgroups, croles);
          return group;
       }
       catch(Exception ex) {
@@ -132,7 +131,7 @@ public class Group extends AbstractIdentity {
 
    @Override
    public IdentityID getIdentityID() {
-      return new IdentityID(name, organization);
+      return new IdentityID(name, organizationID);
    }
 
    /**
@@ -162,7 +161,7 @@ public class Group extends AbstractIdentity {
    }
 
    protected String name;
-   protected String organization;
+   protected String organizationID;
    protected IdentityID[] roles = new IdentityID[0];
    protected String[] groups = new String[0];
    protected String locale;
