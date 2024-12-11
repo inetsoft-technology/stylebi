@@ -22,7 +22,7 @@
   <parent>
     <groupId>com.inetsoft.stylebi</groupId>
     <artifactId>inetsoft-stylebi</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0-beta-1</version>
   </parent>
 
   <artifactId>inetsoft-core</artifactId>
@@ -842,7 +842,7 @@
       <plugin>
         <groupId>com.inetsoft.stylebi.build</groupId>
         <artifactId>antlr2-maven-plugin</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0-beta-1</version>
         <executions>
           <execution>
             <id>antlr2</id>
