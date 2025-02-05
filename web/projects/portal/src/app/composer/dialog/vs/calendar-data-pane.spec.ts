@@ -90,7 +90,8 @@ describe("Calendar Data Pane Unit Test", () => {
          selectedTable: null,
          additionalTables: [],
          selectedColumn: null,
-         targetTree: targetTree
+         targetTree: targetTree,
+         grayedOutFields: []
       };
       fixture.detectChanges();
    }));

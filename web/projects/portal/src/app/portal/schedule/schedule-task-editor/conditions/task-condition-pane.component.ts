@@ -34,12 +34,11 @@ import {
    Validators
 } from "@angular/forms";
 import { NgbDateStruct, NgbModal, NgbTimeStruct } from "@ng-bootstrap/ng-bootstrap";
-import { FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
 import { CompletionConditionModel } from "../../../../../../../shared/schedule/model/completion-condition-model";
-import {
-   ScheduleConditionModel,
-   ScheduleConditionModelType
-} from "../../../../../../../shared/schedule/model/schedule-condition-model";
+import { ScheduleConditionModel } from "../../../../../../../shared/schedule/model/schedule-condition-model";
+import { ScheduleTaskDialogModel } from "../../../../../../../shared/schedule/model/schedule-task-dialog-model";
 import { TaskConditionPaneModel } from "../../../../../../../shared/schedule/model/task-condition-pane-model";
 import {
    TimeConditionModel,
@@ -47,6 +46,7 @@ import {
    TimeRange
 } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
+import { TimeZoneService } from "../../../../../../../shared/schedule/time-zone.service";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../../common/util/component-tool";
@@ -56,34 +56,11 @@ import {
    storeCondition
 } from "../../../../common/util/schedule-condition.util";
 import { StartTimeData } from "../../../../widget/schedule/start-time-data";
-import { Observable } from "rxjs";
-import { ScheduleTaskDialogModel } from "../../../../../../../shared/schedule/model/schedule-task-dialog-model";
 
 const TASK_URI = "../api/portal/schedule/task/condition";
 const TZ_STORAGE_KEY: string = "inetsoft_conditionServerTimeZone";
 
-enum ChangeType {
-   /**
-    * Doing nothing for the time.
-    */
-   None,
-   /**
-    * Change time to server time zone.
-    */
-   ToServerTimeZone,
-   /**
-    * Change time to local time zone.
-    */
-   ToLocalTimeZone,
-   /**
-    * Adjust time for model from server.
-    *
-    * 1. If AT condition, adjust time zone for date if client is using server time zone,
-    *    and start/endTime will be adjust by date.
-    * 2. If not AT condition, adjust time zone for start/endTime if client is using local time zone.
-    */
-   AdjustServerModel
-}
+dayjs.extend(utc);
 
 @Component({
    selector: "task-condition-pane",
@@ -108,20 +85,23 @@ export class TaskConditionPane implements OnInit, OnChanges {
    @Output() listViewChanged = new EventEmitter<boolean>();
    @Output() closeEditor = new EventEmitter<TaskConditionPaneModel>();
    @Output() cancelTask = new EventEmitter();
-   @Input() public set model(value: TaskConditionPaneModel) {
-      this._model = value;
 
-      if(!value.conditions || value.conditions.length == 0) {
-         this.conditionIndex = -1;
-      }
-
-      if(value.conditions.length != 0 && value.conditions[0].conditionType == "CompletionCondition") {
-         this.getServerOffset();
-      }
+   @Input()
+   get model(): TaskConditionPaneModel {
+      return this._model;
    }
 
-   public get model(): TaskConditionPaneModel {
-      return this._model;
+   set model(value: TaskConditionPaneModel) {
+      this._model = value;
+
+      if(!!value) {
+         this.serverTimeZoneOffset = value.timeZoneOffset;
+         this.serverTimeZoneId = value.serverTimeZoneId;
+      }
+
+      if(!value || !value.conditions || value.conditions.length == 0) {
+         this.conditionIndex = -1;
+      }
    }
 
    allOptions = [
@@ -131,7 +111,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       { label: "_#(js:Hourly)", value: TimeConditionType.EVERY_HOUR },
       { label: "_#(js:Custom)", value: "UserCondition" },
       { label: "_#(js:Run Once)", value: TimeConditionType.AT },
-      { label: "_#(js:Chained)", value: "CompletionCondition" }
+      { label: "_#(js:Chained)",  value: "CompletionCondition" }
 
    ];
    enabledOptions = [];
@@ -206,26 +186,25 @@ export class TaskConditionPane implements OnInit, OnChanges {
    defaultWeekOfMonth: number = 1;
    defaultDayOfWeek: number = 1;
 
-   readonly FeatureFlagValue = FeatureFlagValue;
    private _model: TaskConditionPaneModel;
    private conditionIndex: number = 0;
    public TimeConditionType = TimeConditionType;
 
    selectedOption: any = this.allOptions[0].value;
    selectedConditions: number[] = [];
-   conditionLastClicked: number = -1;
 
    date: NgbDateStruct;
-   _startTime: NgbTimeStruct;
+   private _startTime: NgbTimeStruct;
+   private startTimeData: StartTimeData;
    endTime: NgbTimeStruct;
-   startTimeData: StartTimeData;
 
    timeZoneName: string;
-   serverTimeZone: boolean = true;
-   timeZoneOffset: number;
-   localTimeZoneId: string = null;
+   serverTimeZone: boolean = false;
+   private serverTimeZoneOffset = 0;
+   private serverTimeZoneId: string;
+   localTimeZoneOffset = 0;
+   localTimeZoneId: string;
    localTimeZoneLabel: string;
-   serverTimeZoneOffset: number = null;
 
    get startTime(): NgbTimeStruct {
       return this._startTime;
@@ -250,7 +229,9 @@ export class TaskConditionPane implements OnInit, OnChanges {
    }
 
    constructor(private http: HttpClient,
-      private modalService: NgbModal) {
+               private modalService: NgbModal,
+               private timeZoneService: TimeZoneService)
+   {
    }
 
    get condition(): ScheduleConditionModel {
@@ -265,7 +246,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
       }
 
       if(this.model.conditions && conditionsLength > this.conditionIndex &&
-         conditionsLength > 0) {
+         conditionsLength > 0)
+      {
          return this.model.conditions[this.conditionIndex];
       }
 
@@ -307,10 +289,43 @@ export class TaskConditionPane implements OnInit, OnChanges {
       return !this.model.conditions ? [] : this.model.conditions.map(a => a.label);
    }
 
+   get formStartTimeData(): StartTimeData {
+      return this.startTimeData;
+   }
+
+   set formStartTimeData(value: StartTimeData) {
+      this.onStartTimeDataChanged(value);
+   }
+
+   get formStartTime(): NgbTimeStruct {
+      return this.startTime;
+   }
+
+   set formStartTime(value: NgbTimeStruct) {
+      this.userSetStartTime(value);
+   }
+
+   get formEndTime(): NgbTimeStruct {
+      return this.endTime;
+   }
+
+   set formEndTime(value: NgbTimeStruct) {
+      this.setEndTime(value);
+      this.updateEndTime();
+   }
+
+   get formDate(): NgbDateStruct {
+      return this.date;
+   }
+
+   set formDate(value: NgbDateStruct) {
+      this.dateChange(value);
+   }
+
    ngOnInit(): void {
       if(!this.date) {
          const date = new Date();
-         this.date = <NgbDateStruct>{
+         this.date = <NgbDateStruct> {
             day: date.getUTCDate(),
             month: date.getUTCMonth() + 1,
             year: date.getUTCFullYear()
@@ -325,8 +340,10 @@ export class TaskConditionPane implements OnInit, OnChanges {
          this.allOptions.splice(4, 1);
       }
 
-      this.getTimeZone();
+      this.initConditions();
+      this.initTimeZone();
       this.updateValues();
+
       this.enabledOptions = this.allOptions.filter((option) =>
          this.startTimeEnabled || option.value !== TimeConditionType.AT &&
          option.value !== TimeConditionType.EVERY_HOUR);
@@ -338,145 +355,28 @@ export class TaskConditionPane implements OnInit, OnChanges {
       }
    }
 
-   public changeConditionClass(label: string) {
-      const index: number = this.model.userDefinedClassLabels.indexOf(label);
-   }
-
-   private convertTimeZone(time: number, type: ChangeType): Date {
-      if(type == ChangeType.AdjustServerModel) {
-         type = this.serverTimeZone ? ChangeType.ToServerTimeZone : ChangeType.None;
-      }
-
-      if(type === ChangeType.None) {
-         return new Date(time);
-      }
-
-      if(type === ChangeType.ToServerTimeZone) {
-         return this.convertTimeToServerTimeZone(time);
-      }
-      else {
-         return this.convertTimeToLocalTimeZone(time);
-      }
-   }
-
-   private convertTimeToServerTimeZone(time: number): Date {
-      if(this.serverTimeZone) {
-         return new Date(time);
-      }
-
-      const localOffset: number = this.getLocalTimezoneOffset();
-
-      const serverOffset: number = (<TimeConditionModel>this.condition).timeZoneOffset || 0;
-      time += localOffset + serverOffset;
-
-      return new Date(time);
-   }
-
-   private convertTimeToLocalTimeZone(time: number): Date {
-      const localOffset: number = this.getLocalTimezoneOffset();
-      const serverOffset: number = (<TimeConditionModel>this.condition).timeZoneOffset || 0;
-      time -= localOffset + serverOffset;
-
-      return new Date(time);
-   }
-
-   private getLocalTimezoneOffset(): number {
-      if(!this.timeZoneOffset) {
-         let date = new Date();
-
-         if(!!this.localTimeZoneId) {
-            const UTC = new Date(date.toLocaleString([], { timeZone: "UTC" }));
-            const selectedTZ = new Date(date.toLocaleString([], { timeZone: this.localTimeZoneId }));
-            this.timeZoneOffset = (UTC.getTime() - selectedTZ.getTime());
-         }
-         else {
-            this.timeZoneOffset = new Date().getTimezoneOffset() * 60000;
-         }
-      }
-
-      return this.timeZoneOffset;
-   }
-
-   /**
-    * Adjust given time to local timezone if necessary.
-    * @param date
-    */
-   private adjustTimeZone(date: Date, type: ChangeType): NgbTimeStruct {
-      let time: number = date.getTime();
-
-      // for model from server, hour/minute/second don't need to adjust time zone.
-      if(type == ChangeType.AdjustServerModel) {
-         type = this.serverTimeZone ? ChangeType.None : ChangeType.ToLocalTimeZone;
-      }
-
-      let adjustedDate = this.convertTimeZone(time, type);
-
-      return {
-         hour: adjustedDate.getHours(),
-         minute: adjustedDate.getMinutes(),
-         second: adjustedDate.getSeconds()
-      };
-   }
-
-   /**
-    * If the timezone has been changed to local, change back to server.
-    */
-   private revertTimeZone(condition: ScheduleConditionModel): void {
-      if(!this.serverTimeZone) {
-         const localOffset: number = new Date().getTimezoneOffset() * 60000;
-         const serverOffset: number =
-            (<TimeConditionModel>condition).timeZoneOffset || 0;
-
-         let startDate: Date = new Date();
-         startDate.setHours((<TimeConditionModel>condition).hour);
-         startDate.setMinutes((<TimeConditionModel>condition).minute);
-         startDate.setSeconds((<TimeConditionModel>condition).second);
-         let startTime: number = startDate.getTime();
-         startTime += localOffset + serverOffset;
-         startDate = new Date(startTime);
-         (<TimeConditionModel>condition).hour = startDate.getHours();
-         (<TimeConditionModel>condition).minute = startDate.getMinutes();
-         (<TimeConditionModel>condition).second = startDate.getSeconds();
-
-         let endDate: Date = new Date();
-         endDate.setHours((<TimeConditionModel>condition).hourEnd);
-         endDate.setMinutes((<TimeConditionModel>condition).minuteEnd);
-         endDate.setSeconds((<TimeConditionModel>condition).secondEnd);
-         let endTime: number = endDate.getTime();
-         endTime += localOffset + serverOffset;
-         endDate = new Date(endTime);
-         (<TimeConditionModel>condition).hourEnd = endDate.getHours();
-         (<TimeConditionModel>condition).minuteEnd = endDate.getMinutes();
-         (<TimeConditionModel>condition).secondEnd = endDate.getSeconds();
-
-         const time: number = (<TimeConditionModel>condition).date;
-         const date: Date = this.convertTimeZone(time, ChangeType.ToServerTimeZone);
-         (<TimeConditionModel>condition).date = date.getTime();
-      }
-   }
-
-   private updateStartTime(type: ChangeType): void {
+   private updateStartTime(): void {
       if((<TimeConditionModel>this.condition).type != TimeConditionType.AT) {
-         const date: Date = new Date();
-         date.setHours((<TimeConditionModel>this.condition).hour);
-         date.setMinutes((<TimeConditionModel>this.condition).minute);
-         date.setSeconds((<TimeConditionModel>this.condition).second);
-
          this.startTime = {
-            hour: (<TimeConditionModel>this.condition).hour,
-            minute: (<TimeConditionModel>this.condition).minute,
-            second: (<TimeConditionModel>this.condition).second
+            hour: (<TimeConditionModel> this.condition).hour,
+            minute: (<TimeConditionModel> this.condition).minute,
+            second: (<TimeConditionModel> this.condition).second
          };
       }
       else {
-         type = this.serverTimeZone ? type : ChangeType.ToLocalTimeZone;
-         const time: number = (<TimeConditionModel>this.condition).date;
-         this.startTime = this.adjustTimeZone(new Date(time), type);
+         const time: number = (<TimeConditionModel> this.condition).date;
+         const date = dayjs(time).utcOffset((this.currentTimeZoneOffset || 0) / 60000);
+
+         this.startTime = {
+            hour: date.hour(),
+            minute: date.minute(),
+            second: date.second()
+         };
       }
    }
 
    private updateStartTimeData(): void {
-      const range = ((<TimeConditionModel>this.condition).timeRange);
+      const range = ((<TimeConditionModel> this.condition).timeRange);
       const selected = !range && this.startTimeEnabled;
       const defaultTimeRange = this.timeRanges.length ? this.timeRanges[0] : null;
       this.startTimeData = {
@@ -487,21 +387,20 @@ export class TaskConditionPane implements OnInit, OnChanges {
       };
 
       if(this.selectedOption !== TimeConditionType.AT && this.selectedOption !== TimeConditionType.EVERY_HOUR) {
-         this.form?.controls["startTime"]?.setValue(this.startTimeData);
+         this.form?.controls["startTime"]?.setValue(this.formStartTimeData);
       }
    }
 
-   public userSetStartTime(time: NgbTimeStruct): void {
+   private userSetStartTime(time: NgbTimeStruct): void {
       this.setStartTime(time);
-
       this.taskDefaultTime = !!time;
    }
 
-   onStartTimeDataChanged(data: StartTimeData): void {
+   private onStartTimeDataChanged(data: StartTimeData): void {
       if(data) {
          if(data.startTimeSelected) {
             this.setStartTime(data.startTime);
-            (<TimeConditionModel>this.condition).timeRange = null;
+            (<TimeConditionModel> this.condition).timeRange = null;
 
             if(!this.serverTimeZone) {
                this.form.get("timeZone").enable();
@@ -509,51 +408,49 @@ export class TaskConditionPane implements OnInit, OnChanges {
          }
          else {
             this.setStartTime(data.startTime);
-            (<TimeConditionModel>this.condition).timeRange = data.timeRange;
+            (<TimeConditionModel> this.condition).timeRange = data.timeRange;
             this.form.get("timeZone").disable();
          }
       }
       else {
          this.setStartTime(null);
-         (<TimeConditionModel>this.condition).timeRange = null;
+         (<TimeConditionModel> this.condition).timeRange = null;
       }
 
-      this.startTimeData = data;
-      this.taskDefaultTime = !!data && data.valid;
+      if(!Tool.isEquals(this.startTimeData, data)) {
+         this.startTimeData = data;
+         this.taskDefaultTime = !!data && data.valid;
+      }
    }
 
    private setStartTime(time: NgbTimeStruct): void {
-      if(time && (<TimeConditionModel>this.condition).type != TimeConditionType.AT) {
-         (<TimeConditionModel>this.condition).hour = time.hour;
-         (<TimeConditionModel>this.condition).minute = time.minute;
-         (<TimeConditionModel>this.condition).second = 0;
+      if(time && (<TimeConditionModel> this.condition).type != TimeConditionType.AT) {
+         (<TimeConditionModel> this.condition).hour = time.hour;
+         (<TimeConditionModel> this.condition).minute = time.minute;
+         (<TimeConditionModel> this.condition).second = 0;
       }
-      else if((<TimeConditionModel>this.condition).type == TimeConditionType.AT) {
+      else if((<TimeConditionModel> this.condition).type == TimeConditionType.AT) {
          const dateTime: number = (<TimeConditionModel>this.condition).date;
-         const localDate = this.convertTimeToLocalTimeZone(dateTime);
-
-         //dateChange method will reduce one month
+         const date = dayjs(dateTime).utcOffset((this.currentTimeZoneOffset || 0) / 60000);
          this.dateChange({
-            year: localDate.getFullYear(),
-            month: localDate.getMonth(),
-            day: localDate.getDate()
-         }, false, time);
+            year: date.year(),
+            month: date.month() + 1,
+            day: date.date()
+         }, time);
       }
 
       this.startTime = time;
    }
 
-   private updateDate(type: ChangeType): void {
+   private updateDate(): void {
       const time: number = (<TimeConditionModel>this.condition).date;
 
       if(time) {
-         const date: Date = this.convertTimeZone(time, type);
-         //(<TimeConditionModel>this.condition).date = date.getTime();
-
+         const date = dayjs(time).utcOffset((this.currentTimeZoneOffset || 0) / 60000);
          this.date = {
-            year: date.getFullYear(),
-            month: date.getMonth() + 1,
-            day: date.getDate()
+            year: date.year(),
+            month: date.month() + 1,
+            day: date.date()
          };
       }
       else {
@@ -561,60 +458,89 @@ export class TaskConditionPane implements OnInit, OnChanges {
       }
    }
 
-   public dateChange(date: NgbDateStruct, isYearToDay: boolean = true, time?: NgbTimeStruct): void {
-      let month = isYearToDay ? date.month - 1 : date.month;
-      let compiledDate: Date = null;
-      let cond: TimeConditionModel = <TimeConditionModel>this.condition;
+   private dateChange(date: NgbDateStruct, time?: NgbTimeStruct): void {
+      // Ngb month from the date picker starts with 1 whereas dayjs month starts with 0
+      // Change it to 0-based month since it will be used in dayjs
+      let month = date.month - 1;
+      let cond: TimeConditionModel = <TimeConditionModel> this.condition;
 
-      if((<TimeConditionModel>this.condition).type != TimeConditionType.AT) {
-         compiledDate = new Date(date.year, month, date.day, cond.hour, cond.minute, cond.second);
+      if((<TimeConditionModel> this.condition).type != TimeConditionType.AT) {
+         const compiled = dayjs().utcOffset((this.currentTimeZoneOffset || 0) / 60000)
+            .year(date.year)
+            .month(month)
+            .date(date.day)
+            .hour(cond.hour)
+            .minute(cond.minute)
+            .second(cond.second)
+            .millisecond(0);
+         cond.date = compiled.valueOf();
       }
       else {
-         const date0: Date = new Date(cond.date);
-
          if(time) {
-            compiledDate = new Date(date.year, month, date.day, time.hour, time.minute, 0);
-            compiledDate = this.convertTimeToServerTimeZone(compiledDate.getTime());
+            const compiled = dayjs()
+               .utcOffset((this.currentTimeZoneOffset || 0) / 60000)
+               .year(date.year)
+               .month(month)
+               .date(date.day)
+               .hour(time.hour)
+               .minute(time.minute)
+               .second(0)
+               .millisecond(0);
+            cond.date = compiled.valueOf();
          }
          else if(cond.hour != undefined && !Number.isNaN(cond.hour) && cond.hour != -1 &&
             cond.minute != undefined && !Number.isNaN(cond.minute) && cond.minute != -1 &&
-            cond.second != undefined && !Number.isNaN(cond.second) && cond.second != -1) {
-            compiledDate = new Date(date.year, month, date.day, cond.hour, cond.minute, cond.second);
+            cond.second != undefined && !Number.isNaN(cond.second) && cond.second != -1)
+         {
+            const compiled = dayjs()
+               .utcOffset((this.currentTimeZoneOffset || 0) / 60000)
+               .year(date.year)
+               .month(month)
+               .date(date.day)
+               .hour(cond.hour)
+               .minute(cond.minute)
+               .second(cond.second)
+               .millisecond(0);
+            cond.date = compiled.valueOf();
          }
          else {
-            compiledDate = new Date(date.year, month, date.day,
-               date0.getHours(), date0.getMinutes(), date0.getSeconds());
+            const compiled = dayjs(cond.date)
+               .utcOffset((this.currentTimeZoneOffset || 0) / 60000)
+               .year(date.year)
+               .month(month)
+               .date(date.day)
+               .millisecond(0);
+            cond.date = compiled.valueOf();
          }
       }
-
-      cond.date = compiledDate.getTime();
       cond.hour = -1;
       cond.minute = -1;
       cond.second = -1;
    }
 
-   public updateEndTime(type: ChangeType): void {
+   private updateEndTime(): void {
       this.endTime = {
-         hour: (<TimeConditionModel>this.condition).hourEnd,
-         minute: (<TimeConditionModel>this.condition).minuteEnd,
-         second: (<TimeConditionModel>this.condition).secondEnd
-      };
+         hour: (<TimeConditionModel> this.condition).hourEnd,
+         minute: (<TimeConditionModel> this.condition).minuteEnd,
+         second: (<TimeConditionModel> this.condition).secondEnd
+      } as NgbTimeStruct;
    }
 
-   public setEndTime(time: NgbTimeStruct): void {
+   private setEndTime(time: NgbTimeStruct): void {
       if(time) {
-         (<TimeConditionModel>this.condition).hourEnd = time.hour;
-         (<TimeConditionModel>this.condition).minuteEnd = time.minute;
-         (<TimeConditionModel>this.condition).secondEnd = time.second;
+         (<TimeConditionModel> this.condition).hourEnd = time.hour;
+         (<TimeConditionModel> this.condition).minuteEnd = time.minute;
+         (<TimeConditionModel> this.condition).secondEnd = time.second;
       }
    }
 
    private setSelectedOption(): void {
       let optionType;
 
-      if(!!(<TimeConditionModel>this.condition).type
-         || (<TimeConditionModel>this.condition).type == 0) {
-         optionType = (<TimeConditionModel>this.condition).type;
+      if(!!(<TimeConditionModel> this.condition).type ||
+         (<TimeConditionModel> this.condition).type == 0)
+      {
+         optionType = (<TimeConditionModel> this.condition).type;
       }
       else {
          optionType = this.condition.conditionType;
@@ -627,9 +553,10 @@ export class TaskConditionPane implements OnInit, OnChanges {
    public changeConditionType(option: any): void {
       this.saveConditionType(this.selectedOption);
       const optionType = option.value;
-      const otype = this.condition.conditionType;
 
-      if(optionType != otype && optionType != (<TimeConditionModel>this.condition).type) {
+      if(optionType != this.condition.conditionType &&
+         optionType != (<TimeConditionModel> this.condition).type)
+      {
          this.selectedOption = optionType;
 
          if(optionType === "CompletionCondition") {
@@ -652,13 +579,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
          }
 
          this.condition.label = "_#(js:New Condition)";
-         this.getTimeZone();
          this.initForm();
-         this.updateTimesAndDates(ChangeType.None);
-
-         if(otype == "CompletionCondition" && optionType != "CompletionCondition" && this.serverTimeZoneOffset != null) {
-            (<TimeConditionModel>this.condition).timeZoneOffset = this.serverTimeZoneOffset;
-         }
+         this.updateTimesAndDates();
       }
    }
 
@@ -669,29 +591,14 @@ export class TaskConditionPane implements OnInit, OnChanges {
    public save(ok: boolean): void {
       this.saveTask().then(() => {
          storeCondition(this.condition);
-         this.updateTimesAndDates(ChangeType.AdjustServerModel);
+         this.updateTimesAndDates();
          this.form.markAsPristine();
          this.updateTaskName.emit(this.taskName);
 
-         if(ok) {
-            // if(!this.serverTimeZone) {
-            //    this.updateTimesAndDates(ChangeType.ToServerTimeZone);
-            // }
-
-            if(this.model.conditions.length > 1) {
-               this.changeView(true);
-            }
+         if(ok && this.model.conditions.length > 1 && !this.listView) {
+            this.changeView(true);
          }
       });
-   }
-
-   private handleSaveError(error: any) {
-      if(error.error == "Dependency cycle found!") {
-         ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)", error.error);
-      }
-      else {
-         ComponentTool.showHttpError("Failed to save schedule task", error, this.modalService);
-      }
    }
 
    public addCondition(): void {
@@ -703,7 +610,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
    }
 
    public deleteCondition(): void {
-      const message: string = "_#(js:em.scheduler.conditions.removeNote)";
+      const message: string = "_#(em.scheduler.conditions.removeNote)";
       ComponentTool.showConfirmDialog(this.modalService, "_#(js:Confirm)", message).then(
          (result: string) => {
             if(result === "ok") {
@@ -713,15 +620,15 @@ export class TaskConditionPane implements OnInit, OnChanges {
                conditions.reverse();
 
                this.http.post(TASK_URI + "/delete", conditions, { params: params })
-                  .subscribe((condition: any) => {
-                     for(let index of conditions) {
-                        this._model.conditions.splice(index, 1);
-                     }
+                  .subscribe(() => {
+                        for(let index of conditions) {
+                           this._model.conditions.splice(index, 1);
+                        }
 
-                     this.selectedConditions = [];
-                     this.conditionIndex = this._model.conditions.length - 1;
-                  },
-                     (error: string) => {
+                        this.selectedConditions = [];
+                        this.conditionIndex = this._model.conditions.length - 1;
+                     },
+                     () => {
                         // Error
                      });
             }
@@ -733,41 +640,33 @@ export class TaskConditionPane implements OnInit, OnChanges {
          return;
       }
 
+      this.localTimeZoneId = null;
       this.conditionIndex = this.selectedConditions[0];
       this.condition = this.model.conditions[this.conditionIndex];
-      this.getTimeZone();
+      this.initTimeZone(true);
       this.updateValues();
       this.listView = false;
       this.setSelectedOption();
    }
 
    private updateValues(): void {
-      this.timeZoneOffset = null;
-
-      if(this.localTimeZoneId) {
-         this.getLocalTimezoneOffset();
-      }
-      else {
-         this.timeZoneOffset = new Date().getTimezoneOffset() * 60000;
-      }
-
-      this.updateTimesAndDates(ChangeType.ToLocalTimeZone);
+      this.updateTimesAndDates();
       this.listView = this.model.conditions && this.model.conditions.length > 1;
       this.setSelectedOption();
       this.initConditions();
    }
 
-   private updateTimesAndDates(type: ChangeType): void {
-      if(this.condition && this.condition.conditionType == "TimeCondition") {
-         this.updateDate(type);
-         this.updateStartTime(type);
+   private updateTimesAndDates(): void {
+      if(this.isTimeCondition(this.condition)) {
+         this.updateDate();
+         this.updateStartTime();
          this.updateStartTimeData();
-         this.updateEndTime(type);
+         this.updateEndTime();
       }
    }
 
    public changeMonthRadioOption(value: boolean): void {
-      (<TimeConditionModel>this.condition).monthlyDaySelected = value;
+      (<TimeConditionModel> this.condition).monthlyDaySelected = value;
 
       if(value) {
          this.addDayOfMonthControl();
@@ -777,22 +676,25 @@ export class TaskConditionPane implements OnInit, OnChanges {
       }
 
       if(value) {
-         (<TimeConditionModel>this.condition).weekOfMonth = null;
-         (<TimeConditionModel>this.condition).dayOfWeek = null;
-         (<TimeConditionModel>this.condition).dayOfMonth = this.defaultDayOfMonth;
+         (<TimeConditionModel> this.condition).weekOfMonth = null;
+         (<TimeConditionModel> this.condition).dayOfWeek = null;
+         (<TimeConditionModel> this.condition).dayOfMonth = this.defaultDayOfMonth;
       }
       else {
-         (<TimeConditionModel>this.condition).dayOfMonth = null;
-         (<TimeConditionModel>this.condition).weekOfMonth = this.defaultWeekOfMonth;
-         (<TimeConditionModel>this.condition).dayOfWeek = this.defaultDayOfWeek;
+         (<TimeConditionModel> this.condition).dayOfMonth = null;
+         (<TimeConditionModel> this.condition).weekOfMonth = this.defaultWeekOfMonth;
+         (<TimeConditionModel> this.condition).dayOfWeek = this.defaultDayOfWeek;
       }
    }
 
-   setLocalTimeZone(init: boolean = false) {
+   setLocalTimeZone(newLocalTimeZoneId: any) {
+      const oldLocalTimeZoneId = this.localTimeZoneId;
+
       if(!this.timeZoneOptions) {
          return;
       }
 
+      this.localTimeZoneId = newLocalTimeZoneId;
       const id = this.localTimeZoneId;
       let tz = this.timeZoneOptions.find(option => option.timeZoneId == id);
 
@@ -801,11 +703,6 @@ export class TaskConditionPane implements OnInit, OnChanges {
          this.localTimeZoneId = this.timeZoneOptions[0].timeZoneId;
       }
 
-      const date = new Date();
-      const UTC = new Date(date.toLocaleString([], { timeZone: "UTC" }));
-      const selectedTZ = new Date(date.toLocaleString([], { timeZone: this.localTimeZoneId }));
-      this.timeZoneOffset = (UTC.getTime() - selectedTZ.getTime());
-
       if(tz == this.timeZoneOptions[0]) {
          this.localTimeZoneLabel = new Date().toTimeString().match(/\((.+)\)/)[1];
       }
@@ -813,51 +710,25 @@ export class TaskConditionPane implements OnInit, OnChanges {
          this.localTimeZoneLabel = tz.label;
       }
 
-      if(!this.serverTimeZone && !init) {
-         this.updateTimeZone();
-      }
+      this.updateTimeZone();
 
-      if(!init) {
-         this.updateTimeZone();
-
-         if(!!this.form.get("startTime")) {
-            if(this.selectedOption === TimeConditionType.AT ||
-               this.selectedOption === TimeConditionType.EVERY_HOUR) {
-               this.form.get("startTime").setValue(this.startTime);
-            }
-            else {
-               this.form.get("startTime").setValue(this.startTimeData);
-            }
-         }
-
-         if(!!this.form.get("endTime")) {
-            this.form.get("endTime").setValue(this.endTime);
-         }
-      }
-      else {
-         this.timeZoneName = this.serverTimeZone ? this.timeZone :
-            this.localTimeZoneLabel != null ? this.localTimeZoneLabel :
-               new Date().toTimeString().match(/\((.+)\)/)[1];
-
-         if(this.serverTimeZone) {
-            this.form.get("timeZone").disable();
-         }
-         else {
-            this.form.get("timeZone").enable();
-         }
+      if(!this.serverTimeZone && oldLocalTimeZoneId != null) {
+         this.convertToTimeZone(this.timeZoneService.calculateTimezoneOffset(oldLocalTimeZoneId),
+            this.localTimeZoneOffset);
       }
    }
 
    initForm() {
       let startControl: UntypedFormControl;
-      let timeZoneControl = new UntypedFormControl({ value: "" });
+      let timeZoneControl = new UntypedFormControl({value: this.localTimeZoneId || ""});
 
       if(this.selectedOption === TimeConditionType.AT ||
-         this.selectedOption === TimeConditionType.EVERY_HOUR) {
-         startControl = new UntypedFormControl(this.startTime, this.checkTimeNotNull);
+         this.selectedOption === TimeConditionType.EVERY_HOUR)
+      {
+         startControl = new UntypedFormControl(this.formStartTime, this.checkTimeNotNull);
       }
       else {
-         startControl = new UntypedFormControl(this.startTimeData, this.checkStartTimeData);
+         startControl = new UntypedFormControl(this.formStartTimeData, this.checkStartTimeData);
       }
 
       // Daily Condition
@@ -867,7 +738,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
          this.form = new UntypedFormGroup({
             "startTime": startControl,
             "timeZone": timeZoneControl,
-            "interval": new UntypedFormControl({ value: "", disabled: timeCondition.weekdayOnly })
+            "interval": new UntypedFormControl({value: "", disabled: timeCondition.weekdayOnly})
          });
 
          if(!timeCondition.weekdayOnly) {
@@ -876,8 +747,6 @@ export class TaskConditionPane implements OnInit, OnChanges {
          else {
             this.removeIntervalControl();
          }
-
-         this.setLocalTimeZone(true);
       }
       // Weekly Condition
       else if(this.selectedOption == TimeConditionType.EVERY_WEEK) {
@@ -895,8 +764,6 @@ export class TaskConditionPane implements OnInit, OnChanges {
                weekdayControls,
                this.atLeastOneSelected)
          });
-
-         this.setLocalTimeZone(true);
       }
       // Monthly Condition
       else if(this.selectedOption == TimeConditionType.EVERY_MONTH) {
@@ -925,21 +792,19 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
          if(timeCondition.monthlyDaySelected) {
             this.addDayOfMonthControl();
-            let dayOfMonth = (<TimeConditionModel>this.condition).dayOfMonth;
-            (<TimeConditionModel>this.condition).dayOfMonth =
+            let dayOfMonth = (<TimeConditionModel> this.condition).dayOfMonth;
+            (<TimeConditionModel> this.condition).dayOfMonth =
                dayOfMonth ? dayOfMonth : this.defaultDayOfMonth;
          }
          else {
             this.addWeekOfMonthControl();
-            let weekOfMonth = (<TimeConditionModel>this.condition).weekOfMonth;
-            let dayOfWeek = (<TimeConditionModel>this.condition).dayOfWeek;
-            (<TimeConditionModel>this.condition).weekOfMonth =
+            let weekOfMonth = (<TimeConditionModel> this.condition).weekOfMonth;
+            let dayOfWeek = (<TimeConditionModel> this.condition).dayOfWeek;
+            (<TimeConditionModel> this.condition).weekOfMonth =
                weekOfMonth ? weekOfMonth : this.defaultWeekOfMonth;
-            (<TimeConditionModel>this.condition).dayOfWeek =
+            (<TimeConditionModel> this.condition).dayOfWeek =
                dayOfWeek ? dayOfWeek : this.defaultDayOfWeek;
          }
-
-         this.setLocalTimeZone(true);
       }
       // Hourly Condition
       else if(this.selectedOption == TimeConditionType.EVERY_HOUR) {
@@ -949,7 +814,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
          this.form = new UntypedFormGroup({
             "startTime": startControl,
             "timeZone": timeZoneControl,
-            "endTime": new UntypedFormControl(this.endTime, this.checkTimeNotNull),
+            "endTime": new UntypedFormControl(this.formEndTime, this.checkTimeNotNull),
             "interval": new UntypedFormControl(timeCondition.hourlyInterval, [
                Validators.required,
                FormValidators.positiveNonZeroInRange
@@ -958,8 +823,6 @@ export class TaskConditionPane implements OnInit, OnChanges {
                weekdayControls,
                this.atLeastOneSelected)
          }, this.timeSmallerThan("startTime", "endTime"));
-
-         this.setLocalTimeZone(true);
       }
       // Run Once Condition
       else if(this.selectedOption == TimeConditionType.AT) {
@@ -970,23 +833,22 @@ export class TaskConditionPane implements OnInit, OnChanges {
             "timeZone": timeZoneControl,
             "date": new UntypedFormControl(timeCondition.date, Validators.required),
          });
-
-         this.setLocalTimeZone(true);
       }
       // Chained Condition
       else if(this.selectedOption == "CompletionCondition") {
          const completionCondition = this.condition as CompletionConditionModel;
-         let taskName = (<CompletionConditionModel>this.condition).taskName;
+         let taskName = (<CompletionConditionModel> this.condition).taskName;
 
          if(this.model.allTasks) {
             if(!taskName || !this.model.allTasks.find(task =>
-               task.name == (<CompletionConditionModel>this.condition).taskName)) {
-               (<CompletionConditionModel>this.condition).taskName =
+               task.name == (<CompletionConditionModel> this.condition).taskName))
+            {
+               (<CompletionConditionModel> this.condition).taskName =
                   this.model.allTasks.length > 0 ? this.model.allTasks[0].name : null;
             }
          }
          else {
-            (<CompletionConditionModel>this.condition).taskName = taskName;
+            (<CompletionConditionModel> this.condition).taskName = taskName;
          }
 
          this.form = new UntypedFormGroup({
@@ -1003,7 +865,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
          FormValidators.positiveNonZeroIntegerInRange,
       ]);
       this.form.controls["interval"]
-         .reset({ value: 1, disabled: timeCondition.weekdayOnly });
+         .reset({value: 1, disabled: timeCondition.weekdayOnly});
       this.form.controls["interval"].updateValueAndValidity();
    }
 
@@ -1012,7 +874,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       this.form.controls["interval"].setValidators(null);
       this.form.controls["interval"]
-         .reset({ value: "", disabled: timeCondition.weekdayOnly });
+         .reset({value: "", disabled: timeCondition.weekdayOnly});
       this.form.controls["interval"].updateValueAndValidity();
    }
 
@@ -1021,17 +883,17 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       this.form.controls["weekOfMonth"].setValidators(null);
       this.form.controls["weekOfMonth"]
-         .reset({ value: "", disabled: timeCondition.monthlyDaySelected });
+         .reset({value: "", disabled: timeCondition.monthlyDaySelected});
       this.form.controls["weekOfMonth"].updateValueAndValidity();
 
       this.form.controls["dayOfWeek"].setValidators(null);
       this.form.controls["dayOfWeek"]
-         .reset({ value: "", disabled: timeCondition.monthlyDaySelected });
+         .reset({value: "", disabled: timeCondition.monthlyDaySelected});
       this.form.controls["dayOfWeek"].updateValueAndValidity();
 
       this.form.controls["dayOfMonth"].setValidators(Validators.required);
       this.form.controls["dayOfMonth"]
-         .reset({ value: "", disabled: !timeCondition.monthlyDaySelected });
+         .reset({value: "", disabled: !timeCondition.monthlyDaySelected});
       this.form.controls["dayOfMonth"].updateValueAndValidity();
    }
 
@@ -1040,17 +902,17 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       this.form.controls["dayOfMonth"].setValidators(null);
       this.form.controls["dayOfMonth"]
-         .reset({ value: "", disabled: !timeCondition.monthlyDaySelected });
+         .reset({value: "", disabled: !timeCondition.monthlyDaySelected});
       this.form.controls["dayOfMonth"].updateValueAndValidity();
 
       this.form.controls["weekOfMonth"].setValidators(Validators.required);
       this.form.controls["weekOfMonth"]
-         .reset({ value: "", disabled: timeCondition.monthlyDaySelected });
+         .reset({value: "", disabled: timeCondition.monthlyDaySelected});
       this.form.controls["weekOfMonth"].updateValueAndValidity();
 
       this.form.controls["dayOfWeek"].setValidators(Validators.required);
       this.form.controls["dayOfWeek"]
-         .reset({ value: "", disabled: timeCondition.monthlyDaySelected });
+         .reset({value: "", disabled: timeCondition.monthlyDaySelected});
       this.form.controls["dayOfWeek"].updateValueAndValidity();
    }
 
@@ -1121,7 +983,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
       const value = control.value;
 
       if(value == null || value.hour == null || value.minute == null ||
-         value.hour === "" || value.minute === "" || value.hour < 0 || value.minute < 0) {
+         value.hour === "" || value.minute === "" || value.hour < 0 || value.minute < 0)
+      {
          return { timeIsNull: true };
       }
 
@@ -1207,7 +1070,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
       let optionType;
 
       if(!!(<TimeConditionModel>this.condition).type
-         || (<TimeConditionModel>this.condition).type == 0) {
+         || (<TimeConditionModel>this.condition).type == 0)
+      {
          optionType = (<TimeConditionModel>this.condition).type;
       }
       else {
@@ -1216,7 +1080,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       this.saveConditionType(optionType);
 
-      this.chainedCondition = this.chainedCondition || <CompletionConditionModel>{
+      this.chainedCondition = this.chainedCondition || <CompletionConditionModel> {
          taskName: null,
          conditionType: "CompletionCondition"
       };
@@ -1234,7 +1098,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
    }
 
    private getDefaultTimeConditionModel(optionType: any): TimeConditionModel {
-      return <TimeConditionModel>{
+      return <TimeConditionModel> {
          hour: 1,
          minute: 30,
          second: 0,
@@ -1249,7 +1113,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
          monthsOfYear: [],
          monthlyDaySelected: true,
          date: new Date().getTime(),
-         timeZoneOffset: (<TimeConditionModel>this.condition).timeZoneOffset
+         timeZoneOffset: (<TimeConditionModel> this.condition).timeZoneOffset || this.serverTimeZoneOffset
       };
    }
 
@@ -1257,190 +1121,157 @@ export class TaskConditionPane implements OnInit, OnChanges {
       const condition: ScheduleConditionModel = Tool.clone(this.condition);
 
       if(optionType === "CompletionCondition") {
-         this.chainedCondition = <CompletionConditionModel>condition;
+         this.chainedCondition = <CompletionConditionModel> condition;
       }
       else if(optionType === TimeConditionType.EVERY_DAY) {
-         this.dailyCondition = <TimeConditionModel>condition;
+         this.dailyCondition = <TimeConditionModel> condition;
       }
       else if(optionType === TimeConditionType.EVERY_WEEK) {
-         this.weeklyCondition = <TimeConditionModel>condition;
+         this.weeklyCondition = <TimeConditionModel> condition;
       }
       else if(optionType === TimeConditionType.EVERY_MONTH) {
-         this.monthlyCondition = <TimeConditionModel>condition;
+         this.monthlyCondition = <TimeConditionModel> condition;
       }
       else if(optionType === TimeConditionType.EVERY_HOUR) {
-         this.hourlyCondition = <TimeConditionModel>condition;
+         this.hourlyCondition = <TimeConditionModel> condition;
       }
       else if(optionType === TimeConditionType.AT) {
-         this.runOnceCondition = <TimeConditionModel>condition;
+         this.runOnceCondition = <TimeConditionModel> condition;
       }
    }
 
    /**
-    * Get which timezone to display from local storage (local or server).
+    * Init which timezone to display from local storage (local or server).
     */
-   private getTimeZone(): void {
+   private initTimeZone(edit?: boolean): void {
+      this.setLocalTimeZone(this.timeCondition.timeZone);
+      this.localTimeZoneOffset = this.timeZoneService.calculateTimezoneOffset(this.localTimeZoneId);
       const serverTZ: string = LocalStorage.getItem(TZ_STORAGE_KEY);
-      this.serverTimeZone = serverTZ ? serverTZ == "true" : true;
+      this.changeServerTimeZone(serverTZ ? serverTZ == "true" : true);
 
-      if(this.serverTimeZone && this.timeZoneOptions) {
-         let timeZones = this.timeZoneOptions.slice(1);
-         let timeZoneModel =
-            timeZones.find(timeZone => timeZone?.timeZoneId == this.timeCondition.timeZone);
-
-         if(timeZoneModel && timeZoneModel.label != this.timeZoneName) {
-            this.serverTimeZone = false;
-         }
+      if(!edit || !this.timeCondition?.timeZone || this.serverTimeZone) {
+         this.timeZoneName = this.serverTimeZone ? this.timeZone :
+            new Date().toTimeString().match(/\((.+)\)/)[1];
       }
+   }
 
-      this.timeZoneName = this.serverTimeZone ? this.timeZone :
-         new Date().toTimeString().match(/\((.+)\)/)[1];
-      this.localTimeZoneId = this.timeCondition.timeZone;
+   get currentTimeZoneOffset(): number {
+      return this.serverTimeZone ? this.serverTimeZoneOffset : this.localTimeZoneOffset;
    }
 
    /**
-    * Set which timezone to display from local storage (local or server).
+    * Change show server time setting.
     */
-   private setServerTimeZone(): void {
-      LocalStorage.setItem(TZ_STORAGE_KEY, this.serverTimeZone + "");
-   }
+   changeServerTimeZone(serverTimeZone: boolean): void {
+      const changed = this.serverTimeZone != serverTimeZone;
+      this.serverTimeZone = serverTimeZone;
 
-   changeNonATConditionTimeZone(timeZone: string) {
-      let oldTimeZone = this.localTimeZoneId;
-      this.localTimeZoneId = timeZone;
-      this.setLocalTimeZone(false);
-      this.updateNonRunOnceStartTimeAndEndTime(oldTimeZone, timeZone);
-   }
-
-   private updateNonRunOnceStartTimeAndEndTime(oldTimeZone: string, newTimeZone: string) {
-      if(oldTimeZone != newTimeZone && oldTimeZone && newTimeZone) {
-         let startTimeDate = new Date((<TimeConditionModel>this.condition).date || 0);
-         startTimeDate.setHours(this.startTime.hour);
-         startTimeDate.setMinutes(this.startTime.minute);
-         startTimeDate.setSeconds(this.startTime.second);
-         let newDate = this.applyTimeZoneOffsetDifference(startTimeDate, oldTimeZone, newTimeZone);
-
-         this.startTime = {
-            hour: newDate.getHours(),
-            minute: newDate.getMinutes(),
-            second: newDate.getSeconds()
-         };
-
-         if(this.selectedOption !== TimeConditionType.AT &&
-            this.selectedOption !== TimeConditionType.EVERY_HOUR) {
-            this.startTimeData = {
-               startTime: this.startTime,
-               timeRange: this.startTimeData.timeRange,
-               startTimeSelected: this.startTimeData.startTimeSelected,
-               valid: this.startTimeData.valid
-            };
-         }
-
-         if(!!this.form.get("startTime")) {
-            if(this.selectedOption === TimeConditionType.AT ||
-               this.selectedOption === TimeConditionType.EVERY_HOUR) {
-               this.form.get("startTime").setValue(this.startTime);
-            }
-            else {
-               this.form.get("startTime").setValue(this.startTimeData);
-            }
-         }
-
-         if(this.selectedOption === TimeConditionType.EVERY_HOUR && this.endTime) {
-            let endTimeDate = new Date((<TimeConditionModel>this.condition).date || 0);
-            endTimeDate.setHours(this.endTime.hour);
-            endTimeDate.setMinutes(this.endTime.minute);
-            endTimeDate.setSeconds(this.endTime.second);
-            newDate = this.applyTimeZoneOffsetDifference(endTimeDate, oldTimeZone, newTimeZone);
-
-            this.endTime = {
-               hour: newDate.getHours(),
-               minute: newDate.getMinutes(),
-               second: newDate.getSeconds()
-            };
-
-            if(!!this.form.get("endTime")) {
-               this.form.get("endTime").setValue(this.endTime);
-            }
-         }
-      }
-   }
-
-   applyTimeZoneOffsetDifference(oldDate: Date, oldTZ: string, newTZ: string): Date {
-      let time = oldDate.getTime();
-
-      let date = new Date();
-      const oldTZOffset = new Date(date.toLocaleString([], { timeZone: oldTZ })).getTime();
-      const newTZOffset = new Date(date.toLocaleString([], { timeZone: newTZ })).getTime();
-      time += newTZOffset - oldTZOffset;
-
-      return new Date(time);
-   }
-
-   updateTimeZone(): void {
-      this.serverTimeZone = !this.serverTimeZone;
-
-      if(this.serverTimeZone ||
-         (this.startTimeData != null && !this.startTimeData.startTimeSelected)) {
-         this.timeCondition.timeZone = null;
-
-         if(this.selectedOption === TimeConditionType.EVERY_HOUR && !this.serverTimeZone) {
-            this.form.get("timeZone").enable();
+      if(changed) {
+         if(this.serverTimeZone) {
+            this.convertToTimeZone(this.localTimeZoneOffset, this.serverTimeZoneOffset);
          }
          else {
-            this.form.get("timeZone").disable();
+            this.convertToTimeZone(this.serverTimeZoneOffset, this.localTimeZoneOffset);
          }
+
+         this.updateTimeZone();
+         LocalStorage.setItem(TZ_STORAGE_KEY, this.serverTimeZone + "");
+      }
+   }
+
+   /**
+    * Updates relevant fields after time zone has changed
+    */
+   updateTimeZone(): void {
+      if(this.serverTimeZone ||
+         (this.startTimeData != null && !this.startTimeData.startTimeSelected))
+      {
+         if(this.isTimeCondition(this.condition)) {
+            this.timeCondition.timeZone = this.serverTimeZoneId;
+         }
+
+         this.form?.get("timeZone")?.disable();
       }
       else {
-         this.timeCondition.timeZone = this.localTimeZoneId;
-         this.form.get("timeZone").enable();
+         if(this.isTimeCondition(this.condition)) {
+            this.timeCondition.timeZone = this.localTimeZoneId;
+         }
+
+         this.form?.get("timeZone")?.enable();
       }
 
       this.timeZoneName = this.serverTimeZone ? this.timeZone :
          this.localTimeZoneLabel != null ? this.localTimeZoneLabel :
             new Date().toTimeString().match(/\((.+)\)/)[1];
-      this.updateTimesAndDates(ChangeType.ToLocalTimeZone);
-      this.setServerTimeZone();
+      this.localTimeZoneOffset = this.timeZoneService.calculateTimezoneOffset(this.localTimeZoneId);
    }
 
-   changeShowServerTimeZone() {
-      this.updateTimeZone();
-
-      if(this.selectedOption !== TimeConditionType.AT) {
-         let oldTimeZone = this.localTimeZoneId;
-         let newTimeZone = this.localTimeZoneId;
-         let serverTimeZoneId = this.timeZoneOptions.find(t =>
-            this.getTimeZoneOffset(t.timeZoneId) == (<TimeConditionModel>this.condition).timeZoneOffset);
-
-         if(this.serverTimeZone) {
-            if(serverTimeZoneId) {
-               newTimeZone = serverTimeZoneId.timeZoneId;
-            }
-         }
-         else {
-            if(serverTimeZoneId) {
-               oldTimeZone = serverTimeZoneId.timeZoneId;
-            }
-         }
-
-         this.updateNonRunOnceStartTimeAndEndTime(oldTimeZone, newTimeZone);
+   /**
+    * Converts all the dates and times to the new time zone
+    */
+   private convertToTimeZone(oldTzOffset: number, newTzOffset: number) {
+      // if same offset then no need to convert
+      if(oldTzOffset == newTzOffset) {
+         return;
       }
-      else if(this.serverTimeZone) {
-         this.updateTimesAndDates(ChangeType.None);
+
+      // update all the conditions when the time zone changes
+      for(let condition of this.timeConditions) {
+         this.convertTimeCondition(condition, oldTzOffset, newTzOffset);
       }
+
+      // propagate the changes from the condition object to the ui
+      this.updateTimesAndDates();
    }
 
-   private getTimeZoneOffset(timeZoneId: string): number {
-      let date = new Date();
-      const UTC = new Date(date.toLocaleString([], { timeZone: "UTC" }));
-      const timezone = new Date(date.toLocaleString([], { timeZone: timeZoneId }));
+   private convertTimeCondition(condition: TimeConditionModel, oldTzOffset: number, newTzOffset: number) {
+      // start time
+      const startTime = this.convertTime({
+         hour: condition.hour, minute: condition.minute,
+         second: condition.second
+      }, oldTzOffset, newTzOffset);
+      condition.hour = startTime.hour;
+      condition.minute = startTime.minute;
+      condition.second = startTime.second;
 
-      return timezone.getTime() - UTC.getTime();
+      // end time
+      const endTime = this.convertTime({
+         hour: condition.hourEnd, minute: condition.minuteEnd,
+         second: condition.secondEnd
+      }, oldTzOffset, newTzOffset);
+      condition.hourEnd = endTime.hour;
+      condition.minuteEnd = endTime.minute;
+      condition.secondEnd = endTime.second;
    }
 
-   private getServerOffset() {
-      this.http.get("../api/portal/schedule/task/condition/serverOffset").subscribe((val: number) => {
-         this.serverTimeZoneOffset = val;
-      });
+   get timeConditions(): Set<TimeConditionModel> {
+      const set = new Set([this.dailyCondition, this.weeklyCondition,
+         this.monthlyCondition, this.hourlyCondition, this.runOnceCondition]);
+
+      if(this.isTimeCondition(this.condition)) {
+         set.add(this.condition as TimeConditionModel);
+      }
+
+      return set;
+   }
+
+   convertTime(value: NgbTimeStruct, oldTzOffset: number, newTzOffset: number): NgbTimeStruct {
+      const oldTime = dayjs()
+         .utcOffset(oldTzOffset / 60000)
+         .hour(value.hour)
+         .minute(value.minute)
+         .second(value.second)
+         .millisecond(0);
+      const newTime = dayjs(oldTime.valueOf())
+         .utcOffset((newTzOffset || 0) / 60000);
+      return {
+         hour: newTime.hour(),
+         minute: newTime.minute(),
+         second: newTime.second()
+      } as NgbTimeStruct;
+   }
+
+   private isTimeCondition(condition: ScheduleConditionModel): boolean {
+      return condition && condition.conditionType == "TimeCondition";
    }
 }

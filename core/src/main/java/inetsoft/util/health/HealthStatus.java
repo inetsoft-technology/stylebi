@@ -17,25 +17,29 @@
  */
 package inetsoft.util.health;
 
+import java.io.Serial;
 import java.io.Serializable;
 
 public final class HealthStatus implements Serializable {
    public HealthStatus(CacheSwapStatus cacheSwapStatus,
                        DeadlockStatus deadlockStatus,
                        OutOfMemoryStatus outOfMemoryStatus,
-                       ReportFailureStatus reportFailureStatus)
+                       ReportFailureStatus reportFailureStatus,
+                       SchedulerStatus schedulerStatus)
    {
       this.cacheSwapStatus = cacheSwapStatus;
       this.deadlockStatus = deadlockStatus;
       this.outOfMemoryStatus = outOfMemoryStatus;
       this.reportFailureStatus = reportFailureStatus;
+      this.schedulerStatus = schedulerStatus;
    }
 
    public boolean isDown() {
-      return cacheSwapStatus.isCriticalMemory() || cacheSwapStatus.isExcessiveWaiting() ||
+      return cacheSwapStatus.isExcessiveWaiting() ||
          deadlockStatus.getDeadlockedThreadCount() > 0 ||
          outOfMemoryStatus.isOutOfMemory() ||
-         reportFailureStatus.isExcessiveFailures();
+         reportFailureStatus.isExcessiveFailures() ||
+         !schedulerStatus.isHealthy();
    }
 
    public CacheSwapStatus getCacheSwapStatus() {
@@ -54,6 +58,10 @@ public final class HealthStatus implements Serializable {
       return reportFailureStatus;
    }
 
+   public SchedulerStatus getSchedulerStatus() {
+      return schedulerStatus;
+   }
+
    @Override
    public String toString() {
       return "HealthStatus{" +
@@ -61,6 +69,7 @@ public final class HealthStatus implements Serializable {
          ", deadlockStatus=" + deadlockStatus +
          ", outOfMemoryStatus=" + outOfMemoryStatus +
          ", reportFailureStatus=" + reportFailureStatus +
+         ", schedulerStatus=" + schedulerStatus +
          '}';
    }
 
@@ -68,5 +77,7 @@ public final class HealthStatus implements Serializable {
    private final DeadlockStatus deadlockStatus;
    private final OutOfMemoryStatus outOfMemoryStatus;
    private final ReportFailureStatus reportFailureStatus;
+   private final SchedulerStatus schedulerStatus;
+   @Serial
    private static final long serialVersionUID = 1L;
 }

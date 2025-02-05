@@ -25,7 +25,11 @@ import inetsoft.sree.SreeEnv;
 import java.util.Map;
 
 @View(vertical = true, value = {
-   @View1("endpoint"),
+   @View1(value = "endpoint", affectedViews = {
+      "linkParamValue",
+      "linkParamType",
+      "linkRelation"
+   }),
    @View1(type = ViewType.PANEL, align = ViewAlign.LEFT, visibleMethod = "isCustomEndpoint",
       elements = {
          @View2(value = "templateEndpt"),
@@ -106,12 +110,11 @@ public class FreshserviceQuery extends EndpointJsonQuery<FreshserviceEndpoint> {
    @Override
    protected void updatePagination(FreshserviceEndpoint endpoint) {
       if(endpoint.isPaged()) {
-         String recordCountPath = "Asset Search".equals(endpoint.getName()) ?
-            "$.config_items.length()" : "$.length()";
          paginationSpec = PaginationSpec.builder()
-            .type(PaginationType.PAGE)
-            .pageNumberParamToWrite(PaginationParamType.QUERY, "page")
-            .recordCountPath(recordCountPath)
+            .type(PaginationType.LINK_ITERATION)
+            .linkParam(PaginationParamType.LINK_HEADER, "link", "next")
+            .maxResultsPerPageParam(PaginationParamType.QUERY, "per_page")
+            .maxResultsPerPage(100)
             .build();
       }
       else {

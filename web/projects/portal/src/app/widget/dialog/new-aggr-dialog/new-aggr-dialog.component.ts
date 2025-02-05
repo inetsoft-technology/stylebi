@@ -101,4 +101,12 @@ export class NewAggrDialog implements OnInit {
    isNValid(): boolean {
       return parseInt(this.nStr, 10) > 0;
    }
+
+   getInputClass(val: any): string {
+      if(this.model.grayedOutValues.indexOf(val) >= 0) {
+         return "grayed-out-field";
+      }
+
+      return "";
+   }
 }

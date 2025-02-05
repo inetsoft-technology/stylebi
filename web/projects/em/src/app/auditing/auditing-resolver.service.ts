@@ -25,6 +25,7 @@ export class AuditingResolverService implements Resolve<boolean> {
    }
 
     resolve(route: ActivatedRouteSnapshot, state: RouterStateSnapshot) {
-       return this.httpClient.get<boolean>("../api/em/monitoring/audit/multi-tenant");
+       // return this.httpClient.get<boolean>("../api/em/monitoring/audit/multi-tenant");
+       return true;
     }
 }

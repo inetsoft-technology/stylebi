@@ -22,6 +22,9 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.DataRef;
+import inetsoft.util.Tool;
+import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.service.VSInputService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,8 +32,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 @RestController
 public class SelectionListController {
@@ -39,11 +41,13 @@ public class SelectionListController {
     * @param viewsheetService
     */
    @Autowired
-   public SelectionListController(
-      VSInputService vsInputService,
-      ViewsheetService viewsheetService) {
+   public SelectionListController(VSInputService vsInputService,
+                                  ViewsheetService viewsheetService,
+                                  VSAssemblyInfoHandler infoHandler)
+   {
       this.vsInputService = vsInputService;
       this.viewsheetService = viewsheetService;
+      this.infoHandler = infoHandler;
    }
 
    /**
@@ -85,10 +89,32 @@ public class SelectionListController {
       result.put("columns", columns);
       result.put("tooltips", tooltips);
       result.put("dataTypes", dataTypes);
+      result.put("grayedOutValues", getGrayedOutValues(rvs, table));
 
       return result;
    }
 
+   private String[] getGrayedOutValues(RuntimeViewsheet rvs, String table) {
+      boolean isModel = rvs.getViewsheet().getBaseEntry().isLogicModel();
+      DataRefModel[] grayedOutFields = infoHandler.getGrayedOutFields(rvs);
+      ArrayList<String> flds = new ArrayList<>();
+
+      for(int i = 0; grayedOutFields != null && i < grayedOutFields.length; i++) {
+         String fld = grayedOutFields[i].getName();
+
+         if(isModel) {
+            fld = fld.replace(".", ":");
+            flds.add(fld);
+         }
+         else if(Tool.equals(table, grayedOutFields[i].getEntity())) {
+            flds.add(grayedOutFields[i].getAttribute());
+         }
+      }
+
+      return flds.toArray(new String[0]);
+   }
+
    private final VSInputService vsInputService;
    private final ViewsheetService viewsheetService;
+   private final VSAssemblyInfoHandler infoHandler;
 }

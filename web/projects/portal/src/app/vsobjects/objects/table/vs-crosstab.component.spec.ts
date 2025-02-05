@@ -24,6 +24,7 @@ import { Router } from "@angular/router";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf, Subject } from "rxjs";
 import { DownloadService } from "../../../../../../shared/download/download.service";
+import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { DndService } from "../../../common/dnd/dnd.service";
 import { TestUtils } from "../../../common/test/test-utils";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
@@ -151,7 +152,8 @@ describe("VSCrosstab", () => {
             { provide: Router, useValue: router },
             { provide: RichTextService, useValue: richTextService },
             { provide: PagingControlService, useValue: pagingControlService },
-            { provide: VSTabService, useValue: vsTabService }
+            { provide: VSTabService, useValue: vsTabService },
+            AppInfoService
          ]
       });
       TestBed.compileComponents();

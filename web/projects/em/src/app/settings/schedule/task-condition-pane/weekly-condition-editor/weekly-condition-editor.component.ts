@@ -72,6 +72,8 @@ export class WeeklyConditionEditorComponent implements OnInit {
          startTimeSelected: !this.timeRangeEnabled || !this._condition.timeRange
       };
       this.startTimeValid = !!this.startTimeData.startTime || !!this.startTimeData.timeRange;
+      this.timeZoneLabel = this.dateTimeService
+         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone);
    }
 
    readonly FeatureFlagValue = FeatureFlagValue;

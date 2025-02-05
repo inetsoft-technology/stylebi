@@ -37,10 +37,12 @@
           </div>
         </div>
         <div *ngIf="model.changePasswordAvailable" class="form-group row one-col-form-flex">
-          <span class="href-style" (click)="changePasswordClicked()"
-                enterClick tabindex="0" role="link">
+          <div class="col">
+            <span class="href-style" (click)="changePasswordClicked()"
+                  enterClick tabindex="0" role="link">
             _#(Change Password)
           </span>
+          </div>
         </div>
         <div class="form-group form-row one-col-form-flex">
           <div class="col">

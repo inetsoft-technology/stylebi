@@ -17,6 +17,7 @@
  */
 package inetsoft.web.composer.model.vs;
 
+import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.TreeNodeModel;
 
 import java.util.List;
@@ -78,6 +79,14 @@ public class RangeSliderDataPaneModel {
       this.composite = composite;
    }
 
+   public DataRefModel[] getGrayedOutFields() {
+      return grayedOutFields;
+   }
+
+   public void setGrayedOutFields(DataRefModel[] grayedOutFields) {
+      this.grayedOutFields = grayedOutFields;
+   }
+
    private String selectedTable;
    private boolean assemblySource;
    private List<String> additionalTables;
@@ -85,4 +94,5 @@ public class RangeSliderDataPaneModel {
    private TreeNodeModel targetTree;
    private TreeNodeModel compositeTargetTree;
    private boolean composite;
+   private DataRefModel[] grayedOutFields;
 }

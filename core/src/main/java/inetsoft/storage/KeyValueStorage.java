@@ -26,6 +26,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.Future;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -316,29 +317,25 @@ public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
          }
 
          String storeID = (String) parameters[0];
-         KeyValueStorage<?> storage = storages.get(storeID);
+         KeyValueStorage<?> storage = storages.get(storeID); //possibly create here first
 
          if(storage == null || storage.isClosed()) {
-            String lockId = "kv." + storeID;
-            Lock lock = Cluster.getInstance().getLock(lockId);
+            Supplier<LoadKeyValueTask<?>> createTask = parameters.length == 2 ?
+               (Supplier<LoadKeyValueTask<?>>) parameters[1] : null;
+
+
+            if(createTask == null) {
+               storage = KeyValueStorage.newInstance(storeID);
+            }
+            else {
+               storage = KeyValueStorage
+                  .newInstance(storeID, createTask.get());
+            }
+
             lock.lock();
 
             try {
-               storage = storages.get(storeID);
-
-               if(storage == null || storage.isClosed()) {
-                  Supplier<LoadKeyValueTask<?>> createTask = parameters.length == 2 ?
-                     (Supplier<LoadKeyValueTask<?>>) parameters[1] : null;
-
-
-                  if(createTask == null) {
-                     storage = KeyValueStorage.newInstance(storeID);
-                  }
-                  else {
-                     storage = KeyValueStorage
-                        .newInstance(storeID, createTask.get());
-                  }
-
+               if(storages.get(storeID) == null || storages.get(storeID).isClosed()) {
                   storages.put(storeID, storage);
                }
             }
@@ -371,6 +368,7 @@ public interface KeyValueStorage<T extends Serializable> extends AutoCloseable {
       }
 
       private HashMap<String, KeyValueStorage<?>> storages;
+      private final ReentrantLock lock = new ReentrantLock();
       private static final Logger LOG = LoggerFactory.getLogger(Reference.class);
    }
 }

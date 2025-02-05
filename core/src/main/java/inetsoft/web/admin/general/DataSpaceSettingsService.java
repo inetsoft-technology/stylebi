@@ -18,6 +18,7 @@
 package inetsoft.web.admin.general;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.schedule.InternalScheduledTaskService;
 import inetsoft.sree.security.*;
 import inetsoft.storage.*;
@@ -27,6 +28,8 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 import inetsoft.uql.tabular.TabularDataSource;
 import inetsoft.uql.tabular.TabularService;
 import inetsoft.util.*;
+import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.audit.Audit;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.web.admin.general.model.BackupDataModel;
 import inetsoft.web.admin.general.model.DataSpaceSettingsModel;
@@ -38,6 +41,7 @@ import org.springframework.stereotype.Service;
 import java.io.*;
 import java.rmi.RemoteException;
 import java.security.Principal;
+import java.sql.Timestamp;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -64,6 +68,11 @@ public class DataSpaceSettingsService extends BackupSupport {
       Catalog catalog = Catalog.getCatalog();
       File file = null;
       backupLock.lock();
+      Timestamp actionTimestamp = new Timestamp(System.currentTimeMillis());
+      Principal principal = ThreadContext.getContextPrincipal();
+      ActionRecord record = new ActionRecord(SUtil.getUserName(principal), ActionRecord.ACTION_NAME_BACKUP,
+         "Storage", ActionRecord.OBJECT_TYPE_STORAGE, actionTimestamp,
+         ActionRecord.ACTION_STATUS_FAILURE, "");
 
       try {
          deleteRedundantBackupFiles();
@@ -71,22 +80,26 @@ public class DataSpaceSettingsService extends BackupSupport {
          // For the same backup, use the same timestamp
          String stamp = createBackupTimestamp();
          file = FileSystemService.getInstance().getCacheTempFile("backup", ".zip");
+         boolean mapdbStorage = "mapdb".equals(InetsoftConfig.getInstance().getKeyValue().getType());
 
          try(OutputStream output = new FileOutputStream(file)) {
             KeyValueEngine keyValueEngine = KeyValueEngine.getInstance();
             BlobEngine blobEngine = BlobEngine.getInstance();
-
-            new DirectStorageTransfer(keyValueEngine, blobEngine).exportContents(output);
+            StorageTransfer storageTransfer = mapdbStorage ? new ClusterStorageTransfer() :
+               new DirectStorageTransfer(keyValueEngine, blobEngine);
+            storageTransfer.exportContents(output);
          }
 
          String path = getBackFile(model != null ? model.dataspace() : null, stamp);
          ExternalStorageService.getInstance().write(path, file.toPath(), null);
 
          status = catalog.getString("Success");
+         record.setActionStatus(ActionRecord.ACTION_STATUS_SUCCESS);
       }
       catch(Exception e) {
          LOG.error("Failed to back up storage: " + e.getMessage(), e);
          status = "Failed to back up storage: " + e.getMessage();
+         record.setActionError(status);
          return status;
       }
       finally {
@@ -95,6 +108,7 @@ public class DataSpaceSettingsService extends BackupSupport {
          }
 
          backupLock.unlock();
+         Audit.getInstance().auditAction(record, principal);
       }
 
       return status;

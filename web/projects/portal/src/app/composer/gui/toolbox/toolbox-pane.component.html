@@ -16,15 +16,17 @@
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
 <div [style.height.px]="virtualTop"></div>
-<composer-binding-tree [viewsheet]="focusedViewsheet" [useVirtualScroll]="useVirtualScroll"
-   [grayedOutFields]="grayedOutFields" [virtualScrollTreeDatasource]="virtualScrollTreeDatasource"
-   (bindingTreeChanged)="treeNodesLoaded($event)"
-   (nodeCollapsed)="collapseNode($event)" (nodeExpanded)="expandNode($event)">
-</composer-binding-tree>
-<tree [nodeSelectable]="false" [draggable]="true" [root]="toolbox"
-      [dataSource]="virtualScrollTreeDatasource"
-      (nodeDrag)="nodeDrag($event)"
-      [showRoot]="true" [initExpanded]="true" [useVirtualScroll]="useVirtualScroll"
-      [outerScrollContainer]="true" (nodeExpanded)="expandNode($event)"
-      (nodeCollapsed)="expandNode($event)"></tree>
+<div [style.height.px]="useVirtualScroll ? virtualMid : ''">
+  <composer-binding-tree [viewsheet]="focusedViewsheet" [useVirtualScroll]="useVirtualScroll"
+                         [grayedOutFields]="grayedOutFields" [virtualScrollTreeDatasource]="virtualScrollTreeDatasource"
+                         (bindingTreeChanged)="treeNodesLoaded($event)"
+                         (nodeCollapsed)="collapseNode($event)" (nodeExpanded)="expandNode($event)">
+  </composer-binding-tree>
+  <tree [nodeSelectable]="false" [draggable]="true" [root]="toolbox"
+        [dataSource]="virtualScrollTreeDatasource"
+        (nodeDrag)="nodeDrag($event)"
+        [showRoot]="true" [initExpanded]="true" [useVirtualScroll]="useVirtualScroll"
+        [outerScrollContainer]="true" (nodeExpanded)="expandNode($event)"
+        (nodeCollapsed)="expandNode($event)"></tree>
+</div>
 <div [style.height.px]="virtualBot"></div>

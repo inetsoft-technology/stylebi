@@ -29,8 +29,6 @@ import java.util.Objects;
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
-   @View1(value = "clientId", visibleMethod = "useCredential"),
-   @View1(value = "clientSecret", visibleMethod = "useCredential"),
    @View1(value = "accessToken", visibleMethod = "useCredential"),
 })
 public class ZendeskSellDataSource extends EndpointJsonDataSource<ZendeskSellDataSource> {
@@ -43,17 +41,7 @@ public class ZendeskSellDataSource extends EndpointJsonDataSource<ZendeskSellDat
 
    @Override
    protected CredentialType getCredentialType() {
-      return CredentialType.CLIENT_GRANT;
-   }
-
-   @Property(label = "App Client ID")
-   public String getClientId() {
-      return super.getClientId();
-   }
-
-   @Property(label = "App Client Secret", password = true)
-   public String getClientSecret() {
-      return super.getClientSecret();
+      return CredentialType.ACCESS_TOKEN;
    }
 
    @Property(label = "Access Token", required = true, password = true)

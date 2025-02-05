@@ -120,7 +120,7 @@ export class VSAssemblyScriptPane {
                   parentLabel = "viewsheet['" + data.parentLabel + "']";
                }
 
-               text = text && text.indexOf(".") >= 0 && text != "data.size" && text != "data.length" ?
+               text = text && text.indexOf(".") >= 0 ?
                   `${parentLabel}[${quote}${text}${suffix}${quote}]` :
                   `${parentLabel}.${text}${suffix}`;
             }

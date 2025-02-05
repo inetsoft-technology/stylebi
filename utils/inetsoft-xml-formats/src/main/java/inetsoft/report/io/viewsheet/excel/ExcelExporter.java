@@ -17,9 +17,14 @@
  */
 package inetsoft.report.io.viewsheet.excel;
 
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.uql.viewsheet.internal.VSUtil;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.awt.image.BufferedImage;
 
 /**
  * Encapsulate the workbook and related resources, to implement ExcelContext.
@@ -51,9 +56,27 @@ public class ExcelExporter implements ExcelContext {
    public boolean setUp() {
       book = memoryCacheRowCount > 0 ? new SXSSFWorkbook(memoryCacheRowCount) : new XSSFWorkbook();
 
+      try {
+         LicenseManager licenseManager = LicenseManager.getInstance();
+
+         if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
+            BufferedImage image = Util.createWatermarkImage();
+            byte[] buf = VSUtil.getImageBytes(image, 72 * 2);
+            bgId = book.addPicture(buf, Workbook.PICTURE_TYPE_PNG);
+         }
+      }
+      catch(Exception ignore) {
+      }
+
       return true;
+   }
+
+   @Override
+   public int getBackgroupPictureId() {
+      return bgId;
    }
 
    private Workbook book = null;
    private int memoryCacheRowCount = -1;
+   private int bgId = -1;
 }

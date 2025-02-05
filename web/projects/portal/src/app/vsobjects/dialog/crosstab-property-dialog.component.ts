@@ -16,6 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, Input, Output, EventEmitter, OnInit } from "@angular/core";
+import { Tool } from "../../../../../shared/util/tool";
+import { TrapInfo } from "../../common/data/trap-info";
+import { SelectionListPropertyDialogModel } from "../../composer/data/vs/selection-list-property-dialog-model";
 import { CrosstabPropertyDialogModel } from "../model/crosstab-property-dialog-model";
 import { UntypedFormGroup } from "@angular/forms";
 import { ScriptPaneTreeModel } from "../../widget/dialog/script-pane/script-pane-tree-model";
@@ -27,6 +30,9 @@ import {CrosstabAdvancedPaneModel} from "../model/crosstab-advanced-pane-model";
 import {HierarchyPropertyPaneModel} from "../model/hierarchy-property-pane-model";
 import {VSAssemblyScriptPaneModel} from "../../widget/dialog/vsassembly-script-pane/vsassembly-script-pane-model";
 import { ContextProvider } from "../context-provider.service";
+import { VSTrapService } from "../util/vs-trap.service";
+
+const CHECK_TRAP_URI: string = "../api/composer/vs/crosstab-property-dialog-model/checkTrap/";
 
 @Component({
    selector: "crosstab-property-dialog",
@@ -42,9 +48,10 @@ export class CrosstabPropertyDialog extends PropertyDialog implements OnInit {
 
    public constructor(protected uiContextService: UIContextService,
                       protected propertyDialogService: PropertyDialogService,
+                      protected trapService: VSTrapService,
                       private contextProvider: ContextProvider)
    {
-      super(uiContextService, null, propertyDialogService);
+      super(uiContextService, trapService, propertyDialogService);
    }
 
    ngOnInit(): void {
@@ -89,6 +96,14 @@ export class CrosstabPropertyDialog extends PropertyDialog implements OnInit {
       };
 
       const payload = {collapse: collapse, result: model};
-      isApply ? this.onApply.emit(payload) : this.onCommit.emit(model);
+      const trapInfo = new TrapInfo(CHECK_TRAP_URI,
+         this.model.tableViewGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.name,
+         this.runtimeId, model);
+
+      this.trapService.checkTrap(trapInfo,
+         () => isApply ? this.onApply.emit(payload) : this.onCommit.emit(model),
+         () => {},
+         () => isApply ? this.onApply.emit(payload) : this.onCommit.emit(model)
+      );
    }
 }

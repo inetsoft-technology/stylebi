@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.controller;
 
+import inetsoft.mv.MVManager;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.SreeEnv;
@@ -28,9 +29,12 @@ import inetsoft.sree.security.*;
 import inetsoft.sree.web.WebService;
 import inetsoft.sree.web.dashboard.DashboardManager;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.util.ConnectionProcessor;
+import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
-import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
+import inetsoft.web.admin.pageheader.EmPageHeaderModel;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.GlobalParameterProvider;
 import inetsoft.web.portal.model.*;
@@ -47,6 +51,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Controller that provides a REST endpoint for the portal

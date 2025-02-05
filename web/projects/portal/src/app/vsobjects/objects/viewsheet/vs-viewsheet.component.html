@@ -58,6 +58,7 @@
       [submitted]="submitted"
       (onSubmit)="submitClicked.emit()"
       [touchDevice]="touchDevice"
+      (onOpenViewsheet)="onOpenViewsheet.emit($event)"
       (onOpenConditionDialog)="onOpenConditionDialog.emit($event)"
       (onOpenHighlightDialog)="onOpenHighlightDialog.emit($event)">
     </vs-object-container>

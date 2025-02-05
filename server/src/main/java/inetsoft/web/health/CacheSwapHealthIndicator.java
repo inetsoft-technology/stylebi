@@ -17,6 +17,7 @@
  */
 package inetsoft.web.health;
 
+import inetsoft.util.StatusDumpService;
 import inetsoft.util.health.CacheSwapHealthService;
 import inetsoft.util.health.CacheSwapStatus;
 import org.slf4j.LoggerFactory;
@@ -34,14 +35,12 @@ public class CacheSwapHealthIndicator implements HealthIndicator {
    public Health health() {
       CacheSwapStatus status = service.getStatus();
 
-      if(status.isCriticalMemory() || status.isExcessiveWaiting()) {
+      if(status.isExcessiveWaiting()) {
          LoggerFactory.getLogger(getClass()).error(
-            "CacheSwapHealthIndicator DOWN: criticalMemory={}, criticalMemoryStart={}, excessiveWaiting={}, excessiveWaitingStart={}",
-            status.isCriticalMemory(), status.getCriticalMemoryStart(), status.isExcessiveWaiting(),
-            status.getExcessiveWaitingStart());
+            "CacheSwapHealthIndicator DOWN: excessiveWaiting={}, excessiveWaitingStart={}",
+            status.isExcessiveWaiting(), status.getExcessiveWaitingStart());
+         StatusDumpService.getInstance().dumpStatus();
          return Health.down()
-            .withDetail("criticalMemory", status.isCriticalMemory())
-            .withDetail("criticalMemoryStart", status.getCriticalMemoryStart())
             .withDetail("excessiveWaiting", status.isExcessiveWaiting())
             .withDetail("excessiveWaitingStart", status.getExcessiveWaitingStart())
             .build();

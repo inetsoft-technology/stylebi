@@ -166,26 +166,9 @@ public class HeartBeatController {
       AssetEntry entry = rs.getEntry();
       byte[] data = AbstractIndexedStorage.encodeXMLSerializable(
          value, entry.toIdentifier());
-      File savefile = AutoSaveUtils.getAutoSavedFile(entry, principal);
 
-      if(rs.getLastAccessed() > savefile.lastModified()) {
-         FileOutputStream outstream = null;
-
-         if(!savefile.exists()) {
-            savefile.createNewFile();
-         }
-
-         try {
-            outstream = new FileOutputStream(savefile);
-            outstream.write(data);
-            outstream.flush();
-            outstream.close();
-         }
-         finally {
-            if(outstream != null) {
-               outstream.close();
-            }
-         }
+      if(rs.getLastAccessed() > AutoSaveUtils.getLastModified(entry, principal)) {
+         AutoSaveUtils.writeAutoSaveFile(data, entry, principal);
       }
    }
 

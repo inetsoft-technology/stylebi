@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { Component, EventEmitter, HostListener, OnDestroy, Output } from "@angular/core";
+import { Component, EventEmitter, HostListener, Input, OnDestroy, Output } from "@angular/core";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 
 @Component({
@@ -25,6 +25,7 @@ import { DateTypeFormatter } from "../../../../../../shared/util/date-type-forma
    styleUrls: ["session-expiration-dialog.component.scss"]
 })
 export class SessionExpirationDialog implements OnDestroy {
+   @Input() nodeProtection: boolean;
    @Output() onCommit: EventEmitter<string> = new EventEmitter<string>();
    @Output() onCancel: EventEmitter<string> = new EventEmitter<string>();
    @Output() onLogout: EventEmitter<void> = new EventEmitter<void>();

@@ -24,6 +24,7 @@ import inetsoft.uql.asset.internal.ColumnInfo;
 
 import java.io.*;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The class exports data tables to csv files.
@@ -71,7 +72,7 @@ public class CSVWSExporter implements WSExporter {
     * @param cinfos the specified list of column infos
     */
    @Override
-   public void writeTable(TableLens lens, List<ColumnInfo> cinfos) {
+   public void writeTable(TableLens lens, List<ColumnInfo> cinfos, Class[] colTypes, Map<Integer, Integer> colMap) {
       this.table = lens;
    }
 

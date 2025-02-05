@@ -31,6 +31,8 @@ import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.dataspace.model.DataSpaceTreeModel;
 import inetsoft.web.admin.content.dataspace.model.DataSpaceTreeNodeModel;
+import inetsoft.web.viewsheet.AuditObjectName;
+import inetsoft.web.viewsheet.Audited;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.lang.StringUtils;
@@ -139,28 +141,25 @@ public class DataSpaceContentSettingsService {
          String path = getPath(folderPath, name);
 
          if(space.isDirectory(path)) {
+            DataSpaceTreeNodeModel node = DataSpaceTreeNodeModel.builder()
+               .label(nonOrgName)
+               .path(path)
+               .folder(true)
+               .build();
+
             for(String expandPath : expandNodes) {
                if(path.equals(expandPath)) {
                   List<DataSpaceTreeNodeModel> subChildren = getSubTree(path, expandNodes);
-                  DataSpaceTreeNodeModel node = DataSpaceTreeNodeModel.builder()
+                  node = DataSpaceTreeNodeModel.builder()
                      .label(nonOrgName)
                      .path(path)
                      .folder(true)
                      .children(subChildren)
                      .build();
-                  children.add(node);
-                  break;
-               }
-               else {
-                  DataSpaceTreeNodeModel node = DataSpaceTreeNodeModel.builder()
-                     .label(nonOrgName)
-                     .path(path)
-                     .folder(true)
-                     .build();
-                  children.add(node);
-                  break;
                }
             }
+
+            children.add(node);
          }
          else {
             DataSpaceTreeNodeModel node = DataSpaceTreeNodeModel.builder()
@@ -304,7 +303,11 @@ public class DataSpaceContentSettingsService {
       return (parentPath == null || "/".equals(parentPath) ? "" : parentPath + "/") + name;
    }
 
-   public void downloadFile(String path, String name, HttpServletResponse response,
+   @Audited(
+      actionName = ActionRecord.ACTION_NAME_DOWNLOAD,
+      objectType = ActionRecord.OBJECT_TYPE_FILE
+   )
+   public void downloadFile(String path, @AuditObjectName String name, HttpServletResponse response,
                             HttpServletRequest request) throws Exception
    {
       DataSpace space = DataSpace.getDataSpace();

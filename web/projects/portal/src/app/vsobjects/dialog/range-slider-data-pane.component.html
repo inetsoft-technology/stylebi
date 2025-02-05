@@ -42,7 +42,7 @@
     <div class="form-row-float-label row" *ngIf="!model.composite">
       <div class="col-10">
         <div class="bordered-box bd-gray bordered-box-md">
-          <tree [root]="model.targetTree" [showRoot]="false" [showTooltip]="true"
+          <tree [root]="model.targetTree" [showRoot]="false" [showTooltip]="true" [grayedOutFields]="model.grayedOutFields"
                 (nodesSelected)="selectColumn($event[0])" (nodeExpanded)="expandNode($event)"
                 [iconFunction]="getCSSIcon"></tree>
         </div>
@@ -51,7 +51,7 @@
     <div class="form-row-float-label row" *ngIf="model.composite">
       <div class="col-10">
         <div class="bordered-box bd-gray bordered-box-md">
-          <tree [root]="model.compositeTargetTree" [showRoot]="false" [multiSelect]="true"
+          <tree [root]="model.compositeTargetTree" [showRoot]="false" [multiSelect]="true" [grayedOutFields]="model.grayedOutFields"
                 (nodesSelected)="selectTreeCompositeNodes($event)"
                 [iconFunction]="getCSSIcon" [showTooltip]="true">
           </tree>

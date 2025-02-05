@@ -36,7 +36,11 @@ public class TwitterRuntime extends EndpointJsonRuntime {
 
       final String endpoint = twitterQuery.getEndpoint();
       final TwitterEndpoint twitterEndpoint = endpoints.get(endpoint);
-      twitterQuery.updatePagination(twitterEndpoint);
+
+      if(twitterEndpoint != null){
+         twitterQuery.updatePagination(twitterEndpoint);
+      }
+
       return super.runQuery(query, params);
    }
 }

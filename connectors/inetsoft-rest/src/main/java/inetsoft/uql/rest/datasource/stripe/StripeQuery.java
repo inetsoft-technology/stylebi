@@ -108,9 +108,9 @@ public class StripeQuery extends EndpointJsonQuery<StripeEndpoint> {
       if(endpoint.isPaged()) {
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.ITERATION)
-            .hasNextParam(PaginationParamType.JSON_PATH, "$.has_next")
+            .hasNextParam(PaginationParamType.JSON_PATH, "$.has_more")
             .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.data[-1].id")
-            .pageOffsetParamToWrite(PaginationParamType.QUERY, "ending_before")
+            .pageOffsetParamToWrite(PaginationParamType.QUERY, "starting_after")
             .maxResultsPerPageParam(PaginationParamType.QUERY, "limit")
             .maxResultsPerPage(100)
             .build();

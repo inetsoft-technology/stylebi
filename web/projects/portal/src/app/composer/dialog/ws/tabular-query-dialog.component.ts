@@ -152,8 +152,6 @@ export class TabularQueryDialog implements OnInit {
          {dataSourceTypeName: "Rest.XML", value: "RESTXML"},
          {dataSourceTypeName: "SForce", value: "Salesforce"},
          {dataSourceTypeName: "Rest.SalesforceReports", value: "SalesforceReports"},
-         {dataSourceTypeName: "SAPABAP", value: "SAP"},
-         {dataSourceTypeName: "SAPBAPI", value: "SAP"},
          {dataSourceTypeName: "SAPTable", value: "SAP"},
          {dataSourceTypeName: "Rest.SEOmonitor", value: "SEOMonitor"},
          {dataSourceTypeName: "Rest.ServiceNow", value: "ServiceNow"},

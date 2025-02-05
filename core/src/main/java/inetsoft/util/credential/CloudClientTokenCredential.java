@@ -18,10 +18,14 @@
 
 package inetsoft.util.credential;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import inetsoft.util.Tool;
 import org.apache.commons.lang3.StringUtils;
+
+import java.io.IOException;
 
 @JsonSerialize(using = CloudClientTokenCredential.Serializer.class)
 @JsonDeserialize(using = CloudClientTokenCredential.Deserializer.class)
@@ -72,6 +76,63 @@ public class CloudClientTokenCredential extends AbstractCloudCredential
 
       return Tool.equals(((CloudClientTokenCredential) obj).accessToken, accessToken) &&
          Tool.equals(((CloudClientTokenCredential) obj).clientId, clientId);
+   }
+
+   @Override
+   public void refreshCredential(Credential credential) {
+      super.refreshCredential(credential);
+      CloudClientTokenCredential credential0 = (CloudClientTokenCredential) credential;
+      setAccessToken(credential0.getAccessToken());
+      setClientId(credential0.getClientId());
+   }
+
+   public static class Serializer<T extends CloudClientTokenCredential> extends
+      AbstractCloudCredential.Serializer<T>
+   {
+      public Serializer() {
+         super((Class<T>) CloudClientTokenCredential.class);
+      }
+
+      public Serializer(Class<T> tclass) {
+         super(tclass);
+      }
+
+      @Override
+      protected void serializeContent(CloudClientTokenCredential credential,
+                                      JsonGenerator generator)
+         throws IOException
+      {
+         if(credential.getAccessToken() != null) {
+            generator.writeStringField("access_token", credential.getAccessToken());
+         }
+
+         if(credential.getClientId() != null) {
+            generator.writeStringField("account_id", credential.getClientId());
+         }
+      }
+   }
+
+   public static class Deserializer<T extends CloudClientTokenCredential> extends
+      AbstractCloudCredential.Deserializer<T>
+   {
+      public Deserializer() {
+         super((Class<T>)  CloudClientTokenCredential.class);
+      }
+
+      public Deserializer(Class<T> tclass) {
+         super(tclass);
+      }
+
+      @Override
+      protected void deserializeContent(JsonNode node, CloudClientTokenCredential credential) {
+         if(node.get("access_token") != null) {
+            credential.setAccessToken(node.get("access_token").textValue());
+         }
+
+         if(node.get("account_id") != null) {
+            credential.setClientId(node.get("account_id").textValue());
+         }
+      }
    }
 
    private String accessToken = "";

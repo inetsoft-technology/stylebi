@@ -20,7 +20,8 @@ package inetsoft.uql.rest;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.concurrent.TimeoutException;
 
 public interface IHttpHandler extends Closeable {
-    HttpResponse executeRequest(RestRequest request) throws IOException, URISyntaxException, InterruptedException;
+    HttpResponse executeRequest(RestRequest request) throws IOException, URISyntaxException, InterruptedException, TimeoutException;
 }

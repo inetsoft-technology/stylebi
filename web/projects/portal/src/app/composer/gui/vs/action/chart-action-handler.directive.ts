@@ -138,7 +138,7 @@ export class ChartActionHandlerDirective extends AbstractActionHandler implement
             colName = ChartTool.getFirstAvailableMeasure(this.model);
          }
 
-         params.append("isAxis", "true");
+         params = params.append("isAxis", "true");
       }
 
       if(colName) {

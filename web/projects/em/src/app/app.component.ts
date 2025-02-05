@@ -27,13 +27,14 @@ import {
    ViewChild,
    ViewContainerRef
 } from "@angular/core";
-import { MatDialog } from "@angular/material/dialog";
+import { MatDialog, MatDialogRef } from "@angular/material/dialog";
 import { Subscription } from "rxjs";
 import { SsoHeartbeatDispatcherService } from "../../../shared/sso/sso-heartbeat-dispatcher.service";
 import { StompClientConnection } from "../../../shared/stomp/stomp-client-connection";
 import { StompClientService } from "../../../shared/stomp/stomp-client.service";
 import { LogoutService } from "../../../shared/util/logout.service";
 import { SessionExpirationModel } from "../../../shared/util/model/session-expiration-model";
+import { CloudLicenseState } from "../../../shared/util/security/cloud-license-state";
 import { AuthorizationService } from "./authorization/authorization.service";
 import { ComponentPermissions } from "./authorization/component-permissions";
 import { TopScrollService } from "./top-scroll/top-scroll.service";
@@ -56,7 +57,8 @@ export class AppComponent implements OnInit, OnDestroy {
    private subscription = new Subscription();
    private connection: StompClientConnection;
    private smallDevice = false;
-   private sessionWarningDisplayed = false;
+   private sessionExpirationDialog: MatDialogRef<SessionExpirationDialog>;
+   private protectionExpirationDialog: MatDialogRef<SessionExpirationDialog>;
 
    constructor(private http: HttpClient, private authzService: AuthorizationService,
                private stompClient: StompClientService, private zone: NgZone,
@@ -84,7 +86,11 @@ export class AppComponent implements OnInit, OnDestroy {
          this.subscription.add(connection.subscribe(
             "/user/session-expiration",
             (message) => this.zone.run(
-               () => this.showSessionExpiringDialog(JSON.parse(message.frame.body)))));
+               () => this.showExpirationDialog(JSON.parse(message.frame.body)))));
+         this.subscription.add(connection.subscribe(
+            "/user/license-changed",
+            (message) => this.zone.run(
+               () => this.processCloudLicenseStateChange(JSON.parse(message.frame.body)))));
       });
 
       this.subscription.add(this.breakpointObserver
@@ -130,30 +136,59 @@ export class AppComponent implements OnInit, OnDestroy {
       this.dialog.open(this.notificationDialog, { width: "350px" });
    }
 
-   private showSessionExpiringDialog(model: SessionExpirationModel): void {
-      if(this.sessionWarningDisplayed) {
+   private showExpirationDialog(model: SessionExpirationModel): void {
+      let expirationDialog = model.nodeProtection ?
+         this.protectionExpirationDialog : this.sessionExpirationDialog;
+
+      if(expirationDialog) {
+         // if dialog is open and session was refreshed then close the dialog
+         if(!model.expiringSoon) {
+            expirationDialog.close(false);
+         }
+
          return;
       }
 
-      this.sessionWarningDisplayed = true;
-      const dialogRef = this.dialog.open(SessionExpirationDialog, {
+      if(!model.expiringSoon) {
+         return;
+      }
+
+      expirationDialog = this.dialog.open(SessionExpirationDialog, {
          width: "500px",
          data: {
             remainingTime: model.remainingTime,
+            nodeProtection: model.nodeProtection
          }
       });
 
-      dialogRef.afterClosed().subscribe(value => {
+      this.setExpirationDialog(expirationDialog, model.nodeProtection);
+      expirationDialog.afterClosed().subscribe(value => {
          if(value) {
             this.connection.send("/user/session/refresh", null, null);
          }
 
-         this.sessionWarningDisplayed = false;
+         this.setExpirationDialog(null, model.nodeProtection);
       });
 
-      dialogRef.componentInstance.onLogout.subscribe(() => {
-         this.sessionWarningDisplayed = false;
+      expirationDialog.componentInstance.onLogout.subscribe(() => {
          this.logoutService.logout(false, true);
       });
+   }
+
+   private setExpirationDialog(dialog: MatDialogRef<SessionExpirationDialog>, nodeProtection: boolean) {
+      if(nodeProtection) {
+         this.protectionExpirationDialog = dialog;
+      }
+      else {
+         this.sessionExpirationDialog = dialog;
+      }
+   }
+
+   private processCloudLicenseStateChange(state: CloudLicenseState): void {
+      if(state.terminating) {
+         this.notify({ message: "_#(js:common.sessionHoursTerminating)" })
+      }
+
+      this.logoutService.setInGracePeriod(state.gracePeriod);
    }
 }

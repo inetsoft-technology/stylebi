@@ -20,36 +20,21 @@ package inetsoft.util.health;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.swap.XSwapper;
 
+import java.io.Serial;
 import java.io.Serializable;
+import java.util.concurrent.TimeUnit;
 
 public final class CacheSwapStatus implements Serializable {
    public CacheSwapStatus() {
-      this(false, 0L, false, 0L);
+      this(false, 0L);
    }
 
    CacheSwapStatus(CacheSwapStatus previous) {
-      long criticalMemoryTime = Long.parseLong(
-         SreeEnv.getProperty("health.cacheSwap.criticalMemoryTime", "120000"));
       int excessiveWaitingThreads = Integer.parseInt(
-         SreeEnv.getProperty("health.cacheSwap.excessiveWaitingThreads", "5"));
-      long excessiveWaitingTime = Long.parseLong(
-         SreeEnv.getProperty("health.cacheSwap.excessiveWaitingTime", "120000"));
-
-      if(XSwapper.getMemoryState() == XSwapper.CRITICAL_MEM) {
-         if(previous.criticalMemoryStart == 0L) {
-            criticalMemory = false;
-            criticalMemoryStart = System.currentTimeMillis();
-         }
-         else {
-            criticalMemoryStart = previous.criticalMemoryStart;
-            criticalMemory =
-               System.currentTimeMillis() - criticalMemoryStart > criticalMemoryTime;
-         }
-      }
-      else {
-         criticalMemory = false;
-         criticalMemoryStart = 0L;
-      }
+         SreeEnv.getProperty("health.cacheSwap.excessiveWaitingThreads", "20"));
+      long excessiveWaitingTime = Long.parseLong(SreeEnv.getProperty(
+         "health.cacheSwap.excessiveWaitingTime",
+         Long.toString(TimeUnit.MINUTES.convert(30L, TimeUnit.MILLISECONDS))));
 
       if(XSwapper.getWaitingThreadCount() > excessiveWaitingThreads) {
          if(previous.excessiveWaitingStart == 0L) {
@@ -68,21 +53,9 @@ public final class CacheSwapStatus implements Serializable {
       }
    }
 
-   public CacheSwapStatus(boolean criticalMemory, long criticalMemoryStart,
-                          boolean excessiveWaiting, long excessiveWaitingStart)
-   {
-      this.criticalMemory = criticalMemory;
-      this.criticalMemoryStart = criticalMemoryStart;
+   public CacheSwapStatus(boolean excessiveWaiting, long excessiveWaitingStart) {
       this.excessiveWaiting = excessiveWaiting;
       this.excessiveWaitingStart = excessiveWaitingStart;
-   }
-
-   public boolean isCriticalMemory() {
-      return criticalMemory;
-   }
-
-   public long getCriticalMemoryStart() {
-      return criticalMemoryStart;
    }
 
    public boolean isExcessiveWaiting() {
@@ -96,16 +69,13 @@ public final class CacheSwapStatus implements Serializable {
    @Override
    public String toString() {
       return "CacheSwapStatus{" +
-         "criticalMemory=" + criticalMemory +
-         ", criticalMemoryStart=" + criticalMemoryStart +
-         ", excessiveWaiting=" + excessiveWaiting +
+         "excessiveWaiting=" + excessiveWaiting +
          ", excessiveWaitingStart=" + excessiveWaitingStart +
          '}';
    }
 
-   private final boolean criticalMemory;
-   private final long criticalMemoryStart;
    private final boolean excessiveWaiting;
    private final long excessiveWaitingStart;
+   @Serial
    private static final long serialVersionUID = 1L;
 }

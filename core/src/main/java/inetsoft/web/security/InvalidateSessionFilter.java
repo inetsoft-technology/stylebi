@@ -18,6 +18,7 @@
 package inetsoft.web.security;
 
 import inetsoft.sree.RepletRepository;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.web.admin.security.SSOSettingsService;
@@ -46,8 +47,7 @@ public class InvalidateSessionFilter extends AbstractSecurityFilter {
       if(session != null && !isSSO() && !isPublicResource(httpRequest) &&
          !isPublicApi(httpRequest))
       {
-         SRPrincipal principal =
-            (SRPrincipal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+         SRPrincipal principal = (SRPrincipal) SUtil.getPrincipal(httpRequest);
 
          if(principal != null) {
             if(isSecurityEnabled()) {
@@ -60,7 +60,7 @@ public class InvalidateSessionFilter extends AbstractSecurityFilter {
                }
             }
 
-            if(isApp(httpRequest) && principal.getProperty("curr_org_id") != null) {
+            if(isApp(httpRequest) && !SUtil.isEMPrincipal(httpRequest) && principal.getProperty("curr_org_id") != null) {
                principal.setProperty("curr_org_id", null);
             }
          }

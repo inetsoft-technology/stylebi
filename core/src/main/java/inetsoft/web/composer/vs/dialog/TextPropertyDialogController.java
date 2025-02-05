@@ -25,6 +25,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
@@ -59,7 +60,8 @@ public class TextPropertyDialogController {
                                        RuntimeViewsheetRef runtimeViewsheetRef,
                                        ViewsheetService engine,
                                        VSDialogService dialogService,
-                                       VSTrapService trapService)
+                                       VSTrapService trapService,
+                                       VSAssemblyInfoHandler assemblyInfoHandler)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
@@ -67,6 +69,7 @@ public class TextPropertyDialogController {
       this.engine = engine;
       this.dialogService = dialogService;
       this.trapService = trapService;
+      this.assemblyInfoHandler = assemblyInfoHandler;
    }
 
    /**
@@ -181,6 +184,7 @@ public class TextPropertyDialogController {
 
       ScalarBindingInfo outputBinding = textAssemblyInfo.getScalarBindingInfo();
       dataOutputPaneModel.setTargetTree(this.vsOutputService.getOutputTablesTree(rvs, principal));
+      dataOutputPaneModel.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
       dataOutputPaneModel.setLogicalModel(vs.getBaseEntry() != null &&
                                       vs.getBaseEntry().getType() == AssetEntry.Type.LOGIC_MODEL);
       dataOutputPaneModel.setTableType(this.vsOutputService.getTableType(vs.getBaseEntry()));
@@ -410,4 +414,5 @@ public class TextPropertyDialogController {
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSDialogService dialogService;
    private final VSTrapService trapService;
+   private final VSAssemblyInfoHandler assemblyInfoHandler;
 }

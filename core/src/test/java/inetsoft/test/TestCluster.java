@@ -47,7 +47,7 @@ public class TestCluster implements Cluster {
    }
 
    @Override
-   public Set<String> getClusterNodes() {
+   public Set<String> getClusterNodes(boolean includeClients) {
       return Set.of(getLocalMember());
    }
 

@@ -40,11 +40,6 @@ public class FortyTwoMattersRuntime extends EndpointJsonRuntime {
       FortyTwoMattersQuery query = (FortyTwoMattersQuery) tabularQuery.clone();
       FortyTwoMattersDataSource dataSource = (FortyTwoMattersDataSource) query.getDataSource();
       FortyTwoMattersEndpoint endpoint = FortyTwoMattersQuery.getEndpoint(query.getEndpoint());
-
-      if(endpoint != null && dataSource.isFreeTrial()) {
-         query.setMaxRows(endpoint.getFreePageLimit());
-      }
-
       return super.runQuery(query, params);
    }
 

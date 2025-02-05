@@ -23,12 +23,15 @@ import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
 import { DownloadService } from "../../../../../../shared/download/download.service";
+import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { AssemblyAction } from "../../../common/action/assembly-action";
 import { Rectangle } from "../../../common/data/rectangle";
 import { DndService } from "../../../common/dnd/dnd.service";
+import { FullScreenService } from "../../../common/services/full-screen.service";
 import { TestUtils } from "../../../common/test/test-utils";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { ChartService } from "../../../graph/services/chart.service";
+import { ViewDataService } from "../../../viewer/services/view-data.service";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { ModelService } from "../../../widget/services/model.service";
 import { ScaleService } from "../../../widget/services/scale/scale-service";
@@ -37,6 +40,7 @@ import { ComposerToken, ContextProvider, ViewerContextProviderFactory } from "..
 import { RichTextService } from "../../dialog/rich-text-dialog/rich-text.service";
 import { VSChartModel } from "../../model/vs-chart-model";
 import { ShowHyperlinkService } from "../../show-hyperlink.service";
+import { VSTabService } from "../../util/vs-tab.service";
 import { AdhocFilterService } from "../data-tip/adhoc-filter.service";
 import { DataTipService } from "../data-tip/data-tip.service";
 import { PopComponentService } from "../data-tip/pop-component.service";
@@ -60,6 +64,9 @@ describe("VSChart Tests", () => {
    let dialogService: any;
    let adhocFilterService: any;
    let richTextService: any;
+   let viewDataService: any;
+   let vSTabService: any;
+   let fullscreenService: any;
 
    beforeEach(async(() => {
       let modelService: any = { getModel: jest.fn() };
@@ -69,6 +76,8 @@ describe("VSChart Tests", () => {
       let dataTipService = {
          showDataTip: jest.fn(),
          isDataTip: jest.fn(),
+         isDataTipVisible: jest.fn(),
+         isDataTipSource: jest.fn(),
          isFrozen: jest.fn(),
          hideDataTip: jest.fn()
       };
@@ -94,6 +103,7 @@ describe("VSChart Tests", () => {
       richTextService = {
          showAnnotationDialog: jest.fn()
       };
+      vSTabService = {}
 
       TestBed.configureTestingModule({
          imports: [
@@ -125,7 +135,11 @@ describe("VSChart Tests", () => {
             ShowHyperlinkService,
             { provide: DialogService, useValue: dialogService },
             { provide: AdhocFilterService, useValue: adhocFilterService },
-            { provide: RichTextService, useValue: richTextService }
+            { provide: RichTextService, useValue: richTextService },
+            { provide: ViewDataService, useValue: viewDataService },
+            AppInfoService,
+            VSTabService,
+            { provide: FullScreenService, useValue: fullscreenService }
          ]
       });
 

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -25,6 +26,7 @@ import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 import { NoopAnimationsModule } from "@angular/platform-browser/animations";
+import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { AuthorizationProviderDetailViewComponent } from "./authorization-provider-detail-view.component";
 
 describe("AuthorizationProviderDetailViewComponent", () => {
@@ -50,10 +52,14 @@ describe("AuthorizationProviderDetailViewComponent", () => {
             MatIconModule,
             MatInputModule,
             MatOptionModule,
-            MatSelectModule
+            MatSelectModule,
+            HttpClientTestingModule
          ],
          declarations: [
             AuthorizationProviderDetailViewComponent
+         ],
+         providers: [
+            AppInfoService
          ],
          schemas: [
             NO_ERRORS_SCHEMA

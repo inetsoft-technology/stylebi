@@ -155,6 +155,10 @@ export class ShowHyperlinkService extends HyperlinkService implements OnDestroy 
          let str: string = this.getURL(_model.url);
          let target: string = this.getTargetName(link);
 
+         if(runtimeId) {
+            params.set("drillfrom", [runtimeId]);
+         }
+
          if(this.inComposer && target === "_self" && link.linkType === LinkType.VIEWSHEET_LINK) {
             this.showLinkSheetSubject.next({
                id: link.link,
@@ -167,10 +171,6 @@ export class ShowHyperlinkService extends HyperlinkService implements OnDestroy 
          // never replace composer window with drilldown
          if(this.inComposer || this.inEmbed) {
             target = "_blank";
-         }
-
-         if(runtimeId) {
-            params.set("drillfrom", [runtimeId]);
          }
 
          if(target == "_self" &&

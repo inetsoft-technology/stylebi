@@ -168,6 +168,10 @@ class DiscoverHandler extends SAXHandler {
             if("MEASURE_CAPTION".equals(lastTag)) {
                measure.setCaption(txt);
             }
+
+            if("EXPRESSION".equals(lastTag)) {
+               measure.setCalcMeasure(true);
+            }
          }
          else if(reqType.equals(XMLAUtil.HIERARCHIES_REQUEST)) {
             String[] hierarchy = (String[]) obj;

@@ -51,8 +51,7 @@ public final class LocalFileSystem extends AbstractFileSystem {
 
       // get block system from data node. For local system, server node is
       // also data node, so here we just get block system from data node
-      FSService service = FSService.getService();
-      XDataNode node = FSService.getDataNode();
+      XDataNode node = FSService.getDataNode(orgId);
       bsys = node.getBSystem();
    }
 

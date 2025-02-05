@@ -18,6 +18,7 @@
 import { Component, EventEmitter, forwardRef, Input, OnInit, Output } from "@angular/core";
 import { ControlValueAccessor, NG_VALUE_ACCESSOR, } from "@angular/forms";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
+import { DateTimeService } from "../date-time.service";
 
 @Component({
    selector: "em-time-zone-select",
@@ -42,7 +43,7 @@ export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
    private onChange = (fn: any) => {};
    private onTouched: any;
 
-   constructor() {
+   constructor(private dateTimeService: DateTimeService) {
    }
 
    ngOnInit(): void {
@@ -73,21 +74,8 @@ export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
    }
 
    setTimeZoneLabel(changed: boolean) {
-      const id = this.timeZoneId;
-      let tz = this.timeZoneOptions.find(option => option.timeZoneId == id);
-      let timeZoneLabel;
-
-      if(!tz) {
-         tz = this.timeZoneOptions[0];
-      }
-
-      if (tz == this.timeZoneOptions[0]) {
-         timeZoneLabel = this.serverTimeZone;
-      }
-      else {
-         timeZoneLabel = tz.label;
-      }
-
+      let timeZoneLabel = this.dateTimeService
+         .getTimeZoneLabel(this.timeZoneOptions, this.timeZoneId, this.serverTimeZone);
       this.labelChanged.emit(timeZoneLabel);
 
       if(changed) {

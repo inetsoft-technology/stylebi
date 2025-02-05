@@ -30,6 +30,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.*;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.*;
@@ -1699,7 +1700,12 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          MVStorage.getInstance().remove(file);
       }
       catch(Exception e) {
-         LOG.warn("Failed to remove mv file: {}", mvname);
+         if(LOG.isDebugEnabled() && !(e instanceof FileNotFoundException)) {
+            LOG.debug("Failed to remove mv file: {}", mvname, e);
+         }
+         else {
+            LOG.warn("Failed to remove mv file: {}", mvname);
+         }
       }
    }
 
@@ -2086,12 +2092,29 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
          }
       }
 
+      if(getTabularTableAssembly(table) != null) {
+         TabularTableAssembly tabularTableAssembly = getTabularTableAssembly(table);
+         List<UserVariable> queryVariables = tabularTableAssembly.getTabularTableQueryVariables();
+
+         if(queryVariables.size() > 0) {
+            throw new SecurityException(Catalog.getCatalog().getString("vs.mv.tabular.query.variables"));
+         }
+      }
+
       source = ConnectionProcessor.getInstance().getDatasource(box.getUser(), source);
       QueryNode node = query.getQueryPlan();
 
       StringBuilder sb = new StringBuilder(source + "\n");
       node.writeContent(sb, isWSMV());
       return sb.toString();
+   }
+
+   private TabularTableAssembly getTabularTableAssembly(TableAssembly assembly) {
+      while(assembly instanceof MirrorTableAssembly) {
+         assembly = ((MirrorTableAssembly) assembly).getTableAssembly();
+      }
+
+      return assembly instanceof TabularTableAssembly ? (TabularTableAssembly) assembly : null;
    }
 
    /**

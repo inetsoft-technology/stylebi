@@ -21,6 +21,8 @@ import { Injectable } from "@angular/core";
 import { Observable } from "rxjs";
 import { convertKeyToID } from "../../../../../em/src/app/settings/security/users/identity-id";
 import { createAssetEntry } from "../../../../../shared/data/asset-entry";
+import { AppInfoService } from "../../../../../shared/util/app-info.service";
+import { CommonKVModel } from "../../common/data/common-kv-model";
 import { GuiTool } from "../../common/util/gui-tool";
 import { ShareConfig } from "./share-config";
 import { ShareEmailModel } from "./share-email-model";
@@ -31,11 +33,21 @@ declare const window: any;
    providedIn: "root"
 })
 export class ShareService {
-   constructor(private http: HttpClient) {
+   private orgInfo: CommonKVModel<string, string> = null;
+
+   constructor(private http: HttpClient, private appInfoService: AppInfoService) {
+      this.appInfoService.getCurrentOrgInfo().subscribe((orgInfo) => {
+         this.orgInfo = orgInfo;
+      })
    }
 
-   getConfig(): Observable<ShareConfig> {
+   getConfig(orgId: string): Observable<ShareConfig> {
       let params = new HttpParams().set("temp", (new Date()).getTime() + "");
+
+      if(orgId) {
+         params = params.set("orgId", orgId);
+      }
+
       return this.http.get<ShareConfig>("../api/share/config", {params: params});
    }
 
@@ -99,9 +111,11 @@ export class ShareService {
    getViewsheetLink(viewsheetId: string): string {
       const entry = createAssetEntry(viewsheetId);
       let path = "";
+      let currentOrgId = this.orgInfo?.key;
+      let sharedGlobal = !!currentOrgId && currentOrgId !== "host-org" && viewsheetId.endsWith("host-org");
 
       if(entry.scope === 1) {
-         path += "global/";
+         path += sharedGlobal ? "shared_global/" : "global/";
       }
       else {
          path += "user/" + convertKeyToID(entry.user).name + "/";

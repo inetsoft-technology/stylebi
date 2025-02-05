@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.controller.database;
 
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.data.CommonKVModel;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.uql.*;
@@ -382,6 +383,7 @@ public class DatabaseModelUtil {
       }
 
       DrillSubQueryModel subQueryModel = new DrillSubQueryModel();
+      subQuery.getWsEntry().setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
       subQueryModel.setEntry(getSubWSEntry(subQuery.getWsEntry()));
       List<CommonKVModel<String, String>> subParams = new ArrayList<>();
       Iterator<String> subQueryParameterNames = subQuery.getParameterNames();

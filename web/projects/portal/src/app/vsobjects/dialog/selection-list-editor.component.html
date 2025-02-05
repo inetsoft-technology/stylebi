@@ -29,7 +29,7 @@
       <div class="form-row-float-label">
         <div class="form-floating">
           <select [(ngModel)]="localColumn" class="form-control" id="label" placeholder="_#(Label)">
-            <option *ngFor="let column of columns; let i = index" [value]="column"
+            <option *ngFor="let column of columns; let i = index" [value]="column" [ngClass]="getInputClass(column)"
                [title]="columnTooltips[i]">{{column}}</option>
           </select>
           <label>_#(Label)</label>
@@ -38,7 +38,7 @@
       <div class="form-row-float-label">
         <div class="form-floating">
           <select [(ngModel)]="localValue" class="form-control" id="value" placeholder="_#(Value)">
-            <option *ngFor="let column of columns; let i = index" [value]="column"
+            <option *ngFor="let column of columns; let i = index" [value]="column" [ngClass]="getInputClass(column)"
                     [title]="columnTooltips[i]">{{column}}</option>
           </select>
           <label>_#(Value)</label>

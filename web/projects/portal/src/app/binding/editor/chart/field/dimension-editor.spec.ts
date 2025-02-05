@@ -273,7 +273,7 @@ describe("Dimension Editor Unit Test", () => {
    });
 
    //Bug #19273, group all other should be enabled. no longer valid, fix was incorrect
-   xit("Group all other checkbox should be enabled", () => {
+   it("Group all other checkbox should be enabled", () => {
       uiContextService.isAdhoc.mockImplementation(() => false);
       let dimRef = TestUtils.createMockChartDimensionRef("instock");
       let agg: any = [{

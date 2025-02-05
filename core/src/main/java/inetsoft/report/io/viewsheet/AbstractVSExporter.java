@@ -2611,6 +2611,10 @@ public abstract class AbstractVSExporter implements VSExporter {
       String name = assembly.getAbsoluteName();
       VSTableLens olens = box.getVSTableLens(name, false, 1);
       VSTableLens lens = getRegionTableLens(olens, assembly, box);
+
+      //lens may not be initialized for expand table
+      lens.initTableGrid(assembly.getVSAssemblyInfo());
+
       expandTable(assembly, lens, exprow);
    }
 

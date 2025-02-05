@@ -410,7 +410,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
    private _active: boolean = true;
    private loadingEventCount: number = 0;
    private closeProgressSubject: Subject<any> = new Subject();
-   public vsInfo: ViewsheetInfo = new ViewsheetInfo([], null, null);
+   public vsInfo: ViewsheetInfo = new ViewsheetInfo([], null, null, null, this.getOrgId());
    private composedDashboard = false;
    private subscriptions = new Subscription();
    private drillDown: boolean = false;
@@ -520,7 +520,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
 
    ngOnInit(): void {
       this.actionFactory.securityEnabled = this.securityEnabled;
-      this.vsInfo = new ViewsheetInfo(this.vsObjects, null, false, this.runtimeId);
+      this.vsInfo = new ViewsheetInfo(this.vsObjects, null, false, this.runtimeId, this.getOrgId());
       this.scaleToScreen = !!this.viewDataService?.data?.scaleToScreen;
       this.fitToWidth = !!this.viewDataService?.data?.fitToWidth;
 
@@ -584,7 +584,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
          this.ngbDatepickerConfig.firstDayOfWeek = model.isoFirstDay;
       });
 
-      this.shareService.getConfig().subscribe(config => this.shareConfig = config);
+      this.shareService.getConfig(this.getOrgId()).subscribe(config => this.shareConfig = config);
 
       if(this.isIframe && this.fullScreenService.fullScreenMode && !this.fullScreen) {
          this.fullScreenService.exitFullScreen();
@@ -788,7 +788,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       // enough as the viewer root can be resized by other methods
       if(this._active && this.scaleToScreen && this.viewerRoot && this.appSize &&
          (this.viewerRoot.nativeElement.offsetWidth != this.appSize.width ||
-            this.viewerRoot.nativeElement.offsetHeight != this.appSize.height))
+            this.viewerRoot.nativeElement.offsetHeight != this.appSize.height) &&
+         (!!this.vsObjects && this.vsObjects.length > 0))
       {
          this.onViewerRootResize();
       }
@@ -2006,11 +2007,6 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       if(!command.disableParameterSheet && vars.length > 0) {
          this.enterParameters(vars, disVars, command.isOpenSheet);
       }
-      else {
-         const variables: VariableInfo[] = [];
-         let event: CollectParametersOverEvent = new CollectParametersOverEvent(variables, true, command.isOpenSheet);
-         this.viewsheetClient.sendEvent(COLLECT_PARAMS_URI, event);
-      }
    }
 
    processUpdateSharedFiltersCommand(command: UpdateSharedFiltersCommand): void {
@@ -2427,7 +2423,8 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       }
 
       if(this.vsInfo.linkUri != command.linkUri) {
-         this.vsInfo = new ViewsheetInfo(this.vsObjects, command.linkUri, false, this.runtimeId);
+         this.vsInfo = new ViewsheetInfo(this.vsObjects,
+            command.linkUri, false, this.runtimeId, this.getOrgId());
       }
 
       // reset server update interval if any values are changed
@@ -2795,8 +2792,11 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
       this.dialogService.open(this.variableInputDialog, options).result
          .then(
             (model: VariableInputDialogModel) => {
+               this.setAppSize();
                const vars: VariableInfo[] = model.varInfos.concat(disabledVariables);
                let event: CollectParametersOverEvent = new CollectParametersOverEvent(vars, false, openVS);
+               event.width = this.appSize.width;
+               event.height = this.appSize.height;
                this.viewsheetClient.sendEvent(COLLECT_PARAMS_URI, event);
             },
             () => {
@@ -3862,5 +3862,13 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
             (err) => {
                this.exporting = false;
             });
+   }
+
+   private getOrgId(): string {
+      if(this.assetId) {
+         return createAssetEntry(this.assetId).organization;
+      }
+
+      return null;
    }
 }

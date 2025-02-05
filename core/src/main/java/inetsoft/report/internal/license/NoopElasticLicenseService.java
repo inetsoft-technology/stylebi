@@ -36,4 +36,12 @@ public class NoopElasticLicenseService implements ElasticLicenseService {
    @Override
    public void removeLicense(String licenseKey) {
    }
+
+   @Override
+   public void addNotificationListener(NotificationListener listener) {
+   }
+
+   @Override
+   public void removeNotificationListener(NotificationListener listener) {
+   }
 }

@@ -104,6 +104,7 @@ public class ZohoCRMDataSource extends EndpointJsonDataSource<ZohoCRMDataSource>
    }
 
    @Property(label = "Token Expiration", required = true)
+   @PropertyEditor(enabled = false)
    public long getTokenExpiration() {
       return tokenExpiration;
    }

@@ -21,6 +21,7 @@ package inetsoft.web.viewsheet.service;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.SetInputObjectValueEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
+import inetsoft.report.*;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.*;
@@ -52,6 +53,7 @@ import org.springframework.stereotype.Service;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.regex.Pattern;
 
 @Service
 public class VSInputService {
@@ -191,7 +193,7 @@ public class VSInputService {
       String type = assembly.getDataType();
       Object obj = values == null || values.length == 0 ? null : Tool.getData(type, values[0]);
 
-      if(values !=null && obj == null && type.equals(CoreTool.BOOLEAN) && values[0].equals("")) {
+      if(values !=null && values.length > 0 && obj == null && type.equals(CoreTool.BOOLEAN) && values[0].equals("")) {
          obj = "";
       }
 
@@ -488,26 +490,29 @@ public class VSInputService {
 
       String inputName = input.getName();
 
-      if(assembly instanceof VariableProvider provider) {
-         for(UserVariable var : provider.getAllVariables()) {
-            if(Objects.equals(var.getName(), inputName)) {
-               return true;
-            }
+      if(assembly instanceof VariableProvider) {
+         if(isVariableProviderReferenced(inputName, (VariableProvider) assembly)) {
+            return true;
          }
       }
 
-      if(assembly instanceof VSAssembly vsAssembly) {
-         String inputVar = "$(" + inputName + ")";
-
-         if(isAssemblyReferenced(inputVar, vsAssembly.getDynamicValues())) {
+      if(assembly instanceof VSAssembly) {
+         if(isVSAssemblyReferenced("$(" + inputName + ")", (VSAssembly) assembly)) {
             return true;
          }
+      }
 
-         if(isAssemblyReferenced(inputVar, vsAssembly.getViewDynamicValues(true))) {
-            return true;
-         }
+      if(assembly instanceof CalcTableVSAssembly calc) {
+         TableLayout layout = calc.getTableLayout();
+         return layout != null && isTableLayoutReferenced(inputName, layout);
+      }
 
-         if(isAssemblyReferenced(inputVar, vsAssembly.getHyperlinkDynamicValues())) {
+      return false;
+   }
+
+   private boolean isVariableProviderReferenced(String varName, VariableProvider provider) {
+      for(UserVariable var : provider.getAllVariables()) {
+         if(Objects.equals(var.getName(), varName)) {
             return true;
          }
       }
@@ -515,10 +520,68 @@ public class VSInputService {
       return false;
    }
 
+   private boolean isVSAssemblyReferenced(String inputVar, VSAssembly assembly) {
+      if(isAssemblyReferenced(inputVar, assembly.getDynamicValues())) {
+         return true;
+      }
+
+      if(isAssemblyReferenced(inputVar, assembly.getViewDynamicValues(true))) {
+         return true;
+      }
+
+      return isAssemblyReferenced(inputVar, assembly.getHyperlinkDynamicValues());
+   }
+
    private boolean isAssemblyReferenced(String varName, List<DynamicValue> list) {
       return list != null && list.stream()
          .map(DynamicValue::getDValue)
          .anyMatch(v -> Objects.equals(varName, v));
+   }
+
+   private boolean isTableLayoutReferenced(String inputName, TableLayout layout) {
+      for(Enumeration<?> e = layout.getAllVariables(); e.hasMoreElements(); ) {
+         UserVariable var = (UserVariable) e.nextElement();
+
+         if(Objects.equals(var.getName(), inputName)) {
+            return true;
+         }
+      }
+
+      return isCellReferenced(inputName, layout);
+   }
+
+   private boolean isCellReferenced(String inputName, TableLayout layout) {
+      if(layout.isCalc()) {
+         Pattern pattern1 = Pattern.compile("^\\s*" + inputName + "\\s*\\.\\s*value\\s*$");
+         Pattern pattern2 = Pattern.compile("^\\s*" + inputName + "\\s*\\.\\s*value\\W");
+         Pattern pattern3 = Pattern.compile("\\W" + inputName + "\\s*\\.\\s*value\\W");
+         Pattern pattern4 = Pattern.compile("\\W" + inputName + "\\s*\\.\\s*value\\s*$");
+
+         for(BaseLayout.Region region : layout.getRegions()) {
+            for(int r = 0; r < region.getRowCount(); r++) {
+               for(int c = 0; c < region.getColCount(); c++) {
+                  TableCellBinding cell = (TableCellBinding) region.getCellBinding(r, c);
+
+                  if(cell != null && cell.getType() == CellBinding.BIND_FORMULA) {
+                     String formula = cell.getValue();
+
+                     if(formula != null && (
+                        pattern1.matcher(formula).find() ||
+                        pattern2.matcher(formula).find() ||
+                        pattern3.matcher(formula).find() ||
+                        pattern4.matcher(formula).find()))
+                     {
+                        // could possibly return false positives, but the possibility should be
+                        // minimized by the regular expressions used to match the input reference
+                        return true;
+                     }
+                  }
+               }
+            }
+         }
+      }
+
+      return false;
    }
 
    private Map<String, VSAssemblyInfo> getOldCrosstabInfo(Principal principal) throws Exception {

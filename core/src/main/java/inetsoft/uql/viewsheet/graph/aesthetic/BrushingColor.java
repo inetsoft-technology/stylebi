@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.viewsheet.graph.aesthetic;
 
+import inetsoft.uql.viewsheet.graph.BaseColor;
 import inetsoft.util.css.CSSDictionary;
 import inetsoft.util.css.CSSParameter;
 
@@ -28,7 +29,7 @@ import java.awt.*;
  * @version 12.3
  * @author InetSoft Technology
  */
-public class BrushingColor {
+public class BrushingColor extends BaseColor {
    /**
     * Get the highlight color for brushing.
     */
@@ -56,16 +57,4 @@ public class BrushingColor {
 
       return (clr != null) ? clr : Color.gray;
    }
-
-   private static CSSDictionary getDictionary() {
-      if(dict == null || dict.getLastModifiedTime() > lastModified) {
-         dict = CSSDictionary.getDictionary();
-      }
-
-      lastModified = dict.getLastModifiedTime();
-      return dict;
-   }
-
-   private static long lastModified;
-   private static CSSDictionary dict;
 }

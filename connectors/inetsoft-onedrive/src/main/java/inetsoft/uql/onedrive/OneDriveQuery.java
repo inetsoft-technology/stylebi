@@ -45,12 +45,12 @@ import java.util.List;
    @View1(value = "headerColumnCount", row=5),
    @View1("unpivotData"),
    @View1(value = "firstRowHeader", row=6),
-   @View1("removeQuotation"),
+   @View1(value = "removeQuotation", row=7),
    @View1(
       type = ViewType.BUTTON, text = "Refresh Column Definitions",
-      row = 7, col = 1,
+      row = 8, col = 1,
       button = @Button(type = ButtonType.METHOD, method = "loadColumns")),
-   @View1(type = ViewType.EDITOR, value = "columns", row = 8, col = 1, colspan = 3)
+   @View1(type = ViewType.EDITOR, value = "columns", row = 9, col = 1, colspan = 3)
 })
 public class OneDriveQuery extends SelectableTabularQuery  {
    public OneDriveQuery() {
@@ -86,13 +86,6 @@ public class OneDriveQuery extends SelectableTabularQuery  {
     */
    public void setExcelSheet(String excelSheet) {
       this.excelSheet = excelSheet;
-
-      try {
-         this.loadColumns();
-      }
-      catch(Exception e) {
-
-      }
    }
 
    /**

@@ -64,6 +64,7 @@ describe("Viewsheet Pane Test", () => {
    let zone: any;
    let resizeHandlerService: any;
    let composerVsSearchService: any;
+   let appInfoService: any;
 
    let createChartObject: () =>  ChartObject = () => {
       return {
@@ -175,13 +176,16 @@ describe("Viewsheet Pane Test", () => {
          focusChange: jest.fn()
       };
       renderer.listen.mockImplementation(() => () => {});
+      appInfoService = {
+         getCurrentOrgInfo: jest.fn(() => observableOf({})),
+      };
 
       viewsheetPane = new VSPane(
          elementRef, composerObjectService, viewsheetClientService,
          treeService, changeDetectorRef, modelService, modalService,
          downloadService, dragService, scaleService, renderer, actionFactory,
          dialogService, dataTipService, debounceService, uiContextService, zone, domService, null,
-         resizeHandlerService, composerVsSearchService);
+         resizeHandlerService, composerVsSearchService, appInfoService);
    });
 
    // Bug #10442 make sure to update send to back/front enabled after adding vs object to vs
@@ -273,7 +277,7 @@ describe("Viewsheet Pane Test", () => {
 
    //Bug #17399, #17428, Bug #20839 status bar should show right info when click diff region.
    //Bug #20649 should has no text in status bar when no assembly selected
-   xit("should show right status bar context on chart", () => {
+   it("should show right status bar context on chart", () => {
       let vs: Viewsheet = new Viewsheet();
       let chart1: VSChartModel = Object.assign(
          { locked: false, hyperlinks: []},
@@ -291,7 +295,7 @@ describe("Viewsheet Pane Test", () => {
       };
       viewsheetPane.vs = vs;
       viewsheetPane.detectChanges(true);
-      expect(viewsheetPane.status.text).toBe("chart1 => <b>text[Label]</b>");
+      expect(viewsheetPane.status.text).toBe("chart1 => <b>text</b>");
 
       chart1.regionMetaDictionary = [{areaType: "label"}];
       chart1.chartSelection = {

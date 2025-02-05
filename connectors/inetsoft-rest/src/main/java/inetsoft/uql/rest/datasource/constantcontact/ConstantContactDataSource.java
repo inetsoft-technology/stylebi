@@ -23,7 +23,6 @@ import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.Tokens;
 import inetsoft.util.credential.CredentialType;
 
-import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
 @View(vertical = true, value = {
@@ -63,16 +62,16 @@ public class ConstantContactDataSource
 
    @Override
    protected CredentialType getCredentialType() {
-      return CredentialType.CLINET;
+      return CredentialType.CLIENT;
    }
 
-   @Property(label = "API Key", required = true)
+   @Property(label = "Client ID", required = true)
    @Override
    public String getClientId() {
       return super.getClientId();
    }
 
-   @Property(label = "App Secret", required = true, password = true)
+   @Property(label = "Client Secret", required = true, password = true)
    @Override
    public String getClientSecret() {
       return super.getClientSecret();

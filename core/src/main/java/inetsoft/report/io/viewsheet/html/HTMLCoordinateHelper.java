@@ -23,6 +23,7 @@ import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.internal.Common;
 import inetsoft.report.internal.Util;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.SpanMap;
 import inetsoft.report.io.viewsheet.CoordinateHelper;
 import inetsoft.report.io.viewsheet.ExportUtil;
@@ -78,6 +79,15 @@ public class HTMLCoordinateHelper extends CoordinateHelper {
       writer.write("<head><meta charset='UTF-8'></head>");
       writer.write("<body style='");
       writer.write(getCSSStyles(null, fmt));
+      LicenseManager licenseManager = LicenseManager.getInstance();
+
+      if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
+         BufferedImage image = Util.createWatermarkImage();
+         byte[] data = VSUtil.getImageBytes(image, 72 * 2);
+         String str = Base64.getEncoder().encodeToString(data);
+         writer.write(";background-repeat:repeat;background-image:url(data:image/png;base64," + str + ")");
+      }
+
       writer.write("'>");
    }
 

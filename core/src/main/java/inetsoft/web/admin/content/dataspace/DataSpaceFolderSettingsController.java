@@ -145,11 +145,13 @@ public class DataSpaceFolderSettingsController {
          .orElseThrow(() -> new IllegalArgumentException("No uploaded files"));
       DataSpace space = DataSpace.getDataSpace();
       ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_CREATE,
-          model.path(), ActionRecord.OBJECT_TYPE_FILE);
+         "", ActionRecord.OBJECT_TYPE_FILE);
+      StringBuilder files = new StringBuilder();
 
       try {
          for(UploadedFile uploadedFile : uploadedFiles) {
             String format;
+            files.append(uploadedFile.fileName()).append(",");
 
             if(extract &&
                (format = DataSpaceFolderSettingsService.getArchiveFormat(uploadedFile.file())) != null)
@@ -173,6 +175,13 @@ public class DataSpaceFolderSettingsController {
                }
             }
          }
+
+         actionRecord.setObjectName(files.toString());
+      }
+      catch(Exception e) {
+         actionRecord.setActionError("Failed to upload files");
+         actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+         throw e;
       }
       finally {
          uploadService.remove(uploadId);

@@ -188,7 +188,7 @@ describe("Date Input Field Unit Case: ", () =>  {
    // });
 
    //Bug #19299
-   xit("should not pop up error when clear date value", () => { // broken test
+   it("should not pop up error when clear date value", () => { // broken test
       dateInputField = <DateInputField>fixture.componentInstance;
       fixture.detectChanges();
       let dateInput: HTMLInputElement = fixture.debugElement.query(By.css("dynamic-combo-box input")).nativeElement;
@@ -199,18 +199,18 @@ describe("Date Input Field Unit Case: ", () =>  {
       dateInput.dispatchEvent(new Event("change"));
       fixture.detectChanges();
 
-      let alert = fixture.debugElement.query(By.css(".alert-danger")).nativeElement;
+      let alert = fixture.debugElement.query(By.css(".alert-danger"));
       expect(alert).toBeNull();
    });
 
    //Bug #21247 should not pop up waring when use variable as value
-   xit("should not pop warning when use variable as value", () => { // broken test
+   it("should not pop warning when use variable as value", () => { // broken test
       dateInputField = <DateInputField>fixture.componentInstance;
       dateInputField.value = "${var1}";
       dateInputField.variables = ["${var1}"];
       fixture.detectChanges();
 
-      let alert = fixture.debugElement.query(By.css(".alert-danger")).nativeElement;
+      let alert = fixture.debugElement.query(By.css(".alert-danger"));
       expect(alert).toBeNull();
    });
 });

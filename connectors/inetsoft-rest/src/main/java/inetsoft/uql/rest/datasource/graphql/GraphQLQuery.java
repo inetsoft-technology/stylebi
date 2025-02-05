@@ -31,8 +31,7 @@ import org.w3c.dom.Element;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.invoke.MethodHandles;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 @View(vertical = true, value = {
    @View1(
@@ -47,6 +46,7 @@ import java.util.Map;
       }
    ),
    @View1("usePagination"),
+   @View1(value = "cursorPagination", visibleMethod = "isUsePagination"),
    @View1(
       type = ViewType.PANEL,
       vertical = true,
@@ -55,13 +55,23 @@ import java.util.Map;
          @View2(
             type = ViewType.LABEL,
             text = "Enter the name of your pagination variable without the $", col = 1,
-            visibleMethod = "isUsePagination"
+            visibleMethod = "isOffsetPagination"
+         ),
+         @View2(
+            type = ViewType.LABEL,
+            text = "Enter the name of your cursor variable without the $", col = 1,
+            visibleMethod = "isCursorPagination"
          ),
          @View2(value = "paginationVariable", visibleMethod = "isUsePagination"),
          @View2(
             type = ViewType.LABEL,
-            text = "JSON Path that counds the number of returned records for pagination", col = 1,
-            visibleMethod = "isUsePagination"
+            text = "JSON Path that counts the number of returned records for pagination", col = 1,
+            visibleMethod = "isOffsetPagination"
+         ),
+         @View2(
+            type = ViewType.LABEL,
+            text = "JSON Path for the last cursor in the response", col = 1,
+            visibleMethod = "isCursorPagination"
          ),
          @View2(value = "paginationCountPath", visibleMethod = "isUsePagination")
       }
@@ -79,10 +89,12 @@ import java.util.Map;
 public class GraphQLQuery extends RestJsonQuery {
    public GraphQLQuery() {
       super(GraphQLDataSource.TYPE);
+      setJsonPath("$");
    }
 
    public GraphQLQuery(String type) {
       super(type);
+      setJsonPath("$");
    }
 
    @Override
@@ -91,11 +103,11 @@ public class GraphQLQuery extends RestJsonQuery {
 
       try {
          final JsonNode jsonNode = objectMapper.readTree(getVariables());
-         final Map<String, String> parameters = new HashMap<>();
+         final Map<String, Object> parameters = new LinkedHashMap<>();
          parameters.put("query", queryString);
-         final String variablesString =
-            jsonNode.isTextual() ? jsonNode.textValue() : objectMapper.writeValueAsString(jsonNode);
-         parameters.put(GraphQLDataSource.VARIABLE_KEY, variablesString);
+         final Object variablesObject =
+            jsonNode.isTextual() ? jsonNode.textValue() : objectMapper.convertValue(jsonNode, Map.class);
+         parameters.put(GraphQLDataSource.VARIABLE_KEY, variablesObject);
          return objectMapper.writeValueAsString(parameters);
       }
       catch(IOException e) {
@@ -106,17 +118,31 @@ public class GraphQLQuery extends RestJsonQuery {
 
    @Override
    public PaginationType getPaginationType() {
-      return usePagination ? PaginationType.GRAPHQL : PaginationType.NONE;
+      if(usePagination) {
+         return cursorPagination ? PaginationType.GRAPHQL_CURSOR : PaginationType.GRAPHQL;
+      }
+      else {
+         return PaginationType.NONE;
+      }
    }
 
    @Override
    public PaginationSpec getPaginationSpec() {
       if(usePagination) {
-         return PaginationSpec.builder()
-            .type(PaginationType.GRAPHQL)
-            .pageNumberParamToWrite(null, getPaginationVariable())
-            .recordCountPath(getPaginationCountPath())
-            .build();
+         if(cursorPagination) {
+            return PaginationSpec.builder()
+               .type(PaginationType.GRAPHQL_CURSOR)
+               .pageNumberParamToWrite(null, getPaginationVariable())
+               .recordCountPath(getPaginationCountPath())
+               .build();
+         }
+         else {
+            return PaginationSpec.builder()
+               .type(PaginationType.GRAPHQL)
+               .pageNumberParamToWrite(null, getPaginationVariable())
+               .recordCountPath(getPaginationCountPath())
+               .build();
+         }
       }
       else {
          return PaginationSpec.builder().type(PaginationType.NONE).build();
@@ -131,7 +157,7 @@ public class GraphQLQuery extends RestJsonQuery {
 
 
    @Property(label = "Pagination Variable")
-   @PropertyEditor(dependsOn = "usePagination")
+   @PropertyEditor(dependsOn = "cursorPagination")
    public String getPaginationVariable() {
       return paginationVariable;
    }
@@ -179,6 +205,18 @@ public class GraphQLQuery extends RestJsonQuery {
       this.usePagination = usePagination;
    }
 
+   @Property(label = "Use Cursor Pagination")
+   public boolean isCursorPagination() {
+      return cursorPagination && isUsePagination();
+   }
+
+   public void setCursorPagination(boolean cursorPagination) {
+      this.cursorPagination = cursorPagination;
+   }
+
+   public boolean isOffsetPagination() {
+      return !cursorPagination && isUsePagination();
+   }
 
    @Override
    public void writeContents(PrintWriter writer) {
@@ -193,6 +231,7 @@ public class GraphQLQuery extends RestJsonQuery {
       }
 
       writer.format("<usePagination>%s</usePagination>\n", usePagination);
+      writer.format("<cursorPagination>%s</cursorPagination>\n", cursorPagination);
 
       if(paginationVariable != null && !paginationVariable.isEmpty()) {
          writer.format("<paginationVariable>%s</paginationVariable>\n", paginationVariable);
@@ -210,6 +249,7 @@ public class GraphQLQuery extends RestJsonQuery {
       variables = CoreTool.getChildValueByTagName(root, "variables");
       paginationVariable = CoreTool.getChildValueByTagName(root, "paginationVariable");
       usePagination = "true".equals(CoreTool.getChildValueByTagName(root, "usePagination"));
+      cursorPagination = "true".equals(CoreTool.getChildValueByTagName(root, "cursorPagination"));
       paginationCountPath = CoreTool.getChildValueByTagName(root, "paginationCountPath");
    }
 
@@ -217,6 +257,7 @@ public class GraphQLQuery extends RestJsonQuery {
    private String queryString;
    private String variables;
    private boolean usePagination;
+   private boolean cursorPagination;
    private String paginationVariable;
    private String paginationCountPath;
 }

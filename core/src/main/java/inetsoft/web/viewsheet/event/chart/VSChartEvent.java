@@ -25,6 +25,14 @@ import java.awt.*;
  * @since 12.3
  */
 public class VSChartEvent {
+   public String getOrgId() {
+      return orgId;
+   }
+
+   public void setOrgId(String orgId) {
+      this.orgId = orgId;
+   }
+
    /**
     * Sets the chart name.
     *
@@ -67,6 +75,7 @@ public class VSChartEvent {
       this.viewportHeight = viewportHeight;
    }
 
+   private String orgId;
    private String chartName;
    private Dimension maxSize;
    private int viewportWidth = 0;

@@ -34,5 +34,7 @@ export interface SelectionTreePaneModel {
    parentIdRef: OutputColumnRefModel;
    idRef: OutputColumnRefModel;
    labelRef: OutputColumnRefModel;
+   modelSource: boolean;
    grayedOutFields?: DataRef[];
 }
+

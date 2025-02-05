@@ -26,7 +26,8 @@ import java.util.Objects;
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
-   @View1(value = "apiKey", visibleMethod = "useCredential")
+   @View1(value = "apiKey", visibleMethod = "useCredential"),
+   @View1(value = "appKey", visibleMethod = "useCredential")
 })
 public class PipelineCRMDataSource extends EndpointJsonDataSource<PipelineCRMDataSource> {
    static final String TYPE = "Rest.PipelineDeals";
@@ -37,22 +38,32 @@ public class PipelineCRMDataSource extends EndpointJsonDataSource<PipelineCRMDat
 
    @Override
    protected CredentialType getCredentialType() {
-      return CredentialType.API_KEY;
+      return CredentialType.PASSWORD_APITOKEN;
    }
 
    @Property(label = "API Key", required = true, password = true)
    @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
-      return ((ApiKeyCredential) getCredential()).getApiKey();
+      return ((PasswordAndApiTokenCredential) getCredential()).getApiToken();
    }
 
    public void setApiKey(String apiKey) {
-      ((ApiKeyCredential) getCredential()).setApiKey(apiKey);
+      ((PasswordAndApiTokenCredential) getCredential()).setApiToken(apiKey);
+   }
+
+   @Property(label = "App Key", required = true, password = true)
+   @PropertyEditor(dependsOn = "useCredentialId")
+   public String getAppKey() {
+      return ((PasswordAndApiTokenCredential) getCredential()).getPassword();
+   }
+
+   public void setAppKey(String appKey) {
+      ((PasswordAndApiTokenCredential) getCredential()).setPassword(appKey);
    }
 
    @Override
    public String getURL() {
-      return "https://api.pipelinedeals.com/api";
+      return "https://api.pipelinecrm.com/api";
    }
 
    @Override
@@ -72,6 +83,11 @@ public class PipelineCRMDataSource extends EndpointJsonDataSource<PipelineCRMDat
             .type(HttpParameter.ParameterType.QUERY)
             .name("api_key")
             .value(getApiKey())
+            .build(),
+         HttpParameter.builder()
+            .type(HttpParameter.ParameterType.QUERY)
+            .name("app_key")
+            .value(getAppKey())
             .build()
       };
    }

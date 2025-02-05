@@ -71,9 +71,10 @@ public class XEngine implements XRepository, XQueryRepository {
     * Load data source meta data in background.
     */
    private void loadMetaData(final String dx) {
-      Thread thread = new GroupedThread() {
+      GroupedThread thread = new GroupedThread() {
          @Override
          protected void doRun() {
+            setPrincipal(ThreadContext.getContextPrincipal());
             loadMetaData0(dx);
          }
       };

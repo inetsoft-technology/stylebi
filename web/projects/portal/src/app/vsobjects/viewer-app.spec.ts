@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, EventEmitter, NgModule, NO_ERRORS_SCHEMA, Renderer2 } from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
@@ -30,6 +31,7 @@ import {
 } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf } from "rxjs";
 import { DownloadService } from "../../../../shared/download/download.service";
+import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { AssetLoadingService } from "../common/services/asset-loading.service";
 import { FirstDayOfWeekService } from "../common/services/first-day-of-week.service";
 import { FullScreenService } from "../common/services/full-screen.service";
@@ -304,6 +306,7 @@ describe("ViewerApp Unit Tests", () => {
             { provide: MiniToolbarService, useValue: miniToolbarService },
             { provide: FeatureFlagsService, useValue: featureFlagsService },
             { provide: AssetLoadingService, useValue: assetLoadingService },
+            AppInfoService
          ],
          declarations: [
             ViewerAppComponent, ActionsContextmenuComponent, InteractContainerDirective,
@@ -349,9 +352,10 @@ describe("ViewerApp Unit Tests", () => {
    }));
 
    it("should remove the vsobject's actions when removing the vsobject", () => {
+      const httpClient = TestBed.inject(HttpClient);
       const viewerApp = new ViewerAppComponent(
          viewsheetClientService, null, null, null, null, null, null, null,
-         new NgbDatepickerConfig(), null, actionFactory, null, null, formDataService,
+         new NgbDatepickerConfig(), null, actionFactory, httpClient, null, formDataService,
          debounceService, scaleService, contextProvider, viewDataService, fullScreenService, router,
          renderer, null, sanitizer, titleService, hyperlinkService, viewerResizeService,
          firstDayOfWeekService, new NgbTooltipConfig(new NgbConfig()), shareService, null,

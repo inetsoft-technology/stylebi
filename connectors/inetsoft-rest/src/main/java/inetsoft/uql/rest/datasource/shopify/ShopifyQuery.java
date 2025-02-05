@@ -28,7 +28,29 @@ import inetsoft.uql.tabular.*;
       colspan = 2,
       elements = {
          @View2(type = ViewType.LABEL, text = "Query"),
-         @View2(type = ViewType.EDITOR, value = "queryString")
+         @View2(type = ViewType.EDITOR, value = "queryString"),
+         @View2(type = ViewType.LABEL, text = "Variables"),
+         @View2(type = ViewType.EDITOR, value = "variables"),
+      }
+   ),
+   @View1("usePagination"),
+   @View1(
+      type = ViewType.PANEL,
+      vertical = true,
+      colspan = 2,
+      elements = {
+         @View2(
+            type = ViewType.LABEL,
+            text = "Enter the name of your cursor variable without the $", col = 1,
+            visibleMethod = "isUsePagination"
+         ),
+         @View2(value = "paginationVariable", visibleMethod = "isUsePagination"),
+         @View2(
+            type = ViewType.LABEL,
+            text = "JSON Path for the last cursor in the response", col = 1,
+            visibleMethod = "isUsePagination"
+         ),
+         @View2(value = "paginationCountPath", visibleMethod = "isUsePagination")
       }
    ),
    @View1("jsonPath"),
@@ -43,21 +65,12 @@ import inetsoft.uql.tabular.*;
 public class ShopifyQuery extends GraphQLQuery {
    public ShopifyQuery() {
       super(ShopifyDataSource.TYPE);
-   }
-
-   @Override
-   public String getRequestBody() {
-      return getQueryString();
-   }
-
-   @Override
-   public PaginationType getPaginationType() {
-      return PaginationType.NONE;
+      setCursorPagination(true);
    }
 
    @Override
    public String getContentType() {
-      return "application/graphql";
+      return "application/json";
    }
 
    public String getRequestType() {

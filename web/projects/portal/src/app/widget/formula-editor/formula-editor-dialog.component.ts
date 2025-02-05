@@ -588,6 +588,29 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
       return this.showFunctionTree ? this.functionTreeRoot : null;
    }
 
+   getGrayedOutValues(): string[] {
+      if(this.columns == null || this.grayedOutFields == null) {
+         return [];
+      }
+
+      let grayedOutFlds = this.grayedOutFields;
+      let values: string[] = [];
+
+      if(grayedOutFlds == null) {
+         return values;
+      }
+
+      let isModel = this.columns != null && this.columns.length > 1 &&
+         this.columns[1].name.indexOf(":") > 0;
+
+      for(let i = 0; i < grayedOutFlds.length; i++) {
+         let modelColName: string = grayedOutFlds[i].name.replace(".", ":");
+         values.push(isModel ? modelColName : grayedOutFlds[i].attribute);
+      }
+
+      return values;
+   }
+
    showAggregateDialog(): void {
       let fields: string[] = [];
       let fieldsType: string[] = [];
@@ -602,7 +625,8 @@ export class FormulaEditorDialog extends BaseResizeableDialogComponent implement
          aggregate: fields.length > 0 && XSchema.isNumericType(fieldsType[0]) ? "Sum" : "Count",
          fields: fields,
          fieldsType: fieldsType,
-         field: (fields.length > 0 ? fields[0] : null)
+         field: (fields.length > 0 ? fields[0] : null),
+         grayedOutValues: this.getGrayedOutValues()
       };
 
       this.modalService.open(this.newAggrDialog).result.then(

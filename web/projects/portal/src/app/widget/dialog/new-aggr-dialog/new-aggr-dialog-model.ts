@@ -23,4 +23,5 @@ export interface NewAggrDialogModel {
    aggregate: string;
    with: string;
    numValue: string;
+   grayedOutValues?: string[];
 }

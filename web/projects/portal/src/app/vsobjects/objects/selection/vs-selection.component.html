@@ -103,7 +103,7 @@
                     [inSelectionContainer]="model.containerType == 'VSSelectionContainer'"
                     [formatPainterMode]="vsInfo?.formatPainterMode"
                     [titleSelected]="isTitleSelected()"
-                    [inactive]="!viewer && !model.titleVisible"
+                    [inactive]="!viewer && !model.titleVisible && model.containerType !== 'VSSelectionContainer'"
                     [resizable]="!model.container"
                     [forceResizable]="model.dropdown"
                     (cellClick)="selectTitle($event)"

@@ -22,10 +22,12 @@ import inetsoft.uql.rest.pagination.*;
 import inetsoft.uql.tabular.*;
 import inetsoft.sree.SreeEnv;
 
-import java.util.Map;
+import java.util.*;
 
 @View(vertical = true, value = {
-   @View1("endpoint"),
+   @View1(value = "endpoint", affectedViews = {
+      "linkParamType"
+   }),
    @View1(type = ViewType.PANEL, align = ViewAlign.LEFT, visibleMethod = "isCustomEndpoint",
       elements = {
          @View2(value = "templateEndpt"),
@@ -106,10 +108,18 @@ public class TwilioQuery extends EndpointJsonQuery<TwilioEndpoint> {
    @Override
    protected void updatePagination(TwilioEndpoint endpoint) {
       if(endpoint.isPaged()) {
-         paginationSpec = PaginationSpec.builder()
-            .type(PaginationType.LINK_ITERATION)
-            .linkParam(PaginationParamType.JSON_PATH, "$.next_page_uri")
-            .build();
+         if(monitorEndpoints.contains(endpoint.getName())){
+            paginationSpec = PaginationSpec.builder()
+               .type(PaginationType.LINK_ITERATION)
+               .linkParam(PaginationParamType.JSON_PATH, "$.meta.next_page_url")
+               .build();
+         }
+         else {
+            paginationSpec = PaginationSpec.builder()
+               .type(PaginationType.LINK_ITERATION)
+               .linkParam(PaginationParamType.JSON_PATH, "$.next_page_uri")
+               .build();
+         }
       }
       else {
          paginationSpec = PaginationSpec.builder()
@@ -132,4 +142,8 @@ public class TwilioQuery extends EndpointJsonQuery<TwilioEndpoint> {
       private final Map<String, TwilioEndpoint> endpoints =
          Endpoints.load(TwilioEndpoints.class);
     }
+
+   private static final Set<String> monitorEndpoints = new HashSet<>(Arrays.asList(
+      "Alert", "Alerts", "Event", "Events"
+   ));
 }

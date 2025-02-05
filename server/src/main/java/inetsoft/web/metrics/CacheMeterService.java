@@ -23,28 +23,32 @@ import inetsoft.uql.table.XTableFragment;
 import inetsoft.util.swap.*;
 import io.micrometer.core.instrument.*;
 import io.micrometer.core.instrument.binder.BaseUnits;
+import io.micrometer.core.instrument.binder.MeterBinder;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class CacheMeterService implements XSwappableMonitor {
-   private final Counter reportHits;
-   private final Counter reportMisses;
-   private final Counter reportRead;
-   private final Counter reportWritten;
-   private final Counter dataHits;
-   private final Counter dataMisses;
-   private final Counter dataRead;
-   private final Counter dataWritten;
+@Component
+public class CacheMeterService implements XSwappableMonitor, MeterBinder {
+   private Counter reportHits;
+   private Counter reportMisses;
+   private Counter reportRead;
+   private Counter reportWritten;
+   private Counter dataHits;
+   private Counter dataMisses;
+   private Counter dataRead;
+   private Counter dataWritten;
 
    private final AtomicInteger reportMemory = new AtomicInteger(0);
    private final AtomicInteger reportDisk = new AtomicInteger(0);
    private final AtomicInteger dataMemory = new AtomicInteger(0);
    private final AtomicInteger dataDisk = new AtomicInteger(0);
 
-   public CacheMeterService(MeterRegistry registry) {
+   @Override
+   public void bindTo(MeterRegistry registry) {
       reportHits = Counter
          .builder("inetsoft.cache.requests")
          .description("The number of cache requests")

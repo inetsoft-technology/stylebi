@@ -18,6 +18,7 @@
 package inetsoft.web.portal.data;
 
 import inetsoft.report.internal.Util;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.SecurityException;
@@ -133,6 +134,11 @@ public abstract class DatasourcesBaseService {
 
       TabularOAuthParams.Builder builder = TabularOAuthParams.builder()
          .license(license);
+
+      if(!LicenseManager.getInstance().isEnterprise() && (license == null || license.isEmpty())) {
+         return builder.error(Catalog.getCatalog().getString("em.license.communityLicenseRequired"))
+            .build();
+      }
 
       if(ds != null) {
          Map<String, String> params = TabularUtil.getOAuthParameters(

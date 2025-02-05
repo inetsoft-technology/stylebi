@@ -226,44 +226,7 @@ public class GroupedThread extends Thread {
     */
    public void setPrincipal(Principal user) {
       this.user = user;
-
-      if(user == null) {
-         MDC.remove(LogContext.USER.name());
-         MDC.remove(LogContext.GROUP.name());
-         MDC.remove(LogContext.ROLE.name());
-      }
-      else {
-         boolean enterprise = LicenseManager.getInstance().isEnterprise();
-         IdentityID userIdentity = IdentityID.getIdentityIDFromKey(user.getName());
-         String name = enterprise ? user.getName() : userIdentity != null ? userIdentity.getName() : "";
-         MDC.put(LogContext.USER.name(), name);
-
-         if(user instanceof XPrincipal principal) {
-            String groups = String.join(",",
-               Arrays.stream(principal.getGroups())
-                  .map(g -> enterprise ?
-                     new IdentityID(g, userIdentity.getOrgID()).convertToKey() : g)
-                  .toArray(String[]::new));
-            String roles = String.join(",",
-               Arrays.stream(principal.getRoles())
-                  .map(r -> enterprise ? r.convertToKey() : r.getName())
-                  .toArray(String[]::new));
-
-            if(!groups.equals("")) {
-               MDC.put(LogContext.GROUP.name(), groups);
-            }
-            else {
-               MDC.remove(LogContext.GROUP.name());
-            }
-
-            if(!roles.equals("")) {
-               MDC.put(LogContext.ROLE.name(), roles);
-            }
-            else {
-               MDC.remove(LogContext.ROLE.name());
-            }
-         }
-      }
+      LogContext.setUser(user);
    }
 
    /**

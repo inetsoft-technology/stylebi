@@ -17,6 +17,7 @@
  */
 package inetsoft.web.health;
 
+import inetsoft.util.StatusDumpService;
 import inetsoft.util.health.ReportFailureHealthService;
 import inetsoft.util.health.ReportFailureStatus;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,7 @@ public class ReportFailureHealthIndicator implements HealthIndicator {
       if(status.isExcessiveFailures()) {
          LoggerFactory.getLogger(getClass()).error(
             "ReportFailureHealthIndicator DOWN: failureCount={}", status.getFailureCount());
+         StatusDumpService.getInstance().dumpStatus();
          return Health.down().withDetail("failureCount", status.getFailureCount()).build();
       }
 

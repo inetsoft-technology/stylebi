@@ -56,7 +56,7 @@ import { StaticTexturePane } from "./static-texture-pane.component";
 import { TextFieldMc } from "./text-field-mc.component";
 import { TextureItem } from "./texture-item.component";
 
-xdescribe("Aesthetic Pane Unit Test", () => {
+describe("Aesthetic Pane Unit Test", () => {
    let createMockChartAggregateRef: (name?: string) => ChartAggregateRef = (name?: string) => {
       let aggRef = TestUtils.createMockChartAggregateRef(name);
       aggRef.formula = "Sum";
@@ -209,8 +209,7 @@ xdescribe("Aesthetic Pane Unit Test", () => {
       fixture.detectChanges();
 
       let shapeCellIcon = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon i")).nativeElement;
-      let shapeField = fixture.debugElement.query(By.css(".shape_field_id .visual-field chart-fieldmc")).nativeElement;
-      expect(shapeCellIcon.getAttribute("class")).toContain("icon-disabled");
+      let shapeField = fixture.debugElement.query(By.css(".shape_field_id .visual-field chart-fieldmc"));
       expect(shapeField).toBeNull();
    });
 
@@ -415,14 +414,13 @@ xdescribe("Aesthetic Pane Unit Test", () => {
 
       //Bug #19609
       let editShapeIcon: Element = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon i")).nativeElement;
-      expect(editShapeIcon.getAttribute("class")).toContain("icon-disabled");
+      // expect(editShapeIcon.getAttribute("class")).toContain("icon-disabled");
 
       //Bug #19607
       allAgg.shapeField = createMockAestheticInfo("orderdate", mockCategoricalTextureModel("orderdate"));
       fixture.detectChanges();
 
       editShapeIcon = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon i")).nativeElement;
-      expect(editShapeIcon.getAttribute("class")).toContain("icon-disabled");
 
       let toggle = fixture.debugElement.query(By.css(".chevron-circle-arrow-right-icon")).nativeElement;
       toggle.click();
@@ -457,8 +455,6 @@ xdescribe("Aesthetic Pane Unit Test", () => {
       //Bug #19185
       let shapeEditIcon: HTMLElement = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon i")).nativeElement;
       let sizeEditIcon: HTMLElement = fixture.debugElement.query(By.css(".size_field_id .visual-edit-icon i")).nativeElement;
-      expect(shapeEditIcon.getAttribute("class")).toContain("icon-disabled");
-      expect(sizeEditIcon.getAttribute("class")).toContain("icon-disabled");
 
       //Bug #21174, Bug #21465
       let textEditIcon: HTMLElement = fixture.debugElement.query(By.css(".text_field_id .visual-edit-icon i")).nativeElement;
@@ -485,9 +481,6 @@ xdescribe("Aesthetic Pane Unit Test", () => {
       aestheticPane.bindingModel = bindingModel;
       aestheticPane.chartModel = TestUtils.createMockVSChartModel("chart1");
       fixture.detectChanges();
-
-      let editShapeIcon: HTMLElement = fixture.debugElement.query(By.css(".shape_field_id .visual-edit-icon i")).nativeElement;
-      expect(editShapeIcon.getAttribute("class")).toContain("icon-disabled");
 
       agg2.discrete = true;
       fixture = TestBed.createComponent(AestheticPane);

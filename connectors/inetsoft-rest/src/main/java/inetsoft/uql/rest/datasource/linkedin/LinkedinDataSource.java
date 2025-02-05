@@ -76,6 +76,11 @@ public class LinkedinDataSource extends OAuthEndpointJsonDataSource<LinkedinData
             .type(HttpParameter.ParameterType.HEADER)
             .name("Authorization")
             .value("Bearer " + getAccessToken())
+            .build(),
+         HttpParameter.builder()
+            .type(HttpParameter.ParameterType.HEADER)
+            .name("Linkedin-Version")
+            .value("202411")
             .build()
       };
    }

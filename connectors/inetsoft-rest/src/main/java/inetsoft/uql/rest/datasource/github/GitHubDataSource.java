@@ -55,7 +55,7 @@ public class GitHubDataSource extends OAuthEndpointJsonDataSource<GitHubDataSour
 
    @Override
    protected CredentialType getCredentialType() {
-      return CredentialType.CLINET;
+      return CredentialType.CLIENT;
    }
 
    @Override

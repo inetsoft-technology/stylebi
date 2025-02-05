@@ -77,19 +77,19 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
    }));
 
    //bug #18465, #18469, slider size input check
-   xit("slider size input check", async(() => { // broken test
+   it("slider size input check", async(() => { // broken test
       let sliderSize = fixture.debugElement.query(By.css("input#length")).nativeElement;
       sliderSize.value = "0.75";
       sliderSize.dispatchEvent(new Event("input"));
       fixture.detectChanges();
       let warning1 = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
       expect(warning1.textContent).toContain(
-         "_#(js:viewer.viewsheet.timeSlider.sliderSizeWarning)");
+         "_#(viewer.viewsheet.timeSlider.sliderSizeWarning) ");
 
       sliderSize.value = "5";
       sliderSize.dispatchEvent(new Event("input"));
       fixture.detectChanges();
-      let warning2 = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      let warning2 = fixture.debugElement.query(By.css("div.alert.alert-danger"));
       expect(warning2).toBeNull();
 
       sliderSize.value = "";
@@ -97,7 +97,7 @@ describe("Range Slider Size Pane Component Unit Test:", () => {
       fixture.detectChanges();
       let warning3 = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
       expect(warning3.textContent).toContain(
-         "_#(js:viewer.viewsheet.timeSlider.sliderSizeWarning)");
+         "_#(viewer.viewsheet.timeSlider.sliderSizeWarning) ");
    }));
 
    //Bug #19076 Bug #19079

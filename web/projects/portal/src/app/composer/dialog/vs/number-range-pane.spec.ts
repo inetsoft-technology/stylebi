@@ -25,6 +25,7 @@ import { TestUtils } from "../../../common/test/test-utils";
 import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dialog.component";
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { TreeNodeComponent } from "../../../widget/tree/tree-node.component";
@@ -56,7 +57,7 @@ describe("Number Range Pane Tests", () => {
          ],
          declarations: [NumberRangePane, FormulaEditorDialog,
             NewAggrDialog, MessageDialog, ScriptPane, TreeComponent,
-            TreeNodeComponent, TreeSearchPipe, FixedDropdownDirective
+            TreeNodeComponent, TreeSearchPipe, FixedDropdownDirective, DynamicComboBox
          ],
          schemas: [ NO_ERRORS_SCHEMA ]
       });
@@ -67,7 +68,7 @@ describe("Number Range Pane Tests", () => {
       fixture.detectChanges();
    }));
 
-   xit("should have an error when min input value is set larger than max input value", () => {
+   it("should have an error when min input value is set larger than max input value", () => {
       numberRangeInputs = fixture.debugElement.queryAll(By.css(".dynamic-combo-box-body input"));
       el = numberRangeInputs[0].nativeElement;
       el.value = "1000";

@@ -150,11 +150,19 @@ public class ImageShapes {
             loadBuiltins(shapes);
             last = last0;
             //load the shapes of the global
-            loadShapeFromFolder(getGlobalShapesDirectory(), shapes);
+            boolean loaded = loadShapeFromFolder(getGlobalShapesDirectory(), shapes);
 
             if(!Tool.equals(dir, getGlobalShapesDirectory())) {
                //load the shapes of the organization
                loadShapeFromFolder(dir, shapes);
+            }
+
+            if(!SUtil.isMultiTenant() && !loaded) {
+               dir = "portal/" + orgID + "/shapes";
+
+               if(dataspace.isDirectory(dir)) {
+                  loadShapeFromFolder(dir, shapes);
+               }
             }
 
             cache.put(orgID, shapes);
@@ -165,7 +173,7 @@ public class ImageShapes {
       }
    }
 
-   private void loadShapeFromFolder(String dir, Map<String, GShape> shapes) throws Exception {
+   private boolean loadShapeFromFolder(String dir, Map<String, GShape> shapes) throws Exception {
       DataSpace dataspace = DataSpace.getDataSpace();
       Map<String, String[]> allShapes = getShapesFromFolder(new TreeMap<>(), dir);
 
@@ -184,6 +192,8 @@ public class ImageShapes {
             throw new RuntimeException(e);
          }
       });
+
+      return !allShapes.isEmpty();
    }
 
    private Map<String, String[]> getShapesFromFolder(Map<String, String[]> shapes, String dir) {

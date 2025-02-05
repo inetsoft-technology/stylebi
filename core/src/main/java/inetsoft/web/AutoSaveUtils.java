@@ -20,55 +20,59 @@ package inetsoft.web;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
+import inetsoft.storage.BlobStorage;
+import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.util.FileSystemService;
+import inetsoft.util.SingletonManager;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
+import java.io.*;
+import java.nio.file.NoSuchFileException;
 import java.security.Principal;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Utility methods operating for recycle bin auto save files.
  *
- * @version 13.4
  * @author InetSoft Technology Corp
+ * @version 13.4
  */
 public final class AutoSaveUtils {
-    // Create asset entry according to auto save file's file name
-    // property file name will get right file to open
-    // isCycle means get auto save file from recycle bin.
-    public static AssetEntry createAssetEntry(String autoFile) {
-       String[] paths = Tool.split(autoFile, '^');
+   // Create asset entry according to auto save file's file name
+   // property file name will get right file to open
+   // isCycle means get auto save file from recycle bin.
+   public static AssetEntry createAssetEntry(String autoFile) {
+      String[] paths = Tool.split(autoFile, '^');
 
-       if(paths.length < 3) {
-          return null;
-       }
+      if(paths.length < 3) {
+         return null;
+      }
 
-       String scope = paths[0];
-       String type = paths[1];
-       String ouser = paths[2];
-       String name = paths[3];
-       String ip = paths.length > 4 ? paths[4] : null;
+      String scope = paths[0];
+      String type = paths[1];
+      String ouser = paths[2];
+      String name = paths[3];
+      String ip = paths.length > 4 ? paths[4] : null;
 
-       String typeStr = "VIEWSHEET".equals(type) ? "^128^" : "^2^";
-       AssetEntry entry = AssetEntry.createAssetEntry(scope + typeStr + ouser + "^" + name +
-                                                         "^" + ip);
-       entry.setProperty("openAutoSaved", "true");
-       entry.setProperty("autoFileName", autoFile);
-       entry.setProperty("isRecycle", "true");
+      String typeStr = "VIEWSHEET".equals(type) ? "^128^" : "^2^";
+      AssetEntry entry = AssetEntry.createAssetEntry(scope + typeStr + ouser + "^" + name +
+                                                        "^" + ip);
+      entry.setProperty("openAutoSaved", "true");
+      entry.setProperty("autoFileName", autoFile);
+      entry.setProperty("isRecycle", "true");
 
-       return entry;
-    }
+      return entry;
+   }
 
    // If saved vs, get its auto saved file by create file name.
    // If unsaved vs(untitled vs), should get its auto save file from file name.  For its file name
    // is fixed, will not changed by login user.
-   public static File getAutoSavedFile(AssetEntry entry, Principal user) {
+   public static String getAutoSavedFile(AssetEntry entry, Principal user) {
       String fileName = entry.getProperty("autoFileName");
       fileName = SUtil.addAutoSaveOrganization(fileName);
       boolean isCycle = "true".equals(entry.getProperty("isRecycle"));
@@ -83,16 +87,16 @@ public final class AutoSaveUtils {
    public static List<String> getUserAutoSaveFiles(Principal principal) {
       List<String> autoSaveFiles = new ArrayList<>();
       String userName = getUserName(principal);
-      File[] list = getAutoSaveFiles();
+      List<String> list = getAutoSavedFiles(principal, false);
       String ipAddress = getIPAddress(principal);
       String ipString = Tool.replaceAll(ipAddress, ":", "_") + "~";
 
       if(list != null) {
-         for(File file : list) {
-            String asset = file.getName();
+         for(String file : list) {
+            String asset = getName(file);
             String[] attrs = Tool.split(asset, '^');
 
-            if(file.isFile() && attrs.length > 3) {
+            if(attrs.length > 3) {
                String user = attrs[2];
 
                if(!Tool.equals(AssetRepository.TEMPORARY_SCOPE + "", attrs[0])) {
@@ -125,9 +129,9 @@ public final class AutoSaveUtils {
    }
 
    public static boolean isUndoable(AssetEntry entry, Principal user) {
-       if(!entry.isWorksheet()) {
-          return true;
-       }
+      if(!entry.isWorksheet()) {
+         return true;
+      }
 
       AssetRepository assetRepository = AssetUtil.getAssetRepository(false);
       Worksheet sheet = null;
@@ -155,16 +159,16 @@ public final class AutoSaveUtils {
 
    public static void recycleUserAutoSave(Principal user) {
       String userName = getUserName(user);
-      File[] list = getAutoSaveFiles();
+      List<String> list = getAutoSavedFiles(user, false);
       String ipAddress = getIPAddress(user);
       String ipString = Tool.replaceAll(ipAddress, ":", "_") + "~";
 
       if(list != null) {
-         for(File file : list) {
-            String asset = file.getName();
+         for(String file : list) {
+            String asset = getName(file);
             String[] attrs = Tool.split(asset, '^');
 
-            if(file.isFile() && attrs.length > 3) {
+            if(attrs.length > 3) {
                String fileUser = attrs[2];
 
                if(!Tool.equals(AssetRepository.TEMPORARY_SCOPE + "", attrs[0])) {
@@ -172,7 +176,8 @@ public final class AutoSaveUtils {
                }
 
                if(Tool.equals(userName, fileUser) && Tool.equals(ipString, attrs[4])) {
-                  recycleAutoSaveFile(file, getRecycleFile(asset));
+                  String recycleFile = getAutoSavedByName(asset, true);
+                  renameAutoSaveFile(file, recycleFile, user);
                }
             }
          }
@@ -184,49 +189,18 @@ public final class AutoSaveUtils {
       return user != null && securityEngine.isSecurityEnabled() ? user.getName() : "_NULL_";
    }
 
-   private static File getRecycleFile(String name) {
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      String folderPath = SreeEnv.getProperty("sree.home") + "/" + "autoSavedFile/recycle/";
-      String path = folderPath + name;
-      File folder = fileSystemService.getFile(folderPath);
-      File file = fileSystemService.getFile(path);
-
-      try {
-         if(!folder.exists()) {
-            folder.mkdirs();
-         }
-
-         if(!file.exists()) {
-            file.createNewFile();
-         }
-      }
-      catch(Exception e) {
-         LOG.debug("Failed to get recycle file {}", file, e);
-      }
-
-      return file;
+   public static List<String> getAutoSavedFiles(Principal principal, boolean recycle) {
+      BlobStorage<Metadata> blobStorage = getStorage(principal);
+      return blobStorage.paths().filter(path -> {
+         boolean isRecyclePath = path.startsWith("recycle/");
+         return recycle && isRecyclePath || !recycle && !isRecyclePath;
+      }).collect(Collectors.toList());
    }
 
-   private static File[] getAutoSaveFiles() {
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      String path = SreeEnv.getProperty("sree.home") + "/" + "autoSavedFile";
-      File folder = fileSystemService.getFile(path);
-
-      if(!folder.exists()) {
-         return null;
-      }
-
-      return folder.listFiles();
-   }
-
-   public static void recycleAutoSaveFile(File source, File target) {
+   public static void renameAutoSaveFile(String source, String target, Principal principal) {
       try {
-         if(!target.exists()) {
-            target.createNewFile();
-         }
-
-         FileSystemService fileSystemService = FileSystemService.getInstance();
-         fileSystemService.rename(source, target);
+         BlobStorage<Metadata> blobStorage = getStorage(principal);
+         blobStorage.rename(source, target);
       }
       catch(Exception e) {
          LOG.debug("Failed to write auto save file to recycle bin {}", source, e);
@@ -236,48 +210,41 @@ public final class AutoSaveUtils {
    // Delete auto save file not in recycle bin
    public static void deleteAutoSaveFile(AssetEntry entry, Principal user) {
       try {
-         File file = getAutoSavedFile(entry, user, false);
+         String file = getAutoSavedFile(entry, user, false);
 
-         if(!file.exists()) {
+         if(!exists(file, user)) {
             return;
          }
 
-         FileSystemService fileSystemService = FileSystemService.getInstance();
-         fileSystemService.deleteFile(file);
+         deleteFileFromStorage(file, user);
       }
       catch(Exception e) {
          LOG.debug("Failed to delete auto save file {}", entry, e);
       }
    }
 
-   public static void deleteAutoSaveFile(String id) {
+   public static void deleteAutoSaveFile(String id, Principal principal) {
       try {
-         File file = getAutoSavedByName(id, true);
+         String file = getAutoSavedByName(id, true);
 
-         if(!file.exists()) {
+         if(!exists(file, principal)) {
             return;
          }
 
-         FileSystemService fileSystemService = FileSystemService.getInstance();
-         fileSystemService.deleteFile(file);
+         deleteFileFromStorage(file, principal);
       }
       catch(Exception e) {
          LOG.debug("Failed to delete auto save file to recycle bin {}", id, e);
       }
    }
 
-   public static void deleteAllAutoSaveFile() {
+   public static void deleteRecycledAutoSaveFiles(Principal principal) {
       try {
-         String path = SreeEnv.getProperty("sree.home") + "/" + "autoSavedFile/recycle";
-         FileSystemService fileSystemService = FileSystemService.getInstance();
-         File folder = fileSystemService.getFile(path);
+         BlobStorage<Metadata> blobStorage = getStorage(principal);
+         List<String> files = getAutoSavedFiles(principal, true);
 
-         if(folder.exists()) {
-            File[] files = folder.listFiles();
-
-            for(int i = 0; files != null && i < files.length; i++) {
-               fileSystemService.deleteFile(files[i]);
-            }
+         for(String file : files) {
+            blobStorage.delete(file);
          }
       }
       catch(Exception e) {
@@ -299,7 +266,7 @@ public final class AutoSaveUtils {
    /**
     * Get the path of auto saved file.
     */
-   public static File getAutoSavedFile(AssetEntry entry, Principal user, boolean recycle) {
+   public static String getAutoSavedFile(AssetEntry entry, Principal user, boolean recycle) {
       SecurityEngine securityEngine = SecurityEngine.getSecurity();
       String userName = user != null && securityEngine.isSecurityEnabled() ? user.getName() : null;
       String ipAddress = getIPAddress(user);
@@ -312,32 +279,126 @@ public final class AutoSaveUtils {
       return getAutoSavedByName(name, recycle);
    }
 
-   public static String getAutoSavedTime(String name) {
-      File file = getAutoSavedByName(name, true);
-      long time = file.lastModified();
+   public static String getAutoSavedTime(String name, Principal principal) {
+      String file = getAutoSavedByName(name, true);
+      BlobStorage blobStorage = getStorage(principal);
+      long time = 0;
+
+      try {
+         time = blobStorage.getLastModified(file).toEpochMilli();
+      }
+      catch(FileNotFoundException e) {
+         return "";
+      }
+
       Date date = new Date(time);
       SimpleDateFormat format = new SimpleDateFormat(SreeEnv.getProperty("format.date.time"));
-
       return format.format(date);
    }
 
-   private static File getAutoSavedByName(String name, boolean recycle) {
-      SreeEnv.getProperty("sree.home");
-      String path = SreeEnv.getProperty("sree.home") + "/" + "autoSavedFile";
+   private static String getAutoSavedByName(String name, boolean recycle) {
+      return recycle ? "recycle/" + name : name;
+   }
 
-      if(recycle) {
-         path = path + "/recycle";
+   public static BlobStorage<Metadata> getStorage(Principal principal) {
+      String orgId = OrganizationManager.getInstance().getUserOrgId(principal);
+
+      if(orgId == null) {
+         orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
 
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      File folder = fileSystemService.getFile(path);
+      return SingletonManager.getInstance(BlobStorage.class, orgId.toLowerCase() + "__autoSave", true);
+   }
 
-      if(!folder.exists()) {
-         folder.mkdirs();
+   public static long getLastModified(AssetEntry entry, Principal principal) {
+      String file = getAutoSavedFile(entry, principal);
+      return getLastModified(file, principal);
+   }
+
+   public static long getLastModified(String file, Principal principal) {
+      BlobStorage<Metadata> blobStorage = getStorage(principal);
+
+      try {
+         return blobStorage.getLastModified(file).toEpochMilli();
+      }
+      catch(FileNotFoundException e) {
+         // do nothing
       }
 
-      return fileSystemService.getFile(folder.getPath() + "/" + name);
+      return 0;
+   }
+
+   public static boolean exists(AssetEntry entry, Principal principal) {
+      String file = getAutoSavedFile(entry, principal);
+      return exists(file, principal);
+   }
+
+   public static boolean exists(String file, Principal principal) {
+      BlobStorage<Metadata> blobStorage = getStorage(principal);
+      return blobStorage.exists(file);
+   }
+
+   public static String getName(String file) {
+      if(file != null && file.startsWith("recycle/")) {
+         return file.substring("recycle/".length());
+      }
+
+      return file;
+   }
+
+   public static InputStream getInputStream(AssetEntry entry, Principal principal) throws IOException {
+      String file = getAutoSavedFile(entry, principal);
+      return getInputStream(file, principal);
+   }
+
+   public static InputStream getInputStream(String file, Principal principal) throws IOException {
+      BlobStorage<Metadata> blobStorage = getStorage(principal);
+
+      try {
+         return blobStorage.getInputStream(file);
+      }
+      catch(FileNotFoundException | NoSuchFileException ignore) {
+         return null;
+      }
+   }
+
+   public static void writeAutoSaveFile(byte[] data, AssetEntry entry, Principal principal) {
+      BlobStorage<Metadata> blobStorage = getStorage(principal);
+      String file = getAutoSavedFile(entry, principal);
+
+      try(BlobTransaction<Metadata> tx = blobStorage.beginTransaction();
+          OutputStream out = tx.newStream(file, null))
+      {
+         out.write(data);
+         out.flush();
+         tx.commit();
+      }
+      catch(IOException ex) {
+         LOG.error("Failed to write to the blob storage: {}", file, ex);
+      }
+   }
+
+   public static void writeAutoSaveFile(InputStream in, String file, Principal principal) {
+      BlobStorage<Metadata> blobStorage = getStorage(principal);
+
+      try(BlobTransaction<Metadata> tx = blobStorage.beginTransaction();
+          OutputStream out = tx.newStream(file, null))
+      {
+         Tool.copyTo(in, out);
+         tx.commit();
+      }
+      catch(IOException ex) {
+         LOG.error("Failed to write to the blob storage: {}", file, ex);
+      }
+   }
+
+   private static void deleteFileFromStorage(String file, Principal principal) throws Exception {
+      BlobStorage<Metadata> blobStorage = getStorage(principal);
+      blobStorage.delete(file);
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(AutoSaveUtils.class);
+
+   public static final class Metadata implements Serializable {
+   }
 }

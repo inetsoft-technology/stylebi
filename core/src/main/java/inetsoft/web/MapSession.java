@@ -17,6 +17,7 @@
  */
 package inetsoft.web;
 
+import inetsoft.util.ThreadContext;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.*;
 import org.springframework.session.Session;
@@ -80,6 +81,12 @@ public final class MapSession implements Session, Serializable {
 
    @Override
    public void setLastAccessedTime(Instant lastAccessedTime) {
+      Object refreshDisabled = ThreadContext.getSessionInfo("session.refresh.disabled");
+
+      if(Boolean.TRUE.equals(refreshDisabled)) {
+         return;
+      }
+
       this.lastAccessedTime = lastAccessedTime;
    }
 

@@ -17,36 +17,39 @@
  */
 package inetsoft.uql.rest.datasource.twitter;
 
+import inetsoft.uql.rest.auth.AuthType;
 import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.Tokens;
-import inetsoft.util.credential.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpHeaders;
+import inetsoft.util.credential.CredentialType;
+import org.apache.commons.lang3.StringUtils;
 
-import javax.crypto.Cipher;
-import javax.crypto.spec.SecretKeySpec;
-import java.lang.invoke.MethodHandles;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @View(vertical = true, value = {
-   @View1(
-      type = ViewType.BUTTON,
-      text = "Authorize",
-      button = @Button(
-         type = ButtonType.OAUTH,
-         method = "updateTokens",
-         oauth = @Button.OAuth(serviceName = "twitter"))),
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
-   @View1(value = "oauthToken", visibleMethod = "useCredential"),
-   @View1(type = ViewType.PANEL, visibleMethod = "isVisible", elements = {
-      @View2("consumerKey"),
-      @View2("consumerSecret"),
-      @View2("tokenSecret")
-   })
+   @View1(value = "clientId", visibleMethod = "useCredential"),
+   @View1(value = "clientSecret", visibleMethod = "useCredential"),
+   @View1(type = ViewType.LABEL, text = "redirect.uri.description", colspan = 2),
+   @View1(type = ViewType.PANEL,
+      align = ViewAlign.RIGHT,
+      elements = {
+         @View2(
+            type = ViewType.BUTTON,
+            text = "Authorize",
+            button = @Button(
+               type = ButtonType.OAUTH,
+               method = "updateTokens",
+               dependsOn = { "clientId", "clientSecret", "credentialId" },
+               enabledMethod = "authorizeEnabled",
+               oauth = @Button.OAuth
+            )
+         )
+      }),
+   @View1("accessToken"),
+   @View1("refreshToken"),
+   @View1("tokenExpiration")
 })
 public class TwitterDataSource extends OAuthEndpointJsonDataSource<TwitterDataSource> {
    static final String TYPE = "Rest.Twitter";
@@ -54,52 +57,65 @@ public class TwitterDataSource extends OAuthEndpointJsonDataSource<TwitterDataSo
 
    public TwitterDataSource() {
       super(TYPE, TwitterDataSource.class);
+      setAuthType(AuthType.NONE);
    }
 
    @Override
    protected CredentialType getCredentialType() {
-      return CredentialType.CONSUMER_SECRET;
+      return CredentialType.CLIENT;
+   }
+
+   @Property(label = "Client ID", required = true)
+   @Override
+   public String getClientId() {
+      return super.getClientId();
+   }
+
+   @Property(label = "Client Secret", required = true, password = true)
+   @Override
+   public String getClientSecret() {
+      return super.getClientSecret();
    }
 
    @Override
-   public void updateTokens(Tokens tokens) {
-      super.updateTokens(tokens);
-      final Map<String, Object> properties = tokens.properties();
-      TwitterCredential credential = (TwitterCredential) getCredential();
-
-      if(properties != null) {
-         credential.setConsumerKey((String)properties.get("consumer_key"));
-         final String consumerSecret = (String) properties.get("consumer_secret");
-         credential.setConsumerSecret(decryptSecret(consumerSecret, getConsumerKey()));
-         credential.setOauthToken((String) properties.get("oauth_token"));
-         credential.setTokenSecret((String) properties.get("token_secret"));
-      }
-   }
-
-   public boolean isVisible() {
-      return false;
-   }
-
-   public void update(String suffix, Map<String, String> queryParameters) {
-      // get suffix first so parameters are populated
-      final String path = suffix.split("\\?")[0];
-      final String url = TWITTER_API + path;
-      authorizationString = new TwitterAuthorizationString(url, getConsumerKey(), getConsumerSecret())
-         .setOauthToken(getOauthToken())
-         .setOauthTokenSecret(getTokenSecret())
-         .setParameters(queryParameters)
-         .build();
+   public String getAuthorizationUri() {
+      return "https://x.com/i/oauth2/authorize";
    }
 
    @Override
-   public HttpParameter[] getQueryHttpParameters() {
-      return new HttpParameter[]{
-         HttpParameter.builder()
-            .type(HttpParameter.ParameterType.HEADER)
-            .name(HttpHeaders.AUTHORIZATION)
-            .value(authorizationString)
-            .build()
-      };
+   public void setAuthorizationUri(String authorizationUri) {
+      // no-op
+   }
+
+   @Override
+   public String getTokenUri() {
+      return "https://api.x.com/2/oauth2/token";
+   }
+
+   @Override
+   public void setTokenUri(String tokenUri) {
+      // no-op
+   }
+
+   @Override
+   public String getScope() {
+      return "offline.access tweet.read users.read follows.read space.read mute.read like.read " +
+         "list.read block.read bookmark.read";
+   }
+
+   @Override
+   public void setScope(String scope) {
+      // no-op
+   }
+
+   @Override
+   public String getURL() {
+      return TWITTER_API;
+   }
+
+   @Override
+   public void setURL(String url) {
+      // no-op
    }
 
    @Override
@@ -108,98 +124,52 @@ public class TwitterDataSource extends OAuthEndpointJsonDataSource<TwitterDataSo
    }
 
    @Override
+   public void setRequestsPerSecond(double requestsPerSecond) {
+      // no-op
+   }
+
+   @Override
+   public HttpParameter[] getQueryHttpParameters() {
+      refreshTokens(true);
+      return new HttpParameter[]{
+         HttpParameter.builder()
+            .type(HttpParameter.ParameterType.HEADER)
+            .name("Authorization")
+            .value("Bearer " + getAccessToken())
+            .build()
+      };
+   }
+
+   @Override
+   public void setQueryHttpParameters(HttpParameter[] parameters) {
+      // no-op
+   }
+
+   @Override
+   public void updateTokens(Tokens tokens) {
+      setAccessToken(tokens.accessToken());
+      setRefreshToken(tokens.refreshToken());
+      // expiresIn not returned by oauth server, all tokens expire in 24 hours
+      setTokenExpiration(tokens.issued() + TimeUnit.MILLISECONDS.convert(24L, TimeUnit.HOURS));
+   }
+
+   @Override
    protected String getTestSuffix() {
-      final String testSuffix = "/1.1/account/settings.json";
-      authorizationString = new TwitterAuthorizationString(TWITTER_API + testSuffix,
-                                                           getConsumerKey(), getConsumerSecret())
-         .setOauthToken(getOauthToken())
-         .setOauthTokenSecret(getTokenSecret())
-         .build();
-      return testSuffix;
+      return "/2/users/me";
    }
 
    @Override
-   public String getURL() {
-      return TWITTER_API;
-   }
+   public String getOauthFlags() {
+      String flags = super.getOauthFlags();
 
-   @Property(label = "Consumer Key", required = true, password = true)
-   public String getConsumerKey() {
-      return ((TwitterCredential) getCredential()).getConsumerKey();
-   }
-
-   public void setConsumerKey(String consumerKey) {
-      ((TwitterCredential) getCredential()).setConsumerKey(consumerKey);
-   }
-
-   @Property(label = "Consumer Secret", required = true, password = true)
-   public String getConsumerSecret() {
-      return ((TwitterCredential) getCredential()).getConsumerSecret();
-   }
-
-   public void setConsumerSecret(String consumerSecret) {
-      ((TwitterCredential) getCredential()).setConsumerSecret(consumerSecret);
-   }
-
-   @Property(label = "OAuth Token", required = true, password = true)
-   public String getOauthToken() {
-      return ((TwitterCredential) getCredential()).getOauthToken();
-   }
-
-   public void setOauthToken(String oauthToken) {
-      ((TwitterCredential) getCredential()).setOauthToken(oauthToken);
-   }
-
-   @Property(label = "OAuth Token Secret", required = true, password = true)
-   public String getTokenSecret() {
-      return ((TwitterCredential) getCredential()).getTokenSecret();
-   }
-
-   public void setTokenSecret(String tokenSecret) {
-      ((TwitterCredential) getCredential()).setTokenSecret(tokenSecret);
-   }
-
-   @Override
-   public boolean equals(Object o) {
-      if(this == o) {
-         return true;
+      if(StringUtils.isBlank(flags)) {
+         return "pkce";
       }
 
-      if(o == null || getClass() != o.getClass()) {
-         return false;
-      }
-
-      if(!super.equals(o)) {
-         return false;
-      }
-
-      return o instanceof TwitterDataSource;
+      return flags + " pkce";
    }
 
-   @Override
-   public int hashCode() {
-      return Objects.hash(super.hashCode(), getConsumerKey(), getConsumerSecret(),
-                          getOauthToken(), getTokenSecret());
+   public boolean isVisible() {
+      return false;
    }
-
-   private String decryptSecret(String encoded, String password) {
-      try {
-         final byte[] encrypted = Base64.getDecoder().decode(encoded);
-         final byte[] key = password.getBytes(StandardCharsets.UTF_8);
-         final SecretKeySpec spec = new SecretKeySpec(key, "Blowfish");
-         final Cipher cipher = Cipher.getInstance("Blowfish");
-         cipher.init(Cipher.DECRYPT_MODE, spec);
-         return new String(cipher.doFinal(encrypted));
-      }
-      catch(Exception e) {
-         LOG.warn("Failed to decrypt secret", e);
-      }
-
-      // just return and use as normal
-      return encoded;
-   }
-
-   private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
-   private String authorizeUrl;
-   private String authorizationString;
 }

@@ -442,13 +442,13 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    }
 
    public synchronized void save() throws Exception {
-      save(null, null);
+      save(null, null, true);
    }
 
    /**
     * Save a list of cycles to the 'cycle.file'.
     */
-   public synchronized void save(Organization oorg, Organization norg) throws Exception {
+   private synchronized void save(Organization oorg, Organization norg, boolean replace) throws Exception {
       String afile = getCycleFileName();
       DataSpace space = DataSpace.getDataSpace();
       dmgr.removeChangeListener(space, null, afile, changeListener);
@@ -522,7 +522,12 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          }
       }
 
-      generateTasks(oorg, norg, true);
+      if(replace) {
+         generateTasks(oorg, norg, true);
+      }
+      else {
+         generateTasks(null, null, true);
+      }
    }
 
    private PrintWriter createWriter(OutputStream output) {
@@ -719,7 +724,9 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    /**
     * Moves data cycles from one organization to another
     */
-   public void migrateDataCycles(Organization oorg, Organization norg) throws Exception {
+   public void migrateDataCycles(Organization oorg, Organization norg, boolean replace)
+      throws Exception
+   {
       List<DataCycleId> oldIds = dataCycleMap.keySet().stream()
          .filter(id -> id.orgId.equals(oorg.getId()))
          .toList();
@@ -729,20 +736,28 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          DataCycleId nid = idChanged ? new DataCycleId(oid.name, norg.getId()) : oid;
 
          if(idChanged) {
-            Vector<ScheduleCondition> conditions = dataCycleMap.remove(oid);
+            Vector<ScheduleCondition> conditions =
+               replace ? dataCycleMap.remove(oid) : dataCycleMap.get(oid);
             dataCycleMap.put(nid, conditions);
-            Boolean value = cycleStatusMap.remove(oid);
+            Boolean value = replace ? cycleStatusMap.remove(oid) : cycleStatusMap.get(nid);
             cycleStatusMap.put(nid, value);
 
             CycleInfo cycleInfo = cycleInfoMap.get(oid);
-            migrateCycleInfo(cycleInfoMap.get(oid), oorg, norg);
+
+            if(!replace && cycleInfo != null) {
+               cycleInfo = (CycleInfo) cycleInfo.clone();
+            }
+
+            migrateCycleInfo(cycleInfo, oorg, norg);
             cycleInfoMap.put(nid, cycleInfo);
 
-            cycleInfoMap.remove(oid);
+            if(replace) {
+               cycleInfoMap.remove(oid);
+            }
          }
       }
 
-      save(oorg, norg);
+      save(oorg, norg, replace);
    }
 
    private void migrateCycleInfo(CycleInfo cycleInfo, Organization oorg, Organization norg) {

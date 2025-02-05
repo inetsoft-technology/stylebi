@@ -27,6 +27,7 @@ import inetsoft.report.internal.table.FormatTableLens;
 import inetsoft.report.lens.AttributeTableLens;
 import inetsoft.report.painter.HTMLPresenter;
 import inetsoft.report.painter.PresenterPainter;
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ColumnIndexMap;
@@ -73,6 +74,7 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
       this.isImage = isImage ? isImage : null;
       this.rowPadding = rowPadding;
       this.colPadding = colPadding;
+      this.underline = !"false".equals(SreeEnv.getProperty("hyperlink.indicator"));
    }
 
    private BaseTableCellModel(Object cellData) {
@@ -101,6 +103,7 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
       this.options = options;
       this.presenter = presenter;
       this.editable = editable ? editable : null;
+      this.underline = !"false".equals(SreeEnv.getProperty("hyperlink.indicator"));
    }
 
    public static BaseTableCellModel createSimpleCell(XTable lens, int row, int col) {
@@ -665,6 +668,14 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
       this.colPadding = colPadding;
    }
 
+   public boolean isUnderline() {
+      return underline;
+   }
+
+   public void setUnderline(boolean underline) {
+      this.underline = underline;
+   }
+
    /**
     * Concrete prototype implementation with non-prototyped properties omitted.
     */
@@ -750,4 +761,5 @@ public class BaseTableCellModel implements BaseTableCellModelPrototype,
    private Boolean grandTotalHeaderCell;
    private int rowPadding;
    private int colPadding;
+   private boolean underline;
 }

@@ -19,19 +19,20 @@ package inetsoft.web.portal.controller.database;
 
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.sree.security.ResourceAction;
-import inetsoft.uql.XDataSource;
-import inetsoft.uql.XFormatInfo;
+import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.uql.schema.XVariable;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
+import inetsoft.util.dep.ViewsheetAsset;
 import inetsoft.web.adhoc.model.FormatInfoModel;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.portal.data.DatasourcesService;
 import inetsoft.web.portal.model.database.*;
 import inetsoft.web.portal.model.database.events.*;
+import org.hsqldb.index.Index;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -406,6 +407,29 @@ public class LogicalModelController {
       if(ex != null) {
          throw ex;
       }
+   }
+
+   @RequestMapping(
+      value = "/api/data/logicalmodel/autoDrill/checkCycleDependencies",
+      method = RequestMethod.POST
+   )
+   public boolean checkAutoDrillCycleDependencies(@RequestBody CheckCycleDependenciesEvent event)
+      throws Exception
+   {
+      IndexedStorage indexedStorage = IndexedStorage.getIndexedStorage();
+
+      for(String link : event.getLinks()) {
+         Viewsheet vs = (Viewsheet) indexedStorage.getXMLSerializable(link, null);
+         AssetEntry baseEntry = vs.getBaseEntry();
+
+         if(baseEntry != null && baseEntry.isLogicModel() &&
+            Tool.equals(baseEntry.getName(), event.getLogicalModelName()))
+         {
+            return true;
+         }
+      }
+
+      return false;
    }
 
    private final AssetRepository assetRepository;

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.security.user;
 
+import inetsoft.mv.MVManager;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
@@ -1615,6 +1616,7 @@ public class UserTreeService {
       }
 
       storage.migrateStorageData(oldID.getName(), newID.getName());
+      MVManager.getManager().migrateUserAssetsMV(oldID, newID);
       DependencyStorageService.getInstance().migrateStorageData(oldID, newID);
    }
 

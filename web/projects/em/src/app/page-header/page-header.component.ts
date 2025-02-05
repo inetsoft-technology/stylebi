@@ -19,7 +19,7 @@ import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    Component,
    EventEmitter,
-   Input,
+   Input, NgZone,
    OnDestroy,
    OnInit,
    Output,
@@ -63,7 +63,8 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
                private router: Router,
                private http: HttpClient,
                private appInfoService: AppInfoService,
-               private usersService: ScheduleUsersService)
+               private usersService: ScheduleUsersService,
+               private ngZone: NgZone)
    {
    }
 
@@ -133,22 +134,33 @@ export class PageHeaderComponent implements OnInit, OnDestroy {
    changeOrg(){
       this.http.post("../api/em/pageheader/organization", this.model)
          .subscribe(() => {
-            // Refresh data in current route
             let currRoute = this.router.url;
-            let index = currRoute.indexOf("#");
-            let fragment = index == -1 ? "" : currRoute.substring(index + 1);
-            currRoute = index == -1 ? currRoute : currRoute.substring(0, index);
-
-            this.router.navigateByUrl("/", { skipLocationChange: true }).then(() => {
-               if(index != -1) {
-                  this.router.navigate([currRoute], {fragment: fragment, replaceUrl: true});
-               }
-               else {
-                  this.router.navigate([currRoute]);
-               }
-            });
+            this.routeToPath(currRoute);
             this.usersService.loadScheduleUsers();
          });
+   }
+
+   private routeToPath(currRoute: string) {
+      // Refresh data in current route
+      let index = currRoute.indexOf("#");
+      let fragment = index == -1 ? "" : currRoute.substring(index + 1);
+      currRoute = index == -1 ? currRoute : currRoute.substring(0, index);
+
+      this.ngZone.run(() => {
+         this.router.navigateByUrl("/", { skipLocationChange: true }).then(() => {
+            if(index != -1) {
+               this.ngZone.run(() => {
+                  this.router.navigate([currRoute], {fragment: fragment, replaceUrl: true});
+
+               });
+            }
+            else {
+               this.ngZone.run(() => {
+                  this.router.navigate([currRoute]);
+               });
+            }
+         });
+      });
    }
 
    public showOrgs() {

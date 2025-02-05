@@ -377,17 +377,9 @@ public class SelectionListPropertyDialogController {
       context.checkTrap(oinfo, ninfo);
       DataRef[] refs = context.getGrayedFields();
       List<DataRefModel> fields = new ArrayList<>();
-      boolean isws = rvs.getViewsheet().getBaseEntry().isWorksheet();
 
       for(DataRef ref : refs) {
          DataRefModel model = dataRefService.createDataRefModel(ref);
-
-         if(isws && model.getEntity() != null) {
-            model.setEntity(null);
-            model.setName(model.getAttribute());
-            model.setView(model.getAttribute());
-         }
-
          fields.add(model);
       }
 

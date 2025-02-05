@@ -43,11 +43,12 @@
        (scroll)="onScroll($event)">
     <ng-container *ngFor="let tile of chartObject.tiles; trackBy: trackByFn">
       <img class="chart-axis-area__tile"
+           [chartImage]="getSrc(tile, container)"
            [style.top.px]="tile.bounds.y"
            [style.left.px]="tile.bounds.x"
-           (error)="loaded(false, tile)"
-           (load)="loaded(true, tile)"
-           [src]="getSrc(tile, container)">
+           (onLoading)="loading(tile)"
+           (onLoaded)="loaded(true, tile)"
+           (onError)="loaded(false, tile)">
 <!-- use nature size to avoid scaling image
            [style.width.px]="tile.bounds.width"
            [style.height.px]="tile.bounds.height"

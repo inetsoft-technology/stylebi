@@ -31,13 +31,14 @@ import inetsoft.util.credential.CredentialType;
          type = ButtonType.OAUTH,
          style = ButtonStyle.GOOGLE_AUTH,
          method = "updateTokens",
-         oauth = @Button.OAuth(serviceName = "google-calendar"))),
+         oauth = @Button.OAuth(serviceName = GoogleCalendarDataSource.SERVICE_NAME))),
    @View1("accessToken"),
    @View1("refreshToken"),
    @View1("tokenExpiration")
 })
 public class GoogleCalendarDataSource extends OAuthEndpointJsonDataSource<GoogleCalendarDataSource> {
    static final String TYPE = "Rest.GoogleCalendar";
+   static final String SERVICE_NAME = "google-calendar";
    
    public GoogleCalendarDataSource() {
       super(TYPE, GoogleCalendarDataSource.class);
@@ -79,6 +80,11 @@ public class GoogleCalendarDataSource extends OAuthEndpointJsonDataSource<Google
    @Override
    public void setQueryHttpParameters(HttpParameter[] parameters) {
       // no-op
+   }
+
+   @Override
+   public String getServiceName() {
+      return SERVICE_NAME;
    }
 
    @Override

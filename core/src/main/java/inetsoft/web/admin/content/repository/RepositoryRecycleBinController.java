@@ -17,7 +17,6 @@
  */
 package inetsoft.web.admin.content.repository;
 
-import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
@@ -109,7 +108,7 @@ public class RepositoryRecycleBinController {
          recycleBin.removeEntry(path);
       }
 
-      AutoSaveUtils.deleteAllAutoSaveFile();
+      AutoSaveUtils.deleteRecycledAutoSaveFiles(principal);
    }
 
    private List<AssetEntry> getAssetsInTrash() throws Exception {

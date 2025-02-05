@@ -19,6 +19,7 @@ export interface SortColumnEditorModel {
    readonly availableColumns: string[];
    readonly columnDescriptions: string[];
    readonly aliasMap: {[name: string]: string};
+   readonly captionMap: {[name: string]: string};
    readonly selectedColumns: string[];
    readonly orders: number[];
    readonly originalNames: string[];

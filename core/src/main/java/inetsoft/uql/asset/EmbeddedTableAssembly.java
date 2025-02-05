@@ -173,7 +173,7 @@ public class EmbeddedTableAssembly extends AbstractTableAssembly {
     * Write embedded data.
     * @param writer the specified writer.
     */
-   protected void writeEmbeddedData(PrintWriter writer) {
+   protected synchronized void writeEmbeddedData(PrintWriter writer) {
       XEmbeddedTable xdata = getEmbeddedData();
       xdata.reset();
 

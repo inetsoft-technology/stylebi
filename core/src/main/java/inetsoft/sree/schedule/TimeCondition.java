@@ -19,6 +19,7 @@ package inetsoft.sree.schedule;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
+import org.apache.ignite.binary.*;
 import org.w3c.dom.Element;
 
 import java.io.*;
@@ -37,7 +38,7 @@ import java.util.stream.Collectors;
  * @version 5.1, 9/20/2003
  * @author InetSoft Technology Corp
  */
-public class TimeCondition implements ScheduleCondition, XMLSerializable {
+public class TimeCondition implements ScheduleCondition, XMLSerializable, Binarylizable {
    /**
     * Time condition type for exact time.
     */
@@ -499,6 +500,9 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable {
          buffer.append(catalog.getString("TimeCondition")).append(": ")
             .append(timeFmt.format(cal.getTime()) +
                (twelveHourSystem ? cal.get(Calendar.AM_PM) > 0 ? "PM" : "AM" : ""));
+
+         boolean dst = tz.inDaylightTime(cal.getTime());
+         buffer.append("(").append(tz.getDisplayName(dst, TimeZone.LONG)).append(")");
 
          if(isWeekdayOnly()) {
             buffer.append(", ").append(catalog.getString("em.scheduler.timeCondition.weekday"));
@@ -1374,6 +1378,56 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable {
       // to SreeEnv to get a property which requires hazelcast to be
       // initialized first. If it's called from hazelcast migration operation
       // during hazelcast initialization then it will enter a deadlocked state
+   }
+
+   @Override
+   public void writeBinary(BinaryWriter writer) throws BinaryObjectException {
+      writer.writeLong("scheduleTime", scheduleTime);
+      writer.writeInt("type", type);
+      writer.writeDate("time", time);
+      writer.writeInt("day_of_month", day_of_month);
+      writer.writeInt("day_of_week", day_of_week);
+      writer.writeInt("week_of_month", week_of_month);
+      writer.writeInt("week_of_year", week_of_year);
+      writer.writeInt("hour", hour);
+      writer.writeInt("minute", minute);
+      writer.writeInt("second", second);
+      writer.writeInt("hour_end", hour_end);
+      writer.writeInt("minute_end", minute_end);
+      writer.writeInt("second_end", second_end);
+      writer.writeIntArray("days_of_week", days_of_week);
+      writer.writeIntArray("months_of_year", months_of_year);
+      writer.writeInt("interval", interval);
+      writer.writeFloat("hourlyInterval", hourlyInterval);
+      writer.writeBoolean("weekdayOnly", weekdayOnly);
+      writer.writeBoolean("ajax", ajax);
+      writer.writeObject("timeRange", timeRange);
+      writer.writeString("tz", tz.getID());
+   }
+
+   @Override
+   public void readBinary(BinaryReader reader) throws BinaryObjectException {
+      this.scheduleTime = reader.readLong("scheduleTime");
+      this.type = reader.readInt("type");
+      this.time = reader.readDate("time");
+      this.day_of_month = reader.readInt("day_of_month");
+      this.day_of_week = reader.readInt("day_of_week");
+      this.week_of_month = reader.readInt("week_of_month");
+      this.week_of_year = reader.readInt("week_of_year");
+      this.hour = reader.readInt("hour");
+      this.minute = reader.readInt("minute");
+      this.second = reader.readInt("second");
+      this.hour_end = reader.readInt("hour_end");
+      this.minute_end = reader.readInt("minute_end");
+      this.second_end = reader.readInt("second_end");
+      this.days_of_week = reader.readIntArray("days_of_week");
+      this.months_of_year = reader.readIntArray("months_of_year");
+      this.interval = reader.readInt("interval");
+      this.hourlyInterval = reader.readFloat("hourlyInterval");
+      this.weekdayOnly = reader.readBoolean("weekdayOnly");
+      this.ajax = reader.readBoolean("ajax");
+      this.timeRange = reader.readObject("timeRange");
+      this.tz = TimeZone.getTimeZone(reader.readString("tz"));
    }
 
    private static final long ONE_HOUR = 1000 * 60 * 60;

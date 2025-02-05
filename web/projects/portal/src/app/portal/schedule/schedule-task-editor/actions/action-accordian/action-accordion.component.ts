@@ -70,7 +70,7 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
    @Input() set parentForm(value: UntypedFormGroup) {
       this._parentForm = value;
 
-      if(!!value) {
+      if(!!value && !!this.form) {
          this.parentForm.addControl("action", this.form);
       }
    }

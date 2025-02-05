@@ -33,6 +33,7 @@ import {
    TimeConditionModel,
    TimeConditionType
 } from "../../../../../shared/schedule/model/time-condition-model";
+import { TimeZoneService } from "../../../../../shared/schedule/time-zone.service";
 import { Tool } from "../../../../../shared/util/tool";
 import { ComponentTool } from "../../common/util/component-tool";
 import { LocalStorage } from "../../common/util/local-storage.util";
@@ -97,10 +98,14 @@ export class SimpleScheduleDialog implements OnInit, OnDestroy {
    timeZoneId: string = null;
    timeZoneLabel: string = null;
 
-   constructor(private http: HttpClient, private modalService: NgbModal) {
+   constructor(private http: HttpClient, private modalService: NgbModal,
+               private timeZoneService: TimeZoneService)
+   {
    }
 
    ngOnInit(): void {
+      this.model.timeZoneOptions = this.timeZoneService.updateTimeZoneOptions(
+         this.model.timeZoneOptions, [this.model.timeConditionModel]);
       this.initForm();
 
       this.emailHistory = Tool.getHistoryEmails(true);

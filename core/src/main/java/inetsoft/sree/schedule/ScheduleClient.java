@@ -23,6 +23,7 @@ import inetsoft.sree.internal.*;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
+import inetsoft.util.health.HealthStatus;
 import inetsoft.web.admin.schedule.ScheduleQueriesStatus;
 import inetsoft.web.admin.schedule.ScheduleViewsheetsStatus;
 import inetsoft.web.admin.server.ServerMetrics;
@@ -438,6 +439,16 @@ public class ScheduleClient {
       }
    }
 
+   public void removeTaskCacheOfOrg(String orgId) throws RemoteException {
+      removeTaskCacheOfOrg(getSchedulerServer(), orgId);
+   }
+
+   public void removeTaskCacheOfOrg(String server, String orgId) throws RemoteException {
+      if(server != null && isReady(server)) {
+         getSchedule(server).removeTaskCacheOfOrg(orgId);
+      }
+   }
+
    /**
     * Gets the current status of all tasks.
     *
@@ -630,6 +641,57 @@ public class ScheduleClient {
       String[] servers = getScheduleServers();
       return servers.length > 1 ||
          servers.length == 1 && !servers[0].equals(Tool.getRmiIP());
+   }
+
+   /**
+    * Determines if a cloud runner is being used to execute tasks.
+    *
+    * @return {@code true} if using a cloud runner or {@code false} if not.
+    */
+   public boolean isCloud() {
+      return false;
+   }
+
+   /**
+    * Determines if the scheduler is automatically started.
+    */
+   public boolean isAutoStart() {
+      return !("server_cluster".equals(SreeEnv.getProperty("server.type")) || isCluster()) &&
+         "true".equals(SreeEnv.getProperty("schedule.auto.start"));
+   }
+
+   /**
+    * Gets the health of the scheduler.
+    *
+    * @return the health status.
+    */
+   public Optional<HealthStatus> getHealthStatus() throws RemoteException {
+      String server = getSchedulerServer();
+
+      if(server == null) {
+         return Optional.empty();
+      }
+      else {
+         return getHealthStatus(server);
+      }
+   }
+
+   /**
+    * Gets the health of the scheduler.
+    *
+    * @param server the schedule server host name.
+    *
+    * @return the health status.
+    */
+   public Optional<HealthStatus> getHealthStatus(String server) throws RemoteException {
+      Schedule scheduleService = getSchedule(server);
+
+      if(scheduleService == null) {
+         return Optional.empty();
+      }
+      else {
+         return Optional.of(scheduleService.getHealth());
+      }
    }
 
    /**

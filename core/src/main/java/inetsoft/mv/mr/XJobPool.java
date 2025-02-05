@@ -306,7 +306,14 @@ public final class XJobPool extends GroupedThread {
    }
 
    private XFileSystem getOrgFSystem(String org) {
-      return fsystemOrgMap.computeIfAbsent(org, k -> FSService.getServer(k).getFSystem());
+      plock.lock();
+
+      try {
+         return fsystemOrgMap.computeIfAbsent(org, k -> FSService.getServer(k).getFSystem());
+      }
+      finally {
+         plock.unlock();
+      }
    }
 
    private static final Lock plock = new ReentrantLock();

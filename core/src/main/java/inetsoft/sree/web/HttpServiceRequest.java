@@ -259,8 +259,12 @@ public class HttpServiceRequest implements ServiceRequest {
          LOG.debug("Failed to get security engine", exc);
       }
 
-      Principal principal =
-         SUtil.getPrincipal(remoteUser, getRemoteAddr(), session, fireEvent);
+      Principal principal = SUtil.getPrincipal(this.getRequest());
+
+      if(principal == null) {
+         principal = SUtil.getPrincipal(remoteUser, getRemoteAddr(), session, fireEvent);
+      }
+
       setPrincipal(principal);
       return principal;
    }

@@ -20,20 +20,21 @@
     <em-staged-file-chooser
       #fileChooser
       [header]="uploadHeader"
+      [selectButtonLabel]="'_#(Select Plugins)'"
       accept="application/zip, application/x-zip, application/x-zip-compressed"
     >
-      <button mat-stroked-button (click)="createDriver()"
-              [disabled]="fileChooser.uploading || loading || !!fileChooser.value?.length">
-        _#(em.data.databases.createDriver)
-      </button>
-
       <button
         mat-flat-button
         color="primary"
         [disabled]="!model?.supportUploadDriver || fileChooser.uploading || loading || !fileChooser.value || !fileChooser.value.length"
         (click)="uploadPlugins()"
       >
-        _#(Upload)
+        _#(Upload Plugins)
+      </button>
+
+      <button mat-stroked-button (click)="createDriver()"
+              [disabled]="fileChooser.uploading || loading || !!fileChooser.value?.length">
+        _#(em.data.databases.createDriver)
       </button>
     </em-staged-file-chooser>
 

@@ -379,8 +379,8 @@ public class AuthenticationChain
    }
 
    @Override
-   public boolean containsAnonymousUser() {
-      return stream().anyMatch(AuthenticationProvider::containsAnonymousUser);
+   public boolean containsAnonymousUser(String orgId) {
+      return stream().anyMatch(p -> p.containsAnonymousUser(orgId));
    }
 
    /**

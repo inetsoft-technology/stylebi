@@ -91,8 +91,7 @@ public class LoginController {
       }
 
       HttpSession session = request.getSession(false);
-      Principal principal = session != null
-         ? (Principal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE) : null;
+      Principal principal = SUtil.getPrincipal(request);
       String userName = principal != null ? principal.getName() : "";
       userName = userName != null ? IdentityID.getIdentityIDFromKey(userName).getName() : "";
       model.addObject("currentUser",  userName);

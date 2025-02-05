@@ -557,6 +557,9 @@ export class ChartActions extends AbstractVSActions<VSChartModel> implements Ann
               areaName === "left_y_axis" ||
               areaName === "right_y_axis")
       {
+         if(this.model.axes?.length == 0) {
+            return [];
+         }
 
          let columnName = ChartTool.getSelectedAxisColumnName(this.model);
          let axis: Axis = (<Axis> selectObject);

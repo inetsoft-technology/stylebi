@@ -632,6 +632,8 @@ public class VSFrameVisitor {
    // sync colors
    private static void syncColors(CategoricalColorFrame frame, Scale scale, Object[] vals) {
       Set<Color> staticColors = new HashSet<>();
+      final Map<String, Color> dimColors = frame.isUseGlobal() ?
+         CategoricalColorFrameContext.getContext().getDimensionColors() : null;
 
       for(Object val : vals) {
          if(!frame.isStatic(val)) {
@@ -641,7 +643,7 @@ public class VSFrameVisitor {
          Color color = frame.getColor(val);
 
          // color collision, clear the duplicate color assignment. (61424)
-         if(staticColors.contains(color)) {
+         if(staticColors.contains(color) && (dimColors == null || dimColors.get(Tool.getDataString(val)) == null)) {
             frame.setColor(val, null);
          }
          // track assigned colors.

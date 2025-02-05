@@ -1548,7 +1548,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
 
          if(entry.isVSAssembly()) {
             try {
-               executeView(entry.getName(), false, initing);
+               VSAssemblyInfo info = (VSAssemblyInfo) vs.getAssembly(entry.getName()).getInfo();
+
+               //  If the assembly script was executed earlier before the viewsheet's onInit
+               //  do not execute it again
+               if(!(info.isScriptEnabled() && info.getScript() != null &&
+                  info.getScript().contains("thisParameter")))
+               {
+                  executeView(entry.getName(), false, initing);
+               }
+
                Assembly assembly = vs.getAssembly(entry);
 
                if(assembly.getAssemblyType() == Viewsheet.CURRENTSELECTION_ASSET) {
@@ -1677,6 +1686,16 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       // execute onInit and onLoad of embedded sheet on initial load
       if(assembly instanceof Viewsheet) {
          try {
+            VSAssemblyInfo info = (VSAssemblyInfo) assembly.getInfo();
+
+            //  Execute the container's assembly scripts that modify the nested viewsheet's parameters
+            //  so that those parameters can be used in the nested viewsheet's onInit script
+            if(info.isScriptEnabled() && info.getScript() != null &&
+               info.getScript().contains("thisParameter"))
+            {
+               executeView(entry.getName(), false, initing);
+            }
+
             ViewsheetSandbox box = getSandbox(assembly.getAbsoluteName());
             box.processOnInit();
             box.processOnLoad(new ChangedAssemblyList(), true);

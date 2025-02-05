@@ -91,7 +91,7 @@ export class EditDashboardDialog implements OnInit {
          }
       }
 
-      this.repositoryTreeService.getRootFolder(null, this.selector, null, false, true, false, this.global)
+      this.repositoryTreeService.getRootFolder(null, this.selector, null, false, true, false, this.global, true, false, false,true)
          .subscribe((data) => {
             this.rootNode = data;
 

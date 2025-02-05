@@ -23,6 +23,7 @@ import { By } from "@angular/platform-browser";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { DropDownTestModule } from "../../common/test/test-module";
 import { TestUtils } from "../../common/test/test-utils";
+import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode } from "../dynamic-combo-box/dynamic-combo-box-model";
 import { TreeNodeComponent } from "../tree/tree-node.component";
@@ -42,7 +43,7 @@ describe("ValueInputField Unit Test", () => {
          ],
          declarations: [
             ValueInputField, TargetComboBox, FixedDropdownDirective,
-            TreeComponent, TreeSearchPipe, TreeNodeComponent
+            TreeComponent, TreeSearchPipe, TreeNodeComponent, DynamicComboBox
          ],
          providers: [ NgbModal ],
          schemas: [NO_ERRORS_SCHEMA]
@@ -90,7 +91,7 @@ describe("ValueInputField Unit Test", () => {
    });
 
    //Bug #18985
-   xit("value input check", (done) => {
+   it("value input check", (done) => {
       let valueInput: HTMLInputElement = fixture.debugElement.query(By.css("dynamic-combo-box input")).nativeElement;
       valueInput.value = "==[";
       valueInput.dispatchEvent(new Event("change"));
@@ -110,7 +111,7 @@ describe("ValueInputField Unit Test", () => {
    });
 
    //Bug #19114
-   xit("the value should be clear when from expression to variable", (done) => {
+   it("the value should be clear when from expression to variable", (done) => {
       valueInputField.valueType = ComboMode.EXPRESSION;
       valueInputField.value = "=40";
       fixture.detectChanges();

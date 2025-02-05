@@ -25,6 +25,7 @@ import { Router } from "@angular/router";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf, Subject } from "rxjs";
 import { DownloadService } from "../../../../../../shared/download/download.service";
+import { AppInfoService } from "../../../../../../shared/util/app-info.service";
 import { Border, Wrapping } from "../../../common/data/base-format-model";
 import { DndService } from "../../../common/dnd/dnd.service";
 import { DropDownTestModule } from "../../../common/test/test-module";
@@ -256,7 +257,8 @@ describe("VSTable Unit Tests", () => {
             {provide: Router, useValue: router},
             {provide: DragService, useValue: null},
             {provide: RichTextService, useValue: richTextService},
-            {provide: VSTabService, useValue: vsTabService}
+            {provide: VSTabService, useValue: vsTabService},
+            AppInfoService
          ]
       });
       TestBed.compileComponents();

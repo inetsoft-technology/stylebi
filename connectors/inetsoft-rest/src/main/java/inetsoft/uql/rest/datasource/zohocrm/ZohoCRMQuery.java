@@ -113,6 +113,7 @@ public class ZohoCRMQuery extends EndpointJsonQuery<ZohoCRMEndpoint> {
             .pageOffsetParamToWrite(PaginationParamType.QUERY, "page")
             .maxResultsPerPageParam(PaginationParamType.QUERY, "per_page")
             .maxResultsPerPage(200)
+            .incrementOffset(true)
             .build();
       }
       else {

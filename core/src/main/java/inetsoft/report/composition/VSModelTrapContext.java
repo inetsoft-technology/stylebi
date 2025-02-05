@@ -17,6 +17,7 @@
  */
 package inetsoft.report.composition;
 
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.CompositeColumnHelper;
 import inetsoft.uql.erm.*;
@@ -24,8 +25,7 @@ import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.util.Catalog;
-import inetsoft.util.MessageException;
+import inetsoft.util.*;
 
 import java.security.Principal;
 import java.util.*;
@@ -136,6 +136,7 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
          VSModelContext context = new VSModelContext(rvs);
          HashSet<DataRef> all = new HashSet<>();
          HashSet<DataRef> aggs = new HashSet<>();
+         addCalcAttributes(all);
          getAttributes(getTable(info), all, aggs, false);
          context.getAllAttributes(info, all, aggs);
          DataRef[] allAttributes = new DataRef[all.size()];
@@ -164,6 +165,7 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
 
          all = new HashSet<>();
          aggs = new HashSet<>();
+         addCalcAttributes(all);
          getAttributes(getTable(oinfo), all, aggs, false);
          context.getAllAttributes(oinfo, all, aggs);
          allAttributes = new DataRef[all.size()];
@@ -191,6 +193,136 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
       }
    }
 
+   public TrapInfo checkCalcTrap(String tname, CalculateRef ncalc) {
+      if(vs == null) {
+         return new TrapInfo();
+      }
+
+      CalculateRef ocalc = null;
+
+      try {
+         if(tname != null && ncalc != null) {
+            ocalc = vs.getCalcField(tname, ncalc.getName());
+            vs.addCalcField(tname, ncalc);
+         }
+
+         VSModelContext context = new VSModelContext(rvs);
+         HashSet<DataRef> all = new HashSet<>();
+         HashSet<DataRef> aggs = new HashSet<>();
+         addCalcAttributes(all);
+         context.getAllAttributes(null, all, aggs);
+         DataRef[] allAttributes = new DataRef[all.size()];
+         all.toArray(allAttributes);
+         tables = getTables(allAttributes);
+         this.aggs = new DataRef[aggs.size()];
+         aggs.toArray(this.aggs);
+
+         if(isDebugMode()) {
+            printFields("__new__all__", all);
+            printFields("__new__aggs__", aggs);
+         }
+
+         if(tname != null) {
+            if(ocalc != null) {
+               vs.addCalcField(tname, ocalc);
+            }
+            else if(ncalc != null) {
+               vs.removeCalcField(tname, ncalc.getName());
+            }
+         }
+
+         all = new HashSet<>();
+         aggs = new HashSet<>();
+         addCalcAttributes(all);
+         context.getAllAttributes(null, all, aggs);
+         allAttributes = new DataRef[all.size()];
+         all.toArray(allAttributes);
+         otables = getTables(allAttributes);
+         oaggs = new DataRef[aggs.size()];
+         aggs.toArray(oaggs);
+
+         if(isDebugMode()) {
+            printFields("__old__all__", all);
+            printFields("__old__aggs__", aggs);
+         }
+
+         return super.checkTrap();
+      }
+      finally {
+         if(tname != null) {
+            if(ocalc != null) {
+               vs.addCalcField(tname, ocalc);
+            }
+            else if(ncalc != null) {
+               vs.removeCalcField(tname, ncalc.getName());
+            }
+         }
+      }
+   }
+
+   private void addCalcAttributes(HashSet<DataRef> all) {
+      if(vs == null) {
+         return;
+      }
+
+      Collection<String> tables = vs.getCalcFieldSources();
+
+      for(String table : tables) {
+         TableAssembly base = vs.getBaseWorksheet().getVSTableAssembly(table);
+         CompositeColumnHelper helper = new CompositeColumnHelper(base);
+         CalculateRef[] calcs = vs.getCalcFields(table);
+
+         if(calcs == null || calcs.length == 0) {
+            continue;
+         }
+
+         for(CalculateRef calc : calcs) {
+            if(calc.getName().startsWith("Range@") || calc.getName().startsWith("Total@")) {
+               continue;
+            }
+
+            DataRef[] refs = findAttributes(calc);
+
+            for(DataRef ref : refs) {
+               addCalcRefAttributes(helper, all, base, ref);
+            }
+         }
+      }
+   }
+
+   private void addCalcRefAttributes(CompositeColumnHelper helper, HashSet<DataRef> all,
+                                     TableAssembly table, DataRef ref)
+   {
+      if(vs == null) {
+         return;
+      }
+
+      String attr = ref.getAttribute();
+      int idx = attr.indexOf("([");
+      String secondAttr = null;
+
+      if(idx > 0 && attr.endsWith("])")) {
+         attr = attr.substring(idx + 2, attr.length() - 2);
+      }
+
+      int idx0 = attr.indexOf("], [");
+
+      if(idx0 > 0) {
+         secondAttr = attr.substring(idx0 + 4);
+         attr = attr.substring(0, idx0);
+      }
+
+      ColumnSelection selection = table.getColumnSelection(true).clone();
+
+      for(int i = 0; i < selection.getAttributeCount(); i++) {
+         DataRef col = selection.getAttribute(i);
+
+         if(Tool.equals(attr, col.getAttribute()) || Tool.equals(secondAttr, col.getAttribute())) {
+            addAttributes(helper, all, col);
+         }
+      }
+   }
+
    /**
     * Return TrapInfo as the result after checking trap.
     */
@@ -208,25 +340,21 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
     */
    private void initAggregateRefs(VSAssemblyInfo info) {
       AggregateInfo ainfo = null;
-      SourceInfo sinfo = null;
 
       // for vs, only chart and crosstab can introduce aggregates
       if(info instanceof ChartVSAssemblyInfo) {
          ChartVSAssemblyInfo cinfo = (ChartVSAssemblyInfo) info;
          ainfo = cinfo.getVSChartInfo().getAggregateInfo();
-         sinfo = cinfo.getSourceInfo();
       }
       else if(info instanceof CrosstabVSAssemblyInfo) {
          CrosstabVSAssemblyInfo cinfo = (CrosstabVSAssemblyInfo) info;
          VSCrosstabInfo crosstabInfo = cinfo.getVSCrosstabInfo();
          ainfo = crosstabInfo == null ? null : crosstabInfo.getAggregateInfo();
          ainfo = ainfo == null ? new AggregateInfo() : ainfo;
-         sinfo = cinfo.getSourceInfo();
       }
       else if(info instanceof CalcTableVSAssemblyInfo) {
          CalcTableVSAssemblyInfo cinfo = (CalcTableVSAssemblyInfo) info;
          ainfo = cinfo.getAggregateInfo();
-         sinfo = cinfo.getSourceInfo();
       }
 
       List<DataRef> arefs = new ArrayList<>();
@@ -360,7 +488,7 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
       DataRef[] grayedFields = new DataRef[0];
       Worksheet ws = vs.getBaseWorksheet();
 
-      for(Assembly assembly:ws.getAssemblies()) {
+      for(Assembly assembly: ws.getAssemblies()) {
          if(!(assembly instanceof TableAssembly)) {
             continue;
          }
@@ -369,8 +497,10 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
          HashSet<DataRef> all = new HashSet<>();
          HashSet<DataRef> aggs = new HashSet<>();
          getAttributes(table, all, aggs, false, false);
+         addCalcFields(all, table.getName());
          DataRef[] allAttributes = new DataRef[all.size()];
          all.toArray(allAttributes);
+
          String[] tables = getTables(allAttributes);
 
          CompositeColumnHelper chelper = new CompositeColumnHelper(table);
@@ -404,6 +534,28 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
       return grayedFields;
    }
 
+   private void addCalcFields(HashSet<DataRef> all, String tableName) {
+      if(tableName.endsWith("_O")) {
+         tableName = tableName.substring(0, tableName.length() - 2);
+         addCalcFields0(all, tableName);
+         return;
+      }
+
+      addCalcFields0(all, tableName);
+   }
+
+   private void addCalcFields0(HashSet<DataRef> all, String tableName) {
+      CalculateRef[] calcs = vs.getCalcFields(tableName);
+
+      if(calcs == null || calcs.length == 0) {
+         return;
+      }
+
+      for(CalculateRef calc : calcs) {
+         all.add(calc);
+      }
+   }
+
    /**
     * Get the name of all database tables referenced by this data attributes.
     */
@@ -428,7 +580,7 @@ public class VSModelTrapContext extends AbstractModelTrapContext {
     * Return the attributes from calcfield.
     */
    private DataRef[] getAttributes(DataRef column) {
-      if(vs == null || vs.getBaseEntry() == null ||column == null) {
+      if(vs == null || vs.getBaseEntry() == null || column == null) {
          return null;
       }
 

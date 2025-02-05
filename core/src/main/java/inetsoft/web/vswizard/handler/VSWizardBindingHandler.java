@@ -2191,7 +2191,7 @@ public class VSWizardBindingHandler {
             format2.setFormatValue(fmtInfo.getFormat());
          }
 
-         if(fmtInfo.getFormatSpec() != null) {
+         if(format2 != null && fmtInfo != null && fmtInfo.getFormatSpec() != null) {
             format2.setFormatExtentValue(fmtInfo.getFormatSpec());
          }
 

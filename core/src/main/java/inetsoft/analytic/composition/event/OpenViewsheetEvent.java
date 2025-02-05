@@ -161,9 +161,7 @@ public class OpenViewsheetEvent extends AssetEvent {
          ViewsheetService engine = (ViewsheetService) getWorksheetEngine();
 
          if(!isConfirmed() && !viewer) {
-            File savefile = AutoSaveUtils.getAutoSavedFile(entry, getUser());
-
-            if(savefile.exists()) {
+            if(AutoSaveUtils.exists(entry, getUser())) {
                MessageCommand msgCmd = new MessageCommand(
                   Catalog.getCatalog().getString(
                   "designer.designer.autosavedFileExists"),

@@ -44,7 +44,16 @@ public class CubeMeasureModel extends XCubeMemberModel {
       this.caption = caption;
    }
 
+   public boolean getCalcMeasure() {
+      return calcMeasure;
+   }
+
+   public void setCalcMeasure(boolean calcMeasure) {
+      this.calcMeasure = calcMeasure;
+   }
+
    private String folder;
    private String uniqueName;
    private String caption;
+   private boolean calcMeasure;
 }

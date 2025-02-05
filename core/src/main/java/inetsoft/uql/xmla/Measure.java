@@ -187,6 +187,14 @@ public class Measure implements XCubeMember {
    public void setDateLevel(String dateLevel) {
    }
 
+   public boolean isCalcMeasure() {
+      return isCalcMeasure;
+   }
+
+   public void setCalcMeasure(boolean calcMeasure) {
+      isCalcMeasure = calcMeasure;
+   }
+
    /**
     * Write an XML element representation of this object.
     *
@@ -197,6 +205,7 @@ public class Measure implements XCubeMember {
       writer.print("<Measure name=\"" + Tool.byteEncode(name) + "\"");
       writer.print(" uniqueName=\"" + Tool.byteEncode(uniqueName) + "\"");
       writer.print(" caption=\"" + Tool.byteEncode(getCaption()) + "\"");
+      writer.print(" isCalcMeasure=\"" + isCalcMeasure + "\"");
       writer.print(" type=\"" + type + "\"");
 
       if(folder != null) {
@@ -234,6 +243,7 @@ public class Measure implements XCubeMember {
       caption = Tool.byteDecode(caption);
       type = Tool.getAttribute(tag, "type");
       folder = Tool.getAttribute(tag, "folder");
+      isCalcMeasure = "true".equals(Tool.getAttribute(tag, "isCalcMeasure"));
       folder = Tool.byteDecode(folder);
       Element refNode = Tool.getChildNodeByTagName(tag, "DataRef");
 
@@ -280,6 +290,7 @@ public class Measure implements XCubeMember {
    private String folder = null;
    private XMetaInfo meta;
    private String originalType = null;
+   private boolean isCalcMeasure = false;
 
    private static final Logger LOG = LoggerFactory.getLogger(Measure.class);
 }

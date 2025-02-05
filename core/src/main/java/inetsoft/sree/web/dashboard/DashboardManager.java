@@ -89,6 +89,10 @@ public class DashboardManager implements AutoCloseable {
     * @return dashboards of the specified identity or <code>String[0]</code>.
     */
    public synchronized String[] getDashboards(Identity identity) {
+      if(identity == null) {
+         return new String[0];
+      }
+
       return getDashboards(identity, true);
    }
 
@@ -540,7 +544,7 @@ public class DashboardManager implements AutoCloseable {
             }
          }
       }
-      else if(identity.getName() != null) {
+      else if(identity != null && identity.getName() != null) {
          String key = getIdentityKey(identity);
          DashboardData data = dashboardStorage.get(key);
 

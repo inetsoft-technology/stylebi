@@ -181,6 +181,17 @@ export class TaskOptionsPane implements OnInit {
       return !(this.adminName && this._model.securityEnabled && !this._model.selfOrg) || this.loadingUsers;
    }
 
+   public updateExecuteAs(name: string) {
+      this.executeAsName = name;
+
+      if(this.executeAsName == "" || this.executeAsName == this._model.owner) {
+         this._model.idName = null;
+      }
+      else {
+         this._model.idName = this.executeAsName;
+      }
+   }
+
    public save(): void {
       this.saveTask().then(() => {
          this.form.markAsPristine();

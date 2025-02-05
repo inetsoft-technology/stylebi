@@ -21,6 +21,7 @@ import { TestBed } from "@angular/core/testing";
 import { Router } from "@angular/router";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subject } from "rxjs";
+import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { LinkType } from "../../../../common/data/hyperlink-model";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { ViewsheetClientService } from "../../../../common/viewsheet-client";
@@ -101,14 +102,15 @@ describe("VSGauge", () => {
             {provide: ModelService, useValue: modelService},
             { provide: Router, useValue: router },
             ShowHyperlinkService,
-            { provide: RichTextService, useValue: RichTextService }
+            { provide: RichTextService, useValue: RichTextService },
+            AppInfoService
          ]
       });
       TestBed.compileComponents();
    });
 
    // Bug #17228
-   xit("should open hyperlink with self target in same window", () => {
+   it("should open hyperlink with self target in same window", () => {
       const oldOpen = window.open;
 
       try {
@@ -150,7 +152,7 @@ describe("VSGauge", () => {
    });
 
    // Bug #17228
-   xit("should open hyperlink with non-self target in new window", () => {
+   it("should open hyperlink with non-self target in new window", () => {
       const oldOpen = window.open;
 
       try {
@@ -174,6 +176,7 @@ describe("VSGauge", () => {
          const fixture = TestBed.createComponent(VSGauge);
          fixture.componentInstance.actions = actions;
          fixture.componentInstance.model = model;
+         fixture.componentInstance.vsInfo = new ViewsheetInfo([], "/link/");
          fixture.detectChanges();
 
          window.open = jest.fn();
@@ -206,7 +209,7 @@ describe("VSGauge", () => {
    });
 
    // Bug #20250 should apply data tip alpha
-   xit("should apply correct alpha on gauge", () => { // broken test
+   it("should apply correct alpha on gauge", () => { // broken test
       model.objectFormat.alpha = 0.3;
       const fixture = TestBed.createComponent(VSGauge);
       fixture.componentInstance.model = model;

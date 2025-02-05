@@ -121,6 +121,7 @@ describe("Categorical Color Pane Unit Test", () => {
          dataInfo: TestUtils.createMockChartDimensionRef("Employee"),
          frame: frameModel
       };
+      categColorPane.assetId = "1^128^__NULL__^TEST";
       fixture.detectChanges();
 
       //Bug #19213

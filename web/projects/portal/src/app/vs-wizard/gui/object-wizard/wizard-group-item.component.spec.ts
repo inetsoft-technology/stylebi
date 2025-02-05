@@ -25,6 +25,7 @@ describe("VSWizardGroupItem", () => {
   let viewsheetClientService: any;
   let dialogService: any;
   let treeService: any;
+  let modelService: any;
   let examplesService: any;
   let zone: any;
 
@@ -40,9 +41,13 @@ describe("VSWizardGroupItem", () => {
     treeService = {
       getTableName: jest.fn(() => "Table")
     };
+     modelService = {
+        sendModel: jest.fn(),
+        getModel: jest.fn()
+     };
 
     component = new VSWizardGroupItem(dialogService, viewsheetClientService,
-       treeService, examplesService);
+       treeService, modelService, examplesService);
   });
 
   it("should create", () => {

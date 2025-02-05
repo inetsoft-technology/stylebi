@@ -35,6 +35,7 @@ export class ChartAdvancedPane implements OnInit {
    @Input() variables: string[];
    @Input() viewer: boolean = false;
    @Input() vsId: string = null;
+   @Input() assetId: string;
    @Input() chartType: number;
    @Input() form: UntypedFormGroup;
    alphaInvalid: boolean = false;

@@ -219,9 +219,9 @@ public class ScriptPropertyTool {
    private static final Map<String, String> ASSEMBLY_NAMES = new HashMap<>();
    private static final List<String> COMMON_PROPERTIES = Arrays.asList("alignment", "alpha",
            "background", "borderColors", "borders", "dataConditions", "enabled", "exportFormat",
-           "font", "foreground", "format", "formatSpec", "position", "scaledPosition",
-           "selectedLabel", "selectedLables", "selectedObject", "selectedObjects", "size",
-           "title", "visible", "wrapping", "titleVisible");
+           "font", "foreground", "format", "formatSpec", "position", "refreshAfterSubmit",
+           "scaledPosition", "scaledSize", "selectedLabel", "selectedLabels", "selectedObject",
+           "selectedObjects", "size", "title", "visible", "wrapping", "titleVisible");
 
    static {
       ASSEMBLY_NAMES.put("ViewsheetVSA", "thisViewsheet");

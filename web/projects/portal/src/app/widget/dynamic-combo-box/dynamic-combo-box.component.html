@@ -75,7 +75,7 @@
             </div>
           </ng-container>
           <tree *ngIf="asTree" [root]="valueTree" [showRoot]="false"
-                [selectedNodes]="selectedNodes" [showIcon]="true"
+                [selectedNodes]="selectedNodes" [showIcon]="true" [grayedOutValues]="grayedOutValues"
                 (nodesSelected)="nodesSelected($event)" [showTooltip]="showTooltip"
                 [initSelectedNodesExpanded]="initSelectedNodesExpanded">
           </tree>

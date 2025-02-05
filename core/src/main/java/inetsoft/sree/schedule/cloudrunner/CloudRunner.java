@@ -88,6 +88,7 @@ public class CloudRunner implements Callable<Integer> {
       System.out.println("sree.home: " + homePath);
       System.out.println("cluster.address: " + clusterAddress);
       System.out.println("schedule.task.name: " + decodedTask);
+      System.setProperty("ScheduleTaskRunner", decodedTask);
 
       if(cycleName != null) {
          decodedCycleName = UriUtils.decode(cycleName, StandardCharsets.UTF_8);

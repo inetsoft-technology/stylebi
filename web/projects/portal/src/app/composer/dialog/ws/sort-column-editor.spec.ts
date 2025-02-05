@@ -27,6 +27,7 @@ describe("Sort Column Editor Unit Test", () => {
          availableColumns: ["CITY", "STATE"],
          columnDescriptions: ["CITY", "STATE"],
          aliasMap: {},
+         captionMap: {},
          selectedColumns: ["CITY", "STATE"],
          orders: [1, 1],
          originalNames: [],

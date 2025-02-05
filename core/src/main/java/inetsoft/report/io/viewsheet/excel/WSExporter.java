@@ -25,6 +25,8 @@ import inetsoft.uql.asset.internal.ColumnInfo;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.*;
 
 /**
  * The class defines the API for exporting a data table.
@@ -54,7 +56,7 @@ public interface WSExporter {
     * @param assembly the specified TableVSAssembly.
     * @param lens the specified VSTableLens.
     */
-   public void writeTable(TableLens lens, List<ColumnInfo> cinfos);
+   public void writeTable(TableLens lens, List<ColumnInfo> cinfos, Class[] colTypes, Map<Integer, Integer> colMap);
 
    /**
     * Get the max cell count of per page.
@@ -71,5 +73,24 @@ public interface WSExporter {
       catch(Exception e) {
          return defaultMaxCellCount;
       }
+   }
+
+   default Class[] getColTypes(TableLens lens) {
+      int colCount = lens.getColCount();
+      final Class[] colTypes = new Class[colCount];
+      ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+      CompletableFuture<Void>[] futures = new CompletableFuture[colCount];
+
+      for(int i = 0; i < colCount; i++) {
+         final int colIdx = i;
+         futures[i] = CompletableFuture.runAsync(() -> {
+            colTypes[colIdx] = lens.getColType(colIdx);
+         }, executor);
+      }
+
+      CompletableFuture.allOf(futures).join();
+      executor.shutdown();
+
+      return colTypes;
    }
 }

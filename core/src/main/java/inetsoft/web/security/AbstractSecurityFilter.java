@@ -26,8 +26,10 @@ import inetsoft.sree.web.SessionLicenseManager;
 import inetsoft.sree.web.SessionLicenseService;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.web.viewsheet.service.LinkUriArgumentResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
+import org.apache.hc.core5.net.InetAddressUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.AntPathMatcher;
@@ -35,8 +37,10 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.net.URI;
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -137,9 +141,19 @@ public abstract class AbstractSecurityFilter
    protected SRPrincipal authenticateAnonymous(ServletRequest request)
       throws AuthenticationFailureException
    {
-      IdentityID anonID = new IdentityID(ClientInfo.ANONYMOUS, Organization.getDefaultOrganizationID());
+
+      IdentityID anonID = new IdentityID(ClientInfo.ANONYMOUS,
+         getCookieRecordedOrgID((HttpServletRequest) request));
       ClientInfo info = createClientInfo(anonID, request);
       return (SRPrincipal) AuthenticationService.getInstance().authenticate(info, null);
+   }
+
+   protected String getCookieRecordedOrgID(HttpServletRequest request) {
+      Cookie[] cookies = request.getCookies();
+
+      return cookies == null ? Organization.getDefaultOrganizationID() :
+         Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
+            .map(Cookie::getValue).findFirst().orElse(Organization.getDefaultOrganizationID());
    }
 
    protected String[] getSSODefaultRole() {
@@ -238,12 +252,16 @@ public abstract class AbstractSecurityFilter
             }
          }
 
-         SecurityEngine.getSecurity().getActivePrincipalList().stream()
+         List<SRPrincipal> sameClientPrincipals = SecurityEngine.getSecurity().getActivePrincipalList().stream()
             .filter(p -> p != principal)
             .filter(p -> isSameClient(principal, p))
-            .sorted(Comparator.comparing(SRPrincipal::getLastAccess).reversed())
-            .skip(maxSessions - 1) // current principal is filtered out
-            .forEach(authentication::logout);
+            .sorted(Comparator.comparing(SRPrincipal::getLastAccess)) // Oldest accessed first
+            .collect(Collectors.toList());
+
+         if(sameClientPrincipals.size() >= maxSessions) {
+            sameClientPrincipals.subList(0, sameClientPrincipals.size() - (maxSessions - 1))
+               .forEach(authentication::logout);
+         }
       }
    }
 
@@ -259,8 +277,7 @@ public abstract class AbstractSecurityFilter
 
       if(session != null) {
          try {
-            final SRPrincipal principal =
-               ((SRPrincipal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE));
+            final SRPrincipal principal = (SRPrincipal) SUtil.getPrincipal(request);
             return principal != null;
          }
          catch(IllegalStateException | ClassCastException e) {
@@ -474,6 +491,10 @@ public abstract class AbstractSecurityFilter
       return isPageRequested(apiImagePath, request);
    }
 
+   protected boolean isApiTableExport(HttpServletRequest request) {
+      return isPageRequested(apiTableExportPath, request);
+   }
+
    @Override
    public void sessionAccessed(SessionAccessDispatcher.SessionAccessEvent event) {
       // NO-OP
@@ -595,6 +616,89 @@ public abstract class AbstractSecurityFilter
       return true;
    }
 
+   protected String getLoginOrganization(HttpServletRequest request) {
+      String orgID = null;
+
+      if(SUtil.isMultiTenant()) {
+         String type = SreeEnv.getProperty("security.login.orgLocation", "domain");
+
+         if("path".equals(type)) {
+            URI uri = URI.create(LinkUriArgumentResolver.getLinkUri(request));
+            String requestedPath = request.getPathInfo();
+
+            if(requestedPath == null) {
+               requestedPath = uri.getRawPath();
+            }
+
+            if(requestedPath != null) {
+               if(requestedPath.startsWith("/")) {
+                  requestedPath = requestedPath.substring(1);
+               }
+
+               int index = requestedPath.indexOf('/');
+
+               if(index < 0) {
+                  orgID = requestedPath;
+               }
+               else {
+                  orgID = requestedPath.substring(0, index);
+               }
+            }
+         }
+         else {
+            // get the lowest level subdomain, of the form "http://orgID.somehost.com/"
+            String host = LinkUriArgumentResolver.getRequestHost(request);
+
+            if(host != null && !isIpHost(host)) {
+               int index = host.indexOf('.');
+
+               if(index >= 0) {
+                  orgID = host.substring(0, index);
+               }
+            }
+         }
+
+         if(orgID != null) {
+            boolean matched = false;
+
+            for(String org : SecurityEngine.getSecurity().getOrganizations()) {
+               if(orgID.equalsIgnoreCase(org)) {
+                  matched = true;
+                  orgID = org;
+               }
+            }
+
+            if(!matched) {
+               orgID = null;
+            }
+         }
+      }
+
+      return orgID;
+   }
+
+   private boolean isIpHost(String host) {
+      if(host == null) {
+         return false;
+      }
+
+      int index = host.lastIndexOf(":");
+      String hostName = host;
+
+      if(index > 0) {
+         String port = host.substring(index + 1);
+
+         if(!org.apache.commons.lang.StringUtils.isNumeric(port)) {
+            return false;
+         }
+
+         hostName = host.substring(0, index - 1);
+      }
+
+
+      return InetAddressUtils.isIPv4Address(hostName);
+   }
+
    private boolean isNonlocalClient(SRPrincipal principal) {
       if(principal == null || principal.getUser() == null) {
          return false;
@@ -635,6 +739,7 @@ public abstract class AbstractSecurityFilter
    private static final String emPath = "/em/**"; // NOSONAR not applicable
    private static final String appPath = "/app/**"; // NOSONAR not applicable
    private static final String apiImagePath = "/api/image/**"; // NOSONAR not applicable
+   private static final String apiTableExportPath = "/api/table-export/**"; // NOSONAR not applicable
    private static final String apiPath = "/api/**"; // NOSONAR not applicable
    private static final String publicApiPath = "/api/public/**"; // NOSONAR not applicable
    private static final String teamWebsocketEndpointPath = "/reports/**"; // NOSONAR not applicable
@@ -665,5 +770,6 @@ public abstract class AbstractSecurityFilter
       "/js/**",
       "/webjars/**",
    };
+   protected static final String ORG_COOKIE = "X-INETSOFT-ORGID";
    private static final Logger LOG = LoggerFactory.getLogger(AbstractSecurityFilter.class);
 }

@@ -182,6 +182,16 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
    }
 
    @Override
+   public void removeTaskCacheOfOrg(String orgId) throws RemoteException {
+      try {
+         Scheduler.getScheduler().removeTaskCacheOfOrg(orgId);
+      }
+      catch(Exception exc) {
+         throw new RemoteException("Unable to remove old org task cache " + orgId, exc);
+      }
+   }
+
+   @Override
    public TaskActivity[] getScheduleActivities() throws RemoteException {
       LOG.debug(
          "Received get schedule activities request on " +
@@ -217,7 +227,13 @@ public class ScheduleServer extends UnicastRemoteObject implements Schedule {
 
    @Override
    public HealthStatus getHealth() throws RemoteException {
-      return HealthService.getInstance().getStatus();
+      HealthStatus status = HealthService.getInstance().getStatus();
+
+      if(status.isDown()) {
+         StatusDumpService.getInstance().dumpStatus();
+      }
+
+      return status;
    }
 
    @Override

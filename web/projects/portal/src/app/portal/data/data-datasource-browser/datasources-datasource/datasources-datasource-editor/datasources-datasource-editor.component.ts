@@ -153,6 +153,11 @@ export class DatasourcesDatasourceEditorComponent implements OnInit, OnDestroy {
       };
       this.httpClient.post<OAuthParameters>(DATASOURCES_URI + "/oauth-params", paramsRequest)
          .pipe(
+            tap(params => {
+               if(params?.error) {
+                  this.onWarning.emit(params.error);
+                  throw new Error(params.error); // Stop further processing
+               }}),
             map(params => Object.assign(authParams, params)),
             flatMap(params => this.oauthService.authorize(params)),
             map(tokens => Object.assign(tokensRequest, tokens)),

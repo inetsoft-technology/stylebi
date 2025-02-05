@@ -729,7 +729,7 @@ export class VSTable extends BaseTable<VSTableModel> implements OnInit, OnDestro
    }
 
    public isHyperlink(cell: BaseTableCellModel): boolean {
-      return cell.hyperlinks != null && cell.hyperlinks.length > 0 && !this.model.form;
+      return cell.hyperlinks != null && cell.hyperlinks.length > 0 && !this.model.form && cell.underline;
    }
 
    public selectTitle(event: MouseEvent): void {

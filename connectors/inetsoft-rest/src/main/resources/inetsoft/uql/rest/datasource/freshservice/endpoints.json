@@ -3,12 +3,12 @@
     {
       "name": "Ticket",
       "paged": false,
-      "suffix": "/helpdesk/tickets/{Ticket ID}.json"
+      "suffix": "/api/v2/tickets/{Ticket ID}"
     },
     {
       "name": "Tickets",
       "paged": true,
-      "suffix": "/helpdesk/tickets.json?email={Requested by Email?}&filter_name={Filter?:all_tickets|new_my_open|monitored_by|spam|deleted}",
+      "suffix": "/api/v2/tickets?email={Requested by Email?}&filter_name={Filter?:new_my_open|watching|spam|deleted}",
       "lookups": [
         {
           "endpoints": [
@@ -25,234 +25,214 @@
       ]
     },
     {
-      "name": "Tickets Requested By",
+      "name": "Tickets Requested By ID",
       "paged": true,
-      "suffix": "/helpdesk/tickets/filter/requester/{Requester ID}?format=json"
+      "suffix": "/api/v2/tickets?requester_id={Requester ID}"
     },
     {
-      "name": "Custom Ticket View",
+      "name": "Custom Ticket Query",
       "paged": true,
-      "suffix": "/helpdesk/tickets/view/{View ID}?format=json"
+      "suffix": "/api/v2/tickets/filter?query={Query}"
     },
     {
       "name": "Ticket Fields",
       "paged": false,
-      "suffix": "/ticket_fields.json"
+      "suffix": "/api/v2/ticket_form_fields"
     },
     {
       "name": "Problem",
       "paged": false,
-      "suffix": "/itil/problems/{Problem Display ID}.json"
+      "suffix": "/api/v2/problems/{Problem Display ID}"
     },
     {
       "name": "Problems",
       "paged": true,
-      "suffix": "/itil/problems.json"
-    },
-    {
-      "name": "Filtered Problems",
-      "paged": true,
-      "suffix": "/itil/problems/filter/{Filter Name:all|new_my_open|deleted}?format=json"
+      "suffix": "/api/v2/problems"
     },
     {
       "name": "Problem Fields",
       "paged": false,
-      "suffix": "/itil/problem_fields.json"
+      "suffix": "/api/v2/problem_form_fields"
     },
     {
       "name": "Change",
       "paged": false,
-      "suffix": "/itil/changes/{Change ID}.json"
+      "suffix": "/api/v2/changes/{Change ID}"
     },
     {
       "name": "Changes",
       "paged": true,
-      "suffix": "/itil/changes.json"
+      "suffix": "/api/v2/changes"
     },
     {
-      "name": "Filtered Changes",
+      "name": "Custom Changes Query",
       "paged": true,
-      "suffix": "/itil/changes/filter/{Filter Name:all|new_my_open|deleted}?format=json"
+      "suffix": "/api/v2/changes?query={Query}"
     },
     {
       "name": "Change Fields",
       "paged": false,
-      "suffix": "/itil/change_fields.json"
+      "suffix": "/api/v2/change_fields"
     },
     {
       "name": "Release",
       "paged": false,
-      "suffix": "/itil/releases/{Release Display ID}.json"
+      "suffix": "/api/v2/releases/{Release Display ID}"
     },
     {
       "name": "Releases",
       "paged": true,
-      "suffix": "/itil/releases.json"
+      "suffix": "/api/v2/releases"
     },
     {
       "name": "Filtered Releases",
       "paged": true,
-      "suffix": "/itil/releases/filter/{Filter Name:all|new_my_open|deleted}?format=json"
+      "suffix": "/api/v2/releases/filter_name={Filter Name:all|my_open|deleted|unassigned|completed|incompleted}"
     },
     {
       "name": "Release Fields",
       "paged": false,
-      "suffix": "/itil/release_fields.json"
+      "suffix": "/api/v2/release_form_fields"
     },
     {
       "name": "Time Entries",
       "paged": false,
-      "suffix": "/itil/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/time_sheets.json"
-    },
-    {
-      "name": "My Tasks",
-      "paged": false,
-      "suffix": "/itil/it_tasks.json"
+      "suffix": "/api/v2/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/time_entries"
     },
     {
       "name": "Task",
       "paged": false,
-      "suffix": "/itil/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/it_tasks/{Task ID}.json"
+      "suffix": "/api/v2/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/tasks/{Task ID}"
     },
     {
-      "name": "Tasks",
+      "name": "Release Tasks by ID",
       "paged": false,
-      "suffix": "/itil/{Module Name:tickets|problems|changes|releases}/{Module Item ID}/it_tasks.json"
+      "suffix": "/api/v2/releases/{Release ID}/tasks"
     },
     {
       "name": "Agent",
       "paged": false,
-      "suffix": "/agents/{Agent ID}.json"
+      "suffix": "/api/v2/agents/{Agent ID}"
     },
     {
       "name": "Active Agents",
       "paged": false,
-      "suffix": "/agents.json?query={Query?}"
+      "suffix": "/api/v2/agents?active=true"
     },
     {
-      "name": "Occasional Agents",
+      "name": "Agents by Status",
       "paged": false,
-      "suffix": "/agents/filter/occasional?format=json"
+      "suffix": "/api/v2/agents?state={Status:fulltime|occasional}"
     },
     {
-      "name": "User",
+      "name": "User by ID",
       "paged": false,
-      "suffix": "/itil/requesters/{User ID}.json"
+      "suffix": "/api/v2/requesters/{User ID}"
     },
     {
       "name": "Users",
       "paged": false,
-      "suffix": "/itil/requesters.json?query={Query?}"
-    },
-    {
-      "name": "Filtered Users",
-      "paged": false,
-      "suffix": "/itil/requesters?state={State:verified|unverified|all|deleted}&format=json"
+      "suffix": "/api/v2/requesters?query={Query?}"
     },
     {
       "name": "Department",
       "paged": false,
-      "suffix": "/itil/departments/{Department ID}.json"
+      "suffix": "/api/v2/departments/{Department ID}"
     },
     {
       "name": "Departments",
       "paged": false,
-      "suffix": "/itil/departments.json"
+      "suffix": "/api/v2/departments"
     },
     {
       "name": "Asset CI Types",
       "paged": false,
-      "suffix": "/cmdb/ci_types.json"
+      "suffix": "/api/v2/asset_types"
     },
     {
       "name": "Asset CI Type Fields",
       "paged": false,
-      "suffix": "/cmdb/ci_types/{Asset Type ID}.json"
+      "suffix": "/api/v2/assets_types/{asset_type_id}/fields"
     },
     {
       "name": "Asset",
       "paged": false,
-      "suffix": "/cmdb/items/{Asset Display ID}.json"
+      "suffix": "/api/v2/assets/{Asset Display ID}"
     },
     {
       "name": "Assets",
       "paged": true,
-      "suffix": "/cmdb/items.json"
+      "suffix": "/api/v2/assets"
     },
     {
       "name": "Asset Search",
       "paged": true,
-      "suffix": "/cmdb/items/list.json?field={Field Name:name|asset_tag|serial_number}&q={Search Text}"
+      "suffix": "/api/v2/assets?search={Query}"
     },
     {
       "name": "Relationship Types",
       "paged": false,
-      "suffix": "/cmdb/relationship_types/list.json"
+      "suffix": "/api/v2/relationship_types"
     },
     {
       "name": "Relationships",
       "paged": false,
-      "suffix": "/cmdb/items/{Asset Display ID}/relationships.json"
+      "suffix": "/api/v2/relationships/{Asset Display ID}"
     },
     {
       "name": "Solution Category",
       "paged": false,
-      "suffix": "/solution/categories/{Category ID}.json"
+      "suffix": "/api/v2/solutions/categories/{Category ID}"
     },
     {
       "name": "Solution Folders",
       "paged": false,
-      "suffix": "/solution/categories/{Category ID}.json"
+      "suffix": "/api/v2/solutions/folders/{Folder ID}"
     },
     {
       "name": "Solution Categories",
       "paged": false,
-      "suffix": "/solution/categories.json"
+      "suffix": "/api/v2/solutions/categories"
     },
     {
       "name": "Solution Article",
       "paged": false,
-      "suffix": "/solution/categories/{Category ID}/folders/{Folder ID}/articles/{Article ID}.json"
+      "suffix": "/api/v2/solutions/articles/{Article ID}"
     },
     {
       "name": "Solution Articles",
       "paged": false,
-      "suffix": "/solution/categories/{Category ID}/folders/{Folder ID}/articles.json"
+      "suffix": "/api/v2/solutions/articles?folder_id={Folder ID}"
     },
     {
       "name": "Service Items",
       "paged": true,
-      "suffix": "/catalog/items.json"
+      "suffix": "/api/v2/service_catalog/items"
     },
     {
       "name": "Service Categories",
       "paged": false,
-      "suffix": "/catalog/categories.json"
+      "suffix": "/api/v2/service_catalog/categories"
     },
     {
       "name": "Service Category Items",
       "paged": true,
-      "suffix": "/catalog/categories/{Category ID}/items.json"
+      "suffix": "/api/v2/service_catalog/items"
     },
     {
       "name": "Service Item",
       "paged": false,
-      "suffix": "/catalog/items/{Item Display ID}.json"
+      "suffix": "/api/v2/service_catalog/items/{Item Display ID}.json"
     },
     {
       "name": "Contract",
       "paged": false,
-      "suffix": "/cmdb/contracts/{Contract Display ID}.json"
+      "suffix": "/api/v2/contracts/{Contract Display ID}.json"
     },
     {
       "name": "Contracts",
       "paged": true,
-      "suffix": "/cmdb/contracts?format=json"
-    },
-    {
-      "name": "Filtered Contracts",
-      "paged": true,
-      "suffix": "/cmdb/contracts/filter/{Filter Name:all|active|expired|lease|maintenance|software_license|expiry_range}?format=json"
+      "suffix": "/api/v2/contracts"
     }
   ]
 }

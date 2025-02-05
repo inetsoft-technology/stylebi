@@ -90,7 +90,7 @@ public class ServerFileDataSource extends TabularDataSource<ServerFileDataSource
 
    @Override
    public boolean equals(Object obj) {
-      if(!(obj instanceof ServerFileDataSource)) {
+      if(!super.equals(obj) || !(obj instanceof ServerFileDataSource)) {
          return false;
       }
 

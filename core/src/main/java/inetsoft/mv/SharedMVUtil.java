@@ -21,6 +21,7 @@ import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -421,6 +422,40 @@ public class SharedMVUtil {
                   defs.remove(i);
                   break;
                }
+            }
+         }
+      }
+   }
+
+
+   /**
+    * Remove the MV for the vs/ws folder.
+    */
+   public static void removeMV(String folder) {
+      MVManager manager = MVManager.getManager();
+      MVDef[] defs = manager.list(true);
+
+      for(MVDef def : defs) {
+         MVMetaData data = def.getMetaData();
+         String[] registeredSheets = data.getRegisteredSheets();
+
+         if(registeredSheets.length == 0) {
+            continue;
+         }
+
+         Iterator<String> iterator = Arrays.stream(registeredSheets).iterator();
+
+         while(iterator.hasNext()) {
+            String registeredSheet = iterator.next();
+            AssetEntry assetEntry = AssetEntry.createAssetEntry(registeredSheet);
+            String parentPath = assetEntry.getParentPath();
+
+            if(Tool.equals(parentPath, folder)) {
+               manager.remove(def, registeredSheet);
+            }
+
+            if(data.getRegisteredSheets().length == 0) {
+               manager.removeDependencies(assetEntry);
             }
          }
       }

@@ -24,13 +24,11 @@ import {
    Renderer2,
    ViewChild
 } from "@angular/core";
-import { MatDialog, MatDialogRef } from "@angular/material/dialog";
+import { MatDialog } from "@angular/material/dialog";
 import { Router } from "@angular/router";
-import { Observable, Subscription } from "rxjs";
-import { switchMap, tap, withLatestFrom } from "rxjs/operators";
+import { Subscription } from "rxjs";
+import { switchMap, tap } from "rxjs/operators";
 import { DownloadService } from "../../../../../../shared/download/download.service";
-import { LogoutService } from "../../../../../../shared/util/logout.service";
-import { SessionInactivityService } from "../../../../../../shared/util/session-inactivity.service";
 import { AuthorizationService } from "../../../authorization/authorization.service";
 import { MessageDialog, MessageDialogType } from "../../../common/util/message-dialog";
 import { TableInfo } from "../../../common/util/table/table-info";
@@ -38,9 +36,7 @@ import { ContextHelp } from "../../../context-help";
 import { PageHeaderService } from "../../../page-header/page-header.service";
 import { Searchable } from "../../../searchable";
 import { Secured } from "../../../secured";
-import { MoveCopyTreeNodesRequest } from "../../../settings/content/repository/model/move-copy-tree-nodes-request";
 import { SecurityEnabledEvent } from "../../../settings/security/security-settings-page/security-enabled-event";
-import { SessionExpirationDialog } from "../../../widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
 import { ClusterNodesService } from "../../cluster/cluster-nodes.service";
 import { MonitorLevel } from "../../monitor-level.service";
 import { MonitoringDataService } from "../../monitoring-data.service";
@@ -91,8 +87,7 @@ export interface ChartInfo {
 @Component({
    selector: "em-summary-monitoring-page",
    templateUrl: "./summary-monitoring-page.component.html",
-   styleUrls: ["./summary-monitoring-page.component.scss"],
-   providers: [SessionInactivityService]
+   styleUrls: ["./summary-monitoring-page.component.scss"]
 })
 export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterContentChecked {
    @ViewChild("summaryPageContainer", { static: true }) pageContainer;
@@ -182,7 +177,6 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
    swappingVisible = false;
    top5UsersVisible = false;
    securitySettingsEnabled = false;
-   sessionExpirationDialogRef: MatDialogRef<SessionExpirationDialog>;
 
    constructor(private pageTitle: PageHeaderService,
                private downloadService: DownloadService,
@@ -192,9 +186,7 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
                private authzService: AuthorizationService,
                private renderer: Renderer2,
                private router: Router,
-               private dialog: MatDialog,
-               private sessionInactivity: SessionInactivityService,
-               private logoutService: LogoutService)
+               private dialog: MatDialog)
    {
    }
 
@@ -234,31 +226,6 @@ export class SummaryMonitoringPageComponent implements OnInit, OnDestroy, AfterC
             this.serverModel = serverModel;
             this.refreshLegends();
          }));
-
-      this.subscriptions.add(this.sessionInactivity.onInactivity()
-         .subscribe((remainingTime)=>{
-            this.sessionExpirationDialogRef = this.dialog.open(SessionExpirationDialog, {
-               width: "500px",
-               data: {
-                  remainingTime: remainingTime,
-               }
-            });
-
-            this.sessionExpirationDialogRef.componentInstance.onLogout.subscribe(() => {
-               this.logoutService.logout(false, true);
-            });
-
-            this.sessionExpirationDialogRef.componentInstance.onTimerFinished.subscribe(() => {
-               this.logoutService.logout(false, true);
-            });
-         }));
-
-      this.subscriptions.add(this.sessionInactivity.onActivity().subscribe(() => {
-         if(this.sessionExpirationDialogRef != null) {
-            this.sessionExpirationDialogRef.close();
-            this.sessionExpirationDialogRef = null;
-         }
-      }));
    }
 
    private refreshLegends(): void {

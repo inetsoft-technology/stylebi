@@ -60,7 +60,7 @@ public class KeapDataSource extends OAuthEndpointJsonDataSource<KeapDataSource> 
 
    @Override
    protected CredentialType getCredentialType() {
-      return CredentialType.CLINET;
+      return CredentialType.CLIENT;
    }
 
    @Property(label = "API Key", required = true)

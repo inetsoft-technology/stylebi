@@ -105,7 +105,7 @@ public class RepositoryObjectService {
          checkPermission(node.type(), path, EnumSet.of(ResourceAction.DELETE), principal);
       }
 
-      deleteAutoSaveNodes(autoSaveNodes);
+      deleteAutoSaveNodes(autoSaveNodes, principal);
       List<TreeNodeInfo> list = new ArrayList<TreeNodeInfo>();
 
       for(TreeNodeInfo cnode : nodes) {
@@ -562,11 +562,11 @@ public class RepositoryObjectService {
       return null;
    }
 
-   public void deleteAutoSaveNodes(List<TreeNodeInfo> nodes) throws MessageException {
+   public void deleteAutoSaveNodes(List<TreeNodeInfo> nodes, Principal principal) throws MessageException {
       try {
          for(int i = 0; i < nodes.size(); i++) {
             String id = nodes.get(i).path();
-            AutoSaveUtils.deleteAutoSaveFile(id);
+            AutoSaveUtils.deleteAutoSaveFile(id, principal);
          }
 
          if(nodes.size() > 0) {

@@ -40,7 +40,6 @@
         <selection-tree-pane
           [model]="model.selectionTreePaneModel" [runtimeId]="runtimeId"
           [singleSelection]="model.selectionGeneralPaneModel?.singleSelection"
-          [grayedOutValues]="getGrayedOutValues()"
           (onAddColumn)="onAddColumn($event)"
           [variableValues]="variableValues"></selection-tree-pane>
       </ng-template>

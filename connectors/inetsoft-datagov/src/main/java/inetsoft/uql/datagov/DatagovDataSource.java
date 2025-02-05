@@ -142,10 +142,14 @@ public class DatagovDataSource extends TabularDataSource<DatagovDataSource> {
 
    @Override
    public boolean equals(Object obj) {
+      if(!super.equals(obj)) {
+         return false;
+      }
+
       try {
          DatagovDataSource ds = (DatagovDataSource) obj;
 
-         return Objects.equals(url, ds.url) && Objects.equals(getCredential(), ds.getCredential());
+         return Objects.equals(url, ds.url);
       }
       catch(Exception ex) {
          return false;

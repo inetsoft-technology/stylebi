@@ -81,6 +81,14 @@ public class ActionRecord implements AuditRecord {
     */
    public static final String ACTION_NAME_IMPORT = "import";
    /**
+    * Aciton name backup.
+    */
+   public static final String ACTION_NAME_BACKUP = "backup";
+   /**
+    * Aciton name backup.
+    */
+   public static final String ACTION_NAME_DOWNLOAD = "download";
+   /**
     * Object type report.
     */
    public static final String OBJECT_TYPE_REPORT = "report";
@@ -168,6 +176,10 @@ public class ActionRecord implements AuditRecord {
     * Object type folder
     */
    public static final String OBJECT_TYPE_FOLDER = "folder";
+   /**
+    * Object type storage.
+    */
+   public static final String OBJECT_TYPE_STORAGE = "storage";
    /**
     * Object type security provider
     */

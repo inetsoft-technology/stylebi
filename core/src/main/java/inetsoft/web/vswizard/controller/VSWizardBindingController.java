@@ -171,7 +171,8 @@ public class VSWizardBindingController {
             return;
          }
 
-         boolean trap = wizardDataService.treeCheckTrap(id, event.selectedEntries(), principal);
+         SourceInfo newSource = bindingHandler.getCurrentSource(event.selectedEntries(), event.tableName());
+         boolean trap = wizardDataService.treeCheckTrap(id, event.selectedEntries(), newSource, principal);
 
          if(!StringUtils.isEmpty(event.tableName())) {
             SourceChangeMessage sourceChange = wizardDataService.checkSourceChanged(
@@ -287,9 +288,9 @@ public class VSWizardBindingController {
                               principal, event.reload());
          ChartVSAssembly temp = (ChartVSAssembly) vs.getAssembly(VSWizardConstants.TEMP_CHART_NAME);
          VSChartInfo oinfo = temp.getVSChartInfo().clone();
+         oinfo.clearRuntime();
          temp.getVSChartInfo().clearRuntime();
-         DataRefModel[] grayedOutFields = entries.length == 0 ? new DataRefModel[0] :
-            assemblyHandler.getGrayedOutFields(rvs);
+         DataRefModel[] grayedOutFields = assemblyHandler.getGrayedOutFields(rvs);
          dispatcher.sendCommand(new SetGrayedOutFieldsCommand(grayedOutFields));
          temp.setVSChartInfo(oinfo);
       }

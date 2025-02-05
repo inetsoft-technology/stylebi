@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import {
    Component,
    EventEmitter,
@@ -27,6 +27,7 @@ import {
    ViewChild
 } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { CategoricalColorModel } from "../../common/data/visual-frame-model";
 
 @Component({
@@ -37,6 +38,7 @@ import { CategoricalColorModel } from "../../common/data/visual-frame-model";
 export class BCategoricalColorPane implements OnInit {
    @ViewChild("paletteDialog") paletteDialog: TemplateRef<any>;
    @Input() colorModel: CategoricalColorModel;
+   @Input() assetId: string = null;
    @Output() colorListChange: EventEmitter<CategoricalColorModel> =
    new EventEmitter<CategoricalColorModel>();
    COLORS_IN_VIEW = 6;
@@ -52,7 +54,9 @@ export class BCategoricalColorPane implements OnInit {
    }
 
    initPalettes(): void {
-      this.http.get("../api/composer/chart/colorpalettes")
+      const params = new HttpParams()
+         .set("orgId", createAssetEntry(this.assetId).organization);
+      this.http.get("../api/composer/chart/colorpalettes", {params: params})
          .subscribe((data: any) => {
                this.colorPalettes = <CategoricalColorModel[]> data;
             },

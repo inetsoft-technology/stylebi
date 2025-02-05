@@ -57,7 +57,7 @@ public class BoxDataSource extends OAuthEndpointJsonDataSource<BoxDataSource> {
 
    @Override
    protected CredentialType getCredentialType() {
-      return CredentialType.CLINET;
+      return CredentialType.CLIENT;
    }
 
    @Override

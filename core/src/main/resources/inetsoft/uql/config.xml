@@ -49,8 +49,6 @@
                 description="UCanAccess" url="jdbc:ucanaccess://{file}"/>
     <jdbcdriver name="Oracle" driver="oracle.jdbc.OracleDriver" description=""
                 url="jdbc:oracle:thin:@&lt;host>:&lt;port>:&lt;SID>"/>
-    <jdbcdriver name="Oracle BI" driver="oracle.bi.jdbc.AnaJdbcDriver"
-                url="jdbc:oraclebi:&lt;host>[:&lt;port>]/"/>
     <jdbcdriver name="SQL Server" description=""
                 driver="com.microsoft.sqlserver.jdbc.SQLServerDriver"
                 url="jdbc:sqlserver://&lt;host>[:&lt;port>]"/>
@@ -105,6 +103,12 @@
     </jdbcdriver>
     <jdbcdriver name="Apache Drill" driver="org.apache.drill.jdbc.Driver"
                 url="jdbc:drill:&lt;connectionString>">
+      <defaultPoolProperties>
+        <property name="autoCommit">true</property>
+      </defaultPoolProperties>
+    </jdbcdriver>
+    <jdbcdriver name="LucidDB" driver="org.luciddb.jdbc.LucidDbClientDriver"
+                url="jdbc:luciddb:http://&lt;host>[:&lt;port>]">
       <defaultPoolProperties>
         <property name="autoCommit">true</property>
       </defaultPoolProperties>

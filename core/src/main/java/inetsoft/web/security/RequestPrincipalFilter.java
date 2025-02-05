@@ -19,6 +19,7 @@ package inetsoft.web.security;
 
 import inetsoft.sree.ClientInfo;
 import inetsoft.sree.RepletRepository;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.ThreadContext;
 import jakarta.servlet.*;
@@ -87,7 +88,6 @@ public class RequestPrincipalFilter extends AbstractSecurityFilter {
    }
 
    private Principal getPrincipal(HttpServletRequest request) {
-      HttpSession session = request.getSession();
-      return (Principal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+      return SUtil.getPrincipal(request);
    }
 }

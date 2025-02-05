@@ -50,7 +50,7 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.security.Principal;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.*;
 import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -124,6 +124,8 @@ public class ContentRepositoryTreeService {
       RegistrySupplier registryFn = new RegistrySupplier();
       Catalog catalog = Catalog.getCatalog();
       Principal contextPrincipal = ThreadContext.getContextPrincipal();
+      ExecutorService executor =
+         Executors.newFixedThreadPool(Math.min(Runtime.getRuntime().availableProcessors(), 6));
 
       // global viewsheets/worksheets/reports
       CompletableFuture<List<ContentRepositoryTreeNode>> assetNodesFuture =
@@ -134,11 +136,11 @@ public class ContentRepositoryTreeService {
             catch(Exception e) {
                throw new RuntimeException(e);
             }
-         });
+         }, executor);
 
       // data source/library
       CompletableFuture<List<ContentRepositoryTreeNode>> objectNodesFuture =
-         getNodesCompletableFuture(contextPrincipal, "Failed to get object nodes", this::getObjectNodes);
+         getNodesCompletableFuture(contextPrincipal, "Failed to get object nodes", this::getObjectNodes, executor);
 
       // prototype/trashcan/my reports
       CompletableFuture<List<ContentRepositoryTreeNode>> repositoryNodesFuture =
@@ -149,7 +151,7 @@ public class ContentRepositoryTreeService {
             catch(Exception e) {
                throw new RuntimeException(e);
             }
-         });
+         }, executor);
 
       // global dashboards/user dashboards
       CompletableFuture<List<ContentRepositoryTreeNode>> dashboardNodesFuture =
@@ -160,7 +162,7 @@ public class ContentRepositoryTreeService {
             catch(Exception e) {
                throw new RuntimeException(e);
             }
-         });
+         }, executor);
 
       CompletableFuture<List<ContentRepositoryTreeNode>> schedulerTaskNodesFuture =
          getNodesCompletableFuture(contextPrincipal, "Failed to get scheduler task nodes", () -> {
@@ -170,7 +172,7 @@ public class ContentRepositoryTreeService {
             catch(Exception e) {
                throw new RuntimeException(e);
             }
-         });
+         }, executor);
 
       //recycle bin node
       CompletableFuture<List<ContentRepositoryTreeNode>> recycleNodesFuture =
@@ -181,7 +183,7 @@ public class ContentRepositoryTreeService {
             catch(Exception e) {
                throw new RuntimeException(e);
             }
-         });
+         }, executor);
 
       CompletableFuture.allOf(assetNodesFuture, objectNodesFuture, repositoryNodesFuture,
                               dashboardNodesFuture, schedulerTaskNodesFuture, recycleNodesFuture).join();
@@ -204,7 +206,7 @@ public class ContentRepositoryTreeService {
 
    private CompletableFuture<List<ContentRepositoryTreeNode>> getNodesCompletableFuture(
       Principal contextPrincipal, String errorMessage,
-      Supplier<List<ContentRepositoryTreeNode>> nodesSupplier)
+      Supplier<List<ContentRepositoryTreeNode>> nodesSupplier, ExecutorService executor)
    {
       return CompletableFuture.supplyAsync(() -> {
             Principal oprincipal = ThreadContext.getContextPrincipal();
@@ -224,7 +226,7 @@ public class ContentRepositoryTreeService {
             finally {
                ThreadContext.setContextPrincipal(oprincipal);
             }
-         })
+         }, executor)
          .handle((result, ex) -> {
             if(ex != null) {
                throw new RuntimeException(ex.getMessage(), ex);
@@ -371,7 +373,7 @@ public class ContentRepositoryTreeService {
                       .label(Catalog.getCatalog().getString("Auto Saved Files"))
                       .path("Auto Save Files")
                       .type(RepositoryEntry.AUTO_SAVE_FOLDER)
-                      .addAllChildren(addRecycleAutoSaved(userNodes))
+                      .addAllChildren(addRecycleAutoSaved(userNodes, principal))
                       .build();
 
       recycleRoot.addChildren(recycleBinAutoSave);
@@ -379,13 +381,13 @@ public class ContentRepositoryTreeService {
       return Collections.singletonList(recycleRoot.build());
    }
 
-   private List<ContentRepositoryTreeNode> addRecycleAutoSaved(List<UserNodes> userNodesList) {
+   private List<ContentRepositoryTreeNode> addRecycleAutoSaved(List<UserNodes> userNodesList,
+                                                               Principal principal)
+   {
       List<ContentRepositoryTreeNode> userNodes = new ArrayList<>();
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      String path = SreeEnv.getProperty("sree.home") + "/" + "autoSavedFile/recycle";
-      File folder = fileSystemService.getFile(path);
+      List<String> list = AutoSaveUtils.getAutoSavedFiles(principal, true);
 
-      if(!folder.exists()) {
+      if(list.isEmpty()) {
          return userNodes;
       }
 
@@ -395,7 +397,6 @@ public class ContentRepositoryTreeService {
       cal.add(Calendar.DATE, -7);
       long lastWeek = cal.getTime().getTime();
 
-      File[] list = folder.listFiles();
       HashMap<String, List<ContentRepositoryTreeNode>> map = new HashMap();
       List<String> users = new ArrayList();
 
@@ -405,21 +406,21 @@ public class ContentRepositoryTreeService {
       for(int j = 0; j < userNodesList.size(); j++) {
          UserNodes userNode = userNodesList.get(j);
 
-         for(int i = 0; i < list.length; i++) {
-            File file = list[i];
-            String asset = file.getName();
-            long lastModify = file.lastModified();
+         for(int i = 0; i < list.size(); i++) {
+            String file = list.get(i);
+            String asset = AutoSaveUtils.getName(file);
+            long lastModify = AutoSaveUtils.getLastModified(file, principal);
 
             // if the auto save file in recycle bin is large than one week, remove it and do not show
             // it.
             if(lastWeek > lastModify) {
-               AutoSaveUtils.deleteAutoSaveFile(asset);
+               AutoSaveUtils.deleteAutoSaveFile(file, principal);
                continue;
             }
 
             String[] attrs = Tool.split(asset, '^');
 
-            if(list[i].isFile() && attrs.length > 3) {
+            if(attrs.length > 3) {
                String type = attrs[1];
                String user = attrs[2];
                String name = attrs[3];
@@ -1175,9 +1176,22 @@ public class ContentRepositoryTreeService {
    private List<ContentRepositoryTreeNode> getGlobalDashboardNodes(Principal principal) {
       DashboardRegistry registry = DashboardRegistry.getRegistry();
       List<String> dashboardNames = Arrays.asList(registry.getDashboardNames());
-      Identity identity = SecurityEngine.getSecurity().isSecurityEnabled() ?
-         getIdentity((XPrincipal) principal) :
-         new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      List<IdentityID> adminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
+      Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+
+      if(SecurityEngine.getSecurity().isSecurityEnabled()) {
+         if(OrganizationManager.getInstance().isSiteAdmin(principal) &&
+            !orgID.equals(Organization.getDefaultOrganizationID()))
+         {
+            identity =adminUsers.isEmpty() ? null :
+               new DefaultIdentity(adminUsers.getFirst().name, Identity.USER);
+         }
+         else {
+            identity = getIdentity((XPrincipal) principal);
+         }
+      }
+
       List<String> sortedDashboards = Arrays.asList(DashboardManager.getManager().getDashboards(identity));
       dashboardNames.sort(Comparator.comparingInt(
          d -> !sortedDashboards.contains(d) ? Integer.MAX_VALUE : sortedDashboards.indexOf(d)));
@@ -1502,10 +1516,17 @@ public class ContentRepositoryTreeService {
       }
 
       for(XTableStyle style : manager.getTableStyles(name, true)) {
+         if(style.getName() == null || style.getName().isEmpty()) {
+            //populate style label
+            XTableStyle tableStyle = manager.getTableStyle(style.getID());
+            String styleName = tableStyle == null ? "" : tableStyle.getName();
+            style.setName(styleName);
+         }
+
          String label = getLibraryStyleLabel(catalog, style.getName());
          tableStyles.add(ContentRepositoryTreeNode.builder()
                       .label(label)
-                      .path(style.getID())
+                      .path(style.getName())
                       .fullPath(rootPath + "/" + label)
                       .type(RepositoryEntry.TABLE_STYLE)
                       .lastModifiedTime(Tool.formatDateTime(style.getLastModified()))

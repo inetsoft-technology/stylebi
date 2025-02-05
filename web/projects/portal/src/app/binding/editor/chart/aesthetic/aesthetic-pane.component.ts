@@ -36,6 +36,7 @@ import { GraphTypes } from "../../../../common/graph-types";
 })
 export class AestheticPane implements OnChanges {
    @Input() vsId: string;
+   @Input() assetId: string;
    @Input() assemblyName: string;
    @Input() objectType: string;
    @Input() bindingModel: ChartBindingModel;

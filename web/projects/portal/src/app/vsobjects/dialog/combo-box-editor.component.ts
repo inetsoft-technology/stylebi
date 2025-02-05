@@ -246,7 +246,7 @@ export class ComboBoxEditor implements OnInit, OnChanges {
    }
 
    onDefaultvalueChanged(defaultValue){
-      if(this.model.calendar && (this.isdefaultValue(defaultValue) ||
+      if(this.model.calendar && (this.isDefaultValue(defaultValue) ||
          !this.validateDateValue(defaultValue)))
       {
          this.isInputValid.emit(false);
@@ -269,7 +269,7 @@ export class ComboBoxEditor implements OnInit, OnChanges {
    }
 
    validateDateValue(date: string): boolean {
-      if(date != null && date != "" && !date.startsWith("$") && !date.startsWith("=")) {
+      if(this.isValidDate(date)) {
          let pattern = this.currentPattern;
 
          if(!!pattern) {
@@ -281,10 +281,7 @@ export class ComboBoxEditor implements OnInit, OnChanges {
    }
 
    validateDateRange(minDate: string, maxDate: string): boolean {
-      if(minDate != null && minDate != "" && !minDate.startsWith("$") && !minDate.startsWith("=") &&
-         maxDate != null && maxDate != "" && !maxDate.startsWith("$") && !maxDate.startsWith("=") &&
-         this.currentPattern != null)
-      {
+      if(this.isValidDate(minDate) && this.isValidDate(maxDate) && this.currentPattern != null) {
          const pattern = this.currentPattern;
          const minValues = minDate.match(pattern);
          const maxValues = maxDate.match(pattern);
@@ -329,16 +326,15 @@ export class ComboBoxEditor implements OnInit, OnChanges {
       this.onDefaultvalueChanged(this.model.defaultValue);
    }
 
-   isdefaultValue(defaultValue){
-      if(this.model.dataType == XSchema.TIME_INSTANT || this.model.dataType == XSchema.DATE) {
-         if(this.model.minDate && this.model.minDate > defaultValue) {
-            return true;
-         }
-         else if(this.model.maxDate && this.model.maxDate < defaultValue) {
-            return true;
-         }
-      }
+   isDefaultValue(defaultValue: string) {
+      const { dataType, minDate, maxDate } = this.model;
 
-      return false;
+      return (dataType === XSchema.TIME_INSTANT || dataType === XSchema.DATE) &&
+         ((minDate && this.isValidDate(minDate) && minDate > defaultValue) ||
+            (maxDate && this.isValidDate(maxDate) && maxDate < defaultValue));
+   }
+
+   private isValidDate(date: string) {
+      return date != null && date !== "" && !date.startsWith("$") && !date.startsWith("=");
    }
 }

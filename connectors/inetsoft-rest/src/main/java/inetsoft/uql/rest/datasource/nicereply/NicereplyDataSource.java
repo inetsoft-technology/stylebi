@@ -25,6 +25,7 @@ import inetsoft.util.credential.*;
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
+   @View1(value = "user", visibleMethod = "useCredential"),
    @View1(value = "apiKey", visibleMethod = "useCredential")
 })
 public class NicereplyDataSource extends EndpointJsonDataSource<NicereplyDataSource> {
@@ -41,6 +42,16 @@ public class NicereplyDataSource extends EndpointJsonDataSource<NicereplyDataSou
       return CredentialType.PASSWORD;
    }
 
+   @Property(label="Email", required=true)
+   @PropertyEditor(dependsOn = "useCredentialId")
+   public String getUser() {
+      return ((PasswordCredential) getCredential()).getUser();
+   }
+
+   public void setUser(String user) {
+      ((PasswordCredential) getCredential()).setUser(user);
+   }
+
    @Property(label = "API Key", required = true, password = true)
    @PropertyEditor(dependsOn = "useCredentialId")
    public String getApiKey() {
@@ -53,6 +64,6 @@ public class NicereplyDataSource extends EndpointJsonDataSource<NicereplyDataSou
 
    @Override
    protected String getTestSuffix() {
-      return "/v1/users";
+      return "/users";
    }
 }

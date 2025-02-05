@@ -38,6 +38,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -846,16 +847,13 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
          BlobStorage<?> storage = (BlobStorage<?>) storages.get(storeID);
 
          if(storage == null || storage.isClosed()) {
-            String lockId = "blob." + storeID;
-            Lock lock = Cluster.getInstance().getLock(lockId);
-            lock.lock();
-
             try {
-               storage = storages.get(storeID);
+               storage = BlobStorage.createBlobStorage(storeID, preload);
 
-               if(storage == null || storage.isClosed()) {
+               if(storages.get(storeID) == null || storages.get(storeID).isClosed()) {
+                  lock.lock();
+
                   try {
-                     storage = BlobStorage.createBlobStorage(storeID, preload);
                      storages.put(storeID, storage);
 
                      if(parameters.length == 3) {
@@ -863,13 +861,13 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
                         storage.addListener(listener);
                      }
                   }
-                  catch(IOException e) {
-                     LOG.error("Failed to create blob storage with storeID " + storeID, e);
+                  finally {
+                     lock.unlock();
                   }
                }
             }
-            finally {
-               lock.unlock();
+            catch(IOException e) {
+               LOG.error("Failed to create blob storage with storeID " + storeID, e);
             }
          }
 
@@ -897,6 +895,7 @@ public abstract class BlobStorage<T extends Serializable> implements AutoCloseab
       }
 
       private HashMap<String, BlobStorage<?>> storages;
+      private final ReentrantLock lock = new ReentrantLock();
       private final Logger LOG = LoggerFactory.getLogger(Reference.class);
    }
 }

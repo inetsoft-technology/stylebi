@@ -21,14 +21,16 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.erm.XDataModel;
 import inetsoft.uql.service.DataSourceRegistry;
+import inetsoft.uql.xmla.XMLADataSource;
 import inetsoft.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 
@@ -38,7 +40,7 @@ import java.util.zip.ZipEntry;
  * @version 9.1
  * @author InetSoft Technology Corp
  */
-public class XDataSourceAsset extends AbstractXAsset implements FolderChangeableAsset {
+public class XDataSourceAsset extends AbstractXAsset implements FolderChangeableAsset, AutoDrillAsset {
    /**
     * Data source type XAsset.
     */
@@ -133,7 +135,52 @@ public class XDataSourceAsset extends AbstractXAsset implements FolderChangeable
          }
       }
 
+      addCubeDependencies(ds, list);
       return list.toArray(new XAssetDependency[0]);
+   }
+
+   private void addCubeDependencies(String ds, List<XAssetDependency> list) {
+      if(!(DataSourceRegistry.getRegistry().getDataSource(ds) instanceof XMLADataSource)) {
+         return;
+      }
+
+      XDomain domain = null;
+
+      try {
+         XRepository repository = XFactory.getRepository();
+         domain = repository.getDomain(ds);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to get domain for " + ds, ex);
+      }
+
+      if(domain == null) {
+         return;
+      }
+
+      Enumeration cubes = domain.getCubes();
+
+      while(cubes.hasMoreElements()) {
+         XCube cube = (XCube) cubes.nextElement();
+
+         // in case has name but not really created
+         if(cube == null) {
+            continue;
+         }
+
+         Enumeration<XDimension> dims = cube.getDimensions();
+
+         while(dims.hasMoreElements()) {
+            XDimension dim = dims.nextElement();
+
+            for(int i = 0; i < dim.getLevelCount(); i++) {
+               XCubeMember member = dim.getLevelAt(i);
+               XMetaInfo metaInfo = member.getXMetaInfo();
+               getAutoDrillDependency(metaInfo, list,
+                                      catalog.getString("common.xasset.dataSource.drill", dim.getName(), ds));
+            }
+         }
+      }
    }
 
    /**
@@ -437,4 +484,5 @@ public class XDataSourceAsset extends AbstractXAsset implements FolderChangeable
 
    private String dataSource;
    private transient DataSourceRegistry registry;
+   private static final Logger LOG = LoggerFactory.getLogger(XDataSourceAsset.class);
 }

@@ -24,8 +24,7 @@ import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.TimeZone;
+import java.util.*;
 
 @Value.Immutable
 @JsonSerialize(as = ImmutableTimeZoneModel.class)
@@ -90,7 +89,7 @@ public interface TimeZoneModel {
       ArrayList<TimeZoneModel> tzList = new ArrayList<>();
       tzList.add(TimeZoneModel.builder()
                     .timeZoneId(TimeZone.getDefault().getID())
-                    .label(Catalog.getCatalog().getString("Default"))
+                    .label(TimeZone.getDefault().getDisplayName() + " (" + Catalog.getCatalog().getString("em.scheduler.servertimezone") + ")")
                     .hourOffset(Catalog.getCatalog().getString(""))
                     .build());
 

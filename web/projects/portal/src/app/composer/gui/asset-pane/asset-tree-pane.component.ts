@@ -520,6 +520,8 @@ export class AssetTreePane implements OnChanges, OnInit {
 
       dialog.title = "_#(js:Create New Folder)";
       dialog.label = "_#(js:Folder Name)";
+      dialog.helpLinkKey = parent.type == AssetType.TABLE_STYLE_FOLDER ?
+         "CreateTableStyleFolder" : "CreateNewAssetFolder";
       dialog.validators = [
          FormValidators.required,
          FormValidators.assetEntryBannedCharacters,

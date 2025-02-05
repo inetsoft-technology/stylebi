@@ -28,7 +28,8 @@ export class StompClientConnection {
    private subscriptions: Subscription[]  = [];
 
    constructor(private client: StompClientChannel, private heartbeat: EventEmitter<any>,
-               private onDisconnect: () => any, private ssoHeartbeatService: SsoHeartbeatService)
+               private onDisconnect: () => any, private ssoHeartbeatService: SsoHeartbeatService,
+               private emClient: boolean)
    {
    }
 
@@ -53,6 +54,16 @@ export class StompClientConnection {
    }
 
    send(destination: string, headers: any, body: string): void {
+
+      if(this.emClient) {
+
+         if(!headers) {
+            headers = {};
+         }
+
+         headers["emClient"] = "true";
+      }
+
       this.ssoHeartbeat(destination, body);
       this.client.send(destination, headers, body);
    }

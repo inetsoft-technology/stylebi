@@ -2,7 +2,7 @@
   "endpoints": [
     {
       "name": "Contacts",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/marketing/contacts",
       "lookups": [
         {
@@ -21,62 +21,62 @@
     },
     {
       "name": "Contact Count",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/marketing/contacts/count"
     },
     {
       "name": "Contact Export Status",
-      "paged": true,
+      "pageType": "JSON_PATH",
       "suffix": "/v3/marketing/contacts/exports/{Contact Export Job ID}"
     },
     {
       "name": "Contact",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/marketing/contacts/{Contact ID}"
     },
     {
       "name": "Field Definitions",
-      "paged": true,
+      "pageType": "JSON_PATH",
       "suffix": "/v3/marketing/field_definitions"
     },
     {
       "name": "Recent Access Attempts",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/access_settings/activity?limit={Limit?}"
     },
     {
       "name": "Whitelisted IP Addresses",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/access_settings/whitelist"
     },
     {
       "name": "Whitelisted IP Address",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/access_settings/whitelist/{Rule ID}"
     },
     {
       "name": "Alerts",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/alerts"
     },
     {
       "name": "Alert",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/alerts/{Alert ID}"
     },
     {
       "name": "API Keys",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/api_keys?limit={Limit?}"
     },
     {
       "name": "API Key",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/api_keys/{API Key ID}"
     },
     {
       "name": "Suppression Groups",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/asm/groups",
       "lookups": [
         {
@@ -89,37 +89,37 @@
     },
     {
       "name": "Suppression Group",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/asm/groups/{Group ID}"
     },
     {
       "name": "Group Suppressions",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/asm/groups/{Group ID}/suppressions"
     },
     {
       "name": "Suppressions",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/asm/suppressions"
     },
     {
       "name": "Suppresion for Email",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/asm/suppressions/{Email}"
     },
     {
       "name": "Global Suppression",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/asm/suppressions/global/{Email}"
     },
     {
       "name": "Browser Email Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/browsers/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&browsers={Browsers?,}"
     },
     {
       "name": "Campaigns",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/campaigns",
       "lookups": [
         {
@@ -132,52 +132,52 @@
     },
     {
       "name": "Campaign",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/campaigns/{Campaign ID}"
     },
     {
       "name": "Campaign Schedule Time",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/campaigns/{Campaign ID}/schedules"
     },
     {
       "name": "Categories",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/categories?category={Category?}"
     },
     {
       "name": "Category Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/categories/stats?categories={Categories}&start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
     },
     {
       "name": "Category Email Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/categories/stats/sums?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}"
     },
     {
       "name": "Client Type Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/clients/{Client Type:phone|tablet|webmail|desktop}/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
     },
     {
       "name": "Email Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/clients/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
     },
     {
       "name": "Custom Fields",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/custom_fields"
     },
     {
       "name": "Custom Field",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/custom_fields/{Custom Field ID}"
     },
     {
       "name": "Contact Lists",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/lists",
       "lookups": [
         {
@@ -190,57 +190,57 @@
     },
     {
       "name": "Contact List",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/lists/{List ID}"
     },
     {
       "name": "List Recipients",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/lists/{List ID}/recipients?list_id={List ID}&page={Page Index?}&page_size={Page Size?}"
     },
     {
       "name": "Recipients",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/recipients?page={Page Index?}&page_size={Page Size?}"
     },
     {
       "name": "Billable Recipient Count",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/recipients/billable_count"
     },
     {
       "name": "Recipient Count",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/recipients/count"
     },
     {
       "name": "Recipient",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/recipients/{Recipient ID}"
     },
     {
       "name": "Recipient Lists",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/recipients/{Recipient ID}/lists"
     },
     {
       "name": "Recipient Search",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/recipients/search"
     },
     {
       "name": "Reserved Fields",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/reserved_fields"
     },
     {
       "name": "Segments",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/segments"
     },
     {
       "name": "Segment",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/segments/{Segment ID}",
       "lookups": [
         {
@@ -253,62 +253,62 @@
     },
     {
       "name": "Segment Recipients",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/segments/{Segment ID}/recipients?page={Page Index?}&page_size={Page Size?}"
     },
     {
       "name": "Recipient Upload Status",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/contactdb/status"
     },
     {
       "name": "Designs",
-      "paged": true,
+      "pageType": "JSON_PATH",
       "suffix": "/v3/designs?summary={Summary?:true|false}"
     },
     {
       "name": "Design",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/designs/{Design ID}"
     },
     {
       "name": "Pre-built Designs",
-      "paged": true,
+      "pageType": "JSON_PATH",
       "suffix": "/v3/designs/pre-builts?summary={Summary?:true|false}"
     },
     {
       "name": "Pre-built Design",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/designs/pre-builts/{Design ID}"
     },
     {
       "name": "Device Type Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/devices/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
     },
     {
       "name": "Geographic Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/geo/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&country={Country?:US|CA}"
     },
     {
       "name": "IP Addresses",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/ips?ip={IP?}&exclude_whitelabels={Exclude Whitelabels?}&subuser={Subuser?}&sort_by_direction={Sory Direction?}"
     },
     {
       "name": "Assigned IP Addresses",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/ips/assigned"
     },
     {
       "name": "IP Address Pool",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/ips/{IP}"
     },
     {
       "name": "IP Address Pools",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/ips/pools",
       "lookups": [
         {
@@ -321,137 +321,132 @@
     },
     {
       "name": "Pool IP Addresses",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/ips/pools/{Pool Name}"
     },
     {
       "name": "Remaining IP Address Count",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/ips/remaining"
     },
     {
       "name": "Warmup IP Addresses",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/ips/warmup"
     },
     {
       "name": "IP Address Warmup Status",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/ips/warmup/{IP}"
     },
     {
       "name": "Mail Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/mail_settings"
     },
     {
       "name": "Address Whitelist Mail Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/mail_settings/address_whitelist"
     },
     {
       "name": "BCC Mail Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/mail_settings/bcc"
     },
     {
       "name": "Bounce Purge Mail Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/mail_settings/bounce_purge"
     },
     {
       "name": "Footer Mail Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/mail_settings/footer"
     },
     {
       "name": "Forward Bounce Mail Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/mail_settings/forward_bounce"
     },
     {
       "name": "Forward Spam Mail Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/mail_settings/forward_spam"
     },
     {
       "name": "Plain Content Mail Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/mail_settings/plain_content"
     },
     {
       "name": "Spam Check Mail Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/mail_settings/spam_check"
     },
     {
       "name": "Legacy Template Mail Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/mail_settings/template"
     },
     {
       "name": "Mailbox Provider Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/mailbox_providers/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&mailbox_providers={Mailbox Providers?,}"
     },
     {
       "name": "Contact Exports",
-      "paged": true,
+      "pageType": "JSON_PATH",
       "suffix": "/v3/marketing/contacts/exports"
     },
     {
       "name": "Contact Import Status",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/marketing/contacts/imports/{Contact Import Job ID}"
     },
     {
       "name": "Messages",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/messages?query={Query String}&limit={Limit?:>0,<1000}"
     },
     {
       "name": "Message",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/messages/{Message ID}"
     },
     {
       "name": "Partner Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/partner_settings"
     },
     {
-      "name": "New Relic Partner Settings",
-      "paged": true,
-      "suffix": "/v3/partner_settings/new_relic"
-    },
-    {
       "name": "Scopes",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/scopes"
     },
     {
       "name": "Access Requests",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/scopes/requests"
     },
     {
       "name": "Sender Identities",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/senders"
     },
     {
       "name": "Sender Identity",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/senders/{Sender ID}"
     },
     {
       "name": "Global Email Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
     },
     {
       "name": "Subusers",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/subusers?username={UserName?}",
       "lookups": [
         {
@@ -464,242 +459,242 @@
     },
     {
       "name": "Subuser Reputations",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/subusers/reputations?usernames={UserNames?}"
     },
     {
       "name": "Subuser Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/subusers/stats?subusers={Subusers}&start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
     },
     {
       "name": "Monthly Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/subusers/stats/monthly?date={Date:YYYY-MM-DD}&subuser={Subuser?}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}"
     },
     {
       "name": "Total Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/subusers/stats/sums?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}"
     },
     {
       "name": "Subuser Monitor Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/subusers/{Subuser Name}/monitor"
     },
     {
       "name": "Subuser Monthly Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/subusers/{Subuser Name}/stats/monthly?date={Date:YYYY-MM-DD}&sort_by_metric={Sort Metric?}&sort_by_direction={Sort Direction?}"
     },
     {
       "name": "Blocks",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/suppression/blocks?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Block",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/suppression/blocks/{Email}"
     },
     {
       "name": "Bounces",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/suppression/bounces?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Bounce",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/suppression/bounces/{Email}"
     },
     {
       "name": "Invalid Emails",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/suppression/invalid_emails?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Invalid Email",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/suppression/invalid_emails/{Email}"
     },
     {
       "name": "Spam Reports",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/suppression/spam_reports?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Spam Report",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/suppression/spam_reports/{Email}"
     },
     {
       "name": "Global Suppressions",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/suppression/unsubscribes?start_time={Start Time?:YYYY-MM-DDTHH:MM:SSZ}&end_time={End Time?:YYYY-MM-DDTHH:MM:SSZ}"
     },
     {
       "name": "Teammates",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/teammates"
     },
     {
       "name": "Pending Teammates",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/teammates/pending"
     },
     {
       "name": "Teammate",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/teammates/{User Name}"
     },
     {
       "name": "Transactional Templates",
-      "paged": true,
+      "pageType": "JSON_PATH",
       "suffix": "/v3/templates?generations={Generations?:legacy|dynamic|legacy,dynamic}"
     },
     {
       "name": "Transactional Template",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/templates/{Template ID}"
     },
     {
       "name": "Transactional Template Version",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/templates/{Template ID}/versions/{Version ID}"
     },
     {
       "name": "Tracking Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/tracking_settings"
     },
     {
       "name": "Click Track Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/tracking_settings/click"
     },
     {
       "name": "Google Analytics Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/tracking_settings/google_analytics"
     },
     {
       "name": "Open Tracking Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/tracking_settings/open"
     },
     {
       "name": "Subscription Tracking Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/tracking_settings/subscription"
     },
     {
       "name": "Account Information",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/account"
     },
     {
       "name": "Credit balance",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/credits"
     },
     {
       "name": "Email Address",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/email"
     },
     {
       "name": "User Profile",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/profile"
     },
     {
       "name": "Scheduled Sends",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/scheduled_sends"
     },
     {
       "name": "Scheduled Send",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/scheduled_sends/{Batch ID}"
     },
     {
       "name": "Enforced TLS Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/settings/enforced_tls"
     },
     {
       "name": "Username",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/username"
     },
     {
       "name": "Event Webhook Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/webhooks/event/settings"
     },
     {
       "name": "Parse Webhook Settings",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/webhooks/parse/settings"
     },
     {
       "name": "Parse Webhook Setting",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/webhooks/parse/settings/{Host Name}"
     },
     {
       "name": "Inbound Webhook Statistics",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/user/webhooks/parse/stats?start_date={Start Date:YYYY-MM-DD}&end_date={End Date?:YYYY-MM-DD}&aggregated_by={Aggregated By?:day|week|month}"
     },
     {
       "name": "Authenticated Domains",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/whitelabel/domains?exclude_subusers={Exclude Subusers?}&username={User Name?}&domain={Domain?}"
     },
     {
       "name": "Default Domain",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/whitelabel/domains/default"
     },
     {
       "name": "Authenticated Domain",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/whitelabel/domains/{Domain ID}"
     },
     {
       "name": "User Domains",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/whitelabel/domains/subuser?username={Subuser Username}"
     },
     {
       "name": "Reverse DNS Records",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/whitelabel/ips?ip={DNS Record ID?}"
     },
     {
       "name": "Branded Links",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/whitelabel/links?limit={Limit?}"
     },
     {
       "name": "Default Branded Link",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/whitelabel/links/default?domain={Domain?}"
     },
     {
       "name": "Branded Link",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/whitelabel/links/{Link ID}"
     },
     {
       "name": "Subuser Branded Links",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/whitelabel/links/subuser?username={User Name}"
     },
     {
       "name": "Marketing Lists",
-      "paged": true,
+      "pageType": "JSON_PATH",
       "suffix": "/v3/marketing/lists",
       "lookups": [
         {
@@ -712,32 +707,32 @@
     },
     {
       "name": "Marketing List",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/marketing/lists/{List ID}?contact_sample={Contact Sample?}"
     },
     {
       "name": "Marketing List Contact Count",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/marketing/lists/{List ID}/contacts/count"
     },
     {
       "name": "Marketing Segments",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/marketing/segments?parent_list_ids={Parent List IDs?}&no_parent_list_id={No Parent List ID?:false|true}"
     },
     {
       "name": "Marketing Segment",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/marketing/segments/{Segment ID}?query_json={Query JSON?:false|true}"
     },
     {
       "name": "Single Sends",
-      "paged": true,
+      "pageType": "JSON_PATH",
       "suffix": "/v3/marketing/singlesends"
     },
     {
       "name": "Single Send",
-      "paged": true,
+      "pageType": "LINK_HEADER",
       "suffix": "/v3/marketing/singlesends/{Send ID}"
     }
   ]

@@ -108,7 +108,7 @@ public class HelpScoutDocsQuery extends EndpointJsonQuery<HelpScoutDocsEndpoint>
       if(endpoint.isPaged()) {
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.PAGE_COUNT)
-            .totalPagesParam(PaginationParamType.JSON_PATH, "$.pages")
+            .totalPagesParam(PaginationParamType.JSON_PATH, "$.*.pages")
             .pageNumberParamToWrite(PaginationParamType.QUERY, "page")
             .build();
       }

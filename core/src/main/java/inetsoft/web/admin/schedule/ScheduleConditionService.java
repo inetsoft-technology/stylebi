@@ -107,9 +107,6 @@ public class ScheduleConditionService {
 
          if(timeConditionModel.date() != null) {
             long timestamp = timeConditionModel.date().longValue();
-            int offset = Optional.ofNullable(timeConditionModel.timeZoneOffset()).orElse(0);
-            int server = TimeZone.getDefault().getOffset(timestamp);
-            timestamp += -server - offset;
             date = new Date(timestamp);
          }
 
@@ -254,15 +251,15 @@ public class ScheduleConditionService {
    {
       if(XSchema.DATE.equals(type)) {
          SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
-         value = formatter.format((Date) value);
+         value = value instanceof Date ? formatter.format((Date) value) : (String) value;
       }
       else if(XSchema.TIME.equals(type)) {
          SimpleDateFormat formatter = new SimpleDateFormat("HH:mm:ss");
-         value = formatter.format((Date) value);
+         value = value instanceof Date ? formatter.format((Date) value) : (String) value;
       }
       else if(XSchema.TIME_INSTANT.equals(type)) {
          SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-         value = formatter.format((Date) value);
+         value = value instanceof Date ? formatter.format((Date) value) : (String) value;
       }
       else if("array".equals(type)) {
          Object[] vals = (Object[]) value;
@@ -328,6 +325,7 @@ public class ScheduleConditionService {
     */
    public String getParameterType(RepletRequest request, String name, Object value) {
       String type = XSchema.STRING;
+      Object originalValue = value;
 
       if(value instanceof DynamicParameterValue) {
          DynamicParameterValue parameterValue = (DynamicParameterValue) value;
@@ -371,6 +369,23 @@ public class ScheduleConditionService {
       }
       else if(value instanceof Object[]) {
          type = "array";
+      }
+      else if(value instanceof String) {
+         //cannot find object when api passed string representation, instead rely on passed type
+
+         if(originalValue instanceof DynamicParameterValue) {
+            DynamicParameterValue parameterValue = (DynamicParameterValue) originalValue;
+
+            if(parameterValue.getDataType() != null) {
+
+               if(XSchema.isDateType(parameterValue.getDataType()) ||
+                  XSchema.isBooleanType(parameterValue.getDataType()) ||
+                  XSchema.isNumericType(parameterValue.getDataType()) ||
+                  XSchema.isPrimitiveType(parameterValue.getDataType())) {
+                  return parameterValue.getDataType();
+               }
+            }
+         }
       }
 
       return type;

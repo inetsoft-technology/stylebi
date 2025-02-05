@@ -151,14 +151,14 @@ describe("Edit Dashboard Dialog Unit Test", () => {
 
    //Bug #18620 Don't allow special characters in the name
    //Bug #21678 should allow & -+
-   xit("check dashboard name", () => { // broken test
+   it("check dashboard name", () => {
       let dashName = fixture.debugElement.query(By.css("input.dashboard_name_id")).nativeElement;
       dashName.value = "A&B";
       dashName.dispatchEvent(new Event("input"));
       fixture.detectChanges();
 
       let okBtn = fixture.debugElement.query(By.css("button.btn.btn-primary")).nativeElement;
-      let message = fixture.debugElement.query(By.css(".invalid-feedback")).nativeElement;
+      let message = fixture.debugElement.query(By.css(".invalid-feedback"));
       expect(okBtn.hasAttribute("disabled")).toBeFalsy();
       expect(message).toBeNull();
 
@@ -168,8 +168,8 @@ describe("Edit Dashboard Dialog Unit Test", () => {
       fixture.detectChanges();
 
       okBtn = fixture.debugElement.query(By.css("button.btn.btn-primary")).nativeElement;
-      message = fixture.debugElement.query(By.css(".invalid-feedback")).nativeElement;
+      let message2 = fixture.debugElement.query(By.css(".invalid-feedback")).nativeElement;
       expect(okBtn.hasAttribute("disabled")).toBeTruthy();
-      expect(TestUtils.toString(message.textContent)).toContain("repository.tree.SpecialChar");
+      expect(TestUtils.toString(message2.textContent)).toContain("repository.tree.SpecialChar");
    });
 });

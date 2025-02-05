@@ -109,7 +109,7 @@ public class NicereplyQuery extends EndpointJsonQuery<NicereplyEndpoint> {
             .type(PaginationType.PAGE_COUNT)
             .pageNumberParamToWrite(PaginationParamType.QUERY, "page")
             .maxResultsPerPageParam(PaginationParamType.QUERY, "per_page")
-            .totalPagesParam(PaginationParamType.JSON_PATH, "_pagination.total_pages")
+            .totalPagesParam(PaginationParamType.JSON_PATH, "pagination.total_pages")
             .maxResultsPerPage(100)
             .build();
       }

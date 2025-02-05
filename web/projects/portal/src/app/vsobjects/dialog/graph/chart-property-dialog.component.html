@@ -38,7 +38,9 @@
       <ng-template ngbNavContent>
         <chart-advanced-pane [model]="model.chartAdvancedPaneModel"
                              [variables]="variableValues" [viewer]="!composer"
-                             [vsId]="runtimeId" [chartType]="chartType"
+                             [vsId]="runtimeId"
+                             [assetId]="assetId"
+                             [chartType]="chartType"
                              [form]="form.controls['chartAdvancePaneForm']">
         </chart-advanced-pane></ng-template>
     </ng-container>

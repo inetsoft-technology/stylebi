@@ -60,7 +60,7 @@ public class YouTubeAnalyticsDataSource
 
    @Override
    protected CredentialType getCredentialType() {
-      return CredentialType.CLINET;
+      return CredentialType.CLIENT;
    }
 
    @Property(label = "Client ID", required = true)

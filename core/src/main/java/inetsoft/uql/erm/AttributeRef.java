@@ -63,6 +63,19 @@ public class AttributeRef extends AbstractDataRef {
    }
 
    /**
+    * Create a reference to the specified attribute.
+    *
+    * @param entity the name of the attribute's parent entity
+    * @param attribute the name of the attribute
+    * @param cubeCalcMember whether is cube calculate member measure.
+    */
+   public AttributeRef(String entity, String attribute, boolean cubeCalcMember) {
+      this.entity = entity;
+      this.attr = attribute;
+      this.cubeCalcMember = cubeCalcMember;
+   }
+
+   /**
     * Get create an attribute ref using the entity and attribute of the ref.
     */
    public AttributeRef(DataRef ref) {
@@ -183,6 +196,14 @@ public class AttributeRef extends AbstractDataRef {
       sqlType = type;
    }
 
+
+   /**
+    * whether is cube calculate member measure.
+    */
+   public boolean isCubeCalcMember() {
+      return cubeCalcMember;
+   }
+
    /**
     * Get a textual representation of this object.
     *
@@ -228,6 +249,8 @@ public class AttributeRef extends AbstractDataRef {
       if(getDefaultFormula() != null) {
          writer.print("formula=\"" + Tool.escape(getDefaultFormula()) + "\" ");
       }
+
+      writer.print("cubeCalcMember=\"" + isCubeCalcMember() + "\" ");
 
       writer.print("sqlType=\"" + sqlType + "\" ");
       writeDataType(writer);
@@ -310,6 +333,7 @@ public class AttributeRef extends AbstractDataRef {
          this.sqlType = Integer.parseInt(sqlType);
       }
 
+      cubeCalcMember = "true".equals(Tool.getAttribute(tag, "cubeCalcMember"));
       formula = Tool.getAttribute(tag, "formula");
       parseDataType(tag);
    }
@@ -360,6 +384,7 @@ public class AttributeRef extends AbstractDataRef {
    private String formula = null;
    private String dtype = null;
    private int sqlType = Types.VARCHAR;
+   private boolean cubeCalcMember;
 
    private static final Logger LOG = LoggerFactory.getLogger(AttributeRef.class);
 }

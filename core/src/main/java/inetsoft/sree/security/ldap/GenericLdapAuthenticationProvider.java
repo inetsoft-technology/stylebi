@@ -276,7 +276,6 @@ public class GenericLdapAuthenticationProvider extends LdapAuthenticationProvide
       setUserRolesSearch(config.get("userRolesSearch").asText());
       roleRolesSearch = config.get("roleRolesSearch").asText();
       groupRolesSearch = config.get("groupRolesSearch").asText();
-      setLdapAdministrator(config.get("administrator").asText("cn=manager"));
       startTls = config.hasNonNull("startTls") &&
          config.get("startTls").asBoolean(false);
    }

@@ -28,4 +28,5 @@ public enum PaginationType {
    TWITTER_ITERATION,
    LINK_ITERATION,
    GRAPHQL,
+   GRAPHQL_CURSOR,
 }

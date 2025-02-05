@@ -21,7 +21,8 @@ import { AfterViewInit, Component, Inject, OnDestroy, OnInit } from "@angular/co
 import { Title } from "@angular/platform-browser";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbDatepickerConfig, NgbModal } from "@ng-bootstrap/ng-bootstrap";
-import { Subscription } from "rxjs";
+import { Subject, Subscription } from "rxjs";
+import { takeUntil } from "rxjs/operators";
 import { LogoutService } from "../../../../shared/util/logout.service";
 import { AssetEntry, createAssetEntry } from "../../../../shared/data/asset-entry";
 import { LicenseInfo } from "../common/data/license-info";
@@ -66,6 +67,7 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
    private routeSubscription: Subscription;
    private licenseInfo: LicenseInfo;
    private readonly ACCESSIBILITY_CLASS: string = "accessible";
+   private destroy$ = new Subject<void>();
 
    get openComposerEnabled(): boolean {
       return this.model.composerEnabled;
@@ -120,6 +122,7 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
             }
          });
 
+
       this.http.get<PortalModel>(PORTAL_MODEL_URI)
          .subscribe((model) => {
             this.model = model;
@@ -155,6 +158,14 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
       this.firstDayOfWeekService.getFirstDay().subscribe((model) => {
          this.ngbDatepickerConfig.firstDayOfWeek = model.isoFirstDay;
       });
+
+      this.logoutService.inGracePeriod
+         .pipe(takeUntil(this.destroy$))
+         .subscribe(gracePeriod => {
+            if(!!this.model) {
+               this.model.elasticLicenseExhausted = gracePeriod;
+            }
+         });
    }
 
    ngAfterViewInit(): void {
@@ -170,6 +181,9 @@ export class PortalAppComponent implements OnInit, OnDestroy, AfterViewInit {
          this.routeSubscription.unsubscribe();
          this.routeSubscription = null;
       }
+
+      this.destroy$.next();
+      this.destroy$.unsubscribe();
    }
 
    updateAccessibility(): void {

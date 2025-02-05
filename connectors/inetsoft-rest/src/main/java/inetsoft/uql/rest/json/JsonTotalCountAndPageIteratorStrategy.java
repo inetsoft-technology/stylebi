@@ -18,12 +18,15 @@
 package inetsoft.uql.rest.json;
 
 import inetsoft.uql.rest.*;
-import inetsoft.uql.rest.pagination.HttpResponseParameterParser;
-import inetsoft.uql.rest.pagination.PaginationSpec;
-import inetsoft.uql.rest.pagination.PaginationType;
+import inetsoft.uql.rest.datasource.mixpanel.MixpanelDataSource;
+import inetsoft.uql.rest.pagination.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
+import java.lang.invoke.MethodHandles;
 import java.util.Collections;
+import java.util.HashMap;
 
 /**
  * Strategy which reads the uses the total count from the response to iterate the results, using
@@ -110,11 +113,53 @@ public class JsonTotalCountAndPageIteratorStrategy extends HttpRestDataIteratorS
    protected Object processResponse(InputStream responseBody, HttpResponse response) throws Exception {
       final Object json = super.processResponse(responseBody, response);
 
+      if(query.getDataSource() instanceof MixpanelDataSource) {
+         this.readAndUpdateParameters(json, response);
+      }
+
       if(lastPageNumber == null) {
          lastPageNumber = getLastPageNumber(query.getPaginationSpec(), response, json);
       }
 
       return json;
+   }
+
+   private void readAndUpdateParameters(Object json, HttpResponse response) {
+      final PaginationSpec spec = query.getPaginationSpec();
+      hasNext = getHasNext(spec, json, response);
+
+      if(hasNext) {
+         final String newPageOffset = getPageOffset(spec, json, response);
+         pageOffset = newPageOffset;
+      }
+      else {
+         pageOffset = null;
+      }
+   }
+
+   private String getPageOffset(PaginationSpec spec, Object json, HttpResponse response) {
+      try {
+         return parser.parseString(spec.getPageOffsetParamToRead(), json, response);
+      }
+      catch(Exception e) {
+         throw new ParameterParseException(
+            "Failed to parse Page Offset To Read Parameter from response.", e);
+      }
+   }
+
+   private boolean getHasNext(PaginationSpec spec, Object json, HttpResponse response) {
+      try {
+         if(spec.getHasNextParamValue() != null) {
+            final String result = parser.parseString(spec.getHasNextParam(), json, response);
+            return !spec.getHasNextParamValue().equals(result);
+         }
+
+         return parser.parseBoolean(spec.getHasNextParam(), json, response);
+      }
+      catch(Exception e) {
+         LOG.debug("Has next param {} was not found", spec.getHasNextParam());
+         return false;
+      }
    }
 
    private int getLastPageNumber(PaginationSpec spec, HttpResponse response, Object json) {
@@ -126,12 +171,25 @@ public class JsonTotalCountAndPageIteratorStrategy extends HttpRestDataIteratorS
    private Object fetchSubsequentPage() throws Exception {
       final PaginationSpec spec = query.getPaginationSpec();
       final String pgNumberParam = spec.getPageNumberParamToWrite().getValue();
-      final RestRequest request = RestRequest.builder()
-         .query(query)
-         .queryParameters(Collections.singletonMap(pgNumberParam, Integer.toString(pageNumber)))
-         .build();
 
-      return handleRequest(request).getHandledResult();
+      if(query.getDataSource() instanceof MixpanelDataSource){
+         final String name = spec.getPageOffsetParamToWrite().getValue();
+         final HashMap<String, String> queryParams = new HashMap<>();
+         queryParams.put(pgNumberParam, Integer.toString(pageNumber));
+         queryParams.put(name, pageOffset);
+         final RestRequest request = RestRequest.builder()
+            .query(query)
+            .queryParameters(queryParams)
+            .build();
+         return handleRequest(request).getHandledResult();
+      }
+      else {
+         final RestRequest request = RestRequest.builder()
+            .query(query)
+            .queryParameters(Collections.singletonMap(pgNumberParam, Integer.toString(pageNumber)))
+            .build();
+         return handleRequest(request).getHandledResult();
+      }
    }
 
    private int getTotalCount(PaginationSpec spec, Object json, HttpResponse response) {
@@ -148,4 +206,8 @@ public class JsonTotalCountAndPageIteratorStrategy extends HttpRestDataIteratorS
 
    private final int maxResults;
    private final HttpResponseParameterParser parser;
+   private boolean hasNext = true;
+   private String pageOffset;
+   private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+
 }

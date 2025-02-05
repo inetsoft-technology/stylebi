@@ -24,6 +24,7 @@ import { DropDownTestModule } from "../../../common/test/test-module";
 import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dialog.component";
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
@@ -90,7 +91,9 @@ let createModel: () => SelectionTreePaneModel = () => {
       label: "",
       parentIdRef: null,
       idRef: null,
-      labelRef: null
+      labelRef: null,
+      modelSource: false,
+      grayedOutFields: []
    };
 };
 
@@ -112,7 +115,7 @@ describe("Selection Tree Id Pane Test", () => {
          declarations: [
             TestApp, SelectionTreeIdPane, TreeComponent, TreeNodeComponent,
             TreeSearchPipe, FormulaEditorDialog, ScriptPane,
-            NewAggrDialog, MessageDialog, FixedDropdownDirective
+            NewAggrDialog, MessageDialog, FixedDropdownDirective, DynamicComboBox
          ],
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
@@ -165,7 +168,7 @@ describe("Selection Tree Id Pane Test", () => {
    });
 
    //Bug #19715, //Bug #20014
-   xit("should keep value type status", () => {
+   it("should keep value type status", () => {
       fixture.componentInstance.model.parentId = "${var1}";
       fixture.componentInstance.model.id = "${var2}";
       fixture.componentInstance.model.label = "${var3}";

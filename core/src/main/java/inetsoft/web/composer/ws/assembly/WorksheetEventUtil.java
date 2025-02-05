@@ -1002,17 +1002,19 @@ public class WorksheetEventUtil {
          commandDispatcher.sendCommand(messageCommand);
       }
 
-      WorksheetInfo worksheetInfo = ws.getWorksheetInfo();
-      Assembly[] assemblies = ws.getAssemblies();
+      if(ws != null) {
+         WorksheetInfo worksheetInfo = ws.getWorksheetInfo();
+         Assembly[] assemblies = ws.getAssemblies();
 
-      if(worksheetInfo.isSingleQueryMode() && assemblies != null && assemblies.length == 1) {
-         Assembly assembly = assemblies[0];
+         if(worksheetInfo.isSingleQueryMode() && assemblies != null && assemblies.length == 1) {
+            Assembly assembly = assemblies[0];
 
-         if(assembly instanceof SQLBoundTableAssembly) {
-            WSEditAssemblyCommand editAssemblyCommand = WSEditAssemblyCommand.builder()
-               .assembly(WSAssemblyModelFactory.createModelFrom((WSAssembly) assembly, rws, user))
-               .build();
-            commandDispatcher.sendCommand(editAssemblyCommand);
+            if(assembly instanceof SQLBoundTableAssembly) {
+               WSEditAssemblyCommand editAssemblyCommand = WSEditAssemblyCommand.builder()
+                  .assembly(WSAssemblyModelFactory.createModelFrom((WSAssembly) assembly, rws, user))
+                  .build();
+               commandDispatcher.sendCommand(editAssemblyCommand);
+            }
          }
       }
 

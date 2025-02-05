@@ -39,6 +39,8 @@ public interface RepletRepository extends Remote {
     * HTTP session key for the user principal.
     */
    String PRINCIPAL_COOKIE = "sree.security.principal";
+   String EM_PRINCIPAL_COOKIE = "sree.security.em.principal";
+   String EM_CLIENT = "emClient";
 
    /**
     * Get the value of a specified property.

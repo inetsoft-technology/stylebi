@@ -171,7 +171,7 @@ public class VSAssemblyInfoHandler {
                List vars = new ArrayList();
                VSEventUtil.refreshParameters(engine, box, vs, false, null, vars);
 
-               if(!vars.isEmpty()) {
+               if(!vars.isEmpty() && !vs.getViewsheetInfo().isDisableParameterSheet()) {
                   UserVariable[] vtable = new UserVariable[vars.size()];
                   vars.toArray(vtable);
                   placeholderService.collectParameters(vs, vtable,
@@ -410,7 +410,11 @@ public class VSAssemblyInfoHandler {
    }
 
    public DataRefModel[] getGrayedOutFields(RuntimeViewsheet rvs) {
-      VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+      return getGrayedOutFields(rvs, true);
+   }
+
+   public DataRefModel[] getGrayedOutFields(RuntimeViewsheet rvs, boolean initAgg) {
+      VSModelTrapContext context = new VSModelTrapContext(rvs, initAgg);
       boolean required = context.isCheckTrap();
 
       if(!required || rvs.getViewsheet() == null) {

@@ -29,13 +29,15 @@
               <input autocomplete="off" type="text" name="name" formControlName="name" trim
                      [class.is-invalid]="form.controls['name'].invalid"
                      class="form-control" placeholder="_#(Parameter Name)" ngbDropdownToggle>
-              <div ngbDropdownMenu *ngIf="viewsheetParameters && viewsheetParameters.length > 0"
-                   class="form-control viewsheet-parameters-dropdown-menu">
-                <li *ngFor="let parameter of viewsheetParameters">
-                  <a class="dropdown-item"
-                     (mousedown)="changeName(parameter); nameDropdown.close()"
-                     [class.selected]="model.name == parameter">{{parameter}}</a>
-                </li>
+              <div ngbDropdownMenu class="form-control viewsheet-parameters-dropdown-menu"
+                   [ngClass]="!hasViewsheetParameters() ? 'hidden-menu' : ''">
+                <ng-container *ngIf="hasViewsheetParameters()">
+                  <li *ngFor="let parameter of viewsheetParameters">
+                    <a class="dropdown-item"
+                       (mousedown)="changeName(parameter); nameDropdown.close()"
+                       [class.selected]="model.name == parameter">{{parameter}}</a>
+                  </li>
+                </ng-container>
               </div>
               <label>_#(Parameter Name)</label>
               <span class="invalid-feedback" *ngIf="form && form.controls['name'].errors && form.controls['name'].errors['required']">_#(parameter.name.emptyValid)</span>
@@ -77,7 +79,7 @@
                   <select class="form-control" formControlName="alphaNumericValue"
                           placeholder="_#(Value for Parameter)">
                     <option *ngIf="model.value == ''" [value]=""></option>
-                    <option *ngFor="let field of fields" [attr.title]="field.description"
+                    <option *ngFor="let field of fields" [attr.title]="field.description" [class.grayed-out-field]="isGrayedOut(field.name)"
                       [value]="field.name">
                       {{field.name}}
                     </option>

@@ -207,7 +207,7 @@ describe("Sort Option Unit Test", () => {
 
    //for Bug #10625, ranking inputfield should not accept invalid number
    //test broken, not properly initialized
-   xit("Test ranking input value and valid check", () => {
+   it("Test ranking input value and valid check", () => {
       uiContextService.isAdhoc.mockImplementation(() => true);
       fixture = TestBed.createComponent(SortOption);
       sortOption = <SortOption>fixture.componentInstance;

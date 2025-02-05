@@ -31,9 +31,12 @@ import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
 import { Tool } from "../../../../../../shared/util/tool";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
+import { DataRef } from "../../../common/data/data-ref";
+import { TrapInfo } from "../../../common/data/trap-info";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { DataPathConstants } from "../../../common/util/data-path-constants";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { AddFilterDialogModel } from "../../../composer/data/vs/add-filter-dialog-model";
 import { Viewsheet } from "../../../composer/data/vs/viewsheet";
 import { FixedDropdownService } from "../../../widget/fixed-dropdown/fixed-dropdown.service";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
@@ -48,6 +51,7 @@ import { ChangeVSObjectTextEvent } from "../../event/change-vs-object-text-event
 import { InsertSelectionChildEvent } from "../../event/insert-selection-child-event";
 import { VSObjectModel } from "../../model/vs-object-model";
 import { VSSelectionContainerModel } from "../../model/vs-selection-container-model";
+import { VSTrapService } from "../../util/vs-trap.service";
 import { VSUtil } from "../../util/vs-util";
 import { AbstractVSObject } from "../abstract-vsobject.component";
 import { DataTipService } from "../data-tip/data-tip.service";
@@ -59,6 +63,8 @@ import { MaxObjectEvent } from "../../event/table/max-object-event";
 const Add_FILTER_TREE_URI: string = "../api/selectioncontainer/add-filter/tree";
 const INSERT_CHILD_URI = "/events/composer/viewsheet/selectionContainer/insertChild/";
 const MAX_MODE_URL: string = "/events/vs/assembly/max-mode/toggle";
+
+const CHECK_TRAP_URI = "../api/viewsheet/objects/checkSelectionTrap";
 
 @Component({
    selector: "vs-selection-container",
@@ -87,6 +93,7 @@ export class VSSelectionContainer extends AbstractVSObject<VSSelectionContainerM
                protected context: ContextProvider,
                protected dataTipService: DataTipService,
                protected dropdownService: FixedDropdownService,
+               protected trapService: VSTrapService,
                @Optional() private selectionMobileService?: SelectionMobileService)
    {
       super(clientService, zone, context, dataTipService);
@@ -168,15 +175,15 @@ export class VSSelectionContainer extends AbstractVSObject<VSSelectionContainerM
    addFilter(): void {
       let params = new HttpParams().set("vsId", this.clientService.runtimeId);
 
-      this.http.get<TreeNodeModel>(Add_FILTER_TREE_URI, { params })
+      this.http.get<AddFilterDialogModel>(Add_FILTER_TREE_URI, { params })
          .subscribe(
-            (data: TreeNodeModel) => {
-               this.openAddFilterDialog(data);
+            (data: AddFilterDialogModel) => {
+               this.openAddFilterDialog(data.targetTree, data.grayedOutFields);
             }
          );
    }
 
-   openAddFilterDialog(node: TreeNodeModel) {
+   openAddFilterDialog(node: TreeNodeModel, grayedOutFields: DataRef[]) {
       const dialog = ComponentTool.showDialog(this.modalService, AddFilterDialog,
          (result: TreeNodeModel[]) => {
             if(result == null) {
@@ -191,10 +198,20 @@ export class VSSelectionContainer extends AbstractVSObject<VSSelectionContainerM
 
             const vsevent = new InsertSelectionChildEvent(this.model.absoluteName,
                this.model.childObjects.length, null, null, columns);
-            this.clientService.sendEvent(INSERT_CHILD_URI + this.model.absoluteName, vsevent);
+            const trapInfo = new TrapInfo(CHECK_TRAP_URI, "", this.clientService.runtimeId,
+               vsevent);
+
+            this.trapService.checkTrap(trapInfo,
+               () => this.clientService.sendEvent(
+                  INSERT_CHILD_URI + this.model.absoluteName, vsevent),
+               () => {},
+               () => this.clientService.sendEvent(
+                  INSERT_CHILD_URI + this.model.absoluteName, vsevent)
+            );
       });
 
       dialog.model = node;
+      dialog.grayedOutFields = grayedOutFields;
    }
 
    getActions(): AssemblyActionGroup[] {

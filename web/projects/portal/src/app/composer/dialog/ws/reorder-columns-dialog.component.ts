@@ -22,10 +22,6 @@ import { ModelService } from "../../../widget/services/model.service";
 import { ReorderColumnsDialogModel } from "../../data/vs/reorder-columns-dialog-model";
 import { ColumnRef } from "../../../binding/data/column-ref";
 import { MultiSelectList } from "../../../common/util/multi-select-list";
-import {
-   FeatureFlagsService,
-   FeatureFlagValue
-} from "../../../../../../shared/feature-flags/feature-flags.service";
 
 @Component({
    selector: "reorder-columns-dialog",
@@ -98,6 +94,7 @@ export class ReorderColumnsDialog implements OnInit {
       let temp = this.model.indexes[currIndex];
       this.model.indexes[currIndex] = this.model.indexes[destIndex];
       this.model.indexes[destIndex] = temp;
+      this.reindex();
    }
 
    setValueToIndex(index: number, value: number): void {
@@ -169,6 +166,10 @@ export class ReorderColumnsDialog implements OnInit {
       for(let i = 0; i < selectedCount; i++) {
          this.columnSelection.ctrlSelect(i);
       }
+
+      if(selectedCount > 0) {
+         this.reindex();
+      }
    }
 
    moveColumnsToBottom() {
@@ -196,6 +197,10 @@ export class ReorderColumnsDialog implements OnInit {
 
       for(let i = 0; i < selectedCount; i++) {
          this.columnSelection.ctrlSelect(this.columnSelection.size() - 1 - i);
+      }
+
+      if(selectedCount > 0) {
+         this.reindex();
       }
    }
 
@@ -264,6 +269,10 @@ export class ReorderColumnsDialog implements OnInit {
 
    isSelectedItem(index: number): boolean {
       return this.columnSelection.isSelected(index);
+   }
+
+   reindex(): void {
+      this.model.indexes = [...this.model.indexes];
    }
 
    ok(): void {

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { Component, ViewChild } from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -63,7 +64,7 @@ describe("Add Parameter Dialog Unit Test", () => {
    beforeEach(async(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
          ],
          declarations: [
             TestApp, AddParameterDialog, EnterSubmitDirective, TimepickerComponent,
@@ -82,7 +83,7 @@ describe("Add Parameter Dialog Unit Test", () => {
    }));
 
    //Bug #19684 should pop confirm dialog when create duplicate parameter
-   xit("should pop confirm dialog when create duplicate parameter", () => {
+   it("should pop confirm dialog when create duplicate parameter", () => {
       fixture.componentInstance.index = -1;
       fixture.componentInstance.parameters =
          [{name: "a", value: {value: "a", type: ValueTypes.VALUE}, array: false, type: "string"}];
@@ -109,15 +110,15 @@ describe("Add Parameter Dialog Unit Test", () => {
    //Bug #19531 can add parameter
    //Bug #21496 should allow parameter names to start with numbers
    //Bug #21470 should can create array parameter
-   xit("check can create parameter", () => { // broken test
+   it("check can create parameter", () => { // broken test
       fixture.componentInstance.index = -1;
       fixture.componentInstance.parameters =
          [{name: "a", value: {value: "a", type: ValueTypes.VALUE}, array: false, type: "string"}];
       fixture.detectChanges();
 
       //Bug #19898 show correct dialog title
-      let dialogTitle = fixture.debugElement.query(By.css(".modal-title")).nativeElement;
-      expect(TestUtils.toString(dialogTitle.textContent.trim())).toBe("Add Parameter");
+      let dialogTitle = fixture.debugElement.query(By.css("modal-header")).nativeElement;
+      expect(TestUtils.toString(dialogTitle.getAttribute("title").trim())).toBe("Add Parameter");
 
       //Bug #20918 should control special character for parameter name
       let name = fixture.debugElement.query(By.css("input[formControlName=name]")).nativeElement;
@@ -132,7 +133,7 @@ describe("Add Parameter Dialog Unit Test", () => {
       name.dispatchEvent(new Event("input"));
       fixture.detectChanges();
 
-      warnings = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      warnings = fixture.debugElement.query(By.css("div.alert.alert-danger"));
       expect(warnings).toBeNull();
 
       let arrayChk = fixture.debugElement.query(By.css("input[type=checkbox]")).nativeElement;
@@ -151,19 +152,19 @@ describe("Add Parameter Dialog Unit Test", () => {
       expect(fixture.componentInstance.parameters[0].name).toBe("a");
       expect(fixture.componentInstance.parameters[1].name).toBe("2test");
       expect(fixture.componentInstance.parameters[1].array).toBe(true);
-      expect(fixture.componentInstance.parameters[1].value).toBe("a,b,c");
+      expect(fixture.componentInstance.parameters[1].value.value).toBe("a,b,c");
    });
 
    //Bug #19872 can edit parameter
-   xit("check can edit parameter", () => {
+   it("check can edit parameter", () => {
       fixture.componentInstance.index = 0;
       fixture.componentInstance.parameters =
          [{name: "a", value: {value: "a", type: ValueTypes.VALUE}, array: false, type: "string"}];
       fixture.detectChanges();
 
       //Bug #19898 show correct dialog title
-      let dialogTitle = fixture.debugElement.query(By.css(".modal-title")).nativeElement;
-      expect(TestUtils.toString(dialogTitle.textContent.trim())).toBe("Edit Parameter");
+      let dialogTitle = fixture.debugElement.query(By.css("modal-header")).nativeElement;
+      expect(TestUtils.toString(dialogTitle.getAttribute("title").trim())).toBe("Edit Parameter");
 
       let name = fixture.debugElement.query(By.css("input[formControlName=name]")).nativeElement;
       name.value = "a1";

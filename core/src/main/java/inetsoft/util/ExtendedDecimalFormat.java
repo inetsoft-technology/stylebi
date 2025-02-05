@@ -445,6 +445,9 @@ public class ExtendedDecimalFormat extends DecimalFormat {
          LOG.error("Failed to parse user format", ex);
          return;
       }
+      finally {
+         IOUtils.closeQuietly(input);
+      }
 
       Element em = doc.getDocumentElement();
       NodeList list = em.getChildNodes();

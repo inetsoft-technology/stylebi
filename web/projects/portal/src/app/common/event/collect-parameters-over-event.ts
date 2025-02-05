@@ -26,9 +26,10 @@ export class CollectParametersOverEvent implements ViewsheetEvent {
     * Updated variables.
     */
    public variables: VariableInfo[];
-
    public disableAudit: boolean;
    public openVS: boolean;
+   public width: number;
+   public height: number;
 
    /**
     * Creates a new instance of <tt>CollectParametersOverEvent</tt>.
@@ -39,5 +40,7 @@ export class CollectParametersOverEvent implements ViewsheetEvent {
       this.variables = variables;
       this.disableAudit = disableAudit;
       this.openVS = openVS;
+      this.width = 0;
+      this.height = 0;
    }
 }

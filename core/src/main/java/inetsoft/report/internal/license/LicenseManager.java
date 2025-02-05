@@ -92,12 +92,17 @@ public class LicenseManager implements AutoCloseable, MessageListener {
     * Check if the enterprise features are included.
     */
    public boolean isEnterprise() {
-      //return !"false".equals(SreeEnv.getProperty("inetsoft.enterprise"));
+      if(enterprise != null) {
+         return enterprise;
+      }
+
       try {
          Class.forName("inetsoft.enterprise.EnterpriseConfig");
+         enterprise = true;
          return true;
       }
       catch(Exception ex) {
+         enterprise = false;
          return false;
       }
    }
@@ -412,14 +417,6 @@ public class LicenseManager implements AutoCloseable, MessageListener {
          .anyMatch(l -> l.type() == LicenseType.HOSTED);
    }
 
-   public boolean startHostedSession(String orgId, String user) {
-      return strategy.startHostedSession(orgId, user);
-   }
-
-   public void stopHostedSession(String orgId, String user) {
-      strategy.stopHostedSession(orgId, user);
-   }
-
    public int getHostedRemainingHours(String orgId, String user) {
       return strategy.getHostedRemainingHours(orgId, user);
    }
@@ -429,4 +426,5 @@ public class LicenseManager implements AutoCloseable, MessageListener {
    }
 
    private LicenseStrategy strategy;
+   private Boolean enterprise;
 }

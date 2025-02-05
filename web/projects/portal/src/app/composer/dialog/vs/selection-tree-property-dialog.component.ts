@@ -185,6 +185,12 @@ export class SelectionTreePropertyDialog extends PropertyDialog implements OnIni
    }
 
    getGrayedOutValues(): string[] {
+      if(this.model == null || this.model.selectionTreePaneModel == null ||
+         this.model.selectionTreePaneModel.selectedTable == null)
+      {
+         return [];
+      }
+
       let grayedOutFlds = this.model.selectionTreePaneModel.grayedOutFields;
       let values: string[] = [];
 
@@ -192,8 +198,17 @@ export class SelectionTreePropertyDialog extends PropertyDialog implements OnIni
          return values;
       }
 
+      let model: boolean = this.model.selectionTreePaneModel.selectedColumns != null &&
+         this.model.selectionTreePaneModel.selectedColumns[0] != null &&
+         this.model.selectionTreePaneModel.selectedColumns[0].attribute.indexOf(":") > 0;
+
       for(let i = 0; i < grayedOutFlds.length; i++) {
-         values.push(grayedOutFlds[i].name);
+         if(model) {
+            values.push(grayedOutFlds[i].name);
+         }
+         else if(grayedOutFlds[i].entity == this.model.selectionTreePaneModel.selectedTable) {
+            values.push(grayedOutFlds[i].attribute);
+         }
       }
 
       return values;

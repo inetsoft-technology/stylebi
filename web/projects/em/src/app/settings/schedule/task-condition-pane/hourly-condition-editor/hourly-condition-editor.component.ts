@@ -70,11 +70,15 @@ export class HourlyConditionEditorComponent implements OnInit {
       }
 
       this._condition = Object.assign({}, value);
-      this.form.get("startTime").setValue(this.dateTimeService.getStartTime(this._condition));
-      this.form.get("endTime").setValue(this.dateTimeService.getEndTime(this._condition));
-      this.form.get("interval").setValue(this._condition.hourlyInterval || 0);
-      this.form.get("weekdays").setValue(this._condition.daysOfWeek || []);
-      this.form.get("timeZone").setValue(this._condition.timeZone || "");
+      this.form.get("startTime").setValue(
+         this.dateTimeService.getStartTime(this._condition), { emitEvent: false });
+      this.form.get("endTime").setValue(
+         this.dateTimeService.getEndTime(this._condition), { emitEvent: false });
+      this.form.get("interval").setValue(this._condition.hourlyInterval || 0, { emitEvent: false });
+      this.form.get("weekdays").setValue(this._condition.daysOfWeek || [], { emitEvent: false });
+      this.form.get("timeZone").setValue(this._condition.timeZone || "", { emitEvent: false });
+      this.timeZoneLabel = this.dateTimeService
+         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone);
    }
 
    form: UntypedFormGroup;

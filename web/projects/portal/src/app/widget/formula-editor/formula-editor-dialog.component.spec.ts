@@ -81,8 +81,9 @@ describe("Formula Editor Test", () => {
    });
 
    //bug #18750 and Bug #18931, Bug #20195 should show warning when SQL is selected for aggregate calculated field
-   xit("should show warning when SQL is selected for aggregate calculated field", () => { // broken test
+   it("should show warning when SQL is selected for aggregate calculated field", () => {
       let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
+      showMessageDialog.mockClear();
       showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
       formulaEditor.formulaType = "Script";
       formulaEditor.calcType = "aggregate";

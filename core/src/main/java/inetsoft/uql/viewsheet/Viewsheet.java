@@ -5416,8 +5416,8 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
    /**
     * Get all disabled variable names.
     */
-   public List getDisabledVariables() {
-      List list = new ArrayList();
+   public List<String> getDisabledVariables() {
+      List<String> list = new ArrayList<>();
       list.addAll(Arrays.asList(vinfo.getDisabledVariables()));
 
       for(Assembly assembly : getAssemblies()) {

@@ -22,6 +22,7 @@ import inetsoft.sree.security.AuthenticationService;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.web.admin.security.SSOSettingsService;
 import inetsoft.web.admin.security.SSOType;
+import inetsoft.web.admin.server.NodeProtectionService;
 import inetsoft.web.security.SessionAccessFilter;
 import jakarta.servlet.ServletContext;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,12 +43,14 @@ public class SessionConfig {
    public SessionConfig(ServletContext servletContext,
                         SecurityEngine securityEngine,
                         AuthenticationService authenticationService,
-                        SSOSettingsService ssoSettingsService)
+                        SSOSettingsService ssoSettingsService,
+                        NodeProtectionService nodeProtectionService)
    {
       this.servletContext = servletContext;
       this.securityEngine = securityEngine;
       this.authenticationService = authenticationService;
       this.ssoSettingsService = ssoSettingsService;
+      this.nodeProtectionService = nodeProtectionService;
    }
 
    /**
@@ -60,7 +63,8 @@ public class SessionConfig {
 
    @Bean
    public MapSessionRepository mapSessionRepository() {
-      return new MapSessionRepository(servletContext, securityEngine, authenticationService);
+      return new MapSessionRepository(servletContext, securityEngine, authenticationService,
+                                      nodeProtectionService);
    }
 
    @Bean
@@ -99,4 +103,5 @@ public class SessionConfig {
    private final SecurityEngine securityEngine;
    private final AuthenticationService authenticationService;
    private final SSOSettingsService ssoSettingsService;
+   private final NodeProtectionService nodeProtectionService;
 }

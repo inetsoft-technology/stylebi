@@ -50,6 +50,16 @@ public abstract class CollectParametersOverEvent {
       return false;
    }
 
+   @Value.Default
+   public int width() {
+      return 0;
+   }
+
+   @Value.Default
+   public int height() {
+      return 0;
+   }
+
    public static Builder builder(){return new Builder();}
 
    public static class Builder extends ImmutableCollectParametersOverEvent.Builder {

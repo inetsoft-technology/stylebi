@@ -52,6 +52,7 @@ export interface OAuthParameters {
    flags?: string[];
    additionalParameters?: {[name: string]: string};
    method?: string;
+   error?: string;
 }
 
 interface LoginResponse {

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { DataRef } from "../../common/data/data-ref";
 import { HierarchyEditorModel } from "./hierarchy-editor-model";
 import { OutputColumnRefModel } from "./output-column-ref-model";
 import { VSDimensionModel } from "./vs-dimension-model";
@@ -24,4 +25,5 @@ export interface HierarchyPropertyPaneModel {
    hierarchyEditorModel: HierarchyEditorModel;
    columnList: OutputColumnRefModel[];
    dimensions: VSDimensionModel[];
+   grayedOutFields: DataRef[];
 }

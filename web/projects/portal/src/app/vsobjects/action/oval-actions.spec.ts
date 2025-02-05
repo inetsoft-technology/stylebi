@@ -22,7 +22,7 @@ import { OvalActions } from "./oval-actions";
 describe("OvalActions", () => {
    const createModel = () => TestUtils.createMockVSOvalModel("Oval1");
 
-   xit("check status of menu actions of oval in composer", () => {
+   it("check status of menu actions of oval in composer", () => {
       const expectedMenu = [
          [
             { id: "oval properties", visible: true },
@@ -67,7 +67,7 @@ describe("OvalActions", () => {
       expect(menuActions[0].actions[3].visible()).toBe(false);
    });
 
-   xit("check status of menu actions of oval in viewer and preview", () => {
+   it("check status of menu actions of oval in viewer and preview", () => {
       const expectedMenu = [
          [
             { id: "oval properties", visible: false },

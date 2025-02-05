@@ -18,6 +18,7 @@
 package inetsoft.graph.geo.solver;
 
 import inetsoft.util.DataSpace;
+import inetsoft.util.MessageException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -276,6 +277,12 @@ public final class NameTable implements Serializable {
       if(data.isEmpty()) {
          try {
             InputStream input = openFile(file);
+
+            if(input == null) {
+               String message = "Mapdata name table file " + file + " not found";
+               LOG.error(message);
+               throw new MessageException(message);
+            }
 
             try(BufferedReader reader = new BufferedReader(
                new InputStreamReader(input, StandardCharsets.UTF_8)))

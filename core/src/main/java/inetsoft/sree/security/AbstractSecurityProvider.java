@@ -427,8 +427,8 @@ public abstract class AbstractSecurityProvider implements SecurityProvider {
    }
 
    @Override
-   public boolean containsAnonymousUser() {
-      return authentication.containsAnonymousUser();
+   public boolean containsAnonymousUser(String orgId) {
+      return authentication.containsAnonymousUser(orgId);
    }
 
    public void setCheckPermissionStrategy(CheckPermissionStrategy checkPermissionStrategy) {

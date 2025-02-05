@@ -18,10 +18,104 @@
 
 package inetsoft.util.config;
 
+import inetsoft.util.config.crd.CRDProperty;
+
 import java.io.Serializable;
 
 @InetsoftConfigBean
 public class MetricsConfig implements Serializable {
+   /**
+    * A flag that indicates if the JVM heap memory utilization should be used as a scaling metric.
+    */
+   public boolean isJvmMemory() {
+      return jvmMemory;
+   }
+
+   public void setJvmMemory(boolean jvmMemory) {
+      this.jvmMemory = jvmMemory;
+   }
+
+   /**
+    * A flag that indicates if the container memory utilization should be used as a scaling metric.
+    */
+   public boolean isContainerMemory() {
+      return containerMemory;
+   }
+
+   public void setContainerMemory(boolean containerMemory) {
+      this.containerMemory = containerMemory;
+   }
+
+   /**
+    * A flag that indicates if the JVM CPU utilization should be used as a scaling metric.
+    */
+   public boolean isJvmCpu() {
+      return jvmCpu;
+   }
+
+   public void setJvmCpu(boolean jvmCpu) {
+      this.jvmCpu = jvmCpu;
+   }
+
+   /**
+    * A flag that indicates if the container CPU utilization should be used as a scaling metric.
+    */
+   public boolean isContainerCpu() {
+      return containerCpu;
+   }
+
+   public void setContainerCpu(boolean containerCpu) {
+      this.containerCpu = containerCpu;
+   }
+
+   public boolean isScheduler() {
+      return scheduler;
+   }
+
+   public void setScheduler(boolean scheduler) {
+      this.scheduler = scheduler;
+   }
+
+   public boolean isCacheSwapMemory() {
+      return cacheSwapMemory;
+   }
+
+   public void setCacheSwapMemory(boolean cacheSwapMemory) {
+      this.cacheSwapMemory = cacheSwapMemory;
+   }
+
+   public boolean isCacheSwapWait() {
+      return cacheSwapWait;
+   }
+
+   public void setCacheSwapWait(boolean cacheSwapWait) {
+      this.cacheSwapWait = cacheSwapWait;
+   }
+
+   public boolean isMovingAverage() {
+      return movingAverage;
+   }
+
+   public void setMovingAverage(boolean movingAverage) {
+      this.movingAverage = movingAverage;
+   }
+
+   public int getMovingAveragePeriodSeconds() {
+      return movingAveragePeriodSeconds;
+   }
+
+   public void setMovingAveragePeriodSeconds(int movingAveragePeriodSeconds) {
+      this.movingAveragePeriodSeconds = movingAveragePeriodSeconds;
+   }
+
+   public int getMovingAverageCount() {
+      return movingAverageCount;
+   }
+
+   public void setMovingAverageCount(int movingAverageCount) {
+      this.movingAverageCount = movingAverageCount;
+   }
+
    public String getType() {
       return type;
    }
@@ -38,6 +132,25 @@ public class MetricsConfig implements Serializable {
       this.cloudwatch = cloudwatch;
    }
 
+   @CRDProperty(description = "A flag that indicates if the JVM heap memory utilization should be used as a scaling metric.")
+   private boolean jvmMemory = false;
+   @CRDProperty(description = "A flag that indicates if the container memory utilization should be used as a scaling metric.")
+   private boolean containerMemory = false;
+   @CRDProperty(description = "A flag that indicates if the JVM CPU utilization should be used as a scaling metric.")
+   private boolean jvmCpu = true;
+   @CRDProperty(description = "A flag that indicates if the container CPU utilization should be used as a scaling metric.")
+   private boolean containerCpu = false;
+   @CRDProperty(description = "A flag that indicates if the scheduler thread utilization should be used as a scaling metric.")
+   private boolean scheduler = true;
+   @CRDProperty(description = "A flag that indicates if the cache swapping memory state should be used as a scaling metric.")
+   private boolean cacheSwapMemory = true;
+   @CRDProperty(description = "A flag that indicates if the number of threads waiting for cache swapping should be used as a scaling metric.")
+   private boolean cacheSwapWait = true;
+   private boolean movingAverage = false;
+   @CRDProperty(description = "The interval at which the metric values are recorded for the moving average")
+   private int movingAveragePeriodSeconds = 15;
+   @CRDProperty(description = "The number of metric values to include in the moving average")
+   private int movingAverageCount = 8;
    private String type;
    private CloudWatchMetricsConfig cloudwatch;
 }

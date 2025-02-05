@@ -22,6 +22,7 @@ import inetsoft.mv.fs.*;
 import inetsoft.mv.util.TransactionChannel;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.security.Organization;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.*;
 import inetsoft.util.log.LogUtil;
@@ -46,14 +47,16 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
    /**
     * Constructor.
     */
-   public DefaultBlockSystem(FSConfig config) {
+   public DefaultBlockSystem(FSConfig config, String orgId) {
       this.config = config;
+      this.orgId = orgId;
 
       Cluster cluster = Cluster.getInstance();
-      String mapId = getClass().getName() + ".blocks";
+      String id =  getClass().getName() + (orgId == null ? "" : "." + orgId.toLowerCase());
+      String mapId = id + ".blocks";
       blocks = new LocalClusterMap<>(mapId, cluster, cluster.getMap(mapId));
-      lock = cluster.getLock(getClass().getName() + ".lock");
-      lastLoad = cluster.getLong(getClass().getName() + ".lastLoad");
+      lock = cluster.getLock(id + ".lock");
+      lastLoad = cluster.getLong(id + ".lastLoad");
 
       init();
    }
@@ -450,14 +453,35 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
    private String[] getPaths() {
       String val = SreeEnv.getEarlyLoadedProperty("fs.bs.files");
 
-      // SreeEnv.getProperty("fs.files","") always returns "",
-      // overridding the correct value from default.properties,
-      // which SreeEnv.getProperty("fs.files") returns.
       if(val == null) {
          val = "";
       }
 
-      return val.split(",");
+      String[] files = val.split(",");
+
+      if(orgId != null && !Tool.equals(Organization.getDefaultOrganizationID(), orgId)) {
+         for(int i = 0; i < files.length; i++) {
+            files[i] = files[i].trim();
+            files[i] = getOrgFileName(files[i]);
+         }
+      }
+
+      return files;
+   }
+
+   private String getOrgFileName(String oldName) {
+      if(Tool.isEmptyString(oldName)) {
+         return oldName;
+      }
+
+      int index = oldName.lastIndexOf("/");
+
+      if(index == -1) {
+         return orgId + "/" + oldName;
+      }
+      else {
+         return oldName.substring(0, index) + "/" + orgId + oldName.substring(index);
+      }
    }
 
    /**
@@ -542,4 +566,5 @@ public final class DefaultBlockSystem implements XBlockSystem, XMLSerializable {
    private final LocalClusterMap<String, NBlock> blocks;
    private final DistributedLong lastLoad;
    private final FSConfig config;
+   private final String orgId;
 }

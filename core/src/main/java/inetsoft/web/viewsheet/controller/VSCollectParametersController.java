@@ -135,7 +135,12 @@ public class VSCollectParametersController {
       int width = 0;
       int height = 0;
 
-      if(size instanceof Dimension) {
+      // use the width and height calculated right after the parameters dialog is closed
+      if(event.width() > 0 && event.height() > 0) {
+         width = event.width();
+         height = event.height();
+      }
+      else if(size instanceof Dimension) {
          width = ((Dimension) size).width;
          height = ((Dimension) size).height;
       }

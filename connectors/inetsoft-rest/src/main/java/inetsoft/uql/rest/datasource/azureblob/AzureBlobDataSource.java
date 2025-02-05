@@ -69,32 +69,20 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
 
    @Property(label = "Account Name", required = true)
    public String getAccountName() {
-      return this.accountName;
+      return ((SignatureCredential) getCredential()).getAccountName();
    }
 
    public void setAccountName(String accountName) {
-      this.accountName = accountName;
+      ((SignatureCredential) getCredential()).setAccountName(accountName);
    }
 
    @Property(label = "Storage Account Key", password = true)
    public String getStorageAccountKey() {
-      if(((SignatureCredential) getCredential()).getAccountKey() != null) {
-         return ((SignatureCredential) getCredential()).getAccountKey();
-      }
-
-      return this.storageAccountKey;
+      return ((SignatureCredential) getCredential()).getAccountKey();
    }
 
    public void setStorageAccountKey(String storageAccountKey) {
-      if(getCredential() instanceof LocalSignatureCredential) {
-         ((SignatureCredential) getCredential()).setAccountKey(storageAccountKey);
-      }
-      // if cloud secret only contains account key, we need to local persistent for signature.
-      else if(getCredential() instanceof CloudCredential &&
-         ((SignatureCredential) getCredential()).getSignature() == null)
-      {
-         this.storageAccountKey = storageAccountKey;
-      }
+      ((SignatureCredential) getCredential()).setAccountKey(storageAccountKey);
    }
 
    @Property(label = "Signature Services Version", required = true)
@@ -171,21 +159,7 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
 
    @Property(label = "Account SAS Signature", required = true, password = true)
    public String getSignature() {
-      if(isCloudSignature() || getCredential() instanceof AbstractLocalCredential) {
-         return ((SignatureCredential) getCredential()).getSignature();
-      }
-
-      // in case cloud secret only contains account key, generate Signature here.
-      if(getStorageAccountKey() != null && getCredential() instanceof CloudCredential) {
-         try {
-            generateSignature(null);
-         }
-         catch(Exception e) {
-            throw new RuntimeException(e);
-         }
-      }
-
-      return this.signature;
+      return signature;
    }
 
    @Property(label = "URL")
@@ -277,18 +251,7 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
    }
 
    public void setSignature(String signature) {
-      if(getCredential() instanceof LocalSignatureCredential) {
-         ((SignatureCredential) getCredential()).setSignature(signature);
-      }
-      // if cloud secret only contains account key, we need to local persistent for signature.
-      else if(!isCloudSignature()){
-         this.signature = signature;
-      }
-   }
-
-   private boolean isCloudSignature() {
-      return getCredential() instanceof CloudCredential &&
-         ((SignatureCredential) getCredential()).getSignature() != null;
+      this.signature = signature;
    }
 
    public boolean generateSignatureEnabled() {
@@ -345,18 +308,13 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
       SecretKeySpec key = new SecretKeySpec(secret, "HmacSHA256");
       mac.init(key);
 
-      String signature = Base64.getEncoder().encodeToString(
+      signature = Base64.getEncoder().encodeToString(
          mac.doFinal(stringToSign.getBytes(StandardCharsets.UTF_8)));
-      setSignature(signature);
    }
 
    @Override
    public void writeContents(PrintWriter writer) {
       super.writeContents(writer);
-
-      if(accountName != null) {
-         writer.format("<accountName><![CDATA[%s]]></accountName>%n", accountName);
-      }
 
       if(signatureServicesVersion != null) {
          writer.format(
@@ -406,7 +364,6 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
    @Override
    public void parseContents(Element root) throws Exception {
       super.parseContents(root);
-      accountName = Tool.getChildValueByTagName(root, "accountName");
       signatureServicesVersion = Tool.getChildValueByTagName(root, "signatureServicesVersion");
       signatureServices = Tool.getChildValueByTagName(root, "signatureServices");
       signatureResourceTypes = Tool.getChildValueByTagName(root, "signatureResourceTypes");
@@ -446,19 +403,17 @@ public class AzureBlobDataSource extends AbstractRestDataSource<AzureBlobDataSou
          Objects.equals(signaturePermissions, that.signaturePermissions) &&
          Objects.equals(signatureIpRange, that.signatureIpRange) &&
          Objects.equals(signatureProtocol, that.signatureProtocol) &&
-         Objects.equals(getSignature(), that.getSignature());
+         Objects.equals(signature, that.signature);
    }
 
    @Override
    public int hashCode() {
       return Objects.hash(
-         super.hashCode(), getAccountName(), signatureServicesVersion, signatureServices,
+         super.hashCode(), signatureServicesVersion, signatureServices,
          signatureResourceTypes, signatureStartTime, signatureExpiryTime, signaturePermissions,
-         signatureIpRange, signatureProtocol, getSignature());
+         signatureIpRange, signatureProtocol, signature);
    }
 
-   private String accountName;
-   private String storageAccountKey;
    private String signatureServicesVersion;
    private String signatureServices;
    private String signatureResourceTypes;

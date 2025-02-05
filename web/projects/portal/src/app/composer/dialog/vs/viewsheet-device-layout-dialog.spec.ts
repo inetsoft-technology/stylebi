@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
@@ -55,7 +56,7 @@ describe("Viewsheet Device Layout Dialog Unit Test", () => {
 
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
          ],
          declarations: [
             ViewsheetDeviceLayoutDialog, GenericSelectableList, ScreenSizeDialog, EnterSubmitDirective, ModalHeaderComponent

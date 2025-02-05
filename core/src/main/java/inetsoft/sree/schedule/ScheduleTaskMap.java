@@ -481,9 +481,15 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
       Arrays.stream(children).forEach((child) -> {
          // if built-in task is saved into schedule.xml by mistake, ignore it on
          // load otherwise user can't delete them. (45028)
-         if(child.getName().startsWith(DataCycleManager.TASK_PREFIX)) {
-            indexedStorage.remove(child.toIdentifier());
-            return;
+         if(child.getName().contains(DataCycleManager.TASK_PREFIX)) {
+            ScheduleTask scheduleTask = get(child.toIdentifier());
+
+            if(scheduleTask != null &&
+               scheduleTask.getName().startsWith(DataCycleManager.TASK_PREFIX))
+            {
+               indexedStorage.remove(child.toIdentifier());
+               return;
+            }
          }
 
          if(child.isScheduleTaskFolder()) {

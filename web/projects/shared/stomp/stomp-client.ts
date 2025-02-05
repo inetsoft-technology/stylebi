@@ -97,7 +97,22 @@ export class StompClient {
       const transports = ["xhr-streaming"];
       const socket: any = new SockJS(resolveURL(this.endpoint), null, {transports});
        */
-      const socket: any = new SockJS(this.resolveURL(this.endpoint));
+      let connectURL = this.resolveURL(this.endpoint);
+
+      if(this.emClient) {
+         try {
+            let url = new URL(connectURL);
+            url.searchParams.append("emClient", "true");
+            connectURL = url.toString();
+         }
+         catch(e) {
+            let url = new URL(connectURL, window.location.href);
+            url.searchParams.append("emClient", "true");
+            connectURL = url.pathname + url.search;
+         }
+      }
+
+      const socket: any = new SockJS(connectURL);
       const client = Stomp.over(socket);
       // TODO find where to change server message size limit
       // If a message above 64kb is sent, the socket connection closes stating message size
@@ -190,7 +205,7 @@ export class StompClient {
    private createConnection(): StompClientConnection {
       return new StompClientConnection(
          this.clientChannel, this.heartbeat, () => this.onConnectionDisconnect(),
-         this.ssoHeartbeatService);
+         this.ssoHeartbeatService, this.emClient);
    }
 
    resolveURL(url: string): string {

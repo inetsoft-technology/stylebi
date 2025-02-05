@@ -78,6 +78,18 @@ public class SaveViewsheetDialogController {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
       ViewsheetInfo info = viewsheet.getViewsheetInfo();
+      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+
+      if(SUtil.isDefaultVSGloballyVisible() && rvs.getEntry() != null &&
+         !Tool.equals(pId.orgID, rvs.getEntry().getOrgID())) {
+
+         try {
+            assetRepository.checkAssetPermission(principal, rvs.getEntry(), ResourceAction.WRITE);
+         }
+         catch(Exception e) {
+            throw new MessageException(Catalog.getCatalog().getString("deny.access.write.globally.visible"));
+         }
+      }
 
       SaveViewsheetDialogModel model = new SaveViewsheetDialogModel();
       model.setName(viewsheet.getRuntimeEntry() == null ? "":

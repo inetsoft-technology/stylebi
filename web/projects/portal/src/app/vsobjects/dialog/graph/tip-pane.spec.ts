@@ -121,7 +121,7 @@ describe("Tip Pane Unit Test", () => {
    });
 
    //add unit case for Bug #10676
-   xit("tip view should be None when selected same assembly in flyover", () => {
+   it("tip view should be None when selected same assembly in flyover", () => {
       model.tipOption = true;
       model.tipView = "Gauge1";
       model.flyoverComponents = ["TableView1", "TableView2", "Gauge1"];

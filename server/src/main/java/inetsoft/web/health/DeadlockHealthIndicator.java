@@ -17,6 +17,7 @@
  */
 package inetsoft.web.health;
 
+import inetsoft.util.StatusDumpService;
 import inetsoft.util.health.*;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.actuate.health.Health;
@@ -48,6 +49,7 @@ public class DeadlockHealthIndicator implements HealthIndicator {
 
          LoggerFactory.getLogger(getClass()).error(
             "DeadlockHealthIndicator DOWN: details={}", details);
+         StatusDumpService.getInstance().dumpStatus();
          return Health.down().withDetails(details).build();
       }
 

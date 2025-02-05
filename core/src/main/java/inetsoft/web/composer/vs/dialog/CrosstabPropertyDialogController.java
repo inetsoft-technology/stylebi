@@ -25,8 +25,10 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
+import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -62,12 +64,16 @@ public class CrosstabPropertyDialogController {
       VSObjectPropertyService vsObjectPropertyService,
       RuntimeViewsheetRef runtimeViewsheetRef,
       VSDialogService dialogService,
-      ViewsheetService viewsheetService)
+      ViewsheetService viewsheetService,
+      VSAssemblyInfoHandler assemblyInfoHandler,
+      VSTrapService trapService)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.dialogService = dialogService;
       this.viewsheetService = viewsheetService;
+      this.assemblyInfoHandler = assemblyInfoHandler;
+      this.trapService = trapService;
    }
 
    /**
@@ -228,6 +234,7 @@ public class CrosstabPropertyDialogController {
 
       hierarchyPropertyPaneModel.setDimensions(
          vsDimensionModels.toArray(new VSDimensionModel[0]));
+      hierarchyPropertyPaneModel.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
 
       vsAssemblyScriptPaneModel.scriptEnabled(crosstabAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(crosstabAssemblyInfo.getScript() == null ?
@@ -235,6 +242,37 @@ public class CrosstabPropertyDialogController {
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;
+   }
+
+   @PostMapping("api/composer/vs/crosstab-property-dialog-model/checkTrap/{objectId}/**")
+   @ResponseBody
+   public VSTableTrapModel checkVSTrap(@RequestBody CrosstabPropertyDialogModel value,
+                                       @PathVariable("objectId") String objectId,
+                                       @RemainingPath String runtimeId,
+                                       Principal principal)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      CrosstabVSAssembly crosstab = (CrosstabVSAssembly) rvs.getViewsheet().getAssembly(objectId);
+
+      if(crosstab == null) {
+         return VSTableTrapModel.builder()
+            .showTrap(false)
+            .build();
+      }
+
+      VSAssemblyInfo oldAssemblyInfo = (VSAssemblyInfo) Tool.clone(crosstab.getVSAssemblyInfo());
+      CrosstabVSAssemblyInfo newAssemblyInfo =
+         (CrosstabVSAssemblyInfo) Tool.clone(crosstab.getVSAssemblyInfo());
+
+      HierarchyPropertyPaneModel hierarchyPropertyPaneModel = value.getHierarchyPropertyPaneModel();
+      setCube(newAssemblyInfo, hierarchyPropertyPaneModel);
+
+      rvs.getViewsheet().getAssembly(objectId).setVSAssemblyInfo(newAssemblyInfo);
+      VSTableTrapModel trap = trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
+      rvs.getViewsheet().getAssembly(objectId).setVSAssemblyInfo(oldAssemblyInfo);
+
+      return trap;
    }
 
    /**
@@ -340,8 +378,20 @@ public class CrosstabPropertyDialogController {
                                                   viewsheet.getViewsheet());
       assemblyInfo.setFlyoverViewsValue(flyovers);
       assemblyInfo.setFlyOnClickValue(tipPaneModel.isFlyOnClick() + "");
+      setCube(assemblyInfo, hierarchyPropertyPaneModel);
+      assemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
+      assemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
+      assemblyInfo.resetRColumnWidths();
 
-      XCube vsCube = (XCube) assemblyInfo.getXCube();
+      this.vsObjectPropertyService.editObjectProperty(
+         viewsheet, assemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
+         principal, commandDispatcher);
+   }
+
+   private void setCube(CrosstabVSAssemblyInfo assemblyInfo,
+                        HierarchyPropertyPaneModel hierarchyPropertyPaneModel)
+   {
+      XCube vsCube = assemblyInfo.getXCube();
 
       if(vsCube == null) {
          vsCube = new VSCube();
@@ -384,18 +434,12 @@ public class CrosstabPropertyDialogController {
          ((VSCube) vsCube).setMeasures(measureList);
          assemblyInfo.setXCube(vsCube);
       }
-
-      assemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
-      assemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
-      assemblyInfo.resetRColumnWidths();
-
-      this.vsObjectPropertyService.editObjectProperty(
-         viewsheet, assemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
    }
 
    private final VSObjectPropertyService vsObjectPropertyService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSDialogService dialogService;
    private final ViewsheetService viewsheetService;
+   private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final VSTrapService trapService;
 }

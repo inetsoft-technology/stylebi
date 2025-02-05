@@ -23,6 +23,7 @@ import inetsoft.report.io.viewsheet.WSTableHelper;
 import inetsoft.report.lens.SubTableLens;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.internal.ColumnInfo;
+import inetsoft.util.Catalog;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.slf4j.Logger;
@@ -30,8 +31,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.*;
 
 /**
  * The class is exporting to excel worksheet.
@@ -114,7 +115,7 @@ public class LargeDataExcelWSExporter implements WSExporter {
     * @param lens the specified VSTableLens.
     */
    @Override
-   public void writeTable(TableLens lens, List<ColumnInfo> cinfos) {
+   public void writeTable(TableLens lens, List<ColumnInfo> cinfos, Class[] colTypes, Map<Integer, Integer> colMap) {
       for(int i = 0; i < sheetInfos.size(); i++) {
          SheetInfo sheetInfo = sheetInfos.get(i);
 
@@ -123,7 +124,7 @@ public class LargeDataExcelWSExporter implements WSExporter {
             WSTableHelper helper = new WSTableHelper(book, sheet);
             TableLens sub = new SubTableLens(lens, sheetInfo.start, 0,
                sheetInfo.rcnt, lens.getColCount());
-            helper.writeData(sub, cinfos);
+            helper.writeData(sub, cinfos, colTypes, colMap);
             int num = sheet.getNumMergedRegions();
 
             for(int j = num - 1; num > 0 && j >= 0; j--) {
@@ -140,19 +141,29 @@ public class LargeDataExcelWSExporter implements WSExporter {
       }
    }
 
+   private void setColumnWidthsAsync(Sheet sheet, int colnum) {
+      ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+      short defWidth = (short) (AssetUtil.defw * ExcelVSUtil.EXCEL_PIXEL_WIDTH_FACTOR);
+      CompletableFuture<Void>[] futures = new CompletableFuture[colnum];
+
+      for(int i = 0; i < colnum; i++) {
+         final int columnIndex = i;
+         futures[i] = CompletableFuture.runAsync(() -> {
+            sheet.setColumnWidth((short) columnIndex, defWidth);
+         }, executor);
+      }
+
+      CompletableFuture.allOf(futures).join();
+      executor.shutdown();
+   }
+
    private Sheet createSheet(SheetInfo sheetInfo) {
       Sheet sheet = book.createSheet(sheetInfo.sheetName);
       int start = sheetInfo.start;
       int rcnt = sheetInfo.rcnt;
       int colCount = sheetInfo.ccnt;
-
       int colnum = Math.max(colCount, 0);
-
-      for(int i = 0; i < colnum; i++) {
-         sheet.setColumnWidth((short) i,
-            (short) (AssetUtil.defw * ExcelVSUtil.EXCEL_PIXEL_WIDTH_FACTOR));
-      }
-
+      setColumnWidthsAsync(sheet, colnum);
       int adjust = 0;
 
       // create header row

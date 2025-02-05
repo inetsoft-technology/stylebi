@@ -128,16 +128,23 @@ export abstract class BindingService extends EventService {
    }
 
    isGrayedOutField(name: string) {
-      if(name == null) {
+      if(name == null || this._bindingModel == null || this._bindingModel.source == null ||
+         this._bindingModel.source.source == null)
+      {
          return false;
       }
 
       let field = Tool.replaceStr(name, "\\^", ".");
       field = Tool.replaceStr(field, ":", ".");
+      let source = this._bindingModel.source.source;
       let grayedOutFields: DataRef[] = this.getGrayedOutFields();
 
       for(let i = 0; grayedOutFields && i < grayedOutFields.length; i++) {
          if(field === grayedOutFields[i].name) {
+            return true;
+         }
+
+         if(field === grayedOutFields[i].attribute && source === grayedOutFields[i].entity) {
             return true;
          }
       }

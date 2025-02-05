@@ -269,7 +269,6 @@ public abstract class AbstractModelTrapContext extends AbstractModelContext {
          oinfo = checkTrap(ohelper, oaggs, true, true);
       }
 
-      boolean checkChasm = otables == null || otables.length != tables.length;
       info = checkTrap(nhelper, aggs, true, true);
 
       return oinfo != null && oinfo.showWarning() ? new TrapInfo() : info;

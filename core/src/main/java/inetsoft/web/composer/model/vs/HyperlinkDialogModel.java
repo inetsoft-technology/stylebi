@@ -201,6 +201,14 @@ public class HyperlinkDialogModel {
       this.showRow = showRow;
    }
 
+   public DataRefModel[] getGrayedOutFields() {
+      return grayedOutFields;
+   }
+
+   public void setGrayedOutFields(DataRefModel[] grayedOutFields) {
+      this.grayedOutFields = grayedOutFields;
+   }
+
    @Override
    public String toString() {
       return "HyperlinkDialogModel{" +
@@ -244,4 +252,5 @@ public class HyperlinkDialogModel {
    private boolean text;
    private boolean applyToRow;
    private boolean showRow;
+   private DataRefModel[] grayedOutFields;
 }

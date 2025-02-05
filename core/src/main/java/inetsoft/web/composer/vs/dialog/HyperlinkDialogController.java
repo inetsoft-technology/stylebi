@@ -42,6 +42,7 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
@@ -86,7 +87,8 @@ public class HyperlinkDialogController {
       DataRefModelFactoryService dataRefModelService,
       VSTrapService trapService,
       AssetRepository assetRepository,
-      RepositoryTreeService repositoryTreeService)
+      RepositoryTreeService repositoryTreeService,
+      VSAssemblyInfoHandler assemblyInfoHandler)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.placeholderService = placeholderService;
@@ -96,6 +98,7 @@ public class HyperlinkDialogController {
       this.trapService = trapService;
       this.assetRepository = assetRepository;
       this.repositoryTreeService = repositoryTreeService;
+      this.assemblyInfoHandler = assemblyInfoHandler;
    }
 
    /**
@@ -152,6 +155,7 @@ public class HyperlinkDialogController {
          model.setTable(true);
          model.setShowRow(assembly instanceof TableVSAssembly &&
             !(assembly instanceof EmbeddedTableVSAssembly) && !isRowHeader);
+         model.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs, false));
       }
       else if(assembly instanceof ChartVSAssembly) {
          ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
@@ -164,9 +168,26 @@ public class HyperlinkDialogController {
             hyperlink = chartInfo.getHyperlink();
          }
          else {
-            ChartRef[] chartRefs = chartInfo.getFields(colName,
-               DateComparisonUtil.appliedDateComparison(info));
-            ChartRef chartRef = chartRefs.length == 0 ? ref : chartRefs[0];
+            ChartRef chartRef;
+
+            if(GraphTypes.isTreemap(chartInfo.getRTChartType()) && !isAxis) {
+               ChartRef[] groups = chartInfo.getGroupFields();
+
+               if(groups != null) {
+                  final String finalColName = colName;
+                  chartRef = Arrays.stream(groups)
+                     .filter(f -> f.getFullName().equals(finalColName))
+                     .findFirst().orElse(null);
+               }
+               else {
+                  chartRef = ref;
+               }
+            }
+            else {
+               ChartRef[] chartRefs = chartInfo.getFields(colName,
+                   DateComparisonUtil.appliedDateComparison(info));
+               chartRef = chartRefs.length == 0 ? ref : chartRefs[0];
+            }
 
             hyperlink = chartRef instanceof HyperlinkRef ?
                ((HyperlinkRef) chartRef).getHyperlink() : null;
@@ -393,6 +414,17 @@ public class HyperlinkDialogController {
          ChartRef ref = getMeasure(chartInfo, model.getColName(), true, model.isAxis(), model.isText());
          DataRef dcRef = info.getDCBIndingRef(model.getColName());
          ChartRef[] chartRefs = chartInfo.getFields(model.getColName(), dcRef != null);
+
+         if(GraphTypes.isTreemap(chartInfo.getRTChartType()) && !model.isAxis()) {
+            ChartRef[] groups = chartInfo.getGroupFields();
+
+            if(groups != null) {
+               final String finalColName = model.getColName();
+               chartRefs = new ChartRef[]{ Arrays.stream(groups)
+                  .filter(f -> f.getFullName().equals(finalColName))
+                  .findFirst().orElse(null) };
+            }
+         }
 
          if(chartInfo instanceof MergedVSChartInfo &&
             !(GraphUtil.isDimension(ref) && !(ref instanceof VSChartGeoRef)))
@@ -802,6 +834,17 @@ public class HyperlinkDialogController {
          }
       }
 
+      if(GraphTypes.isTreemap(chartInfo.getRTChartType()) && !isAxis) {
+         ChartRef[] groups = chartInfo.getGroupFields();
+
+         if(groups != null) {
+            final String finalColName = colName;
+            ref = Arrays.stream(groups)
+               .filter(f -> f.getFullName().equals(finalColName))
+               .findFirst().orElse(null);
+         }
+      }
+
       // relation highlights defined on source/target instead of textfield, which is
       // shared by source and target.
       if(GraphTypeUtil.isWordCloud(chartInfo) || isText) {
@@ -894,4 +937,5 @@ public class HyperlinkDialogController {
    private final RepositoryTreeService repositoryTreeService;
    private final AssetRepository assetRepository;
    private final int NONE = 9;
+   private final VSAssemblyInfoHandler assemblyInfoHandler;
 }

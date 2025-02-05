@@ -246,7 +246,7 @@ describe("CalcTableActions", () => {
       expect(toolbarActions).toMatchSnapshot();
    });
 
-   xit("check status of menu actions and toolbar actions in viewer and preview", () => {
+   it("check status of menu actions and toolbar actions in viewer and preview", () => {
       const expectedMenu = [
          [
             { id: "calc-table properties", visible: false },
@@ -335,7 +335,7 @@ describe("CalcTableActions", () => {
       //Bug #17514 check script apply
       model.enableAdvancedFeatures = true;
       selectTitle(model);
-      expect(menuActions1[0].actions[1].visible()).toBeTruthy();
+      expect(menuActions1[0].actions[2].visible()).toBeTruthy();
 
       model.actionNames = ["Condition", "Highlight"];
       expect(menuActions1[0].actions[1].visible()).toBeFalsy();

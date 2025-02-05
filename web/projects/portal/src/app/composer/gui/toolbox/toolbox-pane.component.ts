@@ -55,6 +55,7 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
    toolbox: TreeNodeModel = toolbox;
    private vScrollSubscription = Subscription.EMPTY;
    private combinationTreeRoot: TreeNodeModel;
+   private doNotShowNodes: TreeNodeModel[] = [];
    virtualTop = 0;
    virtualBot = 0;
    virtualMid = 0;
@@ -85,7 +86,7 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
             this.subscribeVScroll();
          }
 
-         this.cd.detectChanges();
+         this.cd.reattach();
       }
 
       if(changes["containerView"] && changes["containerView"].currentValue) {
@@ -111,11 +112,11 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
    }
 
    expandNode(node: TreeNodeModel) {
-      this.virtualScrollTreeDatasource.nodeExpanded(this.combinationTreeRoot, node);
+      this.virtualScrollTreeDatasource.nodeExpanded(this.combinationTreeRoot, node, this.doNotShowNodes);
    }
 
    collapseNode(node: TreeNodeModel) {
-      this.virtualScrollTreeDatasource.nodeCollapsed(this.combinationTreeRoot, node);
+      this.virtualScrollTreeDatasource.nodeCollapsed(this.combinationTreeRoot, node, this.doNotShowNodes);
    }
 
    treeNodesLoaded(bindingRoot: TreeNodeModel) {
@@ -124,17 +125,17 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
          expanded: true
       };
 
+      this.doNotShowNodes = [];
+
       if(bindingRoot) {
          combinationTree.children.push(bindingRoot);
+         this.doNotShowNodes.push(bindingRoot);
       }
 
       combinationTree.children.push(this.toolbox);
       this.combinationTreeRoot = combinationTree;
-
-      setTimeout(() => {
-         this.useVirtualScroll = TreeTool.needUseVirtualScroll(this.combinationTreeRoot);
-         this.virtualScrollTreeDatasource.refreshByRoot(this.combinationTreeRoot);
-      });
+      this.useVirtualScroll = TreeTool.needUseVirtualScroll(this.combinationTreeRoot);
+      this.virtualScrollTreeDatasource.refreshByRoot(this.combinationTreeRoot, undefined, this.doNotShowNodes);
    }
 
    private findLabel(dragName: string): string {
@@ -178,6 +179,15 @@ export class ToolboxPane implements OnChanges, OnInit, OnDestroy {
 
    private calculateBounds(nodes: TreeNodeModel[]): TreeNodeModel[] {
       const nodeHeight = TreeTool.TREE_NODE_HEIGHT;
+
+      if(!this.useVirtualScroll) {
+         this.virtualTop = 0;
+         this.virtualBot = 0;
+         this.virtualMid = nodes.length * nodeHeight;
+
+         return nodes;
+      }
+
       const clientRect = this.containerView.getBoundingClientRect();
       const scrollTop = this.containerView.scrollTop;
       const nodesInView = Math.min(nodes.length, Math.round(clientRect.height / nodeHeight) + 5);

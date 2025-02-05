@@ -18,5 +18,6 @@
 
 export interface SessionExpirationModel {
    remainingTime: number;
-   sessionTimeout: number;
+   expiringSoon: boolean;
+   nodeProtection: boolean;
 }

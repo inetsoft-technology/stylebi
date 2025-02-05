@@ -83,7 +83,7 @@ describe("Worksheet Assembly Graph Pane Test", () => {
       expect(viewsheetClientService.sendEvent).toHaveBeenCalled();
    }));
 
-   xit("should not open a confirm dialog for a non-primary assembly", fakeAsync(() => { // broken test
+   it("should not open a confirm dialog for a non-primary assembly", fakeAsync(() => { // broken test
       const nonPrimaryAssembly: WSAssembly = {
          name: "NonPrimary Assembly",
          description: "",
@@ -97,6 +97,7 @@ describe("Worksheet Assembly Graph Pane Test", () => {
       };
       graphPane.worksheet.currentFocusedAssemblies = [nonPrimaryAssembly];
       const showConfirmDialog = jest.spyOn(ComponentTool, "showConfirmDialog");
+      showConfirmDialog.mockClear();
       showConfirmDialog.mockImplementation(() => Promise.resolve("delete"));
 
       graphPane.removeFocusedAssemblies();

@@ -35,9 +35,9 @@ public class FastDouble2String {
    }
 
    /*
-    * Two caches are because majority of cache will be happening in fracstr. 
+    * Two caches are because majority of cache will be happening in fracstr.
     * It has a separate cache
-    * therefore doublestr cache will stay rather static and avoid the most 
+    * therefore doublestr cache will stay rather static and avoid the most
     * expensive call.
     */
    public String double2String(double val) {
@@ -49,12 +49,12 @@ public class FastDouble2String {
       }
 
       int intval = (int) val;
-      
+
       // optimization, most numbers are integer so handle it as a special case
       if(intval == val) {
          return Integer.toString(intval);
       }
-      
+
       int intpart = Math.abs(intval);
       double fraction = Math.abs(val) - intpart;
 
@@ -100,9 +100,12 @@ public class FastDouble2String {
          String str = Double.toString(fraction);
          int dpoint = intpart > 0 ? 4 : getFirstNonZero(str) + 6;
 
-         result.append(str.substring(1, Math.min(str.length(), dpoint)));
+         // Round up the fraction string
+         String formatString = "%." + (Math.min(str.length(), dpoint) - 2) + "f";
+         str = String.format(formatString, fraction);
+         result.append(str, 1, Math.min(str.length(), dpoint));
          str = result.toString();
-         
+
          if(fracstr.size() > size) {
             fracstr.clear();
          }
@@ -155,7 +158,7 @@ public class FastDouble2String {
 
       return str.length();
    }
-   
+
    // the cache for values that would need to call DecimalFormat(most expensive)
    private Map doublestr;
    // the cache for values that would need to call Double.toString()

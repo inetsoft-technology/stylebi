@@ -657,6 +657,16 @@ export abstract class BaseTable<T extends BaseTableModel> extends AbstractVSObje
          middle = Math.floor((end + start) / 2);
 
          if(middle == 0) {
+            const startPosition: number = this.getRowPosition(start);
+            const endPosition: number = this.getRowPosition(end);
+
+            if(startPosition <= scrollPos && scrollPos < endPosition) {
+               return start;
+            }
+            else if(scrollPos >= endPosition) {
+               return end;
+            }
+
             return 0;
          }
 

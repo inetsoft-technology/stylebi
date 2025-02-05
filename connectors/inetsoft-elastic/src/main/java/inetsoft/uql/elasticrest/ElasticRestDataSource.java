@@ -102,11 +102,14 @@ public class ElasticRestDataSource extends TabularDataSource<ElasticRestDataSour
 
    @Override
    public boolean equals(Object obj) {
+      if(!super.equals(obj)) {
+         return false;
+      }
+
       try {
          ElasticRestDataSource ds = (ElasticRestDataSource) obj;
 
-         return Objects.equals(url, ds.url) &&
-            Objects.equals(getCredential(), ds.getCredential());
+         return Objects.equals(url, ds.url);
       }
       catch(Exception ex) {
          return false;

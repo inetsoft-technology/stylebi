@@ -22,6 +22,7 @@ import { BDimensionRef } from "../../../binding/data/b-dimension-ref";
 import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
 import { XConstants } from "../../../common/util/xconstants";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
+import { ModelService } from "../../../widget/services/model.service";
 import { VSWizardBindingTreeService } from "../../services/vs-wizard-binding-tree.service";
 import { VSWizardItem } from "./wizard-item.component";
 import { DateLevelExamplesService } from "../../../common/services/date-level-examples.service";
@@ -44,9 +45,10 @@ export class VSWizardGroupItem extends VSWizardItem<BDimensionRef> implements On
    constructor(protected modalService: NgbModal,
                protected clientService: ViewsheetClientService,
                protected treeService: VSWizardBindingTreeService,
+               protected modelService: ModelService,
                private examplesService: DateLevelExamplesService)
    {
-      super(modalService, clientService, treeService);
+      super(modalService, clientService, treeService, modelService);
    }
 
    ngOnInit() {

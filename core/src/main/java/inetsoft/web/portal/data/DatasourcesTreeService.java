@@ -110,7 +110,7 @@ public class DatasourcesTreeService {
                .type(entry.getType().name())
                .leaf(children == null || children.size() == 0)
                .children(children)
-               .materialized(AssetTreeController.getMaterialized(entry))
+               .materialized(AssetTreeController.getMaterialized(entry, principal))
                .build();
          })
          .collect(Collectors.toList());
@@ -234,7 +234,7 @@ public class DatasourcesTreeService {
                .type(entry.getType().name())
                .leaf(children == null || children.size() == 0)
                .children(children)
-               .materialized(AssetTreeController.getMaterialized(entry))
+               .materialized(AssetTreeController.getMaterialized(entry, principal))
                .build();
          nodes.add(node);
       }

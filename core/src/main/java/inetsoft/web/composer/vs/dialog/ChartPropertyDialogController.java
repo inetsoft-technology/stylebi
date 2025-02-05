@@ -30,11 +30,13 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.*;
 import inetsoft.web.binding.command.SetVSBindingModelCommand;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.binding.model.BindingModel;
 import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
+import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -62,7 +64,7 @@ public class ChartPropertyDialogController {
     * Creates a new instance of <tt>ChartPropertyController</tt>.
     * @param vsObjectPropertyService VSObjectPropertyService instance
     * @param runtimeViewsheetRef     RuntimeViewsheetRef instance
-    * @param viewsheetService
+    * @param viewsheetService     viewsheetService instance
     */
    @Autowired
    public ChartPropertyDialogController(
@@ -72,7 +74,9 @@ public class ChartPropertyDialogController {
       VSChartHandler vsChartHandler,
       VSDialogService dialogService,
       ViewsheetService viewsheetService,
-      VSBindingService vsBindingService)
+      VSBindingService vsBindingService,
+      VSAssemblyInfoHandler assemblyInfoHandler,
+      VSTrapService trapService)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
@@ -81,6 +85,8 @@ public class ChartPropertyDialogController {
       this.dialogService = dialogService;
       this.viewsheetService = viewsheetService;
       this.vsBindingService = vsBindingService;
+      this.assemblyInfoHandler = assemblyInfoHandler;
+      this.trapService = trapService;
    }
 
    /**
@@ -304,6 +310,7 @@ public class ChartPropertyDialogController {
       }
 
       hierarchyPropertyPaneModel.setDimensions(vsDimensionModels.toArray(new VSDimensionModel[0]));
+      hierarchyPropertyPaneModel.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
 
       vsAssemblyScriptPaneModel.scriptEnabled(chartAssemblyInfo.isScriptEnabled());
       vsAssemblyScriptPaneModel.expression(chartAssemblyInfo.getScript() == null ?
@@ -311,6 +318,37 @@ public class ChartPropertyDialogController {
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;
+   }
+
+   @PostMapping("api/composer/vs/chart-property-dialog-model/checkTrap/{objectId}/**")
+   @ResponseBody
+   public VSTableTrapModel checkVSTrap(@RequestBody ChartPropertyDialogModel value,
+                                       @PathVariable("objectId") String objectId,
+                                       @RemainingPath String runtimeId,
+                                       Principal principal)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      ChartVSAssembly chart = (ChartVSAssembly) rvs.getViewsheet().getAssembly(objectId);
+
+      if(chart == null) {
+         return VSTableTrapModel.builder()
+            .showTrap(false)
+            .build();
+      }
+
+      VSAssemblyInfo oldAssemblyInfo = (VSAssemblyInfo) Tool.clone(chart.getVSAssemblyInfo());
+      ChartVSAssemblyInfo newAssemblyInfo = (ChartVSAssemblyInfo)
+         Tool.clone(chart.getVSAssemblyInfo());
+
+      HierarchyPropertyPaneModel hierarchyPropertyPaneModel = value.getHierarchyPropertyPaneModel();
+      setCube(newAssemblyInfo, hierarchyPropertyPaneModel);
+
+      rvs.getViewsheet().getAssembly(objectId).setVSAssemblyInfo(newAssemblyInfo);
+      VSTableTrapModel trap = trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
+      rvs.getViewsheet().getAssembly(objectId).setVSAssemblyInfo(oldAssemblyInfo);
+
+      return trap;
    }
 
    /**
@@ -450,7 +488,35 @@ public class ChartPropertyDialogController {
 
       assemblyInfo.setVSChartInfo(vsChartInfo);
       assemblyInfo.setRTChartDescriptor(null);
+      setCube(assemblyInfo, hierarchyPropertyPaneModel);
 
+      assemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
+      assemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
+
+      if(assemblyInfo.getTipViewValue() != null) {
+         VSAssembly tip = viewsheet.getViewsheet().getAssembly(assemblyInfo.getTipViewValue());
+
+         if(tip != null && tip.getTipConditionList() != null) {
+            tip.setTipConditionList(null);
+         }
+      }
+
+      this.vsObjectPropertyService.editObjectProperty(
+         viewsheet, assemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
+         principal, commandDispatcher);
+
+      if(viewsheet.getOriginalID() != null) {
+         VSChartInfo cinfo = assemblyInfo.getVSChartInfo();
+         cinfo.setChartDescriptor(((ChartDescriptor) chartDescriptor.clone()));
+         GraphUtil.fixVisualFrames(cinfo);
+         final BindingModel model = vsBindingService.createModel(chartAssembly);
+         commandDispatcher.sendCommand(new SetVSBindingModelCommand(model));
+      }
+   }
+
+   private void setCube(ChartVSAssemblyInfo assemblyInfo,
+                        HierarchyPropertyPaneModel hierarchyPropertyPaneModel)
+   {
       XCube xcube = assemblyInfo.getXCube();
 
       if(xcube == null) {
@@ -493,29 +559,6 @@ public class ChartPropertyDialogController {
          ((VSCube) xcube).setDimensions(dimensionList);
          ((VSCube) xcube).setMeasures(measureList);
          assemblyInfo.setXCube(xcube);
-      }
-
-      assemblyInfo.setScriptEnabled(vsAssemblyScriptPaneModel.scriptEnabled());
-      assemblyInfo.setScript(vsAssemblyScriptPaneModel.expression());
-
-      if(assemblyInfo.getTipViewValue() != null) {
-         VSAssembly tip = viewsheet.getViewsheet().getAssembly(assemblyInfo.getTipViewValue());
-
-         if(tip != null && tip.getTipConditionList() != null) {
-            tip.setTipConditionList(null);
-         }
-      }
-
-      this.vsObjectPropertyService.editObjectProperty(
-         viewsheet, assemblyInfo, objectId, basicGeneralPaneModel.getName(), linkUri,
-         principal, commandDispatcher);
-
-      if(viewsheet.getOriginalID() != null) {
-         VSChartInfo cinfo = assemblyInfo.getVSChartInfo();
-         cinfo.setChartDescriptor(((ChartDescriptor) chartDescriptor.clone()));
-         GraphUtil.fixVisualFrames(cinfo);
-         final BindingModel model = vsBindingService.createModel(chartAssembly);
-         commandDispatcher.sendCommand(new SetVSBindingModelCommand(model));
       }
    }
 
@@ -615,4 +658,6 @@ public class ChartPropertyDialogController {
    private final VSDialogService dialogService;
    private final ViewsheetService viewsheetService;
    private final VSBindingService vsBindingService;
+   private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final VSTrapService trapService;
 }

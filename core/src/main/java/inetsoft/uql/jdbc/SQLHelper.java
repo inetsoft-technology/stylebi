@@ -928,13 +928,7 @@ public class SQLHelper implements KeywordProvider {
          else {
             String quote = getQuote();
 
-            // If table name has quote, it is fixed quote before, so add it directly.
-            if(namestr.contains(quote)) {
-               sb.append(namestr);
-            }
-            else {
-               sb.append(quoteTableName(namestr));
-            }
+            fixTableName(namestr, sb, quote, true);
          }
       }
 
@@ -962,6 +956,16 @@ public class SQLHelper implements KeywordProvider {
       }
 
       return formatSubquery(sb);
+   }
+
+   protected void fixTableName(String namestr, StringBuilder sb, String quote, boolean selectClause) {
+      // If table name has quote, it is fixed quote before, so add it directly.
+      if(namestr.contains(quote)) {
+         sb.append(namestr);
+      }
+      else {
+         sb.append(quoteTableName(namestr));
+      }
    }
 
    /**
@@ -1286,10 +1290,11 @@ public class SQLHelper implements KeywordProvider {
                // as "/", it should fix there to quote "\" char.
                String quote = getQuote();
 
-               if(!uniformSql.isSqlQuery() || !column.contains(quote)) {
+               if(!uniformSql.isSqlQuery() || !column.contains(quote) || requiresSpecialQuoteHandling()) {
                   if(table.contains(quote) && column.startsWith(table)) {
                      String cpart = column.substring(table.length() + 1);
-                     column = table + "." + quoteColumnPartAlias(cpart);
+                     String quotedTable = quoteTableNameWithQuotedSchema(table, true);
+                     column = quotedTable + "." + quoteColumnPartAlias(cpart);
                   }
                   else {
                      column = quotePath(column, true, false, true);
@@ -3312,19 +3317,19 @@ public class SQLHelper implements KeywordProvider {
       return sb.toString();
    }
 
-   private void processCatalog(StringBuilder sb, String catalog,
+   protected void processCatalog(StringBuilder sb, String catalog,
                                  boolean selectClause) {
       sb.append(XUtil.quoteAlias(catalog, this));
       sb.append(".");
    }
 
-   private void processSchema(StringBuilder sb, String schema,
+   protected void processSchema(StringBuilder sb, String schema,
                                 boolean selectClause) {
       sb.append(XUtil.quoteNameSegment(schema, this));
       sb.append(".");
    }
 
-   private void processTableSchema(StringBuilder sb, String schema,
+   protected void processTableSchema(StringBuilder sb, String schema,
                                      boolean selectClause) {
    }
 
@@ -3923,7 +3928,7 @@ public class SQLHelper implements KeywordProvider {
    /**
     * Replace table name in expression.
     */
-   private String replaceTable(String expr, String alias, String nalias) {
+   protected String replaceTable(String expr, String alias, String nalias) {
       int idx = 0;
       int s;
 
@@ -4110,6 +4115,15 @@ public class SQLHelper implements KeywordProvider {
       }
 
       return alias;
+   }
+
+   protected boolean requiresSpecialQuoteHandling() {
+      return false;
+   }
+
+   protected String quoteTableNameWithQuotedSchema(String name, boolean selectClause) {
+      //base helper does not require special handling
+      return name;
    }
 
    private String getAutoAlias(String alias, int index) {

@@ -80,7 +80,13 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
       UserVariable[] vars = super.getAllVariables();
       List<UserVariable> list = new ArrayList<>();
       mergeVariables(list, vars);
+      list.addAll(getTabularTableQueryVariables());
 
+      return list.toArray(new UserVariable[0]);
+   }
+
+   public List<UserVariable> getTabularTableQueryVariables() {
+      List<UserVariable> list = new ArrayList<>();
       TabularQuery query = getTabularTableAssemblyInfo().getQuery();
 
       if(query != null) {
@@ -102,7 +108,7 @@ public class TabularTableAssembly extends BoundTableAssembly implements Scripted
          list.addAll(TabularUtil.findVariables(query));
       }
 
-      return list.toArray(new UserVariable[0]);
+      return list;
    }
 
    @Override

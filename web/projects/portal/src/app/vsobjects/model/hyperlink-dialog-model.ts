@@ -39,4 +39,5 @@ export interface HyperlinkDialogModel {
    isAxis?: boolean;
    applyToRow?: boolean;
    showRow?: boolean;
+   grayedOutFields: DataRef[];
 }

@@ -214,12 +214,12 @@ public class TableArray extends ScriptableObject implements ArrayObject, Wrapper
       }
       else {
          if(LOG.isDebugEnabled()) {
-            LOG.error(
+            LOG.warn(
                "Row[{}] not found in: {} {} rows", index, lens.getClass(), lens.getRowCount(),
                new ArrayIndexOutOfBoundsException(index));
          }
          else {
-            LOG.error(
+            LOG.warn(
                "Row[{}] not found in: {} {} rows", index, lens.getClass(), lens.getRowCount());
          }
       }

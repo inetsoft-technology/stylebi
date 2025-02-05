@@ -18,6 +18,7 @@
 package inetsoft.uql.viewsheet.graph.aesthetic;
 
 import inetsoft.graph.aesthetic.CategoricalColorFrame;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.*;
 import inetsoft.util.css.CSSDictionary;
 import inetsoft.util.css.CSSParameter;
@@ -43,7 +44,7 @@ public class ColorPalettes {
    public static Collection<String> getPaletteNames() {
       synchronized(ColorPalettes.class) {
          singleton.loadPalettes();
-         return singleton.palettes.keySet();
+         return singleton.paletteMap.get(OrganizationManager.getInstance().getCurrentOrgID()).keySet();
       }
    }
 
@@ -53,7 +54,7 @@ public class ColorPalettes {
    public static Collection<String> getPaletteNames(String cssLocation) {
       synchronized(ColorPalettes.class) {
          singleton.loadPalettes(cssLocation, true);
-         return singleton.palettes.keySet();
+         return singleton.paletteMap.get(OrganizationManager.getInstance().getCurrentOrgID()).keySet();
       }
    }
 
@@ -63,7 +64,7 @@ public class ColorPalettes {
    public static CategoricalColorFrame getPalette(String name) {
       synchronized(ColorPalettes.class) {
          singleton.loadPalettes();
-         return singleton.palettes.get(name);
+         return singleton.paletteMap.get(OrganizationManager.getInstance().getCurrentOrgID()).get(name);
       }
    }
 
@@ -73,7 +74,7 @@ public class ColorPalettes {
    public static CategoricalColorFrame getPalette(String name, String cssLocation) {
       synchronized(ColorPalettes.class) {
          singleton.loadPalettes(cssLocation, true);
-         return singleton.palettes.get(name);
+         return singleton.paletteMap.get(OrganizationManager.getInstance().getCurrentOrgID()).get(name);
       }
    }
 
@@ -94,33 +95,19 @@ public class ColorPalettes {
          cssDictionary = CSSDictionary.getDictionary();
       }
 
-      if(palettes == null || cssDictionary.getLastModifiedTime() > last ||
+      if(paletteMap.get(OrganizationManager.getInstance().getCurrentOrgID()) == null ||
+         CSSDictionary.getOrgScopedCSSLastModified(cssDictionary) > last ||
          !Tool.equals(cssLocation, lastCSSLocation))
       {
-         if(!report) {
-            try {
-               // if colorpalettes.xml exists then convert it to css and
-               // append it to format.css in portal
-               if(DataSpace.getDataSpace().exists("portal", "colorpalettes.xml")) {
-                  convertXMLColorPaletteToCSS();
-                  cssDictionary.changeListener.dataChanged(null);
-               }
-            }
-            catch(Exception ex) {
-               LOG.error(
-                  "Failed to convert colorpalettes.xml to css", ex);
-            }
-         }
-
          try {
             // holds the last modified time of the css file so we know
             // to update the palette if the file changes
-            last = cssDictionary.getLastModifiedTime();
+            last = CSSDictionary.getOrgScopedCSSLastModified(cssDictionary);
             lastCSSLocation = cssLocation;
             // get all palette names defined in the css file
             Set<String> paletteNames = cssDictionary.getCSSAttributeValues(
                "ChartPalette", null, "name");
-            palettes = new OrderedMap<>();
+            OrderedMap palettes = new OrderedMap<>();
 
             for(String name : paletteNames) {
                Map<String, String> attributes = new HashMap<>();
@@ -160,6 +147,8 @@ public class ColorPalettes {
                frame.setDefaultColors(colors);
                palettes.put(name, frame);
             }
+
+            paletteMap.put(OrganizationManager.getInstance().getCurrentOrgID(), palettes);
          }
          catch(Exception ex) {
             LOG.error("Failed to load color palette", ex);
@@ -167,71 +156,8 @@ public class ColorPalettes {
       }
    }
 
-   /**
-    * Converts palettes in colorpalettes.xml to css based formatting
-    */
-   private void convertXMLColorPaletteToCSS() throws Exception {
-      DataSpace dataspace = DataSpace.getDataSpace();
-
-      try(DataSpace.Transaction tx = dataspace.beginTransaction();
-         OutputStream out = tx.newStream("portal", "format.css.new"))
-      {
-
-         // if format.css exists then copy the contents to the output stream
-         if(dataspace.exists("portal", "format.css")) {
-            try(InputStream fInput = dataspace.getInputStream("portal", "format.css")) {
-               Tool.copyTo(fInput, out);
-            }
-         }
-
-         // parse the contents of colorpalettes.xml
-         Document doc;
-
-         try(InputStream cpInput = dataspace.getInputStream("portal", "colorpalettes.xml")) {
-            doc = Tool.parseXML(cpInput);
-         }
-
-         Element elem = Tool.getChildNodeByTagName(doc, "palettes");
-         NodeList nodes = Tool.getChildNodesByTagName(elem, "palette");
-         PrintWriter writer = new PrintWriter(out);
-
-         for(int i = 0; i < nodes.getLength(); i++) {
-            Element pnode = (Element) nodes.item(i);
-            String name = Tool.getAttribute(pnode, "name");
-            CategoricalColorFrameWrapper frame = new CategoricalColorFrameWrapper();
-            frame.parseXML(pnode);
-            int colorCount = ((CategoricalColorFrame) frame.getVisualFrame()).getColorCount();
-
-            // write out the colors in the css format
-            for(int j = 0; j < colorCount; j++) {
-               Color color = frame.getColor(j);
-               writer.println("ChartPalette[name='" + name + "']" + "[index='" + (j + 1) + "'] {");
-               writer.format("  color: #%02x%02x%02x;%n",color.getRed(), color.getGreen(),
-                             color.getBlue());
-               writer.println("}\n");
-            }
-         }
-
-         // release the streams
-         writer.flush();
-         writer.flush();
-         tx.commit();
-      }
-
-      // delete existing format.css and colorpalettes.xml
-      if(dataspace.exists("portal", "format.css")) {
-         dataspace.delete("portal", "format.css");
-      }
-
-      dataspace.delete("portal", "colorpalettes.xml");
-
-      // rename format.css.new to format.css
-      dataspace.rename(dataspace.getPath("portal", "format.css.new"),
-         dataspace.getPath("portal", "format.css"));
-   }
-
    private static ColorPalettes singleton = new ColorPalettes();
-   private OrderedMap<String, CategoricalColorFrame> palettes;
+   private HashMap<String, OrderedMap<String, CategoricalColorFrame>> paletteMap = new HashMap<>();
    private long last = 0;
    private String lastCSSLocation;
    private static final Logger LOG = LoggerFactory.getLogger(ColorPalettes.class);

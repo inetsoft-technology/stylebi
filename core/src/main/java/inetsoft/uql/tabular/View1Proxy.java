@@ -134,6 +134,11 @@ public class View1Proxy implements View1 {
    }
 
    @Override
+   public String[] affectedViews() {
+      return new String[0];
+   }
+
+   @Override
    public String visibleMethod() {
       return view2.visibleMethod();
    }

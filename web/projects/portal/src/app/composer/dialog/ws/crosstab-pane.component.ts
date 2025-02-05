@@ -19,6 +19,7 @@ import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { ColumnRef } from "../../../binding/data/column-ref";
 import { AggregateFormula } from "../../../binding/util/aggregate-formula";
 import { AssetUtil } from "../../../binding/util/asset-util";
+import { SummaryAttrUtil } from "../../../binding/util/summary-attr-util";
 import { AggregateRef } from "../../../common/data/aggregate-ref";
 import { DataRef } from "../../../common/data/data-ref";
 import { GroupRef } from "../../../common/data/group-ref";
@@ -79,7 +80,7 @@ export class CrosstabPane {
          });
       }
 
-      if(this.columnHeader == null || headerGroupEquals(this.columnHeader, headerGroups[0])) {
+      if(this.columnHeader == null || headerGroups[0] != null) {
          this.columnHeader = headerGroups[0];
       }
       else {
@@ -352,6 +353,10 @@ export class CrosstabPane {
    isTimeSeriesDisabled(row: HeaderGroup) {
       return !row.group || !XSchema.isDateType(row.selectedRef.dataType) || !row.dgroup ||
          (row.dgroup & XConstants.PART_DATE_GROUP) != 0;
+   }
+
+   isByFormula(aggregate: AggregateFormula): boolean {
+      return SummaryAttrUtil.isByFormula(aggregate.formulaName);
    }
 }
 

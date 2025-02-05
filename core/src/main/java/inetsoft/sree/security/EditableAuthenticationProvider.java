@@ -71,10 +71,12 @@ public interface EditableAuthenticationProvider extends AuthenticationProvider {
     * copy one organization's details and save new Organization
     *
     * @param fromOrganization the organization to copy from.
+    * @param editedNewOrganization the edited new organization by change organization info.
     * @param newOrgId the organization name of the newly created org\
     * @param newOrgName the organization name of the newly created org
     */
-   void copyOrganization(Organization fromOrganization, String newOrgId, String newOrgName, IdentityService identityService,
+   void copyOrganization(Organization fromOrganization, Organization editedNewOrganization,
+                         String newOrgId, String newOrgName, IdentityService identityService,
                          IdentityThemeService themeService, Principal principal, boolean replace);
 
    /**

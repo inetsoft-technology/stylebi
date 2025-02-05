@@ -174,7 +174,7 @@ public class VSBindingService {
          viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
       Viewsheet viewsheet = rvs.getViewsheet();
 
-      VSAssembly containerAssembly = (VSAssembly) viewsheet.getAssembly(event.getName());
+      VSAssembly containerAssembly = viewsheet.getAssembly(event.getName());
       List<AssetEntry> bindings = event.getBinding();
       TableTransfer tableData = event.getComponentBinding();
 
@@ -280,7 +280,8 @@ public class VSBindingService {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet viewsheet = rvs.getViewsheet();
       List<AssetEntry> bindings = event.getBinding();
-      VSAssembly vsassembly;
+      OutputColumnRefModel[] columns = event.getColumns();
+      VSAssembly vsassembly = null;
       VSAssemblyInfo oldAssemblyInfo;
       VSAssemblyInfo newAssemblyInfo;
 
@@ -288,9 +289,22 @@ public class VSBindingService {
          vsassembly = getNewAssemblyFromComponentBinding(
             event.getComponentBinding(), viewsheet, event.getX(), event.getY());
       }
-      else {
+      else if(bindings != null) {
          vsassembly = getNewAssemblyFromBindings(
             bindings, event.getX(), event.getY(), rvs, principal);
+      }
+      else if(columns != null) {
+         oldAssemblyInfo = null;
+
+         for(int i = 0; i < columns.length; i++) {
+            vsassembly = getNewAssemblyFromColumn(columns[i],  rvs);
+            newAssemblyInfo = vsassembly != null ? vsassembly.getVSAssemblyInfo() : null;
+            VSTableTrapModel trap = trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
+
+            if(trap.showTrap()) {
+               return trap;
+            }
+         }
       }
 
       oldAssemblyInfo = null;

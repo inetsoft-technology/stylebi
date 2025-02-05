@@ -17,6 +17,7 @@
  */
 package inetsoft.util.health;
 
+import java.io.Serial;
 import java.io.Serializable;
 
 public final class OutOfMemoryStatus implements Serializable {
@@ -47,5 +48,6 @@ public final class OutOfMemoryStatus implements Serializable {
 
    private final boolean outOfMemory;
    private final String time;
+   @Serial
    private static final long serialVersionUID = 1L;
 }

@@ -160,6 +160,13 @@ Initial values for any of these properties can be set using environment variable
 
 For example, the `mail.smtp.host` property can be set with the `INETSOFTENV_MAIL_SMTP_HOST` environment variable.
 
+### Localize
+Application provides localization files for each country, just copy the file from 
+`srinter_{language}_{country}.properties`  
+to   
+`/usr/local/inetsoft/classes/inetsoft/util`  
+then goto `EM/Setting/General/Localize` page to register the localization file.
+
 ## Docker Containers
 
 There is one Docker image used for three containers. Each type of container uses a different command.

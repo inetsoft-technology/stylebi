@@ -162,7 +162,7 @@ describe("Viewsheet print layout dialog Test", () => {
 
    //Bug #18429, check custom size
    //Bug #18793 change width and height when units changed
-   xit("check custom size", () => { // broken test
+   it("check custom size", () => { // broken test
       printDialog.model.paperSize = "(Custom Size)";
       fixture.detectChanges();
 
@@ -174,7 +174,7 @@ describe("Viewsheet print layout dialog Test", () => {
       customHeight.dispatchEvent(new Event("input"));
       fixture.detectChanges();
 
-      let warning = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      let warning = fixture.debugElement.query(By.css("div.alert.alert-danger"));
       expect(warning).toBeNull();
 
       let unit = fixture.debugElement.query(By.css(".unit_select_id")).nativeElement;
@@ -213,7 +213,7 @@ describe("Viewsheet print layout dialog Test", () => {
    });
 
    //Bug #19391 from edge and margin check
-   xit("from edge and margin check for A2", () => { // broken test
+   it("from edge and margin check for A2", () => { // broken test
       printDialog.model.paperSize = "A2 [420x594 mm]";
       fixture.detectChanges();
       topInput = fixture.debugElement.query(By.css("input[formcontrolname=marginTop]")).nativeElement;
@@ -230,7 +230,7 @@ describe("Viewsheet print layout dialog Test", () => {
       footerInput.value = "2";
       footerInput.dispatchEvent(new Event("input"));
       fixture.detectChanges();
-      let warning = fixture.debugElement.query(By.css(".is-invalid ~ span.invalid-feedback")).nativeElement;
+      let warning = fixture.debugElement.query(By.css(".is-invalid ~ span.invalid-feedback"));
       expect(warning).toBeNull();
    });
 

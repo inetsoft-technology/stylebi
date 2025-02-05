@@ -835,7 +835,7 @@ export class VSCrosstab extends BaseTable<VSCrosstabModel> implements OnInit, On
    }
 
    public isHyperlink(cell: BaseTableCellModel): boolean {
-      return cell.hyperlinks != null && cell.hyperlinks.length > 0;
+      return cell.hyperlinks != null && cell.hyperlinks.length > 0 && cell.underline;
    }
 
    selectTitle(event: MouseEvent): void {

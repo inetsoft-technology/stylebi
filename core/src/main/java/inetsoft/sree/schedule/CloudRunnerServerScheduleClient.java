@@ -20,8 +20,10 @@ package inetsoft.sree.schedule;
 
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.SingletonManager;
+import inetsoft.util.health.HealthStatus;
 
 import java.rmi.RemoteException;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 public class CloudRunnerServerScheduleClient extends ScheduleClient {
@@ -91,6 +93,26 @@ public class CloudRunnerServerScheduleClient extends ScheduleClient {
    @Override
    public boolean isCluster() {
       return false;
+   }
+
+   @Override
+   public boolean isCloud() {
+      return true;
+   }
+
+   @Override
+   public boolean isAutoStart() {
+      return false;
+   }
+
+   @Override
+   public Optional<HealthStatus> getHealthStatus() throws RemoteException {
+      return Optional.of(getSchedule().getHealth());
+   }
+
+   @Override
+   public Optional<HealthStatus> getHealthStatus(String server) throws RemoteException {
+      return Optional.of(getSchedule().getHealth());
    }
 
    private ScheduleServer getSchedule() {

@@ -69,6 +69,17 @@ public class NodeProtectionService {
       return false;
    }
 
+   /**
+    * Returns the node protection expiration time in case of a failure to extend protection time.
+    */
+   public long getExpirationTime() {
+      if(nodeProtector != null) {
+         return nodeProtector.getExpirationTime();
+      }
+
+      return 0;
+   }
+
    @PreDestroy
    private void close() throws Exception {
       nodeProtector.close();

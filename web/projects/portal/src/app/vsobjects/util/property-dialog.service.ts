@@ -45,6 +45,21 @@ export class PropertyDialogService {
          });
    }
 
+   public checkCrosstab(id: string, scripts: string[], ok: Function, cancel: Function): void {
+      const uri = "../api/composer/vs/check-trap/" + Tool.byteEncode(id);
+      this.modelService.sendModel<string>(uri, scripts)
+         .subscribe(res => {
+            const msg = res.body;
+
+            if(msg) {
+               this.showError(msg).then(yes => yes ? ok() : cancel());
+            }
+            else {
+               ok();
+            }
+         });
+   }
+
    private showError(error: string): Promise<boolean> {
       const msg = Tool.formatCatalogString("_#(js:viewer.viewsheet.scriptFailed)", [error]);
       const buttons = {"yes": "_#(js:Yes)", "no": "_#(js:No)"};

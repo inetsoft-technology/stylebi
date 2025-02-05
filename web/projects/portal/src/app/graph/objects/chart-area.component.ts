@@ -246,6 +246,8 @@ export class ChartArea implements OnChanges, OnDestroy {
    plotRegion: Rectangle = new Rectangle(0, 0, 0, 0);
    // drop type
    private dropType: number = -1;
+   private _plotLoaded = true;
+   private _axisLoaded = true;
 
    // Mouse position
    eventXdown: number;
@@ -1321,13 +1323,39 @@ export class ChartArea implements OnChanges, OnDestroy {
       this.mouseoverLegendRegion = legendRegion;
    }
 
+   axisLoading(): void {
+      this._axisLoaded = false;
+      this.fireLoading();
+   }
+
+   axisLoaded(success: boolean) {
+      this.imageError = !success;
+      this._axisLoaded = true;
+      this.fireLoaded();
+   }
+
+   plotLoading(): void {
+      this._plotLoaded = false;
+      this.fireLoading();
+   }
+
    plotLoaded(success: boolean): void {
       this.imageError = !success;
+      this._plotLoaded = true;
+      this.fireLoaded();
+   }
 
-      if(!success) {
+   private fireLoading(): void {
+      if(!(this._axisLoaded || this._plotLoaded)) {
+         this.onLoading.emit(true);
+      }
+   }
+
+   private fireLoaded(): void {
+      if(this.imageError) {
          this.onError.emit(true);
       }
-      else {
+      else if(this._axisLoaded && this._plotLoaded) {
          this.onLoad.emit(true);
       }
    }

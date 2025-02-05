@@ -78,8 +78,8 @@
     </div>
   </div>
   <div class="alert alert-danger"
-       *ngIf="form.controls.startTime?.invalid ||
-       !!timeRanges && timeRanges.length != 0 && form.controls.timeRange?.invalid">
+       *ngIf="form.controls.startTime?.invalid && timeRangeEnabled||
+       !!timeRanges && timeRanges.length != 0 && form.controls.timeRange?.invalid && timeRangeEnabled">
     _#(viewer.schedule.condition.startTimeValid)
   </div>
   <div class="alert alert-danger" *ngIf="!startTimeSelected() && (!timeRanges || timeRanges.length == 0)">

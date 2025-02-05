@@ -32,7 +32,6 @@ import { GuiTool } from "../../../common/util/gui-tool";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { Viewsheet } from "../../../composer/data/vs/viewsheet";
-import { VSWizardBindingTreeService } from "../../../vs-wizard/services/vs-wizard-binding-tree.service";
 import { ContextMenuActions } from "../../../widget/context-menu/context-menu-actions";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { ModelService } from "../../../widget/services/model.service";
@@ -40,7 +39,6 @@ import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { CalculateRef } from "../../data/calculate-ref";
 import { ModifyAggregateFieldEvent } from "../../event/modify-aggregate-field-event";
 import { ModifyCalculateFieldEvent } from "../../event/modify-calculate-field-event";
-import { CreateCalcDialog } from "../calculate-dialog/create-calc-dialog.component";
 import { BindingTreeService } from "./binding-tree.service";
 import { ComponentTool } from "../../../common/util/component-tool";
 import { ChartRef } from "../../../common/data/chart-ref";
@@ -278,6 +276,7 @@ export class VSBindingTreeActions extends ContextMenuActions {
          calcDialog.columns = <DataRef[]> fieldsInfo.columnFields;
          calcDialog.aggregates = <DataRef[]> fieldsInfo.aggregateFields;
          calcDialog.calcFieldsGroup = <string[]> fieldsInfo.calcFieldsGroup;
+         calcDialog.grayedOutFields = <DataRef[]> fieldsInfo.grayedOutFields;
          calcDialog.dataType = "string";
          calcDialog.aggregateModify.subscribe((result: any) => {
             this.modifyAggreagteField(tableName, result.nref, result.oref);
@@ -510,49 +509,10 @@ export class VSBindingTreeActions extends ContextMenuActions {
       const event: ModifyCalculateFieldEvent = new ModifyCalculateFieldEvent(name,
          cref, tname, remove, create, refname, dimtype, false, false,
          this.isWizard, this.wizardOriginalMode);
-
-      // Check whether the calculated field is being used by other assemblies. Need confirm
-      // for renaming and removing.
-      const isCalcInUseUri: string = "../api/vs/calculate/is-calc-in-use/" +
-         Tool.encodeURIPath(this.runtimeId);
-      const getAssemblyNameUri: string = "../api/vs/calculate/get-in-use-assembly-name/" +
-         Tool.encodeURIPath(this.runtimeId);
       const params = new HttpParams()
          .set("tname", tname)
          .set("refname", refname);
-
-      if(needConfirm) {
-         this.modelService.getModel(isCalcInUseUri, params)
-            .subscribe(
-               (inUse: string) => {
-                  if(inUse === "true") {
-                     this.modelService.getModel(getAssemblyNameUri, params)
-                        .subscribe(
-                           (assemblyName: string) => {
-                              const message: string = "_#(js:viewer.viewsheet.field.vsused.warning)" + "_*" + assemblyName;
-                              ComponentTool.showConfirmDialog(this.dialogService, "_#(js:Confirm)", message,
-                                 {"yes": "_#(js:Yes)", "no": "_#(js:No)"})
-                                 .then((result: string) => {
-                                    if("yes" == result) {
-                                       event.confirmed = true;
-                                       this.checkTrap(cref, params, event, remove);
-                                    }
-                              });
-                           }
-                        );
-                  }
-                  else {
-                     this.checkTrap(cref, params, event, remove);
-                  }
-               },
-               (err: any) => {
-                  console.error("Failed to get in use assembly name: ", err);
-               }
-            );
-      }
-      else {
-         this.checkTrap(cref, params, event, remove);
-      }
+      this.checkTrap(cref, params, event, remove);
    }
 
    private checkTrap(calc: CalculateRef, params: HttpParams, event: ModifyCalculateFieldEvent,

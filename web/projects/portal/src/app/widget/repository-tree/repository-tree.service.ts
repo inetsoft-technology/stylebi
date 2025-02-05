@@ -59,10 +59,11 @@ export class RepositoryTreeService implements OnDestroy {
                  isGlobal: boolean = false,
                  showBurstReport: boolean = true,
                  isPortalRepo: boolean = false,
-                 isDefaultOrgAsset: boolean = false): Observable<TreeNodeModel>
+                 isDefaultOrgAsset: boolean = false,
+                 showVS: boolean = false): Observable<TreeNodeModel>
    {
       return this.getFolder("/", permission, selector, detailType, isFavoritesTree, null,
-         checkDetailType, isReport, isGlobal, false, false, showBurstReport, isPortalRepo, isDefaultOrgAsset);
+         checkDetailType, isReport, isGlobal, false, showVS, showBurstReport, isPortalRepo, isDefaultOrgAsset);
    }
 
    getFolder(path: string, permission?: ResourceAction, selector?: number,

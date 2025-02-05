@@ -17,15 +17,22 @@
  */
 package inetsoft.web.vswizard.controller;
 
+import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
+import inetsoft.report.composition.VSModelTrapContext;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
+import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.asset.*;
+import inetsoft.uql.erm.AbstractModelTrapContext;
 import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.viewsheet.ChartVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.graph.VSChartInfo;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.graph.*;
+import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.util.Tool;
+import inetsoft.web.adhoc.DecodeParam;
+import inetsoft.web.binding.event.VSDndEvent;
 import inetsoft.web.binding.handler.VSChartDataHandler;
 import inetsoft.web.binding.handler.VSChartHandler;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -41,6 +48,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.ArrayList;
@@ -65,6 +73,52 @@ public class VSWizardConvertColumnController {
       this.temporaryInfoService = temporaryInfoService;
    }
 
+   @PutMapping("/api/vs/wizard/checktrap")
+   @ResponseBody
+   public boolean checktrap(@DecodeParam("vsId") String vsId,
+                            @RequestBody ConvertColumnEvent event,
+                            Principal principal) throws Exception
+   {
+      RuntimeViewsheet rvs = ViewsheetEngine.getViewsheetEngine().getViewsheet(vsId, principal);
+
+      if(rvs == null) {
+         return false;
+      }
+
+      VSTemporaryInfo tempInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
+      String[] columnNames = event.columnNames();
+      int changeType = event.changeType();
+      ChartVSAssembly tempChart = tempInfo.getTempChart();
+      ChartVSAssemblyInfo old = (ChartVSAssemblyInfo) tempChart.getVSAssemblyInfo().clone();
+      VSChartInfo tempChartInfo = tempChart.getVSChartInfo();
+      AggregateInfo ainfo = (AggregateInfo) tempChartInfo.getAggregateInfo().clone();
+
+      for(String columnName : columnNames) {
+         vsChartDataHandler.fixAggregateInfo(tempChartInfo, columnName, changeType);
+
+         for(int i = tempChartInfo.getXFieldCount(); i >= 0; i--) {
+            ChartRef ref = tempChartInfo.getXField(i);
+
+            if(ref instanceof VSChartDimensionRef && Tool.equals(columnName, ref.getFullName())) {
+               VSChartAggregateRef agg = new VSChartAggregateRef();
+               agg.setColumnValue(columnName);
+               agg.setFormulaValue(AggregateFormula.COUNT_ALL.getFormulaName());
+               agg.setDataRef(((VSChartDimensionRef) ref).getDataRef());
+               tempChartInfo.removeXField(i);
+               tempChartInfo.addYField(agg);
+            }
+         }
+      }
+
+      tempChartInfo.clearRuntime();
+      VSModelTrapContext context = new VSModelTrapContext(rvs, true);
+      AbstractModelTrapContext.TrapInfo trapInfo = context.checkTrap(old, tempChart.getVSAssemblyInfo());
+      tempChartInfo.setAggregateInfo(ainfo);
+      tempChart.setVSAssemblyInfo(old);
+
+      return trapInfo.showWarning();
+   }
+
    @HandleWizardExceptions
    @MessageMapping("/vs/wizard/convertColumn")
    public void convertColumn(@Payload ConvertColumnEvent event,
@@ -83,7 +137,6 @@ public class VSWizardConvertColumnController {
       box.lockRead();
 
       try {
-         AssetEntry baseEntry = vs.getBaseEntry();
          VSTemporaryInfo tempInfo = temporaryInfoService.getVSTemporaryInfo(rvs);
          String[] columnNames = event.columnNames();
          int changeType = event.changeType();
@@ -105,8 +158,6 @@ public class VSWizardConvertColumnController {
             VSUtil.setDefaultGeoColumns(tempChartInfo, rvs, event.tableName());
          }
 
-         AggregateInfo aggInfo = (AggregateInfo) tempChartInfo.getAggregateInfo().clone();
-
          for(String columnName : columnNames) {
             vsChartDataHandler.fixAggregateInfo(tempChartInfo, columnName, changeType);
             boolean isGeo = tempChartInfo.getGeoColumns().getAttribute(columnName) != null;
@@ -126,42 +177,11 @@ public class VSWizardConvertColumnController {
             }
          }
 
-         AggregateInfo naggInfo = tempChartInfo.getAggregateInfo();
-
-         List<TableAssembly> assemblies = bindingHandler.getLMTableAssemblies(baseEntry, principal);
-         List<String> oldColumnPaths =
-            getColumnPaths(baseEntry, aggInfo, assemblies, event.tableName() + "/", columnNames);
-         List<String> newColumnPaths =
-            getColumnPaths(baseEntry, naggInfo, assemblies, event.tableName() + "/", columnNames);
-
          dispatcher.sendCommand(new RefreshWizardTreeTriggerCommand());
       }
       finally {
          box.unlockRead();
       }
-   }
-
-   private List<String> getColumnPaths(AssetEntry baseEntry, AggregateInfo aggInfo,
-                                       List<TableAssembly> assemblies,
-                                       String tableName, String[] colNames)
-   {
-      List<String> colPaths = new ArrayList<>();
-
-      for (String colName : colNames) {
-         TableAssembly assembly = bindingHandler.getLMTableAssembly(assemblies, colName);
-         DataRef ref = bindingHandler.getDataRef(aggInfo, colName);
-
-         if(baseEntry.isLogicModel() && assembly != null) {
-            tableName = assembly.getName() + "/";
-         }
-         else if(baseEntry.isLogicModel()) {
-            tableName = "";
-         }
-
-         colPaths.add(bindingHandler.getColumnPath(aggInfo, ref, tableName));
-      }
-
-      return colPaths;
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;

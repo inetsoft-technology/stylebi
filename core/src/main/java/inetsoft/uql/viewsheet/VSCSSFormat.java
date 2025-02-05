@@ -981,7 +981,7 @@ public class VSCSSFormat implements XVSFormat {
          dict = CSSDictionary.getDictionary();
       }
 
-      lastModified = dict.getLastModifiedTime();
+      lastModified = CSSDictionary.getOrgScopedCSSLastModified(dict);
       return dict;
    }
 

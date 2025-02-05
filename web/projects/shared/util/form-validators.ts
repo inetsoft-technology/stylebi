@@ -35,8 +35,8 @@ export class FormValidators {
 
    public static passwordComplexity(control: AbstractControl): ValidationErrors | null {
       if(control.value) {
-         if(control.value.length < 8 || !/[A-Za-z]/g.test(control.value) ||
-            !/[0-9]/g.test(control.value))
+         if(control.value.length < 8 || control.value.length > 72 ||
+            !/[A-Za-z]/g.test(control.value) || !/[0-9]/g.test(control.value))
          {
             return { passwordComplexity: true };
          }

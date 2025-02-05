@@ -48,6 +48,7 @@ export class ExportAssetsService {
          .filter(node => this.isNotSelected(selectedAssets, node.data.path, node.data.owner))
          .map(node => ({
             path: node.data.path ? node.data.path : node.data.label,
+            label: node.data.label ? node.data.label : "",
             type: node.data.type,
             typeName: "",
             typeLabel: "",

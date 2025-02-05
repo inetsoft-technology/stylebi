@@ -17,6 +17,7 @@
  */
 package inetsoft.util.health;
 
+import java.io.Serial;
 import java.io.Serializable;
 
 public final class ReportFailureStatus implements Serializable {
@@ -47,5 +48,6 @@ public final class ReportFailureStatus implements Serializable {
 
    private final boolean excessiveFailures;
    private final int failureCount;
+   @Serial
    private static final long serialVersionUID = 1L;
 }

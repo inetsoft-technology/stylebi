@@ -88,7 +88,7 @@ public class CopperDataSource extends EndpointJsonDataSource<CopperDataSource> {
 
    @Override
    public String getURL() {
-      return "https://api.prosperworks.com/developer_api";
+      return "https://api.copper.com/developer_api";
    }
 
    @Override

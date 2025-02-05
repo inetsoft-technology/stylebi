@@ -70,7 +70,7 @@ export class VsBookmarkPaneComponent implements OnInit {
    }
 
    isEditBookmarkDisabled(bookmark: VSBookmarkInfoModel): boolean {
-      return convertToKey(bookmark.owner) !== this.principal;
+      return this.addBookmarkDisabled || convertToKey(bookmark.owner) !== this.principal;
    }
 
    isEditBookmarkVisible(bookmark: VSBookmarkInfoModel): boolean {

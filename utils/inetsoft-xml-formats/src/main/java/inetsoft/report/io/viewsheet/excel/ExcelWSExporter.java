@@ -30,8 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 /**
  * The class is exporting to excel worksheet.
@@ -141,7 +140,7 @@ public class ExcelWSExporter implements WSExporter {
     * @param lens the specified VSTableLens.
     */
    @Override
-   public void writeTable(TableLens lens, List<ColumnInfo> cinfos) {
+   public void writeTable(TableLens lens, List<ColumnInfo> cinfos, Class[] colTypes, Map<Integer, Integer> colMap) {
       for(int i = 0; i < sheetInfos.size(); i++) {
          SheetInfo sheetInfo = sheetInfos.get(i);
 
@@ -149,7 +148,7 @@ public class ExcelWSExporter implements WSExporter {
             WSTableHelper helper = new WSTableHelper(book, sheetInfo.sheet);
             TableLens sub = new SubTableLens(lens, sheetInfo.start, 0,
                sheetInfo.rcnt, lens.getColCount());
-            helper.writeData(sub, cinfos);
+            helper.writeData(sub, cinfos, colTypes, colMap);
             int num = sheetInfo.sheet.getNumMergedRegions();
 
             for(int j = num - 1; num > 0 && j >= 0; j--) {

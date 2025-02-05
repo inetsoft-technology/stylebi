@@ -1031,13 +1031,10 @@ public class ScheduleManager {
       }
    }
 
-   public synchronized void migrateScheduleTask(String orgID, String nOrgId) {
+   public synchronized void removeTaskCacheOfOrg(String orgID) {
       // clear cache
       this.getOrgTaskMap(orgID).clearCache();
-
-      if(!Tool.equals(orgID, nOrgId)) {
-         this.taskMap.remove(orgID);
-      }
+      this.taskMap.remove(orgID);
    }
 
    private void updateScheduleAction(ScheduleAction action,

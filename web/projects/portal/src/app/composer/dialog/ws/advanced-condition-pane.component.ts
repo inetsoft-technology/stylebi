@@ -98,5 +98,6 @@ export class AdvancedConditionPane implements OnInit, OnChanges {
          this.http, this.runtimeId, this.assemblyName);
       this.rankingProvider.fields = this.expressionFields;
       this.rankingProvider.variableNames = this.variableNames;
+      this.rankingProvider.grayedOutFields = this._grayedOutFields;
    }
 }

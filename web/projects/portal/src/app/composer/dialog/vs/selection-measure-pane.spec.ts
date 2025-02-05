@@ -25,6 +25,7 @@ import { AggregateFormula } from "../../../binding/util/aggregate-formula";
 import { DropDownTestModule } from "../../../common/test/test-module";
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { FormulaEditorDialog } from "../../../widget/formula-editor/formula-editor-dialog.component";
 import { DragService } from "../../../widget/services/drag.service";
@@ -63,7 +64,7 @@ describe("Selection Measure Pane Test", () => {
          declarations: [
             SelectionMeasurePane, FormulaEditorDialog,
             ScriptPane, NewAggrDialog, TreeComponent, TreeNodeComponent, TreeSearchPipe,
-            FixedDropdownDirective
+            FixedDropdownDirective, DynamicComboBox
          ],
          providers: [
             {provide: ChangeDetectorRef, useValue: changeDetectorRef},
@@ -111,7 +112,7 @@ describe("Selection Measure Pane Test", () => {
    });
 
    //Bug #19954 should keep expression seletec
-   xit("should keep measure when select expression", () => {
+   it("should keep measure when select expression", () => {
       let model = createModel();
       model.measure = "city";
       fixture = TestBed.createComponent(SelectionMeasurePane);

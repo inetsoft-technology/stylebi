@@ -338,8 +338,10 @@ public class VSExportService {
             VsToReportConverter.removeTempLayout(rvs.getID());
          }
 
-         rvs.getViewsheet().updateCSSFormat(null, null,
-                                            rvs.getViewsheetSandbox());
+         if(!rvs.isDisposed()) {
+            rvs.getViewsheet().updateCSSFormat(null, null,
+                                               rvs.getViewsheetSandbox());
+         }
       }
    }
 

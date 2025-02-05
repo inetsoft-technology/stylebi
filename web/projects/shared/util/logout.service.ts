@@ -17,6 +17,7 @@
  */
 import { DOCUMENT } from "@angular/common";
 import { Inject, Injectable } from "@angular/core";
+import { BehaviorSubject, Observable } from "rxjs";
 
 declare const window: any;
 
@@ -28,8 +29,17 @@ export class LogoutService {
    private expiredUrl = "../sessionexpired";
    private loggingOut = false;
    private fromEm = false;
+   private inGracePeriod$ = new BehaviorSubject(false);
 
    constructor(@Inject(DOCUMENT) private document: HTMLDocument) {}
+
+   get inGracePeriod(): Observable<boolean> {
+      return this.inGracePeriod$.asObservable();
+   }
+
+   setInGracePeriod(value: boolean): void {
+      this.inGracePeriod$.next(value);
+   }
 
    setLogoutUrl(url: string): void {
       this.logoutUrl = url;

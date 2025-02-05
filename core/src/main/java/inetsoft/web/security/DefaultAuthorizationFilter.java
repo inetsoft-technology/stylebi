@@ -17,7 +17,6 @@
  */
 package inetsoft.web.security;
 
-import inetsoft.sree.RepletRepository;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.security.*;
@@ -53,15 +52,22 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
       HttpSession session = httpRequest.getSession(false);
 
       if(session != null) {
-         principal = (SRPrincipal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+         principal = (SRPrincipal) SUtil.getPrincipal(httpRequest);
       }
 
       if(!provider.getAuthenticationProvider().isVirtual() && !isPublicResource(httpRequest) &&
          !isPublicApi(httpRequest) && !isTeamWebsocketEndpoint(httpRequest))
       {
+         Cookie[] cookies = ((HttpServletRequest) request).getCookies();
+         String recordedOrgID = cookies == null ? null :
+            Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
+               .map(Cookie::getValue).findFirst().orElse(null);
+         recordedOrgID = recordedOrgID == null ? getLoginOrganization(httpRequest) : recordedOrgID;
+         recordedOrgID = recordedOrgID == null ? getCookieRecordedOrgID((HttpServletRequest) request) : recordedOrgID;
+
          if((principal == null || principal.getName().equals(XPrincipal.ANONYMOUS)) &&
             // if there is a user explicitly named "anonymous", it is an allowed guest login
-            (engine == null || !engine.containsAnonymous()))
+            (engine == null || !engine.containsAnonymous(recordedOrgID)))
          {
             unauthorized = true;
          }
@@ -103,7 +109,7 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
                }
             }
             else {
-               ((HttpServletResponse) response).addCookie(new Cookie(ORG_COOKIE, orgID));
+               ((HttpServletResponse) response).addCookie(getOrgCookie(orgID));
             }
 
             ((HttpServletResponse) response).sendRedirect(StringUtils.normalizeSpace(redirectUrl));
@@ -115,13 +121,11 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
             Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
                .map(Cookie::getValue).findFirst().orElse(null);
 
-         if(recordedOrgID == null &&
-            isPageRequested("/" + LOGIN_PAGE, (HttpServletRequest) request))
-         {
+         if(recordedOrgID == null) {
             String orgID = getLoginOrganization(httpRequest);
 
             if(orgID != null) {
-               ((HttpServletResponse) response).addCookie(new Cookie(ORG_COOKIE, orgID));
+               ((HttpServletResponse) response).addCookie(getOrgCookie(orgID));
             }
          }
 
@@ -129,90 +133,14 @@ public class DefaultAuthorizationFilter extends AbstractSecurityFilter {
       }
    }
 
-   private String getLoginOrganization(HttpServletRequest request) {
-      String orgID = null;
+   private Cookie getOrgCookie(String orgID) {
+      Cookie cookie = new Cookie(ORG_COOKIE, orgID);
+      cookie.setAttribute("SameSite", "None");
+      cookie.setSecure(true);
 
-      if(SUtil.isMultiTenant()) {
-         String type = SreeEnv.getProperty("security.login.orgLocation", "domain");
-
-         if("path".equals(type)) {
-            URI uri = URI.create(LinkUriArgumentResolver.getLinkUri(request));
-            String requestedPath = request.getPathInfo();
-
-            if(requestedPath == null) {
-               requestedPath = uri.getRawPath();
-            }
-
-            if(requestedPath != null) {
-               if(requestedPath.startsWith("/")) {
-                  requestedPath = requestedPath.substring(1);
-               }
-
-               int index = requestedPath.indexOf('/');
-
-               if(index < 0) {
-                  orgID = requestedPath;
-               }
-               else {
-                  orgID = requestedPath.substring(0, index);
-               }
-            }
-         }
-         else {
-            // get the lowest level subdomain, of the form "http://orgID.somehost.com/"
-            String host = LinkUriArgumentResolver.getRequestHost(request);
-
-            if(host != null && !isIpHost(host)) {
-               int index = host.indexOf('.');
-
-               if(index >= 0) {
-                  orgID = host.substring(0, index);
-               }
-            }
-         }
-
-         if(orgID != null) {
-            boolean matched = false;
-
-            for(String org : SecurityEngine.getSecurity().getOrganizations()) {
-               if(orgID.equalsIgnoreCase(org)) {
-                  matched = true;
-                  orgID = org;
-               }
-            }
-
-            if(!matched) {
-               orgID = null;
-            }
-         }
-      }
-
-      return orgID;
-   }
-
-   private boolean isIpHost(String host) {
-      if(host == null) {
-         return false;
-      }
-
-      int index = host.lastIndexOf(":");
-      String hostName = host;
-
-      if(index > 0) {
-         String port = host.substring(index + 1);
-
-         if(!StringUtils.isNumeric(port)) {
-            return false;
-         }
-
-         hostName = host.substring(0, index - 1);
-      }
-
-
-      return InetAddressUtils.isIPv4Address(hostName);
+      return cookie;
    }
 
    public static final String LOGIN_PAGE = "login.html";
-   private static final String ORG_COOKIE = "X-INETSOFT-ORGID";
 
 }

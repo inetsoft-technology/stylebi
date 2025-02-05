@@ -31,6 +31,8 @@ import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.apache.commons.codec.binary.Base64;
 import org.owasp.encoder.Encode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -96,10 +98,13 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
       int status = HttpServletResponse.SC_UNAUTHORIZED;
       List<NameLabelTuple> loginAsUsers = null;
       boolean authenticationFailure = false;
+      IdentityID loginUser = null;
+      boolean login = false;
 
       if(header != null && header.toLowerCase().startsWith("basic ") &&
          !isPublicApi(httpRequest))
       {
+         login = true;
          Catalog catalog = Catalog.getCatalog();
          authorized = false;
          header = new String(Base64.decodeBase64(header.substring(6)), StandardCharsets.US_ASCII);
@@ -129,10 +134,10 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
             HttpSession session = httpRequest.getSession(false);
 
             if(session != null) {
-               Principal principal =
-                  (Principal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+               Principal principal = SUtil.getPrincipal(httpRequest);
 
                IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
+               loginUser = pId;
 
                if(pId != null && (pId.name.equals(userKey) &&
                   (loginAsUserKey == null || loginAsUserKey.isEmpty() ||
@@ -152,7 +157,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                   boolean loginAs = "on".equals(SreeEnv.getProperty("login.loginAs"))
                      && !provider.isVirtual();
                   Cookie[] cookies = ((HttpServletRequest) request).getCookies();
-                  String recordedOrgID = cookies == null ? null :
+                  String recordedOrgID = cookies == null ? Organization.getDefaultOrganizationID() :
                      Arrays.stream(cookies).filter(c -> c.getName().equals(ORG_COOKIE))
                         .map(Cookie::getValue).findFirst().orElse(Organization.getDefaultOrganizationID());
 
@@ -202,6 +207,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                      IdentityID selfUser = SUtil.isMultiTenant() ?
                         new IdentityID(userKey, Organization.getSelfOrganizationID()) :
                         new IdentityID(userKey, Organization.getDefaultOrganizationID());
+                     loginUser = selfUser;
 
                      principal =
                         authenticate(request, selfUser, password, null, locale, true);
@@ -210,6 +216,7 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
                   if(principal == null) {
                      principal =
                         authenticate(request, properUserID, password, null, locale, true);
+                     loginUser = properUserID;
                   }
 
                   IdentityID loginAsUser = IdentityID.getIdentityIDFromKey(loginAsUserKey);
@@ -272,11 +279,15 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
       }
 
       if(authorized) {
+         if(login) {
+            LOG.debug("user {} authorized", loginUser == null ? "" : loginUser.getLabel());
+         }
+
          chain.doFilter(request, response);
       }
       else {
          HttpServletResponse httpResponse = (HttpServletResponse) response;
-
+         LOG.debug("user {} Authentication failed: message\"{}\", code: {}", loginUser == null ? "" : loginUser.getLabel(), message, status);
          if(loginAsUsers != null) {
             httpResponse.setStatus(HttpServletResponse.SC_OK);
             httpResponse.setContentType("application/json");
@@ -351,6 +362,6 @@ public class BasicAuthenticationFilter extends AbstractSecurityFilter {
          principal, ResourceType.SECURITY_USER, user.convertToKey(), ResourceAction.ADMIN);
    }
 
-   private static final String ORG_COOKIE = "X-INETSOFT-ORGID";
    private SecurityProvider provider;
+   private static final Logger LOG = LoggerFactory.getLogger(BasicAuthenticationFilter.class);
 }

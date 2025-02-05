@@ -39,6 +39,7 @@ export class SelectionListEditor implements OnInit {
    columns: string[] = [];
    columnTooltips: string[] = [];
    columnDataTypes: string[] = [];
+   grayedOutValues: string[] = [];
 
    constructor(private http: HttpClient) {
       this.headers = new HttpHeaders({
@@ -72,6 +73,7 @@ export class SelectionListEditor implements OnInit {
                   this.columns = data.columns;
                   this.columnTooltips = data.tooltips;
                   this.columnDataTypes = data.dataTypes;
+                  this.grayedOutValues = data.grayedOutValues;
 
                   if(this.columns) {
                      if(this.columns.indexOf(this.localColumn) == -1) {
@@ -121,5 +123,13 @@ export class SelectionListEditor implements OnInit {
    getToolTip(idx: number): string {
       return (this.model.ltableDescriptions && this.model.ltableDescriptions[idx])
          ? this.model.ltableDescriptions[idx] : "";
+   }
+
+   getInputClass(val: any): string {
+      if(this.grayedOutValues.indexOf(val) >= 0) {
+         return "grayed-out-field";
+      }
+
+      return "";
    }
 }

@@ -141,7 +141,7 @@ public class FreshserviceDataSource extends EndpointJsonDataSource<FreshserviceD
 
    @Override
    protected String getTestSuffix() {
-      return "/agents.json";
+      return "api/v2/agents";
    }
 
    @Override

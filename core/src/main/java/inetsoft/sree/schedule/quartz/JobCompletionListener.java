@@ -58,6 +58,11 @@ public class JobCompletionListener extends JobListenerSupport {
    @Override
    public void jobToBeExecuted(JobExecutionContext context) {
       try {
+         if(!context.getJobDetail().getJobDataMap().containsKey(ScheduleTask.class.getName())) {
+            // internal job not added through our scheduler
+            return;
+         }
+
          JobKey jobKey = context.getJobDetail().getKey();
          String taskName = jobKey.getName();
          TaskActivity activity = new TaskActivity(taskName);
@@ -79,6 +84,11 @@ public class JobCompletionListener extends JobListenerSupport {
    public void jobWasExecuted(JobExecutionContext context,
                               JobExecutionException jobException)
    {
+      if(!context.getJobDetail().getJobDataMap().containsKey(ScheduleTask.class.getName())) {
+         // internal job not added through our scheduler
+         return;
+      }
+
       JobKey key = context.getJobDetail().getKey();
       String taskName = key.getName();
 
@@ -117,7 +127,7 @@ public class JobCompletionListener extends JobListenerSupport {
          String addr = Tool.getIP();
 
          // Bug #40798, don't audit logins for internal tasks
-         if(!ScheduleManager.isInternalTask(taskValue.getTaskId())) {
+         if(!ScheduleManager.isInternalTask(Objects.requireNonNull(taskValue).getTaskId())) {
             if(identity == null) {
                principal = SUtil.getPrincipal(owner, addr, true);
             }
@@ -265,6 +275,11 @@ public class JobCompletionListener extends JobListenerSupport {
    @Override
    public void jobExecutionVetoed(JobExecutionContext context) {
       super.jobExecutionVetoed(context);
+
+      if(!context.getJobDetail().getJobDataMap().containsKey(ScheduleTask.class.getName())) {
+         // internal job not added through our scheduler
+         return;
+      }
 
       ScheduleStatusDao dao = ScheduleStatusDao.getInstance();
       JobKey key = context.getJobDetail().getKey();

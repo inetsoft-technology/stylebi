@@ -84,19 +84,19 @@ describe("Schedule Task Dialog Unit Test", () => {
    }));
 
    //Bug #21217 task name control
-   xit("task name control", () => { // broken
+   it("task name control", () => { // broken
       let name = fixture.debugElement.query(By.css("input#taskName")).nativeElement;
       name.value = "Task4.1";
       name.dispatchEvent(new Event("input"));
       fixture.detectChanges();
 
-      let warning = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      let warning = fixture.debugElement.query(By.css("div.alert.alert-danger"));
       expect(warning).toBeNull();
 
       name.value = "Task4.1%";
       name.dispatchEvent(new Event("input"));
       fixture.detectChanges();
-      warning = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
-      expect(TestUtils.toString(warning.textContent.trim())).toBe("Invalid task name");
+      let warning0 = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      expect(TestUtils.toString(warning0.textContent.trim())).toBe("vs.basicGeneral.nameCheck");
    });
 });

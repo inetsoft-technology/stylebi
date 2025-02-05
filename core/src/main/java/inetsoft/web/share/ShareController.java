@@ -28,6 +28,8 @@ import inetsoft.util.Tool;
 import inetsoft.web.admin.schedule.ScheduleService;
 import inetsoft.web.admin.schedule.model.UsersModel;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.viewsheet.OrganizationID;
+import inetsoft.web.viewsheet.SwitchOrg;
 import inetsoft.web.viewsheet.model.dialog.EmailAddrDialogModel;
 import inetsoft.web.viewsheet.model.dialog.EmailPaneModel;
 import inetsoft.web.viewsheet.service.VSEmailService;
@@ -61,7 +63,8 @@ public class ShareController {
     * @return the configuration
     */
    @GetMapping("/api/share/config")
-   public ShareConfig getConfig(Principal user) {
+   @SwitchOrg
+   public ShareConfig getConfig(@OrganizationID String orgId, Principal user) {
       boolean emailEnabled = "true".equals(SreeEnv.getProperty("share.email.enabled")) &&
          checkPermission("email", user);
       boolean facebookEnabled = "true".equals(SreeEnv.getProperty("share.facebook.enabled")) &&
@@ -161,9 +164,12 @@ public class ShareController {
     * @param user    a principal that identifies the remote user.
     */
    @PostMapping("/api/share/email")
-   public void sendEmailMessage(@RequestBody ShareMessage message, Principal user) throws Exception
+   @SwitchOrg
+   public void sendEmailMessage(@OrganizationID("getOrgId()") @RequestBody ShareMessage message,
+                                Principal user)
+      throws Exception
    {
-      ShareConfig config = getConfig(user);
+      ShareConfig config = getConfig(message.getOrgId(), user);
 
       if(!config.emailEnabled()) {
          throw new IllegalStateException("Sharing with email is not enabled");
@@ -192,8 +198,11 @@ public class ShareController {
     * @see <a href="https://developers.google.com/hangouts/chat/how-tos/webhooks">Hangouts Webhooks</a>
     */
    @PostMapping("/api/share/google-chat")
-   public void sendGoogleChatMessage(@RequestBody ShareMessage message, Principal user) {
-      ShareConfig config = getConfig(user);
+   @SwitchOrg
+   public void sendGoogleChatMessage(@OrganizationID("getOrgId()") @RequestBody ShareMessage message,
+                                     Principal user)
+   {
+      ShareConfig config = getConfig(message.getOrgId(), user);
 
       if(!config.googleChatEnabled()) {
          throw new IllegalStateException("Sharing with Google Hangouts is not enabled");
@@ -223,8 +232,11 @@ public class ShareController {
     * @see <a href="https://api.slack.com/incoming-webhooks">Slack Incoming Webhooks</a>
     */
    @PostMapping("/api/share/slack")
-   public void sendSlackMessage(@RequestBody ShareMessage message, Principal user) {
-      ShareConfig config = getConfig(user);
+   @SwitchOrg
+   public void sendSlackMessage(@OrganizationID("getOrgId()") @RequestBody ShareMessage message,
+                                Principal user)
+   {
+      ShareConfig config = getConfig(message.getOrgId(), user);
 
       if(!config.slackEnabled()) {
          throw new IllegalStateException("Sharing with Slack is not enabled");

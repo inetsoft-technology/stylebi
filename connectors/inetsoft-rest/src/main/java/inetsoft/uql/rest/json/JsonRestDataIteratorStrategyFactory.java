@@ -94,6 +94,9 @@ public class JsonRestDataIteratorStrategyFactory implements RestDataIteratorStra
             case GRAPHQL:
                 strategy = new GraphQLIteratorStrategy((GraphQLQuery) query, transformer, httpHandler, errorHandler);
                 break;
+            case GRAPHQL_CURSOR:
+                strategy = new GraphQLCursorIteratorStrategy((GraphQLQuery) query, transformer, httpHandler, errorHandler);
+                break;
         default:
                 throw new IllegalStateException("Unexpected value: " + query.getPaginationType());
         }

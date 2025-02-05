@@ -66,7 +66,7 @@ public class OpenWorksheetController extends WorksheetController {
    {
       String id = event.id();
       AssetEntry entry = AssetEntry.createAssetEntry(id);
-      File savefile = AutoSaveUtils.getAutoSavedFile(entry, principal);
+      boolean autoSaveFileExists = AutoSaveUtils.exists(entry, principal);
       AtomicBoolean notUndoable = new AtomicBoolean(false);
       String msg = getForbiddenSourcesMessage(entry, principal, notUndoable);
       return OpenSheetEventValidator.builder()
@@ -75,7 +75,7 @@ public class OpenWorksheetController extends WorksheetController {
          // 2. upload data into the table (don't save)
          // 3. reload composer and open the ws
          // exception if try to restore the auto-saved file.
-         .autoSaveFileExists(savefile.exists() && !notUndoable.get())
+         .autoSaveFileExists(autoSaveFileExists && !notUndoable.get())
          .forbiddenSourcesMessage(msg)
          .build();
    }

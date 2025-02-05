@@ -23,6 +23,7 @@ import { TestUtils } from "../../../common/test/test-utils";
 import { MessageDialog } from "../../../widget/dialog/message-dialog/message-dialog.component";
 import { NewAggrDialog } from "../../../widget/dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../../../widget/dialog/script-pane/script-pane.component";
+import { DynamicComboBox } from "../../../widget/dynamic-combo-box/dynamic-combo-box.component";
 import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode } from "../../../widget/dynamic-combo-box/dynamic-combo-box-model";
 import { DropdownStackService } from "../../../widget/fixed-dropdown/dropdown-stack.service";
@@ -49,7 +50,7 @@ const createModel: () => NumericRangePaneModel = () => {
 @NgModule({
    declarations: [
       FixedDropdownComponent,
-      FixedDropdownContextmenuComponent
+      FixedDropdownContextmenuComponent,
    ],
    entryComponents: [
       FixedDropdownComponent,
@@ -72,7 +73,7 @@ describe("Numeric Range Pane Tests", () => {
          declarations: [
             NumericRangePane, FormulaEditorDialog,
             NewAggrDialog, MessageDialog, ScriptPane, TreeComponent,
-            TreeNodeComponent, TreeSearchPipe, FixedDropdownDirective
+            TreeNodeComponent, TreeSearchPipe, FixedDropdownDirective, DynamicComboBox
          ],
          providers: [FixedDropdownService, DropdownStackService],
          schemas: [ NO_ERRORS_SCHEMA ]
@@ -86,7 +87,7 @@ describe("Numeric Range Pane Tests", () => {
    }));
 
    //Bug #18094 Input '0' in the slider 'Increment' pop up error dialog exist issue.
-   xit("should Test input message", () => {
+   it("should Test input message", () => {
       let numericRangeInputs: any = element.querySelectorAll(".dynamic-combo-box-body input");
       let numberRange: HTMLInputElement = numericRangeInputs[2];
       numberRange.value = "0";
@@ -113,7 +114,7 @@ describe("Numeric Range Pane Tests", () => {
 
    //Bug #19110 expression should apply rightly for number input
    //Bug #19869
-   xit("expression should apply rightly for number", () => {
+   it("expression should apply rightly for number", () => {
       changeValueType(2, 0);
       fixture.detectChanges();
       let elems = element.querySelectorAll(".dynamic-combo-box-body input");

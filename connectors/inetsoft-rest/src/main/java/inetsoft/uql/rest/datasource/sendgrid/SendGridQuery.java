@@ -25,7 +25,10 @@ import inetsoft.sree.SreeEnv;
 import java.util.Map;
 
 @View(vertical = true, value = {
-   @View1("endpoint"),
+   @View1(value = "endpoint", affectedViews = {
+      "linkParamValue",
+      "linkParamType"
+   }),
    @View1(type = ViewType.PANEL, align = ViewAlign.LEFT, visibleMethod = "isCustomEndpoint",
       elements = {
          @View2(value = "templateEndpt"),
@@ -105,15 +108,18 @@ public class SendGridQuery extends EndpointJsonQuery<SendGridEndpoint> {
 
    @Override
    protected void updatePagination(SendGridEndpoint endpoint) {
-      if(endpoint.isPaged()) {
+      final PaginationParamType pageType = endpoint.getPageType();
+
+      if(pageType == PaginationParamType.JSON_PATH) {
+         paginationSpec = PaginationSpec.builder()
+            .type(PaginationType.LINK_ITERATION)
+            .linkParam(PaginationParamType.JSON_PATH, "$._metadata.next")
+            .build();
+      }
+      else if(pageType == PaginationParamType.LINK_HEADER) {
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.LINK_ITERATION)
             .linkParam(PaginationParamType.LINK_HEADER, "link", "next")
-            .build();
-      }
-      else {
-         paginationSpec = PaginationSpec.builder()
-            .type(PaginationType.NONE)
             .build();
       }
    }

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClient } from "@angular/common/http";
 import {
    ChangeDetectionStrategy,
    ChangeDetectorRef,
@@ -118,6 +119,8 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
          node?.data?.type == AssetType.QUERY;
    };
    private loadDataSourcesAfterLoadRoot;
+   private currOrgID: string = "";
+   private organizations: string[];
 
    get searchMode(): boolean {
       return this.root != this.activeRoot;
@@ -128,13 +131,22 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
                private assetClientService: AssetClientService,
                private modalService: NgbModal,
                private debounceService: DebounceService,
-               private zone: NgZone)
+               private zone: NgZone, private http: HttpClient)
    {
    }
 
    ngOnInit() {
       this.loadAssetTree();
       this.setupAssetClientService();
+
+      this.http.get<string>("../api/em/navbar/organization")
+         .subscribe((org) => this.currOrgID = org);
+
+      this.http.get<string[]>("../api/em/security/users/get-all-organization-ids/").subscribe(
+         (orgIDList) => {
+            this.organizations = orgIDList;
+         }
+      );
    }
 
    loadAssetTree() {
@@ -271,6 +283,13 @@ export class AssetTreeComponent implements OnInit, OnDestroy, OnChanges {
    }
 
    private handleAssetChangeEvent(event: AssetChangeEvent) {
+      //check asset's organization and only refresh if this organization is changed
+      let eventOrgID = event.newIdentifier?.split("^").pop();
+
+      if(this.organizations?.includes(eventOrgID) && !(this.currOrgID == eventOrgID)) {
+         return;
+      }
+
       if(event.parentEntry == null) {
          this.refreshFromRoot();
          return;

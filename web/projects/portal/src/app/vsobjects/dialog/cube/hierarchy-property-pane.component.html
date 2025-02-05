@@ -23,7 +23,7 @@
            outOfZone (onDragover)="allowDrop($event)"
            (drop)="columnDrop($event)">
         <div draggable="true" (dragstart)="columnDragStart($event, columnRef, i)"
-             (dragend)="columnDragEnd($event)"
+             (dragend)="columnDragEnd($event)" [ngClass]="getInputClass(columnRef)"
              [class.selected]="selectedColumn == columnRef"
              (mousedown)="mouseDownSelect(columnRef)" class="ps-1 column_item_id"
              [attr.title]="columnRef.description"

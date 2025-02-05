@@ -113,7 +113,9 @@ public class FortyTwoMattersQuery extends EndpointJsonQuery<FortyTwoMattersEndpo
             .totalPagesParam(PaginationParamType.JSON_PATH, endpoint.getPagePath())
             .pageNumberParamToWrite(PaginationParamType.QUERY, "page")
             .maxResultsPerPageParam(PaginationParamType.QUERY, "limit")
-            .maxResultsPerPage(endpoint.getPageLimit())
+            .maxResultsPerPage((
+               (FortyTwoMattersDataSource) getDataSource()).isFreeTrial() ? endpoint.getFreePageLimit() : endpoint.getPageLimit()
+            )
             .build();
       }
       else {

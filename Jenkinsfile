@@ -113,6 +113,17 @@ pipeline {
       }
     }
 
+    stage('Install Helm') {
+      steps {
+        withCredentials([aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+          script {
+            sh 'curl -s https://get.helm.sh/helm-v3.17.0-linux-amd64.tar.gz -o - | tar -xz'
+            sh 'aws ecr get-login-password --region us-east-2 | ./linux-amd64/helm registry login --username AWS --password-stdin 636869400126.dkr.ecr.us-east-2.amazonaws.com'
+          }
+        }
+      }
+    }
+
     stage('Integration') {
       steps {
         withCredentials([usernamePassword(credentialsId: 'dependency-track', usernameVariable: 'DEPENDENCY_TRACK_URL', passwordVariable: 'DEPENDENCY_TRACK_KEY'), usernamePassword(credentialsId: 'github-maven', usernameVariable: 'GH_USERNAME', passwordVariable: 'GH_PASSWORD'), aws(credentialsId: 'build-tasks-aws', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
@@ -125,6 +136,7 @@ pipeline {
               --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-operator:1.0.$dockerBuildVersion \
               --destination=636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft/stylebi-operator:1.0 \
               --cache=true --compressed-caching=false --use-new-run --snapshot-mode=redo"""
+            sh './linux-amd64/helm push integration/stylebi-operator/target/stylebi-operator-1.0.0-SNAPSHOT-helm.tgz oci://636869400126.dkr.ecr.us-east-2.amazonaws.com'
           }
         }
       }

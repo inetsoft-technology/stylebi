@@ -34,6 +34,6 @@ public class PassworkAndOAuth2WithFlagCredentialsGrantFactory implements Credent
    @Override
    public Credential createCredential(boolean forceLocal) {
       return isLocal() || forceLocal ?
-         new LocalPassworkAndOAuth2WithFlagCredentialsGrant() : new CloudPassworkAndOAuth2WithFlagCredentialsGrant();
+         new LocalPasswordAndOAuth2WithFlagCredentialsGrant() : new CloudPasswordAndOAuth2WithFlagCredentialsGrant();
    }
 }

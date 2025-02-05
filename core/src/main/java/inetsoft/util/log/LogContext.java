@@ -17,6 +17,14 @@
  */
 package inetsoft.util.log;
 
+import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.XPrincipal;
+import org.slf4j.MDC;
+
+import java.security.Principal;
+import java.util.Arrays;
+
 /**
  * Enumeration of the categories of context-specific logging.
  *
@@ -119,5 +127,46 @@ public enum LogContext {
       }
 
       return null;
+   }
+
+   public static void setUser(Principal user) {
+      if(user == null) {
+         MDC.remove(LogContext.USER.name());
+         MDC.remove(LogContext.GROUP.name());
+         MDC.remove(LogContext.ROLE.name());
+      }
+      else {
+         boolean enterprise = LicenseManager.getInstance().isEnterprise();
+         IdentityID userIdentity = IdentityID.getIdentityIDFromKey(user.getName());
+         String name = userIdentity != null ? userIdentity.getLabel() : user.getName();
+
+         MDC.put(LogContext.USER.name(), name);
+
+         if(user instanceof XPrincipal principal) {
+            String groups = String.join(",",
+                                        Arrays.stream(principal.getGroups())
+                                           .map(g -> enterprise ?
+                                              new IdentityID(g, userIdentity.getOrgID()).getLabel() : g)
+                                           .toArray(String[]::new));
+            String roles = String.join(",",
+                                       Arrays.stream(principal.getRoles())
+                                          .map(r -> enterprise ? r.getLabel() : r.getName())
+                                          .toArray(String[]::new));
+
+            if(!groups.equals("")) {
+               MDC.put(LogContext.GROUP.name(), groups);
+            }
+            else {
+               MDC.remove(LogContext.GROUP.name());
+            }
+
+            if(!roles.equals("")) {
+               MDC.put(LogContext.ROLE.name(), roles);
+            }
+            else {
+               MDC.remove(LogContext.ROLE.name());
+            }
+         }
+      }
    }
 }

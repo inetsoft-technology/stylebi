@@ -21,14 +21,12 @@ import inetsoft.report.*;
 import inetsoft.report.composition.execution.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.binding.*;
-import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.*;
 import inetsoft.report.lens.*;
 import inetsoft.report.lens.xnode.XNodeTableLens;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
-import inetsoft.storage.ExternalStorageService;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
@@ -46,6 +44,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.lang.reflect.Constructor;
 import java.nio.charset.Charset;
@@ -1040,6 +1039,31 @@ public class Util implements inetsoft.report.StyleConstants {
       }
 
       return -1;
+   }
+
+   public static int findColumn(ColumnIndexMap columnIndexMap, ColumnInfo colInfo, TableLens lens) {
+      if(columnIndexMap == null || colInfo == null || lens == null) {
+         return -1;
+      }
+
+      int col = Util.findColumn(columnIndexMap, colInfo.getColumnRef());
+
+      if(col < 0 && lens instanceof SubTableLens) {
+         TableLens table = ((SubTableLens) lens).getTable();
+
+         if(table instanceof FormatTableLens2) {
+            Map<TableDataPath, TableFormat> formatMap = ((FormatTableLens2) table).getFormatMap();
+            String header = colInfo.getHeader();
+            TableFormat tableFormat = formatMap.get(new TableDataPath(header));
+
+            if(tableFormat != null) {
+               Format format = tableFormat.getFormat(Catalog.getCatalog().getLocale());
+               col = Util.findColumn(columnIndexMap, format.format(header));
+            }
+         }
+      }
+
+      return col;
    }
 
    /**
@@ -3358,15 +3382,37 @@ public class Util implements inetsoft.report.StyleConstants {
    public static void drawWatermark(Graphics g, Dimension size) {
       Font ofont = g.getFont();
       g.setColor(Color.lightGray);
+      String text = Catalog.getCatalog().getString("elastic.license.exhausted.watermark");
 
       for(int y = 100; y < size.height - 40; y += 180) {
          int x = (y / 4) + 80;
          g.setFont(WATER_FONT);
-         g.drawString("Licensed hours exhausted", x, y);
+         g.drawString(text, x, y);
       }
 
       g.setColor(Color.black);
       g.setFont(ofont);
+   }
+
+   public static BufferedImage createWatermarkImage() {
+      int width = 300;
+      int height = 150;
+      BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+      Graphics2D g2d = image.createGraphics();
+      g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+      g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+      g2d.setColor(Color.lightGray);
+      g2d.setFont(WATER_FONT);
+      String text = Catalog.getCatalog().getString("elastic.license.exhausted.watermark");
+      FontMetrics fm = Common.getFontMetrics(WATER_FONT);
+      int txtWidth = (int) Common.stringWidth(text, WATER_FONT, fm);
+      float x =  (width - txtWidth) / 2;
+      float y = height / 2;
+      x = Math.max(x, 5);
+      g2d.drawString(text, x, y);
+      g2d.dispose();
+
+      return image;
    }
 
    public static String BASE_MAX_ROW_KEY = "^_base_^";

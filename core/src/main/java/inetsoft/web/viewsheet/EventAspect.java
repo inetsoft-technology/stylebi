@@ -22,11 +22,11 @@ import inetsoft.analytic.composition.event.CheckMVEvent;
 import inetsoft.mv.MVSession;
 import inetsoft.report.composition.*;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.asset.internal.WSExecution;
-import inetsoft.uql.util.XSessionService;
 import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.util.*;
@@ -568,6 +568,55 @@ public class EventAspect {
       }
    }
 
+   @Before("@annotation(SwitchOrg) && within(inetsoft.web..*)")
+   public void beforeController(JoinPoint joinPoint) throws Exception {
+      Object[] args = joinPoint.getArgs();
+
+      for(Object arg : args) {
+         if(arg instanceof SRPrincipal) {
+            principal = (SRPrincipal) arg;
+         }
+      }
+
+      if(Organization.getDefaultOrganizationID().equals(principal.getOrgId())) {
+         return;
+      }
+
+      Annotation[][] parameterAnnotations =
+         ((MethodSignature) joinPoint.getSignature()).getMethod().getParameterAnnotations();
+
+      for(int i = 0; i < parameterAnnotations.length; i++) {
+         for(int j = 0; j < parameterAnnotations[i].length; j++) {
+            if(parameterAnnotations[i][j] instanceof OrganizationID) {
+               Object arg = args[i];
+               String annoValue = ((OrganizationID) parameterAnnotations[i][j]).value();
+
+               if(annoValue.isEmpty()) {
+                  orgId = arg == null ? null : String.valueOf(arg);
+               }
+               else {
+                  StandardEvaluationContext context = new StandardEvaluationContext(arg);
+                  Expression expr = expressionParser.parseExpression(annoValue);
+                  orgId = expr.getValue(context, String.class);
+               }
+            }
+         }
+      }
+
+      if(orgId == null) {
+         return;
+      }
+
+      switchOrganization(orgId, principal);
+   }
+
+   @After("@annotation(SwitchOrg) && within(inetsoft.web..*)")
+   public void afterController(JoinPoint joinPoint) throws Exception {
+      if(!Tool.equals(principal.getProperty("curr_org_id"), principal.getOrgId())) {
+         switchOrganization(principal.getOrgId(), principal);
+      }
+   }
+
    private static class AnnotationParameterTuple<T> {
       public AnnotationParameterTuple(T annotation, Object parameter) {
          this.annotation = annotation;
@@ -594,10 +643,17 @@ public class EventAspect {
       private Object parameter;
    }
 
+   public static void switchOrganization(String orgID, Principal principal) throws Exception {
+      ((XPrincipal) principal).setProperty("curr_org_id", orgID);
+      ThreadContext.setContextPrincipal(principal);
+   }
+
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final PlaceholderService placeholderService;
    private final ViewsheetService viewsheetService;
    private final Timer timer = new Timer();
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
+   private String orgId;
+   private SRPrincipal principal;
    private static final Logger LOG = LoggerFactory.getLogger(EventAspect.class);
 }

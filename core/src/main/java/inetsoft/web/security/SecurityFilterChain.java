@@ -26,6 +26,7 @@ public class SecurityFilterChain extends DelegatingFilterChain {
    public SecurityFilterChain() {
       super(Arrays.asList(
          new ForwardedHeaderFilter(),
+         new SessionRefreshDisabledFilter(),
          new SecurityHeaderFilter(),
          new PauseClusterFilter(),
          createFilterProxy("invalidateSessionFilter"),

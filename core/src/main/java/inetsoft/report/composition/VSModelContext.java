@@ -35,6 +35,7 @@ import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
+import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,6 +75,34 @@ public class VSModelContext extends AbstractModelContext {
       return table;
    }
 
+   private TableAssembly getSelectionTable(SelectionVSAssemblyInfo sinfo) {
+      if(vs == null || Tool.isEmptyString(sinfo.getTableName())) {
+         return null;
+      }
+
+      TableAssembly table = (TableAssembly) vs.getBaseWorksheet().getAssembly(
+         Assembly.SELECTION + sinfo.getTableName());
+
+      if(table == null) {
+         table = (TableAssembly) vs.getBaseWorksheet().getAssembly(sinfo.getTableName());
+      }
+
+      return table;
+   }
+
+   private TableAssembly getOutputTable(OutputVSAssemblyInfo sinfo) {
+      if(vs == null || sinfo.getScalarBindingInfo() == null ||
+         sinfo.getScalarBindingInfo().getTableName() == null)
+      {
+         return null;
+      }
+
+      String tableName = sinfo.getScalarBindingInfo().getTableName();
+      TableAssembly table = (TableAssembly) vs.getBaseWorksheet().getAssembly(tableName);
+
+      return table;
+   }
+
    /**
     * Constructor.
     */
@@ -100,23 +129,47 @@ public class VSModelContext extends AbstractModelContext {
    /**
     * Get all assemblies fields.
     */
-   public void getAllAttributes(VSAssemblyInfo cinfo,
-                                HashSet<DataRef> all, HashSet<DataRef> aggs)
-   {
+   public void getAllAttributes(VSAssemblyInfo cinfo, HashSet<DataRef> all, HashSet<DataRef> aggs) {
       if(vs == null) {
          return;
+      }
+
+      String editChartID = null;
+
+      if(rvs.getVSTemporaryInfo() != null && rvs.getVSTemporaryInfo().getOriginalModel() != null) {
+         editChartID = rvs.getVSTemporaryInfo().getOriginalModel().getOriginalName();
       }
 
       for(Assembly assembly : vs.getAssemblies()) {
          VSAssembly vsassembly = (VSAssembly) assembly;
          VSAssemblyInfo info = (VSAssemblyInfo) vsassembly.getInfo();
+         String assemblyName = info.getAbsoluteName();
+
+         // if edit original chart, so should not checktrap for original chart for it is the same
+         // chart.
+         if(editChartID != null && Tool.equals(editChartID, assemblyName)) {
+            continue;
+         }
+
+         // if in wizard, no need to check all recommend assemlies.
+         if(rvs.isWizardViewsheet() && WizardRecommenderUtil.isTempAssembly(assemblyName)) {
+            continue;
+         }
+
+         // if goto binding from wizard, should not check temp chart.
+         if(!rvs.isWizardViewsheet() && Tool.equals(assemblyName, "_temp_chart_")) {
+            continue;
+         }
+
          Boolean current = cinfo != null && info != null &&
             Tool.equals(cinfo.getAbsoluteName(), info.getAbsoluteName());
          info = current ? cinfo : info;
          getAttributes(info, all, aggs);
       }
 
-      getAttributes(cinfo, all, aggs);
+      if(cinfo != null) {
+         getAttributes(cinfo, all, aggs);
+      }
    }
 
    /**
@@ -149,31 +202,35 @@ public class VSModelContext extends AbstractModelContext {
       }
       else if(info instanceof ChartVSAssemblyInfo) {
          ChartVSAssemblyInfo cinfo = (ChartVSAssemblyInfo) info;
-         getAttributes(cinfo.getVSChartInfo(), getTable(cinfo.getSourceInfo()),
-            all, aggs);
+         getAttributes(cinfo, getTable(cinfo.getSourceInfo()), all, aggs);
       }
       else if(info instanceof CrosstabVSAssemblyInfo) {
          CrosstabVSAssemblyInfo cinfo = (CrosstabVSAssemblyInfo) info;
-         getAttributes(cinfo.getVSCrosstabInfo(),
-            getTable(cinfo.getSourceInfo()), all, aggs);
+         getAttributes(cinfo, getTable(cinfo.getSourceInfo()), all, aggs);
       }
       else if(info instanceof CalcTableVSAssemblyInfo) {
-         getAttributes((CalcTableVSAssemblyInfo) info, all, aggs);
+         CalcTableVSAssemblyInfo cinfo = (CalcTableVSAssemblyInfo) info;
+         getAttributes((CalcTableVSAssemblyInfo) info, getTable(cinfo.getSourceInfo()), all, aggs);
       }
       else if(info instanceof SelectionListVSAssemblyInfo) {
-         getAttributes((SelectionListVSAssemblyInfo) info, all, aggs);
+         SelectionListVSAssemblyInfo sinfo = (SelectionListVSAssemblyInfo) info;
+         getAttributes((SelectionListVSAssemblyInfo) info, getSelectionTable(sinfo), all, aggs);
       }
       else if(info instanceof SelectionTreeVSAssemblyInfo) {
-         getAttributes((SelectionTreeVSAssemblyInfo) info, all, aggs);
+         SelectionTreeVSAssemblyInfo sinfo = (SelectionTreeVSAssemblyInfo) info;
+         getAttributes((SelectionTreeVSAssemblyInfo) info, getSelectionTable(sinfo), all, aggs);
       }
       else if(info instanceof TimeSliderVSAssemblyInfo) {
-         getAttributes((TimeSliderVSAssemblyInfo) info, all, aggs);
+         TimeSliderVSAssemblyInfo sinfo = (TimeSliderVSAssemblyInfo) info;
+         getAttributes((TimeSliderVSAssemblyInfo) info, getSelectionTable(sinfo), all, aggs);
       }
       else if(info instanceof CalendarVSAssemblyInfo) {
-         getAttributes((CalendarVSAssemblyInfo) info, all, aggs);
+         CalendarVSAssemblyInfo sinfo = (CalendarVSAssemblyInfo) info;
+         getAttributes((CalendarVSAssemblyInfo) info, getSelectionTable(sinfo), all, aggs);
       }
       else if(info instanceof OutputVSAssemblyInfo) {
-         getAttributes((OutputVSAssemblyInfo) info, all, aggs);
+         OutputVSAssemblyInfo sinfo = (OutputVSAssemblyInfo) info;
+         getAttributes((OutputVSAssemblyInfo) info, getOutputTable(sinfo), all, aggs);
       }
       else if(info instanceof ListBindableVSAssemblyInfo) {
          getAttributes((ListBindableVSAssemblyInfo) info, all, aggs);
@@ -189,9 +246,10 @@ public class VSModelContext extends AbstractModelContext {
    /**
     * Get all attributes and aggregate attributes in binding.
     */
-   public void getAttributes(SelectionListVSAssemblyInfo info,
+   public void getAttributes(SelectionListVSAssemblyInfo info, TableAssembly table,
                              HashSet<DataRef> all, HashSet<DataRef> aggs)
    {
+      helper = new CompositeColumnHelper(table);
       addAttributes(all, info.getDataRef());
       addMeasureAttribute(info, all, aggs);
    }
@@ -199,9 +257,10 @@ public class VSModelContext extends AbstractModelContext {
    /**
     * Get all attributes and aggregate attributes in binding.
     */
-   public void getAttributes(SelectionTreeVSAssemblyInfo info,
+   public void getAttributes(SelectionTreeVSAssemblyInfo info, TableAssembly table,
                              HashSet<DataRef> all, HashSet<DataRef> aggs)
    {
+      helper = new CompositeColumnHelper(table);
       addAttributes(all, info.getDataRefs());
       addMeasureAttribute(info, all, aggs);
    }
@@ -220,9 +279,11 @@ public class VSModelContext extends AbstractModelContext {
       }
 
       Viewsheet vs = rvs.getViewsheet();
-      SelectionVSAssembly assembly = (SelectionVSAssembly)
-         vs.getAssembly(info.getAbsoluteName());
-      String tname = assembly.getSelectionTableName();
+      String tname = info.getTableName();
+
+      if(tname == null && vs.getBaseEntry() != null && vs.getBaseEntry().isLogicModel()) {
+         tname = vs.getBaseEntry().getName();
+      }
 
       if(tname == null || tname.length() == 0) {
          return;
@@ -231,7 +292,7 @@ public class VSModelContext extends AbstractModelContext {
       Worksheet ws = vs.getBaseWorksheet();
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
       ColumnSelection selection = table == null ? new ColumnSelection() :
-            (ColumnSelection) table.getColumnSelection(true).clone();
+         table.getColumnSelection(true).clone();
 
       for(int i = 0; i < selection.getAttributeCount(); i++) {
          DataRef ref = selection.getAttribute(i);
@@ -248,18 +309,20 @@ public class VSModelContext extends AbstractModelContext {
    /**
     * Get all attributes and aggregate attributes in binding.
     */
-   public void getAttributes(TimeSliderVSAssemblyInfo info,
+   public void getAttributes(TimeSliderVSAssemblyInfo info, TableAssembly table,
                              HashSet<DataRef> all, HashSet<DataRef> aggs)
    {
+      helper = new CompositeColumnHelper(table);
       addAttributes(all, info.getDataRefs());
    }
 
    /**
     * Get all attributes and aggregate attributes in binding.
     */
-   public void getAttributes(CalendarVSAssemblyInfo info,
+   public void getAttributes(CalendarVSAssemblyInfo info, TableAssembly table,
                              HashSet<DataRef> all, HashSet<DataRef> aggs)
    {
+      helper = new CompositeColumnHelper(table);
       addAttributes(all, info.getDataRef());
    }
 
@@ -282,7 +345,7 @@ public class VSModelContext extends AbstractModelContext {
    /**
     * Get all attributes and aggregate attributes in binding.
     */
-   public void getAttributes(OutputVSAssemblyInfo info,
+   public void getAttributes(OutputVSAssemblyInfo info, TableAssembly base,
                              HashSet<DataRef> all, HashSet<DataRef> aggs)
    {
       ScalarBindingInfo sbinfo = info.getScalarBindingInfo();
@@ -292,14 +355,15 @@ public class VSModelContext extends AbstractModelContext {
       }
 
       String name = info.getAbsoluteName();
-      VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
+      VSAssembly assembly = vs.getAssembly(name);
 
       if(assembly == null) {
          return;
       }
 
-      VSAssemblyInfo cinfo = (VSAssemblyInfo)
-         assembly.getVSAssemblyInfo().clone();
+      helper = new CompositeColumnHelper(base);
+
+      VSAssemblyInfo cinfo = assembly.getVSAssemblyInfo().clone();
 
       if(cinfo != info) {
          try {
@@ -329,6 +393,28 @@ public class VSModelContext extends AbstractModelContext {
       addAttributes(all, refs);
       getAttributes(all, info.getPreConditionList());
       aggs.add(sbinfo.getColumn());
+
+      Worksheet ws = vs.getBaseWorksheet();
+      TableAssembly table = (TableAssembly) ws.getAssembly(sbinfo.getTableName());
+      ColumnSelection selection = table == null ? new ColumnSelection() :
+         table.getColumnSelection(true).clone();
+
+      for(int i = 0; i < selection.getAttributeCount(); i++) {
+         DataRef ref = selection.getAttribute(i);
+
+         if(Tool.equals(ref.getAttribute(), sbinfo.getColumn().getAttribute())) {
+            addAttributes(all, ref);
+            AggregateRef agg = new AggregateRef(ref, sbinfo.getAggregateFormula());
+            addAttributes(aggs, agg);
+         }
+      }
+
+      if(sbinfo.getColumn() instanceof CalculateRef) {
+         AggregateRef agg = new AggregateRef(sbinfo.getColumn(), sbinfo.getAggregateFormula());
+         addAttributes(aggs, agg);
+      }
+
+      helper = null;
    }
 
    /**
@@ -393,13 +479,16 @@ public class VSModelContext extends AbstractModelContext {
    /**
     * Get all attributes and aggregate attributes in binding.
     */
-   private void getAttributes(CalcTableVSAssemblyInfo info, HashSet<DataRef> all,
-                             HashSet<DataRef> aggs) {
+   private void getAttributes(CalcTableVSAssemblyInfo info, TableAssembly base,
+                              HashSet<DataRef> all, HashSet<DataRef> aggs) {
       Viewsheet vs = rvs.getViewsheet();
       CalcTableVSAssembly table = (CalcTableVSAssembly)
          vs.getAssembly(info.getAbsoluteName());
       ColumnSelection cols = table == null ? new ColumnSelection() :
          table.getColumnSelection(info);
+      helper = new CompositeColumnHelper(base);
+      String source = table != null && table.getSourceInfo() != null ?
+         table.getSourceInfo().getSource() : null;
 
       for(int i = 0; i < cols.getAttributeCount(); i++) {
          addAttributes(all, cols.getAttribute(i));
@@ -415,7 +504,21 @@ public class VSModelContext extends AbstractModelContext {
             continue;
          }
 
-         addAttributes(aggs, agg);
+         String bind = cells.get(i).getValue();
+         CalculateRef calc = vs.getCalcField(source, bind);
+
+         if(bind != null && calc != null) {
+            Enumeration enumeration = calc.getAttributes();
+
+            while(enumeration.hasMoreElements()) {
+               AttributeRef attr = (AttributeRef) enumeration.nextElement();
+               ColumnRef col = new ColumnRef(attr);
+               addAttributes(aggs, col);
+            }
+         }
+         else {
+            addAttributes(aggs, agg);
+         }
 
          DataRef ref2 = agg.getSecondaryColumn();
 
@@ -473,7 +576,7 @@ public class VSModelContext extends AbstractModelContext {
          return map;
       }
 
-      VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
+      VSAssembly assembly = vs.getAssembly(name);
 
       if(assembly == null || assembly.getTableName() == null) {
          return map;
@@ -632,20 +735,24 @@ public class VSModelContext extends AbstractModelContext {
    /**
     * Get all attributes and aggregate attributes in binding.
     */
-   private void getAttributes(VSChartInfo info, TableAssembly table,
+   private void getAttributes(ChartVSAssemblyInfo cinfo, TableAssembly table,
                               HashSet<DataRef> all, HashSet<DataRef> aggs)
    {
+      VSChartInfo info = cinfo.getVSChartInfo();
       VSDataRef[] refs = info.getRTFields();
       getAttributes(refs, table, all, aggs);
       all.addAll(aggs);
+      addCubeRefs(all, cinfo.getXCube(), table);
    }
 
    /**
     * Get all attributes and aggregate attributes in binding.
     */
-   private void getAttributes(VSCrosstabInfo info, TableAssembly table,
+   private void getAttributes(CrosstabVSAssemblyInfo cinfo, TableAssembly table,
                               HashSet<DataRef> all, HashSet<DataRef> aggs)
    {
+      VSCrosstabInfo info = cinfo.getVSCrosstabInfo();
+
       if(info == null) {
          return;
       }
@@ -658,6 +765,33 @@ public class VSModelContext extends AbstractModelContext {
       list.toArray(refs);
       getAttributes(refs, table, all, aggs);
       all.addAll(aggs);
+      addCubeRefs(all, cinfo.getXCube(), table);
+   }
+
+   private void addCubeRefs(HashSet<DataRef> all, XCube cube, TableAssembly table) {
+      if(cube == null) {
+         return;
+      }
+
+      helper = new CompositeColumnHelper(table);
+      Enumeration<XDimension> dims = cube.getDimensions();
+
+      while(dims.hasMoreElements()) {
+         XDimension dim = dims.nextElement();
+
+         if(dim instanceof VSDimension) {
+            XCubeMember[] members = ((VSDimension) dim).getLevels();
+
+            for(XCubeMember member : members) {
+               if(member instanceof VSDimensionMember) {
+                  DataRef cubeRef = member.getDataRef();
+                  addAttributes(all, cubeRef);
+               }
+            }
+         }
+      }
+
+      helper = null;
    }
 
    /*

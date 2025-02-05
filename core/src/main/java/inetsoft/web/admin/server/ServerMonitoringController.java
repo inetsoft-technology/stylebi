@@ -341,13 +341,26 @@ public class ServerMonitoringController {
    private String writeHeapDumpResponse(String clusterNode) throws Exception {
       String heapId;
       String fileName = getClusterFileName(clusterNode, "HeapDump", ".hprof.gz");
+      final String[] exceptionMessage = {null};
       File file = null;
 
       heapId = serverService.createHeapDump(clusterNode);
       Awaitility.await()
          .pollInterval(1L, TimeUnit.SECONDS)
          .atMost(10L, TimeUnit.MINUTES)
-         .until(() -> serverService.isHeapDumpComplete(heapId, clusterNode));
+         .until(() -> {
+            try {
+               return serverService.isHeapDumpComplete(heapId, clusterNode);
+            }
+            catch(Exception ex) {
+               exceptionMessage[0] = ex.getMessage();
+               return false;
+            }
+         });
+
+      if(exceptionMessage[0] != null) {
+         throw new RuntimeException("Heap dump operation failed: " + exceptionMessage[0]);
+      }
 
       int length = serverService.getHeapDumpLength(heapId, clusterNode);
 

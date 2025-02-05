@@ -555,7 +555,7 @@ public class BlobIndexedStorage extends AbstractIndexedStorage {
          else if(entry.isDomain()) {
             executor.submit(() -> new MigrateCubeTask(entry, oorg, norg).process());
          }
-         else if(entry.isScheduleTask()) {
+         else if(entry.isScheduleTask() && !ScheduleManager.isInternalTask(entry.getName())) {
             executor.submit(() -> new MigrateScheduleTask(entry, oorg, norg).process());
          }
          else if(entry.getType() == AssetEntry.Type.MV_DEF || entry.getType() == AssetEntry.Type.MV_DEF_FOLDER) {

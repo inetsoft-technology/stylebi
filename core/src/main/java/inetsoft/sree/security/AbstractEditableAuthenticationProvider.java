@@ -19,12 +19,9 @@ package inetsoft.sree.security;
 
 import inetsoft.mv.fs.FSService;
 import inetsoft.mv.mr.XJobPool;
-import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.portal.*;
-import inetsoft.sree.schedule.ScheduleCondition;
-import inetsoft.sree.schedule.TimeCondition;
 import inetsoft.sree.web.dashboard.DashboardRegistry;
 import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.uql.util.Identity;
@@ -32,7 +29,6 @@ import inetsoft.util.*;
 import inetsoft.web.admin.security.IdentityModel;
 import inetsoft.web.admin.security.IdentityService;
 import inetsoft.web.admin.security.user.IdentityThemeService;
-import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +36,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.Principal;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Skeleton implementation of an editable authentication module.
@@ -99,7 +94,7 @@ public abstract class AbstractEditableAuthenticationProvider
    public void copyOrganization(Organization fromOrganization, String newOrgID, IdentityService identityService,
                                 IdentityThemeService themeService, Principal principal, boolean replace)
    {
-      copyOrganization(fromOrganization, newOrgID, null, identityService, themeService, principal, replace);
+      copyOrganization(fromOrganization, null, newOrgID, null, identityService, themeService, principal, replace);
    }
 
    /**
@@ -109,7 +104,8 @@ public abstract class AbstractEditableAuthenticationProvider
     * @param newOrgID the organization name of the newly created org
     */
    @Override
-   public void copyOrganization(Organization fromOrganization, String newOrgID, String newOrgName,
+   public void copyOrganization(Organization fromOrganization, Organization editedNewOrganization,
+                                String newOrgID, String newOrgName,
                                 IdentityService identityService, IdentityThemeService themeService,
                                 Principal principal, boolean replace)
    {
@@ -125,7 +121,7 @@ public abstract class AbstractEditableAuthenticationProvider
          clearScopedProperties(fromOrganization.getId());
          DashboardRegistry.clear(fromOrganization.getIdentityID());
          identityService.updateOrgProperties(fromOrganization.getId(), newOrgID);
-         identityService.updateAutoSaveFiles(fromOrganization, newOrg);
+         identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
          identityService.updateTaskSaveFiles(fromOrganization, newOrg);
          identityService.updateIdentityPermissions(Identity.ORGANIZATION, fromOrganization.getIdentityID(),
                                                    newOrg.getIdentityID(), fromOrganization.getId(), newOrgID, true);
@@ -180,30 +176,6 @@ public abstract class AbstractEditableAuthenticationProvider
          }
       }
 
-      DataCycleManager cycleManager = DataCycleManager.getDataCycleManager();
-
-      if(replace)
-      {
-         try {
-            DataCycleManager.getDataCycleManager().migrateDataCycles(fromOrganization, newOrg);
-         }
-         catch(Exception e) {
-            LOG.warn("Unable to migrate Data Cycles: "+ e);
-         }
-      }
-      else {
-         Enumeration<String> dataCycles = cycleManager.getDataCycles(fromOrganization.getOrganizationID());
-         List<String> dataCycleList = Collections.list(dataCycles);
-
-         for(String cycle : dataCycleList) {
-            DataCycleManager.getDataCycleManager().copyCycleInfo(cycle, newOrgID, fromOrganization.getOrganizationID(), replace);
-
-            for(ScheduleCondition condition : cycleManager.getConditions(cycle, fromOrganization.getOrganizationID())) {
-               cycleManager.addCondition(cycle, newOrgID, condition);
-            }
-         }
-      }
-
       PortalThemesManager manager = PortalThemesManager.getManager();
       DataSpace dataSpace = DataSpace.getDataSpace();
       String viewsheet = manager.getCssEntries().get(fromOrganization.getOrganizationID());
@@ -239,14 +211,29 @@ public abstract class AbstractEditableAuthenticationProvider
          }
       }
 
-      newOrg.setMembers(addedMembers.stream().map(id -> id.name).toArray(String[]::new));
-      newOrg.setLocale(fromOrganization.getLocale());
-      newOrg.setTheme(fromOrganization.getTheme());
+      // edit org update members has been process in the IdentityService#updateOrganizationMembers
+      if(editedNewOrganization != null && replace) {
+         newOrg.setMembers(editedNewOrganization.getMembers());
+         newOrg.setLocale(editedNewOrganization.getLocale());
+         newOrg.setTheme(editedNewOrganization.getTheme());
+      }
+      else {
+         newOrg.setMembers(addedMembers.stream().map(id -> id.name).toArray(String[]::new));
+         newOrg.setLocale(fromOrganization.getLocale());
+         newOrg.setTheme(fromOrganization.getTheme());
+      }
 
       addOrganization(newOrg);
 
       identityService.copyStorages(fromOrganization, newOrg);
       identityService.copyRepletRegistry(fromOrganization.getOrganizationID(), newOrg.getId());
+
+      try {
+         DataCycleManager.getDataCycleManager().migrateDataCycles(fromOrganization, newOrg, replace);
+      }
+      catch(Exception e) {
+         LOG.warn("Unable to migrate Data Cycles: "+ e);
+      }
 
       if(replace) {
          removeOrganization(fromOrganization.getId());
@@ -255,6 +242,8 @@ public abstract class AbstractEditableAuthenticationProvider
          themeService.removeTheme(fromOrganization.getId());
          FSService.clearServerNodeCache(fromOrganization.getId());
          XJobPool.resetOrgCache(fromOrganization.getId());
+         manager.removeCSSEntry(fromOrganization.getOrganizationID());
+         manager.save();
 
          try{
             identityService.updateRepletRegistry(fromOrganization.getId(), null);
@@ -534,21 +523,22 @@ public abstract class AbstractEditableAuthenticationProvider
 
    private IdentityID[] copyIdentityRoles(AbstractIdentity fromID, String orgName) {
       ArrayList<IdentityID> newRoles = new ArrayList<>();
+
       for(IdentityID roleName : fromID.getRoles()) {
          Role role = getRole(roleName);
 
-         if (role != null) {
+         if(role != null) {
             boolean isGlobal = roleName.orgID == null;
 
-            if(isGlobal) {
-               newRoles.add(roleName);
+            if(isGlobal && isSystemAdministratorRole(roleName)) {
+               continue;
             }
-            else {
-               IdentityID newRoleID = new IdentityID(roleName.name, orgName);
-               newRoles.add(newRoleID);
-            }
+
+            IdentityID newRoleID = isGlobal ? roleName : new IdentityID(roleName.name, orgName);
+            newRoles.add(newRoleID);
          }
       }
+
       return newRoles.toArray(new IdentityID[0]);
    }
 

@@ -18,12 +18,8 @@
 package inetsoft.uql.rest.json;
 
 import inetsoft.uql.rest.*;
-import inetsoft.uql.rest.datasource.twitter.TwitterDataSource;
 import inetsoft.uql.rest.datasource.twitter.TwitterQuery;
-import inetsoft.uql.rest.pagination.HttpResponseParameterParser;
-import inetsoft.uql.rest.pagination.PaginationSpec;
-import inetsoft.uql.rest.pagination.PaginationType;
-import inetsoft.uql.rest.pagination.ParameterParseException;
+import inetsoft.uql.rest.pagination.*;
 
 import java.io.InputStream;
 import java.util.HashMap;
@@ -122,9 +118,7 @@ public class TwitterRestDataIteratorStrategy extends HttpRestDataIteratorStrateg
       final String suffix = this.query.getSuffix();
       final Map<String, String> queryParameters = this.query.getQueryParameters();
 
-      // update after calling getSuffix
       queryParameters.putAll(queryParams);
-      ((TwitterDataSource) this.query.getDataSource()).update(suffix, queryParameters);
       return queryParameters;
    }
 

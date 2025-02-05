@@ -177,6 +177,7 @@ public class SelectionTreePropertyDialogController {
       selectionTreePaneModel.setSelectedTable(selectedTableName);
       selectionTreePaneModel.setAdditionalTables(selectionTreeAssemblyInfo.getAdditionalTableNames());
       selectionTreePaneModel.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
+      selectionTreePaneModel.setModelSource(vs.getBaseEntry() == null ? false : vs.getBaseEntry().isLogicModel());
       final TreeNodeModel tree = vsOutputService.getSelectionTablesTree(rvs, principal);
       selectionTreePaneModel.setTargetTree(tree);
       DataRef[] dataRefs = selectionTreeAssemblyInfo.getDataRefs();
@@ -421,8 +422,10 @@ public class SelectionTreePropertyDialogController {
          setAssemblyInfoTables(newAssemblyInfo, value);
          setAssemblyInfoDataRefs(newAssemblyInfo, value);
          setAssemblyInfoMeasure(newAssemblyInfo, selectionMeasurePaneModel);
+         VSTableTrapModel trap = trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
+         rvs.getViewsheet().getAssembly(objectId).setVSAssemblyInfo(oldAssemblyInfo);
 
-         return trapService.checkTrap(rvs, oldAssemblyInfo, newAssemblyInfo);
+         return trap;
       }
       finally {
          box.unlockRead();
@@ -459,8 +462,10 @@ public class SelectionTreePropertyDialogController {
          setAssemblyInfoTables(newAssemblyInfo, value);
          setAssemblyInfoDataRefs(newAssemblyInfo, value);
          setAssemblyInfoMeasure(newAssemblyInfo, selectionMeasurePaneModel);
+         List<DataRefModel> grayed = getGrayedFields(rvs, oldAssemblyInfo, newAssemblyInfo);
+         rvs.getViewsheet().getAssembly(objectId).setVSAssemblyInfo(oldAssemblyInfo);
 
-         return getGrayedFields(rvs, oldAssemblyInfo, newAssemblyInfo);
+         return grayed;
       }
       finally {
          box.unlockRead();

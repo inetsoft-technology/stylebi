@@ -27,7 +27,7 @@ import java.awt.*;
  * @author InetSoft Technology
  * @version 13.3
  */
-public class ChartLineColor {
+public class ChartLineColor extends BaseColor {
    /**
     * Get the default color for chart axis line
     */
@@ -56,16 +56,4 @@ public class ChartLineColor {
    public static Color getPlotLineColor(Color defaultColor, String type) {
       return getLineColor(defaultColor, CSSConstants.CHART_PLOT_LINE, type);
    }
-
-   private static CSSDictionary getDictionary() {
-      if(dict == null || dict.getLastModifiedTime() > lastModified) {
-         dict = CSSDictionary.getDictionary();
-      }
-
-      lastModified = dict.getLastModifiedTime();
-      return dict;
-   }
-
-   private static long lastModified;
-   private static CSSDictionary dict;
 }

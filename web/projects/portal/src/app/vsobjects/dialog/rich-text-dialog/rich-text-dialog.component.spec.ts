@@ -67,7 +67,7 @@ describe("Rich Text Dialog Tests", () => {
       });
    }));
 
-   xit("should create a rich text dialog", () => {
+   it("should create a rich text dialog", () => {
       TestBed.overrideTemplate(TestApp, singleTemplate);
       let fixture = TestBed.createComponent(TestApp);
       fixture.detectChanges();
@@ -82,7 +82,7 @@ describe("Rich Text Dialog Tests", () => {
       });
    });
 
-   xit("should only remove its own editor when destroyed", () => {
+   it("should only remove its own editor when destroyed", () => {
       TestBed.overrideTemplate(TestApp, doubleTemplate);
       let fixture = TestBed.createComponent(TestApp);
       fixture.detectChanges();
@@ -110,7 +110,7 @@ describe("Rich Text Dialog Tests", () => {
       });
    });
 
-   xit("should get the rich text from tinymce", () => { // broken test
+   it("should get the rich text from tinymce", () => { // broken test
       TestBed.overrideTemplate(TestApp, doubleTemplate);
       let fixture = TestBed.createComponent(TestApp);
       let onCommitSpy = jest.spyOn(fixture.componentInstance, "onCommit");

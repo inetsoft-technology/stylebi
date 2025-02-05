@@ -35,8 +35,7 @@ import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.ws.event.OpenSheetEventValidator;
 import inetsoft.web.embed.EmbedErrorCommand;
 import inetsoft.web.service.LicenseService;
-import inetsoft.web.viewsheet.HandleAssetExceptions;
-import inetsoft.web.viewsheet.LoadingMask;
+import inetsoft.web.viewsheet.*;
 import inetsoft.web.viewsheet.command.VSDependencyChangedCommand;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -108,7 +107,7 @@ public class OpenViewsheetController {
    {
       String id = event.getEntryId();
       AssetEntry entry = AssetEntry.createAssetEntry(id);
-      boolean autoSaveFileExists = entry != null && AutoSaveUtils.getAutoSavedFile(entry, principal).exists();
+      boolean autoSaveFileExists = entry != null && AutoSaveUtils.exists(entry, principal);
       return OpenSheetEventValidator.builder()
          .autoSaveFileExists(autoSaveFileExists)
          .forbiddenSourcesMessage("")
@@ -127,8 +126,10 @@ public class OpenViewsheetController {
    @LoadingMask(true)
    @MessageMapping("/open")
    @HandleAssetExceptions
-   public void openViewsheet(@Payload OpenViewsheetEvent event, Principal principal,
-                             CommandDispatcher commandDispatcher, @LinkUri String linkUri)
+   @SwitchOrg
+   public void openViewsheet(@OrganizationID("getOrgId()") @Payload OpenViewsheetEvent event,
+                             Principal principal, CommandDispatcher commandDispatcher,
+                             @LinkUri String linkUri)
       throws Exception
    {
       if(licenseService.isCpuUnlicensed()) {
@@ -143,19 +144,9 @@ public class OpenViewsheetController {
       String id = null;
 
       try {
-         AssetEntry assetEntry = AssetEntry.createAssetEntry(event.getEntryId());
-         String orgId = assetEntry.getOrgID();
-
-         id = OrganizationManager.runInOrgScope(orgId, () -> {
-            try {
-               return vsLifecycleService.openViewsheet(
-                  event, principal, commandDispatcher, runtimeViewsheetRef, runtimeViewsheetManager,
-                  linkUri);
-            }
-            catch(Exception e) {
-               throw new RuntimeException(e.getMessage());
-            }
-         });
+         id = vsLifecycleService.openViewsheet(
+            event, principal, commandDispatcher, runtimeViewsheetRef, runtimeViewsheetManager,
+            linkUri);
       }
       catch(Exception e) {
          // embed web component failed to load

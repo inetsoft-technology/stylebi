@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { DataRef } from "../../common/data/data-ref";
 import { OutputColumnRefModel } from "./output-column-ref-model";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 
@@ -26,4 +27,5 @@ export interface RangeSliderDataPaneModel {
    targetTree: TreeNodeModel;
    compositeTargetTree: TreeNodeModel;
    composite: boolean;
+   grayedOutFields: DataRef[];
 }

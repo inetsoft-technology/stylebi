@@ -21,6 +21,7 @@ import inetsoft.mv.trans.UserInfo;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
@@ -34,6 +35,7 @@ import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -128,6 +130,15 @@ public class MVController {
          ActionRecord.OBJECT_TYPE_TASK);
 
       try {
+         IdentityID user = IdentityID.getIdentityIDFromKey(principal.getName());
+
+         if(createUpdateMVRequest.runInBackground() && Cluster.getInstance().isSchedulerRunning() &&
+            !SUtil.getRepletRepository().checkPermission(
+               principal, ResourceType.SCHEDULER, "*", ResourceAction.ACCESS))
+         {
+            throw new RuntimeException("User '" + user.getName() + "' doesn't have schedule permission.");
+         }
+
          HttpSession session = req.getSession(true);
          String orgId = OrganizationManager.getInstance().getCurrentOrgID(principal);
          List<MVSupportService.MVStatus> mvstatus = (List<MVSupportService.MVStatus>)

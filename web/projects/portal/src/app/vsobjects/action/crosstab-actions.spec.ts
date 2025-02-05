@@ -215,7 +215,7 @@ describe("CrosstabActions", () => {
 
    // broken chart menus test temporarily, the date comparison feature is doing.
    // will update this test after finish the feature
-   xit("check status of menu actions and toolbar actions in composer", () => {
+   it("check status of menu actions and toolbar actions in composer", () => {
       const expectedMenu = [
          [
             { id: "crosstab properties", visible: true },
@@ -297,7 +297,7 @@ describe("CrosstabActions", () => {
       expect(menuActions[1].actions[2].visible()).toBeFalsy();
    });
 
-   xit("check status of menu actions and toolbar actions in binding", () => {
+   it("check status of menu actions and toolbar actions in binding", () => {
       const expectedMenu = [
          [
             { id: "crosstab properties", visible: true },
@@ -365,7 +365,7 @@ describe("CrosstabActions", () => {
       expect(menuActions[3].actions[1].visible()).toBeTruthy();
    });
 
-   xit("check status of menu actions and toolbar actions in viewer and preview", () => {
+   it("check status of menu actions and toolbar actions in viewer and preview", () => {
       const expectedMenu = [
          [
             { id: "crosstab properties", visible: false },
@@ -470,7 +470,7 @@ describe("CrosstabActions", () => {
       expect(menuActions2[4].actions[2].visible()).toBeTruthy();
    });
 
-   xit("check status of menu actions and toolbar actions in binding when select multiple group header", () => {
+   it("check status of menu actions and toolbar actions in binding when select multiple group header", () => {
       const expectedMenu = [
          [
             { id: "crosstab properties", visible: true },
@@ -536,7 +536,7 @@ describe("CrosstabActions", () => {
    });
 
    //Bug #18673 no sort action
-   xit("check status of menu actions and toolbar actions in composer when select header cell", () => {
+   it("check status of menu actions and toolbar actions in composer when select header cell", () => {
       const expectedMenu = [
          [
             { id: "crosstab properties", visible: true },
@@ -604,7 +604,7 @@ describe("CrosstabActions", () => {
       expect(toolbarActions).toMatchSnapshot();
    });
 
-   xit("check status of menu actions and toolbar actions in viewer when select summary cell", () => {
+   it("check status of menu actions and toolbar actions in viewer when select summary cell", () => {
       const expectedMenu = [
          [
             { id: "crosstab properties", visible: false },
@@ -674,7 +674,7 @@ describe("CrosstabActions", () => {
    });
 
    // Bug #10402 do not show reset layout when it is in default state
-   xit("should only show reset layout in default state", () => {
+   it("should only show reset layout in default state", () => {
       const model = createModel();
       const actions = new CrosstabActions(model, ComposerContextProviderFactory());
       const menuActions = actions.menuActions;
@@ -829,7 +829,7 @@ describe("CrosstabActions", () => {
    });
 
    // Bug #17095, Bug #17186
-   xit("should only show filter menu when group header or summary cell is selected", () => {
+   it("should only show filter menu when group header or summary cell is selected", () => {
       const model = createVSCrosstabModel();
       model.adhocFilterEnabled = true;
       const actions = new CrosstabActions(model, ViewerContextProviderFactory(false));
@@ -1064,7 +1064,7 @@ describe("CrosstabActions", () => {
    });
 
    //Bug #19986 should not display menu action when as data tip component
-   xit("should not display menu action when as data tip component", () => {
+   it("should not display menu action when as data tip component", () => {
       const dataTipService: any = { isDataTip: jest.fn() };
       dataTipService.isDataTip.mockImplementation(() => true);
       const model = createModel();

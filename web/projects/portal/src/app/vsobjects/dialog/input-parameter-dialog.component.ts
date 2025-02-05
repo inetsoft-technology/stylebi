@@ -18,6 +18,7 @@
 import { ChangeDetectorRef, Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormControl, UntypedFormGroup, Validators, ValidatorFn } from "@angular/forms";
 import { NgbDateParserFormatter, NgbDateStruct } from "@ng-bootstrap/ng-bootstrap";
+import { AssetEntry } from "../../../../../shared/data/asset-entry";
 import { DataRef } from "../../common/data/data-ref";
 import { XSchema } from "../../common/data/xschema";
 import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
@@ -33,6 +34,7 @@ import { debounceTime, distinctUntilChanged } from "rxjs/operators";
 })
 export class InputParameterDialog implements OnInit {
    @Input() fields: DataRef[];
+   @Input() grayedOutFields: DataRef[];
    @Input() selectEdit: boolean = true;
    @Input() viewsheetParameters: string[] = null;
    @Output() onCommit: EventEmitter<InputParameterDialogModel>
@@ -303,18 +305,16 @@ export class InputParameterDialog implements OnInit {
          return true;
       }
 
-      const isValueUndefined = this.model.value?.startsWith("undefined");
-
       switch(this.model.type) {
-      case XSchema.DATE:
-         return this.form.controls["dateValue"].invalid || isValueUndefined;
-      case XSchema.TIME:
-         return this.form.controls["timeValue"].invalid;
-      case XSchema.TIME_INSTANT:
-         return this.form.controls["dateValue"].invalid || isValueUndefined ||
-            this.form.controls["timeValue"].invalid;
-      default:
-         return this.form.controls["alphaNumericValue"].invalid || !this.model.value;
+         case XSchema.DATE:
+            return this.form.controls["dateValue"].invalid || this.invalidDate();
+         case XSchema.TIME:
+            return this.form.controls["timeValue"].invalid;
+         case XSchema.TIME_INSTANT:
+            return this.form.controls["dateValue"].invalid || this.invalidDate() ||
+               this.form.controls["timeValue"].invalid;
+         default:
+            return this.form.controls["alphaNumericValue"].invalid || !this.model.value;
       }
    }
 
@@ -322,8 +322,32 @@ export class InputParameterDialog implements OnInit {
       return this.isInvalid() || this.form && this.form.controls["name"].invalid;
    }
 
+   isGrayedOut(field: string): boolean {
+      let grayedOutFields: any[] = this.grayedOutFields;
+      let refName: string = field != null ? field.replace(":", ".") : null;
+
+      if(refName && grayedOutFields) {
+         for(let i = 0; grayedOutFields && i < grayedOutFields.length; i++) {
+            if(grayedOutFields[i].name == refName) {
+               return true;
+            }
+         }
+      }
+
+      return false;
+   }
+
    changeName(name: any) {
       this.form.controls["name"].setValue(name);
+   }
+
+   invalidDate(): boolean {
+      const date = new Date(this.model?.value)
+      return isNaN(date.getTime());
+   }
+
+   hasViewsheetParameters(): boolean {
+      return this.viewsheetParameters && this.viewsheetParameters.length > 0;
    }
 
    ok(): void {

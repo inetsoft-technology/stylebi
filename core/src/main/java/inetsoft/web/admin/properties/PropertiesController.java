@@ -74,10 +74,6 @@ public class PropertiesController {
    public Properties getProperties() {
       Properties properties = SreeEnv.getProperties();
 
-      if(properties.get("license.key") != null && !LicenseManager.getInstance().isEnterprise()) {
-         properties.remove("license.key");
-      }
-
       if(!LicenseManager.getInstance().isEnterprise()) {
          removeUnuseProperties(properties);
       }
@@ -108,6 +104,5 @@ public class PropertiesController {
       properties.remove("log.level.inetsoft.storage.aws.org.apache");
       properties.remove("log.level.inetsoft.web.portal.controller.ControllerErrorHandler");
       properties.remove("log.level.inetsoft_audit");
-      properties.remove("log.level.org.apache.ignite");
    }
 }

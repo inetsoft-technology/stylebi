@@ -16,9 +16,11 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Injectable } from "@angular/core";
+import dayjs from "dayjs";
 import { TimeConditionModel } from "../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../shared/schedule/model/time-zone-model";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
+import { Tool } from "../../../../../../shared/util/tool";
 import { StartTimeData } from "./start-time-editor/start-time-editor.component";
 
 @Injectable()
@@ -56,22 +58,18 @@ export class DateTimeService {
       condition.secondEnd = time.seconds;
    }
 
-   getDate(condition: TimeConditionModel): Date {
-      return this.getOffsetDate(condition.date, condition.timeZoneOffset, condition.timeZone);
-   }
-
-   setDate(date: string, time: string, condition: TimeConditionModel): void {
+   setDate(date: string, time: string, tzOffset:number, condition: TimeConditionModel): void {
       const dateValue = DateTypeFormatter.toTimeInstant(date, DateTypeFormatter.ISO_8601_DATE_FORMAT);
       const timeValue = DateTypeFormatter.toTimeInstant(time, DateTypeFormatter.ISO_8601_TIME_FORMAT);
-      const compiled = new Date(
-         dateValue.years, dateValue.months, dateValue.date,
-         timeValue.hours, timeValue.minutes, timeValue.seconds);
-      condition.date = compiled.getTime();
-
-      if(condition.timeZone == null) {
-         condition.timeZoneOffset = this.getLocalTimezoneOffset(condition.timeZone);
-      }
-
+      condition.date = dayjs().utcOffset(tzOffset / 60000)
+         .year(dateValue.years)
+         .month(dateValue.months)
+         .date(dateValue.date)
+         .hour(timeValue.hours)
+         .minute(timeValue.minutes)
+         .second(timeValue.seconds)
+         .millisecond(0)
+         .valueOf();
       condition.changed = true;
    }
 
@@ -105,18 +103,17 @@ export class DateTimeService {
    getTimeZoneLabel(timeZoneOptions: TimeZoneModel[], timeZoneID: string,
                     defaultTimeZone: string): string
    {
+      if(!timeZoneOptions) {
+         return "";
+      }
+
       let tz = timeZoneOptions.find(option => option.timeZoneId == timeZoneID);
 
       if(!tz) {
-         tz = timeZoneOptions[0];
-      }
-
-      if (tz == timeZoneOptions[0]) {
          return defaultTimeZone;
       }
-      else {
-         return  tz.label;
-      }
+
+      return tz.label;
    }
 
    updateStartTimeDataTimeZone(startTimeData: StartTimeData, oldTZ: string, newTZ: string): StartTimeData {
@@ -141,7 +138,7 @@ export class DateTimeService {
    }
 
    applyTimeZoneOffsetDifference(value: string, oldTZ: string, newTZ: string): string {
-      if(oldTZ == null && newTZ == null) {
+      if(Tool.isEmpty(oldTZ) && Tool.isEmpty(newTZ)) {
          return value;
       }
 

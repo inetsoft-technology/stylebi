@@ -1,1471 +1,1473 @@
 {
-  "dateAdd": {
-    "!type": "fn(interval: string, amount: number, date: +Date) -> +Date",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=dateAdd"
+  "dateAdd" : {
+    "!type" : "fn(interval: string, amount: number, date: +Date) -> +Date",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=dateAdd"
   },
-  "dateDiff": {
-    "!type": "fn(interval: string, date1: +Date, date2: +Date) -> number",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=dateDiff"
+  "dateDiff" : {
+    "!type" : "fn(interval: string, date1: +Date, date2: +Date) -> number",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=dateDiff"
   },
-  "datePart": {
-    "!type": "fn(interval: string, date: +Date) -> number",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=datePart"
+  "datePart" : {
+    "!type" : "fn(interval: string, date: +Date) -> number",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=datePart"
   },
-  "decodeURI": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=decodeURI"
+  "decodeURI" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=decodeURI"
   },
-  "encodeURI": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=encodeURI"
+  "encodeURI" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=encodeURI"
   },
-  "eval": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=eval"
+  "eval" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=eval"
   },
-  "formatDate": {
-    "!type": "fn(date: +Date, format_spec: string) -> +Date",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=formatDate"
+  "formatDate" : {
+    "!type" : "fn(date: +Date, format_spec: string) -> +Date",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=formatDate"
   },
-  "formatNumber": {
-    "!type": "fn(n: number, format_spec: string, round_option: string) -> string",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=formatNumber"
+  "formatNumber" : {
+    "!type" : "fn(n: number, format_spec: string, round_option: string) -> string",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=formatNumber"
   },
-  "setupGoogleMapsPlot": {
-    "!type": "fn(graph: object, urlPrefix: string, data: object, latitudeColumnName: string, longitudeColumnName: string, maxWidthPx: number, maxHeightPx: number, widthPx: number, heightPx: number)",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setupGoogleMapsPlot"
+  "setupGoogleMapsPlot" : {
+    "!type" : "fn(graph: object, urlPrefix: string, data: object, latitudeColumnName: string, longitudeColumnName: string, maxWidthPx: number, maxHeightPx: number, widthPx: number, heightPx: number)",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setupGoogleMapsPlot"
   },
-  "StringObjectSplit": {
-    "!type": "fn(graph: object, urlPrefix: string, data: object, latitudeColumnName: string, longitudeColumnName: string, maxWidthPx: number, maxHeightPx: number, widthPx: number, heightPx: number)",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSplit"
+  "StringObjectSplit" : {
+    "!type" : "fn(graph: object, urlPrefix: string, data: object, latitudeColumnName: string, longitudeColumnName: string, maxWidthPx: number, maxHeightPx: number, widthPx: number, heightPx: number)",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSplit"
   },
-  "toExponential": {
-    "!type": "fn(fractionDigits: number) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectToExponential"
-  },
-  "toFixed": {
-    "!type": "fn(fractionDigits: number) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjecttoFixed"
-  },
-  "toLocaleString": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectToLocaleString"
-  },
-  "toPrecision": {
-    "!type": "fn(precision: number) - > ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectToPrecision"
-  },
-  "NumberObjectToString": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectToString"
-  },
-  "inArray": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=inArray"
-  },
-  "mapList": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=mapList"
-  },
-  "rowList": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=rowList"
-  },
-  "toArray": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toArray"
-  },
-  "getImage": {
-    "!type": "fn(img: string) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getImage"
-  },
-  "importPackage": {
-    "!type": "fn(packageName: string) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=importPackage"
-  },
-  "indexOf": {
-    "!type": "fn(array: [?], value: ?) -> bool",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=indexOf"
-  },
-  "isCancelled": {
-    "!type": "fn() -> bool",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=isCancelled"
-  },
-  "isDate": {
-    "!type": "fn(value: ?) -> bool",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=isDate"
-  },
-  "isNull": {
-    "!type": "fn(object: ?) -> bool",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=isNull"
-  },
-  "isNumber": {
-    "!type": "fn(object: ?) -> bool",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectIsNumber"
-  },
-  "log": {
-    "!type": "fn(message: string) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=log"
-  },
-  "ltrim": {
-    "!type": "fn(string: string) -> string",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLTrim"
-  },
-  "newInstance": {
-    "!type": "fn(classname: ?) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=newInstance"
-  },
-  "parseDate": {
-    "!type": "fn(string: string) -> +Date",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=parseDate"
-  },
-  "parseInt": {
-    "!type": "fn(string: string) -> number",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=parseInt"
-  },
-  "parseFloat": {
-    "!type": "fn(string: string) -> number",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=parseFloat"
-  },
-  "rtrim": {
-    "!type": "fn(string: string) -> string",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectRTrim"
-  },
-  "runQuery": {
-    "!type": "fn(query_name: string, parameters: ?) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=runQuery"
-  },
-  "trim": {
-    "!type": "fn(string: string) -> string",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectTrim"
-  },
-  "toList": {
-    "!type": "fn(array: [?], options: string) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toList"
-  },
-  "CALC": {
-    "datevalue": {
-      "!type": "fn(date: +Date) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_datevalue"
-    },
-    "day": {
-      "!type": "fn(date: +Date) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_day"
-    },
-    "days360": {
-      "!type": "fn(start_date: +Date, end_date: +Date, method: bool) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_days360"
-    },
-    "edate": {
-      "!type": "fn(date: +Date, months: number) -> +Date",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_edate"
-    },
-    "eomonth": {
-      "!type": "fn(date: +Date, months: number) -> +Date",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_eomonth"
-    },
-    "fiscalmonth": {
-      "!type": "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalmonth"
-    },
-    "fiscalmonth445": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalmonth445"
-    },
-    "fiscalmonth454": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalmonth454"
-    },
-    "fiscalmonth544": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalmonth544"
-    },
-    "fiscalquarter": {
-      "!type": "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalquarter"
-    },
-    "fiscalquarter445": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalquarter445"
-    },
-    "fiscalquarter454": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalquarter454"
-    },
-    "fiscalquarter544": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalquarter544"
-    },
-    "fiscalweek": {
-      "!type": "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalweek"
-    },
-    "fiscalweek445": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalweek445"
-    },
-    "fiscalweek454": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalweek454"
-    },
-    "fiscalweek544": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalweek544"
-    },
-    "fiscalyear": {
-      "!type": "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalyear"
-    },
-    "fiscalyear445": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalyear445"
-    },
-    "fiscalyear454": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalyear454"
-    },
-    "fiscalyear544": {
-      "!type": "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalyear544"
-    },
-    "hour": {
-      "!type": "fn(date: +Date) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_hour"
-    },
-    "minute": {
-      "!type": "fn(date: +Date) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_minute"
-    },
-    "month": {
-      "!type": "fn(date: +Date) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_month"
-    },
-    "monthname": {
-      "!type": "fn(date: +Date) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_monthname"
-    },
-    "networkdays": {
-      "!type": "fn(start_date: +Date, end_date: +Date, holidays: [+Date]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_networkdays"
-    },
-    "now": {
-      "!type": "fn() -> +Date",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_now"
-    },
-    "quarter": {
-      "!type": "fn(date: +Date) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_quarter"
-    },
-    "second": {
-      "!type": "fn(date: +Date) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_second"
-    },
-    "time": {
-      "!type": "fn(hour: number, minute: number, second: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_time"
-    },
-    "timevalue": {
-      "!type": "fn(date: +Date) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_timeValue"
-    },
-    "today": {
-      "!type": "fn() -> +Date",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_today"
-    },
-    "weekday": {
-      "!type": "fn(date: +Date, return_type: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_weekday"
-    },
-    "weekdayname": {
-      "!type": "fn(date: +Date) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_weekdayname"
-    },
-    "weeknum": {
-      "!type": "fn(date: +Date, return_type: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_weeknum"
-    },
-    "weightedavg": {
-      "!type": "fn(values: [number], weights: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=weightedavg"
-    },
-    "workday": {
-      "!type": "fn(date: +Date, days: number, holidays: [+Date]) -> +Date",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_workday"
-    },
-    "year": {
-      "!type": "fn(date: +Date) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_year"
-    },
-    "yearfrac": {
-      "!type": "fn(start_date: +Date, end_date: +Date, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_yearfrac"
-    },
-    "avedev": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_avedev"
-    },
-    "average": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_average"
-    },
-    "averagea": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_averagea"
-    },
-    "binomdist": {
-      "!type": "fn(number: number, trials: number, probability: number, cummulative: bool) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_binomdist"
-    },
-    "correl": {
-      "!type": "fn(array: [number], array2: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_correl"
-    },
-    "count": {
-      "!type": "fn(array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_count"
-    },
-    "counta": {
-      "!type": "fn(array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_counta"
-    },
-    "countblank": {
-      "!type": "fn(array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_countblank"
-    },
-    "countDistinct": {
-      "!type": "fn(array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_countdistinct"
-    },
-    "countn": {
-      "!type": "fn(array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_countn"
-    },
-    "countif": {
-      "!type": "fn(array: [?], condition: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_countif"
-    },
-    "covar": {
-      "!type": "fn(array: [number], array2: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_covar"
-    },
-    "devsq": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_devsq"
-    },
-    "expondist": {
-      "!type": "fn(x: number, lambda: number, cumulative: bool) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_expondist"
-    },
-    "fisher": {
-      "!type": "fn(x: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fisher"
-    },
-    "fisherinv": {
-      "!type": "fn(y: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fisherinv"
-    },
-    "forecast": {
-      "!type": "fn(x: number, known_ys: [number], known_xs: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_forecast"
-    },
-    "frequency": {
-      "!type": "fn(data_array: [number], bins_array: [number]) -> [number]",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_frequency"
-    },
-    "geomean": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_geomean"
-    },
-    "harmean": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_harmmean"
-    },
-    "hypgeomdist": {
-      "!type": "fn(samples: number, num_of_sample: number, population: number, num_of_population: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_hypgeomdist"
-    },
-    "intercept": {
-      "!type": "fn(known_ys: [number], known_xs: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_intercept"
-    },
-    "kurt": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_kurt"
-    },
-    "large": {
-      "!type": "fn(array: [number], nth: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_large"
-    },
-    "max": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_max"
-    },
-    "maxa": {
-      "!type": "fn(array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_maxa"
-    },
-    "median": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_median"
-    },
-    "min": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_min"
-    },
-    "mina": {
-      "!type": "fn(array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mina"
-    },
-    "mode": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mode"
-    },
-    "negbinomdist": {
-      "!type": "fn(num_of_failure: number, threshold: number, probability: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_negbinomdist"
-    },
-    "nthmostfrequent": {
-      "!type": "fn(array: [number], n: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_nthmostfrequent"
-    },
-    "nthlargest": {
-      "!type": "fn(array: [number], n: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_nthlargest"
-    },
-    "nthsmallest": {
-      "!type": "fn(array: [number], n: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_nthsmallest"
-    },
-    "pearson": {
-      "!type": "fn(array: [number], array2: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pearson"
-    },
-    "percentile": {
-      "!type": "fn(number_array: [number], percentile: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_percentile"
-    },
-    "percentrank": {
-      "!type": "fn(array: [number], x: number, significance: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_percentrank"
-    },
-    "permut": {
-      "!type": "fn(number: number, number_chosen: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_permut"
-    },
-    "poisson": {
-      "!type": "fn(x: number, mean: number, cumulative: bool) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_poisson"
-    },
-    "prob": {
-      "!type": "fn(xrange: [number], prob_range: [number], lower_limit: number, upper_limit: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_prob"
-    },
-    "pthpercentile": {
-      "!type": "fn(array: [number], percentile: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pthpercentile"
-    },
-    "quartile": {
-      "!type": "fn(array: [number], quart: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_quartile"
-    },
-    "rank": {
-      "!type": "fn(number: number, array: [number], order: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_rank"
-    },
-    "rsq": {
-      "!type": "fn(array: [number], array2: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_rsq"
-    },
-    "skew": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_skew"
-    },
-    "slope": {
-      "!type": "fn(xarray: [number], yarray: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_slope"
-    },
-    "small": {
-      "!type": "fn(array: [number], nth: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_small"
-    },
-    "standardize": {
-      "!type": "fn(x: number, mean: number, standard_dev: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_standardize"
-    },
-    "stdev": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_stdev"
-    },
-    "stdeva": {
-      "!type": "fn(array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_stdeva"
-    },
-    "stdevp": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_stdevp"
-    },
-    "stdevpa": {
-      "!type": "fn(array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_stdevpa"
-    },
-    "steyx": {
-      "!type": "fn(yarray: [number], xarray: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_steyx"
-    },
-    "trimmean": {
-      "!type": "fn(array: [number], percent: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_trimmean"
-    },
-    "vara": {
-      "!type": "fn(array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_vara"
-    },
-    "varn": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_varn"
-    },
-    "varp": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_varp"
-    },
-    "varpa": {
-      "!type": "fn(array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_varpa"
-    },
-    "weibull": {
-      "!type": "fn(x: number, alpha: number, beta: number, cumulative: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_weibull"
-    },
-    "abs": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_abs"
-    },
-    "acos": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_acos"
-    },
-    "acosh": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_acosh"
-    },
-    "asin": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_asin"
-    },
-    "asinh": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_asinh"
-    },
-    "atan": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_atan"
-    },
-    "atan2": {
-      "!type": "fn(x: number, y: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_atan2"
-    },
-    "atanh": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_atanh"
-    },
-    "ceiling": {
-      "!type": "fn(number: number, significance: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ceiling"
-    },
-    "combin": {
-      "!type": "fn(number: number, num_chosen: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_combin"
-    },
-    "cos": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_cos"
-    },
-    "cosh": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_cosh"
-    },
-    "degrees": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_degrees"
-    },
-    "even": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_even"
-    },
-    "exp": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_exp"
-    },
-    "fact": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fact"
-    },
-    "factdouble": {
-      "!type": "fn(double: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_factdouble"
-    },
-    "floor": {
-      "!type": "fn(number: number, significance: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_floor"
-    },
-    "gcd": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_gcd"
-    },
-    "int": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_int"
-    },
-    "integer": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_integer"
-    },
-    "lcm": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_lcm"
-    },
-    "ln": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ln"
-    },
-    "log": {
-      "!type": "fn(number: number, base: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_log"
-    },
-    "log10": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_log10"
-    },
-    "mdeterm": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mdeterm"
-    },
-    "minverse": {
-      "!type": "fn(array: [[number]]) -> [[number]]",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_minverse"
-    },
-    "mmult": {
-      "!type": "fn(array: [[number]], array2: [[number]]) -> [[number]]",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mmult"
-    },
-    "mod": {
-      "!type": "fn(number: number, divisor: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mod"
-    },
-    "mround": {
-      "!type": "fn(number: number, multiple: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mround"
-    },
-    "multinomial": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_multinomial"
-    },
-    "odd": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_odd"
-    },
-    "pi": {
-      "!type": "fn() -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pi"
-    },
-    "power": {
-      "!type": "fn(number: number, power: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_power"
-    },
-    "product": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_product"
-    },
-    "quotient": {
-      "!type": "fn(numerator: number, denominator: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_quotient"
-    },
-    "radians": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_radians"
-    },
-    "rand": {
-      "!type": "fn() -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_rand"
-    },
-    "randbetween": {
-      "!type": "fn(bottom: number, top: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_randbetween"
-    },
-    "roman": {
-      "!type": "fn(number: number) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_roman"
-    },
-    "round": {
-      "!type": "fn(number: number, num_digits: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_round"
-    },
-    "rounddown": {
-      "!type": "fn(number: number, num_digits: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_rounddown"
-    },
-    "roundup": {
-      "!type": "fn(number: number, num_digits: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_roundup"
-    },
-    "seriessum": {
-      "!type": "fn(x: number, n: number, m: number, coefficients: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_seriessum"
-    },
-    "sign": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sign"
-    },
-    "sin": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sin"
-    },
-    "sinh": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sinh"
-    },
-    "sqrt": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sqrt"
-    },
-    "sqrtpi": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sqrtpi"
-    },
-    "subtotal": {
-      "!type": "fn(function_num: number, array: [?]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_subtotal"
-    },
-    "sum": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sum"
-    },
-    "sumif": {
-      "!type": "fn(array: [number], condition: string, sum_range: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumif"
-    },
-    "sumproduct": {
-      "!type": "fn(array: [[[number]]]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumproduct"
-    },
-    "sumsq": {
-      "!type": "fn(array: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumsq"
-    },
-    "sumx2my2": {
-      "!type": "fn(xarray: [number], yarray: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumx2my2"
-    },
-    "sumx2py2": {
-      "!type": "fn(xarray: [number], yarray: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumx2py2"
-    },
-    "sumxmy2": {
-      "!type": "fn(xarray: [number], yarray: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumxmy2"
-    },
-    "tan": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_tan"
-    },
-    "tanh": {
-      "!type": "fn(number: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_tanh"
-    },
-    "trunc": {
-      "!type": "fn(number: number, num_digits: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_trunc"
-    },
-    "char": {
-      "!type": "fn(number: number) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_char"
-    },
-    "character": {
-      "!type": "fn(number: number) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_character"
-    },
-    "code": {
-      "!type": "fn(string: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_code"
-    },
-    "concatenate": {
-      "!type": "fn(string: [string]) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_concatenate"
-    },
-    "dollar": {
-      "!type": "fn(number: number, decimals: number) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_dollar"
-    },
-    "exact": {
-      "!type": "fn(string1: string, string2: string) -> bool",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_exact"
-    },
-    "find": {
-      "!type": "fn(find_string: string, string: string, start_pos: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_find"
-    },
-    "fixed": {
-      "!type": "fn(number: number, decimals: number, no_comma: bool) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fixed"
-    },
-    "left": {
-      "!type": "fn(string: string, num_chars: number) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_left"
-    },
-    "len": {
-      "!type": "fn(string: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_len"
-    },
-    "lower": {
-      "!type": "fn(string: string) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_lower"
-    },
-    "mid": {
-      "!type": "fn(string: string, start_num: number, num_chars: number) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mid"
-    },
-    "proper": {
-      "!type": "fn(string: string) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_proper"
-    },
-    "replace": {
-      "!type": "fn(string: string, start_pos: number, num_chars: number, replace_string: string) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_replace"
-    },
-    "rept": {
-      "!type": "fn(string: string, times: number) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_rept"
-    },
-    "right": {
-      "!type": "fn(string: string, num_chars: number) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_right"
-    },
-    "search": {
-      "!type": "fn(find_string: string, string: string, start_pos: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_search"
-    },
-    "substitute": {
-      "!type": "fn(string: string, old_string: string, new_string: string, instance_num: number) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_substitute"
-    },
-    "t": {
-      "!type": "fn(string: string) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_t"
-    },
-    "text": {
-      "!type": "fn(double: number, format: string) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_text"
-    },
-    "trim": {
-      "!type": "fn(string: string) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_trim"
-    },
-    "upper": {
-      "!type": "fn(string: string) -> string",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_upper"
-    },
-    "value": {
-      "!type": "fn(string: string) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_value"
-    },
-    "and": {
-      "!type": "fn(conditions: ?) -> bool",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_and"
-    },
-    "or": {
-      "!type": "fn(conditions: ?) -> bool",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_or"
-    },
-    "not": {
-      "!type": "fn(condition: bool) -> bool",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_not"
-    },
-    "iif": {
-      "!type": "fn(condition: bool, value_if_true: ?, value_if_false: ?) -> ?",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_iif"
-    },
-    "accrint": {
-      "!type": "fn(issue: +Date, firstCoupon: +Date, settlement: +Date, rate: number, par: number, frequency: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_accrint"
-    },
-    "accrintm": {
-      "!type": "fn(issue: +Date, maturity: +Date, rate: number, par: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_accrintm"
-    },
-    "amordegrc": {
-      "!type": "fn(cost: number, date_purchased: +Date, first_period: +Date, salvage: number, period: number, rate: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_amordegrc"
-    },
-    "amorlinc": {
-      "!type": "fn(cost: number, date_purchased: +Date, first_period: +Date, salvage: number, period: number, rate: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_amorlinc"
-    },
-    "coupdaybs": {
-      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_coupdaybs"
-    },
-    "coupdays": {
-      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_coupdays"
-    },
-    "coupdaysnc": {
-      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_coupdaysnc"
-    },
-    "coupncd": {
-      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_coupncd"
-    },
-    "coupnum": {
-      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_coupnum"
-    },
-    "couppcd": {
-      "!type": "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_couppcd"
-    },
-    "cumipmt": {
-      "!type": "fn(rate: number, nper: number, pv: number, start_period: number, end_period: number, type: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_cumipmt"
-    },
-    "cumprinc": {
-      "!type": "fn(rate: number, nper: number, pv: number, start_period: number, end_period: number, type: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_cumprinc"
-    },
-    "db": {
-      "!type": "fn(cost: number, salvage: number, life: number, period: number, month: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_db"
-    },
-    "ddb": {
-      "!type": "fn(cost: number, salvage: number, life: number, period: number, factor: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ddb"
-    },
-    "disc": {
-      "!type": "fn(settlement: +Date, maturity: +Date, pr: number, redemption: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_disc"
-    },
-    "duration": {
-      "!type": "fn(settlement: +Date, maturity: +Date, coupon: number, yld: number, frequency: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_duration"
-    },
-    "effect": {
-      "!type": "fn(nominal_rate: number, npery: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_effect"
-    },
-    "fv": {
-      "!type": "fn(rate: number, nper: number, pmt: number, pv: number, type: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fv"
-    },
-    "fvschedule": {
-      "!type": "fn(principal: number, schedule: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fvschedule"
-    },
-    "intrate": {
-      "!type": "fn(settlement: +Date, maturity: +Date, investment: number, redemption: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_intrate"
-    },
-    "ipmt": {
-      "!type": "fn(rate: number, per: number, nper: number, pv: number, fv: number, type: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ipmt"
-    },
-    "ispmt": {
-      "!type": "fn(rate: number, per: number, nper: number, pv: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ispmt"
-    },
-    "mduration": {
-      "!type": "fn(settlement: +Date, maturity: +Date, coupon: number, yld: number, frequency: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mduration"
-    },
-    "mirr": {
-      "!type": "fn(values: [number], finance_rate: number, reinvest_rate: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mirr"
-    },
-    "nominal": {
-      "!type": "fn(effect_rate: number, npery: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_nominal"
-    },
-    "nper": {
-      "!type": "fn(rate: number, pmt: number, pv: number, fv: number, type: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_nper"
-    },
-    "npv": {
-      "!type": "fn(rate: number, values: [number]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_npv"
-    },
-    "pmt": {
-      "!type": "fn(rate: number, nper: number, pv: number, fv: number, type: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pmt"
-    },
-    "ppmt": {
-      "!type": "fn(rate: number, per: number, nper: number, pv: number, fv: number, type: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ppmt"
-    },
-    "price": {
-      "!type": "fn(settlement: +Date, maturity: +Date, rate: number, yield: number, redemption: number, frequency: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_price"
-    },
-    "pricedisc": {
-      "!type": "fn(settlement: +Date, maturity: +Date, discount: number, redemption: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pricedisc"
-    },
-    "pricemat": {
-      "!type": "fn(settlement: +Date, maturity: +Date, issue: +Date, rate: number, yield: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pricemat"
-    },
-    "pv": {
-      "!type": "fn(rate: number, nper: number, pmt: number, fv: number, type: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pv"
-    },
-    "received": {
-      "!type": "fn(settlement: +Date, maturity: +Date, investment: number, discount: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_received"
-    },
-    "sln": {
-      "!type": "fn(cost: number, salvage: number, life: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sln"
-    },
-    "syd": {
-      "!type": "fn(cost: number, salvage: number, life: number, per: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_syd"
-    },
-    "tbilleq": {
-      "!type": "fn(settlement: +Date, maturity: +Date, discount: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_tbilleq"
-    },
-    "tbillprice": {
-      "!type": "fn(settlement: +Date, maturity: +Date, discount: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_tbillprice"
-    },
-    "tbillyield": {
-      "!type": "fn(settlement: +Date, maturity: +Date, par: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_tbillyield"
-    },
-    "vdb": {
-      "!type": "fn(cost: number, salvage: number, life: number, start_period: number, end_period: number, factor: number, flag: bool) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_vdb"
-    },
-    "xnpv": {
-      "!type": "fn(rate: number, values: [number], dates: [+Date]) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_xnpv"
-    },
-    "xirr": {
-      "!type": "fn(values: [number], dates: [+Date], guess: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_xirr"
-    },
-    "yielddisc": {
-      "!type": "fn(settlement: +Date, maturity: +Date, pr: number, redemption: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_yielddisc"
-    },
-    "yieldmat": {
-      "!type": "fn(settlement: +Date, maturity: +Date, issue: +Date, rate: number, pr: number, basis: number) -> number",
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_yieldmat"
+  "Number" : {
+    "prototype" : {
+      "toExponential" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectToExponential"
+      },
+      "toFixed" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjecttoFixed"
+      },
+      "toLocaleString" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectToLocaleString"
+      },
+      "toPrecision" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectToPrecision"
+      },
+      "toString" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectToString"
+      }
     }
   },
-  "Call": {
-    "!type": "fn()",
-    "prototype": {}
+  "inArray" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=inArray"
   },
-  "Continuation": {
-    "!type": "fn()",
-    "prototype": {}
+  "mapList" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=mapList"
   },
-  "Iterator": {
-    "!type": "fn()",
-    "prototype": {}
+  "rowList" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=rowList"
   },
-  "Namespace": {
-    "!type": "fn()",
-    "prototype": {}
+  "toArray" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toArray"
   },
-  "Packages": {
-    "!type": "fn()",
-    "prototype": {}
+  "getImage" : {
+    "!type" : "fn(img: string) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getImage"
   },
-  "QName": {
-    "!type": "fn()",
-    "prototype": {}
+  "importPackage" : {
+    "!type" : "fn(packageName: string) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=importPackage"
   },
-  "Script": {
-    "!type": "fn()",
-    "prototype": {}
+  "indexOf" : {
+    "!type" : "fn(array: [?], value: ?) -> bool",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=indexOf"
   },
-  "StopIteration": "?",
-  "StyleReport": "?",
-  "TOC": "?",
-  "With": {
-    "!type": "fn()",
-    "prototype": {}
+  "isCancelled" : {
+    "!type" : "fn() -> bool",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=isCancelled"
   },
-  "XML": {
-    "!type": "fn()",
-    "prototype": {}
+  "isDate" : {
+    "!type" : "fn(value: ?) -> bool",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=isDate"
   },
-  "XMLList": {
-    "!type": "fn()",
-    "prototype": {}
+  "isNull" : {
+    "!type" : "fn(object: ?) -> bool",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=isNull"
   },
-  "XType": "?",
-  "alert": {
-    "!type": "fn(msg: string, level: string)",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=alert"
+  "isNumber" : {
+    "!type" : "fn(object: ?) -> bool",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectIsNumber"
   },
-  "com": "?",
-  "confirm": {
-    "!type": "fn(msg: string)",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=confirm"
+  "log" : {
+    "!type" : "fn(message: string) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=log"
   },
-  "createBulletGraph": {
-    "!type": "fn(measure: ?, ranges: ?, target: ?, color: ?, xdims: ?, ydims: ?, opts: ?) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createBulletGraph"
+  "ltrim" : {
+    "!type" : "fn(string: string) -> string",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLTrim"
   },
-  "dataBinding": {
-    "!type": "fn() -> ?"
+  "newInstance" : {
+    "!type" : "fn(classname: ?) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=newInstance"
   },
-  "edu": "?",
-  "getDate": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getDate"
+  "parseDate" : {
+    "!type" : "fn(string: string) -> +Date",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=parseDate"
   },
-  "inGroups": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=inGroups"
+  "parseInt" : {
+    "!type" : "fn(string: string) -> number",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=parseInt"
   },
-  "inetsoft": "?",
-  "intersect": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=intersect"
+  "parseFloat" : {
+    "!type" : "fn(string: string) -> number",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=parseFloat"
   },
-  "java": "?",
-  "javax": "?",
-  "net": "?",
-  "numberToString": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectNumberToString"
+  "rtrim" : {
+    "!type" : "fn(string: string) -> string",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectRTrim"
   },
-  "org": "?",
-  "addImage": {
-    "!type": "fn(name: string, image: ?) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=addImage"
+  "runQuery" : {
+    "!type" : "fn(query_name: string, parameters: ?) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=runQuery"
   },
-  "appendRow": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=appendRow"
+  "trim" : {
+    "!type" : "fn(string: string) -> string",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectTrim"
   },
-  "createConnection": {
-    "!type": "fn(datasource: string, name: string, pw: string) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createConnection"
+  "toList" : {
+    "!type" : "fn(array: [?], options: string) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toList"
   },
-  "refreshData": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=refreshData"
-  },
-  "registerPackage": {
-    "!type": "fn(package: string) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=registerPackage"
-  },
-  "reprint": {
-    "!type": "fn() -> ?"
-  },
-  "saveWorksheet": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=saveWorksheet"
-  },
-  "setChanged": {
-    "!type": "fn() -> ?"
-  },
-  "setCellValue": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setCellValue"
-  },
-  "showReport": {
-    "!type": "fn(archive_report: ?, target: ?) -> ?"
-  },
-  "split": {
-    "!type": "fn(separator: ?, limit: ?) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=split"
-  },
-  "union": {
-    "!type": "fn() -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=union"
-  },
-  "importClass": {
-    "!type": "fn(className: string) -> ?",
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=importClass"
-  },
-  "concat": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=concat"
-  },
-  "join": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=join"
-  },
-  "pop": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=pop"
-  },
-  "push": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=push"
-  },
-  "reverse": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=reverse"
-  },
-  "shift": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=shift"
-  },
-  "slice": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=slice"
-  },
-  "sort": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=sort"
-  },
-  "splice": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=splice"
-  },
-  "unshift": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=unshift"
-  },
-  "indexOf": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=indexOf"
-  },
-  "charAt": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectCharAt"
-  },
-  "charCodeAt": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectCharCodeAt"
-  },
-  "concat": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectConcat"
-  },
-  "indexOf": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectIndexOf"
-  },
-  "lastIndexOf": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLastIndexOf"
-  },
-  "length": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLength"
-  },
-  "length": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLength"
-  },
-  "length": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLength"
-  },
-  "length": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLength"
-  },
-  "length": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLength"
-  },
-  "match": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectMatch"
-  },
-  "replace": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectMatch"
-  },
-  "search": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSearch"
-  },
-  "slice": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSlice"
-  },
-  "split": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSplit"
-  },
-  "substring": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectsubString"
-  },
-  "toLowerCase": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectToLowerCase"
-  },
-  "toUpperCase": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectToUpperCase"
-  },
-  "Math": {
-    "abs": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=abs"
+  "CALC" : {
+    "datevalue" : {
+      "!type" : "fn(date: +Date) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_datevalue"
     },
-    "acos": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=acos"
+    "day" : {
+      "!type" : "fn(date: +Date) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_day"
     },
-    "asin": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=asin"
+    "days360" : {
+      "!type" : "fn(start_date: +Date, end_date: +Date, method: bool) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_days360"
     },
-    "atan": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=atan"
+    "edate" : {
+      "!type" : "fn(date: +Date, months: number) -> +Date",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_edate"
     },
-    "ceil": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=ceil"
+    "eomonth" : {
+      "!type" : "fn(date: +Date, months: number) -> +Date",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_eomonth"
     },
-    "cos": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=cos"
+    "fiscalmonth" : {
+      "!type" : "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalmonth"
     },
-    "exp": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=exp"
+    "fiscalmonth445" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalmonth445"
     },
-    "floor": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=floor"
+    "fiscalmonth454" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalmonth454"
     },
-    "log": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=MathObjectLog"
+    "fiscalmonth544" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalmonth544"
     },
-    "max": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=max"
+    "fiscalquarter" : {
+      "!type" : "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalquarter"
     },
-    "min": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=min"
+    "fiscalquarter445" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalquarter445"
     },
-    "pow": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=pow"
+    "fiscalquarter454" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalquarter454"
     },
-    "random": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=random"
+    "fiscalquarter544" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalquarter544"
     },
-    "round": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=round"
+    "fiscalweek" : {
+      "!type" : "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalweek"
     },
-    "sin": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=sin"
+    "fiscalweek445" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalweek445"
     },
-    "sqrt": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=sqrt"
+    "fiscalweek454" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalweek454"
     },
-    "tan": {
-      "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=tan"
+    "fiscalweek544" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalweek544"
+    },
+    "fiscalyear" : {
+      "!type" : "fn(date: +Date, startMonth: number, startDay: number, timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalyear"
+    },
+    "fiscalyear445" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalyear445"
+    },
+    "fiscalyear454" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalyear454"
+    },
+    "fiscalyear544" : {
+      "!type" : "fn(date: +Date, startYear: number, startMonth: number, startDay: number, yearsWith53Weeks: [?], timeZone: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fiscalyear544"
+    },
+    "hour" : {
+      "!type" : "fn(date: +Date) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_hour"
+    },
+    "minute" : {
+      "!type" : "fn(date: +Date) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_minute"
+    },
+    "month" : {
+      "!type" : "fn(date: +Date) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_month"
+    },
+    "monthname" : {
+      "!type" : "fn(date: +Date) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_monthname"
+    },
+    "networkdays" : {
+      "!type" : "fn(start_date: +Date, end_date: +Date, holidays: [+Date]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_networkdays"
+    },
+    "now" : {
+      "!type" : "fn() -> +Date",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_now"
+    },
+    "quarter" : {
+      "!type" : "fn(date: +Date) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_quarter"
+    },
+    "second" : {
+      "!type" : "fn(date: +Date) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_second"
+    },
+    "time" : {
+      "!type" : "fn(hour: number, minute: number, second: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_time"
+    },
+    "timevalue" : {
+      "!type" : "fn(date: +Date) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_timeValue"
+    },
+    "today" : {
+      "!type" : "fn() -> +Date",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_today"
+    },
+    "weekday" : {
+      "!type" : "fn(date: +Date, return_type: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_weekday"
+    },
+    "weekdayname" : {
+      "!type" : "fn(date: +Date) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_weekdayname"
+    },
+    "weeknum" : {
+      "!type" : "fn(date: +Date, return_type: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_weeknum"
+    },
+    "weightedavg" : {
+      "!type" : "fn(values: [number], weights: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_weightedavg"
+    },
+    "workday" : {
+      "!type" : "fn(date: +Date, days: number, holidays: [+Date]) -> +Date",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_workday"
+    },
+    "year" : {
+      "!type" : "fn(date: +Date) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_year"
+    },
+    "yearfrac" : {
+      "!type" : "fn(start_date: +Date, end_date: +Date, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_yearfrac"
+    },
+    "avedev" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_avedev"
+    },
+    "average" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_average"
+    },
+    "averagea" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_averagea"
+    },
+    "binomdist" : {
+      "!type" : "fn(number: number, trials: number, probability: number, cummulative: bool) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_binomdist"
+    },
+    "correl" : {
+      "!type" : "fn(array: [number], array2: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_correl"
+    },
+    "count" : {
+      "!type" : "fn(array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_count"
+    },
+    "counta" : {
+      "!type" : "fn(array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_counta"
+    },
+    "countblank" : {
+      "!type" : "fn(array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_countblank"
+    },
+    "countDistinct" : {
+      "!type" : "fn(array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_countdistinct"
+    },
+    "countn" : {
+      "!type" : "fn(array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_countn"
+    },
+    "countif" : {
+      "!type" : "fn(array: [?], condition: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_countif"
+    },
+    "covar" : {
+      "!type" : "fn(array: [number], array2: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_covar"
+    },
+    "devsq" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_devsq"
+    },
+    "expondist" : {
+      "!type" : "fn(x: number, lambda: number, cumulative: bool) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_expondist"
+    },
+    "fisher" : {
+      "!type" : "fn(x: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fisher"
+    },
+    "fisherinv" : {
+      "!type" : "fn(y: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fisherinv"
+    },
+    "forecast" : {
+      "!type" : "fn(x: number, known_ys: [number], known_xs: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_forecast"
+    },
+    "frequency" : {
+      "!type" : "fn(data_array: [number], bins_array: [number]) -> [number]",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_frequency"
+    },
+    "geomean" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_geomean"
+    },
+    "harmean" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_harmmean"
+    },
+    "hypgeomdist" : {
+      "!type" : "fn(samples: number, num_of_sample: number, population: number, num_of_population: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_hypgeomdist"
+    },
+    "intercept" : {
+      "!type" : "fn(known_ys: [number], known_xs: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_intercept"
+    },
+    "kurt" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_kurt"
+    },
+    "large" : {
+      "!type" : "fn(array: [number], nth: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_large"
+    },
+    "max" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_max"
+    },
+    "maxa" : {
+      "!type" : "fn(array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_maxa"
+    },
+    "median" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_median"
+    },
+    "min" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_min"
+    },
+    "mina" : {
+      "!type" : "fn(array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mina"
+    },
+    "mode" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mode"
+    },
+    "negbinomdist" : {
+      "!type" : "fn(num_of_failure: number, threshold: number, probability: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_negbinomdist"
+    },
+    "nthmostfrequent" : {
+      "!type" : "fn(array: [number], n: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_nthmostfrequent"
+    },
+    "nthlargest" : {
+      "!type" : "fn(array: [number], n: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_nthlargest"
+    },
+    "nthsmallest" : {
+      "!type" : "fn(array: [number], n: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_nthsmallest"
+    },
+    "pearson" : {
+      "!type" : "fn(array: [number], array2: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pearson"
+    },
+    "percentile" : {
+      "!type" : "fn(number_array: [number], percentile: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_percentile"
+    },
+    "percentrank" : {
+      "!type" : "fn(array: [number], x: number, significance: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_percentrank"
+    },
+    "permut" : {
+      "!type" : "fn(number: number, number_chosen: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_permut"
+    },
+    "poisson" : {
+      "!type" : "fn(x: number, mean: number, cumulative: bool) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_poisson"
+    },
+    "prob" : {
+      "!type" : "fn(xrange: [number], prob_range: [number], lower_limit: number, upper_limit: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_prob"
+    },
+    "pthpercentile" : {
+      "!type" : "fn(array: [number], percentile: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pthpercentile"
+    },
+    "quartile" : {
+      "!type" : "fn(array: [number], quart: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_quartile"
+    },
+    "rank" : {
+      "!type" : "fn(number: number, array: [number], order: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_rank"
+    },
+    "rsq" : {
+      "!type" : "fn(array: [number], array2: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_rsq"
+    },
+    "skew" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_skew"
+    },
+    "slope" : {
+      "!type" : "fn(xarray: [number], yarray: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_slope"
+    },
+    "small" : {
+      "!type" : "fn(array: [number], nth: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_small"
+    },
+    "standardize" : {
+      "!type" : "fn(x: number, mean: number, standard_dev: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_standardize"
+    },
+    "stdev" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_stdev"
+    },
+    "stdeva" : {
+      "!type" : "fn(array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_stdeva"
+    },
+    "stdevp" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_stdevp"
+    },
+    "stdevpa" : {
+      "!type" : "fn(array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_stdevpa"
+    },
+    "steyx" : {
+      "!type" : "fn(yarray: [number], xarray: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_steyx"
+    },
+    "trimmean" : {
+      "!type" : "fn(array: [number], percent: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_trimmean"
+    },
+    "vara" : {
+      "!type" : "fn(array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_vara"
+    },
+    "varn" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_varn"
+    },
+    "varp" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_varp"
+    },
+    "varpa" : {
+      "!type" : "fn(array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_varpa"
+    },
+    "weibull" : {
+      "!type" : "fn(x: number, alpha: number, beta: number, cumulative: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_weibull"
+    },
+    "abs" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_abs"
+    },
+    "acos" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_acos"
+    },
+    "acosh" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_acosh"
+    },
+    "asin" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_asin"
+    },
+    "asinh" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_asinh"
+    },
+    "atan" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_atan"
+    },
+    "atan2" : {
+      "!type" : "fn(x: number, y: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_atan2"
+    },
+    "atanh" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_atanh"
+    },
+    "ceiling" : {
+      "!type" : "fn(number: number, significance: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ceiling"
+    },
+    "combin" : {
+      "!type" : "fn(number: number, num_chosen: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_combin"
+    },
+    "cos" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_cos"
+    },
+    "cosh" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_cosh"
+    },
+    "degrees" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_degrees"
+    },
+    "even" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_even"
+    },
+    "exp" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_exp"
+    },
+    "fact" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fact"
+    },
+    "factdouble" : {
+      "!type" : "fn(double: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_factdouble"
+    },
+    "floor" : {
+      "!type" : "fn(number: number, significance: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_floor"
+    },
+    "gcd" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_gcd"
+    },
+    "int" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_int"
+    },
+    "integer" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_integer"
+    },
+    "lcm" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_lcm"
+    },
+    "ln" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ln"
+    },
+    "log" : {
+      "!type" : "fn(number: number, base: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_log"
+    },
+    "log10" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_log10"
+    },
+    "mdeterm" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mdeterm"
+    },
+    "minverse" : {
+      "!type" : "fn(array: [[number]]) -> [[number]]",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_minverse"
+    },
+    "mmult" : {
+      "!type" : "fn(array: [[number]], array2: [[number]]) -> [[number]]",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mmult"
+    },
+    "mod" : {
+      "!type" : "fn(number: number, divisor: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mod"
+    },
+    "mround" : {
+      "!type" : "fn(number: number, multiple: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mround"
+    },
+    "multinomial" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_multinomial"
+    },
+    "odd" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_odd"
+    },
+    "pi" : {
+      "!type" : "fn() -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pi"
+    },
+    "power" : {
+      "!type" : "fn(number: number, power: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_power"
+    },
+    "product" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_product"
+    },
+    "quotient" : {
+      "!type" : "fn(numerator: number, denominator: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_quotient"
+    },
+    "radians" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_radians"
+    },
+    "rand" : {
+      "!type" : "fn() -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_rand"
+    },
+    "randbetween" : {
+      "!type" : "fn(bottom: number, top: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_randbetween"
+    },
+    "roman" : {
+      "!type" : "fn(number: number) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_roman"
+    },
+    "round" : {
+      "!type" : "fn(number: number, num_digits: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_round"
+    },
+    "rounddown" : {
+      "!type" : "fn(number: number, num_digits: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_rounddown"
+    },
+    "roundup" : {
+      "!type" : "fn(number: number, num_digits: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_roundup"
+    },
+    "seriessum" : {
+      "!type" : "fn(x: number, n: number, m: number, coefficients: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_seriessum"
+    },
+    "sign" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sign"
+    },
+    "sin" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sin"
+    },
+    "sinh" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sinh"
+    },
+    "sqrt" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sqrt"
+    },
+    "sqrtpi" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sqrtpi"
+    },
+    "subtotal" : {
+      "!type" : "fn(function_num: number, array: [?]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_subtotal"
+    },
+    "sum" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sum"
+    },
+    "sumif" : {
+      "!type" : "fn(array: [number], condition: string, sum_range: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumif"
+    },
+    "sumproduct" : {
+      "!type" : "fn(array: [[[number]]]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumproduct"
+    },
+    "sumsq" : {
+      "!type" : "fn(array: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumsq"
+    },
+    "sumx2my2" : {
+      "!type" : "fn(xarray: [number], yarray: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumx2my2"
+    },
+    "sumx2py2" : {
+      "!type" : "fn(xarray: [number], yarray: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumx2py2"
+    },
+    "sumxmy2" : {
+      "!type" : "fn(xarray: [number], yarray: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sumxmy2"
+    },
+    "tan" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_tan"
+    },
+    "tanh" : {
+      "!type" : "fn(number: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_tanh"
+    },
+    "trunc" : {
+      "!type" : "fn(number: number, num_digits: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_trunc"
+    },
+    "char" : {
+      "!type" : "fn(number: number) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_char"
+    },
+    "character" : {
+      "!type" : "fn(number: number) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_character"
+    },
+    "code" : {
+      "!type" : "fn(string: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_code"
+    },
+    "concatenate" : {
+      "!type" : "fn(string: [string]) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_concatenate"
+    },
+    "dollar" : {
+      "!type" : "fn(number: number, decimals: number) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_dollar"
+    },
+    "exact" : {
+      "!type" : "fn(string1: string, string2: string) -> bool",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_exact"
+    },
+    "find" : {
+      "!type" : "fn(find_string: string, string: string, start_pos: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_find"
+    },
+    "fixed" : {
+      "!type" : "fn(number: number, decimals: number, no_comma: bool) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fixed"
+    },
+    "left" : {
+      "!type" : "fn(string: string, num_chars: number) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_left"
+    },
+    "len" : {
+      "!type" : "fn(string: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_len"
+    },
+    "lower" : {
+      "!type" : "fn(string: string) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_lower"
+    },
+    "mid" : {
+      "!type" : "fn(string: string, start_num: number, num_chars: number) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mid"
+    },
+    "proper" : {
+      "!type" : "fn(string: string) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_proper"
+    },
+    "replace" : {
+      "!type" : "fn(string: string, start_pos: number, num_chars: number, replace_string: string) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_replace"
+    },
+    "rept" : {
+      "!type" : "fn(string: string, times: number) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_rept"
+    },
+    "right" : {
+      "!type" : "fn(string: string, num_chars: number) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_right"
+    },
+    "search" : {
+      "!type" : "fn(find_string: string, string: string, start_pos: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_search"
+    },
+    "substitute" : {
+      "!type" : "fn(string: string, old_string: string, new_string: string, instance_num: number) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_substitute"
+    },
+    "t" : {
+      "!type" : "fn(string: string) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_t"
+    },
+    "text" : {
+      "!type" : "fn(double: number, format: string) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_text"
+    },
+    "trim" : {
+      "!type" : "fn(string: string) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_trim"
+    },
+    "upper" : {
+      "!type" : "fn(string: string) -> string",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_upper"
+    },
+    "value" : {
+      "!type" : "fn(string: string) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_value"
+    },
+    "and" : {
+      "!type" : "fn(conditions: ?) -> bool",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_and"
+    },
+    "or" : {
+      "!type" : "fn(conditions: ?) -> bool",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_or"
+    },
+    "not" : {
+      "!type" : "fn(condition: bool) -> bool",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_not"
+    },
+    "iif" : {
+      "!type" : "fn(condition: bool, value_if_true: ?, value_if_false: ?) -> ?",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_iif"
+    },
+    "accrint" : {
+      "!type" : "fn(issue: +Date, firstCoupon: +Date, settlement: +Date, rate: number, par: number, frequency: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_accrint"
+    },
+    "accrintm" : {
+      "!type" : "fn(issue: +Date, maturity: +Date, rate: number, par: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_accrintm"
+    },
+    "amordegrc" : {
+      "!type" : "fn(cost: number, date_purchased: +Date, first_period: +Date, salvage: number, period: number, rate: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_amordegrc"
+    },
+    "amorlinc" : {
+      "!type" : "fn(cost: number, date_purchased: +Date, first_period: +Date, salvage: number, period: number, rate: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_amorlinc"
+    },
+    "coupdaybs" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_coupdaybs"
+    },
+    "coupdays" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_coupdays"
+    },
+    "coupdaysnc" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_coupdaysnc"
+    },
+    "coupncd" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_coupncd"
+    },
+    "coupnum" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_coupnum"
+    },
+    "couppcd" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, frequency: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_couppcd"
+    },
+    "cumipmt" : {
+      "!type" : "fn(rate: number, nper: number, pv: number, start_period: number, end_period: number, type: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_cumipmt"
+    },
+    "cumprinc" : {
+      "!type" : "fn(rate: number, nper: number, pv: number, start_period: number, end_period: number, type: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_cumprinc"
+    },
+    "db" : {
+      "!type" : "fn(cost: number, salvage: number, life: number, period: number, month: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_db"
+    },
+    "ddb" : {
+      "!type" : "fn(cost: number, salvage: number, life: number, period: number, factor: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ddb"
+    },
+    "disc" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, pr: number, redemption: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_disc"
+    },
+    "duration" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, coupon: number, yld: number, frequency: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_duration"
+    },
+    "effect" : {
+      "!type" : "fn(nominal_rate: number, npery: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_effect"
+    },
+    "fv" : {
+      "!type" : "fn(rate: number, nper: number, pmt: number, pv: number, type: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fv"
+    },
+    "fvschedule" : {
+      "!type" : "fn(principal: number, schedule: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_fvschedule"
+    },
+    "intrate" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, investment: number, redemption: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_intrate"
+    },
+    "ipmt" : {
+      "!type" : "fn(rate: number, per: number, nper: number, pv: number, fv: number, type: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ipmt"
+    },
+    "ispmt" : {
+      "!type" : "fn(rate: number, per: number, nper: number, pv: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ispmt"
+    },
+    "mduration" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, coupon: number, yld: number, frequency: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mduration"
+    },
+    "mirr" : {
+      "!type" : "fn(values: [number], finance_rate: number, reinvest_rate: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_mirr"
+    },
+    "nominal" : {
+      "!type" : "fn(effect_rate: number, npery: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_nominal"
+    },
+    "nper" : {
+      "!type" : "fn(rate: number, pmt: number, pv: number, fv: number, type: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_nper"
+    },
+    "npv" : {
+      "!type" : "fn(rate: number, values: [number]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_npv"
+    },
+    "pmt" : {
+      "!type" : "fn(rate: number, nper: number, pv: number, fv: number, type: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pmt"
+    },
+    "ppmt" : {
+      "!type" : "fn(rate: number, per: number, nper: number, pv: number, fv: number, type: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_ppmt"
+    },
+    "price" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, rate: number, yield: number, redemption: number, frequency: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_price"
+    },
+    "pricedisc" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, discount: number, redemption: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pricedisc"
+    },
+    "pricemat" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, issue: +Date, rate: number, yield: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pricemat"
+    },
+    "pv" : {
+      "!type" : "fn(rate: number, nper: number, pmt: number, fv: number, type: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_pv"
+    },
+    "received" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, investment: number, discount: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_received"
+    },
+    "sln" : {
+      "!type" : "fn(cost: number, salvage: number, life: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_sln"
+    },
+    "syd" : {
+      "!type" : "fn(cost: number, salvage: number, life: number, per: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_syd"
+    },
+    "tbilleq" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, discount: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_tbilleq"
+    },
+    "tbillprice" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, discount: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_tbillprice"
+    },
+    "tbillyield" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, par: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_tbillyield"
+    },
+    "vdb" : {
+      "!type" : "fn(cost: number, salvage: number, life: number, start_period: number, end_period: number, factor: number, flag: bool) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_vdb"
+    },
+    "xnpv" : {
+      "!type" : "fn(rate: number, values: [number], dates: [+Date]) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_xnpv"
+    },
+    "xirr" : {
+      "!type" : "fn(values: [number], dates: [+Date], guess: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_xirr"
+    },
+    "yielddisc" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, pr: number, redemption: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_yielddisc"
+    },
+    "yieldmat" : {
+      "!type" : "fn(settlement: +Date, maturity: +Date, issue: +Date, rate: number, pr: number, basis: number) -> number",
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=CALC_yieldmat"
     }
   },
-  "date": {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=date"
+  "Call" : {
+    "!type" : "fn()",
+    "prototype" : {}
   },
-  "parse": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=parse"
+  "Continuation" : {
+    "!type" : "fn()",
+    "prototype" : {}
   },
-  "utc": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=utc"
+  "Iterator" : {
+    "!type" : "fn()",
+    "prototype" : {}
   },
-  "toString": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toString"
+  "Namespace" : {
+    "!type" : "fn()",
+    "prototype" : {}
   },
-  "toDateString": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toDateString"
+  "Packages" : {
+    "!type" : "fn()",
+    "prototype" : {}
   },
-  "toTimeString": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toTimeString"
+  "QName" : {
+    "!type" : "fn()",
+    "prototype" : {}
   },
-  "toLocaleString": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toLocaleString"
+  "Script" : {
+    "!type" : "fn()",
+    "prototype" : {}
   },
-  "toLocaleDateString": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toLocaleDateString"
+  "StopIteration" : "?",
+  "StyleReport" : "?",
+  "TOC" : "?",
+  "With" : {
+    "!type" : "fn()",
+    "prototype" : {}
   },
-  "toLocaleTimeString": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toLocaleTimeString"
+  "XML" : {
+    "!type" : "fn()",
+    "prototype" : {}
   },
-  "valueOf": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=valueOf"
+  "XMLList" : {
+    "!type" : "fn()",
+    "prototype" : {}
   },
-  "getTime": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getTime"
+  "XType" : "?",
+  "alert" : {
+    "!type" : "fn(msg: string, level: string)",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=alert"
   },
-  "getFullYear": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getFullYear"
+  "com" : "?",
+  "confirm" : {
+    "!type" : "fn(msg: string)",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=confirm"
   },
-  "getUTCFullYear": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCFullYear"
+  "createBulletGraph" : {
+    "!type" : "fn(measure: ?, ranges: ?, target: ?, color: ?, xdims: ?, ydims: ?, opts: ?) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createBulletGraph"
   },
-  "getMonth": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getMonth"
+  "dataBinding" : {
+    "!type" : "fn() -> ?"
   },
-  "getUTCMonth": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCMonth"
+  "edu" : "?",
+  "getDate" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getDate"
   },
-  "getDate": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getDate"
+  "inGroups" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=inGroups"
   },
-  "getUTCDate": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCDate"
+  "inetsoft" : "?",
+  "intersect" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=intersect"
   },
-  "getDay": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getDay"
+  "java" : "?",
+  "javax" : "?",
+  "net" : "?",
+  "numberToString" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=NumberObjectNumberToString"
   },
-  "getUTCDay": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCDay"
+  "org" : "?",
+  "addImage" : {
+    "!type" : "fn(name: string, image: ?) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=addImage"
   },
-  "getHours": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getHours"
+  "appendRow" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=appendRow"
   },
-  "getUTCHours": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCHours"
+  "createConnection" : {
+    "!type" : "fn(datasource: string, name: string, pw: string) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=createConnection"
   },
-  "getMinutes": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getMinutes"
+  "refreshData" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=refreshData"
   },
-  "getUTCMinutes": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCMinutes"
+  "registerPackage" : {
+    "!type" : "fn(package: string) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=registerPackage"
   },
-  "getSeconds": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getSeconds"
+  "reprint" : {
+    "!type" : "fn() -> ?"
   },
-  "getUTCSeconds": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCSeconds"
+  "saveWorksheet" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=saveWorksheet"
   },
-  "getMilliseconds": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getMilliseconds"
+  "setChanged" : {
+    "!type" : "fn() -> ?"
   },
-  "getUTCMilliseconds": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCMilliseconds"
+  "setCellValue" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setCellValue"
   },
-  "getTimezoneOffset": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getTimeZoneOffset"
+  "showReport" : {
+    "!type" : "fn(archive_report: ?, target: ?) -> ?"
   },
-  "setTime": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setTime"
+  "split" : {
+    "!type" : "fn(separator: ?, limit: ?) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=split"
   },
-  "setMilliseconds": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setMilliseconds"
+  "union" : {
+    "!type" : "fn() -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=union"
   },
-  "setUTCMilliseconds": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCMilliseconds"
+  "importClass" : {
+    "!type" : "fn(className: string) -> ?",
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=importClass"
   },
-  "setSeconds": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setSeconds"
+  "concat" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=concat"
   },
-  "setUTCSeconds": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCSeconds"
+  "join" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=join"
   },
-  "setMinutes": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setMinutes"
+  "pop" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=pop"
   },
-  "setUTCMinutes": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCMinutes"
+  "push" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=push"
   },
-  "setHours": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setHours"
+  "reverse" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=reverse"
   },
-  "setUTCHours": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCHours"
+  "shift" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=shift"
   },
-  "setDate": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setDate"
+  "slice" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=slice"
   },
-  "setUTCDate": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCDate"
+  "sort" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=sort"
   },
-  "setMonth": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setMonth"
+  "splice" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=splice"
   },
-  "setUTCMonth": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCMonth"
+  "unshift" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=unshift"
   },
-  "setFullYear": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setFullYear"
+  "indexOf" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=indexOf"
   },
-  "setUTCFullYear": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCFullYear"
+  "charAt" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectCharAt"
   },
-  "toUTCString": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toUTCString"
+  "charCodeAt" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectCharCodeAt"
   },
-  "exec": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=RegexObjectExec"
+  "localeCompare" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLocaleCompare"
   },
-  "test": {
-    "!url": "https://www.inetsoft.com/docs/stylebi/index.html#cshid=RegexObjectTest"
+  "toLocaleUpperCase" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectToLocaleUpperCase"
+  },
+  "concat" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectConcat"
+  },
+  "indexOf" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectIndexOf"
+  },
+  "lastIndexOf" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLastIndexOf"
+  },
+  "length" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLength"
+  },
+  "match" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectMatch"
+  },
+  "replace" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectMatch"
+  },
+  "search" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSearch"
+  },
+  "slice" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSlice"
+  },
+  "split" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSplit"
+  },
+  "substring" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectsubString"
+  },
+  "toLowerCase" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectToLowerCase"
+  },
+  "toUpperCase" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectToUpperCase"
+  },
+  "Math" : {
+    "abs" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=abs"
+    },
+    "acos" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=acos"
+    },
+    "asin" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=asin"
+    },
+    "atan" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=atan"
+    },
+    "ceil" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=ceil"
+    },
+    "cos" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=cos"
+    },
+    "exp" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=exp"
+    },
+    "floor" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=floor"
+    },
+    "log" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=MathObjectLog"
+    },
+    "max" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=max"
+    },
+    "min" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=min"
+    },
+    "pow" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=pow"
+    },
+    "random" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=random"
+    },
+    "round" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=round"
+    },
+    "sin" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=sin"
+    },
+    "sqrt" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=sqrt"
+    },
+    "tan" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=tan"
+    }
+  },
+  "Date" : {
+    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=date",
+    "parse" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=parse"
+    },
+    "utc" : {
+      "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=utc"
+    },
+    "prototype": {
+      "toString" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=DateObjectToString"
+      },
+      "toDateString" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toDateString"
+      },
+      "toTimeString" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toTimeString"
+      },
+      "toLocaleString" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toLocaleString"
+      },
+      "toLocaleDateString" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toLocaleDateString"
+      },
+      "toLocaleTimeString" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toLocaleTimeString"
+      },
+      "valueOf" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=valueOf"
+      },
+      "getTime" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getTime"
+      },
+      "getFullYear" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getFullYear"
+      },
+      "getUTCFullYear" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCFullYear"
+      },
+      "getMonth" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getMonth"
+      },
+      "getUTCMonth" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCMonth"
+      },
+      "getDate" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getDate"
+      },
+      "getUTCDate" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCDate"
+      },
+      "getDay" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getDay"
+      },
+      "getUTCDay" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCDay"
+      },
+      "getHours" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getHours"
+      },
+      "getUTCHours" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCHours"
+      },
+      "getMinutes" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getMinutes"
+      },
+      "getUTCMinutes" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCMinutes"
+      },
+      "getSeconds" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getSeconds"
+      },
+      "getUTCSeconds" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCSeconds"
+      },
+      "getMilliseconds" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getMilliseconds"
+      },
+      "getUTCMilliseconds" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getUTCMilliseconds"
+      },
+      "getTimezoneOffset" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=getTimeZoneOffset"
+      },
+      "setTime" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setTime"
+      },
+      "setMilliseconds" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setMilliseconds"
+      },
+      "setUTCMilliseconds" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCMilliseconds"
+      },
+      "setSeconds" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setSeconds"
+      },
+      "setUTCSeconds" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCSeconds"
+      },
+      "setMinutes" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setMinutes"
+      },
+      "setUTCMinutes" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCMinutes"
+      },
+      "setHours" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setHours"
+      },
+      "setUTCHours" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCHours"
+      },
+      "setDate" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setDate"
+      },
+      "setUTCDate" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCDate"
+      },
+      "setMonth" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setMonth"
+      },
+      "setUTCMonth" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCMonth"
+      },
+      "setFullYear" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setFullYear"
+      },
+      "setUTCFullYear" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=setUTCFullYear"
+      },
+      "toUTCString" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=toUTCString"
+      }
+    }
+  },
+  "RegExp": {
+    "prototype" : {
+      "exec" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=RegexObjectExec"
+      },
+      "test" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=RegexObjectTest"
+      },
+      "toString" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=RegexObjectToString"
+      }
+    }
   },
   "confirmEvent": "?",
   "viewsheetPath": "string",

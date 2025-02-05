@@ -115,8 +115,8 @@
       </div>
     </div>
     <div class="row">
-      <div class="col-6">
-        <select *ngIf="measure.aggregate?.twoColumns" id="measureAggregateRef"
+      <div class="form-floating" *ngIf="measure.aggregate?.twoColumns">
+        <select id="measureAggregateRef"
                 class="form-control"
                 [ngModel]="getIndexOfRef(aggregateRefList, measure, true)  "
                 (ngModelChange)="measure.aggregateRef = aggregateRefList[$event]; updateState()">
@@ -124,6 +124,12 @@
                   [attr.title]="getTooltip(_ref)"
                   [class.grayed-out-field]="trapField(_ref)">{{_ref.name}}</option>
         </select>
+        <label *ngIf="!isByFormula(measure.aggregate); else elseBlock">
+          _#(With)
+        </label>
+        <ng-template #elseBlock>
+          <label>_#(By)</label>
+        </ng-template>
       </div>
       <div *ngIf="measure.aggregate?.hasN" class="col-6">
         <div class="form-check form-floating">

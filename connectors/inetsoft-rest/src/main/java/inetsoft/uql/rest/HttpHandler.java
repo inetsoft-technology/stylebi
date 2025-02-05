@@ -37,7 +37,7 @@ import java.io.*;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Arrays;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 /**
@@ -54,14 +54,14 @@ public class HttpHandler implements IHttpHandler {
 
    @Override
    public HttpResponse executeRequest(RestRequest request)
-      throws IOException, URISyntaxException, InterruptedException
+      throws IOException, URISyntaxException, InterruptedException, TimeoutException
    {
       final URL url = URLCreator.fromRestRequest(request);
       return executeHttpQueryWithUrl(request.query(), url);
    }
 
    private HttpResponse executeHttpQueryWithUrl(AbstractRestQuery query, URL url)
-      throws IOException, URISyntaxException, InterruptedException
+      throws IOException, URISyntaxException, InterruptedException, TimeoutException
    {
       final HttpClientContext context = HttpClientContext.create();
       final HttpRequestBase request = createRequest(query, url, context);
@@ -138,14 +138,15 @@ public class HttpHandler implements IHttpHandler {
    }
 
    private HttpResponse executeMethod(HttpRequestBase request, HttpClientContext context)
-      throws IOException, InterruptedException
+      throws IOException, InterruptedException, TimeoutException
    {
       try {
          // Use an async call and then immediately call get() on the future. This allows the current
          // thread to be interrupted if the query is cancelled. If blocking I/O is used, the thread
          // cannot be interrupted until any socket wait time is completed, which could make the
          // application unresponsive.
-         org.apache.http.HttpResponse response = getClient().execute(request, context, null).get();
+         org.apache.http.HttpResponse response = getClient()
+            .execute(request, context, null).get(5, TimeUnit.MINUTES);
          log(request, response);
 
          if(response.getStatusLine().getStatusCode() < 200 || response.getStatusLine().getStatusCode() >= 300)

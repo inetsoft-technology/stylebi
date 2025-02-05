@@ -36,6 +36,7 @@ import {
    TimeConditionType
 } from "../../../../../../shared/schedule/model/time-condition-model";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
+import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.service";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ComponentTool } from "../../../common/util/component-tool";
@@ -67,7 +68,8 @@ export class ScheduleTaskEditorComponent implements OnInit {
                private route: ActivatedRoute,
                private modalService: NgbModal,
                formBuilder: UntypedFormBuilder,
-               private usersService: ScheduleUsersService)
+               private usersService: ScheduleUsersService,
+               private timeZoneService: TimeZoneService)
    {
       this.form = formBuilder.group({
          "name": ["", Validators.compose([Validators.required, FormValidators.invalidTaskName])]
@@ -96,7 +98,8 @@ export class ScheduleTaskEditorComponent implements OnInit {
             this.newTask = param[0] == "true";
             this.resetConditionListView();
             this.form.patchValue({name: model.label});
-            this.model.timeZoneOptions[0].timeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            this.model.timeZoneOptions = this.timeZoneService.updateTimeZoneOptions(
+               this.model.timeZoneOptions, this.model.taskConditionPaneModel.conditions);
             this.originalModel = Tool.clone(model);
          },
          (error) => {
@@ -160,7 +163,7 @@ export class ScheduleTaskEditorComponent implements OnInit {
       const model: ScheduleTaskEditorModel = {
          taskName: taskName,
          oldTaskName: this.model.name,
-         conditions: this.getConditionModelsForServer(),
+         conditions: this.model.taskConditionPaneModel.conditions,
          actions: this.model.taskActionPaneModel.actions,
          options: this.model.taskOptionsPaneModel
       };
@@ -169,6 +172,8 @@ export class ScheduleTaskEditorComponent implements OnInit {
          .toPromise()
          .then((m) => {
             this.model = m;
+            this.model.timeZoneOptions = this.timeZoneService.updateTimeZoneOptions(
+               this.model.timeZoneOptions, this.model.taskConditionPaneModel.conditions);
             this.updateConditionModel(m.taskConditionPaneModel);
             this.updateActionModel(m.taskActionPaneModel);
             this.updateOptionsModel(m.taskOptionsPaneModel);
@@ -177,7 +182,7 @@ export class ScheduleTaskEditorComponent implements OnInit {
             resolve(m);
       }).catch((error: any) => {
             ComponentTool.showConfirmDialog(this.modalService, "_#(js:Error)",
-               error.error.message, {"ok": "OK"});
+               error.error.message || error.error, {"ok": "OK"});
          }));
    };
 
@@ -228,20 +233,5 @@ export class ScheduleTaskEditorComponent implements OnInit {
                   });
             }
          });
-   }
-
-   getConditionModelsForServer(): ScheduleConditionModel[] {
-      let conditions = Tool.clone(this.model.taskConditionPaneModel.conditions);
-      conditions.filter((v) => {
-         return v.conditionType == "TimeCondition" &&
-            (<TimeConditionModel> v).type == TimeConditionType.AT;
-      })
-         .forEach((cond: TimeConditionModel) => {
-            if(!cond.changed || !!cond.timeZone) {
-               cond.timeZoneOffset = -cond.timeZoneOffset;
-            }
-         });
-
-      return conditions;
    }
 }

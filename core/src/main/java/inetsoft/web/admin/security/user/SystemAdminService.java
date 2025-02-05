@@ -110,9 +110,6 @@ public class SystemAdminService {
       final IdentityID removedSysAdmin = roleModifications.size() > 0 &&
          roleModifications.get(0).isSysAdminRemoved() ? roleModifications.get(0).getIdentityID() : null;
 
-      final List<IdentityID> removedRoles = roleModifications.size() > 0 ?
-         roleModifications.get(0).getRemovedRoles() : new ArrayList<>();
-
       // Always filter out all roles that are being deleted
       List<IdentityID> deletedRoles = roleModifications.stream()
          .filter(IdentityModification::isDelete)
@@ -122,7 +119,7 @@ public class SystemAdminService {
       // Roles with the system administrator property
       List<IdentityID> sysAdminRoles = Arrays.stream(securityProvider.getRoles())
          .filter(provider::isSystemAdministratorRole)
-         .filter(r -> !deletedRoles.contains(r) && !r.equals(removedSysAdmin) && !removedRoles.contains(r))
+         .filter(r -> !deletedRoles.contains(r) && !r.equals(removedSysAdmin))
          .collect(Collectors.toList());
 
       List<IdentityID> rolesQueue = new ArrayList<>(sysAdminRoles);
@@ -135,9 +132,13 @@ public class SystemAdminService {
          IdentityID role = rolesQueue.remove(0);
          List<IdentityID> inheritedRoles = getInheritingRoles(role);
 
+         if(!inheritedRoles.isEmpty()) {
+            inheritedRoles.remove(removedSysAdmin);
+         }
+
          // Filter out inherited roles that are being removed
          roleModifications.stream()
-            .filter(i -> i.getIdentityID().equals(role))
+            .filter(i -> i.getIdentityID().equals(removedSysAdmin))
             .findFirst()
             .ifPresent(roleMod -> inheritedRoles.removeAll(roleMod.getRemovedRoles()));
 

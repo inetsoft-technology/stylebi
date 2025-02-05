@@ -50,7 +50,7 @@ const DEFAULT_DATABASE: DatabaseDefinitionModel = {
    changeDefaultDB: false
 };
 
-xdescribe("RepositoryDataSourceSettingsPageComponent", () => {
+describe("RepositoryDataSourceSettingsPageComponent", () => {
    let component: RepositoryDataSourceSettingsPageComponent;
    let fixture: ComponentFixture<RepositoryDataSourceSettingsPageComponent>;
 

@@ -104,7 +104,7 @@ public class VSConditionDialogController {
       try {
          rvs = viewsheetService.getViewsheet(runtimeId, principal);
          vs = rvs.getViewsheet();
-         vsAssembly = (VSAssembly) vs.getAssembly(assemblyName);
+         vsAssembly = vs.getAssembly(assemblyName);
          vsAssemblyInfo = vsAssembly.getVSAssemblyInfo();
       }
       catch(Exception e) {
@@ -208,8 +208,8 @@ public class VSConditionDialogController {
       box.lockWrite();
 
       try {
-         VSAssembly assembly = (VSAssembly) vs.getAssembly(assemblyName);
-         VSAssemblyInfo info = (VSAssemblyInfo) assembly.getVSAssemblyInfo().clone();
+         VSAssembly assembly = vs.getAssembly(assemblyName);
+         VSAssemblyInfo info = assembly.getVSAssemblyInfo().clone();
          RuntimeWorksheet rws = assembly != null && assembly.isEmbedded() ?
             VSUtil.getRuntimeWorksheet(assembly.getViewsheet(), rvs.getViewsheetSandbox()) :
             rvs.getRuntimeWorksheet();
@@ -400,7 +400,7 @@ public class VSConditionDialogController {
       runtimeId = Tool.byteDecode(runtimeId);
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
       Viewsheet vs = rvs.getViewsheet();
-      VSAssembly assembly = (VSAssembly) vs.getAssembly(model.tableName());
+      VSAssembly assembly = vs.getAssembly(model.tableName());
       VSAssemblyInfo info = assembly.getVSAssemblyInfo();
       RuntimeWorksheet rws = assembly != null && assembly.isEmbedded() ?
          VSUtil.getRuntimeWorksheet(assembly.getViewsheet(), rvs.getViewsheetSandbox()) :
@@ -445,7 +445,7 @@ public class VSConditionDialogController {
     * Get assembly info with applied conditions.
     */
    private VSAssemblyInfo getFixInfo(VSAssemblyInfo info, ConditionList conds) {
-      VSAssemblyInfo newInfo = (VSAssemblyInfo) info.clone();
+      VSAssemblyInfo newInfo = info.clone();
 
       if(newInfo instanceof DataVSAssemblyInfo) {
          ((DataVSAssemblyInfo) newInfo).setPreConditionList(conds);

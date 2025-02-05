@@ -23,11 +23,13 @@ import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.FileSystemService;
+import inetsoft.util.ThreadContext;
 import inetsoft.web.AutoSaveUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.security.Principal;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 
@@ -90,36 +92,14 @@ public class WSAutoSaveAsset extends WorksheetAsset {
    @Override
    public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport) throws Exception {
       boolean overwriting = config != null && config.isOverwriting();
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      String folderPath = SreeEnv.getProperty("sree.home") + "/" + "autoSavedFile/recycle/";
-      String path = folderPath + SUtil.addAutoSaveOrganization(autoFile);
-      File file = fileSystemService.getFile(path);
+      String file = "recycle/" + SUtil.addAutoSaveOrganization(autoFile);
+      Principal principal = ThreadContext.getContextPrincipal();
 
-      if(file.exists() && !overwriting) {
+      if(!overwriting && AutoSaveUtils.exists(file, principal)) {
          return;
       }
 
-      File folder = fileSystemService.getFile(folderPath);
-
-      if(!folder.exists()) {
-         folder.mkdirs();
-      }
-
-      if(!file.exists()) {
-         file.createNewFile();
-      }
-
-      FileOutputStream fos = new FileOutputStream(file);
-
-      byte[] b = new byte[1024];
-
-      int length;
-
-      while((length = input.read(b)) > 0) {
-         fos.write(b,0,length);
-      }
-
-      fos.close();
+      AutoSaveUtils.writeAutoSaveFile(input, file, principal);
    }
 
    /**
@@ -135,17 +115,14 @@ public class WSAutoSaveAsset extends WorksheetAsset {
    }
 
    private void writeAutoSaveFile(JarOutputStream out) throws Exception {
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      String path = SreeEnv.getProperty("sree.home") + "/" + "autoSavedFile/recycle/" +
-         SUtil.addAutoSaveOrganization(autoFile);
-      File file = fileSystemService.getFile(path);
+      String file = "recycle/" + SUtil.addAutoSaveOrganization(autoFile);
+      Principal principal = ThreadContext.getContextPrincipal();
 
-      if(!file.exists()) {
+      if(!AutoSaveUtils.exists(file, principal)) {
          return;
       }
 
-      FileInputStream fin = new FileInputStream(file);
-      BufferedInputStream in = new BufferedInputStream(fin);
+      InputStream in = AutoSaveUtils.getInputStream(file, principal);
       String assetName = getType() + "_" + getClass().getName() + "^" + replaceFilePath(autoFile);
       ZipEntry zipEntry = new ZipEntry(assetName);
       out.putNextEntry(zipEntry);

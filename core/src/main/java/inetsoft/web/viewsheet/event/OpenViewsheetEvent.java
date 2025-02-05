@@ -17,7 +17,7 @@
  */
 package inetsoft.web.viewsheet.event;
 
-import inetsoft.sree.security.IdentityID;
+import inetsoft.uql.asset.AssetEntry;
 
 import java.awt.*;
 import java.util.HashMap;
@@ -432,6 +432,10 @@ public class OpenViewsheetEvent {
 
    public void setEmbedAssemblySize(Dimension embedAssemblySize) {
       this.embedAssemblySize = embedAssemblySize;
+   }
+
+   public String getOrgId() {
+      return AssetEntry.createAssetEntry(entryId).getOrgID();
    }
 
    @Override

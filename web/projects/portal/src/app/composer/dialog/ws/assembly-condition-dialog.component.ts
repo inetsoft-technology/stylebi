@@ -378,6 +378,17 @@ export class AssemblyConditionDialog implements OnInit {
    rankingConditionListChange(rankingConditionList: any[]) {
       this.model.rankingConditionList = rankingConditionList;
       this.updateAdvancedConditionValidity();
+      const rankingConditionListValid = isValidConditionList(rankingConditionList);
+
+      if(rankingConditionListValid && rankingConditionList.length > 0 &&
+         !!this.conditionListCheckpoint)
+      {
+         if(this.shouldCheckTrap(rankingConditionList, this.conditionListCheckpoint)) {
+            this.checkConditionTrap(rankingConditionList, this.conditionListCheckpoint, true);
+         }
+
+         this.conditionListCheckpoint = rankingConditionList;
+      }
    }
 
    /**
@@ -396,7 +407,9 @@ export class AssemblyConditionDialog implements OnInit {
     * @param newConditionList the new condition list
     * @param oldConditionList the old condition list
     */
-   private checkConditionTrap(newConditionList: any[], oldConditionList: any[]) {
+   private checkConditionTrap(newConditionList: any[], oldConditionList: any[],
+                              isRanking: boolean = false)
+   {
       const model = {newConditionList, oldConditionList, tableName: this.assemblyName};
       const uri = CHECK_CONDITION_TRAP_URI + Tool.byteEncode(this.worksheet.runtimeId);
 
@@ -416,7 +429,12 @@ export class AssemblyConditionDialog implements OnInit {
                      .then((buttonClicked) => {
                         if(buttonClicked === "undo") {
                            if(this.model.advanced) {
-                              this.model.preAggregateConditionList = oldConditionList;
+                              if(isRanking) {
+                                 this.model.rankingConditionList = oldConditionList;
+                              }
+                              else {
+                                 this.model.preAggregateConditionList = oldConditionList;
+                              }
                            }
                            else {
                               this.simpleConditionList = oldConditionList;

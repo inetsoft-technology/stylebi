@@ -166,7 +166,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    }
 
    setUser(model: EditIdentityPaneModel) {
-      if(model.oldName === this.userName && (model.oldName != model.name || (<EditUserPaneModel>model).password)) {
+      if(model.organization === this.userOrgID && model.oldName === this.userName &&
+        (model.oldName != model.name || (<EditUserPaneModel>model).password)) {
          this.dialog.open(MessageDialog, {
             data: {
                title: "_#(js:em.security.userInfoChangedTitle)",

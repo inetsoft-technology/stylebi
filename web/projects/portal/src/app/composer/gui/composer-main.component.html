@@ -276,6 +276,7 @@
       [wizardOriginalInfo]="bindingPaneModel.wizardOriginalInfo"
       [variableValues]="getVariables(bindingPaneModel.absoluteName, bindingPaneModel.objectType)"
       [linkUri]="focusedViewsheet?.linkUri"
+      [assetId]="focusedViewsheet.id"
       [isCube]="!!!focusedViewsheet?.baseEntry"
       (onOpenWizardPane)="switchBindingToWizard($event)"
       (onCloseBindingPane)="closeBindingPane()"

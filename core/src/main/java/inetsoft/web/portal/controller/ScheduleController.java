@@ -114,6 +114,14 @@ public class ScheduleController {
    private boolean isSystemAdministratorRole(IdentityID userName) {
       AuthenticationProvider authentication = securityProvider.getAuthenticationProvider();
 
+      if(authentication.isVirtual()) {
+         User user = authentication.getUser(userName);
+
+         if(user != null && user.getRoles() != null) {
+            return Arrays.stream(user.getRoles()).anyMatch(securityProvider::isSystemAdministratorRole);
+         }
+      }
+
       for(IdentityID str : authentication.getRoles(userName)) {
          if(authentication.isSystemAdministratorRole(str)) {
             return true;

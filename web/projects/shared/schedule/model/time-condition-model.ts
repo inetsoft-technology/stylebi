@@ -47,8 +47,8 @@ export interface TimeConditionModel extends ScheduleConditionModel {
    monthlyDaySelected?: boolean;
    date?: number;
    dateEnd?: number;
-   timeZone?: string;
-   timeZoneOffset?: number;
+   timeZone?: string; // selected time zone
+   timeZoneOffset?: number; // server time zone offset
    timeRange?: TimeRange;
    changed?: boolean;
 }

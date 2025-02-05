@@ -55,6 +55,7 @@ public class OAuthAuthenticator<T extends AbstractRestDataSource & OAuthDataSour
       }
 
       if(dataSource.getAccessToken() != null) {
+         request.removeHeaders("Authorization");
          request.addHeader("Authorization", "Bearer " + dataSource.getAccessToken());
       }
    }

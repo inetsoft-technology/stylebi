@@ -18,6 +18,8 @@
 package inetsoft.web.composer.model.vs;
 
 
+import inetsoft.web.binding.drm.DataRefModel;
+
 public class HierarchyPropertyPaneModel {
    public HierarchyEditorModel getHierarchyEditorModel() {
       if(hierarchyEditorModel == null) {
@@ -55,8 +57,17 @@ public class HierarchyPropertyPaneModel {
       this.dimensions = dimensions;
    }
 
+   public DataRefModel[] getGrayedOutFields() {
+      return grayedOutFields;
+   }
+
+   public void setGrayedOutFields(DataRefModel[] grayedOutFields) {
+      this.grayedOutFields = grayedOutFields;
+   }
+
    private HierarchyEditorModel hierarchyEditorModel;
    private boolean isCube;
    private OutputColumnRefModel[] columnList;
    private VSDimensionModel[] dimensions;
+   private DataRefModel[] grayedOutFields;
 }

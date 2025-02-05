@@ -32,7 +32,10 @@ public interface PluginsModel {
       return false;
    }
 
-   boolean supportUploadDriver();
+   @Value.Default
+   default boolean supportUploadDriver() {
+      return false;
+   }
 
    List<PluginModel> plugins();
 

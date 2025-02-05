@@ -696,6 +696,20 @@ public class TabularView implements XMLSerializable {
       }
    }
 
+   /**
+    * Get the Affected Views when current view value is changed.
+    */
+   public String[] getAffectedViews() {
+      return affectedViews;
+   }
+
+   /**
+    * set the Affected Views when current view value is changed.
+    */
+   public void setAffectedViews(String[] affectedViews) {
+      this.affectedViews = affectedViews;
+   }
+
    private ViewType type;
    private String text;
    private String color;
@@ -723,5 +737,6 @@ public class TabularView implements XMLSerializable {
    private double max = Double.NaN;
    private String[] pattern;
    private boolean wrap;
+   private String[] affectedViews;
    private transient Component component;
 }

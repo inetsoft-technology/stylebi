@@ -91,7 +91,7 @@
               <option [value]="type.value" *ngFor="let type of executeAsTypes">{{type.label}}</option>
             </select>
             <input type="text" class="form-control w-75" id="inputAddress2" [ngModelOptions]="{standalone: true}"
-                   [ngModel]="executeAsName" [disabled]="disableExecuteAs()">
+                   [ngModel]="executeAsName" [disabled]="disableExecuteAs()" (ngModelChange)="updateExecuteAs($event)">
             <div class="execute-as-buttons">
               <div *ngIf="loadingUsers" class="loading-icon-container">
                 <i class="loading-icon--spin icon-size-large loading-icon" aria-hidden="true"></i>

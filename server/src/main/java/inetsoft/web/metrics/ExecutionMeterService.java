@@ -21,15 +21,19 @@ import inetsoft.report.XSessionManager;
 import inetsoft.uql.util.XNodeTable;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.binder.MeterBinder;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
-public class ExecutionMeterService {
+@Component
+public class ExecutionMeterService implements MeterBinder {
    private final AtomicInteger queries = new AtomicInteger(0);
 
-   public ExecutionMeterService(MeterRegistry registry) {
+   @Override
+   public void bindTo(MeterRegistry registry) {
       Gauge.builder("inetsoft.executions", queries, AtomicInteger::doubleValue)
          .description("The number of executing assets")
          .tags("asset", "query")

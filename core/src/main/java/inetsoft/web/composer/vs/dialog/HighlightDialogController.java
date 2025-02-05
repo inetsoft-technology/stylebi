@@ -20,6 +20,7 @@ package inetsoft.web.composer.vs.dialog;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.data.BoxDataSet;
+import inetsoft.graph.data.SumDataSet;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.*;
@@ -271,8 +272,8 @@ public class HighlightDialogController {
             model.setText(isText);
             model.setShowFont(isText);
             VSChartInfo chartInfo = ((ChartVSAssemblyInfo) assemblyInfo).getVSChartInfo();
-            HighlightRef highlightRef = (HighlightRef)
-               HyperlinkDialogController.getMeasure(chartInfo, colName, true, isAxis, isText);
+            HighlightRef highlightRef =
+               (HighlightRef) getMeasure(chartInfo, colName, true, isAxis, isText);
             boolean wordCloud = GraphTypeUtil.isWordCloud(chartInfo);
             boolean boxplot = colName != null && colName.startsWith(BoxDataSet.MAX_PREFIX);
             boolean geo = GraphTypes.isGeo(chartInfo.getChartType());
@@ -541,9 +542,9 @@ public class HighlightDialogController {
       else if(assemblyInfo instanceof ChartVSAssemblyInfo) {
          VSChartInfo chartInfo = ((ChartVSAssemblyInfo) assemblyInfo).getVSChartInfo();
          HighlightGroup highlightGroup = null;
-         HighlightRef highlightRef = (HighlightRef)
-            HyperlinkDialogController.getMeasure(chartInfo, model.getMeasure(), false,
-                                                 model.isAxis(), model.isText());
+         HighlightRef highlightRef =
+            (HighlightRef) getMeasure(chartInfo, model.getMeasure(), false,
+               model.isAxis(), model.isText());
          boolean geo = GraphTypes.isGeo(chartInfo.getChartType());
          // true to use highlight in chartInfo.
          boolean infoHL = highlightRef == null || (chartInfo instanceof MergedVSChartInfo &&
@@ -602,6 +603,177 @@ public class HighlightDialogController {
       }
 
       return assemblyInfo;
+   }
+
+   private ChartRef getMeasure(ChartInfo chartInfo, String colName, boolean getPeriodRef,
+                               boolean isAxis, boolean isText)
+   {
+      if(colName == null || GraphTypeUtil.isScatterMatrix(chartInfo)) {
+         return null;
+      }
+
+      if(colName.startsWith(SumDataSet.ALL_HEADER_PREFIX)) {
+         colName = colName.substring(SumDataSet.ALL_HEADER_PREFIX.length());
+      }
+
+      colName = BoxDataSet.getBaseName(colName);
+      ChartRef ref = null;
+
+      if(chartInfo instanceof VSChartInfo) {
+         ChartRef[] refs = ((VSChartInfo) chartInfo).getRuntimeDateComparisonRefs();
+         final String column = colName;
+
+         ref = Arrays.stream(refs)
+            .filter(chartRef -> chartRef.getFullName().equals(column))
+            .findAny()
+            .orElse(null);
+      }
+
+      // relation highlights defined on source/target instead of textfield, which is
+      // shared by source and target.
+      if(GraphTypeUtil.isWordCloud(chartInfo) || isText) {
+         AestheticRef aref = null;
+         boolean noTextBinding = chartInfo instanceof RelationChartInfo &&
+            ref.equals(((RelationChartInfo) chartInfo).getSourceField());
+
+         if(!noTextBinding) {
+            aref = chartInfo.isMultiAesthetic() && ref instanceof ChartBindable
+               ? ((ChartBindable) ref).getTextField() : chartInfo.getTextField();
+         }
+
+         if(aref != null && (aref.getFullName().equals(colName) || isText)) {
+            ref = (ChartRef) aref.getDataRef();
+         }
+      }
+
+      final String finalColName = colName;
+
+      if(GraphTypes.isTreemap(chartInfo.getRTChartType()) && !isAxis) {
+         ChartRef[] groups = chartInfo.getGroupFields();
+
+         if(groups != null) {
+            ref = Arrays.stream(groups)
+               .filter(f -> f.getFullName().equals(finalColName))
+               .findFirst().orElse(null);
+         }
+      }
+
+      if(ref == null && GraphTypes.isRelation(chartInfo.getRTChartType()) && !isAxis) {
+         ChartRef field = ((RelationChartInfo) chartInfo).getTargetField();
+
+         if(isSameRef(field, colName)) {
+            ref = field;
+         }
+
+         field = ((RelationChartInfo) chartInfo).getSourceField();
+
+         if(ref == null && isSameRef(field, colName)) {
+            ref = field;
+         }
+      }
+
+      if(ref == null && GraphTypes.isGantt(chartInfo.getChartType()) && !isAxis) {
+         ChartRef field = ((GanttChartInfo) chartInfo).getStartField();
+
+         if(isSameRef(field, colName)) {
+            ref = field;
+         }
+
+         field = ((GanttChartInfo) chartInfo).getEndField();
+
+         if(ref == null && isSameRef(field, colName)) {
+            ref = field;
+         }
+
+         field = ((GanttChartInfo) chartInfo).getMilestoneField();
+
+         if(ref == null && isSameRef(field, colName)) {
+            ref = field;
+         }
+      }
+
+      if(ref == null) {
+         // make sure it's axis and not a node. (56974)
+         if(isAxis) {
+            List<VSDataRef> fields = new ArrayList<>(Arrays.asList(chartInfo.getXFields()));
+            fields.addAll(Arrays.asList(chartInfo.getYFields()));
+            ref = (ChartRef) fields.stream()
+               .filter(f -> f.getFullName().equals(finalColName))
+               .findFirst().orElse(null);
+         }
+         else {
+            ref = chartInfo.getFieldByName(colName, false);
+         }
+      }
+
+      if(chartInfo instanceof VSChartInfo && ref == null) {
+         boolean periodPartRef = ((VSChartInfo) chartInfo).isPeriodPartRef(colName);
+         ChartRef periodRef = ((VSChartInfo) chartInfo).getPeriodField();
+
+         if(periodPartRef) {
+            // for period part ref load the runtime field and set for design field.
+            if(getPeriodRef) {
+               ref = chartInfo.getFieldByName(colName, true);
+            }
+            else if(periodRef != null) {
+               ChartRef periodField = (ChartRef) periodRef.clone();
+
+               if(periodField instanceof VSDimensionRef) {
+                  ((VSDimensionRef) periodField).setDates(null);
+               }
+
+               ref = chartInfo.getFieldByName(periodField.getFullName(), false);
+            }
+         }
+
+         if(ref == null && ((VSChartInfo) chartInfo).isPeriodRef(colName)) {
+            ref = periodRef;
+         }
+      }
+
+      if(ref == null) {
+         // get the runtime field first and then find the design time ref based
+         // on this runtime field
+         ref = chartInfo.getFieldByName(colName, true);
+
+         if(ref instanceof VSChartDimensionRef) {
+            VSChartDimensionRef rtDim = (VSChartDimensionRef) ref;
+            VSDataRef[] fields = chartInfo.getFields();
+
+            if(GraphTypes.isRadarOne(chartInfo)) {
+               ChartRef groupField = chartInfo.getGroupField(0);
+
+               // ensure priority is given to matching group fields rather than aesthetic fields.
+               if(groupField instanceof VSChartDimensionRef) {
+                  VSDataRef[] arr = new VSDataRef[fields.length + 1];
+                  arr[0] = groupField;
+                  System.arraycopy(fields, 0, arr, 1, fields.length);
+                  fields = arr;
+               }
+            }
+
+            for(VSDataRef vsDataRef : fields) {
+               if(vsDataRef instanceof VSChartDimensionRef) {
+                  VSChartDimensionRef dim = (VSChartDimensionRef) vsDataRef;
+
+                  if(Tool.equals(dim.getGroupColumnValue(), rtDim.getGroupColumnValue())) {
+                     // in case of dynamic field, multiple dimensions (e.g. state, city) may be
+                     // generated from the design time ref, we set the base ref back to
+                     // the runtime ref. (61582)
+                     dim.setDataRef(rtDim.getDataRef());
+                     ref = (ChartRef) vsDataRef;
+                     break;
+                  }
+               }
+            }
+         }
+      }
+
+      return ref;
+   }
+
+   private boolean isSameRef(ChartRef ref, String colName) {
+      return ref != null && Tool.equals(ref.getFullName(), colName);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;

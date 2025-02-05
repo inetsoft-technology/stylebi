@@ -21,7 +21,6 @@ import inetsoft.analytic.composition.event.CheckMVEvent;
 import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVStorage;
 import inetsoft.mv.fs.*;
-import inetsoft.mv.fs.internal.BlockFileStorage;
 import inetsoft.mv.fs.internal.ClusterUtil;
 import inetsoft.mv.trans.UserInfo;
 import inetsoft.mv.util.MVRule;
@@ -31,7 +30,6 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
-import inetsoft.storage.BlobStorage;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.ExpressionRef;
@@ -50,7 +48,7 @@ import java.lang.ref.WeakReference;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Stream;
 
 /**
@@ -428,15 +426,17 @@ public final class MVManager {
    /**
     * Cancel the pending MV.
     */
-   public synchronized void cancelMV(AssetEntry entry, XPrincipal user) {
-      String key = entry + ":" + user;
-      MVCreator job = pending.get(key);
+   public void cancelMV(AssetEntry entry, XPrincipal user) {
+      synchronized(pending) {
+         String key = entry + ":" + user;
+         MVCreator job = pending.get(key);
 
-      if(job != null) {
-         job.cancel();
+         if(job != null) {
+            job.cancel();
+         }
+
+         pending.remove(key);
       }
-
-      pending.remove(key);
    }
 
    /**
@@ -469,6 +469,7 @@ public final class MVManager {
          List<UserInfo> hints = new ArrayList<>();
          list = SharedMVUtil.shareAnalyzedMV(list, hints);
          defs = list.toArray(new MVDef[0]);
+         String orgId = OrganizationManager.getInstance().getCurrentOrgID();
 
          // mv is not available for this table? don't recreate all
          if("__anyt__".equals(tname) ||
@@ -489,10 +490,15 @@ public final class MVManager {
                pending.put(key, job);
 
                if(job.create()) {
-                  synchronized(this) {
+                  getOrgLock(orgId).writeLock().lock();
+
+                  try {
                      mv.updateLastUpdateTime(); // set update ts
                      add(mv);
                      SharedMVUtil.shareCreatedMV(mv);
+                  }
+                  finally {
+                     getOrgLock(orgId).writeLock().unlock();
                   }
                }
             }
@@ -821,21 +827,29 @@ public final class MVManager {
    /**
     * Remove a registered sheet from mv.
     */
-   public synchronized boolean remove(MVDef def, String sheetName) {
-      boolean changed = def.getMetaData().unregister(sheetName);
+   public boolean remove(MVDef def, String sheetName) {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      getOrgLock(orgId).writeLock().lock();
 
-      if(def.getMetaData().getRegisteredSheets().length <= 0) {
-         changed = remove(def) || changed;
+      try {
+         boolean changed = def.getMetaData().unregister(sheetName);
 
-         if(LOG.isDebugEnabled()) {
-            LOG.debug("MV is no longer used after deleting " + sheetName +
-                         ": " + def.getName());
+         if(def.getMetaData().getRegisteredSheets().length <= 0) {
+            changed = remove(def) || changed;
+
+            if(LOG.isDebugEnabled()) {
+               LOG.debug("MV is no longer used after deleting " + sheetName +
+                            ": " + def.getName());
+            }
+
+            ClusterUtil.deleteClusterMV(def.getName());
          }
 
-         ClusterUtil.deleteClusterMV(def.getName());
+         return changed;
       }
-
-      return changed;
+      finally {
+         getOrgLock(orgId).writeLock().unlock();
+      }
    }
 
    /**
@@ -883,26 +897,27 @@ public final class MVManager {
       return list(sort, null);
    }
 
-   public synchronized MVDef[] list(boolean sort, MVFilter filter) {
+   public MVDef[] list(boolean sort, MVFilter filter) {
       return list(sort, filter, null);
    }
 
    /**
     * List all MVs.
     */
-   public synchronized MVDef[] list(boolean sort, MVFilter filter, Principal principal) {
-      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
-      String[] orgIDs = null;
+   public MVDef[] list(boolean sort, MVFilter filter, Principal principal) {
+      String orgId = null;
 
       if(principal instanceof SRPrincipal) {
-         String orgId = ((SRPrincipal) principal).getOrgId();
+         orgId = ((SRPrincipal) principal).getOrgId();
          orgId = orgId == null ? Organization.getDefaultOrganizationID() : orgId;
-         orgIDs = new String[1];
-         orgIDs[0] = orgId;
       }
-      else {
-         orgIDs = provider.getOrganizationIDs();
+
+      if(orgId == null) {
+         orgId = OrganizationManager.getInstance().getCurrentOrgID();
       }
+
+      String[] orgIDs = new String[1];
+      orgIDs[0] = orgId;
 
       List<MVDef> defs = list(orgIDs);
       Stream<MVDef> stream = defs.stream().filter(def -> def != null);
@@ -918,17 +933,24 @@ public final class MVManager {
       return stream.toArray(MVDef[]::new);
    }
 
-   public synchronized List<MVDef> list(String[] orgIDs) {
+   public List<MVDef> list(String[] orgIDs) {
       List<MVDef> defs = new ArrayList<>();
 
       for(String orgID : orgIDs) {
-         for(String key : mvs.keySet(orgID)) {
-            try {
-               defs.add(mvs.get(key, orgID));
+         getOrgLock(orgID).readLock().lock();
+
+         try {
+            for(String key : mvs.keySet(orgID)) {
+               try {
+                  defs.add(mvs.get(key, orgID));
+               }
+               catch(Exception e) {
+                  LOG.error("Failed to read MV definition: " + key + " " + orgID, e);
+               }
             }
-            catch(Exception e) {
-               LOG.error("Failed to read MV definition: " + key + " " + orgID, e);
-            }
+         }
+         finally {
+            getOrgLock(orgID).readLock().unlock();
          }
       }
 
@@ -938,7 +960,7 @@ public final class MVManager {
    /**
     * Triggered when viewsheet is renamed.
     */
-   public synchronized void renameDependencies(AssetEntry oentry, AssetEntry nentry) {
+   public void renameDependencies(AssetEntry oentry, AssetEntry nentry) {
       // it's not easy to rename mv files, so here we just remove them
       // from file system, then users need to re-create mv
       boolean renamed = !Tool.equals(oentry + "", nentry + "");
@@ -963,18 +985,57 @@ public final class MVManager {
    /**
     * Triggered when viewsheet is renamed.
     */
-   public synchronized void removeDependencies(AssetEntry entry) {
-      MVDef[] arr = list(false);
-      boolean changed = false;
+   public void removeDependencies(AssetEntry entry) {
+      String orgId = entry == null ? null : entry.getOrgID();
+      orgId = orgId == null ? OrganizationManager.getInstance().getCurrentOrgID() : orgId;
+      getOrgLock(orgId).writeLock().lock();
 
-      for(final MVDef mvDef : arr) {
-         if(mvDef.matches(entry)) {
-            changed = remove(mvDef) || changed;
+      try {
+         MVDef[] arr = list(false);
+         boolean changed = false;
 
-            if(LOG.isDebugEnabled()) {
-               LOG.debug("Deleting MV from dependency: " + entry);
+         for(final MVDef mvDef : arr) {
+            if(mvDef.matches(entry)) {
+               changed = remove(mvDef) || changed;
+
+               if(LOG.isDebugEnabled()) {
+                  LOG.debug("Deleting MV from dependency: " + entry);
+               }
             }
          }
+      }
+      finally {
+         getOrgLock(orgId).writeLock().unlock();
+      }
+   }
+
+   /**
+    * Migrate the private ws and vs to new user.
+    * @param oldUser old user.
+    * @param newUser new use.
+    */
+   public void migrateUserAssetsMV(IdentityID oldUser, IdentityID newUser) {
+      if(oldUser == null || newUser == null || Tool.equals(oldUser, newUser)) {
+         return;
+      }
+
+      MVManager manager = MVManager.getManager();
+      MVDef[] defs = manager.list(false);
+
+      for(MVDef def : defs) {
+         AssetEntry entry = def.getEntry();
+
+         if(entry == null || entry.getScope() != AssetRepository.USER_SCOPE ||
+            !Tool.equals(entry.getUser(), oldUser))
+         {
+            continue;
+         }
+
+         AssetEntry newAssetEntry = entry.cloneAssetEntry(oldUser, newUser);
+
+         def.setEntry(newAssetEntry);
+         def.setChanged(true);
+         manager.add(def);
       }
    }
 
@@ -1023,9 +1084,8 @@ public final class MVManager {
       List<String> listFiles = mvStorage.listFiles(oorgId);
       XServerNode server = FSService.getServer(norgId);
       XFileSystem fsys = server.getFSystem();
-      XBlockSystem bsys = FSService.getDataNode().getBSystem();
+      XBlockSystem bsys = FSService.getDataNode(oorgId).getBSystem();
       fsys.refresh(bsys, true);
-      BlobStorage<?> blkStorage = BlockFileStorage.getInstance().getStorage(norgId);
 
       for(String file : listFiles) {
          String defName = null;
@@ -1040,17 +1100,8 @@ public final class MVManager {
             updateMVDef(def, oorg, norg);
             defName = def.getName();
             mv.setDef(def);
-
-            XFile oldFile = fsys.get(oldDefName);
             mv.save(MVStorage.getFile(def.getName()), storeId, false);
             fsys.rename(oldDefName, oorgId, defName, norgId, copy);
-            XFile newFile = fsys.get(defName);
-
-            for(int i = 0; i < oldFile.getBlocks().size(); i ++) {
-               String oBlkId = bsys.getFile(oldFile.getBlocks().get(i).getID()).getName();
-               String nBlkId = bsys.getFile(newFile.getBlocks().get(i).getID()).getName();
-               blkStorage.rename(oBlkId, nBlkId);
-            }
          }
          catch(IOException e) {
             throw new RuntimeException(e);
@@ -1148,31 +1199,47 @@ public final class MVManager {
    /**
     * Add property change listener.
     */
-   public synchronized void addPropertyChangeListener(PropertyChangeListener listener) {
-      for(WeakReference<PropertyChangeListener> ref : listeners) {
-         PropertyChangeListener obj = ref.get();
+   public void addPropertyChangeListener(PropertyChangeListener listener) {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      getOrgLock(orgId).writeLock().lock();
 
-         if(listener.equals(obj)) {
-            return;
+      try {
+         for(WeakReference<PropertyChangeListener> ref : listeners) {
+            PropertyChangeListener obj = ref.get();
+
+            if(listener.equals(obj)) {
+               return;
+            }
          }
-      }
 
-      WeakReference<PropertyChangeListener> ref = new WeakReference<>(listener);
-      listeners.add(ref);
+         WeakReference<PropertyChangeListener> ref = new WeakReference<>(listener);
+         listeners.add(ref);
+      }
+      finally {
+         getOrgLock(orgId).writeLock().unlock();
+      }
    }
 
    /**
     * Remove property change listener.
     */
-   public synchronized void removePropertyChangeListener(PropertyChangeListener listener) {
-      for(int i = listeners.size() - 1; i >= 0; i--) {
-         WeakReference<PropertyChangeListener> ref = listeners.get(i);
-         PropertyChangeListener obj = ref.get();
+   public void removePropertyChangeListener(PropertyChangeListener listener) {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      getOrgLock(orgId).writeLock().lock();
 
-         if(listener.equals(obj)) {
-            listeners.remove(i);
-            return;
+      try {
+         for(int i = listeners.size() - 1; i >= 0; i--) {
+            WeakReference<PropertyChangeListener> ref = listeners.get(i);
+            PropertyChangeListener obj = ref.get();
+
+            if(listener.equals(obj)) {
+               listeners.remove(i);
+               return;
+            }
          }
+      }
+      finally {
+         getOrgLock(orgId).writeLock().unlock();
       }
    }
 
@@ -1212,23 +1279,31 @@ public final class MVManager {
       return getShareMV(mv, true);
    }
 
-   public synchronized MVDef getShareMV(MVDef mv, boolean recordVS) {
-      MVDef[] arr = list(false);
+   public MVDef getShareMV(MVDef mv, boolean recordVS) {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      getOrgLock(orgId).writeLock().lock();
 
-      for(MVDef mv0 : arr) {
-         if(mv0.isSharedBy(mv)) {
-            if(recordVS && mv0.getMetaData() != null && mv.getMetaData() != null) {
-               mv0.shareMV(mv);
+      try {
+         MVDef[] arr = list(false);
+
+         for(MVDef mv0 : arr) {
+            if(mv0.isSharedBy(mv)) {
+               if(recordVS && mv0.getMetaData() != null && mv.getMetaData() != null) {
+                  mv0.shareMV(mv);
+               }
+
+               return mv0;
             }
-
-            return mv0;
          }
-      }
 
-      return null;
+         return null;
+      }
+      finally {
+         getOrgLock(orgId).writeLock().unlock();
+      }
    }
 
-   public synchronized MVDef[] getContainsMVs(MVDef mv) {
+   public MVDef[] getContainsMVs(MVDef mv) {
       MVDef[] arr = list(false);
       List<MVDef> list = new ArrayList<>();
 
@@ -1245,32 +1320,39 @@ public final class MVManager {
       return checkShareBySelf(mvs, true);
    }
 
-   public synchronized MVDef[] checkShareBySelf(MVDef[] mvs, boolean recordVS) {
+   public MVDef[] checkShareBySelf(MVDef[] mvs, boolean recordVS) {
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      getOrgLock(orgId).writeLock().lock();
       List<MVDef> mvs0 = new ArrayList<>();
 
-      for(int i = 0; i < mvs.length; i++) {
-         boolean contains = false;
+      try {
+         for(int i = 0; i < mvs.length; i++) {
+            boolean contains = false;
 
-         for(int j = i + 1; j < mvs.length; j++) {
-            contains = mvs[j].isSharedBy(mvs[i]);
+            for(int j = i + 1; j < mvs.length; j++) {
+               contains = mvs[j].isSharedBy(mvs[i]);
 
-            if(contains) {
-               if(recordVS && mvs[j].getMetaData() != null &&
-                  mvs[i].getMetaData() != null)
-               {
-                  mvs[j].shareMV(mvs[i]);
+               if(contains) {
+                  if(recordVS && mvs[j].getMetaData() != null &&
+                     mvs[i].getMetaData() != null)
+                  {
+                     mvs[j].shareMV(mvs[i]);
+                  }
+
+                  mvs0.add(mvs[j]);
                }
+            }
 
-               mvs0.add(mvs[j]);
+            if(!contains && !mvs0.contains(mvs[i])) {
+               mvs0.add(mvs[i]);
             }
          }
 
-         if(!contains && !mvs0.contains(mvs[i])) {
-            mvs0.add(mvs[i]);
-         }
+         return mvs0.toArray(new MVDef[0]);
       }
-
-      return mvs0.toArray(new MVDef[0]);
+      finally {
+         getOrgLock(orgId).writeLock().unlock();
+      }
    }
 
    /**
@@ -1290,28 +1372,40 @@ public final class MVManager {
    /**
     * Fill MVDef with more data.
     */
-   public synchronized void fill(MVDef def) {
+   public void fill(MVDef def) {
       if(def == null) {
          return;
       }
 
-      String name = def.getName();
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
+      getOrgLock(orgId).writeLock().lock();
 
-      // def2 will be gc-ed when exit
-      MVDef def2 = mvs.get(name);
+      try {
+         String name = def.getName();
 
-      if(def2 != null) {
-         def.copyContainer(def2);
+         // def2 will be gc-ed when exit
+         MVDef def2 = mvs.get(name);
+
+         if(def2 != null) {
+            def.copyContainer(def2);
+         }
+         else {
+            LOG.warn("Materialized view {} not found", name);
+         }
       }
-      else {
-         LOG.warn("Materialized view {} not found", name);
+      finally {
+         getOrgLock(orgId).writeLock().unlock();
       }
    }
 
    public boolean isMaterialized(String id, boolean ws) {
-      MVDef[] defs = list(true, def -> def.isWSMV() == ws);
-      return Arrays.stream(defs).anyMatch(def -> def.isSuccess() &&
-         def.getMetaData().isRegistered(id));
+      return isMaterialized(id, ws, null);
+   }
+
+   public boolean isMaterialized(String id, boolean ws, Principal user) {
+      MVDef[] defs = list(true, def -> def.isWSMV() == ws, user);
+      return Arrays.stream(defs)
+         .anyMatch(def -> def.isSuccess() && def.getMetaData().isRegistered(id));
    }
 
    public void initMVDefMap() {
@@ -1337,11 +1431,18 @@ public final class MVManager {
       }
    };
 
+   private ReentrantReadWriteLock getOrgLock(String orgId) {
+      orgId = orgId == null ? "" : orgId;
+
+      return lockMap.computeIfAbsent(orgId, k -> new ReentrantReadWriteLock());
+   }
+
    private static final Logger LOG = LoggerFactory.getLogger(MVManager.class);
 
    private final MVDefMap mvs = new MVDefMap();
    private final Map<Object, MVCreator> pending = new ConcurrentHashMap<>();
    private final Vector<WeakReference<PropertyChangeListener>> listeners = new Vector<>();
+   private final ConcurrentHashMap<String, ReentrantReadWriteLock> lockMap = new ConcurrentHashMap<>();
    private long lastCleanup;
    private String dcycle;
 }

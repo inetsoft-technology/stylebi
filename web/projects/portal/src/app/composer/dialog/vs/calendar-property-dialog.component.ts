@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, OnInit, Input, Output, EventEmitter } from "@angular/core";
+import { TrapInfo } from "../../../common/data/trap-info";
+import { VSTrapService } from "../../../vsobjects/util/vs-trap.service";
 import { CalendarPropertyDialogModel } from "../../data/vs/calendar-property-dialog-model";
 import { CalendarGeneralPaneModel } from "../../data/vs/calendar-general-pane-model";
 import { CalendarDataPaneModel } from "../../data/vs/calendar-data-pane-model";
@@ -30,6 +32,7 @@ import { UIContextService } from "../../../common/services/ui-context.service";
 import { PropertyDialogService } from "../../../vsobjects/util/property-dialog.service";
 import { PropertyDialog } from "./property-dialog.component";
 
+const CHECK_TRAP_URI: string = "../api/composer/vs/calendar-property-dialog-model/checkTrap/";
 const SINGLE_CALENDAR_MODE: number = 1;
 const DOUBLE_CALENDAR_MODE: number = 2;
 const CALENDAR_SHOW_TYPE: number = 1;
@@ -51,9 +54,10 @@ export class CalendarPropertyDialog extends PropertyDialog implements OnInit {
    formValid = () => this.form && this.form.valid;
 
    public constructor(protected uiContextService: UIContextService,
-                      protected propertyDialogService: PropertyDialogService)
+                      protected propertyDialogService: PropertyDialogService,
+                      protected trapService: VSTrapService)
    {
-      super(uiContextService, null, propertyDialogService);
+      super(uiContextService, trapService, propertyDialogService);
    }
 
    ngOnInit(): void {
@@ -93,7 +97,16 @@ export class CalendarPropertyDialog extends PropertyDialog implements OnInit {
 
    protected closing(isApply: boolean, collapse: boolean = false) {
       const payload = {collapse: collapse, result: this.model};
-      isApply ? this.onApply.emit(payload) : this.onCommit.emit(this.model);
+
+      const trapInfo = new TrapInfo(CHECK_TRAP_URI,
+         this.model.calendarGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.name,
+         this.runtimeId, this.model);
+
+      this.trapService.checkTrap(trapInfo,
+         () => isApply ? this.onApply.emit(payload) : this.onCommit.emit(this.model),
+         () => {},
+         () => isApply ? this.onApply.emit(payload) : this.onCommit.emit(this.model)
+      );
    }
 
    protected getScripts(): string[] {

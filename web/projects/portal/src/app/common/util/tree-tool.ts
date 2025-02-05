@@ -39,7 +39,8 @@ export namespace TreeTool {
    /**
     * Get a flattened list of the tree node models
     */
-   export function getFlattenedNodes(node: TreeNodeModel, searchComparator?: SearchComparator): TreeNodeModel[]
+   export function getFlattenedNodes(node: TreeNodeModel, searchComparator?: SearchComparator,
+                                     ignoreNodes?: TreeNodeModel[] ): TreeNodeModel[]
    {
       if(!node) {
          return [];
@@ -58,7 +59,7 @@ export namespace TreeTool {
                child.parent = node;
             }
 
-            const children = getChildrenInOrder(child, searchComparator);
+            const children = getChildrenInOrder(child, searchComparator, ignoreNodes);
             flattenedNodes = flattenedNodes.concat(children);
          }
       }
@@ -67,9 +68,18 @@ export namespace TreeTool {
    }
 
    // eslint-disable-next-line no-inner-declarations
-   function getChildrenInOrder(node: TreeNodeModel, searchComparator?: SearchComparator): TreeNodeModel[] {
+   function getChildrenInOrder(node: TreeNodeModel, searchComparator?: SearchComparator,
+                               ignoreNodes?: TreeNodeModel[]): TreeNodeModel[]
+   {
       if(node.children != null) {
-         let childNodes = [node];
+         let childNodes;
+
+         if(ignoreNodes && ignoreNodes.some(n => n == node)) {
+            childNodes = [];
+         }
+         else {
+            childNodes = [node];
+         }
 
          if(node.expanded) {
             let nodeChildren = [...node.children];

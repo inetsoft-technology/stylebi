@@ -179,6 +179,14 @@ public class FargateCloudRunnerConfig implements Serializable {
       this.vpcSecurityGroups = vpcSecurityGroups;
    }
 
+   public boolean isAssignPublicIp() {
+      return assignPublicIp;
+   }
+
+   public void setAssignPublicIp(boolean assignPublicIp) {
+      this.assignPublicIp = assignPublicIp;
+   }
+
    public String getLogGroup() {
       return logGroup;
    }
@@ -216,6 +224,7 @@ public class FargateCloudRunnerConfig implements Serializable {
    private String memory = "2GB";
    private String[] vpcSubnets;
    private String[] vpcSecurityGroups;
+   private boolean assignPublicIp = true;
    private String logGroup;
    private String logRegion;
    private String logStreamPrefix;

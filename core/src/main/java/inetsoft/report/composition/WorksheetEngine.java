@@ -1114,15 +1114,14 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       String uname = user == null ? null : user.getName();
 
       if(owner != null && !owner.equals(uname)) {
-         String[] ownerParts = owner.split(IdentityID.KEY_DELIMITER);
-         String[] unameparts = uname.split(IdentityID.KEY_DELIMITER);
-         String ownerName = ownerParts[0];
-         String ownerOrg = ownerParts[1];
-         String unameName = unameparts[0];
-         String unameOrg = unameparts[1];
+         IdentityID ownerIdentity = IdentityID.getIdentityIDFromKey(owner);
+         IdentityID userIdentity = IdentityID.getIdentityIDFromKey(uname);
+         String ownerName = ownerIdentity.getName() != null ? ownerIdentity.getName() : "";
+         String unameName =
+            userIdentity != null && userIdentity.getName() != null ? userIdentity.getName() : "";
          throw new MessageException(Catalog.getCatalog().getString(
                                        "common.worksheetLocked", entry.getPath(),
-                                       ownerName, ownerOrg, unameName, unameOrg), LogLevel.WARN, false);
+                                       ownerName, unameName), LogLevel.WARN, false);
       }
 
       ((AbstractAssetEngine) engine).setSheet(entry, sheet, user, force, true, updateDependency);

@@ -77,7 +77,7 @@ public class ScheduleTaskEnumeration implements XAssetEnumeration<ScheduleTaskAs
    @Override
    public ScheduleTaskAsset nextElement() {
       ScheduleTask task = tasks.get(currentIndex++);
-      return new ScheduleTaskAsset(task.getTaskId(), task.getOwner());
+      return new ScheduleTaskAsset(task.getTaskId(), task.getOwner(), task.getLastModified());
    }
 
    private List<ScheduleTask> tasks;

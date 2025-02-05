@@ -21,6 +21,7 @@ import com.github.benmanes.caffeine.cache.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.portal.CustomThemesManager;
 import inetsoft.sree.portal.PortalThemesManager;
+import inetsoft.sree.security.OrganizationManager;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -97,11 +98,25 @@ public class GlobalStyleController implements ApplicationContextAware {
       ResourceKey key = new ResourceKey(themeId, path);
 
       try {
-         StyleResource resource = resources.get(key);
+         String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+         if(resources.get(orgID) == null) {
+            resources.put(orgID,
+                          Caffeine.newBuilder()
+                             .maximumSize(1000)
+                             .expireAfterAccess(10, TimeUnit.MINUTES)
+                             .build(new CacheLoader<ResourceKey, StyleResource>() {
+                                @Override
+                                public StyleResource load(ResourceKey resourceKey) throws Exception {
+                                   return new StyleResource(resourceKey.path, resourceKey.themeId, context);
+                                }}));
+         }
+
+         StyleResource resource = resources.get(orgID).get(key);
 
          if(resource == null || resource.isModified()) {
-            resources.invalidate(key);
-            resource = resources.get(key);
+            resources.get(orgID).invalidate(key);
+            resource = resources.get(orgID).get(key);
          }
 
          return resource;
@@ -146,15 +161,7 @@ public class GlobalStyleController implements ApplicationContextAware {
    }
 
    private ApplicationContext context;
-   private final LoadingCache<ResourceKey, StyleResource> resources = Caffeine.newBuilder()
-      .maximumSize(1000)
-      .expireAfterAccess(10, TimeUnit.MINUTES)
-      .build(new CacheLoader<ResourceKey, StyleResource>() {
-         @Override
-         public StyleResource load(ResourceKey resourceKey) throws Exception {
-            return new StyleResource(resourceKey.path, resourceKey.themeId, context);
-         }
-      });
+   private final Map<String, LoadingCache<ResourceKey, StyleResource>> resources = new HashMap<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(GlobalStyleController.class);
    private static final PathExtensionContentNegotiationStrategy contentTypes;

@@ -19,7 +19,7 @@
   <ul class="nav nav-pills mb-1">
     <li class="nav-item" *ngFor="let option of enabledOptions">
       <span class="href-style nav-link" (click)="changeConditionType(option)"
-         [class.selected]="selectedOption == option.value">{{ option.label }}</span>
+            [class.selected]="selectedOption == option.value">{{ option.label }}</span>
     </li>
   </ul>
 
@@ -29,16 +29,16 @@
            [ngSwitch]="timeCondition?.type">
         <div class="form-check server-time-zone m-2" *ngIf="startTimeEnabled">
           <input class="form-check-input" type="checkbox" name="timezone"
-                 [checked]="serverTimeZone" (change)="changeShowServerTimeZone()">
+                 [checked]="serverTimeZone" (change)="changeServerTimeZone(!serverTimeZone)">
           <label class="form-check-label">
             _#(Show Server Time Zone)
           </label>
         </div>
         <!-- Daily -->
-        <form [formGroup]="form">
-          <div class="container-fluid form-group" *ngSwitchCase="TimeConditionType.EVERY_DAY">
+        <div class="container-fluid form-group" *ngSwitchCase="TimeConditionType.EVERY_DAY">
+          <form [formGroup]="form">
             <w-start-time-editor
-              [model]="startTimeData"
+              [(model)]="formStartTimeData"
               [timeRanges]="timeRanges"
               [startTimeEnabled]="startTimeEnabled"
               [timeRangeEnabled]="timeRangeEnabled"
@@ -46,12 +46,12 @@
               [serverTimeZone]="serverTimeZone"
               [showMeridian]="showMeridian"
               formControlName="startTime"
-              (modelChange)="onStartTimeDataChanged($event)">
+            >
               <ng-container>
                 <div class="form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col">
                     <div class="form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="changeNonATConditionTimeZone($event)"
+                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
                               formControlName="timeZone">
                         <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                       </select>
@@ -67,7 +67,7 @@
                   <input class="form-check-input" type="radio" name="every" [value]="false"
                          id="every" [ngModel]="timeCondition.weekdayOnly"
                          (ngModelChange)="updateWeekdayOnly($event)"
-                       [ngModelOptions]="{standalone: true}">
+                         [ngModelOptions]="{standalone: true}">
                   <label class="form-check-label" for="every">
                     _#(Every)
                   </label>
@@ -92,22 +92,22 @@
               <div class="col">
                 <div class="form-check">
                   <input class="form-check-input" type="radio" name="weekday" id="dailyWeekday"
-                       [value]="true" [ngModel]="timeCondition.weekdayOnly"
-                       (ngModelChange)="updateWeekdayOnly($event)" [ngModelOptions]="{standalone: true}">
+                         [value]="true" [ngModel]="timeCondition.weekdayOnly"
+                         (ngModelChange)="updateWeekdayOnly($event)" [ngModelOptions]="{standalone: true}">
                   <label class="form-check-label" for="dailyWeekday">
                     _#(Weekdays)
                   </label>
                 </div>
               </div>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
 
         <!-- Weekly -->
         <div class="container-fluid form-group"  *ngSwitchCase="TimeConditionType.EVERY_WEEK">
           <form [formGroup]="form">
             <w-start-time-editor
-              [model]="startTimeData"
+              [(model)]="formStartTimeData"
               [timeRanges]="timeRanges"
               [startTimeEnabled]="startTimeEnabled"
               [timeRangeEnabled]="timeRangeEnabled"
@@ -115,14 +115,13 @@
               [serverTimeZone]="serverTimeZone"
               [showMeridian]="showMeridian"
               formControlName="startTime"
-              (modelChange)="onStartTimeDataChanged($event)"
             >
               <ng-container>
                 <div class="form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col form-floating">
-                    <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="changeNonATConditionTimeZone($event)"
+                    <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
                             formControlName="timeZone">
-                      <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
+                      <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                     </select>
                     <label>_#(Time Zone)</label>
                   </div>
@@ -139,7 +138,7 @@
                   </div>
                   <label>_#(Every)</label>
                   <span class="invalid-feedback"
-                       *ngIf="form && !!form.controls['interval'] && form.controls['interval'].errors">
+                        *ngIf="form && !!form.controls['interval'] && form.controls['interval'].errors">
                     _#(viewer.schedule.condition.weeksValid)
                   </span>
               </div>
@@ -151,9 +150,9 @@
                   <div class="form-check">
                     <input class="form-check-input weeklyWeekday_id"
                            type="checkbox" name="weekday" [id]="'weeklyWeekday' + i"
-                         [formControlName]="i"
-                         [checked]="isPresent(timeCondition.daysOfWeek, i + 1)"
-                         (change)="updateList(timeCondition.daysOfWeek, i + 1)">
+                           [formControlName]="i"
+                           [checked]="isPresent(timeCondition.daysOfWeek, i + 1)"
+                           (change)="updateList(timeCondition.daysOfWeek, i + 1)">
                     <label class="form-check-label" [for]="'weeklyWeekday' + i">
                       {{ day }}
                     </label>
@@ -180,7 +179,7 @@
         <div *ngSwitchCase="TimeConditionType.EVERY_MONTH" class="container-fluid form-group">
           <form [formGroup]="form">
             <w-start-time-editor
-              [model]="startTimeData"
+              [(model)]="formStartTimeData"
               [timeRanges]="timeRanges"
               [startTimeEnabled]="startTimeEnabled"
               [timeRangeEnabled]="timeRangeEnabled"
@@ -188,14 +187,13 @@
               [serverTimeZone]="serverTimeZone"
               [showMeridian]="showMeridian"
               formControlName="startTime"
-              (modelChange)="onStartTimeDataChanged($event)"
             >
               <ng-container>
                 <div class="form-row-float-label row" *ngIf="startTimeEnabled">
                   <div class="col form-floating">
-                    <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="changeNonATConditionTimeZone($event)"
+                    <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
                             formControlName="timeZone">
-                      <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
+                      <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                     </select>
                     <label>_#(Time Zone)</label>
                   </div>
@@ -211,10 +209,10 @@
               <div class="col">
                 <div class="input-group scheduler-form">
                   <select class="form-control" [(ngModel)]="timeCondition.dayOfMonth"
-                        formControlName="dayOfMonth">
+                          formControlName="dayOfMonth">
                     <option *ngFor="let day of monthDays; let i = index" [value]="daysOfMonthNum[i]">{{ day }}</option>
                   </select>
-                  <div class="input-group-text">_#(Day of the Month)</div>
+                  <div class="input-group-text">_#(day of the month)</div>
                 </div>
               </div>
             </div>
@@ -254,9 +252,9 @@
                   <div class="form-check">
                     <input class="form-check-input" type="checkbox" name="month"
                            [id]="'month' + i" value="true"
-                         [formControlName]="i"
-                         [checked]="isPresent(timeCondition.monthsOfYear, i)"
-                         (change)="updateList(timeCondition.monthsOfYear, i)">
+                           [formControlName]="i"
+                           [checked]="isPresent(timeCondition.monthsOfYear, i)"
+                           (change)="updateList(timeCondition.monthsOfYear, i)">
                     <label class="form-check-label" [for]="'month' + i">
                       {{ month }}
                     </label>
@@ -281,9 +279,9 @@
             <div class="form-row-float-label row">
               <div class="col-auto">
                 <div class="form-floating">
-                  <ngb-timepicker [ngModel]="startTime" (ngModelChange)="userSetStartTime($event)"
+                  <ngb-timepicker [(ngModel)]="formStartTime"
                                   [spinners]="false" [meridian]="showMeridian"
-                                  [formControl]="form.controls['startTime']"></ngb-timepicker>
+                                  formControlName="startTime"></ngb-timepicker>
                   <label class="time-label">_#(Start Time)</label>
                 </div>
               </div>
@@ -298,9 +296,9 @@
             <div class="form-row-float-label row">
               <div class="col-auto">
                 <div class="form-floating">
-                  <ngb-timepicker [ngModel]="endTime" (ngModelChange)="setEndTime($event)"
+                  <ngb-timepicker [(ngModel)]="formEndTime"
                                   [spinners]="false" [meridian]="showMeridian"
-                                  [formControl]="form.controls['endTime']"></ngb-timepicker>
+                                  formControlName="endTime"></ngb-timepicker>
                   <label>_#(End Time)</label>
                 </div>
               </div>
@@ -321,8 +319,9 @@
                 <ng-container>
                   <div class="form-row-float-label row">
                     <div class="col form-floating">
-                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="changeNonATConditionTimeZone($event)" formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
+                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
+                              formControlName="timeZone">
+                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                       </select>
                       <label>_#(Time Zone)</label>
                     </div>
@@ -340,7 +339,7 @@
                   </div>
                   <label>_#(Every)</label>
                   <span class="invalid-feedback"
-                       *ngIf="form && !!form.controls['interval'] && form.controls['interval'].errors">
+                        *ngIf="form && !!form.controls['interval'] && form.controls['interval'].errors">
                     _#(viewer.schedule.condition.hourValid)
                   </span>
               </div>
@@ -383,9 +382,9 @@
             <div class="form-row-float-label row">
               <div class="col-auto">
                 <div class="form-floating">
-                  <ngb-timepicker [ngModel]="startTime" (ngModelChange)="userSetStartTime($event)"
+                  <ngb-timepicker [(ngModel)]="formStartTime"
                                   [spinners]="false" [meridian]="showMeridian"
-                                  [formControl]="form.controls['startTime']"></ngb-timepicker>
+                                  formControlName="startTime"></ngb-timepicker>
                   <label class="time-label">_#(Start Time)</label>
                 </div>
               </div>
@@ -402,9 +401,9 @@
                 <ng-container>
                   <div class="form-row-float-label row">
                     <div class="col form-floating">
-                      <select class="form-control" [(ngModel)]="localTimeZoneId" (change)="setLocalTimeZone()"
+                      <select class="form-control" [ngModel]="localTimeZoneId" (ngModelChange)="setLocalTimeZone($event)"
                               formControlName="timeZone">
-                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
+                        <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
                       </select>
                       <label>_#(Time Zone)</label>
                     </div>
@@ -415,9 +414,9 @@
             <div class="form-row-float-label row">
               <div class="col form-floating">
                   <div class="input-group scheduler-form">
-                    <input class="form-control" placeholder="yyyy-mm-dd"
+                    <input class="form-control" placeholder="_#(yyyy-mm-dd)"
                            formControlName="date"
-                           id="date" [ngModel]="date" (ngModelChange)="dateChange($event, true, startTime)"
+                           id="date" [(ngModel)]="formDate"
                            ngbDatepicker #startDatePicker="ngbDatepicker" placement="bottom-right">
                     <button class="input-group-btn-addon btn icon-hover-bg" (click)="startDatePicker.toggle()" type="button">
                       <span class="calendar-icon icon-size-medium align-middle"></span>
@@ -428,7 +427,7 @@
             </div>
             <div class="alert alert-danger"
                  *ngIf="form && !!form.controls['date'] && form.controls['date'].errors">
-              _#(select.date)
+              _#(Need to set a date.)
             </div>
           </form>
         </div>
@@ -449,7 +448,7 @@
                 </select>
                 <label>_#(Run after)</label>
                 <span class="invalid-feedback"
-                     *ngIf="form && !!form.controls['task'] && form.controls['task'].errors">
+                      *ngIf="form && !!form.controls['task'] && form.controls['task'].errors">
                   _#(viewer.schedule.condition.chainedValid)
                 </span>
             </div>
@@ -460,7 +459,8 @@
   </div>
 
   <div class="form-group mt-2">
-    <button type="button" class="btn btn-default" (click)="changeView(true); listViewChanged.emit(true)"
+    <button type="button" class="btn btn-default"
+            (click)="changeView(true); listViewChanged.emit(true)"
             [disabled]="!form.valid || !parentForm.valid">
       _#(Multiple Schedules)
     </button>

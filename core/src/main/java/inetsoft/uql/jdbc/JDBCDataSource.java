@@ -110,11 +110,6 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
    public static final int JDBC_HIVE = 0xD;
 
    /**
-    * Oracle BI data source.
-    */
-   public static final int JDBC_OBIEE = 0xE;
-
-   /**
     * Impala Cloudera DB data source.
     */
    public static final int JDBC_IMPALA = 0xF;
@@ -127,6 +122,11 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
     * MongoDB with Unity JDBC driver.
     */
    public static final int JDBC_MONGO = 0x12;
+
+   /**
+    * Normal jdbc data source.
+    */
+   public static final int JDBC_NORMAL = 0x13;
 
    /**
     * Normal jdbc odbc data source.
@@ -191,11 +191,6 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
     * Hadoop Hive JDBC data source.
     */
    public static final String HIVE = "HIVE";
-
-   /**
-    * Oracle BI data source.
-    */
-   public static final String OBIEE = "OBIEE";
 
    /**
     * Impala Cloudera DB data source.
@@ -730,8 +725,6 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
          return LUCIDDB;
       case JDBC_HIVE:
          return HIVE;
-      case JDBC_OBIEE:
-         return OBIEE;
       case JDBC_IMPALA:
          return IMPALA;
       case JDBC_DREMIO:
@@ -1067,6 +1060,11 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
       String driverLower =
          getDriver() == null ? "" : getDriver().toLowerCase();
 
+      if(driverLower.contains("presto") && urlLower.contains("jdbc:presto")) {
+         setDatabaseType(JDBC_NORMAL);
+         return;
+      }
+
       // for other sql anywhere version
       boolean type = driverLower.contains("anywhere") ||
          urlLower.contains("anywhere");
@@ -1097,8 +1095,6 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
       }
 
       type = (urlLower.contains("oracle") || driverLower.contains("oracle")) &&
-         //@by jasons, don't use oracle for J.D. Edwards driver
-         !driverLower.contains("jdedwards") &&
          //@by jasonshobe, don't use oracle for OBIEE driver
          !driverLower.contains("anajdbcdriver");
 
@@ -1187,13 +1183,6 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
          return;
       }
 
-      type = urlLower.startsWith("jdbc:oraclebi:") ||
-         driverLower.equals("oracle.bi.jdbc.anajdbcdriver");
-
-      if(type) {
-         setDatabaseType(JDBC_OBIEE);
-         return;
-      }
 
       type = urlLower.startsWith("jdbc:impala:") ||
          driverLower.startsWith("com.cloudera.impala");
@@ -1413,8 +1402,6 @@ public class JDBCDataSource extends AdditionalConnectionDataSource<JDBCDataSourc
             return DB2DatabaseType.DEFAULT_PORT;
          case JDBC_SQLSERVER:
             return SQLServerDatabaseType.DEFAULT_PORT;
-         case JDBC_OBIEE:
-            return 9501;
          case JDBC_DREMIO:
             return 31010;
          case JDBC_SNOWFLAKE:

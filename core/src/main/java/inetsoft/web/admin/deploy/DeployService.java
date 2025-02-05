@@ -113,6 +113,12 @@ public class DeployService {
                .lastModifiedTime(Tool.formatDateTime(entry.getLastModifiedTime()))
                .user(entry.getUser());
 
+            if(!SecurityEngine.getSecurity().isSecurityEnabled() && Tool.equals(entry.getType(), WSAutoSaveAsset.AUTOSAVEWS) ||
+                                                                    Tool.equals(entry.getType(), VSAutoSaveAsset.AUTOSAVEVS)) {
+               throw new MessageException(Catalog.getCatalog().getString("em.import.fail.fileList") + " " +
+                                             Catalog.getCatalog().getString("em.import.userNoSecurity"));
+            }
+
             if(targetFolderInfo != null && targetFolderInfo.getTargetFolder() != null &&
                !targetFolderInfo.getTargetFolder().isRoot())
             {
@@ -954,7 +960,8 @@ public class DeployService {
 
                permittedEntities.add(SelectedAssetModel.builder()
                                         .from(entity)
-                                        .label(getSelectedAssetLabel(entity.path(), entity.type()))
+                                        .label(entity.label() != null && !entity.label().isEmpty() ? entity.label() :
+                                               getSelectedAssetLabel(entity.path(), entity.type()))
                                         .typeName(typeName)
                                         .typeLabel(getTypeLabel(typeName, catalog))
                                         .description(description)
@@ -965,7 +972,8 @@ public class DeployService {
                String typeName = repositoryEntryTypeToAssetType(entity.type());
                permittedEntities.add(SelectedAssetModel.builder()
                                         .from(entity)
-                                        .label(SUtil.getTaskNameWithoutOrg(getSelectedAssetLabel(entity.path(), entity.type())))
+                                        .label(entity.label() != null && !entity.label().isEmpty() ? entity.label() :
+                                               SUtil.getTaskNameWithoutOrg(getSelectedAssetLabel(entity.path(), entity.type())))
                                         .typeName(typeName)
                                         .typeLabel(getTypeLabel(typeName, catalog))
                                         .lastModifiedTime(lastModifiedTime)

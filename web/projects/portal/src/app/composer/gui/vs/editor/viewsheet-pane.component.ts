@@ -1110,7 +1110,7 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.composerObjectService.removeObjectFromList(this.vs, absoulateName);
       this.dialogService.objectDelete(absoulateName);
       this.dataTipService.clearDataTips(absoulateName);
-      this.viewsheetClient.sendEvent("/events/vs/bindingtree/gettreemodel", new RefreshBindingTreeEvent(absoulateName));
+      this.viewsheetClient.sendEvent("/events/vs/bindingtree/gettreemodel", new RefreshBindingTreeEvent(null));
 
       // Update z-indexes
       for(let object of this.vs.vsObjects) {

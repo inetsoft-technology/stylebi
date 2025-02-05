@@ -17,6 +17,7 @@
  */
 package inetsoft.util.health;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.lang.management.ThreadInfo;
 
@@ -55,5 +56,6 @@ public final class DeadlockedThread implements Serializable {
    private final String threadName;
    private final String lockName;
    private final String lockOwnerName;
+   @Serial
    private static final long serialVersionUID = 1L;
 }

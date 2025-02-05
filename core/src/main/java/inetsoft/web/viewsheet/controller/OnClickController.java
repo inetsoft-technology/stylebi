@@ -256,7 +256,7 @@ public class OnClickController {
          // fix bug1269914683174, need to refresh chart when the chart data changed
          // by onclick script
          for(AssemblyEntry obj : clist.getDataList()) {
-            String name0 = obj.getName();
+            String name0 = obj.getAbsoluteName();
             VSAssembly assembly0 = (VSAssembly) vs.getAssembly(name0);
 
             if(assembly0 instanceof TableVSAssembly) {

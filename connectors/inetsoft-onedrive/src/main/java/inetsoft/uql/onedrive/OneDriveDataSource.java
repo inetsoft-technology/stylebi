@@ -64,7 +64,7 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
 
    @Override
    protected CredentialType getCredentialType() {
-      return CredentialType.CLINET;
+      return CredentialType.CLIENT;
    }
 
    @Property(label = "Client ID", required = true)
@@ -236,11 +236,14 @@ public class OneDriveDataSource extends TabularDataSource<OneDriveDataSource>  i
 
    @Override
    public boolean equals(Object obj) {
+      if(!super.equals(obj)) {
+         return false;
+      }
+
       try {
          OneDriveDataSource ds = (OneDriveDataSource) obj;
 
-         return Objects.equals(getCredential(), ds.getCredential()) &&
-            Objects.equals(clientId, ds.clientId) &&
+         return Objects.equals(clientId, ds.clientId) &&
             Objects.equals(tenantId, ds.tenantId) &&
             Objects.equals(accessToken, ds.accessToken) &&
             Objects.equals(refreshToken, ds.refreshToken) &&

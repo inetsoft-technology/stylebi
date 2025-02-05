@@ -57,7 +57,7 @@ public interface CloudCredential extends Credential {
    }
 
    default void fetchCredential() {
-      if(getId() == null) {
+      if(Tool.isEmptyString(getId())) {
          return;
       }
 

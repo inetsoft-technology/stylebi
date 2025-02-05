@@ -145,7 +145,8 @@
                        (scrollAxis)="onScrollAxis($event, axis)"
                        (sendFlyover)="sendFlyover($event)"
                        (showDataTip)="showDataTip($event)"
-                       (onLoad)="plotLoaded($event)"
+                       (onLoad)="axisLoaded($event)"
+                       (onLoading)="axisLoading()"
                        [supportHyperlink]="supportHyperlink"
                        [container]="container"
                        [resizeEnable]="!isResizeVisible || isResizeVisible('AxisResize')">
@@ -186,7 +187,7 @@
                        (brushChart)="onBrushChart.emit()"
                        (scrollArea)="onScrollArea($event)"
                        (onLoad)="plotLoaded($event)"
-                       (onLoading)="onLoading.emit($event)"
+                       (onLoading)="plotLoading()"
                        (changeCursor)="changeCursor($event)"
                        [container]="container">
         </chart-plot-area>

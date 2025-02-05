@@ -309,6 +309,10 @@ export class VSTableCell implements OnInit, OnChanges, OnDestroy {
       this.updateCellType();
    }
 
+   isLinkedCell() {
+      return this.cell.underline && this.numLinks > 0;
+   }
+
    private updateCellInfo() {
       const nativeElement = this.elementRef.nativeElement;
       this.numLinks = 0;

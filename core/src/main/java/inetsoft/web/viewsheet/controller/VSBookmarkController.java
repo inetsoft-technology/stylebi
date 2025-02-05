@@ -290,7 +290,7 @@ public class VSBookmarkController {
          if(!tasksUsingBookmark.isEmpty()) {
             MessageCommand messageCommand = new MessageCommand();
             final String tasksStr = tasksUsingBookmark.stream()
-               .map(scheduleTask -> scheduleTask.toView(true))
+               .map(scheduleTask -> scheduleTask.toView(true, true))
                .collect(Collectors.joining(", "));
             messageCommand.setMessage(
                catalog.getString("viewer.viewsheet.deleteBookmarkInSchedule", name, tasksStr));
@@ -359,8 +359,9 @@ public class VSBookmarkController {
                     bookmarkService.getScheduledTasksUsingBookmark(bookmark.getName(), user, rvs.getEntry().toIdentifier());
 
             if(!tasksUsingBookmark.isEmpty()) {
-               final String tasksStr = tasksUsingBookmark.stream().map(ScheduleTask::getTaskId)
-                       .collect(Collectors.joining(", "));
+               final String tasksStr = tasksUsingBookmark.stream()
+                  .map(scheduleTask -> scheduleTask.toView(true, true))
+                  .collect(Collectors.joining(", "));
                String message = catalog.getString("viewer.viewsheet.deleteBookmarkInSchedule",
                                                   bookmark.getName(), tasksStr);
 

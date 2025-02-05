@@ -574,7 +574,10 @@ public class ImportCSVDialogController extends WorksheetController {
 
       res.put("model", csvInfo);
       res.put("previewTable", new XEmbeddedTable(preview));
-      res.put("textExceedLimit", result.get("textExceedLimit"));
+
+      if(result != null && result.containsKey("textExceedLimit")) {
+         res.put("textExceedLimit", result.get("textExceedLimit"));
+      }
 
       return res;
    }

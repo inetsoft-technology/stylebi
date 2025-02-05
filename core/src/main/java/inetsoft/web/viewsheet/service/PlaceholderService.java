@@ -849,6 +849,10 @@ public class PlaceholderService {
 
       boolean inited = false;
 
+      if(!disableParameterSheet) {
+         disableParameterSheet = sheet.getViewsheetInfo().isDisableParameterSheet();
+      }
+
       for(CommandDispatcher.Command command : dispatcher) {
          if("InitGridCommand".equals(command.getType())) {
             inited = true;
@@ -893,39 +897,54 @@ public class PlaceholderService {
          if(vsinfo != null && vsinfo.isScaleToScreen() && rvs.isRuntime() &&
             height != 0 && width != 0 && rvs.getEmbedAssemblyInfo() == null)
          {
-            // applyScale may trigger execution, which in turn may depend on variables
-            // set in onInit. since viewsheetsandbox tracks whether onInit needs to be executed
-            // again, calling it here should be safe
-            box.processOnInit();
-            // variables in onLoad should also be accessible by assembly scripts. (56119)
-            box.processOnLoadIf();
-            Assembly[] allAssemblies = sheet.getAssemblies();
+            // if not initializing a viewsheet then always apply scale
+            boolean applyScale = !initing || vsinfo.isDisableParameterSheet();
 
-            if(allAssemblies != null) {
-               // execute script, because it maybe set the pop component by script.
-               for(Assembly assembly : allAssemblies) {
-                  try {
-                     box.executeScript((VSAssembly) assembly);
-                  }
-                  catch(MessageException ex) {
-                     // During script execution, exception may be thrown because of permission control
-                     // of chart type, so catch it to make sure that other assemblies display correct.
-                     if(!"INVALID_CHART_TYPE".equals(ex.getKeywords())) {
-                        throw ex;
+            if(!applyScale) {
+               // Bug #69536, delay scaling until parameters are submitted and prevent
+               // an early execution of the viewsheet.
+               List<UserVariable> vars = new ArrayList<>();
+               VSEventUtil.refreshParameters(viewsheetService, box, sheet, false, initvars, vars);
+               List<String> disabledVars = sheet.getDisabledVariables();
+               vars.removeIf(var -> disabledVars.contains(var.getName()));
+               applyScale = vars.isEmpty();
+            }
+
+            if(applyScale) {
+               // applyScale may trigger execution, which in turn may depend on variables
+               // set in onInit. since viewsheetsandbox tracks whether onInit needs to be executed
+               // again, calling it here should be safe
+               box.processOnInit();
+               // variables in onLoad should also be accessible by assembly scripts. (56119)
+               box.processOnLoadIf();
+               Assembly[] allAssemblies = sheet.getAssemblies();
+
+               if(allAssemblies != null) {
+                  // execute script, because it maybe set the pop component by script.
+                  for(Assembly assembly : allAssemblies) {
+                     try {
+                        box.executeScript((VSAssembly) assembly);
+                     }
+                     catch(MessageException ex) {
+                        // During script execution, exception may be thrown because of permission control
+                        // of chart type, so catch it to make sure that other assemblies display correct.
+                        if(!"INVALID_CHART_TYPE".equals(ex.getKeywords())) {
+                           throw ex;
+                        }
                      }
                   }
                }
+
+               viewSize = sheet.getPreferredSize(true, false);
+               Point2D.Double scaleRatio = VSEventUtil.calcScalingRatio(
+                  sheet, viewSize, width, height, mobile);
+               VSEventUtil.applyScale(sheet, scaleRatio, mobile, userAgent, width, height, box);
+
+               // remember the current bounds
+               rvs.setProperty("viewsheet.init.bounds", sheet.getPreferredBounds());
+               rvs.setProperty("viewsheet.appliedScale", new Dimension(width, height));
+               rvs.setProperty("viewsheet.scaleRatio", new Point2D.Double(scaleRatio.x, scaleRatio.y));
             }
-
-            viewSize = sheet.getPreferredSize(true, false);
-            Point2D.Double scaleRatio = VSEventUtil.calcScalingRatio(
-               sheet, viewSize, width, height, mobile);
-            VSEventUtil.applyScale(sheet, scaleRatio, mobile, userAgent, width, height, box);
-
-            // remember the current bounds
-            rvs.setProperty("viewsheet.init.bounds", sheet.getPreferredBounds());
-            rvs.setProperty("viewsheet.appliedScale", new Dimension(width, height));
-            rvs.setProperty("viewsheet.scaleRatio", new Point2D.Double(scaleRatio.x, scaleRatio.y));
          }
 
          if(!component && !inited) {
@@ -946,7 +965,7 @@ public class PlaceholderService {
                List<UserVariable> vars = new ArrayList<>();
                VSEventUtil.refreshParameters(viewsheetService, box, sheet, true, initvars, vars);
 
-               if(!vars.isEmpty()) {
+               if(!vars.isEmpty() && !disableParameterSheet) {
                   setViewsheetInfo(rvs, uri, dispatcher);
 
                   UserVariable[] vtable = vars.toArray(new UserVariable[0]);
@@ -1008,8 +1027,14 @@ public class PlaceholderService {
                // @see bug1234937851455
                List<UserVariable> vars = new ArrayList<>();
                VSEventUtil.refreshParameters(viewsheetService, box, sheet, false, initvars, vars);
+               String[] varNames = vars.stream().map(var -> var.getName()).toArray(String[]::new);
 
-               if(!vars.isEmpty()) {
+               List<String> disabledVariables = new ArrayList<>();
+               collectVSDisabledVariables(sheet, disabledVariables);
+
+               if(!vars.isEmpty() && !disableParameterSheet &&
+                  !Tool.equals(disabledVariables.toArray(String[]::new), varNames))
+               {
                   setViewsheetInfo(rvs, uri, dispatcher);
                   Assembly[] all = sheet.getAssemblies(true, true);
                   ArrayList list = new ArrayList();
@@ -1361,6 +1386,29 @@ public class PlaceholderService {
             addDeleteVSObject(rvs, vsassembly, dispatcher, false);
             refreshEmbeddedViewsheet(
                rvs, (Viewsheet) vsassembly, uri, dispatcher, manualRefresh);
+         }
+      }
+   }
+
+   private void collectVSDisabledVariables(Viewsheet sheet, List<String> disabledVariables) {
+      ViewsheetInfo viewsheetInfo = sheet.getViewsheetInfo();
+      String[] variables = viewsheetInfo.getDisabledVariables();
+
+      if(variables.length > 0) {
+         for(String variable : variables) {
+            if(!disabledVariables.contains(variable)) {
+               disabledVariables.add(variable);
+            }
+         }
+      }
+
+      Assembly[] assemblies = sheet.getAssemblies(false, true);
+
+      for(Assembly assembly : assemblies) {
+         VSAssembly vsassembly = (VSAssembly) assembly;
+
+         if(vsassembly instanceof Viewsheet) {
+            collectVSDisabledVariables((Viewsheet) vsassembly, disabledVariables);
          }
       }
    }
@@ -2796,7 +2844,8 @@ public class PlaceholderService {
             Tool.MY_DASHBOARD + "/" + rvs.getEntry().getPath() : rvs.getEntry().getPath();
 
          if(!engine.checkPermission(user, ResourceType.VIEWSHEET_TOOLBAR_ACTION, "Social Sharing", ResourceAction.READ) ||
-            !engine.checkPermission(user, ResourceType.REPORT, entryPath, ResourceAction.SHARE))
+            !(engine.checkPermission(user, ResourceType.REPORT, entryPath, ResourceAction.SHARE) ||
+               VSUtil.isDefaultVSGloballyViewsheet(rvs.getEntry(), user)))
          {
             permissions.add("Social Sharing");
          }
@@ -2847,15 +2896,9 @@ public class PlaceholderService {
       VSAssemblyInfo vsAssemblyInfo = vs.getVSAssemblyInfo();
       String[] allOptions = VSUtil.getExportOptions();
       ArrayList<String> options = new ArrayList<>();
-      boolean withDiffOrg = rvs.getEntry() != null && rvs.getViewsheet().getBaseEntry() != null &&
-         !Tool.equals(rvs.getEntry().getOrgID(), rvs.getViewsheet().getBaseEntry().getOrgID());
 
       for(int i = 0; i < allOptions.length; i++) {
          String eoption = allOptions[i];
-
-         if(withDiffOrg && FileFormatInfo.EXPORT_NAME_SNAPSHOT.equals(eoption)) {
-            continue;
-         }
 
          if(vsAssemblyInfo.isActionVisible(eoption)) {
             options.add(eoption);

@@ -29,7 +29,7 @@ import { NoopAnimationsModule } from "@angular/platform-browser/animations";
 import { FileChooserModule } from "../../../../common/util/file-chooser/file-chooser.module";
 import { RepositoryDataSourceSettingsViewComponent } from "./repository-data-source-settings-view.component";
 
-xdescribe("RepositoryDataSourceSettingsViewComponent", () => {
+describe("RepositoryDataSourceSettingsViewComponent", () => {
    let component: RepositoryDataSourceSettingsViewComponent;
    let fixture: ComponentFixture<RepositoryDataSourceSettingsViewComponent>;
 

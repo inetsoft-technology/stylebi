@@ -18,6 +18,41 @@
 package inetsoft.uql.rest.datasource.sendgrid;
 
 import inetsoft.uql.rest.json.AbstractEndpoint;
+import inetsoft.uql.rest.pagination.PaginationParamType;
+
+import java.util.Objects;
 
 public class SendGridEndpoint extends AbstractEndpoint {
+   public PaginationParamType getPageType() {
+      return pageType;
+   }
+
+   public void setPageType(PaginationParamType type) {
+      this.pageType = type;
+   }
+
+   @Override
+   public boolean equals(Object o) {
+      if(this == o) {
+         return true;
+      }
+
+      if(o == null || getClass() != o.getClass()) {
+         return false;
+      }
+
+      if(!super.equals(o)) {
+         return false;
+      }
+
+      SendGridEndpoint that = (SendGridEndpoint) o;
+      return pageType == that.pageType;
+   }
+
+   @Override
+   public int hashCode() {
+      return Objects.hash(super.hashCode(), pageType);
+   }
+
+   private PaginationParamType pageType;
 }

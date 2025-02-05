@@ -23,7 +23,6 @@ import { MatSnackBar } from "@angular/material/snack-bar";
 import { NavigationEnd, Router } from "@angular/router";
 import { Observable, Subject, Subscription, throwError } from "rxjs";
 import { catchError, concatMap, filter, map, takeUntil, tap } from "rxjs/operators";
-import { ScheduleUsersService } from "../../../../shared/schedule/schedule-users.service";
 import { AppInfoService } from "../../../../shared/util/app-info.service";
 import { LogoutService } from "../../../../shared/util/logout.service";
 import { Tool } from "../../../../shared/util/tool";
@@ -66,6 +65,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
       this.monitoringVisible = !!p && p.permissions.monitoring;
       this.settingsVisible = !!p && p.permissions.settings;
       this.notifyVisible = !!p && p.permissions.notification;
+      this.auditingVisible = !!p && p.permissions.auditing;
    }
 
    get permissions(): ComponentPermissions {
@@ -99,6 +99,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
    favoriteIcon = "star-outline-icon";
    monitoringVisible: boolean = false;
    settingsVisible: boolean = false;
+   auditingVisible: boolean = false;
    notifyVisible = false;
    disabled: boolean = false;
    logoSrc = "../portal/logo";
@@ -183,6 +184,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
          this.model = result;
          this.logoutService.setLogoutUrl(this.model.logoutUrl);
       });
+
+      this.logoutService.inGracePeriod
+         .pipe(takeUntil(this.destroy$))
+         .subscribe(gracePeriod => {
+            if(!!this.model) {
+               this.model.elasticLicenseExhausted = gracePeriod;
+            }
+         });
    }
 
    ngOnDestroy(): void {

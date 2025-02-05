@@ -21,6 +21,7 @@ import inetsoft.report.*;
 import inetsoft.report.filter.*;
 import inetsoft.report.internal.Util;
 import inetsoft.report.painter.PresenterPainter;
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

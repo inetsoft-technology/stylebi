@@ -39,6 +39,8 @@
   <chart-target-dialog (confirm)="close($event)" (cancel)="dismiss($event)"
                        [variables]="variables" [chartTarget]="chartTargetModel"
                        [hideDcombox]="hideDcombox" [availableFields]="model.availableFields"
-                       [title]="dialogTitle" [vsId]="vsId" [chartType]="chartType">
+                       [title]="dialogTitle" [vsId]="vsId"
+                       [assetId]="assetId"
+                       [chartType]="chartType">
   </chart-target-dialog>
 </ng-template>

@@ -90,6 +90,14 @@
 
     <dependency>
       <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-cassandra</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
       <artifactId>inetsoft-datagov</artifactId>
       <version>${project.version}</version>
       <type>zip</type>
@@ -114,6 +122,14 @@
 
     <dependency>
       <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-aerospike</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
       <artifactId>inetsoft-mongodb</artifactId>
       <version>${project.version}</version>
       <type>zip</type>
@@ -131,6 +147,14 @@
     <dependency>
       <groupId>com.inetsoft.stylebi.connectors</groupId>
       <artifactId>inetsoft-onedrive</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-orientdb</artifactId>
       <version>${project.version}</version>
       <type>zip</type>
       <scope>provided</scope>
@@ -241,6 +265,12 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
+      <scope>compile</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
       <scope>compile</scope>
     </dependency>
 

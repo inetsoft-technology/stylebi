@@ -23,6 +23,7 @@ import inetsoft.uql.asset.AssetRepository;
 import inetsoft.util.ThreadContext;
 import org.springframework.util.StringUtils;
 
+import java.security.Principal;
 import java.time.*;
 import java.util.*;
 
@@ -110,6 +111,31 @@ public class TaskBalancer {
    public void balanceTasks() throws Exception {
       for(TimeRange range : TimeRange.getTimeRanges()) {
          balanceTasks(range);
+      }
+
+      refreshTaskBalancerTriggers();
+   }
+
+   private void refreshTaskBalancerTriggers() throws Exception {
+      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
+      Principal user = ThreadContext.getContextPrincipal();
+
+      for(ScheduleTask task : scheduleManager.getScheduleTasks()) {
+         for(int i = 0; i < task.getConditionCount(); i++) {
+            ScheduleCondition condition = task.getCondition(i);
+
+            if(condition instanceof TaskBalancerCondition) {
+               AssetEntry folderEntry = null;
+
+               if(!StringUtils.isEmpty(task.getPath())) {
+                  folderEntry = new AssetEntry( AssetRepository.GLOBAL_SCOPE,
+                                                AssetEntry.Type.SCHEDULE_TASK_FOLDER, task.getPath(), null);
+               }
+
+               scheduleManager.setScheduleTask(task.getTaskId(), task, folderEntry, user);
+               break;
+            }
+         }
       }
    }
 

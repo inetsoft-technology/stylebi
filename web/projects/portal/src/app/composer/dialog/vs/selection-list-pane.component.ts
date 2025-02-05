@@ -38,7 +38,6 @@ export class SelectionListPane implements AfterViewInit {
    @Input() model: SelectionListPaneModel;
    @Input() runtimeId: string;
    @Input() variableValues: string[];
-   @Input() grayedOutValues: string[];
    @Output() onSelectColumn = new EventEmitter();
 
    @ViewChild(TreeComponent) tree: TreeComponent;
@@ -111,5 +110,31 @@ export class SelectionListPane implements AfterViewInit {
 
    additionalTablesChanged(additionalTables: string[]): void {
       this.model.additionalTables = additionalTables;
+   }
+
+   getGrayedOutValues(): string[] {
+      if(this.model == null) {
+         return [];
+      }
+
+      let grayedOutFlds = this.model.grayedOutFields;
+      let values: string[] = [];
+
+      if(grayedOutFlds == null) {
+         return values;
+      }
+
+      let model: boolean = this.model.selectedColumn != null && this.model.selectedColumn.attribute.indexOf(":") > 0;
+
+      for(let i = 0; i < grayedOutFlds.length; i++) {
+         if(model) {
+            values.push(grayedOutFlds[i].name);
+         }
+         else if(grayedOutFlds[i].entity == this.model.selectedTable) {
+            values.push(grayedOutFlds[i].attribute);
+         }
+      }
+
+      return values;
    }
 }

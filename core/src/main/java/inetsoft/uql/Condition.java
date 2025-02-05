@@ -262,11 +262,11 @@ public class Condition extends AbstractCondition {
     * Set a condition value from a variable or expression. The value may be normalized
     * (e.g. converted to array for one-of).
     */
-   public void setDynamicValue(int i, Object userv) {
-      if(op == ONE_OF && userv instanceof String) {
+   public void setDynamicValue(int i, Object userv, boolean asIs) {
+      if(op == ONE_OF && userv instanceof String && !asIs) {
          userv = Tool.convertParameter((String) userv);
       }
-      else if(op == ONE_OF && userv instanceof Object[]) {
+      else if(op == ONE_OF && userv instanceof Object[] && !asIs) {
          userv = flattenParameters((Object[]) userv);
       }
 

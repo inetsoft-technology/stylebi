@@ -54,7 +54,7 @@ public class AutoSaveController {
 
       for(int i = 0; i < ids.length; i++) {
          String path = ids[i];
-         AutoSaveUtils.deleteAutoSaveFile(path);
+         AutoSaveUtils.deleteAutoSaveFile(path, user);
          int type = path.startsWith("8^WORKSHEET^") ? RepositoryEntry.AUTO_SAVE_WS :
                  RepositoryEntry.AUTO_SAVE_VS;
          String objectName = Util.getObjectFullPath(type, path, user, null);
@@ -73,7 +73,7 @@ public class AutoSaveController {
    {
       String id = entryPath.get("id");
 
-      return AutoSaveUtils.getAutoSavedTime(id);
+      return AutoSaveUtils.getAutoSavedTime(id, user);
    }
 
    /**
@@ -91,14 +91,14 @@ public class AutoSaveController {
 
       if(ids.length == 1) {
          restoreAutoSaveAsset(ids[0], assetName, overwrite, user);
-         AutoSaveUtils.deleteAutoSaveFile(ids[0]);
+         AutoSaveUtils.deleteAutoSaveFile(ids[0], user);
          return;
       }
 
       for(int i = 0; i < ids.length; i++) {
          String nname = assetName + i;
          restoreAutoSaveAsset(ids[i], nname, overwrite, user);
-         AutoSaveUtils.deleteAutoSaveFile(ids[i]);
+         AutoSaveUtils.deleteAutoSaveFile(ids[i], user);
       }
    }
 

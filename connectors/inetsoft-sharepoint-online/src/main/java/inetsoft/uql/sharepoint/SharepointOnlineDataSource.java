@@ -189,11 +189,14 @@ public class SharepointOnlineDataSource extends TabularDataSource<SharepointOnli
 
    @Override
    public boolean equals(Object obj) {
+      if(!super.equals(obj)) {
+         return false;
+      }
+
       try {
          SharepointOnlineDataSource ds = (SharepointOnlineDataSource) obj;
 
-         return Objects.equals(tokenExpires, ds.tokenExpires) &&
-            Objects.equals(getCredential(), ds.getCredential());
+         return Objects.equals(tokenExpires, ds.tokenExpires);
       }
       catch(Exception ex) {
          return false;

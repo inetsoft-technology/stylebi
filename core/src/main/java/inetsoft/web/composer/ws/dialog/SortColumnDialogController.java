@@ -61,6 +61,7 @@ public class SortColumnDialogController extends WorksheetController {
 
       AssetQuerySandbox box = rws.getAssetQuerySandbox();
       Map<String, String> map = box.getColumnInfoMapping(tname);
+      Map<String, String> captionMap = new HashMap<>();
 
       if(table != null) {
          AggregateInfo ainfo = table.getAggregateInfo();
@@ -102,6 +103,10 @@ public class SortColumnDialogController extends WorksheetController {
                boolean range = column.getDataRef() instanceof DateRangeRef ||
                   column.getDataRef() instanceof NumericRangeRef;
                rangeColumns.add(range + "");
+
+               if(column.getCaption() != null) {
+                  captionMap.put(refName, column.getCaption());
+               }
             }
          }
 
@@ -120,6 +125,7 @@ public class SortColumnDialogController extends WorksheetController {
          model = new SortColumnDialogModel();
          model.setName(tname);
          model.getSortColumnEditorModel().setAliasMap(map);
+         model.getSortColumnEditorModel().setCaptionMap(captionMap);
          model.getSortColumnEditorModel().setAvailableColumns(
             availableColumns.toArray(new String[0]));
          model.getSortColumnEditorModel().setColumnDescriptions(

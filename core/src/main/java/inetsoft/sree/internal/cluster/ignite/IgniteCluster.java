@@ -296,6 +296,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          SslContextFactory factory = new SslContextFactory();
          char[] password = clusterConfig.getCaKeyPassword().toCharArray();
          factory.setKeyStoreFilePath(keyStoreFile.getAbsolutePath());
+         factory.setKeyStoreFilePath(keyStoreFile.getAbsolutePath());
          factory.setKeyStorePassword(password);
          factory.setTrustStoreFilePath(trustStoreFile.getAbsolutePath());
          factory.setTrustStorePassword(password);
@@ -448,6 +449,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static void setLocalNodeAttributes(IgniteConfiguration config) {
       Map<String, Object> attrMap = new HashMap<>();
       attrMap.put("scheduler", "true".equals(System.getProperty("ScheduleServer")));
+      attrMap.put("cloudRunner", System.getProperty("ScheduleTaskRunner") != null);
       attrMap.put("local.ip.addr", Tool.getIP());
       attrMap.put("inetsoft.host.ip", System.getProperty("inetsoft.host.ip"));
       attrMap.put("inetsoft.host.port", System.getProperty("inetsoft.host.port"));
@@ -478,14 +480,11 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    @Override
-   public Set<String> getClusterNodes() {
-      Set<String> nodes = new HashSet<>();
-
-      for(ClusterNode node : ignite.cluster().nodes()) {
-         nodes.add(getNodeName(node));
-      }
-
-      return nodes;
+   public Set<String> getClusterNodes(boolean includeClients) {
+      return ignite.cluster().nodes().stream()
+         .filter(n -> includeClients || !n.isClient())
+         .map(this::getNodeName)
+         .collect(Collectors.toSet());
    }
 
    @Override
@@ -931,10 +930,15 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <T> Future<T> submit(Callable<T> task, boolean scheduler) {
+      return submit0(getNextTaskLevel(), task, scheduler);
+   }
+
+   private <T> Future<T> submit0(int level, Callable<T> task, boolean scheduler) {
       // Do not use lambda expression to submit the task to ignite, it can not run with JDK21.
       ClusterGroup clusterGroup = scheduler ? ignite.cluster().forPredicate(SCHEDULE_SELECTOR) :
          ignite.cluster().forServers();
-      return CompletableFuture.supplyAsync(new IgniteTaskFuture<>(ignite, clusterGroup, task));
+      return CompletableFuture.supplyAsync(new IgniteTaskFuture<>(ignite, clusterGroup, task, level),
+         getExecutorService(level));
    }
 
    @Override
@@ -953,6 +957,20 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
       });
 
       return cf;
+   }
+
+
+   /**
+    * Get the next task execute level.
+    */
+   private int getNextTaskLevel() {
+      Integer level = TASK_EXECUTE_LEVEL.get();
+
+      if(level == null) {
+         return 0;
+      }
+
+      return level + 1;
    }
 
    @Override
@@ -1011,22 +1029,32 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    @Override
    public <T extends Serializable> Future<T> submit(String serviceId, SingletonCallableTask<T> task) {
-      return CompletableFuture.supplyAsync(new IgniteServiceCallableTask<>(ignite, serviceId, task));
+      return submit0(getNextTaskLevel(), serviceId, task);
+   }
+
+   public <T extends Serializable> Future<T> submit0(int level, String serviceId, SingletonCallableTask<T> task) {
+      return CompletableFuture.supplyAsync(
+         new IgniteServiceCallableTask<>(ignite, serviceId, task, level),
+         getExecutorService(level));
    }
 
    @Override
    public Future<?> submit(String serviceId, SingletonRunnableTask task) {
-      return submit(0, serviceId, task);
+      return submit0(getNextTaskLevel(), serviceId, task);
    }
 
-   @Override
-   public Future<?> submit(int level, String serviceId, SingletonRunnableTask task) {
-      ExecutorService executorService = executorServiceMap
+   private Future<?> submit0(int level, String serviceId, SingletonRunnableTask task) {
+      return CompletableFuture.supplyAsync(new IgniteServiceRunnableTask(ignite, serviceId, task, level),
+         getExecutorService(level));
+   }
+
+   /**
+    * get the ExecutorService for the current task level.
+    */
+   private ExecutorService getExecutorService(int level) {
+      return executorServiceMap
          .computeIfAbsent(level, k -> Executors.newFixedThreadPool(
             Runtime.getRuntime().availableProcessors()));
-
-      return CompletableFuture.supplyAsync(new IgniteServiceRunnableTask(ignite, serviceId, task),
-         executorService);
    }
 
    private static ServiceTaskExecutor deployAndGetService(Ignite ignite, String serviceId) {
@@ -1278,6 +1306,7 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
       return Boolean.TRUE.equals(node.attribute("scheduler"));
    };
+   private static final ThreadLocal<Integer> TASK_EXECUTE_LEVEL = new ThreadLocal<>();
 
    private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
@@ -1341,13 +1370,22 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private final class MembershipDispatcher implements IgnitePredicate<Event> {
       @Override
       public boolean apply(Event event) {
+         ExecutorService executor = getExecutorService(Integer.MAX_VALUE);
+
          if(event.type() == EventType.EVT_NODE_JOINED) {
             MembershipEvent membershipEvent =
                new MembershipEvent(IgniteCluster.this, getNodeName(event.node()));
 
-            for(inetsoft.sree.internal.cluster.MembershipListener l : membershipListeners) {
-               l.memberAdded(membershipEvent);
-            }
+            executor.submit(() -> {
+               try {
+                  for(inetsoft.sree.internal.cluster.MembershipListener l : membershipListeners) {
+                     l.memberAdded(membershipEvent);
+                  }
+               }
+               catch(Exception e) {
+                  LOG.error("Failed to apply membership event when detected node joined event.", e);
+               }
+            });
          }
          else if(event.type() == EventType.EVT_NODE_LEFT) {
             String node;
@@ -1359,10 +1397,18 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
                node = getNodeName(event.node());
             }
 
-            MembershipEvent membershipEvent = new MembershipEvent(IgniteCluster.this, node);
-            for(inetsoft.sree.internal.cluster.MembershipListener l : membershipListeners) {
-               l.memberRemoved(membershipEvent);
-            }
+            executor.submit(() -> {
+               try {
+                  MembershipEvent membershipEvent = new MembershipEvent(IgniteCluster.this, node);
+
+                  for(inetsoft.sree.internal.cluster.MembershipListener l : membershipListeners) {
+                     l.memberRemoved(membershipEvent);
+                  }
+               }
+               catch(Exception e) {
+                  LOG.error("Failed to apply membership event when detected node left event.", e);
+               }
+            });
          }
 
          return true;
@@ -1434,10 +1480,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    }
 
    private static class IgniteTaskFuture<T> implements Supplier<T> {
-      public IgniteTaskFuture(Ignite igniteInstance, ClusterGroup clusterGroup, Callable<T> task) {
+      public IgniteTaskFuture(Ignite igniteInstance, ClusterGroup clusterGroup, Callable<T> task,
+                              int level)
+      {
          this.igniteInstance = igniteInstance;
          this.clusterGroup = clusterGroup;
-         this.task = new IgniteTaskCallable<>(task);
+         this.task = new IgniteTaskCallable<>(task, level);
       }
 
       @Override
@@ -1452,24 +1500,37 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
 
    private static class IgniteTaskCallable<T> implements IgniteCallable<T> {
       public IgniteTaskCallable(Callable<T> task) {
+         this(task, 0);
+      }
+
+      public IgniteTaskCallable(Callable<T> task, int level) {
          this.task = task;
+         this.level = level;
       }
 
       @Override
       public T call() throws Exception {
-         return task.call();
+         try {
+            TASK_EXECUTE_LEVEL.set(level);
+            return task.call();
+         }
+         finally {
+            TASK_EXECUTE_LEVEL.remove();
+         }
       }
 
       private final Callable<T> task;
+      private final int level;
    }
 
    private static class IgniteServiceRunnableTask extends IgniteServiceTask
       implements Supplier<Object>
    {
-      public IgniteServiceRunnableTask(Ignite ignite, String service, SingletonRunnableTask task)
+      public IgniteServiceRunnableTask(Ignite ignite, String service, SingletonRunnableTask task,
+                                       int level)
       {
          super(ignite, service);
-         this.runnableTask = task;
+         this.runnableTask = new SingletonRunnableTaskProxy(task, level);
       }
 
       @Override
@@ -1484,17 +1545,63 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
    private static class IgniteServiceCallableTask<T extends Serializable> extends IgniteServiceTask
       implements Supplier<T>
    {
-      public IgniteServiceCallableTask(Ignite ignite, String service, SingletonCallableTask<T> task) {
+      public IgniteServiceCallableTask(Ignite ignite, String service, SingletonCallableTask<T> task,
+                                       int level)
+      {
          super(ignite, service);
-         this.callableTask = task;
+         this.task = new SingletonCallableTaskProxy<>(task, level);
       }
 
       @Override
       public T get() {
-         return IgniteCluster.deployAndGetService(ignite, service).submitTask(callableTask);
+         return IgniteCluster.deployAndGetService(ignite, service).submitTask(task);
       }
 
-      private final SingletonCallableTask<T> callableTask;
+      private final SingletonCallableTask<T> task;
+   }
+
+   private static class SingletonCallableTaskProxy<T extends Serializable>
+      implements SingletonCallableTask<T>
+   {
+      private SingletonCallableTaskProxy(SingletonCallableTask<T> task, int level) {
+         this.task = task;
+         this.level = level;
+      }
+
+      @Override
+      public T call() throws Exception {
+         try {
+            TASK_EXECUTE_LEVEL.set(level);
+            return task.call();
+         }
+         finally {
+            TASK_EXECUTE_LEVEL.remove();
+         }
+      }
+
+      private final SingletonCallableTask<T> task;
+      private final int level;
+   }
+
+   private static class  SingletonRunnableTaskProxy implements SingletonRunnableTask {
+      private SingletonRunnableTaskProxy(SingletonRunnableTask task, int level) {
+         this.task = task;
+         this.level = level;
+      }
+
+      @Override
+      public void run() {
+         try {
+            TASK_EXECUTE_LEVEL.set(level);
+            task.run();
+         }
+         finally {
+            TASK_EXECUTE_LEVEL.remove();
+         }
+      }
+
+      private final SingletonRunnableTask task;
+      private final int level;
    }
 
    private static class IgniteServiceTask {

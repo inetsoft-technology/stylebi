@@ -147,7 +147,7 @@ public class ComboboxPropertyDialogController {
       basicGeneralPaneModel.setEditable(comboBoxAssemblyInfo.isTextEditable());
       basicGeneralPaneModel.setObjectNames(this.vsObjectPropertyService.getObjectNames(
          vs, comboBoxAssemblyInfo.getAbsoluteName()));
-      basicGeneralPaneModel.setRefresh(comboBoxAssemblyInfo.isRefresh());
+      basicGeneralPaneModel.setRefresh("true".equals(comboBoxAssemblyInfo.getRefreshValue()));
 
       listValuesPaneModel.setSortType(comboBoxAssemblyInfo.getSortTypeValue());
       listValuesPaneModel.setEmbeddedDataDown(

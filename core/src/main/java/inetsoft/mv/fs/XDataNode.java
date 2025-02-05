@@ -29,10 +29,10 @@ public final class XDataNode {
    /**
     * Create an instance of XDataNode.
     */
-   public XDataNode(FSConfig config) {
+   public XDataNode(FSConfig config, String orgId) {
       super();
 
-      this.system = new DefaultBlockSystem(config);
+      this.system = new DefaultBlockSystem(config, orgId);
    }
 
    /**

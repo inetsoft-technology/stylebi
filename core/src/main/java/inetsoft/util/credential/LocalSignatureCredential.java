@@ -29,6 +29,14 @@ public class LocalSignatureCredential extends AbstractLocalCredential implements
       super();
    }
 
+   public String getAccountName() {
+      return accountName;
+   }
+
+   public void setAccountName(String accountName) {
+      this.accountName = accountName;
+   }
+
    public String getAccountKey() {
       return accountKey;
    }
@@ -38,25 +46,15 @@ public class LocalSignatureCredential extends AbstractLocalCredential implements
    }
 
    @Override
-   public String getSignature() {
-      return signature;
-   }
-
-   @Override
-   public void setSignature(String signature) {
-      this.signature = signature;
-   }
-
-   @Override
    public boolean isEmpty() {
-      return super.isEmpty() && StringUtils.isEmpty(accountKey) && StringUtils.isEmpty(signature);
+      return super.isEmpty() && StringUtils.isEmpty(accountName) && StringUtils.isEmpty(accountKey);
    }
 
    @Override
    public void reset() {
       super.reset();
+      accountName = null;
       accountKey = null;
-      signature = null;
    }
 
    @Override
@@ -69,20 +67,20 @@ public class LocalSignatureCredential extends AbstractLocalCredential implements
          return false;
       }
 
-      return Tool.equals(((LocalSignatureCredential) obj).accountKey, accountKey) &&
-         Tool.equals(((LocalSignatureCredential) obj).signature, signature);
+      return Tool.equals(((LocalSignatureCredential) obj).accountName, accountName) &&
+         Tool.equals(((LocalSignatureCredential) obj).accountKey, accountKey);
    }
 
    @Override
    protected void writeContent(PrintWriter writer) {
+      if(getAccountName() != null) {
+         writer.format(
+            "<accountName><![CDATA[%s]]></accountName>%n", Tool.encryptPassword(getAccountName()));
+      }
+
       if(getAccountKey() != null) {
          writer.format(
             "<accountKey><![CDATA[%s]]></accountKey>%n", Tool.encryptPassword(getAccountKey()));
-      }
-
-      if(getSignature() != null) {
-         writer.format(
-            "<signature><![CDATA[%s]]></signature>%n", Tool.encryptPassword(getSignature()));
       }
    }
 
@@ -93,19 +91,19 @@ public class LocalSignatureCredential extends AbstractLocalCredential implements
       }
 
       super.parseXML(elem);
+      Element accountNameNode = Tool.getChildNodeByTagName(elem, "accountName");
+
+      if(accountNameNode != null) {
+         setAccountName(Tool.decryptPassword(Tool.getValue(accountNameNode)));
+      }
+
       Element accountKeyNode = Tool.getChildNodeByTagName(elem, "accountKey");
 
       if(accountKeyNode != null) {
          setAccountKey(Tool.decryptPassword(Tool.getValue(accountKeyNode)));
       }
-
-      Element signatureNode = Tool.getChildNodeByTagName(elem, "signature");
-
-      if(signatureNode != null) {
-         setSignature(Tool.decryptPassword(Tool.getValue(signatureNode)));
-      }
    }
 
+   private String accountName;
    private String accountKey;
-   private String signature;
 }

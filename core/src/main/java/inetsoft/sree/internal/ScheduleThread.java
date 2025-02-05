@@ -18,6 +18,7 @@
 package inetsoft.sree.internal;
 
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.ScheduleClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,6 +80,16 @@ public class ScheduleThread implements Runnable {
       if(SreeEnv.getBooleanProperty("schedule.options.scheduleIsDown", "true", "CHECKED")) {
          String subject = SreeEnv.getProperty("schedule.status.check.email.subject");
          String message = SreeEnv.getProperty("schedule.status.check.email.message");
+
+         if(SUtil.isCluster()) {
+            String currentNode = Cluster.getInstance().getLocalMember();
+            String hostName = SUtil.computeServerClusterNode(currentNode);
+
+            if(hostName != null) {
+               message = message + ". This message was sent from " + hostName;
+            }
+         }
+
          sendEmail(subject, message);
       }
    }

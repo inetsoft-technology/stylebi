@@ -22,7 +22,7 @@ import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.util.Catalog;
 import inetsoft.web.factory.RemainingPath;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.ModelAndView;
 
 @Controller
@@ -31,7 +31,7 @@ public class SessionErrorController {
     * Shows the login page.
     * @return the error page model and view.
     */
-   @GetMapping("/error/**")
+   @RequestMapping(value = "/error/**", method = { RequestMethod.GET, RequestMethod.POST })
    public ModelAndView showErrorPage(@RemainingPath String path) {
       final Catalog catalog = Catalog.getCatalog();
       final ModelAndView model = new ModelAndView("error/error-template");

@@ -20,6 +20,7 @@ package inetsoft.uql.rest;
 import inetsoft.uql.ListedDataSource;
 import inetsoft.uql.XFactory;
 import inetsoft.uql.rest.auth.*;
+import inetsoft.uql.rest.datasource.zohocrm.ZohoCRMDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.uql.tabular.oauth.*;
 import inetsoft.util.CoreTool;
@@ -481,16 +482,16 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
    @PropertyEditor(enabled = false, dependsOn = "useCredentialId")
    @Property(label = "OAuth Flags")
    public String getOauthFlags() {
-      if(getCredential() instanceof PassworkAndOAuth2WithFlagCredentialsGrant) {
-         return ((PassworkAndOAuth2WithFlagCredentialsGrant) getCredential()).getOauthFlags();
+      if(getCredential() instanceof PasswordAndOAuth2WithFlagCredentialsGrant) {
+         return ((PasswordAndOAuth2WithFlagCredentialsGrant) getCredential()).getOauthFlags();
       }
 
       return null;
    }
 
    public void setOauthFlags(String oauthFlags) {
-      if(getCredential() instanceof PassworkAndOAuth2WithFlagCredentialsGrant) {
-         ((PassworkAndOAuth2WithFlagCredentialsGrant) getCredential()).setOauthFlags(oauthFlags);
+      if(getCredential() instanceof PasswordAndOAuth2WithFlagCredentialsGrant) {
+         ((PasswordAndOAuth2WithFlagCredentialsGrant) getCredential()).setOauthFlags(oauthFlags);
       }
    }
 
@@ -649,7 +650,11 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
          writer.format("<oauthFlags><![CDATA[%s]]></oauthFlags>%n", oauthFlags);
       }
 
-      writer.format("<tokenExpiration>%d</tokenExpiration>%n", tokenExpiration);
+      //zoho datasource writes tokenExpiration directly
+      if(!(this instanceof ZohoCRMDataSource)) {
+         writer.format("<tokenExpiration>%d</tokenExpiration>%n", tokenExpiration);
+      }
+
    }
 
    @Override
@@ -798,19 +803,14 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
 
       final AbstractRestDataSource that = (AbstractRestDataSource) o;
 
-      if(getCredential() instanceof AccessTokenCredential &&
-         !Objects.equals(getCredential(), that.getCredential()))
-      {
-         return false;
-      }
-      else if(!Objects.equals(getAccessToken(), that.getAccessToken()) ||
-         !Objects.equals(getRefreshToken(), that.getRefreshToken()))
+      if(!(getCredential() instanceof AccessTokenCredential) &&
+         (!Objects.equals(getAccessToken(), that.getAccessToken()) ||
+         !Objects.equals(getRefreshToken(), that.getRefreshToken())))
       {
          return false;
       }
 
       return Objects.equals(url, that.url) &&
-         Objects.equals(getCredential(), that.getCredential()) &&
          authType == that.authType &&
          authMethod == that.authMethod &&
          Objects.equals(authURL, that.authURL) &&

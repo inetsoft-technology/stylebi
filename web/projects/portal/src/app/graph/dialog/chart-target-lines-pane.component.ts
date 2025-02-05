@@ -32,6 +32,7 @@ export class ChartTargetLinesPane implements OnInit {
    @Input() variables: string[];
    @Input() hideDcombox: boolean;
    @Input() vsId: string = null;
+   @Input() assetId: string;
    @Input() chartType: number;
    selectedIndexes: number[];
    chartTargetModel: TargetInfo;

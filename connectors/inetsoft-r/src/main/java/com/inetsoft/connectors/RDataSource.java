@@ -120,12 +120,14 @@ public class RDataSource extends TabularDataSource<RDataSource> {
 
    @Override
    public boolean equals(Object obj) {
+      if(!super.equals(obj)) {
+         return false;
+      }
+
       try {
          RDataSource ds = (RDataSource) obj;
 
-         return Objects.equals(url, ds.url) &&
-            port == ds.port &&
-            Objects.equals(getCredential(), ds.getCredential());
+         return Objects.equals(url, ds.url) && port == ds.port;
       }
       catch(Exception ex) {
          return false;

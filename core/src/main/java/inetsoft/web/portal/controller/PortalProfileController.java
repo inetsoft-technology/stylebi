@@ -180,7 +180,7 @@ public class PortalProfileController {
       return model;
    }
 
-   @GetMapping("/api/portal/profile/table-export")
+   @GetMapping("/api/table-export/portal/profile/table-export")
    @HandleExceptions
    public void downloadTable(@RequestParam("name") String name,
                              @RequestParam("isViewsheet") boolean isViewsheet,

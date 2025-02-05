@@ -16,17 +16,18 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, OnInit, Output, ViewChild } from "@angular/core";
+import { TrapInfo } from "../../../common/data/trap-info";
 import { ChartPropertyDialogModel } from "../../model/chart-property-dialog-model";
 import { UntypedFormGroup } from "@angular/forms";
 import { ScriptPaneTreeModel } from "../../../widget/dialog/script-pane/script-pane-tree-model";
+import { VSTrapService } from "../../util/vs-trap.service";
 import { ChartGeneralPane } from "./chart-general-pane.component";
 import { UIContextService } from "../../../common/services/ui-context.service";
 import { ContextProvider } from "../../context-provider.service";
 import { PropertyDialogService } from "../../util/property-dialog.service";
 import { PropertyDialog } from "../../../composer/dialog/vs/property-dialog.component";
-import {HierarchyEditorModel} from "../../model/hierarchy-editor-model";
-import {OutputColumnRefModel} from "../../model/output-column-ref-model";
-import {VSDimensionModel} from "../../model/vs-dimension-model";
+
+const CHECK_TRAP_URI: string = "../api/composer/vs/chart-property-dialog-model/checkTrap/";
 
 @Component({
    selector: "chart-property-dialog",
@@ -49,8 +50,9 @@ export class ChartPropertyDialog extends PropertyDialog implements OnInit {
 
    public constructor(protected uiContextService: UIContextService,
                       protected propertyDialogService: PropertyDialogService,
+                      protected trapService: VSTrapService,
                       private contextProvider: ContextProvider) {
-      super(uiContextService, null, propertyDialogService);
+      super(uiContextService, trapService, propertyDialogService);
    }
 
    ngOnInit(): void {
@@ -107,7 +109,15 @@ export class ChartPropertyDialog extends PropertyDialog implements OnInit {
       };
 
       const payload = {collapse: collapse, result: model};
-      isApply ? this.onApply.emit(payload) : this.onCommit.emit(model);
+      const trapInfo = new TrapInfo(CHECK_TRAP_URI,
+         this.model.chartGeneralPaneModel.generalPropPaneModel.basicGeneralPaneModel.name,
+         this.runtimeId, model);
+
+      this.trapService.checkTrap(trapInfo,
+         () => isApply ? this.onApply.emit(payload) : this.onCommit.emit(model),
+         () => {},
+         () => isApply ? this.onApply.emit(payload) : this.onCommit.emit(model)
+      );
    }
 
    isValid() {

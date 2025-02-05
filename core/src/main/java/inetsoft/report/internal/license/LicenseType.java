@@ -25,7 +25,8 @@ public enum LicenseType {
    VIEWER(true, true, true),
    NAMED_USER_VIEWER(true, true, true),
    ELASTIC(true, false, true),
-   HOSTED(true, false, true);
+   HOSTED(true, false, true),
+   COMMUNITY(false, false, false);
 
    private final boolean pooled;
    private final boolean viewer;
@@ -48,6 +49,7 @@ public enum LicenseType {
          case 'U' -> NAMED_USER;
          case 'E' -> ELASTIC;
          case 'H' -> HOSTED;
+         case 'O' -> COMMUNITY;
          default -> INVALID;
       };
    }

@@ -155,12 +155,16 @@ public class ServerServiceMessageListener implements MessageListener {
     * @return the stack dump.
     */
    public String getThreadDump() {
-      String result = null;
+      StringWriter buffer = new StringWriter();
+      PrintWriter writer = new PrintWriter(buffer);
+      getThreadDump(writer);
+      writer.close();
+      return buffer.toString();
+   }
 
+   public static void getThreadDump(PrintWriter writer) {
       try {
          ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
-         StringWriter buffer = new StringWriter();
-         PrintWriter writer = new PrintWriter(buffer);
 
          writer.format(
             "%1$tF %1$tT %1$tZ\r\n\r\n", new Date(System.currentTimeMillis()));
@@ -258,15 +262,10 @@ public class ServerServiceMessageListener implements MessageListener {
                printStackTrace(thread, writer);
             }
          }
-
-         writer.close();
-         result = buffer.toString();
       }
       catch(Exception e) {
          LOG.error("Failed to get thread dump", e);
       }
-
-      return result;
    }
 
    public String getStackTrace(long id) {
@@ -283,7 +282,7 @@ public class ServerServiceMessageListener implements MessageListener {
       return stackTrace;
    }
 
-   private void printStackTrace(ThreadInfo thread, PrintWriter writer) {
+   private static void printStackTrace(ThreadInfo thread, PrintWriter writer) {
       StackTraceElement[] stackTrace = thread.getStackTrace();
       int i = 0;
 

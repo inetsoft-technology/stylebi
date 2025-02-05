@@ -1378,7 +1378,7 @@ public class VSScriptableController {
          createBindingInfoDefinition(
             mapper, library, child, ((CrosstabVSAScriptable) scriptable).getBindingInfo());
       }
-      if(scriptable instanceof CalcTableVSAScriptable && "layoutInfo".equals(name)) {
+      else if(scriptable instanceof CalcTableVSAScriptable && "layoutInfo".equals(name)) {
          ObjectNode child = mapper.createObjectNode();
          object.set("layoutInfo", child);
          VSTableLayoutInfo layoutInfo = ((CalcTableVSAScriptable) scriptable).getLayoutInfo();
@@ -1468,16 +1468,16 @@ public class VSScriptableController {
          createProperties0(mapper, library, child, scriptable, ids, "Chart.sizeLegend.");
       }
       else if(writeBinding && "colorLegends".equals(name)) {
-         createChartArrayDefinitions(mapper, object, "colorLegends");
+         createChartArrayDefinitions(mapper, library, object, "colorLegends");
       }
       else if(writeBinding && "shapeLegends".equals(name)) {
-         createChartArrayDefinitions(mapper, object, "shapeLegends");
+         createChartArrayDefinitions(mapper, library, object, "shapeLegends");
       }
       else if(writeBinding && "sizeLegends".equals(name)) {
-         createChartArrayDefinitions(mapper, object, "sizeLegends");
+         createChartArrayDefinitions(mapper, library, object, "sizeLegends");
       }
       else if(writeBinding && "valueFormats".equals(name)) {
-         createChartArrayDefinitions(mapper, object, "valueFormats");
+         createChartArrayDefinitions(mapper, library, object, "valueFormats");
       }
       else if(writeBinding && "graph".equals(name)) {
          Object[] ids = ((ChartVSAScriptable) scriptable).getEGraphIds();
@@ -1747,9 +1747,20 @@ public class VSScriptableController {
       }
    }
 
-   private void createChartArrayDefinitions(ObjectMapper mapper, ObjectNode object, String name) {
+   private void createChartArrayDefinitions(ObjectMapper mapper, ObjectNode root, ObjectNode object, String name) {
       ObjectNode child = mapper.createObjectNode();
-      object.set(name + "[]", child);
+      ObjectNode itemDef = mapper.createObjectNode();
+      object.set(name, child);
+      String itemTypeName = name + "Def";
+      child.put("!type", "[" + itemTypeName + "]");
+      ObjectNode defNode = (ObjectNode) root.get("!define");
+
+      if(defNode == null) {
+         defNode = mapper.createObjectNode();
+         root.set("!define", defNode);
+      }
+
+      defNode.set(itemTypeName, itemDef);
       List<String> properties = getProperties(name);
       String prefix = getPrefix(name);
 
@@ -1757,7 +1768,7 @@ public class VSScriptableController {
          String property = properties.get(i);
          ObjectNode propNode = mapper.createObjectNode();
          ScriptPropertyTool.fixPropertyLink(null, prefix, property, propNode);
-         child.set(property, propNode);
+         itemDef.set(property, propNode);
       }
    }
 

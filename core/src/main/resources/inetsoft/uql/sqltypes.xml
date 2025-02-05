@@ -27,7 +27,6 @@
   <types type="ingres" class="inetsoft.uql.jdbc.util.IngresSQLTypes"/>
   <types type="cloudscape" class="inetsoft.uql.jdbc.util.CloudscapeSQLTypes"/>
   <types type="hive" class="inetsoft.uql.jdbc.util.HiveSQLTypes"/>
-  <types type="obiee" class="inetsoft.uql.jdbc.util.OracleBISQLTypes"/>
   <types type="impala" class="inetsoft.uql.jdbc.util.ImpalaSQLTypes"/>
   <types type="h2" class="inetsoft.uql.jdbc.util.H2SQLTypes"/>
   <types type="mongo" class="inetsoft.uql.jdbc.util.MongoSQLTypes"/>

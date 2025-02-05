@@ -1098,13 +1098,19 @@ public class MVSupportService {
             if(!SecurityEngine.getSecurity().getSecurityProvider().isVirtual() &&
                identities.isEmpty())
             {
-               String orgID = entry.getOrgID();
+               String orgID = Optional.ofNullable(entry.getOrgID()).orElse(Organization.getDefaultOrganizationID());
 
-               if(orgID == null) {
-                  orgID = Organization.getDefaultOrganizationID();
+               if(!orgID.equals(Organization.getDefaultOrganizationID()) &&
+                  !OrganizationManager.getInstance().orgAdminUsers(orgID).isEmpty())
+               {
+                  List<IdentityID> orgAdminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
+
+                  orgAdminUsers.forEach(identityID ->
+                     identities.add(new DefaultIdentity(identityID.name, orgID, Identity.USER)));
                }
-
-               identities.add(new DefaultIdentity(XPrincipal.SYSTEM, orgID, Identity.USER));
+               else {
+                  identities.add(new DefaultIdentity(XPrincipal.SYSTEM, orgID, Identity.USER));
+               }
             }
          }
 

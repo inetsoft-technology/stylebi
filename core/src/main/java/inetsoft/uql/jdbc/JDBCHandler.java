@@ -1638,15 +1638,6 @@ public class JDBCHandler extends XHandler {
       return xds.getDatabaseType() == JDBCDataSource.JDBC_MYSQL;
    }
 
-   /**
-    * Determines if the database is Oracle BI.
-    *
-    * @return <tt>true</tt> if Oracle BI; <tt>false</tt> otherwise.
-    */
-   private boolean isOBIEE() {
-      return xds.getDatabaseType() == JDBCDataSource.JDBC_OBIEE;
-   }
-
    private boolean isDremio() {
       return xds.getDatabaseType() == JDBCDataSource.JDBC_DREMIO;
    }
@@ -1726,7 +1717,6 @@ public class JDBCHandler extends XHandler {
       }
 
       boolean mysql5 = isMySQL5(meta);
-      boolean obiee = isOBIEE();
       boolean sqlServer = xds.getDatabaseType() == JDBCDataSource.JDBC_SQLSERVER;
 
       // if user is not supported, don't qualify the name with database
@@ -1754,11 +1744,6 @@ public class JDBCHandler extends XHandler {
          }
          catch(Exception ignore) {
          }
-      }
-
-      if(obiee) {
-         catalog = true;
-         catSep = ".";
       }
 
       // @by larryl, if the default database is specified, the connection will
@@ -1793,7 +1778,7 @@ public class JDBCHandler extends XHandler {
             }
          }
 
-         if((mysql5 || obiee || sqlServer) && cnt > 1) {
+         if((mysql5 || sqlServer) && cnt > 1) {
             if(db == null) {
                defaultCatalog = meta.getConnection().getCatalog();
             }
@@ -3091,7 +3076,8 @@ public class JDBCHandler extends XHandler {
             while(result != null && result.next()) {
                isSynonym = false;
                String col = result.getString(4).trim();
-               int sqltype = result.getShort(5);
+               int sqltype = result.getMetaData().getColumnType(5) == Types.INTEGER  ?
+                  result.getInt(5): result.getShort(5);
                String tname = result.getString(6);
                int length = result.getInt(7);
                XTypeNode node = sqlTypes.createTypeNode(col, sqltype, tname);

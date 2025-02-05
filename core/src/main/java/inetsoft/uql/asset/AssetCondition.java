@@ -127,7 +127,7 @@ public class AssetCondition extends Condition implements AssetObject {
                userv = vart.get(name);
 
                if(userv != null) {
-                  setDynamicValue(i, userv);
+                  setDynamicValue(i, userv, vart.isAsIs(name));
                }
                else {
                   if(vart.isNotIgnoredNull(name)) {

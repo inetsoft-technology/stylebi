@@ -112,7 +112,7 @@ public class SurveyMonkeyQuery extends EndpointJsonQuery<SurveyMonkeyEndpoint> {
             maxRows = endpoint.getPageLimit();
          }
          else {
-            maxRows = getMaxRows();
+            maxRows = getPageMaxRows();
          }
 
          final PaginationSpec.Builder builder = PaginationSpec.builder()
@@ -139,8 +139,7 @@ public class SurveyMonkeyQuery extends EndpointJsonQuery<SurveyMonkeyEndpoint> {
       super.setMaxRows(getMaxRows());
    }
 
-   @Override
-   public int getMaxRows() {
+   public int getPageMaxRows() {
       return ((SurveyMonkeyDataSource) getDataSource()).getRowLimit();
    }
 

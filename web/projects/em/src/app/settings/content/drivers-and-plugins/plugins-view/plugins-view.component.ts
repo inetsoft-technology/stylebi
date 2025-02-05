@@ -75,7 +75,7 @@ export class PluginsViewComponent implements OnInit, AfterViewInit, OnDestroy {
          return "_#(js:em.data.databases.pluginsReady)";
       }
 
-      return "_#(js:em.data.databases.selectPlugins)";
+      return null;
    }
 
    private _model: PluginsModel;

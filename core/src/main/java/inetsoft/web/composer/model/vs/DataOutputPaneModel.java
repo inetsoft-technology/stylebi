@@ -18,6 +18,7 @@
 package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.TreeNodeModel;
 
 /**
@@ -112,6 +113,14 @@ public class DataOutputPaneModel {
       this.tableType = tableType;
    }
 
+   public DataRefModel[] getGrayedOutFields() {
+      return grayedOutFields;
+   }
+
+   public void setGrayedOutFields(DataRefModel[] grayedOutFields) {
+      this.grayedOutFields = grayedOutFields;
+   }
+
    @Override
    public String toString() {
       return "DataOutputPaneModel{}";
@@ -127,4 +136,5 @@ public class DataOutputPaneModel {
    private int magnitude = 1;
    private TreeNodeModel targetTree;
    private boolean model;
+   private DataRefModel[] grayedOutFields;
 }

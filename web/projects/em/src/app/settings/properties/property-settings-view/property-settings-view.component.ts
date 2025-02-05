@@ -19,6 +19,7 @@ import { AfterViewInit, Component, OnInit, ViewChild } from "@angular/core";
 import { MatInput } from "@angular/material/input";
 import { MatPaginator } from "@angular/material/paginator";
 import { MatSort } from "@angular/material/sort";
+import { data } from "jquery";
 import { merge as mergeObservables, Observable } from "rxjs";
 import { map, tap } from "rxjs/operators";
 import { ContextHelp } from "../../../context-help";
@@ -159,12 +160,13 @@ export class PropertySettingsViewComponent implements OnInit, AfterViewInit {
 
    editRow(row: PropertySetting) {
       if(this.dataService.rowBeingAdded) {
-         this.dataService.cancelRow();
-         this.fetchData();
-         this.dataService.connect().subscribe((data: PropertySetting[]) => {
-            row = data.find(r => r.propertyName === row.propertyName);
-            this.updateEditingRow(row);
-         });
+         //if adding new row and attempt to edit existing, clear all editing
+         for(let r of this.dataSource) {
+            if(r.editing) {
+               r.editing = false;
+               this.cancelEditingRow(r);
+            }
+         }
       }
       else {
          this.updateEditingRow(row);

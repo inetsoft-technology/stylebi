@@ -32,6 +32,7 @@ import jakarta.servlet.http.*;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.security.Principal;
 
 /**
  * Filter that sets the current user to an anonymous user if not authenticated.
@@ -46,14 +47,14 @@ public class AnonymousUserFilter extends AbstractSecurityFilter {
       HttpServletRequest httpRequest = (HttpServletRequest) request;
 
       if(!isPublicResource(httpRequest) && !isPublicApi(httpRequest)) {
-         HttpSession session = httpRequest.getSession(true);
+         Principal reqPrincipal = SUtil.getPrincipal(httpRequest, true);
 
-         if(session.getAttribute(RepletRepository.PRINCIPAL_COOKIE) == null) {
+         if(reqPrincipal == null) {
             try {
                SRPrincipal principal = authenticateAnonymous(request);
 
                if(principal != null) {
-                  authenticate(request, new IdentityID(ClientInfo.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID()), null, null, SUtil.MY_LOCALE);
+                  authenticate(request, new IdentityID(ClientInfo.ANONYMOUS, getCookieRecordedOrgID((HttpServletRequest) request)), null, null, SUtil.MY_LOCALE);
                }
             }
             catch(AuthenticationFailureException e) {

@@ -25,6 +25,7 @@ public class HealthService {
       deadlockHealthService = DeadlockHealthService.getInstance();
       outOfMemoryHealthService = OutOfMemoryHealthService.getInstance();
       reportFailureHealthService = ReportFailureHealthService.getInstance();
+      schedulerHealthService = SchedulerHealthService.getInstance();
    }
 
    public static HealthService getInstance() {
@@ -36,12 +37,13 @@ public class HealthService {
          cacheSwapHealthService.getStatus(),
          deadlockHealthService.getStatus(),
          outOfMemoryHealthService.getStatus(),
-         reportFailureHealthService.getStatus());
+         reportFailureHealthService.getStatus(),
+         schedulerHealthService.getStatus());
    }
 
    private final CacheSwapHealthService cacheSwapHealthService;
    private final DeadlockHealthService deadlockHealthService;
    private final OutOfMemoryHealthService outOfMemoryHealthService;
    private final ReportFailureHealthService reportFailureHealthService;
-
+   private final SchedulerHealthService schedulerHealthService;
 }

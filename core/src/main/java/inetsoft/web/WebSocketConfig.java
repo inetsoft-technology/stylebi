@@ -96,7 +96,7 @@ public class WebSocketConfig<S extends Session> extends
          "/composer-client", "/monitoring", "/topic", "/team", "/notifications",
          "/em-content-changed", "/data-changed", "/report-export-changed",
          "/schedule-folder-changed", "/em-mv-changed", "/em-plugin-changed",
-         "/session-expiration")
+         "/session-expiration", "/license-changed")
               .setTaskScheduler(taskScheduler())
               .setHeartbeatValue(new long[] {25000L, 25000L});
       registry.setUserDestinationPrefix("/user");

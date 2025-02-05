@@ -27,6 +27,7 @@ import inetsoft.uql.util.XSourceInfo;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
@@ -63,7 +64,8 @@ public class RangeSliderPropertyDialogController {
                                               ViewsheetService viewsheetService,
                                               VSDialogService dialogService,
                                               VSTrapService trapService,
-                                              SelectionDialogService selectionDialogService)
+                                              SelectionDialogService selectionDialogService,
+                                              VSAssemblyInfoHandler assemblyInfoHandler)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
@@ -72,6 +74,7 @@ public class RangeSliderPropertyDialogController {
       this.dialogService = dialogService;
       this.trapService = trapService;
       this.selectionDialogService = selectionDialogService;
+      this.assemblyInfoHandler = assemblyInfoHandler;
    }
 
    /**
@@ -154,6 +157,7 @@ public class RangeSliderPropertyDialogController {
          vs, timeSliderAssemblyInfo.getAbsoluteName()));
 
       rangeSliderDataPaneModel.setComposite(timeSliderAssemblyInfo.isComposite());
+      rangeSliderDataPaneModel.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
       final String selectedTableName = timeSliderAssemblyInfo.getFirstTableName();
       rangeSliderDataPaneModel.setSelectedTable(selectedTableName);
       rangeSliderDataPaneModel.setAssemblySource(
@@ -288,7 +292,10 @@ public class RangeSliderPropertyDialogController {
 
       dialogService.setAssemblySize(info, sizePositionPaneModel);
       dialogService.setAssemblyPosition(info, sizePositionPaneModel);
-      info.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+
+      if(sizePositionPaneModel.getTitleHeight() > 0) {
+         info.setTitleHeightValue(sizePositionPaneModel.getTitleHeight());
+      }
 
       info.setEnabledValue(generalPropPaneModel.getEnabled());
 
@@ -450,4 +457,5 @@ public class RangeSliderPropertyDialogController {
    private final VSDialogService dialogService;
    private final VSTrapService trapService;
    private final SelectionDialogService selectionDialogService;
+   private final VSAssemblyInfoHandler assemblyInfoHandler;
 }

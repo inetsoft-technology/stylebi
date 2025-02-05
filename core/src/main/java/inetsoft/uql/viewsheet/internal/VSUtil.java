@@ -1140,10 +1140,11 @@ public final class VSUtil {
          if(!Tool.isEmptyString(dir)) {
             final String imagePath = FileSystemService.getInstance().getPath(dir, name).toString();
             new ByteArrayOutputStream();
-            final InputStream stream = DataSpace.getDataSpace().getInputStream(null, imagePath);
-            buf = new byte[stream.available()];
-            stream.read(buf);
-            stream.close();
+
+            try(final InputStream stream = DataSpace.getDataSpace().getInputStream(null, imagePath)) {
+               buf = new byte[stream.available()];
+               stream.read(buf);
+            }
          }
          else {
             buf = null;
@@ -8585,6 +8586,15 @@ public final class VSUtil {
       return SUtil.isDefaultVSGloballyVisible(principal) &&
          !orgId.equals(Organization.getDefaultOrganizationID()) &&
          Tool.equals(entry.getOrgID(), Organization.getDefaultOrganizationID());
+   }
+
+   public static boolean isDefaultVSGloballyViewsheet(AssetEntry entry, Principal user) {
+      String orgID = entry.getOrgID();
+      String currentOrgID = user instanceof XPrincipal ?
+         ((XPrincipal) user).getOrgId() : OrganizationManager.getInstance().getCurrentOrgID();
+
+      return SUtil.isDefaultVSGloballyVisible() && !Tool.equals(orgID, currentOrgID)
+         && Tool.equals(orgID, Organization.getDefaultOrganizationID());
    }
 
    private static InheritableThreadLocal<Boolean> IGNORE_CSS = new InheritableThreadLocal<>();

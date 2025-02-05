@@ -1,4 +1,12 @@
-import { Component, EventEmitter, HostListener, Inject, OnDestroy, Output } from "@angular/core";
+import {
+   Component,
+   EventEmitter,
+   HostListener,
+   Inject,
+   Input,
+   OnDestroy,
+   Output
+} from "@angular/core";
 import { MAT_DIALOG_DATA, MatDialogRef } from "@angular/material/dialog";
 import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 
@@ -8,6 +16,7 @@ import { DateTypeFormatter } from "../../../../../../shared/util/date-type-forma
    styleUrls: ["./session-expiration-dialog.component.scss"]
 })
 export class SessionExpirationDialog implements OnDestroy {
+   @Input() nodeProtection: boolean;
    @Output() onLogout: EventEmitter<void> = new EventEmitter<void>();
    @Output() onTimerFinished: EventEmitter<void> = new EventEmitter<void>();
    private interval: any;
@@ -38,6 +47,7 @@ export class SessionExpirationDialog implements OnDestroy {
                @Inject(MAT_DIALOG_DATA) public data: any)
    {
       this.remainingTime = data.remainingTime;
+      this.nodeProtection = data.nodeProtection;
    }
 
    stayLoggedInClicked(): void {

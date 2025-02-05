@@ -50,7 +50,7 @@ export class NotificationEmailsComponent implements OnInit {
    set emails(val: string) {
       if(!!this.emails || !!val) {
          this._emails = val;
-         this.emailControl.setValue(this._emails);
+         this.emailControl.setValue(this._emails, { emitEvent: false });
       }
    }
 

@@ -64,6 +64,13 @@ public interface Schedule extends Remote, TestableRemote {
    void removeTask(String taskName) throws RemoteException;
 
    /**
+    * remove old task cache
+    *
+    * @param orgId org id.
+    */
+   void removeTaskCacheOfOrg(String orgId) throws RemoteException;
+
+   /**
     * Gets the current status of all tasks.
     *
     * @return the task status.

@@ -42,10 +42,11 @@ export class SelectionTreeIdPane implements OnInit, AfterViewInit {
    @Input() iconFunction: (node: TreeNodeModel) => string;
    @Input() measureTooltips: string[] = [];
    @Input() runtimeId: string;
+   @Input() grayedOutValues: string[] = [];
    @ViewChild("idTree") idTree: TreeComponent;
    _singleSelection: boolean;
    localRefLabels: any[] = [];
-   grayedOutRefLabels: any[] = [];
+
    localTable: string;
    localParentId: string;
    localId: string;
@@ -58,7 +59,6 @@ export class SelectionTreeIdPane implements OnInit, AfterViewInit {
       this.localParentId = this.model.parentId;
       this.localId = this.model.id;
       this.localLabel = this.model.label;
-      this.initGrayedOutLabel();
    }
 
    ngAfterViewInit(): void {
@@ -149,20 +149,6 @@ export class SelectionTreeIdPane implements OnInit, AfterViewInit {
          this.localLabel = this.localRefs[0].view;
          this.model.label = this.localRefs[0].name;
          this.model.labelRef = this.localRefs[0];
-      }
-   }
-
-   private initGrayedOutLabel(): void {
-      this.grayedOutRefLabels = [];
-
-      if(!this.model.grayedOutFields) {
-         return;
-      }
-
-      for(let i = 0; i < this.model.grayedOutFields.length; i++) {
-         let column = this.model.grayedOutFields[i];
-
-         this.grayedOutRefLabels.push(column.view);
       }
    }
 

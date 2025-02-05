@@ -15,15 +15,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpParams } from "@angular/common/http";
 import { Input, Output, EventEmitter, ViewChild, Directive } from "@angular/core";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
+import { Tool } from "../../../../../../shared/util/tool";
 import { AssetEntryHelper } from "../../../common/data/asset-entry-helper";
 import { XSchema } from "../../../common/data/xschema";
 import { DataRef } from "../../../common/data/data-ref";
 import { FormatInfoModel } from "../../../common/data/format-info-model";
+import { ComponentTool } from "../../../common/util/component-tool";
 import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { FixedDropdownDirective } from "../../../widget/fixed-dropdown/fixed-dropdown.directive";
+import { ModelService } from "../../../widget/services/model.service";
 import { TreeNodeModel } from "../../../widget/tree/tree-node-model";
 import { ConvertColumnEvent } from "../../model/event/convert-column-event";
 import { VSWizardConstants } from "../../model/vs-wizard-constants";
@@ -46,7 +50,8 @@ export abstract class VSWizardItem<T extends DataRef> {
 
    constructor(protected modalService: NgbModal,
                protected clientService: ViewsheetClientService,
-               protected treeService: VSWizardBindingTreeService)
+               protected treeService: VSWizardBindingTreeService,
+               protected modelService?: ModelService)
    {
    }
 
@@ -145,7 +150,29 @@ export abstract class VSWizardItem<T extends DataRef> {
       let table: string = this.treeService.getTableName(this.currentEntry);
       let event: ConvertColumnEvent = new ConvertColumnEvent(this.currentEntry,
          this.getRefNamesForConversion(convertType), convertType, table, null, false);
-      this.clientService.sendEvent(VS_WIZARD_CONVERT_COLUMN, event);
+
+      if(convertType != VSWizardConstants.CONVERT_TO_MEASURE) {
+         this.clientService.sendEvent(VS_WIZARD_CONVERT_COLUMN, event);
+         return;
+      }
+
+      let params: HttpParams = new HttpParams()
+         .set("vsId", Tool.byteEncode(this.clientService.runtimeId))
+
+      this.modelService.putModel("../api/vs/wizard/checktrap", event, params).subscribe(
+         (res: any) => {
+            if(res != null && res.body == true) {
+               ComponentTool.showTrapAlert(this.modalService, false).then((result: string) => {
+                  if(result == "yes") {
+                     this.clientService.sendEvent(VS_WIZARD_CONVERT_COLUMN, event);
+                  }
+               });
+            }
+            else {
+               this.clientService.sendEvent(VS_WIZARD_CONVERT_COLUMN, event);
+            }
+         }
+      );
    }
 
    private getRefNamesForConversion(convertType: number): string[] {

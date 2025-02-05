@@ -65,9 +65,15 @@ public abstract class TimeConditionModel extends ScheduleConditionModel {
    @Nullable
    public abstract Long date();
 
+   /**
+    * Selected time zone
+    */
    @Nullable
    public abstract String timeZone();
 
+   /**
+    * Server time zone offset
+    */
    @Nullable
    public abstract Integer timeZoneOffset();
 

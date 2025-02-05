@@ -50,7 +50,8 @@ const createModel: () => DataOutputPaneModel = () => {
       columnType: "",
       magnitude: 0,
       targetTree: null,
-      tableType: ""
+      tableType: "",
+      grayedOutFields: []
    };
 };
 

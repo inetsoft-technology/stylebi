@@ -31,7 +31,7 @@ public class AmazonRedshiftDataSourceListing extends DataSourceListing {
       final JDBCDataSource ds = new JDBCDataSource();
       ds.setName(getAvailableName());
       ds.setURL("jdbc:redshift://<endpoint>:<port>/<database>");
-      ds.setDriver("com.amazon.redshift.jdbc.Driver");
+      ds.setDriver("com.amazon.redshift.Driver");
 
       return ds;
    }

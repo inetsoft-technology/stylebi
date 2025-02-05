@@ -52,6 +52,7 @@ import { ViewsheetClientService } from "../../../common/viewsheet-client";
 import { Axis } from "../../../graph/model/axis";
 import { ChartAreaName } from "../../../graph/model/chart-area-name";
 import { ChartDrillInfo } from "../../../graph/model/chart-drill-info";
+import { ChartModel } from "../../../graph/model/chart-model";
 import { ChartRegion } from "../../../graph/model/chart-region";
 import { ChartSelection } from "../../../graph/model/chart-selection";
 import { ChartTool } from "../../../graph/model/chart-tool";
@@ -180,6 +181,11 @@ export class VSChart extends AbstractVSObject<VSChartModel>
 
       if(!m.sheetMaxMode || m.maxMode || this.dataTipService.isDataTip(m.absoluteName)) {
          const event = new VSChartEvent(this._model, this._model.maxMode, this.container);
+
+         if(this.vsInfo?.orgId) {
+            event.setOrgId(this.vsInfo.orgId);
+         }
+
          this.showChartLoading(true, 2);
          this.viewsheetClient.sendEvent(CHART_AREAS_URI, event);
       }
@@ -326,7 +332,7 @@ export class VSChart extends AbstractVSObject<VSChartModel>
                   this.dropdownService, []);
                break;
             default:
-               propertiesHandler.handleEvent(event, this.variableValues(this.getAssemblyName()));
+               propertiesHandler.handleEvent(event, this.variableValues(this.getAssemblyName()), null);
             }
          });
          this.clickAction = value.clickAction;
@@ -639,7 +645,9 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       }
       const chartEvent = new AddAnnotationEvent(content, x, y, this.getAssemblyName());
 
-      if(ChartTool.isPlotPointSelected(this.model) && selectedRegion) {
+      if(ChartTool.isPlotPointSelected(this.model) && selectedRegion &&
+         ChartTool.getMea(this.model, selectedRegion) != null)
+      {
          chartEvent.setRow(selectedRegion.rowIdx);
          chartEvent.setCol(ChartTool.colIdx(this.model, selectedRegion));
          chartEvent.setMeasureName(ChartTool.getMea(this.model, selectedRegion));
@@ -996,8 +1004,6 @@ export class VSChart extends AbstractVSObject<VSChartModel>
    }
 
    processSetChartAreasCommand(command: SetChartAreasCommand): void {
-      // need to keep the info for updateChartSelection()
-      let oldSelection = Tool.clone(this.model.chartSelection);
       let oldModel = Tool.clone(this.model);
 
       if(this.chartArea != null && (!this.dataTipService.isDataTip(this.model.absoluteName) ||
@@ -1011,11 +1017,11 @@ export class VSChart extends AbstractVSObject<VSChartModel>
       ChartTool.fillIndex(this.model);
 
       if(this.chartSelection && this.chartSelection.chartObject && this.chartSelection.regions) {
-         const oldRegions = oldSelection?.regions;
+         const oldRegions = oldModel.chartSelection?.regions;
          const hadSelection = oldRegions && oldRegions.length > 0;
          // make sure the same values (e.g. axis labels) are selected
-         this.model.chartSelection = oldSelection;
-         const newRegions = oldSelection?.regions;
+         this.model.chartSelection = ChartTool.updateChartSelection(this.model, oldModel);
+         const newRegions = this.model.chartSelection?.regions;
          const hasSelection = newRegions && newRegions.length > 0;
 
          // if existing selection is cleared because the previous data is no longer on the chart,

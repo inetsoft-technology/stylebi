@@ -17,8 +17,10 @@
  */
 package inetsoft.sree.security;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.uql.XPrincipal;
 import inetsoft.util.*;
 import org.w3c.dom.Element;
@@ -34,6 +36,7 @@ import java.util.Objects;
  */
 @JsonSerialize(as = IdentityID.class)
 @JsonDeserialize(as = IdentityID.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSerializable, Cloneable {
 
    /**
@@ -107,6 +110,11 @@ public class IdentityID implements Comparable<IdentityID>, Serializable, XMLSeri
                         IdentityID.getIdentityIDFromKey(principal.getName()).orgID;
          return new IdentityID(key, pOrgID);
       }
+   }
+
+   public String getLabel() {
+      boolean enterprise = LicenseManager.getInstance().isEnterprise();
+      return enterprise ? (name + "(" + (orgID == null ? GLOBAL_ORG_KEY : orgID) + ")") : name;
    }
 
    @Override

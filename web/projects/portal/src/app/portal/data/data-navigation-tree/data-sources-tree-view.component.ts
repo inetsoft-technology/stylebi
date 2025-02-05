@@ -23,6 +23,7 @@ import { Observable, of, Subscription } from "rxjs";
 import { switchMap, tap } from "rxjs/operators";
 import { AssetEntry } from "../../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../../shared/data/asset-type";
+import { DatasourceDatabaseType } from "../../../../../../shared/util/model/datasource-database-type";
 import { Tool } from "../../../../../../shared/util/tool";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
 import { AssetClientService } from "../../../common/asset-client/asset-client.service";
@@ -262,6 +263,9 @@ export class DataSourcesTreeViewComponent extends CommandProcessor implements On
                      (!!folder && folder !== "/" ? folder : "Data Model");
                   this.initScope = "0";
                   searchAllNodes = true;
+               }
+               else if(!this.initPath && this.initScope == "0") {
+                  this.initPath = "/"
                }
             }
 

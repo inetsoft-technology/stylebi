@@ -247,6 +247,7 @@ public class LayoutCreator {
          tView.setVisibleMethod(view1.visibleMethod());
          tView.setWrap(view1.wrap());
          tView.setVisible(true);
+         tView.setAffectedViews(view1.affectedViews());
       }
 
       String label = null;

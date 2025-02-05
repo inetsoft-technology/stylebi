@@ -122,16 +122,7 @@ public class HiveRuntime extends TabularRuntime {
     * @return JDBC url
     */
    private String constructUrl(HiveDataSource ds) {
-      if(ds.getHiveType().equals("HiveServer1")) {
-         return "jdbc:hive://" + ds.getHost() + ":" + ds.getPort() + "/"
-            + ds.getDbName();
-      }
-      else if(ds.getHiveType().equals("HiveServer2")) {
-         return "jdbc:hive2://" + ds.getHost() + ":" + ds.getPort() + "/"
-            + ds.getDbName();
-      }
-
-      return "";
+      return "jdbc:hive2://" + ds.getHost() + ":" + ds.getPort() + "/" + ds.getDbName();
    }
 
    /**
@@ -141,19 +132,12 @@ public class HiveRuntime extends TabularRuntime {
     */
    private Driver getDriver(HiveDataSource ds) throws Exception{
       try {
-         if(ds.getHiveType().equals("HiveServer1")) {
-            return
-               JDBCHandler.getDriver("org.apache.hadoop.hive.jdbc.HiveDriver");
-         }
-         else if(ds.getHiveType().equals("HiveServer2")) {
-            return JDBCHandler.getDriver("org.apache.hive.jdbc.HiveDriver");
-         }
+         return new org.apache.hive.jdbc.HiveDriver();
       }
       catch (Exception ex){
          LOG.warn("Failed to obtain Hive JDBC driver", ex);
          throw ex;
       }
-      return null;
    }
 
    private static final Logger LOG = LoggerFactory.getLogger(HiveRuntime.class.getName());

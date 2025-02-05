@@ -41,6 +41,8 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.binding.service.graph.ChartRefModelFactoryService;
 import inetsoft.web.binding.service.graph.aesthetic.VisualFrameModelFactoryService;
 import inetsoft.web.reportviewer.HandleExceptions;
+import inetsoft.web.viewsheet.OrganizationID;
+import inetsoft.web.viewsheet.SwitchOrg;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -328,7 +330,10 @@ public class VSChartBindingController {
 
    @RequestMapping(value = "/api/composer/chart/colorpalettes", method = RequestMethod.GET)
    @HandleExceptions
-   public CategoricalColorModel[] getColorPalettes() throws Exception {
+   @SwitchOrg
+   public CategoricalColorModel[] getColorPalettes(@OrganizationID String orgId, Principal principal)
+      throws Exception
+   {
       String[] names = ColorPalettes.getPaletteNames().toArray(new String[0]);
       CategoricalColorModel[] palettes = new CategoricalColorModel[names.length];
 

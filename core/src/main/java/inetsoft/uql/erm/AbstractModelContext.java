@@ -79,6 +79,11 @@ public abstract class AbstractModelContext {
 
       String entity = ref.getEntity();
       String attribute = ref.getAttribute();
+
+      if(attribute == null) {
+         return null;
+      }
+
       int idx = attribute.indexOf(":");
 
       if(idx >= 0) {

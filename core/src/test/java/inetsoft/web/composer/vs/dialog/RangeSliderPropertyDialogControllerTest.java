@@ -23,6 +23,7 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.TimeSliderVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TimeSliderVSAssemblyInfo;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.RangeSliderPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
@@ -55,7 +56,8 @@ class RangeSliderPropertyDialogControllerTest {
          engine,
          dialogService,
          trapService,
-         selectionDialogService);
+         selectionDialogService,
+         assemblyInfoHandler);
 
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
@@ -103,6 +105,8 @@ class RangeSliderPropertyDialogControllerTest {
    @Mock VSDialogService dialogService;
    @Mock VSTrapService trapService;
    @Mock SelectionDialogService selectionDialogService;
+   @Mock
+   VSAssemblyInfoHandler assemblyInfoHandler;
    @Mock (answer = Answers.RETURNS_DEEP_STUBS)
    private RangeSliderPropertyDialogModel rangeSliderPropertyDialogModel;
 

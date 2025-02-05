@@ -215,7 +215,7 @@ public class DeployManagerService {
                   String user = fname.substring(0, idx);
                   fname = fname.substring(idx + 1);
                   IdentityID userID = IdentityID.getIdentityIDFromKey(user);
-                  folder = "portal/" + userID.orgID + "/" + userID.name + "/myreport";
+                  folder = "portal/" + userID.orgID + "/" + userID.name + "/my dashboard";
                }
                else if(filename.startsWith("__TEMPLATE_")) {
                   fname = filename.substring(11);
@@ -1232,7 +1232,7 @@ public class DeployManagerService {
                folder = "templates";
             }
             else {
-               folder = "portal/" + user.orgID + "/" + user.name + "/myreport";
+               folder = "portal/" + user.orgID + "/" + user.name + "/my dashboard";
             }
 
             fname = fname.substring(idx + 1);
@@ -1242,7 +1242,7 @@ public class DeployManagerService {
 
             if(importAsAsset != null && !Tool.isEmptyString(importAsAsset.getUser().name)) {
                IdentityID userID = importAsAsset.getUser();
-               folder = "portal/" + userID.orgID + "/" + userID.name + "/myreport";
+               folder = "portal/" + userID.orgID + "/" + userID.name + "/my dashboard";
             }
             else {
                folder = "templates";

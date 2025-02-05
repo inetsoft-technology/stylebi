@@ -198,14 +198,6 @@ export class VSWizardBindingTreeService extends BindingTreeService implements On
 
       return this.http.get(VS_WIZARD_SOURCE_CHANGE, {params: params});
    }
-
-   public checkTreeTrap(runtimeId: string, evt: RefreshBindingFieldsEvent): Observable<any> {
-      const params = new HttpParams()
-         .set("runtimeId", runtimeId);
-
-      return this.http.post(WIZARD_TREE_CHECKTRAP, evt, {params: params});
-   }
-
    public checkAggTrap(runtimeId: string, evt: UpdateVsWizardBindingEvent): Observable<any> {
       const params = new HttpParams()
          .set("runtimeId", runtimeId);

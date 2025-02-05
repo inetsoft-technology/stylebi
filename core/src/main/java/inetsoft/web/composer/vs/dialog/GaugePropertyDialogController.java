@@ -25,6 +25,7 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
@@ -63,7 +64,8 @@ public class GaugePropertyDialogController {
       RuntimeViewsheetRef runtimeViewsheetRef,
       VSDialogService dialogService,
       ViewsheetService viewsheetService,
-      VSTrapService trapService)
+      VSTrapService trapService,
+      VSAssemblyInfoHandler assemblyInfoHandler)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
@@ -71,6 +73,7 @@ public class GaugePropertyDialogController {
       this.dialogService = dialogService;
       this.viewsheetService = viewsheetService;
       this.trapService = trapService;
+      this.assemblyInfoHandler = assemblyInfoHandler;
    }
 
    /**
@@ -180,6 +183,7 @@ public class GaugePropertyDialogController {
          this.vsOutputService.getOutputTablesTree(rvs, principal));
       dataOutputPaneModel.setLogicalModel(vs.getBaseEntry() != null &&
                                       vs.getBaseEntry().getType() == AssetEntry.Type.LOGIC_MODEL);
+      dataOutputPaneModel.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
       dataOutputPaneModel.setTableType(this.vsOutputService.getTableType(vs.getBaseEntry()));
 
       if(outputBinding != null) {
@@ -442,4 +446,5 @@ public class GaugePropertyDialogController {
    private final VSDialogService dialogService;
    private final ViewsheetService viewsheetService;
    private final VSTrapService trapService;
+   private final VSAssemblyInfoHandler assemblyInfoHandler;
 }

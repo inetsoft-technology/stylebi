@@ -167,9 +167,13 @@ public abstract class TabularDataSource<SELF extends TabularDataSource<SELF>>
          if(credential instanceof CloudCredential && !cloud) {
             credential = createCredential(true);
          }
-         // if local secret config, ignore the saved cloud credential.
          else if(!(credential instanceof CloudCredential) && cloud) {
-            return;
+            // if local secret config, ignore the saved cloud credential.
+            if(!Tool.isCloudSecrets()) {
+               return;
+            }
+
+            credential = createCredential(false);
          }
 
          credential.parseXML(credentialNode);
@@ -237,6 +241,16 @@ public abstract class TabularDataSource<SELF extends TabularDataSource<SELF>>
       if(credential instanceof CloudCredential) {
          ((CloudCredential) credential).fetchCredential();
       }
+   }
+
+   @Override
+   public boolean equals(Object obj) {
+      if(obj == null || getClass() != obj.getClass()) {
+         return false;
+      }
+
+      TabularDataSource ds = (TabularDataSource) obj;
+      return Objects.equals(getCredential(), ds.getCredential());
    }
 
    private Credential credential;

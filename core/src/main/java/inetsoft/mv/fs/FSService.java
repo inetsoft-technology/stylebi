@@ -81,7 +81,14 @@ public final class FSService {
     * Get the data node.
     */
    public static XDataNode getDataNode() {
-      return getService().getDataNode0();
+      return getDataNode(OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   /**
+    * Get the data node.
+    */
+   public static XDataNode getDataNode(String orgId) {
+      return getService().getDataNode0(orgId);
    }
 
    /**
@@ -151,13 +158,16 @@ public final class FSService {
    /**
     * Get the data node.
     */
-   private XDataNode getDataNode0() {
+   private XDataNode getDataNode0(String orgID) {
+      XDataNode data = datas.get(orgID);
+
       if(data == null) {
          lock.lock();
 
          try {
-            if(data == null) {
-               data = new XDataNode(config);
+            if(datas.get(orgID) == null) {
+               data = new XDataNode(config, orgID);
+               datas.put(orgID, data);
             }
          }
          finally {
@@ -302,8 +312,8 @@ public final class FSService {
    private static Lock slock = new ReentrantLock();
    private FSConfig config = new FSConfigImpl();
    private XServerNode server;
-   private Map<String, XServerNode>  servers = new ConcurrentHashMap<>();
-   private XDataNode data;
+   private final Map<String, XServerNode> servers = new ConcurrentHashMap<>();
+   private final Map<String, XDataNode> datas = new ConcurrentHashMap<>();
    private Lock lock = new ReentrantLock();
    private static final Logger LOG =
       LoggerFactory.getLogger(FSService.class);

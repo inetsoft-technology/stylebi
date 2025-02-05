@@ -178,11 +178,14 @@ public class GDataDataSource extends TabularDataSource<GDataDataSource> implemen
 
    @Override
    public boolean equals(Object obj) {
+      if(!super.equals(obj)) {
+         return false;
+      }
+
       try {
          GDataDataSource ds = (GDataDataSource) obj;
 
-         return Objects.equals(getCredential(), ds.getCredential()) &&
-            tokenExpiration == ds.tokenExpiration &&
+         return tokenExpiration == ds.tokenExpiration &&
             connectTimeout == ds.connectTimeout &&
             readTimeout == ds.readTimeout;
       }

@@ -18,23 +18,18 @@
 
 package inetsoft.util.credential;
 
-import inetsoft.util.Tool;
-import org.apache.commons.lang3.StringUtils;
-
 public interface SignatureCredential extends Credential {
    /**
+    * Getter for account name, in case user want provide the account in secret and manually generate signature.
+    */
+   String getAccountName();
+
+   void setAccountName(String accountName);
+
+   /**
     * Getter for account key, in case user want provide the account in secret and manually generate signature.
-    * @return
     */
    String getAccountKey();
 
    void setAccountKey(String accountKey);
-
-   /**
-    * Getter for signature, in case user want provide the signature in secret.
-    * @return
-    */
-   String getSignature();
-
-   void setSignature(String signature);
 }

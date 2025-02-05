@@ -26,6 +26,7 @@ import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.Organization;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -35,8 +36,7 @@ import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.uql.viewsheet.vslayout.AbstractLayout;
 import inetsoft.uql.viewsheet.vslayout.VSAssemblyLayout;
-import inetsoft.util.Catalog;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import inetsoft.util.audit.*;
 import inetsoft.util.log.LogUtil;
 import inetsoft.util.profile.Profile;
@@ -143,6 +143,7 @@ public class ComposerViewsheetController {
                                 CommandDispatcher dispatcher, @LinkUri String linkUri)
       throws Exception
    {
+      String vsOrgID = null;
       ActionRecord actionRecord = SUtil.getActionRecord(principal, ActionRecord.ACTION_NAME_EDIT,
          null, ActionRecord.OBJECT_TYPE_DASHBOARD);
 
@@ -151,6 +152,7 @@ public class ComposerViewsheetController {
          RuntimeViewsheet rvs = vsService.getViewsheet(
             runtimeViewsheetRef.getRuntimeId(), principal);
          AssetEntry entry = rvs.getEntry();
+         vsOrgID = entry != null ? entry.getOrgID() : null;
 
          if(event.confirmed()) {
             rvs.setProperty("mvconfirmed", "true");
@@ -200,6 +202,12 @@ public class ComposerViewsheetController {
          if(actionRecord != null) {
             actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
             actionRecord.setActionError(ex.getMessage());
+         }
+
+         if(ex instanceof MessageException && SUtil.isDefaultVSGloballyVisible()
+               && Tool.equals(vsOrgID, Organization.getDefaultOrganizationID())
+               && !Tool.equals(vsOrgID, ((XPrincipal)principal).getOrgId())) {
+            throw new MessageException(Catalog.getCatalog().getString("deny.access.write.globally.visible"));
          }
 
          throw ex;

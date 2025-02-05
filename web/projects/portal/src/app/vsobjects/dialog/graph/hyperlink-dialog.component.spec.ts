@@ -91,7 +91,8 @@ let createHyperlinkModel: () => HyperlinkDialogModel = () => {
       col: 1,
       fields: [TestUtils.createMockDataRef("id")],
       colName: null,
-      table: true
+      table: true,
+      grayedOutFields: []
    };
 };
 

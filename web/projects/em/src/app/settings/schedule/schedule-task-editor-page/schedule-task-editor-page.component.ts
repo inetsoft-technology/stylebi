@@ -33,6 +33,7 @@ import {
    TimeConditionModel,
    TimeConditionType
 } from "../../../../../../shared/schedule/model/time-condition-model";
+import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.service";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
 import { Tool } from "../../../../../../shared/util/tool";
 import { ContextHelp } from "../../../context-help";
@@ -156,7 +157,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
    constructor(private http: HttpClient, private dialog: MatDialog,
                private router: Router, private route: ActivatedRoute,
                private snackBar: MatSnackBar, formBuilder: UntypedFormBuilder,
-               private pageTitle: PageHeaderService)
+               private pageTitle: PageHeaderService,
+               private timeZoneService: TimeZoneService)
    {
       this.form = formBuilder.group({
          "taskName": ["", [Validators.required, FormValidators.invalidTaskName]]
@@ -177,7 +179,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
                   day: "2-digit",
                   timeZoneName: "long",
                }).slice(4);
-               this.model.timeZoneOptions[0].timeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+               this.model.timeZoneOptions = this.timeZoneService.updateTimeZoneOptions(
+                  this.model.timeZoneOptions, this.model.taskConditionPaneModel.conditions);
 
                let queryParam = GuiTool.getQueryParameters().get("path");
                this.returnPath = queryParam != null ? queryParam[0] : "/";
@@ -296,34 +299,13 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
       this.taskChanged = true;
    }
 
-   /**
-    * Server use the client and server timeZoneOffsets to calculate the right date, and
-    * the timeZoneOffset of Java and JavaScript are the opposite values, so need to
-    * fix the timeZoneOffset for the run once conditions which have not be updated(timeZoneOffset
-    * will be updated when setDate)
-    */
-   getConditionModelsForServer(): ScheduleConditionModel[] {
-      let conditions = Tool.clone(this.model.taskConditionPaneModel.conditions);
-      conditions.filter((v) => {
-         return v.conditionType == "TimeCondition" &&
-            (<TimeConditionModel> v).type == TimeConditionType.AT;
-      })
-      .forEach((cond: TimeConditionModel) => {
-         if(!cond.changed || !!cond.timeZone) {
-            cond.timeZoneOffset = -cond.timeZoneOffset;
-         }
-      });
-
-      return conditions;
-   }
-
    save(): void {
       let taskName: string = this.form.controls["taskName"].value;
 
       const model: ScheduleTaskEditorModel = {
          taskName: taskName,
          oldTaskName: this.model.name,
-         conditions: this.getConditionModelsForServer(),
+         conditions: this.model.taskConditionPaneModel.conditions,
          actions: this.model.taskActionPaneModel.actions,
          options: this.model.taskOptionsPaneModel
       };
@@ -342,6 +324,8 @@ export class ScheduleTaskEditorPageComponent implements OnInit {
          )
          .subscribe((newModel) => {
             this.model = newModel;
+            this.model.timeZoneOptions = this.timeZoneService.updateTimeZoneOptions(
+               this.model.timeZoneOptions, this.model.taskConditionPaneModel.conditions);
             this.updateLists();
             this.originalModel = Tool.clone(this.model);
 

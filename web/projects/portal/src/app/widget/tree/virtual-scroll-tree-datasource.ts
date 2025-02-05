@@ -40,12 +40,12 @@ export class VirtualScrollTreeDatasource {
       this.dispatcher.next(items);
    }
 
-   public refreshByRoot(root: TreeNodeModel, filter?: string) {
-      this.refreshByRoot0(root, filter);
+   public refreshByRoot(root: TreeNodeModel, filter?: string, ignoreNodes?: TreeNodeModel[]) {
+      this.refreshByRoot0(root, filter, false, false, ignoreNodes);
    }
 
    private refreshByRoot0(root: TreeNodeModel, filter?: string, expandOrCollapsedNode?: boolean,
-                          searchMode?: boolean)
+                          searchMode?: boolean, ignoreNodes?: TreeNodeModel[])
    {
       this.originalDispatcherValues = [];
       let searchString = filter == undefined ? this.searchFilter : filter;
@@ -55,11 +55,13 @@ export class VirtualScrollTreeDatasource {
             expandOrCollapsedNode, searchMode);
       }
       else {
-         this.refresh(TreeTool.getFlattenedNodes(root));
+         this.refresh(TreeTool.getFlattenedNodes(root, undefined, ignoreNodes));
       }
    }
 
-   public nodeExpanded(root: TreeNodeModel, expandNode: TreeNodeModel): void {
+   public nodeExpanded(root: TreeNodeModel, expandNode: TreeNodeModel,
+                       ignoreNodes?: TreeNodeModel[]): void
+   {
       if(this.searchMode && this.searchCollapsedValues) {
          let index = this.searchCollapsedValues.indexOf(expandNode);
 
@@ -68,10 +70,12 @@ export class VirtualScrollTreeDatasource {
          }
       }
 
-      this.refreshByRoot0(root, undefined, true, this.searchMode);
+      this.refreshByRoot0(root, undefined, true, this.searchMode, ignoreNodes);
    }
 
-   public nodeCollapsed(root: TreeNodeModel, collapsedNode: TreeNodeModel): void {
+   public nodeCollapsed(root: TreeNodeModel, collapsedNode: TreeNodeModel,
+                        ignoreNodes?: TreeNodeModel[]): void
+   {
       if(!this.searchCollapsedValues) {
          this.searchCollapsedValues = [];
       }
@@ -80,7 +84,7 @@ export class VirtualScrollTreeDatasource {
          this.searchCollapsedValues.push(collapsedNode);
       }
 
-      this.refreshByRoot0(root, undefined, true, this.searchMode);
+      this.refreshByRoot0(root, undefined, true, this.searchMode, ignoreNodes);
    }
 
    public registerScrollContainer(element: HTMLElement): Observable<any[]> {
@@ -169,7 +173,7 @@ export class VirtualScrollTreeDatasource {
    }
 
    private filterValues0(root: TreeNodeModel, str: string, expandOrCollapsedNode?: boolean,
-                         searchMode?: boolean): void
+                         searchMode?: boolean, ignoreNodes?: TreeNodeModel[]): void
    {
       this.searchFilter = str;
 
@@ -180,14 +184,14 @@ export class VirtualScrollTreeDatasource {
       let filterResult = [];
 
       if(!str || !str.trim()) {
-         filterResult = TreeTool.getFlattenedNodes(root);
+         filterResult = TreeTool.getFlattenedNodes(root, undefined, ignoreNodes);
       }
       else {
          if(!expandOrCollapsedNode || !searchMode) {
             this.searchCollapsedValues = [];
          }
 
-         let allNodes = TreeTool.getFlattenedNodes(root, new SearchComparator(str.trim()));
+         let allNodes = TreeTool.getFlattenedNodes(root, new SearchComparator(str.trim()), ignoreNodes);
          let matchFilter = new Set<TreeNodeModel>();
 
          if(allNodes) {

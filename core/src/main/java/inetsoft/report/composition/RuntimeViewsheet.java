@@ -989,14 +989,15 @@ public class RuntimeViewsheet extends RuntimeSheet {
          return;
       }
 
+      Map<String, String> lockedBKMap = new HashMap<>();
+
       for(String name : names) {
          if(checkLock) {
             String lockedUser = getLockedBookmarkUser(name, user);
 
             if(lockedUser != null) {
-               Catalog catalog = Catalog.getCatalog();
-               throw new MessageException(catalog.getString("viewer.viewsheet.bookmark.otherUserLock", name,
-                       lockedUser));
+               lockedBKMap.put(name, lockedUser);
+               continue;
             }
          }
 
@@ -1009,6 +1010,18 @@ public class RuntimeViewsheet extends RuntimeSheet {
       AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
       rep.setVSBookmark(entry, bookmark, new XPrincipal(user));
 
+      if(!lockedBKMap.isEmpty()) {
+         Catalog catalog = Catalog.getCatalog();
+         StringBuilder message = new StringBuilder();
+
+         lockedBKMap.forEach((bkName, lockedUser) -> {
+            String msg = catalog.getString(
+               "viewer.viewsheet.bookmark.otherUserLock", bkName, lockedUser);
+            message.append(msg).append("\n");
+         });
+
+         throw new MessageException(message.toString());
+      }
 
       for(String name : names) {
          // delete the all locks of this bookmark

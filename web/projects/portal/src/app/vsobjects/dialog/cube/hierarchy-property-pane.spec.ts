@@ -69,7 +69,8 @@ let createModel: () => HierarchyPropertyPaneModel = () => {
                path: ""
             }
          }]
-      }]
+      }],
+      grayedOutFields: []
    };
 };
 

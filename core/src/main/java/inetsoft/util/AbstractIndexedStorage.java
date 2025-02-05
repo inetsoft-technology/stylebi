@@ -704,27 +704,24 @@ public abstract class AbstractIndexedStorage implements IndexedStorage {
       byte[] data = null;
       XMLSerializable sheet = null;
       ByteArrayOutputStream output = null;
-      FileInputStream input = null;
+      InputStream input = null;
 
       try {
-         File file = AutoSaveUtils.getAutoSavedFile(entry, user);
+         input = AutoSaveUtils.getInputStream(entry, user);
 
-         if(!file.exists()) {
+         if(input == null) {
             return null;
          }
 
-         if(file.isFile()) {
-            output = new ByteArrayOutputStream();
-            input = new FileInputStream(file);
-            byte[] buffer = new byte[1024];
-            int len;
+         output = new ByteArrayOutputStream();
+         byte[] buffer = new byte[1024];
+         int len;
 
-            while((len = input.read(buffer)) >= 0) {
-               output.write(buffer, 0, len);
-            }
-
-            data = output.toByteArray();
+         while((len = input.read(buffer)) >= 0) {
+            output.write(buffer, 0, len);
          }
+
+         data = output.toByteArray();
 
          if(data != null) {
             // @by ChrisSpagnoli bug1412273657631 #2 2014-10-30

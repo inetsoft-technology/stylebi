@@ -93,6 +93,9 @@ public class MixpanelQuery extends EndpointJsonQuery<MixpanelEndpoint> {
             .pageNumberParamToWrite(PaginationParamType.QUERY, "page")
             .zeroBasedPageIndex(true)
             .maxResultsPerPage(1000)
+            .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.session_id")
+            .pageOffsetParamToWrite(PaginationParamType.QUERY, "session_id")
+            .hasNextParam(PaginationParamType.JSON_PATH, "$.session_id ")
             .build();
       }
       else {

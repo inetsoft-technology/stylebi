@@ -555,6 +555,7 @@ public class QueryManagerService {
       }
       else if("dataType".equals(type)) {
          selection.setType(name, column.getDataType());
+         fixUniformSQLInfo(sql, (JDBCDataSource) query.getDataSource(), ThreadContext.getContextPrincipal());
       }
       else if("drill".equals(type)) {
          XDrillInfo xDrillInfo = DatabaseModelUtil.createXDrillInfo(column.getDrillInfo());

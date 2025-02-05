@@ -1287,7 +1287,7 @@ public class RepletRegistry implements Serializable {
       protected String getRegistryDir() {
          IdentityID userID = IdentityID.getIdentityIDFromKey(getUser());
          return "portal" + File.separator + userID.orgID + File.separator + userID.name + File.separator +
-            "myreport" + File.separator;
+            "my dashboard" + File.separator;
       }
 
       @Override

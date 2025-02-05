@@ -153,7 +153,7 @@ public class GroupingAssemblyDialogController extends WorksheetController {
       }
 
       result = AssetTreeController.convertToTreeNodeModel(
-         atmNode, catalog, GroupingAssemblyDialogController::isLeaf, sqlEnabled);
+         atmNode, catalog, GroupingAssemblyDialogController::isLeaf, sqlEnabled, principal);
       return result;
    }
 

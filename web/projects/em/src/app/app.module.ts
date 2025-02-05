@@ -31,6 +31,7 @@ import { MatTableModule } from "@angular/material/table";
 import { MatToolbarModule } from "@angular/material/toolbar";
 import { BrowserModule, HammerModule } from "@angular/platform-browser";
 import { BrowserAnimationsModule } from "@angular/platform-browser/animations";
+import { EmClientInterceptor } from "../../../portal/src/app/common/services/emclient-interceptor";
 import { HttpParamsCodecInterceptor } from "../../../portal/src/app/common/services/http-params-codec-interceptor";
 import { RequestedWithInterceptor } from "../../../portal/src/app/common/services/requested-with-interceptor";
 import { DownloadModule } from "../../../shared/download/download.module";
@@ -57,6 +58,7 @@ export const httpInterceptorProviders = [
    {provide: HTTP_INTERCEPTORS, useClass: HttpParamsCodecInterceptor, multi: true},
    {provide: HTTP_INTERCEPTORS, useClass: RequestedWithInterceptor, multi: true},
    {provide: HTTP_INTERCEPTORS, useClass: InvalidSessionInterceptor, multi: true},
+   {provide: HTTP_INTERCEPTORS, useClass: EmClientInterceptor, multi: true},
    {provide: HTTP_INTERCEPTORS, useClass: SsoHeartbeatInterceptor, multi: true}
 ];
 

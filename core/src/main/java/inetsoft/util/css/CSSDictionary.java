@@ -195,7 +195,7 @@ public class CSSDictionary {
             long lastModified = getLastModified(cssDir, cssFile, isReport);
             dictionary.lastCheck = now;
 
-            if(lastModified != dictionary.getLastModifiedTime()) {
+            if(lastModified != dictionary.ts) {
                dictionary = null;
                map.remove(key);
             }
@@ -244,6 +244,26 @@ public class CSSDictionary {
       }
 
       return dictionary;
+   }
+
+   public static long getOrgScopedCSSLastModified(CSSDictionary dict) {
+      if(dict == null) {
+         return System.currentTimeMillis();
+      }
+
+      Map<String, String> cssEntries = PortalThemesManager.getManager().getCssEntries();
+      String orgFile = cssEntries.get(OrganizationManager.getInstance().getCurrentOrgID());
+      List<String> otherFiles = new ArrayList<>();
+      otherFiles.add(orgFile);
+
+      if(!Tool.equals(otherFiles, dict.otherFiles)) {
+         return System.currentTimeMillis();
+      }
+
+      long orgLastModified = getLastModified(dict.cssDir, orgFile, false);
+      long globalLastModified = getLastModified(dict.cssDir, "format.css", false);
+
+      return Math.max(orgLastModified, globalLastModified);
    }
 
    // get css file last modified time
@@ -982,13 +1002,6 @@ public class CSSDictionary {
       css = null;
       styleCache.clear();
       selectorPresentCache.clear();
-   }
-
-   /**
-    * Get last modified timestamp.
-    */
-   public long getLastModifiedTime() {
-      return ts;
    }
 
    /**

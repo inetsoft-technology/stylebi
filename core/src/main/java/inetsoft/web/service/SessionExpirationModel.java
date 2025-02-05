@@ -31,8 +31,9 @@ public interface SessionExpirationModel {
    @Nullable
    Long remainingTime();
 
-   @Nullable
-   Long sessionTimeout();
+   boolean expiringSoon();
+
+   boolean nodeProtection();
 
    public static SessionExpirationModel.Builder builder() {
       return new SessionExpirationModel.Builder();

@@ -25,7 +25,9 @@ import inetsoft.sree.SreeEnv;
 import java.util.Map;
 
 @View(vertical = true, value = {
-   @View1("endpoint"),
+   @View1(value = "endpoint", affectedViews = {
+      "linkParamType"
+   }),
    @View1(type = ViewType.PANEL, align = ViewAlign.LEFT, visibleMethod = "isCustomEndpoint",
       elements = {
          @View2(value = "templateEndpt"),

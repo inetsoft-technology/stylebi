@@ -23,7 +23,7 @@ import inetsoft.uql.jdbc.JDBCDataSource;
 
 public class MemSQLDataSourceListing extends DataSourceListing {
    public MemSQLDataSourceListing() {
-      super("MemSQL", "Relational Database", "/inetsoft/uql/listing/memsql.svg");
+      super("SingleStore", "Relational Database", "/inetsoft/uql/listing/memsql.svg");
    }
 
    @Override

@@ -23,8 +23,6 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.*;
 import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.Tool;
-import inetsoft.util.config.AuditConfig;
-import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.log.LogManager;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -37,7 +35,8 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.IOException;
 import java.security.Principal;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.ZipOutputStream;
 
 @Service
@@ -119,7 +118,7 @@ public class LogMonitoringService implements MessageListener {
          selectedLog = logFiles.isEmpty() ? null : logFiles.getFirst();
       }
 
-      for(String clusterNode : cluster.getClusterNodes()) {
+      for(String clusterNode : cluster.getClusterNodes(false)) {
          if(!clusterNode.equals(cluster.getLocalMember())) {
             try {
                GetLogFilesResponse response = cluster.exchangeMessages(

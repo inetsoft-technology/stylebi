@@ -104,7 +104,7 @@ public class VariableInputDialogController extends WorksheetController {
             // VariableInputDialog already call splitValue() for oneOf, which handles quoted
             // strings. so just use the value (array) as is. otherwise a quote string containing
             // comma will be split again in Tool.convertParameter(). (64030)
-            Object varValue = values.length == 1 && !usedInOneOf ? values[0] : values;
+            Object varValue = values.length == 1 ? values[0] : values;
             vtable.setAsIs(vname, usedInOneOf && values.getClass().isArray());
             vtable.put(vname, varValue);
 

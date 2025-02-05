@@ -44,6 +44,14 @@ public class SortColumnEditorModel {
       this.aliasMap = aliasMap;
    }
 
+   public Map<String, String> getCaptionMap() {
+      return captionMap;
+   }
+
+   public void setCaptionMap(Map<String, String> captionMap) {
+      this.captionMap = captionMap;
+   }
+
    public String[] getSelectedColumns() {
       return selectedColumns;
    }
@@ -79,6 +87,7 @@ public class SortColumnEditorModel {
    private String[] availableColumns;
    private String[] columnDescriptions;
    private Map<String, String> aliasMap;
+   private Map<String, String> captionMap;
    private String[] selectedColumns;
    private int[] orders;
    private String[] originalNames;

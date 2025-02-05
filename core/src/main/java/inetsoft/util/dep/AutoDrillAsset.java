@@ -56,7 +56,7 @@ public interface AutoDrillAsset extends XAsset {
             String desc = generateDescription(catalog, fromDesc,
                catalog.getString("common.xasset.viewsheet", entry.getPath()));
             dependencies.add(new XAssetDependency(new ViewsheetAsset(entry), this,
-                                                  XAssetDependency.XLOGICALMODEL_DRILL_XQUERY, desc));
+                                                  XAssetDependency.VIEWSHEET_LINK, desc));
          }
       }
    }

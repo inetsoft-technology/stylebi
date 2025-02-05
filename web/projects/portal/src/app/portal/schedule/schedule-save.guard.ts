@@ -40,43 +40,31 @@ export class ScheduleSaveGuard implements CanDeactivate<ScheduleTaskEditorCompon
                  nextState?: RouterStateSnapshot): Observable<boolean>
    {
       let result: Observable<boolean>;
-      this.clearZoneForRangeCondition(component.originalModel);
-      this.clearZoneForRangeCondition(component.model);
 
-      if(component.originalModel && component.model &&
-         !Tool.isEquals(component.originalModel, component.model))
-      {
-         const subject = new Subject<boolean>();
-         result = subject.asObservable();
-         ComponentTool.showConfirmDialog(this.modalService, "_#(js:portal.schedule.tastchanged)",
-            "_#(js:portal.schedule.unsave.confirm)").then(
-            (response) => {
-               subject.next(response === "ok");
-               subject.complete();
-            },
-            (error) => subject.error(error)
-         );
+      if(component.originalModel && component.model) {
+         const omodel = Tool.clone(component.originalModel);
+         const nmodel = Tool.clone(component.model);
+
+         if(!Tool.isEquals(omodel, nmodel)) {
+            const subject = new Subject<boolean>();
+            result = subject.asObservable();
+            ComponentTool.showConfirmDialog(this.modalService, "_#(js:portal.schedule.tastchanged)",
+               "_#(js:portal.schedule.unsave.confirm)").then(
+               (response) => {
+                  subject.next(response === "ok");
+                  subject.complete();
+               },
+               (error) => subject.error(error)
+            );
+         }
+         else {
+            result = observableOf(true);
+         }
       }
       else {
          result = observableOf(true);
       }
 
       return result;
-   }
-
-   clearZoneForRangeCondition(model: ScheduleTaskDialogModel) {
-      if(model == null || model.taskConditionPaneModel == null ||
-         model.taskConditionPaneModel.conditions == null)
-      {
-         return;
-      }
-
-      for(let i = 0; i < model.taskConditionPaneModel.conditions.length; i++) {
-         let cond: ScheduleConditionModel = model.taskConditionPaneModel.conditions[i];
-
-         if(cond.conditionType == "TimeCondition") {
-            (<TimeConditionModel>cond).timeZone = null;
-         }
-      }
    }
 }

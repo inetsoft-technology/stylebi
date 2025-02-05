@@ -108,8 +108,8 @@ public class PipedriveQuery extends EndpointJsonQuery<PipedriveEndpoint> {
       if(endpoint.isPaged()) {
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.ITERATION)
-            .hasNextParam(PaginationParamType.JSON_PATH, "$.additional_data.more_items_in_collection")
-            .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.additional_data.next_start")
+            .hasNextParam(PaginationParamType.JSON_PATH, "$.additional_data.pagination.more_items_in_collection")
+            .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.additional_data.pagination.next_start")
             .pageOffsetParamToWrite(PaginationParamType.QUERY, "start")
             .maxResultsPerPageParam(PaginationParamType.QUERY, "limit")
             .maxResultsPerPage(500)

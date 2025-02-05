@@ -75,8 +75,9 @@ class ImagePropertyDialogControllerTest {
       controller = new ImagePropertyDialogController(vsObjectPropertyService,
                                                      vsOutputService, runtimeViewsheetRef,
                                                      viewsheetEngine,
-                                                     dialogService, 
-                                                     trapService);
+                                                     dialogService,
+                                                     trapService,
+                                                     infoHandler);
    }
 
    @Test

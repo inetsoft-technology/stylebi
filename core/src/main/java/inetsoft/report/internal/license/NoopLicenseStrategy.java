@@ -182,15 +182,6 @@ public class NoopLicenseStrategy extends LicenseStrategy {
    }
 
    @Override
-   public boolean startHostedSession(String orgId, String user) {
-      return false;
-   }
-
-   @Override
-   public void stopHostedSession(String orgId, String user) {
-   }
-
-   @Override
    public int getHostedRemainingHours(String orgId, String user) {
       return 0;
    }

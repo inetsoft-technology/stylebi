@@ -243,10 +243,6 @@ public abstract class LicenseStrategy implements AutoCloseable, MessageListener 
 
    public abstract int getElasticGraceHours();
 
-   public abstract boolean startHostedSession(String orgId, String user);
-
-   public abstract void stopHostedSession(String orgId, String user);
-
    public abstract int getHostedRemainingHours(String orgId, String user);
 
    public abstract int getHostedGraceHours(String orgId, String user);

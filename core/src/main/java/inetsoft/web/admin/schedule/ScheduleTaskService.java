@@ -29,6 +29,7 @@ import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetRepository;
 import inetsoft.uql.util.*;
 import inetsoft.uql.viewsheet.FileFormatInfo;
+import inetsoft.uql.viewsheet.VSBookmarkInfo;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
@@ -288,7 +289,7 @@ public class ScheduleTaskService {
    private NameLabelTuple createTaskTuple(ScheduleTask task) {
       return NameLabelTuple.builder()
          .name(task.getTaskId())
-         .label(task.toView(SecurityEngine.getSecurity().isSecurityEnabled()))
+         .label(task.toView(SecurityEngine.getSecurity().isSecurityEnabled(), true))
          .build();
    }
 
@@ -784,14 +785,34 @@ public class ScheduleTaskService {
       IdentityID modelID = getIdentityId(model.idName(), principal);
 
       //handle vs bookmark when executer has changed.
-      if(modelID == null && oldIdentity != null
-         && oldIdentityID != null
-         || modelID != null && (oldIdentityID == null
-         || !modelID.equals(oldIdentityID)))
+      if((modelID == null && oldIdentity != null && oldIdentityID != null
+         || modelID != null && (oldIdentityID == null || !modelID.equals(oldIdentityID))))
       {
          for(int i = 0; i < task.getActionCount(); i++) {
             if(task.getAction(i) instanceof ViewsheetAction) {
-               ((ViewsheetAction) task.getAction(i)).clearBookmarks();
+               ViewsheetAction action = (ViewsheetAction) task.getAction(i);
+               boolean groupShare = ScheduleManager.hasShareGroupPermission(modelID, principal);
+
+               List<String> bookmarkList = new ArrayList<>();
+               List<IdentityID> bookmarkUserList = new ArrayList<>();
+               List<Integer> bookmarkTypeList = new ArrayList<>();
+               String[] bookmarks = action.getBookmarks();
+               int[] bookmarkTypes = action.getBookmarkTypes();
+               IdentityID[] bookmarkUsers = action.getBookmarkUsers();
+
+               for(int j = 0; j < bookmarkTypes.length; j++) {
+                  if(bookmarkTypes[j] == VSBookmarkInfo.ALLSHARE ||
+                     (bookmarkTypes[j] != VSBookmarkInfo.GROUPSHARE && groupShare))
+                  {
+                     bookmarkList.add(bookmarks[j]);
+                     bookmarkUserList.add(bookmarkUsers[j]);
+                     bookmarkTypeList.add(bookmarkTypes[j]);
+                  }
+               }
+
+               action.setBookmarkTypes(bookmarkTypeList.stream().mapToInt(Integer::intValue).toArray());
+               action.setBookmarkUsers(bookmarkUserList.toArray(IdentityID[]::new));
+               action.setBookmarks(bookmarkList.toArray(String[]::new));
             }
          }
       }

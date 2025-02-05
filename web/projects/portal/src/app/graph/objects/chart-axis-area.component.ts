@@ -78,6 +78,7 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
    @Output() scrollAxis: EventEmitter<any> = new EventEmitter<any>();
    @Output() sendFlyover = new EventEmitter<FlyoverInfo>();
    @Output() showDataTip = new EventEmitter<ChartSelection>();
+   @Output() onLoading = new EventEmitter<void>();
    @Output() onLoad = new EventEmitter<boolean>();
    @ViewChild("axisArea") axisArea: ElementRef;
    private mouseUpResizeListener: () => void;
@@ -700,8 +701,37 @@ export class ChartAxisArea extends ChartObjectAreaBase<Axis> implements OnChange
       return this.chartObject.layoutBounds.width;
    }
 
+   loading(tile: ChartTile): void {
+      tile.loaded = false;
+      this.fireOnLoading();
+   }
+
    loaded(status: boolean, tile: ChartTile) {
       if(this.isTileVisible(tile)) {
+         tile.loaded = true;
+         this.fireOnLoad(status);
+      }
+   }
+
+   private fireOnLoading(): void {
+      for(const tile of this.chartObject.tiles) {
+         if(this.isTileVisible(tile) && !(tile as any).loaded) {
+            this.onLoading.emit();
+            break;
+         }
+      }
+   }
+
+   private fireOnLoad(status: boolean): void {
+      let load_done = true;
+
+      for(const tile of this.chartObject.tiles) {
+         if(this.isTileVisible(tile) && !(tile as any).loaded) {
+            load_done = false;
+         }
+      }
+
+      if(load_done) {
          this.onLoad.emit(status);
       }
    }

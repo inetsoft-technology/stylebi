@@ -38,6 +38,7 @@ public interface TabularOAuthParams {
    @Nullable String authorizationUri();
    @Nullable String tokenUri();
    @Nullable Set<String> flags();
+   @Nullable String error();
 
    static Builder builder() {
       return new Builder();

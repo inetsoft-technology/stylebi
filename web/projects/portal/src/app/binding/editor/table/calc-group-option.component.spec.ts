@@ -30,6 +30,7 @@ import { XSchema } from "../../../common/data/xschema";
 import { TestUtils } from "../../../common/test/test-utils";
 import { StyleConstants } from "../../../common/util/style-constants";
 import { XConstants } from "../../../common/util/xconstants";
+import { FixedDropdownComponent } from "../../../widget/fixed-dropdown/fixed-dropdown.component";
 import { CellBindingInfo } from "../../data/table/cell-binding-info";
 import { OrderModel } from "../../data/table/order-model";
 import { TopNModel } from "../../data/table/topn-model";

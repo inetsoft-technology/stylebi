@@ -42,7 +42,7 @@
                                [asTree]="model.logicalModel"
                                (typeChange)="selectColType($event)"
                                [initSelectedNodesExpanded]="true"
-                               [showTooltip]="true">
+                               [showTooltip]="true" [grayedOutValues]="grayedOutValues">
             </dynamic-combo-box>
             <label>_#(Column)</label>
           </div>
@@ -65,7 +65,7 @@
           <div class="form-row-float-label row">
             <div class="col">
               <div class="form-floating">
-                <dynamic-combo-box id="with" [asTree]="model.logicalModel"
+                <dynamic-combo-box id="with" [asTree]="model.logicalModel" [grayedOutValues]="grayedOutValues"
                     [values]="withColumnValues" [variables]="variableValues"
                     [(value)]="model.with" [initSelectedNodesExpanded]="true"
                     [disable]="withDisabled()" [vsId]="runtimeId">

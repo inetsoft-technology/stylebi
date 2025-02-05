@@ -39,6 +39,7 @@ import { FixedDropdownDirective } from "../../../../widget/fixed-dropdown/fixed-
 @Directive()
 export abstract class AestheticFieldMc implements OnInit, OnChanges {
    @Input() vsId: string;
+   @Input() assetId: string;
    @Input() assemblyName: string;
    @Input() objectType: string;
    @Input() aggr: ChartAggregateRef;

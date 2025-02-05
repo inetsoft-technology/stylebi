@@ -35,7 +35,6 @@ import {
 import { Router } from "@angular/router";
 import { NgbModal, NgbModalOptions, NgbModalRef } from "@ng-bootstrap/ng-bootstrap";
 import { Subscription } from "rxjs";
-import { KEY_DELIMITER } from "../../../../../em/src/app/settings/security/users/identity-id";
 import { AssetEntry, createAssetEntry } from "../../../../../shared/data/asset-entry";
 import { AssetType } from "../../../../../shared/data/asset-type";
 import { Tool } from "../../../../../shared/util/tool";
@@ -161,7 +160,7 @@ const SAVE_VIEWSHEET_DIALOG_SOCKET_URI = "/events/composer/vs/save-viewsheet-dia
 const SAVE_VIEWSHEET_DIALOG_AND_CLOSE_SOCKET_URI = "/events/composer/vs/save-viewsheet-dialog-model/save-and-close";
 const UPDATE_FORMAT_URI = "/events/composer/viewsheet/format";
 const VIEWSHEET_PROPERTY_URI = "composer/vs/viewsheet-property-dialog-model";
-const COMPOSER_WIZARD_STATUS_URI: string = "../api/composer/wizard/status";
+
 const VIEWSHEET_CHECK_DEPEND_CHANGED_URI = "../api/composer/viewsheet/checkDependChanged";
 const WORKSHEET_CHECK_DEPEND_CHANGED_URI = "../api/composer/worksheet/checkDependChanged";
 const VIEWSHEET_RECYCLE_AUTO_SAVE_FILE = "../api/composer/viewsheet/recycleAutoSave";
@@ -266,7 +265,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
       wizardOriginalInfo: null
    };
    principal: string;
-   currOrgID: string = null;
    securityEnabled: boolean;
    viewsheetPermission: boolean;
    worksheetPermission: boolean;
@@ -357,8 +355,6 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
          this.queryParameters = linkModel.queryParameters;
          this.showLinkVSInTab(linkModel.id);
       }));
-
-      this.http.get<string>("../api/em/navbar/organization").subscribe((org)=>{this.currOrgID = org;});
    }
 
    ngOnInit(): void {
@@ -2119,24 +2115,8 @@ export class ComposerMainComponent implements OnInit, OnDestroy, AfterViewInit {
 
       const entry = createAssetEntry(sheet.id);
       this.defaultFolder = entry ? AssetEntryHelper.getParent(entry) : null;
-
-      if(this.currOrgID == "SELF" && entry.organization == "host-org") {
-         let idx = this.principal.lastIndexOf(KEY_DELIMITER);
-         let ownerName = idx != -1 ? this.principal.substring(0, idx) : this.principal;
-
-         this.defaultFolder = {
-            scope: 4,
-            type: AssetType.FOLDER,
-            user: ownerName,
-            path: "/",
-            organization: "SELF",
-            alias: null,
-            identifier: null,
-            properties: {}
-         };
-      }
-
       sheet.onSave();
+
       this.modelService.getModel(modelUri).toPromise().then(
          (data: any) => {
             this.saveViewsheetModel = <SaveViewsheetDialogModel>data;

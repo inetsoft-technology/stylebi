@@ -108,7 +108,7 @@ public class WordPressQuery extends EndpointJsonQuery<WordPressEndpoint> {
       if(endpoint.isPaged()) {
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.TOTAL_COUNT_AND_OFFSET)
-            .totalCountParam(PaginationParamType.HEADER, "X-WP-Total")
+            .totalCountParam(PaginationParamType.JSON_PATH, "$.found")
             .offsetParam(PaginationParamType.QUERY, "offset")
             .maxResultsPerPageParam(PaginationParamType.QUERY, "number")
             .maxResultsPerPage(20)

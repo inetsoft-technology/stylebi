@@ -54,10 +54,6 @@ public class LayoutGraphController extends WorksheetController {
 
       mxGraph graph = new mxGraph();
       Object parent = graph.getDefaultParent();
-
-      //set parent position
-      graph.getModel().setGeometry(parent, new mxGeometry());
-
       Map<String, Object> vertices = new HashMap<>();
       graph.getModel().beginUpdate();
 
@@ -86,6 +82,7 @@ public class LayoutGraphController extends WorksheetController {
 
       mxHierarchicalLayout layout = new mxHierarchicalLayout(graph, SwingConstants.NORTH);
       layout.execute(parent);
+      adjustNodesPositionToPositive(graph, vertices);
 
       double[] tops = new double[event.names().length];
       double[] lefts = new double[event.names().length];
@@ -107,5 +104,46 @@ public class LayoutGraphController extends WorksheetController {
       command.setTops(tops);
       command.setLefts(lefts);
       commandDispatcher.sendCommand(command);
+   }
+
+   private void adjustNodesPositionToPositive(mxGraph graph, Map<String, Object> vertices) {
+      double minX = Double.MAX_VALUE;
+      double minY = Double.MAX_VALUE;
+
+      for(Object vertex : vertices.values()) {
+         mxGeometry geometry = graph.getModel().getGeometry(vertex);
+
+         if(geometry == null) {
+            continue;
+         }
+
+         if(geometry.getX() < 0 && geometry.getX() < minX) {
+            minX = geometry.getX();
+         }
+
+         if(geometry.getY() < 0 && geometry.getY() < minY) {
+            minY = geometry.getY();
+         }
+      }
+
+      if(minX >= 0 && minY >= 0) {
+         return;
+      }
+
+      for(Object vertex : vertices.values()) {
+         mxGeometry geometry = graph.getModel().getGeometry(vertex);
+
+         if(geometry == null) {
+            continue;
+         }
+
+         if(minX < 0) {
+            geometry.setX(geometry.getX() - minX);
+         }
+
+         if(minY < 0) {
+            geometry.setY(geometry.getY() - minY);
+         }
+      }
    }
 }

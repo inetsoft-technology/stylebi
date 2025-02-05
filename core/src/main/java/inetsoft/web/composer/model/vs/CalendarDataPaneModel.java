@@ -18,6 +18,7 @@
 package inetsoft.web.composer.model.vs;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import inetsoft.web.binding.drm.DataRefModel;
 import inetsoft.web.composer.model.TreeNodeModel;
 
 import java.util.List;
@@ -56,8 +57,18 @@ public class CalendarDataPaneModel {
       this.targetTree = targetTree;
    }
 
+   public DataRefModel[] getGrayedOutFields() {
+      return grayedOutFields;
+   }
+
+   public void setGrayedOutFields(DataRefModel[] grayedOutFields) {
+      this.grayedOutFields = grayedOutFields;
+   }
+
    private OutputColumnRefModel selectedColumn;
    private String selectedTable;
    private List<String> additionalTables;
    private TreeNodeModel targetTree;
+
+   private DataRefModel[] grayedOutFields;
 }

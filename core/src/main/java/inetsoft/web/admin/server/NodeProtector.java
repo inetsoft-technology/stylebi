@@ -20,5 +20,10 @@ package inetsoft.web.admin.server;
 
 public interface NodeProtector extends AutoCloseable {
    void updateNodeProtection(boolean enabled);
+
    boolean getNodeProtection();
+
+   default long getExpirationTime() {
+      return 0;
+   }
 }

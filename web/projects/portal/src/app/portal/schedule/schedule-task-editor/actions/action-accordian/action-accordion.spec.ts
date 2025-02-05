@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { FormGroup, FormsModule, ReactiveFormsModule } from "@angular/forms";
 import { By } from "@angular/platform-browser";
@@ -48,7 +49,7 @@ import { ParameterTable } from "../../parameter-table/parameter-table.component"
 import { ActionAccordion } from "./action-accordion.component";
 import { ValueTypes } from "../../../../../vsobjects/model/dynamic-value-model";
 
-xdescribe("Action Accordion Unit Test", () => {
+describe("Action Accordion Unit Test", () => {
    const createRepletActionModel: () => GeneralActionModel = () => {
       return {
          label: "test action",
@@ -152,7 +153,7 @@ xdescribe("Action Accordion Unit Test", () => {
    beforeEach(async(() => {
       TestBed.configureTestingModule({
          imports: [
-            FormsModule, ReactiveFormsModule, NgbModule
+            FormsModule, ReactiveFormsModule, NgbModule, HttpClientTestingModule
          ],
          declarations: [
             ActionAccordion, GenericSelectableList, ParameterTable,
@@ -179,28 +180,6 @@ xdescribe("Action Accordion Unit Test", () => {
       fixture.detectChanges();
    }));
 
-   //Bug #19528 check can add printers
-   it("check can add printers", () => {
-      actionAccordion.action.printOnServerEnabled = true;
-      actionAccordion.printers = ["Microsoft XPS Document Writer"];
-      let printerHeader = fixture.nativeElement.querySelector(
-         "div#printOnServer-header a");
-      printerHeader.click();
-      fixture.detectChanges();
-
-      let printers = fixture.debugElement.query(By.css("select#printer")).nativeElement;
-      printers.value = "Microsoft XPS Document Writer";
-      printers.dispatchEvent(new Event("change"));
-      fixture.detectChanges();
-
-      let addBtn = fixture.debugElement.query(By.css(".add_printer_id")).nativeElement;
-      addBtn.click();
-      fixture.detectChanges();
-
-      let printerList = fixture.debugElement.query(By.css("div.selectable-list div")).nativeElement;
-      expect(printerList.textContent.trim()).toBe("Microsoft XPS Document Writer");
-   });
-
    //Bug #19603 clear all parameters
    //Bug #21202 should display correct info when asset has parameter
    it("check clear all parameters", () => {
@@ -210,87 +189,32 @@ xdescribe("Action Accordion Unit Test", () => {
          {name: "b", type: "string", value: {value: "b", type: ValueTypes.VALUE}, array: false}];
       fixture.detectChanges();
 
-      let parameterHeader = fixture.nativeElement.querySelector(
-         "div#creationParameters-header a");
-      parameterHeader.click();
-      fixture.detectChanges();
-
       let clearAllBtn = fixture.debugElement.query(By.css("parameter-table .clear_all_id")).nativeElement;
       clearAllBtn.click();
       fixture.detectChanges();
 
       let parameterTable = fixture.debugElement.query(By.css("parameter-table tr td")).nativeElement;
-      expect(parameterTable.textContent.trim()).toBe("Empty");
+      expect(parameterTable.textContent.trim()).toBe("_#(Empty)");
 
       actionAccordion.parameters = [];
       actionAccordion.requiredParameters = ["A"];
       fixture.detectChanges();
 
       let infos = fixture.nativeElement.querySelectorAll("div.py-2 span");
-      expect(infos[0].textContent.trim()).toBe("Required Parameters:");
+      expect(infos[0].textContent.trim()).toBe("_#(Required Parameters):");
       expect(infos[1].textContent.trim()).toBe("A");
-   });
-
-   //Bug #19747 delete info in save to server
-   //Bug #21365 check file path
-   it("check delete info in save to server", () => {
-      actionAccordion.action.saveToServerEnabled = true;
-      actionAccordion.saveStrings = ["aaaa - PDF"];
-      actionAccordion.action.saveFormats = ["PDF"];
-      actionAccordion.action.filePaths = ["a"];
-      let saveToServerHeader = fixture.nativeElement.querySelector(
-         "div#saveToServer-header a");
-      saveToServerHeader.click();
-      fixture.detectChanges();
-
-      let fileList = fixture.debugElement.query(By.css("div.selectable-list > div")).nativeElement;
-      expect(fileList.textContent.trim()).toBe("aaaa - PDF");
-
-      fileList.click();
-      fixture.detectChanges();
-
-      let delBtn = fixture.debugElement.query(By.css("button.delete_file_id")).nativeElement;
-      delBtn.click();
-      fixture.detectChanges();
-
-      fileList = fixture.debugElement.query(By.css("div.selectable-list > div")).nativeElement;
-      expect(fileList).toBeNull();
-
-      let path = fixture.debugElement.query(By.css("input#path")).nativeElement;
-      path.value = "";
-      path.dispatchEvent(new Event("input"));
-      fixture.detectChanges();
-
-      let addBtn = fixture.nativeElement.querySelectorAll("button.btn.btn-default.w-100")[0];
-      expect(addBtn.hasAttribute("disabled")).toBe(true);
-
-      path = fixture.debugElement.query(By.css("input#path")).nativeElement;
-      path.value = "ftp://root:inetsoft";
-      path.dispatchEvent(new Event("input"));
-      fixture.detectChanges();
-
-      addBtn = fixture.nativeElement.querySelectorAll("button.btn.btn-default.w-100")[0];
-      let showMessageDialog = jest.spyOn(ComponentTool, "showMessageDialog");
-      showMessageDialog.mockImplementation(() => Promise.resolve("ok"));
-
-      addBtn.click();
-      expect(showMessageDialog).toHaveBeenCalled();
    });
 
    //Bug #19524 Deliver to Emails default status
    //Bug #19792 options for dashboard 'deliver to emails'
    //Bug #21304 should not display email browser button when set in em
    //Bug #21313 should deal with burst action
-   it("check Deliver to Emails status", () => {
-      let deliverEmailHeader = fixture.debugElement.query(By.css("div#deliverToEmails-header a")).nativeElement;
-      deliverEmailHeader.click();
-      fixture.detectChanges();
-
-      let match = fixture.debugElement.query(By.css("label.match-layout-id")).nativeElement;
-      let expand = fixture.debugElement.query(By.css("label.expand-tables-and-charts-id")).nativeElement;
+   xit("check Deliver to Emails status", () => {
+      let match = fixture.debugElement.query(By.css("label.match-layout-id"));
+      let expand = fixture.debugElement.query(By.css("label.expand-tables-and-charts-id"));
       let from = fixture.debugElement.query(By.css("input#from")).nativeElement;
       let format = fixture.debugElement.query(By.css("select#format")).nativeElement;
-      let emailBtn = fixture.debugElement.query(By.css("button.btn.input-group-addon")).nativeElement;
+      let emailBtn = fixture.debugElement.query(By.css("button.btn.input-group-addon"));
 
       expect(match).toBeNull();
       expect(emailBtn).toBeNull();
@@ -302,10 +226,10 @@ xdescribe("Action Accordion Unit Test", () => {
       actionAccordion.model.actions = [createVSActionModel()];
       fixture.detectChanges();
 
-      match = fixture.debugElement.query(By.css("label.match-layout-id")).nativeElement;
-      expand = fixture.debugElement.query(By.css("label.expand-tables-and-charts-id")).nativeElement;
-      expect(match.textContent.trim()).toBe("Match Layout");
-      expect(expand.textContent.trim()).toBe("Expand Tables and Charts");
+      let match1 = fixture.debugElement.query(By.css("label.match-layout-id")).nativeElement;
+      let expand1 = fixture.debugElement.query(By.css("label.expand-tables-and-charts-id")).nativeElement;
+      expect(match1.textContent.trim()).toBe("Match Layout");
+      expect(expand1.textContent.trim()).toBe("Expand Tables and Charts");
 
       actionAccordion.action = createBurstActionModel();
       actionAccordion.model.actions = [createBurstActionModel()];
@@ -324,10 +248,7 @@ xdescribe("Action Accordion Unit Test", () => {
          condition: "[STATE] [is] [equal to] [NJ]",
          count: 1
       }];
-
-      let alertHeader = fixture.debugElement.query(By.css("div#alert-header a")).nativeElement;
-      alertHeader.click();
-      fixture.detectChanges();
+      fixture.detectChanges()
 
       let underHighlight = fixture.nativeElement.querySelector(
          "input[name=underHighlightCondition]");

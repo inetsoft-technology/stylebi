@@ -43,8 +43,7 @@ import inetsoft.util.log.LogContext;
 import inetsoft.util.log.LogLevel;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.graph.GraphBuilder;
-import inetsoft.web.viewsheet.ExecutionMonitoring;
-import inetsoft.web.viewsheet.HandleAssetExceptions;
+import inetsoft.web.viewsheet.*;
 import inetsoft.web.viewsheet.command.SetChartAreasCommand;
 import inetsoft.web.viewsheet.event.chart.VSChartEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -73,8 +72,10 @@ public class VSChartAreasController {
    @MessageMapping("/vschart/areas")
    @ExecutionMonitoring
    @HandleAssetExceptions
-   public void getChartAreas(@Payload VSChartEvent event, CommandDispatcher dispatcher,
-                             Principal principal) throws Exception
+   @SwitchOrg
+   public void getChartAreas(@OrganizationID("getOrgId()") @Payload VSChartEvent event,
+                             CommandDispatcher dispatcher, Principal principal)
+      throws Exception
    {
       refreshChartAreasModel(event,viewsheetService, runtimeViewsheetRef, dispatcher, principal);
    }

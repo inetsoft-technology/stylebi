@@ -16,6 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Input, Output, ViewChild } from "@angular/core";
+import { DataRef } from "../../common/data/data-ref";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
 import { GuiTool } from "../../common/util/gui-tool";
 import { TreeComponent } from "../../widget/tree/tree.component";
@@ -26,6 +27,7 @@ import { TreeComponent } from "../../widget/tree/tree.component";
 })
 export class AddFilterDialog {
    @Input() model: TreeNodeModel;
+   @Input() grayedOutFields: DataRef[];
    @Output() onCommit = new EventEmitter<TreeNodeModel[]>();
    @Output() onCancel = new EventEmitter<string>();
    @ViewChild(TreeComponent) tree: TreeComponent;

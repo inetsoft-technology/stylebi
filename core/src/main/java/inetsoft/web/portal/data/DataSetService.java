@@ -492,7 +492,7 @@ public class DataSetService {
          .modifiedDateLabel(modifiedDateLabel)
          .editable(editable)
          .deletable(deletable)
-         .materialized(AssetTreeController.getMaterialized(entry))
+         .materialized(AssetTreeController.getMaterialized(entry, principal))
          .canMaterialize(canMaterialize)
          .parentPath(parentPath)
          .hasSubFolder(hasSubDataSetFolder(entry, movingFolders, principal))

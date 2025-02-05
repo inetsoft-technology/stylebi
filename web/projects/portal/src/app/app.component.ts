@@ -25,6 +25,7 @@ import { StompClientConnection } from "../../../shared/stomp/stomp-client-connec
 import { StompClientService } from "../../../shared/stomp/stomp-client.service";
 import { LogoutService } from "../../../shared/util/logout.service";
 import { SessionExpirationModel } from "../../../shared/util/model/session-expiration-model";
+import { CloudLicenseState } from "../../../shared/util/security/cloud-license-state";
 import { ComponentTool } from "./common/util/component-tool";
 import { SessionExpirationDialog } from "./widget/dialog/session-expiration-dialog/session-expiration-dialog.component";
 import { NotificationsComponent } from "./widget/notifications/notifications.component";
@@ -49,7 +50,8 @@ export class AppComponent implements OnInit, OnDestroy {
    private windowListener: EventListener;
    private subscription: Subscription = new Subscription();
    private connection: StompClientConnection;
-   private sessionWarningDisplayed = false;
+   private sessionExpirationDialog: SessionExpirationDialog;
+   private protectionExpirationDialog: SessionExpirationDialog;
 
    constructor(private router: Router, private stompClient: StompClientService,
                private modalService: NgbModal, private zone: NgZone,
@@ -95,7 +97,11 @@ export class AppComponent implements OnInit, OnDestroy {
          this.subscription.add(connection.subscribe(
             "/user/session-expiration",
             (message) => this.zone.run(
-               () => this.showSessionExpiringDialog(JSON.parse(message.frame.body)))));
+               () => this.showExpirationDialog(JSON.parse(message.frame.body)))));
+         this.subscription.add(connection.subscribe(
+            "/user/license-changed",
+            (message) => this.zone.run(
+               () => this.processCloudLicenseStateChange(JSON.parse(message.frame.body)))));
       });
 
       this.ssoHeartbeatDispatcher.dispatch();
@@ -136,22 +142,52 @@ export class AppComponent implements OnInit, OnDestroy {
       this.notificationMessage = "";
    }
 
-   private showSessionExpiringDialog(model: SessionExpirationModel): void {
-      if(this.sessionWarningDisplayed) {
+   private showExpirationDialog(model: SessionExpirationModel): void {
+      let expirationDialog = model.nodeProtection ?
+         this.protectionExpirationDialog : this.sessionExpirationDialog;
+
+      if(expirationDialog) {
+         // if dialog is open and session was refreshed then close the dialog
+         if(!model.expiringSoon) {
+            expirationDialog.closeDialog();
+         }
+
          return;
       }
 
-      this.sessionWarningDisplayed = true;
-      const dialog = ComponentTool.showDialog(this.modalService,
+      if(!model.expiringSoon) {
+         return;
+      }
+
+      expirationDialog = ComponentTool.showDialog(this.modalService,
          SessionExpirationDialog, () => {
             this.connection.send("/user/session/refresh", null, null);
-            this.sessionWarningDisplayed = false;
-         }, {backdrop: "static"}, () => this.sessionWarningDisplayed = false);
+            this.setExpirationDialog(null, model.nodeProtection);
+         }, {backdrop: "static"}, () => this.setExpirationDialog(null, model.nodeProtection));
 
-      dialog.remainingTime = model.remainingTime;
-      dialog.onLogout.subscribe(() => {
-         this.sessionWarningDisplayed = false;
+      this.setExpirationDialog(expirationDialog, model.nodeProtection);
+      expirationDialog.remainingTime = model.remainingTime;
+      expirationDialog.nodeProtection = model.nodeProtection;
+      expirationDialog.onLogout.subscribe(() => {
+         this.setExpirationDialog(null, model.nodeProtection);
          this.logoutService.logout();
       });
+   }
+
+   private setExpirationDialog(dialog: SessionExpirationDialog, nodeProtection: boolean) {
+      if(nodeProtection) {
+         this.protectionExpirationDialog = dialog;
+      }
+      else {
+         this.sessionExpirationDialog = dialog;
+      }
+   }
+
+   private processCloudLicenseStateChange(state: CloudLicenseState): void {
+      if(state.terminating) {
+         this.notify({ message: "_#(js:common.sessionHoursTerminating)" })
+      }
+
+      this.logoutService.setInGracePeriod(state.gracePeriod);
    }
 }

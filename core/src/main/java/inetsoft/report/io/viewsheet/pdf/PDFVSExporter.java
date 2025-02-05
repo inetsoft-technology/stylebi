@@ -26,6 +26,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.gui.viewsheet.*;
 import inetsoft.report.internal.*;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.io.viewsheet.*;
 import inetsoft.report.io.viewsheet.excel.ExcelVSUtil;
 import inetsoft.report.pdf.PDF3Generator;
@@ -1039,6 +1040,16 @@ public class PDFVSExporter extends AbstractVSExporter {
          ReportSheet[] reportSheets = reportList.toArray(new ReportSheet[0]);
          CompositeSheet compositeSheet = new CompositeSheet(reportSheets);
          generator.generate(compositeSheet);
+      }
+      else {
+         LicenseManager licenseManager = LicenseManager.getInstance();
+
+         if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
+            Size pageSize = helper.getPrinter().getPageSize();
+            Dimension pageDimension = new Dimension((int) pageSize.width * 72,
+               (int) pageSize.height * 72);
+            Util.drawWatermark(helper.getPrinter(), pageDimension);
+         }
       }
 
       helper.write();

@@ -22,6 +22,7 @@ import inetsoft.sree.RepletRequest;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.DataCycleManager.CycleInfo;
 import inetsoft.sree.internal.*;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.util.Identity;
@@ -629,6 +630,16 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
                      String body = Catalog.getCatalog().getString(
                         "em.scheduler.notification.taskFailedBody",
                         exceptions.get(i));
+
+                     if(SUtil.isCluster()) {
+                        String currentNode = Cluster.getInstance().getLocalMember();
+                        String hostName = SUtil.computeServerClusterNode(currentNode);
+
+                        if(hostName != null) {
+                           body = body + "\n\n. This mail has been sent from " + hostName;
+                        }
+                     }
+
                      ScheduleThread.sendEmail(subject, body);
                   }
 
@@ -945,6 +956,27 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    public String toView(boolean containsOwner) {
       if(!containsOwner || owner == null) {
          return name;
+      }
+
+      return owner.name + ":" + name;
+   }
+
+   /**
+    * Get the task label to display.
+    *
+    * @param containsOwner whether label contains owner.
+    * @param useAlias if should pass user alias when possible.
+    */
+   public String toView(boolean containsOwner, boolean useAlias) {
+      if(!containsOwner || owner == null) {
+         return name;
+      }
+
+      if(containsOwner && useAlias) {
+         User u = SecurityEngine.getSecurity().getSecurityProvider().getUser(owner);
+         String alias = u != null && u.getAlias() != null && !u.getAlias().isEmpty() ? u.getAlias() : owner.name;
+
+         return alias + ":" + name;
       }
 
       return owner.name + ":" + name;

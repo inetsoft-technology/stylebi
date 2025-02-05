@@ -60,9 +60,6 @@
    <helper type="hive" class="inetsoft.uql.jdbc.HiveHelper">
      <maxidentifier>128</maxidentifier>
    </helper>
-   <helper type="obiee" class="inetsoft.uql.jdbc.OracleBIHelper">
-     <maxidentifier>128</maxidentifier>
-   </helper>
    <helper type="denodo" class="inetsoft.uql.jdbc.DenodoSQLHelper">
       <maxidentifier>128</maxidentifier>
    </helper>
@@ -84,6 +81,9 @@
    <helper type="mongo" class="inetsoft.uql.jdbc.MongoHelper">
       <maxidentifier>128</maxidentifier>
    </helper>
+  <helper type="luciddb" class="inetsoft.uql.jdbc.LucidDbHelper">
+    <maxidentifier>128</maxidentifier>
+  </helper>
 
   <!--row limit-->
    <unsupported type="default" op="maxrows"/>
@@ -209,6 +209,7 @@
    <testQuery type="db2">SELECT 1 FROM sysibm.sysdummy1</testQuery>
    <testQuery type="derby">SELECT 1 FROM SYSIBM.SYSDUMMY1</testQuery>
    <testQuery type="informix">SELECT count(1) FROM systables</testQuery>
+   <testQuery type="luciddb">SELECT count(1) FROM SYS_ROOT.DBA_FUNCTIONS</testQuery>
 
    <!-- math functions -->
    <sqlfunc type="access" function="ceil" command="int({0} + 0.999999999)"/>

@@ -54,4 +54,5 @@ export interface BaseTableCellModel {
    grandTotalHeaderCell?: boolean;
    rowPadding?: number;
    colPadding?: number;
+   underline?: boolean;
 }

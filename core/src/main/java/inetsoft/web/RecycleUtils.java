@@ -108,6 +108,7 @@ public final class RecycleUtils {
 
          Permission originalPermission = getEntryPermission(ResourceType.REPORT, path);
          String msg = registry.changeFolder(path, npath, principal);
+         SharedMVUtil.removeMV(path);
 
          if("true".equals(msg)) {
             registry.save();

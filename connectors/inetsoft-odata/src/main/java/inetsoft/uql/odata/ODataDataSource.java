@@ -384,7 +384,7 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
          return true;
       }
 
-      if(o == null || getClass() != o.getClass()) {
+      if(!super.equals(o)  || getClass() != o.getClass()) {
          return false;
       }
 
@@ -399,8 +399,7 @@ public class ODataDataSource extends TabularDataSource<ODataDataSource> implemen
          Objects.equals(odataVersion, that.odataVersion) &&
          Objects.equals(authorizationUri, that.authorizationUri) &&
          Objects.equals(tokenUri, that.tokenUri) &&
-         Objects.equals(scope, that.scope) &&
-         Objects.equals(getCredential(), that.getCredential());
+         Objects.equals(scope, that.scope);
    }
 
    private String url;

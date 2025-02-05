@@ -36,6 +36,14 @@ public class CloudSignatureCredential extends AbstractCloudCredential
       super();
    }
 
+   public String getAccountName() {
+      return accountName;
+   }
+
+   public void setAccountName(String accountName) {
+      this.accountName = accountName;
+   }
+
    public String getAccountKey() {
       return accountKey;
    }
@@ -45,25 +53,15 @@ public class CloudSignatureCredential extends AbstractCloudCredential
    }
 
    @Override
-   public String getSignature() {
-      return signature;
-   }
-
-   @Override
-   public void setSignature(String signature) {
-      this.signature = signature;
-   }
-
-   @Override
    public boolean isEmpty() {
-      return super.isEmpty() && StringUtils.isEmpty(accountKey) && StringUtils.isEmpty(signature);
+      return super.isEmpty() && StringUtils.isEmpty(accountName) && StringUtils.isEmpty(accountKey);
    }
 
    @Override
    public void reset() {
       super.reset();
+      accountName = null;
       accountKey = null;
-      signature = null;
    }
 
    @Override
@@ -76,16 +74,16 @@ public class CloudSignatureCredential extends AbstractCloudCredential
          return false;
       }
 
-      return Tool.equals(((CloudSignatureCredential) obj).accountKey, accountKey) &&
-         Tool.equals(((CloudSignatureCredential) obj).signature, signature);
+      return Tool.equals(((CloudSignatureCredential) obj).accountName, accountName) &&
+         Tool.equals(((CloudSignatureCredential) obj).accountKey, accountKey);
    }
 
    @Override
    public void refreshCredential(Credential credential) {
       super.refreshCredential(credential);
       CloudSignatureCredential credential0 = (CloudSignatureCredential) credential;
+      setAccountName(credential0.getAccountName());
       setAccountKey(credential0.getAccountKey());
-      setSignature(credential0.getSignature());
    }
 
    public static class Serializer<T extends CloudSignatureCredential>
@@ -99,12 +97,12 @@ public class CloudSignatureCredential extends AbstractCloudCredential
       protected void serializeContent(T credential, JsonGenerator generator) throws IOException {
          super.serializeContent(credential, generator);
 
-         if(credential.getAccountKey() != null) {
-            generator.writeStringField("account_key", credential.getAccountKey());
+         if(credential.getAccountName() != null) {
+            generator.writeStringField("account_name", credential.getAccountName());
          }
 
-         if(credential.getSignature() != null) {
-            generator.writeStringField("signature", credential.getSignature());
+         if(credential.getAccountKey() != null) {
+            generator.writeStringField("storage_account_key", credential.getAccountKey());
          }
       }
    }
@@ -124,16 +122,16 @@ public class CloudSignatureCredential extends AbstractCloudCredential
       protected void deserializeContent(JsonNode node, T credential) {
          super.deserializeContent(node, credential);
 
-         if(node.get("account_key") != null) {
-            credential.setAccountKey(node.get("account_key").textValue());
+         if(node.get("account_name") != null) {
+            credential.setAccountName(node.get("account_name").textValue());
          }
 
-         if(node.get("signature") != null) {
-            credential.setSignature(node.get("signature").textValue());
+         if(node.get("storage_account_key") != null) {
+            credential.setAccountKey(node.get("storage_account_key").textValue());
          }
       }
    }
 
+   private String accountName;
    private String accountKey;
-   private String signature;
 }

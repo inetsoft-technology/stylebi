@@ -23,7 +23,7 @@ export class ViewsheetInfo {
    formatPainterMode = false;
 
    constructor(public vsObjects: VSObjectModel[], public linkUri: string,
-               public metadata?: boolean, public runtimeId?: string)
+               public metadata?: boolean, public runtimeId?: string, public orgId?: string)
    {
    }
 

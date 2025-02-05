@@ -57,7 +57,7 @@ describe("Column option dialog Test", () => {
    });
 
    //bug #18565, input valid check for date editor
-   xit("input valid check for date editor", () => { // broken
+   it("input valid check for date editor", () => { // broken
       fixture = TestBed.createComponent(ColumnOptionDialog);
       columnOptionDialog = <ColumnOptionDialog> fixture.componentInstance;
       columnOptionDialog.model = createModel();
@@ -79,14 +79,14 @@ describe("Column option dialog Test", () => {
 
       expect(okBtn.hasAttribute("disabled")).toBeTruthy();
       expect(warning.textContent).toContain(
-         "_#(js:viewer.formEditor.minMaxValid)");
+         "_#(viewer.formEditor.minMaxValid) ");
 
       maxDate.value = "2017-10-23";
       maxDate.dispatchEvent(new Event("input"));
       fixture.detectChanges();
 
       okBtn = fixture.debugElement.query(By.css("button.btn.btn-primary")).nativeElement;
-      warning = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      warning = fixture.debugElement.query(By.css("div.alert.alert-danger"));
       expect(okBtn.hasAttribute("disabled")).toBeFalsy();
       expect(warning).toBeNull();
    });

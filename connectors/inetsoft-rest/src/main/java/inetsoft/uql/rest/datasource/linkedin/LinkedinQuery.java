@@ -86,14 +86,26 @@ public class LinkedinQuery extends EndpointJsonQuery<LinkedinEndpoint> {
 
    @Override
    protected void updatePagination(LinkedinEndpoint endpoint) {
+      final PaginationType pageType = endpoint.getPageType();
+
       if(endpoint.isPaged()) {
-         paginationSpec = PaginationSpec.builder()
-            .type(PaginationType.TOTAL_COUNT_AND_OFFSET)
-            .totalCountParam(PaginationParamType.JSON_PATH, "$.paging.total")
-            .offsetParam(PaginationParamType.QUERY, "start")
-            .maxResultsPerPageParam(PaginationParamType.QUERY, "count")
-            .maxResultsPerPage(100)
-            .build();
+         if(pageType == PaginationType.TOTAL_COUNT_AND_OFFSET) {
+            paginationSpec = PaginationSpec.builder()
+               .type(PaginationType.TOTAL_COUNT_AND_OFFSET)
+               .totalCountParam(PaginationParamType.JSON_PATH, "$.paging.total")
+               .offsetParam(PaginationParamType.QUERY, "start")
+               .maxResultsPerPageParam(PaginationParamType.QUERY, "count")
+               .maxResultsPerPage(100)
+               .build();
+         }
+         else if (pageType == PaginationType.ITERATION){
+            paginationSpec = PaginationSpec.builder()
+               .type(PaginationType.ITERATION)
+               .hasNextParam(PaginationParamType.JSON_PATH, "$.metadata.nextPageToken")
+               .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.metadata.nextPageToken")
+               .pageOffsetParamToWrite(PaginationParamType.QUERY, "pageToken")
+               .build();
+         }
       }
       else {
          paginationSpec = PaginationSpec.builder()

@@ -54,7 +54,7 @@ public class TogglDataSource extends EndpointJsonDataSource<TogglDataSource> {
 
    @Override
    public String getURL() {
-      return "https://www.toggl.com";
+      return "https://api.track.toggl.com";
    }
 
    @Override
@@ -100,7 +100,7 @@ public class TogglDataSource extends EndpointJsonDataSource<TogglDataSource> {
 
    @Override
    protected String getTestSuffix() {
-      return "/api/v8/me";
+      return "/api/v9/me";
    }
 
    @Override

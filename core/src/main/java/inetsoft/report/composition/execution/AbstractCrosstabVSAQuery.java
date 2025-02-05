@@ -147,11 +147,11 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
       }
 
       // set hierarchy
-      if(!isDetail() && cubetbl !=  null) {
+      if(!isDetail()) {
          CrosstabTree ctree = cassembly.getCrosstabTree();
 
          if(ctree != null) {
-            Map paths = ctree.getCubeExpandedPaths();
+            Map paths = ctree.getExpandedPaths();
 
             // if convert metadata to live data, we should clear all expanded
             // paths, or the mdx will be wrong, see bug1329814143494
@@ -159,7 +159,9 @@ public abstract class AbstractCrosstabVSAQuery extends CubeVSAQuery
                paths.clear();
             }
 
-            cubetbl.setExpandedPaths(paths);
+            if(cubetbl != null) {
+               cubetbl.setExpandedPaths(paths);
+            }
          }
       }
 

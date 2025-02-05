@@ -125,6 +125,7 @@ describe("Asset Tree Component Unit Test", () => {
    let modalService: any;
    let debounceService: any;
    let zone: any;
+   let httpClient: any;
 
    beforeEach(() => {
       assetTreeService = { getAssetTreeNode: jest.fn() };
@@ -133,8 +134,10 @@ describe("Asset Tree Component Unit Test", () => {
       modalService = { open: jest.fn() };
       debounceService = { debounce: jest.fn() };
       zone = { run: jest.fn() };
+      httpClient = {};
 
-      assetTreeComponent = new AssetTreeComponent(assetTreeService, changeDetector, assetClientService, modalService, debounceService, zone);
+      assetTreeComponent = new AssetTreeComponent(assetTreeService, changeDetector,
+         assetClientService, modalService, debounceService, zone, httpClient);
       assetTreeService.getAssetTreeNode.mockImplementation(() => getAssetTreeNode());
       assetTreeComponent.root = createModel();
    });

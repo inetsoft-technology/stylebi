@@ -94,6 +94,8 @@ export class MonthlyConditionEditorComponent implements OnInit {
       this.startTimeValid = !!this.startTimeData.startTime || !!this.startTimeData.timeRange;
 
       this.onTypeChanged();
+      this.timeZoneLabel = this.dateTimeService
+         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone);
    }
 
    form: UntypedFormGroup;

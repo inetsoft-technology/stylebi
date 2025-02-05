@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<em-modal-header [title]="'_#(Session Timeout)'">
+<em-modal-header [title]="nodeProtection ? '_#(Server Shutdown)' : '_#(Session Timeout)'">
 </em-modal-header>
 <div mat-dialog-content>
   <div class="flex-row">
@@ -24,7 +24,8 @@
     </svg>
     <div class="warning-message-container">
       <div class="warning-message flex-col">
-        <div>_#(login.session.expiring.warning)</div>
+        <div *ngIf="!nodeProtection">_#(login.session.expiring.warning)</div>
+        <div *ngIf="nodeProtection">_#(login.nodeProtection.expiring.warning)</div>
       </div>
       <div class="countdown-timer">
         {{ duration }}
@@ -33,6 +34,8 @@
   </div>
 </div>
 <div mat-dialog-actions>
-  <button mat-raised-button color="primary" (click)="stayLoggedInClicked()">_#(Stay Logged In)</button>
-  <button mat-button (click)="logoutClicked()">_#(Logout)</button>
+  <button mat-raised-button color="primary" (click)="stayLoggedInClicked()">
+    {{ nodeProtection ? "_#(OK)" : "_#(Stay Logged In)" }}
+  </button>
+  <button *ngIf="!nodeProtection" mat-button (click)="logoutClicked()">_#(Logout)</button>
 </div>

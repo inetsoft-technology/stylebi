@@ -250,7 +250,7 @@ public class WorksheetAsset extends AbstractSheetAsset implements
 
    protected void getAutoDrillDependency(Assembly assembly, List<XAssetDependency> dependencies) {
       if(!(assembly instanceof SQLBoundTableAssembly) ||
-         ((SQLBoundTableAssembly) assembly).isAdvancedEditing())
+         !((SQLBoundTableAssembly) assembly).isAdvancedEditing())
       {
          return;
       }

@@ -549,7 +549,7 @@ public class ConditionGroup extends XConditionGroup implements Cloneable, Serial
          if(eval != null) {
             boolean dateRange = acond.getOperation() == XCondition.DATE_IN;
             Object val = getExpressionVal(eval, box, attr, type, dateRange);
-            acond.setDynamicValue(i, val);
+            acond.setDynamicValue(i, val, false);
          }
       }
    }

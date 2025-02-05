@@ -30,4 +30,6 @@ public interface ExcelContext {
     * Get the workbook.
     */
    Workbook getWorkbook();
+
+   int getBackgroupPictureId();
 }

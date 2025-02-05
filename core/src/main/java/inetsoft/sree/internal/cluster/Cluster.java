@@ -68,7 +68,18 @@ public interface Cluster extends AutoCloseable {
     *
     * @return the cluster nodes.
     */
-   Set<String> getClusterNodes();
+   default Set<String> getClusterNodes() {
+      return getClusterNodes(true);
+   }
+
+   /**
+    * Gets the nodes of this cluster.
+    *
+    * @param includeClients {@code true} to include client nodes or {@code false} to exclude them.
+    *
+    * @return the cluster nodes.
+    */
+   Set<String> getClusterNodes(boolean includeClients);
 
    /**
     * Gets the server nodes of this cluster.
@@ -268,20 +279,6 @@ public interface Cluster extends AutoCloseable {
     * @return a future that will resolve when the task is complete.
     */
    Future<?> submit(String serviceId, SingletonRunnableTask task);
-
-   /**
-    * Submits a task to be processed. The task will be executed on a single node in the cluster,
-    * ensuring split-brain protection.
-    *
-    * @param level     nested levels of tasks
-    * @param serviceId the identifier for the service.
-    * @param task      the task to execute.
-    *
-    * @return a future that will resolve when the task is complete.
-    */
-   default Future<?> submit(int level, String serviceId, SingletonRunnableTask task) {
-      return submit(serviceId, task);
-   }
 
    /**
     * Check if scheduler is running.

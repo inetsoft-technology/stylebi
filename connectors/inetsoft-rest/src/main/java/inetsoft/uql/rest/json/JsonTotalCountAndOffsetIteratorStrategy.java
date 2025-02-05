@@ -70,6 +70,11 @@ public class JsonTotalCountAndOffsetIteratorStrategy extends HttpRestDataIterato
          throw new IllegalStateException(
             "Query pagination must have positive Max Results Per Page parameter.");
       }
+
+      if(spec.getMaxResultsPerPageParam().getValue() == ""){
+         PaginationParameter defaultParam = new PaginationParameter("count", PaginationParamType.QUERY);
+         spec.setMaxResultsPerPageParam(defaultParam);
+      }
    }
 
    @Override

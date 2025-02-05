@@ -1934,8 +1934,8 @@ public class DataSourceRegistry implements MessageListener {
 
    private String[] existQueryFolders = new String[0];
    private ConcurrentHashMap<String, Long> ts = new ConcurrentHashMap<>(); // last modified timestamp
-   private final List<PropertyChangeListener> refreshedListeners = new ArrayList<>();
-   private final List<PropertyChangeListener> modifiedListeners = new ArrayList<>();
+   private final List<PropertyChangeListener> refreshedListeners = Collections.synchronizedList(new ArrayList<>());
+   private final List<PropertyChangeListener> modifiedListeners = Collections.synchronizedList(new ArrayList<>());
    private final IndexedStorage indexedStorage;
    private final Map<Object, CachedObject> cachemap = new ConcurrentHashMap<>();
    private final Map<String, Map<String, List<String>>> allFolders = new ConcurrentHashMap<>();

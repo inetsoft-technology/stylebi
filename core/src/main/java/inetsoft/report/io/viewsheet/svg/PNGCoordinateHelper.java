@@ -18,6 +18,8 @@
 package inetsoft.report.io.viewsheet.svg;
 
 import inetsoft.report.internal.Common;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.license.LicenseManager;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
@@ -87,6 +89,12 @@ public class PNGCoordinateHelper extends SVGCoordinateHelper {
       }
 
       RenderedImage renderedImage = bufferedImage;
+      LicenseManager licenseManager = LicenseManager.getInstance();
+
+      if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
+         Util.drawWatermark(bufferedImage.createGraphics(), new Dimension(renderedImage.getWidth(), renderedImage.getHeight()));
+      }
+
       ImageIO.write(renderedImage, "png", output);
    }
 

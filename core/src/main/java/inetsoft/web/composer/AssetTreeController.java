@@ -329,11 +329,11 @@ public class AssetTreeController {
          }
 
          if(includeColumns) {
-            treeNodeModel = convertToTreeNodeModel(atmNode, catalog, sqlEnabled);
+            treeNodeModel = convertToTreeNodeModel(atmNode, catalog, sqlEnabled, principal);
          }
          else {
             treeNodeModel = convertToTreeNodeModel(atmNode, catalog,
-                                            AssetTreeController::isLeafNode, sqlEnabled);
+                                            AssetTreeController::isLeafNode, sqlEnabled, principal);
          }
       }
 
@@ -750,7 +750,7 @@ public class AssetTreeController {
       AssetEntry entry = new AssetEntry(
          AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE_FOLDER, "/", user);
       Catalog catalog = Catalog.getCatalog();
-      children.add(createNodeFromEntry(entry, catalog.getString("Data Source")));
+      children.add(createNodeFromEntry(entry, catalog.getString("Data Source"), principal));
    }
 
    private void addWorksheetRootNodes(List<TreeNodeModel> children, IdentityID user,
@@ -760,7 +760,7 @@ public class AssetTreeController {
          AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.FOLDER,
          "/", user);
       Catalog catalog = Catalog.getCatalog();
-      children.add(createNodeFromEntry(entry, catalog.getString("Global Worksheet")));
+      children.add(createNodeFromEntry(entry, catalog.getString("Global Worksheet"), principal));
    }
 
    private TreeNodeModel createUserWorksheetRoot(Principal principal,
@@ -775,7 +775,7 @@ public class AssetTreeController {
          AssetRepository.USER_SCOPE, AssetEntry.Type.FOLDER,
          "/", user);
       TreeNodeModel userWSRootModel =
-         createNodeFromEntry(userWSRootEntry, Catalog.getCatalog().getString("User Worksheet"));
+         createNodeFromEntry(userWSRootEntry, Catalog.getCatalog().getString("User Worksheet"), principal);
       Optional<LoadAssetTreeNodesEvent> childEventOptional = event.expandedDescendants()
          .stream().filter((e) -> e.targetEntry() != null &&
             e.targetEntry().toIdentifier().equals(userWSRootEntry.toIdentifier())).findFirst();
@@ -813,7 +813,7 @@ public class AssetTreeController {
          "/", user);
       Catalog catalog = Catalog.getCatalog();
 
-      children.add(createNodeFromEntry(entry, catalog.getString("Global Viewsheet")));
+      children.add(createNodeFromEntry(entry, catalog.getString("Global Viewsheet"), principal));
    }
 
    private void addLibraryRootNodes(List<TreeNodeModel> children, IdentityID user,
@@ -821,7 +821,7 @@ public class AssetTreeController {
    {
       AssetEntry entry = new AssetEntry(
          AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.LIBRARY_FOLDER, "/", user);
-      children.add(createNodeFromEntry(entry, catalog.getString("Library")));
+      children.add(createNodeFromEntry(entry, catalog.getString("Library"), principal));
    }
 
    private void addTableStyleRootNodes(List<TreeNodeModel> children, Principal principal) {
@@ -830,7 +830,7 @@ public class AssetTreeController {
          AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.TABLE_STYLE_FOLDER,
          "/" + TABLE_STYLE, principal == null ? null : pId);
 
-      children.add(createNodeFromEntry(entry, catalog.getString("Table Styles")));
+      children.add(createNodeFromEntry(entry, catalog.getString("Table Styles"), principal));
    }
 
    private void addScriptRootNodes(List<TreeNodeModel> children, Principal principal) {
@@ -839,7 +839,7 @@ public class AssetTreeController {
          AssetRepository.COMPONENT_SCOPE, AssetEntry.Type.SCRIPT_FOLDER,
          "/" + SCRIPT, principal == null ? null : pId);
 
-      children.add(createNodeFromEntry(entry, catalog.getString("Script Function")));
+      children.add(createNodeFromEntry(entry, catalog.getString("Script Function"), principal));
    }
 
    private TreeNodeModel createUserViewsheetRoot(
@@ -853,7 +853,7 @@ public class AssetTreeController {
          AssetRepository.USER_SCOPE, AssetEntry.Type.REPOSITORY_FOLDER,
          "/", pId);
       TreeNodeModel userVSRootModel =
-         createNodeFromEntry(userVSRootEntry, Catalog.getCatalog().getString("User Viewsheet"));
+         createNodeFromEntry(userVSRootEntry, Catalog.getCatalog().getString("User Viewsheet"), principal);
 
       Optional<LoadAssetTreeNodesEvent> childEventOptional = event.expandedDescendants()
          .stream().filter((e) -> e.targetEntry() != null &&
@@ -884,13 +884,17 @@ public class AssetTreeController {
       return userVSRootModel;
    }
 
-   private static TreeNodeModel convertToTreeNodeModel(AssetTreeModel.Node node, Catalog catalog, boolean sqlEnabled) {
-      return convertToTreeNodeModel(node, catalog, null, sqlEnabled);
+   private static TreeNodeModel convertToTreeNodeModel(AssetTreeModel.Node node, Catalog catalog,
+                                                       boolean sqlEnabled, Principal principal)
+   {
+      return convertToTreeNodeModel(node, catalog, null, sqlEnabled, principal);
    }
 
    public static TreeNodeModel convertToTreeNodeModel(AssetTreeModel.Node node,
                                                       Catalog catalog,
-                                                      Function<AssetEntry, Boolean> leafFn, boolean sqlEnabled)
+                                                      Function<AssetEntry, Boolean> leafFn,
+                                                      boolean sqlEnabled,
+                                                      Principal principal)
    {
       AssetTreeModel.Node[] nodes = node.getNodes();
       List<TreeNodeModel> children = new ArrayList<TreeNodeModel>();
@@ -910,7 +914,7 @@ public class AssetTreeController {
                emptyName = "Column[" + i +"]";
             }
 
-            TreeNodeModel child = createChildNode(nodes[i], catalog, leafFn, sqlEnabled, emptyName);
+            TreeNodeModel child = createChildNode(nodes[i], catalog, leafFn, sqlEnabled, emptyName, principal);
             children.add(child);
          }
       }
@@ -924,13 +928,14 @@ public class AssetTreeController {
    private static TreeNodeModel createChildNode(AssetTreeModel.Node node,
                                                 Catalog catalog,
                                                 Function<AssetEntry, Boolean> leafFn,
-                                                boolean sqlEnabled, String emptyName)
+                                                boolean sqlEnabled, String emptyName,
+                                                Principal user)
    {
       final Function<AssetEntry, Boolean> isLeaf =
          leafFn == null ? AssetTreeController::isLeaf : leafFn;
 
       List<TreeNodeModel> children = Arrays.stream(node.getNodes())
-         .map((n) -> createChildNode(n, catalog, isLeaf, sqlEnabled, null))
+         .map((n) -> createChildNode(n, catalog, isLeaf, sqlEnabled, null, user))
          .collect(Collectors.toList());
 
       AssetEntry entry = node.getEntry();
@@ -938,7 +943,7 @@ public class AssetTreeController {
       entry.setProperty("sqlEnabled", String.valueOf(sqlEnabled));
 
       return createNodeFromEntry(
-         node.getEntry(), "".equals(label) ? emptyName : label, children, isLeaf);
+         node.getEntry(), "".equals(label) ? emptyName : label, children, isLeaf, user);
    }
 
    public static AssetEntry[] getFilterFor(AssetEntry parentEntry) {
@@ -995,14 +1000,15 @@ public class AssetTreeController {
          entry.isTableStyle() || entry.isScript();
    }
 
-   private static TreeNodeModel createNodeFromEntry(AssetEntry entry, String label) {
+   private static TreeNodeModel createNodeFromEntry(AssetEntry entry, String label, Principal user) {
       return createNodeFromEntry(
-         entry, label, Collections.emptyList(), AssetTreeController::isLeaf);
+         entry, label, Collections.emptyList(), AssetTreeController::isLeaf, user);
    }
 
    private static TreeNodeModel createNodeFromEntry(AssetEntry entry, String label,
                                                     List<TreeNodeModel> children,
-                                                    Function<AssetEntry, Boolean> leafFn)
+                                                    Function<AssetEntry, Boolean> leafFn,
+                                                    Principal user)
    {
       return TreeNodeModel.builder()
          .label(label)
@@ -1012,16 +1018,16 @@ public class AssetTreeController {
          .leaf(leafFn.apply(entry))
          .children(children)
          .tooltip(entry.getProperty("Tooltip"))
-         .materialized(getMaterialized(entry))
+         .materialized(getMaterialized(entry, user))
          .build();
    }
 
-   public static boolean getMaterialized(AssetEntry entry) {
+   public static boolean getMaterialized(AssetEntry entry, Principal user) {
       if(entry == null) {
          return false;
       }
 
-      return MVManager.getManager().isMaterialized(entry.toIdentifier(), !entry.isViewsheet());
+      return MVManager.getManager().isMaterialized(entry.toIdentifier(), !entry.isViewsheet(), user);
    }
 
    // TODO: This method should be removed at some point and replaced with something more fitting.

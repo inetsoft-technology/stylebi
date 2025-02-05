@@ -20,7 +20,7 @@ package inetsoft.report.internal.license;
 
 import inetsoft.util.SingletonManager;
 
-import java.util.ServiceLoader;
+import java.util.*;
 
 @SingletonManager.Singleton(ElasticLicenseService.Reference.class)
 public interface ElasticLicenseService {
@@ -32,8 +32,31 @@ public interface ElasticLicenseService {
 
    void startElasticPolling(License license);
 
+   void addNotificationListener(NotificationListener listener);
+
+   void removeNotificationListener(NotificationListener listener);
+
    static ElasticLicenseService getInstance() {
       return SingletonManager.getInstance(ElasticLicenseService.class);
+   }
+
+   final class NotificationEvent extends EventObject {
+      public NotificationEvent(Object source, String licenseKey) {
+         super(source);
+         this.licenseKey = licenseKey;
+      }
+
+      public String getLicenseKey() {
+         return licenseKey;
+      }
+
+      private final String licenseKey;
+   }
+
+   interface NotificationListener extends EventListener {
+      void onGracePeriodStarted(NotificationEvent event);
+      void onGracePeriodEnded(NotificationEvent event);
+      void onHoursAdded(NotificationEvent event);
    }
 
    final class Reference extends SingletonManager.Reference<ElasticLicenseService> {

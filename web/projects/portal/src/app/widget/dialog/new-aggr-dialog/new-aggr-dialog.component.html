@@ -27,7 +27,7 @@
       <label for="field" class="col-2">_#(Field):</label>
       <div class="col-sm-6"  [ngClass]="{ 'has-error' : !form.controls['field'].valid}">
         <select id="field" class="form-control" formControlName="field" [(ngModel)]="model.field" (ngModelChange)="fieldChanged($event)">
-          <option *ngFor="let _field of model.fields">{{_field}}</option>
+          <option *ngFor="let _field of model.fields" [ngClass]="getInputClass(_field)">{{_field}}</option>
         </select>
         <div *ngIf="form.controls['field'].errors && form.controls['field'].errors['required']" class="alert alert-danger">_#(field.required)</div>
       </div>
@@ -44,7 +44,7 @@
       <label for="with" class="col-2">_#(With)</label>
       <div class="col-sm-6">
         <select id="with" class="form-control" [ngModelOptions]="{standalone:true}" [disabled]="!isWithFormula()" [(ngModel)]="model.with">
-          <option *ngFor="let _field of model.fields">{{_field}}</option>
+          <option *ngFor="let _field of model.fields" [ngClass]="getInputClass(_field)">{{_field}}</option>
         </select>
       </div>
     </div>

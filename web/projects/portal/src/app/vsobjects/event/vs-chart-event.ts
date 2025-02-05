@@ -29,6 +29,8 @@ import { DetailDndInfo } from "../objects/table/detail-dnd-info";
 export class VSChartEvent implements ViewsheetEvent {
    private maxSize: Dimension;
    private chartName: string;
+   private orgId: string;
+
    /**
     * Creates a new instance of <tt>VSChartEvent</tt>.
     */
@@ -49,6 +51,14 @@ export class VSChartEvent implements ViewsheetEvent {
          //subtract the height of the status bar
          this.maxSize.height -= 38;
       }
+   }
+
+   getOrgId(): string {
+      return this.orgId;
+   }
+
+   setOrgId(orgId: string): void {
+      this.orgId = orgId;
    }
 }
 

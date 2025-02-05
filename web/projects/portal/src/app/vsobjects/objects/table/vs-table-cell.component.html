@@ -40,11 +40,11 @@
       <ng-container *ngIf="isHeader || !isForm || !formVisible || !columnEditorEnabled" [ngSwitch]="cellType">
         <div #staticHeaderContent *ngSwitchCase="CellType0.TEXT"
              [class.wrap-text]="!!cell.vsFormatModel?.wrapping?.wordWrap"
-             [class.linked-cell]="numLinks > 0">{{cell.cellLabel}}</div>
+             [class.linked-cell]="isLinkedCell()">{{cell.cellLabel}}</div>
         <div #staticHeaderContent *ngSwitchCase="CellType0.HTML"
              class="default-p"
              [class.wrap-text]="!!cell.vsFormatModel?.wrapping?.wordWrap"
-             [class.linked-cell]="numLinks > 0"
+             [class.linked-cell]="isLinkedCell()"
              [innerHTML]="htmlText"></div>
         <img *ngSwitchCase="CellType0.IMAGE" [src]="presenter"/>
         <img *ngSwitchCase="CellType0.PRESENTER" [src]="presenter"/>

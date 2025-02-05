@@ -690,8 +690,7 @@ public class RepletEngine extends AbstractAssetEngine
          throw new RemoteException("Failed to reset repository folder", ex);
       }
 
-      String orgId = ((XPrincipal) user).getProperty("curr_org_id") != null
-         ? ((XPrincipal) user).getProperty("curr_org_id") : ((XPrincipal) user).getOrgId();
+      String orgId = user != null ? ((XPrincipal) user).getOrgId() : null;
 
       if(SUtil.isDefaultVSGloballyVisible(user) && isDefaultOrgAsset) {
          orgId = Organization.getDefaultOrganizationID();
@@ -707,7 +706,7 @@ public class RepletEngine extends AbstractAssetEngine
          List<String> addedFolders = new ArrayList<>();
 
          for(String repletFolder : repletFolders) {
-            if(checkPermission(user, ResourceType.REPORT, repletFolder, actions)) {
+            if(isDefaultOrgAsset || checkPermission(user, ResourceType.REPORT, repletFolder, actions)) {
                RepletFolderEntry entry =
                   new RepletFolderEntry(repletFolder, myreport ? pId : null);
                entry.setDescription(registry.getFolderDescription(repletFolder));

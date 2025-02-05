@@ -26,7 +26,7 @@
         <div class="form-floating">
           <input class="form-control" type="text" placeholder="_#(Parameter Name)"
                  [ngClass]="{'input-transparent': parameterNames && parameterNames.length > 0,
-                             'hideText' : parameterNames.includes(model.name)}"
+                             'hideText' : parameterNames && parameterNames.includes(model.name)}"
                  [(ngModel)]="model.name" formControlName="name"
                  [class.is-invalid]="!form.controls['name'].valid"/>
           <label>_#(Parameter Name)</label>

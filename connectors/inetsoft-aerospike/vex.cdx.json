@@ -1,0 +1,22 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "serialNumber": "urn:uuid:fd9b71b5-d2f6-4428-8627-7375eb236c1e",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2023-04-18T20:28:58Z",
+    "tools": [
+      {
+        "vendor": "OWASP",
+        "name": "Dependency-Track",
+        "version": "4.7.1"
+      }
+    ],
+    "component": {
+      "name": "inetsoft-aerospike",
+      "version": "14.0",
+      "type": "library",
+      "bom-ref": "3debac8a-cd8f-4750-925e-26ce0cf72c75"
+    }
+  }
+}

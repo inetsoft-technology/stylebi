@@ -614,8 +614,9 @@ public class AssetUtil {
 
       String talias = (column instanceof ColumnRef) ? ((ColumnRef) column).getAlias() : null;
       String name = talias == null ? column.getAttribute() : talias;
-      AttributeRef attr = new AttributeRef(table, name);
       DataRef ref = column instanceof ColumnRef ? ((ColumnRef) column).getDataRef() : column;
+      AttributeRef attr = new AttributeRef(table, name,
+         ref instanceof AttributeRef && ((AttributeRef) ref).isCubeCalcMember());
       attr.setRefType(column.getRefType());
       attr.setDefaultFormula(column.getDefaultFormula());
 

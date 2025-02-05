@@ -19,8 +19,7 @@ package inetsoft.uql.xmla;
 
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.erm.ExpressionRef;
+import inetsoft.uql.erm.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -376,10 +375,17 @@ public class MDXHelper2 extends MDXHelper {
          formula = AggregateFormula.AGGREGATE;
       }
 
+      boolean isCalc = measure instanceof ColumnRef &&
+         ((ColumnRef) measure).getDataRef() instanceof AttributeRef
+         && ((AttributeRef) ((ColumnRef) measure).getDataRef()).isCubeCalcMember();
+
+      String expression =
+         isCalc && formula == AggregateFormula.AGGREGATE ? XMLAUtil.getAttribute(measure) :
+            formula.getCubeExpression(cellChildren, XMLAUtil.getAttribute(measure));
+
       buffer.append(measureName);
       buffer.append(" as '");
-      buffer.append(formula.getCubeExpression(cellChildren,
-         XMLAUtil.getAttribute(measure)));
+      buffer.append(expression);
       buffer.append("'");
 
       return buffer.toString();

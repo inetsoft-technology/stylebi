@@ -32,7 +32,6 @@ export class SelectionTreePane implements OnInit {
    @Input() model: SelectionTreePaneModel;
    @Input() runtimeId: string;
    @Input() variableValues: string[];
-   @Input() grayedOutValues: string[] = [];
    @Input() singleSelection: boolean;
    @Output() onAddColumn = new EventEmitter<string | string[]>();
    @ViewChild(SelectionTreeColumnsPane) columnsPane: SelectionTreeColumnsPane;
@@ -113,5 +112,31 @@ export class SelectionTreePane implements OnInit {
 
       selectedTables.push(...this.model.additionalTables);
       return selectedTables;
+   }
+
+   getGrayedOutValues(): string[] {
+      if(this.model == null) {
+         return [];
+      }
+
+      let grayedOutFlds = this.model.grayedOutFields;
+      let values: string[] = [];
+
+      if(grayedOutFlds == null) {
+         return values;
+      }
+
+      let model: boolean = this.model.modelSource;
+
+      for(let i = 0; i < grayedOutFlds.length; i++) {
+         if(model) {
+            values.push(grayedOutFlds[i].name);
+         }
+         else if(grayedOutFlds[i].entity == this.model.selectedTable) {
+            values.push(grayedOutFlds[i].attribute);
+         }
+      }
+
+      return values;
    }
 }

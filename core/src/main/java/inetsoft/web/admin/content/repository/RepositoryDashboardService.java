@@ -315,9 +315,16 @@ public class RepositoryDashboardService {
       Set<String> userGrants = new HashSet<>();
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
       List<IdentityID> adminUsers = OrganizationManager.getInstance().orgAdminUsers(currentOrgID);
+      IdentityID currentUser = IdentityID.getIdentityIDFromKey(principal.getName());
 
-      for (IdentityID id : adminUsers) {
-         userGrants.add(id.getName());
+      if(currentOrgID.equals(currentUser.orgID)) {
+         userGrants.add(currentUser.getName());
+      }
+      else if(!adminUsers.isEmpty()){
+         userGrants.add(adminUsers.getFirst().getName());
+      }
+      else {
+         userGrants.add(null);
       }
 
       for(ResourceAction action : ResourceAction.values()) {
@@ -351,9 +358,7 @@ public class RepositoryDashboardService {
    {
       DashboardRegistry registry = DashboardRegistry.getRegistry();
       List<String> dashboardNames = Arrays.asList(registry.getDashboardNames());
-      Identity identity = SecurityEngine.getSecurity().isSecurityEnabled() ?
-         contentRepositoryTreeService.getIdentity((XPrincipal) principal) :
-         new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+      Identity identity = getDashboardFolderIdentity(principal);
       List<String> sortedDashboards = Arrays.asList(dashboardManager.getDashboards(identity));
       List<String> selectedDashboards = dashboardNames.stream()
          .filter(sortedDashboards::contains)
@@ -370,9 +375,7 @@ public class RepositoryDashboardService {
    public RepositoryFolderDashboardSettingsModel setDashboardFolderSettings(
       RepositoryFolderDashboardSettingsModel model, Principal principal) throws Exception
    {
-      Identity identity = SecurityEngine.getSecurity().isSecurityEnabled() ?
-         contentRepositoryTreeService.getIdentity((XPrincipal) principal) :
-         new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+      Identity identity = getDashboardFolderIdentity(principal);
       List<String> all = Arrays.asList(dashboardManager.getDashboards(identity));
       all.sort(Comparator.comparingInt(model.dashboards()::indexOf));
       dashboardManager.setDashboards(identity, all.toArray(new String[0]));
@@ -387,6 +390,25 @@ public class RepositoryDashboardService {
       }
 
       return getDashboardFolderSettings(principal);
+   }
+
+   private Identity getDashboardFolderIdentity(Principal principal) {
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID();
+      List<IdentityID> adminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
+      IdentityID currentUser = IdentityID.getIdentityIDFromKey(principal.getName());
+      Identity identity = new DefaultIdentity(XPrincipal.ANONYMOUS, Identity.ROLE);
+
+      if(SecurityEngine.getSecurity().isSecurityEnabled()) {
+         if(orgID.equals(currentUser.orgID)) {
+            identity = contentRepositoryTreeService.getIdentity((XPrincipal) principal);
+         }
+         else {
+            identity = adminUsers.isEmpty() ? null :
+               new DefaultIdentity(adminUsers.getFirst().name, Identity.USER);
+         }
+      }
+
+      return identity;
    }
 
    private void setIdentityPermission(Set<String> grants, Identity.Type type, IdentityID[] identities,

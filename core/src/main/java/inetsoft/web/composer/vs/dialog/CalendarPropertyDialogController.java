@@ -21,13 +21,13 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.asset.ColumnRef;
 import inetsoft.uql.erm.AttributeRef;
-import inetsoft.uql.viewsheet.CalendarVSAssembly;
-import inetsoft.uql.viewsheet.Viewsheet;
-import inetsoft.uql.viewsheet.internal.CalendarVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.*;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
+import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
@@ -63,13 +63,17 @@ public class CalendarPropertyDialogController {
       VSOutputService vsOutputService,
       RuntimeViewsheetRef runtimeViewsheetRef,
       VSDialogService dialogService,
-      ViewsheetService viewsheetService)
+      ViewsheetService viewsheetService,
+      VSTrapService trapService,
+      VSAssemblyInfoHandler assemblyInfoHandler)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.vsOutputService = vsOutputService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.dialogService = dialogService;
       this.viewsheetService = viewsheetService;
+      this.trapService = trapService;
+      this.assemblyInfoHandler = assemblyInfoHandler;
    }
 
    /**
@@ -141,6 +145,7 @@ public class CalendarPropertyDialogController {
 
       calendarDataPaneModel.setTargetTree(
          this.vsOutputService.getCalendarTablesTree(rvs, principal));
+      calendarDataPaneModel.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
       final String selectedTable = calendarAssemblyInfo.getFirstTableName();
       calendarDataPaneModel.setSelectedTable(selectedTable);
       calendarDataPaneModel.setAdditionalTables(calendarAssemblyInfo.getAdditionalTableNames());
@@ -176,6 +181,56 @@ public class CalendarPropertyDialogController {
       result.setVsAssemblyScriptPaneModel(vsAssemblyScriptPaneModel.build());
 
       return result;
+   }
+
+   @PostMapping("api/composer/vs/calendar-property-dialog-model/checkTrap/{objectId}/**")
+   @ResponseBody
+   public VSTableTrapModel checkVSTrap(@RequestBody CalendarPropertyDialogModel value,
+                                       @PathVariable("objectId") String objectId,
+                                       @RemainingPath String runtimeId,
+                                       Principal principal)
+      throws Exception
+   {
+      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
+      CalendarVSAssembly calendar = (CalendarVSAssembly) rvs.getViewsheet().getAssembly(objectId);
+
+      if(calendar == null) {
+         return VSTableTrapModel.builder()
+            .showTrap(false)
+            .build();
+      }
+
+      VSAssemblyInfo oldAssemblyInfo = (VSAssemblyInfo) Tool.clone(calendar.getVSAssemblyInfo());
+      CalendarVSAssemblyInfo info =
+         (CalendarVSAssemblyInfo) Tool.clone(calendar.getVSAssemblyInfo());
+      CalendarDataPaneModel calendarDataPaneModel = value.getCalendarDataPaneModel();
+
+      OutputColumnRefModel selectedColumn = calendarDataPaneModel.getSelectedColumn();
+
+      if(selectedColumn == null) {
+         info.setDataRef(null);
+      }
+      else {
+         info.setFirstTableName(
+            VSUtil.getTableName(calendarDataPaneModel.getSelectedTable()));
+         List<String> additionalNames =
+            calendarDataPaneModel.getAdditionalTables().stream()
+               .map(VSUtil::getTableName)
+               .collect(Collectors.toList());
+         info.setAdditionalTableNames(additionalNames);
+         AttributeRef aRef = new AttributeRef(selectedColumn.getEntity(),
+                                              selectedColumn.getAttribute());
+         aRef.setRefType(selectedColumn.getRefType());
+         ColumnRef cRef = new ColumnRef(aRef);
+         cRef.setDataType(selectedColumn.getDataType());
+         info.setDataRef(cRef);
+      }
+
+      rvs.getViewsheet().getAssembly(objectId).setVSAssemblyInfo(info);
+      VSTableTrapModel trap = trapService.checkTrap(rvs, oldAssemblyInfo, info);
+      rvs.getViewsheet().getAssembly(objectId).setVSAssemblyInfo(oldAssemblyInfo);
+
+      return trap;
    }
 
    /**
@@ -282,4 +337,6 @@ public class CalendarPropertyDialogController {
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSDialogService dialogService;
    private final ViewsheetService viewsheetService;
+   private final VSTrapService trapService;
+   private final VSAssemblyInfoHandler assemblyInfoHandler;
 }

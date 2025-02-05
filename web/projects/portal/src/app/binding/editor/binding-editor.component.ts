@@ -48,6 +48,7 @@ export class BindingEditor implements OnInit, AfterViewInit, OnDestroy {
    @Input() currentFormat: FormatInfoModel;
    @Input() linkUri: string;
    @Input() runtimeId: string;
+   @Input() assetId: string;
    @Input() objectType: string;
    @Input() formatPaneDisabled: boolean;
    @Input() sourceName: string;

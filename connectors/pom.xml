@@ -37,6 +37,7 @@
 
   <modules>
     <module>inetsoft-tabular-util</module>
+    <module>inetsoft-aerospike</module>
     <module>inetsoft-cassandra</module>
     <module>inetsoft-datagov</module>
     <module>inetsoft-elastic</module>
@@ -45,6 +46,7 @@
     <module>inetsoft-mongodb</module>
     <module>inetsoft-odata</module>
     <module>inetsoft-onedrive</module>
+    <module>inetsoft-orientdb</module>
     <module>inetsoft-r</module>
     <module>inetsoft-rest</module>
     <module>inetsoft-serverfile</module>

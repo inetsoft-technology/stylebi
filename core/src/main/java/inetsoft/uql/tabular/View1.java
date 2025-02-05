@@ -132,4 +132,9 @@ public @interface View1 {
     * If the view type is BUTTON then this needs to be defined.
     */
    Button button() default @Button;
+
+   /**
+    * The Affected Views when current view value is auto changed.
+    */
+   String[] affectedViews() default {};
 }

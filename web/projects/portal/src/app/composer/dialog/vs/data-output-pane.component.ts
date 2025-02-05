@@ -35,7 +35,6 @@ const CUBE_COLUMNS_URI: string = "../vs/dataOutput/cube/columns";
    templateUrl: "data-output-pane.component.html",
 })
 export class DataOutputPane implements OnInit {
-   @Input() model: DataOutputPaneModel;
    @Input() runtimeId: string;
    @Input() variableValues: string[];
    headers: HttpHeaders;
@@ -48,6 +47,17 @@ export class DataOutputPane implements OnInit {
    sqlProvider: boolean = true;
    tableType: string = "";
    currentLabel: string = "";
+   grayedOutValues:string[] = [];
+   private _model: DataOutputPaneModel
+
+   get model(): DataOutputPaneModel {
+      return this._model;
+   }
+
+   @Input()
+   set model(val) {
+      this._model = val;
+   }
 
    constructor(private http: HttpClient) {
       this.headers = new HttpHeaders({
@@ -115,6 +125,32 @@ export class DataOutputPane implements OnInit {
             this.setLabelFromData(data, node);
          }
       }
+   }
+
+   private initGrayedOutValues() {
+      this.grayedOutValues = [];
+
+      if(this.model == null) {
+         return;
+      }
+
+      let grayedOutFlds = this.model.grayedOutFields;
+      let values: string[] = [];
+
+      if(grayedOutFlds == null) {
+         return;
+      }
+
+      for(let i = 0; i < grayedOutFlds.length; i++) {
+         if(this.model.logicalModel) {
+            values.push(grayedOutFlds[i].name.replace(".", ":"));
+         }
+         else if(grayedOutFlds[i].entity == this.model.table) {
+            values.push(grayedOutFlds[i].attribute);
+         }
+      }
+
+      this.grayedOutValues = values;
    }
 
    // When a new column is selected, update the aggregates
@@ -287,6 +323,7 @@ export class DataOutputPane implements OnInit {
                         }
 
                         this.updateAggregates();
+                        this.initGrayedOutValues();
                      }
                      else {
                         this.columnValues = [];

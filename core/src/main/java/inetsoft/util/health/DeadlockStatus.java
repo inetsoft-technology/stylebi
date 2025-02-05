@@ -17,6 +17,7 @@
  */
 package inetsoft.util.health;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.lang.management.ThreadInfo;
 import java.util.Arrays;
@@ -55,5 +56,6 @@ public final class DeadlockStatus implements Serializable {
 
    private final int deadlockedThreadCount;
    private final DeadlockedThread[] deadlockedThreads;
+   @Serial
    private static final long serialVersionUID = 1L;
 }

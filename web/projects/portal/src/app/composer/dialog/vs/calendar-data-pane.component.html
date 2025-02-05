@@ -19,7 +19,7 @@
   <fieldset>
     <div class="form-row-float-label row">
       <div class="col bordered-box  bd-gray bordered-box-md">
-        <tree [root]="model.targetTree" [showRoot]="false" [showTooltip]="true"
+        <tree [root]="model.targetTree" [showRoot]="false" [showTooltip]="true" [grayedOutFields]="model.grayedOutFields"
               (nodesSelected)="selectColumn($event[0])" [iconFunction] = "getCSSIcon"
               [showTooltip]="true"></tree>
       </div>

@@ -62,6 +62,8 @@ public class ClusterJobStore implements JobStore, Serializable {
       calendarsByName = new LocalClusterMap<>("jobstore.calendarsByName", cluster,
                                               cluster.getMap("jobstore.calendarsByName"));
 
+      // only shutdown the cluster when running in a separate process
+      shutdownClusterOnShutdown = "true".equals(System.getProperty("ScheduleServer"));
       LOG.debug("Cluster Job Store Initialized.");
    }
 

@@ -102,39 +102,38 @@ public class RepositoryTreeController {
       @RequestParam(value = "showVS", defaultValue = "false") boolean showVS,
       Principal principal) throws Exception
    {
-         if(OrganizationManager.getGlobalDefOrgFolderName().equals(path) && isDefaultOrgAsset) {
-            return getGlobalRootNode(principal);
+      if(OrganizationManager.getGlobalDefOrgFolderName().equals(path) && isDefaultOrgAsset) {
+         return getGlobalRootNode(principal);
+      }
+
+      TreeNodeModel rootNode = getTargetNode(path, permission, selector, detailType, isArchive,
+                                             checkDetailType, isReport, isFavoritesTree, isGlobal,
+                                             isPortalData, isPortalRepo, isDefaultOrgAsset, showVS, principal);
+      String orgId = ((XPrincipal) principal).getOrgId();
+
+      if(("/".equals(path)) && isPortalRepo && SUtil.isDefaultVSGloballyVisible(principal) &&
+         !orgId.equals(Organization.getDefaultOrganizationID()))
+      {
+         TreeNodeModel globalRootNode = getGlobalRootNode(principal);
+
+         if(OrganizationManager.getGlobalDefOrgFolderName().equals(path)) {
+            return globalRootNode;
          }
 
-         TreeNodeModel rootNode = getTargetNode(path, permission, selector, detailType, isArchive,
-                                                checkDetailType, isReport, isFavoritesTree, isGlobal,
-                                                isPortalData, isPortalRepo, isDefaultOrgAsset, showVS, principal);
-         String orgId = ((XPrincipal) principal).getProperty("curr_org_id") != null
-            ? ((XPrincipal) principal).getProperty("curr_org_id") : ((XPrincipal) principal).getOrgId();
+         List<TreeNodeModel> childrenNodes = new ArrayList<>();
+         childrenNodes.add(rootNode);
+         childrenNodes.add(globalRootNode);
 
-         if(("/".equals(path)) && isPortalRepo && SUtil.isDefaultVSGloballyVisible(principal) &&
-            !orgId.equals(Organization.getDefaultOrganizationID()))
-         {
-            TreeNodeModel globalRootNode = getGlobalRootNode(principal);
-
-            if(OrganizationManager.getGlobalDefOrgFolderName().equals(path)) {
-               return globalRootNode;
-            }
-
-            List<TreeNodeModel> childrenNodes = new ArrayList<>();
-            childrenNodes.add(rootNode);
-            childrenNodes.add(globalRootNode);
-
-            return TreeNodeModel.builder()
-               .label("")
-               .data("")
-               .type("None")
-               .addChildren(childrenNodes.toArray(TreeNodeModel[]::new))
-               .build();
-         }
-         else {
-            return rootNode;
-         }
+         return TreeNodeModel.builder()
+            .label("")
+            .data("")
+            .type("None")
+            .addChildren(childrenNodes.toArray(TreeNodeModel[]::new))
+            .build();
+      }
+      else {
+         return rootNode;
+      }
    }
 
    public TreeNodeModel getTargetNode(String path, String permission, int selector,

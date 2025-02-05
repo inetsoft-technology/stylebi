@@ -118,8 +118,15 @@ public class TabularTableAssemblyInfo extends BoundTableAssemblyInfo {
          }
 
          try {
-            query = (TabularQuery) Config.getClass(type, cls).getConstructor().newInstance();
-            query.parseXML(node);
+            Class<?> pluginClass = Config.getClass(type, cls);
+
+            if(pluginClass != null) {
+               query = (TabularQuery) pluginClass.getConstructor().newInstance();
+               query.parseXML(node);
+            }
+            else {
+               throw new ClassNotFoundException("Plugin Class is null");
+            }
          }
          catch(ClassNotFoundException ex) {
             LOG.error("Data source plugin missing: " + cls);

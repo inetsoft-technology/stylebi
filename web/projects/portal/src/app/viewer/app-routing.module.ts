@@ -40,12 +40,17 @@ export function VIEW_URL_MATCHER(url: UrlSegment[]): UrlMatchResult {
          let assetPath: string = null;
          let assetId: string = null;
 
-         if(url[1].path === "global") {
+         if(url[1].path === "global" || url[1].path === "shared_global") {
             assetScope = url[1];
+            let sharedGlobal: boolean = url[1].path === "shared_global";
 
             if(url.length > 2) {
                assetPath = url.slice(2).map((s) => s.path).join("/");
                assetId = `1^128^__NULL__^${assetPath}`;
+            }
+
+            if(sharedGlobal && !!assetId) {
+               assetId = assetId + "^host-org";
             }
          }
          else if(url[1].path === "user") {

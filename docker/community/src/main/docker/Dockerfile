@@ -28,10 +28,12 @@ ENV JAVA_CLASSPATH=''
 ENV INETSOFT_SERVER_MAIN='inetsoft.web.InetsoftApplication'
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends fonts-dejavu fonts-liberation2 \
-  fonts-croscore fonts-freefont-ttf fonts-roboto gettext-base fontconfig \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends fonts-dejavu \
+  fonts-liberation2 fonts-croscore fonts-freefont-ttf fonts-roboto gettext-base fontconfig \
+  && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y ca-certificates \
   && rm -rf /var/cache/apt/* \
   && rm -rf /var/lib/apt/lists/* \
+  && userdel -rf ubuntu \
   && groupadd -g 1000 inetsoft \
   && useradd -u 1000 -g 1000 -d /usr/local/inetsoft -s /bin/bash -m inetsoft \
   && mkdir -p /usr/local/inetsoft/classes \

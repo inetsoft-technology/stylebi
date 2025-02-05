@@ -363,7 +363,8 @@ public class DeployUtil {
          dependency.getType() == XAssetDependency.VIEWSHEET_LINK ||
          dependency.getType() == XAssetDependency.REPLET_LINK ||
          // Ignore script-script dependencies, as they may be circular.
-         dependency.getType() == XAssetDependency.SCRIPT_SCRIPT;
+         dependency.getType() == XAssetDependency.SCRIPT_SCRIPT ||
+         dependency.getType() == XAssetDependency.XLOGICALMODEL_DRILL_XQUERY;
    }
 
    private static void addDependentAsset(XAssetDependency dependency, XAsset newAssets,

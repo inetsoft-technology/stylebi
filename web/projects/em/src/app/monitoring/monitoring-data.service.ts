@@ -33,7 +33,7 @@ export class MonitoringDataService {
    constructor(stompClientService: StompClientService,
                private zone: NgZone)
    {
-      this.connection = stompClientService.connect("../vs-events").pipe(shareReplay(1));
+      this.connection = stompClientService.connect("../vs-events", true).pipe(shareReplay(1));
    }
 
    public connect<T>(endpoint: string, topic: string = "monitoring", replay: boolean = false): Observable<any> {

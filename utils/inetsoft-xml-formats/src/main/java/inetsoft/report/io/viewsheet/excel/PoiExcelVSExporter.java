@@ -113,8 +113,17 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
          }
 
          sheet = book.createSheet(getSheetName(sheetName));
+         int bgIdx = ec.getBackgroupPictureId();
+
+         if(sheet instanceof XSSFSheet && bgIdx != -1) {
+            String rID = ((XSSFSheet) sheet).addRelation(null, XSSFRelation.IMAGES,
+                  (XSSFPictureData) book.getAllPictures().get(bgIdx)).getRelationship().getId();
+            ((XSSFSheet) sheet).getCTWorksheet().addNewPicture().setId(rID);
+         }
+
          patriarch = (XSSFDrawing) sheet.createDrawingPatriarch();
          boolean showGrid = "true".equals(SreeEnv.getProperty("excel.vs.export.grid.show"));
+
          sheet.setDisplayGridlines(showGrid);
          chartList = new Vector();
       }
@@ -1368,8 +1377,8 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
    }
 
    private void fixMergeCells(Sheet newSheet, VSTableLens table) {
-      int rowCount = table.getRowCount();
-      int colCount = table.getColCount();
+      int rowCount = table != null ? table.getRowCount() : 0;
+      int colCount = table != null ? table.getColCount() : 0;
 
       for(int r = 0; r < rowCount; r++) {
          for(int c = 0; c < colCount; c++) {
@@ -1389,8 +1398,8 @@ public class PoiExcelVSExporter extends ExcelVSExporter {
    }
 
    private void fixCellContent(Sheet newSheet, VSTableLens table, XSSFCellStyle style) {
-      int rowCount = table.getRowCount();
-      int colCount = table.getColCount();
+      int rowCount = table != null ? table.getRowCount() : 0;
+      int colCount = table != null ? table.getColCount() : 0;
 
       for(int r = 0; r < rowCount; r++) {
          Row row = newSheet.createRow(r);

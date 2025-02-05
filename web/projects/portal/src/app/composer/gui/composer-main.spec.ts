@@ -15,11 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+import { HttpClientTestingModule } from "@angular/common/http/testing";
 import { NO_ERRORS_SCHEMA } from "@angular/core";
 import { async, ComponentFixture, TestBed } from "@angular/core/testing";
 import { ActivatedRoute, Router } from "@angular/router";
 import { NgbModal, NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { of as observableOf, Subject } from "rxjs";
+import { AppInfoService } from "../../../../../shared/util/app-info.service";
 import { UIContextService } from "../../common/services/ui-context.service";
 import { TestUtils } from "../../common/test/test-utils";
 import { StompClientService } from "../../common/viewsheet-client";
@@ -55,6 +57,7 @@ describe("ComposerMain Unit Tests", () => {
    let route: any;
    let httpService: any;
    let composerRecentService: any;
+   let appInfoService: any;
 
    beforeEach(async(() => {
       composerObjectService = { getNewIndex: jest.fn() };
@@ -101,6 +104,10 @@ describe("ComposerMain Unit Tests", () => {
 
       httpService = { get: jest.fn(), post: jest.fn() };
 
+      appInfoService = {
+         getCurrentOrgInfo: jest.fn(() => observableOf({})),
+      };
+
       viewsheet = new Viewsheet();
       viewsheet.localId = 1;
       viewsheet.label = "vs1";
@@ -135,6 +142,7 @@ describe("ComposerMain Unit Tests", () => {
             { provide: StompClientService, useValue: stompClientService },
             { provide: HttpClient, useValue: httpService },
             { provide: ComposerRecentService, useValue: composerRecentService },
+            { provide: AppInfoService, useValue: appInfoService }
          ],
          declarations: [
             ComposerMainComponent

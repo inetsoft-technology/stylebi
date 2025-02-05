@@ -54,6 +54,35 @@ export class HierarchyPropertyPane implements OnInit {
       this.isIE = window.navigator.userAgent.toLowerCase().indexOf("trident") != -1;
    }
 
+   getInputClass(column: any): string {
+      if(!this.model.grayedOutFields) {
+         return "";
+      }
+
+      let name: string = null;
+
+      if(column && column.name) {
+         name = column.name;
+      }
+      else if(column && column.dataRef) {
+         name = column.dataRef.name;
+      }
+
+      if(name.indexOf(":") > 0) {
+         name = name.replace(":", ".");
+      }
+
+      for(let i = 0; i < this.model.grayedOutFields.length; i++) {
+         if(this.model.grayedOutFields[i] && name == this.model.grayedOutFields[i].name) {
+            return "grayed-out-field";
+         }
+      }
+
+
+
+      return "";
+   }
+
    private initLocalColumnList() {
       this.localColumnList = [];
 

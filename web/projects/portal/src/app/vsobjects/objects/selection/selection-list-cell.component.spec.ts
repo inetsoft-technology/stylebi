@@ -241,7 +241,7 @@ describe("Selection List Cell Test", () => {
    });
 
    //Bug #18841 should apply border on selection tree
-   xit("should apply border format on selection tree", () => { // broken
+   it("should apply border format on selection tree", () => { // broken
       let vsformats = TestUtils.createMockVSFormatModel();
       vsformats.border = {
          top: "2px solid #ff00ff",
@@ -284,8 +284,9 @@ describe("Selection List Cell Test", () => {
       fixture.detectChanges();
 
       let listCell = fixture.debugElement.queryAll(By.css("div.selection-list-cell"))[0];
-      expect(listCell.styles["border-width"]).toBe("2px");
-      expect(listCell.styles["border-style"]).toBe("solid");
-      expect(listCell.styles["border-color"]).toBe("rgb(255, 0, 255)");
+      // expect(listCell.styles).toBeFalsy();
+      expect(listCell.styles["border-bottom-width"]).toBe("2px");
+      expect(listCell.styles["border-bottom-style"]).toBe("solid");
+      expect(listCell.styles["border-bottom-color"]).toBe("#ff00ff");
    });
 });

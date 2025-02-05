@@ -42,7 +42,7 @@
       <div class="col-9">
         <div class="form-floating">
           <dynamic-combo-box [(value)]="localParentId" [vsId]="runtimeId"
-                             [grayedOutValues]="grayedOutRefLabels"
+                             [grayedOutValues]="grayedOutValues"
                              (valueChange)="selectParentId($event)"
                              (typeChange)="selectParentIdType($event)"
                              [(values)]="localRefLabels"
@@ -56,7 +56,7 @@
       <div class="col-9">
         <div class="form-floating">
           <dynamic-combo-box [(value)]="localId" [vsId]="runtimeId"
-                             [grayedOutValues]="grayedOutRefLabels"
+                             [grayedOutValues]="grayedOutValues"
                              (valueChange)="selectId($event)"
                              (typeChange)="selectIdType($event)"
                              [(values)]="localRefLabels"
@@ -70,7 +70,7 @@
       <div class="col-9">
         <div class="form-floating">
           <dynamic-combo-box [(value)]="localLabel" [vsId]="runtimeId"
-                             [grayedOutValues]="grayedOutRefLabels"
+                             [grayedOutValues]="grayedOutValues"
                              (valueChange)="selectLabel($event)"
                              (typeChange)="selectLabelType($event)"
                              [(values)]="localRefLabels"

@@ -32,14 +32,14 @@
      [style.width.px]="model.objectFormat.width"
      [style.height.px]="model.objectFormat.height"
      [style.background-color]="model.objectFormat.background"
+     [style.z-index]="viewer ? model.objectFormat.zIndex : null"
      [style.border-bottom]="model.objectFormat.border.bottom"
      [style.border-top]="model.objectFormat.border.top"
      [style.border-left]="model.objectFormat.border.left"
      [style.border-right]="model.objectFormat.border.right"
      [style.border-radius.px]="model.objectFormat.roundCorner">
   <div class="image-container"
-       [class.cursor-pointer]="viewer && (model.hyperlinks && model.hyperlinks.length || model.hasOnClick || model.popComponent)"
-       [style.z-index]="getZIndex()">
+       [class.cursor-pointer]="viewer && (model.hyperlinks && model.hyperlinks.length || model.hasOnClick || model.popComponent)">
     <ng-container *ngIf="!model.noImageFlag && vsInfo?.linkUri">
       <img *ngIf="!model.scaleInfo.tiled" class="image-content"
            (click)="clicked($event)"

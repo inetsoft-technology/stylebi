@@ -25,6 +25,8 @@ import inetsoft.report.composition.VSTableLens;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.gui.viewsheet.*;
 import inetsoft.report.internal.Common;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.io.viewsheet.*;
 import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.asset.internal.AssetUtil;
@@ -34,6 +36,8 @@ import inetsoft.util.*;
 import inetsoft.util.css.*;
 import org.apache.poi.sl.usermodel.PictureData.PictureType;
 import org.apache.poi.xslf.usermodel.*;
+import org.openxmlformats.schemas.drawingml.x2006.main.*;
+import org.openxmlformats.schemas.presentationml.x2006.main.CTBackgroundProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +61,18 @@ public class PPTVSExporter extends AbstractVSExporter {
    public PPTVSExporter(PPTContext context, OutputStream stream) {
       this.show = context.getSlideShow();
       this.stream = stream;
+
+      try {
+         LicenseManager licenseManager = LicenseManager.getInstance();
+
+         if(licenseManager.isElasticLicense() && licenseManager.getElasticRemainingHours() == 0) {
+            BufferedImage image = Util.createWatermarkImage();
+            byte[] buf = VSUtil.getImageBytes(image, 72 * 2);
+            bgImage = show.addPicture(buf, PictureType.PNG);
+         }
+      }
+      catch(Exception ignore) {
+      }
    }
 
    @Override
@@ -71,6 +87,16 @@ public class PPTVSExporter extends AbstractVSExporter {
    private void setUpSlide(String slideName) {
       try {
          slide = show.createSlide();
+
+         if(bgImage != null) {
+            CTBackgroundProperties bgProperties = slide.getXmlObject().getCSld().addNewBg().addNewBgPr();
+            CTBlipFillProperties blipFillProperties = bgProperties.addNewBlipFill();
+            blipFillProperties.addNewTile().setAlgn(STRectAlignment.TL);
+            String idx = slide.addRelation(null, XSLFRelation.IMAGES, bgImage).getRelationship().getId();
+            CTBlip blib = blipFillProperties.addNewBlip();
+            blib.setEmbed(idx);
+         }
+
          Color bg = CSSDictionary.getDictionary().getBackground(
             new CSSParameter(CSSConstants.VIEWSHEET, null, null, null));
 
@@ -84,7 +110,7 @@ public class PPTVSExporter extends AbstractVSExporter {
          if(format != null) {
             final Color background = format.getBackground();
 
-            if(background != null) {
+            if(bgImage == null && background != null) {
                final XSLFBackground slideBackground = slide.getBackground();
 
                if(slideBackground != null) {
@@ -557,6 +583,14 @@ public class PPTVSExporter extends AbstractVSExporter {
          }
 
          boolean shadowed = false;
+
+         VSCompositeFormat fmt = info.getFormat();
+
+         if(assembly instanceof TextVSAssembly && fmt != null && fmt.getPresenter() != null) {
+            Rectangle2D bounds = coordinator.getBounds(info);
+            writePicture(getImage(assembly), bounds);
+            return;
+         }
 
          if(info instanceof TextVSAssemblyInfo) {
             shadowed = ((TextVSAssemblyInfo) info).getShadowValue();
@@ -1193,6 +1227,7 @@ public class PPTVSExporter extends AbstractVSExporter {
    private XSLFSlide slide;
    private PPTCoordinateHelper coordinator;
    private OutputStream stream;
+   private XSLFPictureData bgImage;
 
    private static final int PPT_MAX_ROW = 3600;
    private static final int PPT_MAX_COL = 50;

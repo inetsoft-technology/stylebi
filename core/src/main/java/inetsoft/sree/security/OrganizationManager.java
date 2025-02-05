@@ -176,7 +176,7 @@ public class OrganizationManager {
       List<IdentityID> userIDs = new ArrayList<>();
 
       for(IdentityID id : identityIDS) {
-         if(isOrgAdmin(id) || isSiteAdmin(id)) {
+         if(isOrgAdmin(id)) {
             userIDs.add(id);
          }
       }

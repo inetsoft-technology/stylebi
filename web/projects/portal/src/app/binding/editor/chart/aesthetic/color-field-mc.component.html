@@ -76,7 +76,9 @@
         </combined-color-pane>
       </div>
       <div *ngSwitchCase="'CategoricalColor'">
-        <categorical-color-pane [vsId]="vsId" [assemblyName]="assemblyName"
+        <categorical-color-pane [vsId]="vsId"
+                                [assetId]="assetId"
+                                [assemblyName]="assemblyName"
                                 (openDialog)="dialogOpened = $event"
                                 [(frameModel)]="frames[0]" [field]="field"
                                 (resetted)="reset()" (apply)="openChanged($event)">

@@ -703,6 +703,10 @@ public class SUtil {
       return destination;
    }
 
+   public static Principal createEMPrincipal(Principal defaultPrincipal) {
+      return (Principal) ((SRPrincipal)defaultPrincipal).clone();
+   }
+
    /**
     * Get principal.
     */
@@ -2330,30 +2334,63 @@ public class SUtil {
       return Objects.requireNonNull(AssetEntry.createAssetEntry(key)).getUser();
    }
 
+   public static boolean isEMPrincipal(HttpServletRequest req) {
+      if(req == null) {
+         return false;
+      }
+
+      return Tool.equals("true", req.getHeader(RepletRepository.EM_CLIENT));
+   }
+
+   public static Principal getPrincipal(HttpServletRequest req) {
+      return getPrincipal(req, false);
+   }
+
    /**
     * Get principal.
     */
-   public static Principal getPrincipal(HttpServletRequest req) {
+   public static Principal getPrincipal(HttpServletRequest req, boolean create) {
+      if(req == null) {
+         return null;
+      }
+
       try {
-         HttpSession session = req.getSession(false);
+         Principal principal = null;
+         HttpSession session = req.getSession(create);
+         boolean isEmRequest = Tool.equals("true", req.getHeader(RepletRepository.EM_CLIENT)) ||
+            "websocket".equals(req.getHeader("Upgrade")) &&
+               Tool.equals("true", req.getParameter(RepletRepository.EM_CLIENT));
 
-         if(session == null) {
-            return null;
+         if(isEmRequest) {
+            principal = (Principal) session.getAttribute(RepletRepository.EM_PRINCIPAL_COOKIE);
+
+            if(principal == null) {
+               principal = (Principal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+
+               if(principal != null && OrganizationManager.getInstance().isSiteAdmin(principal)) {
+                  principal = createEMPrincipal(principal);
+                  session.setAttribute(RepletRepository.EM_PRINCIPAL_COOKIE, principal);
+               }
+            }
          }
 
-         // is not admin servlet? get viewer principal
-         Principal principal = (Principal) session.getAttribute(
-            RepletRepository.PRINCIPAL_COOKIE);
-
-         if(principal != null) {
-            return principal;
+         if(principal == null) {
+            principal = (Principal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
          }
+
+         return principal;
       }
       catch(Exception ex) {
          LOG.error("Failed to get principal for HTTP request", ex);
       }
 
       return null;
+   }
+
+   public static boolean isSiteAdminSession(HttpSession session) {
+      XPrincipal principal = (XPrincipal) session.getAttribute(RepletRepository.PRINCIPAL_COOKIE);
+
+      return principal != null && OrganizationManager.getInstance().isSiteAdmin(principal.getIdentityID());
    }
 
    /**
@@ -2795,13 +2832,11 @@ public class SUtil {
    }
 
    public static boolean isDefaultVSGloballyVisible(Principal principal) {
-      String orgId = principal == null ? OrganizationManager.getInstance().getCurrentOrgID() :
-                                          ((XPrincipal) principal).getProperty("curr_org_id") != null
-                                       ? ((XPrincipal) principal).getProperty("curr_org_id") :
-                                          ((XPrincipal) principal).getOrgId();
+      String orgId = principal == null ?
+         OrganizationManager.getInstance().getCurrentOrgID() : ((XPrincipal) principal).getOrgId();
 
       String orgScopedProperty = "security." + orgId + ".exposeDefaultOrgToAll";
-      return SUtil.isMultiTenant() &&
+      return SUtil.isMultiTenant() && !OrganizationManager.getInstance().isSiteAdmin(principal) &&
          (Boolean.parseBoolean(SreeEnv.getProperty("security.exposeDefaultOrgToAll", "false")) ||
           Boolean.parseBoolean(SreeEnv.getProperty(orgScopedProperty, "false")));
    }

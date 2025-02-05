@@ -17,18 +17,13 @@
  */
 package inetsoft.uql.rest.datasource.twitter;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.rest.json.*;
 import inetsoft.uql.rest.pagination.*;
 import inetsoft.uql.tabular.*;
-import inetsoft.util.CoreTool;
-import inetsoft.sree.SreeEnv;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.Element;
 
-import java.io.PrintWriter;
-import java.lang.invoke.MethodHandles;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 @View(vertical = true, value = {
    @View1("endpoint"),
@@ -40,7 +35,6 @@ import java.util.*;
       }),
    @View1(value = "customEndpt", visibleMethod = "isCustomEndpoint"),
    @View1("parameters"),
-   @View1(value = "usePagination", visibleMethod = "isPaged"),
    @View1("additionalParameters"),
    @View1("jsonPath"),
    @View1(type = ViewType.LABEL, text = "Example: $.store.book"),
@@ -114,15 +108,6 @@ public class TwitterQuery extends EndpointJsonQuery<TwitterEndpoint> {
       return queryParameters;
    }
 
-   @Property(label = "Use Pagination")
-   public boolean isUsePagination() {
-      return usePagination;
-   }
-
-   public void setUsePagination(boolean usePagination) {
-      this.usePagination = usePagination;
-   }
-
    @Override
    public void postprocessSuffix(SuffixTemplate suffix) {
       // clear out existing query parameters
@@ -160,21 +145,11 @@ public class TwitterQuery extends EndpointJsonQuery<TwitterEndpoint> {
             queryParameters.put(param.getName(), param.getValue());
          }
       }
-
-      TwitterDataSource dataSource = (TwitterDataSource) getDataSource();
-      dataSource.update(suffix.build(), queryParameters);
    }
 
    @Override
    protected void updatePagination(TwitterEndpoint endpoint) {
-      if(!usePagination) {
-         paginationSpec = PaginationSpec.builder().type(PaginationType.NONE).build();
-         return;
-      }
-
-      final int paged = endpoint.getPageType();
-
-      if(paged == 1) {
+      if(endpoint.isPaged()) {
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.ITERATION)
             .hasNextParam(PaginationParamType.JSON_PATH, "$.meta.next_token")
@@ -205,18 +180,5 @@ public class TwitterQuery extends EndpointJsonQuery<TwitterEndpoint> {
          Endpoints.load(TwitterEndpoints.class);
    }
 
-   @Override
-   public void writeContents(PrintWriter writer) {
-      super.writeContents(writer);
-      writer.format("<usePagination>%s</usePagination>%n", usePagination);
-   }
-
-   @Override
-   public void parseContents(Element root) throws Exception {
-      super.parseContents(root);
-      usePagination = Boolean.parseBoolean(CoreTool.getChildValueByTagName(root, "usePagination"));
-   }
-
-   private Map<String, String> queryParameters = new HashMap<>();
-   private boolean usePagination;
+   private final Map<String, String> queryParameters = new HashMap<>();
 }

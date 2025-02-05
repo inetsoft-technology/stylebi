@@ -75,7 +75,9 @@
                 </chart-high-low-pane>
               </div>
               <aesthetic-pane [bindingModel]="bindingModel" [chartModel]="objectModel"
-                              [vsId]="runtimeId" [assemblyName]="assemblyName"
+                              [vsId]="runtimeId"
+                              [assetId]="assetId"
+                              [assemblyName]="assemblyName"
                               [objectType]="bindingType" [grayedOutValues]="grayedOutValues"
                               (onUpdateData)="updateData($event)" (onSizeChange)="sizeChanged()">
               </aesthetic-pane>

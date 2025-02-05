@@ -212,6 +212,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       measure.setFolder(measureModel.getFolder());
       measure.setXMetaInfo(convertToMetaInfo(measureModel.getMetaInfo()));
       measure.setOriginalType(measureModel.getOriginalType());
+      measure.setCalcMeasure(measureModel.getCalcMeasure());
 
       return measure;
    }
@@ -475,6 +476,7 @@ public class XmlaDatasourceService extends DatasourcesBaseService {
       measureModel.setFolder(measure.getFolder());
       measureModel.setMetaInfo(createXMetaInfoModel(measure.getXMetaInfo(), principal));
       measureModel.setOriginalType(measure.getOriginalType());
+      measureModel.setCalcMeasure(measure.isCalcMeasure());
 
       return measureModel;
    }

@@ -18,6 +18,8 @@
 
 package inetsoft.report.internal.license;
 
+import inetsoft.sree.security.SRPrincipal;
+
 public class NoopHostedLicenseService implements HostedLicenseService {
    @Override
    public long getRemainingHours(String licenseKey, String orgId, String user) {
@@ -30,15 +32,23 @@ public class NoopHostedLicenseService implements HostedLicenseService {
    }
 
    @Override
-   public boolean startSession(License license, String orgId, String user) {
+   public boolean startSession(License license, SRPrincipal principal) {
       return false;
    }
 
    @Override
-   public void stopSession(String licenseKey, String orgId, String user) {
+   public void stopSession(String licenseKey, SRPrincipal principal) {
    }
 
    @Override
    public void removeLicense(String licenseKey) {
+   }
+
+   @Override
+   public void addNotificationListener(NotificationListener listener) {
+   }
+
+   @Override
+   public void removeNotificationListener(NotificationListener listener) {
    }
 }

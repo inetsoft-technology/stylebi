@@ -30,7 +30,7 @@ public enum CredentialType {
    AUTH_TOKENS("auth_tokens"),
    AUTHORIZATION_CODE("authorization_code"),
    AUTHORIZATION_TOKEN("authorizationToken"),
-   CLINET("client_credentials"),
+   CLIENT("client_credentials"),
    CLIENT_GRANT("client_credentials_grant"),
    CONSUMER_SECRET("consumerSecret"),
    OAUTH2("oauth2"),

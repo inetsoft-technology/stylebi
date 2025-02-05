@@ -2011,6 +2011,7 @@ public class VsToReportConverter {
 
       if(presenter != null) {
          textbox.setPresenter(presenter);
+         textbox.setData(assembly.getValue());
       }
 
       processHyperlink(assembly, textbox);

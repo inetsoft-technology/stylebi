@@ -68,6 +68,8 @@ public class SessionExpirationController {
       if(principal != null) {
          SessionExpirationModel model = SessionExpirationModel.builder()
             .remainingTime(event.getRemainingTime())
+            .expiringSoon(event.isExpiringSoon())
+            .nodeProtection(event.isNodeProtection())
             .build();
          messagingTemplate
             .convertAndSendToUser(SUtil.getUserDestination(principal), TOPIC, model);
@@ -81,16 +83,12 @@ public class SessionExpirationController {
       if(httpSessionId != null) {
          MapSession session = mapSessionRepository.findById(httpSessionId);
          session.setLastAccessedTime(Instant.now());
-      }
-   }
 
-   @GetMapping("/api/session/session-timeout")
-   public SessionExpirationModel sessionTimeout() {
-      String property = SreeEnv.getProperty("http.session.timeout");
-      long timeout = Long.parseLong(property) * 1000; // s to ms
-      return SessionExpirationModel.builder()
-         .sessionTimeout(timeout)
-         .build();
+         MapSessionRepository.SessionExpiringSoonEvent event =
+            new MapSessionRepository.SessionExpiringSoonEvent(this, session, 0,
+                                                              false, false);
+         sessionExpiringSoon(event);
+      }
    }
 
    private final Map<String, String> httpSessionIdMap = new HashMap<>(); // key = simp session id, value = http session id

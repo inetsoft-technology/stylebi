@@ -28,7 +28,7 @@ public class ClientCredentialFactory implements CredentialFactory {
 
    @Override
    public CredentialType getType() {
-      return CredentialType.CLINET;
+      return CredentialType.CLIENT;
    }
 
    @Override

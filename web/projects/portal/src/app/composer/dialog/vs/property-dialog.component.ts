@@ -26,6 +26,7 @@ export class PropertyDialog implements OnInit, OnDestroy {
    @Input() variableValues: string[];
    @Input() layoutObject: boolean = false;
    @Input() runtimeId: string;
+   @Input() assetId: string;
    @Input() openToScript: boolean = false;
    @Input() assemblyName: string;
    @Output() onCommit = new EventEmitter<any>();

@@ -24,6 +24,7 @@ import inetsoft.report.internal.Util;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
 import inetsoft.uql.DrillPath;
 import inetsoft.uql.DrillSubQuery;
+import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.viewsheet.DynamicValue;
 import inetsoft.uql.viewsheet.internal.VSUtil;
 import inetsoft.util.*;
@@ -650,6 +651,14 @@ public class Hyperlink implements XMLSerializable, Serializable, Cloneable {
       // if link has :// or starts with /, treat as http link
       if(link != null && !(link.indexOf("://") > 0 || link.startsWith("/"))) {
          try {
+            AssetEntry entry = AssetEntry.createAssetEntry(link);
+
+            if(entry != null && entry.getUser() != null &&
+               entry.getType() == AssetEntry.Type.VIEWSHEET)
+            {
+               return Hyperlink.VIEWSHEET_LINK;
+            }
+
             if(!link.contains(".com") && !link.contains(".net") && !link.contains(".org")) {
                return Hyperlink.VIEWSHEET_LINK;
             }

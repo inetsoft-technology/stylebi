@@ -482,19 +482,26 @@ export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
          for(let i = 0; grayedOutFields && i < grayedOutFields.length; i++) {
             if(this.node && this.node.data) {
                let name: string = null;
+               let table: string = null;
 
                if(typeof this.node.data == "string") {
                   name = this.node.data;
                }
                else if(this.node.data.name) {
                   name = this.node.data.name;
+                  table = this.node.data.table;
                }
                else {
                   let entry: AssetEntry = <AssetEntry> this.node.data;
                   name = this.getFieldName(entry);
+                  table = this.node.data.table;
                }
 
                if(name == grayedOutFields[i] || name == grayedOutFields[i].name) {
+                  return true;
+               }
+
+               if(table != null && table + "." + name == grayedOutFields[i].name) {
                   return true;
                }
             }
@@ -502,6 +509,16 @@ export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
 
          if(this.tree.isGrayFunction) {
             return this.tree.isGrayFunction(this.node);
+         }
+      }
+
+      let grayedOutValues: any[] = this.tree.grayedOutValues;
+
+      if(this.node && grayedOutValues) {
+         if(this.node && this.node.data && typeof this.node.data == "string") {
+            if(grayedOutValues.indexOf(this.node.data) >= 0) {
+               return true;
+            }
          }
       }
 
@@ -538,7 +555,9 @@ export class TreeNodeComponent implements OnInit, OnDestroy, OnChanges {
       else {
          let assembly: string = entry.properties?.assembly;
 
-         if(assembly != null && entry.properties?.isCalc != "true") {
+         if(assembly != null && (entry.properties?.isCalc != "true" ||
+            entry.properties?.sourceType != "LOGIC_MODEL"))
+         {
             cvalue = assembly + "." + attribute;
          }
       }

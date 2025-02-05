@@ -25,8 +25,7 @@ import inetsoft.sree.schedule.*;
 import inetsoft.util.*;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.util.log.LogManager;
-import inetsoft.web.metrics.CacheMeterService;
-import inetsoft.web.metrics.ExecutionMeterService;
+import inetsoft.web.metrics.*;
 import inetsoft.web.security.*;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PreDestroy;
@@ -188,17 +187,7 @@ public abstract class BaseInetsoftApplication {
       return new EndpointMediaTypes(
          "application/vnd.spring-boot.actuator.v3+json",
          "application/vnd.spring-boot.actuator.v2+json", "application/json", "text/plain",
-         "text/plain; version=0.0.4; charset=utf-8");
-   }
-
-   @Bean
-   public CacheMeterService cacheMeterService(MeterRegistry registry) {
-      return new CacheMeterService(registry);
-   }
-
-   @Bean
-   public ExecutionMeterService executionMeterService(MeterRegistry registry) {
-      return new ExecutionMeterService(registry);
+         "text/plain;version=0.0.4;charset=utf-8");
    }
 
    @PreDestroy

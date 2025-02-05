@@ -18,8 +18,9 @@
 package inetsoft.uql.tabular.oauth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.entity.UrlEncodedFormEntity;
 import org.apache.hc.client5.http.impl.classic.*;
@@ -187,6 +188,10 @@ public class AuthorizationClient {
 
       if(Tool.isServer() || "true".equals(System.getProperty("ScheduleServer"))) {
          license = SreeEnv.getProperty("license.key");
+
+         if(!LicenseManager.getInstance().isEnterprise() && (license == null || license.isEmpty())) {
+            throw new MessageException(Catalog.getCatalog().getString("em.license.communityLicenseRequired"));
+         }
       }
 
       int index = license.indexOf(',');

@@ -25,7 +25,7 @@
     {
       "name": "Account",
       "paged": false,
-      "suffix": "/?restype=account&comp=properties&sv={SAS Token?}"
+      "suffix": "/?restype=account&comp=properties"
     },
     {
       "name": "Container Properties",

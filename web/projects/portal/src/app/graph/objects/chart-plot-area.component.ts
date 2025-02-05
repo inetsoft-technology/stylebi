@@ -525,7 +525,8 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
             if(this.isTileVisible(tile)) {
                loading = true;
-               this.onLoading.emit(true);
+               tile.loaded = false;
+               this.fireOnLoading();
             }
          }
       }
@@ -533,7 +534,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       // if src is same, (load) event won't be called so we need to explicitly fire it
       // to clear the loading icon.
       if(!loading) {
-         this.onLoad.emit(this.status);
+         this.fireOnLoad();
       }
 
       return src;
@@ -550,6 +551,11 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
       this.changeRef.detectChanges();
    }
 
+   loading(tile: ChartTile): void {
+      tile.loaded = false;
+      this.fireOnLoading();
+   }
+
    loaded(status: boolean, tile: ChartTile) {
       this.clearPan();
 
@@ -558,7 +564,7 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
 
          if(status || !this.isMaxModeHidden()) {
             this.status = status;
-            this.onLoad.emit(status);
+            this.fireOnLoad();
          }
 
          if(!status) {
@@ -585,6 +591,29 @@ export class ChartPlotArea extends ChartObjectAreaBase<Plot> implements OnChange
          chartObject: null,
          regions: []
       });
+   }
+
+   private fireOnLoading(): void {
+      for(const tile of this.chartObject.tiles) {
+         if(this.isTileVisible(tile) && !(tile as any).loaded) {
+            this.onLoading.emit(true);
+            break;
+         }
+      }
+   }
+
+   private fireOnLoad(): void {
+      let load_done = true;
+
+      for(const tile of this.chartObject.tiles) {
+         if(this.isTileVisible(tile) && !(tile as any).loaded) {
+            load_done = false;
+         }
+      }
+
+      if(load_done) {
+         this.onLoad.emit(this.status);
+      }
    }
 
    // double tap to lasso on mobile (mousedown-mouseup-mousedown to start dragging).

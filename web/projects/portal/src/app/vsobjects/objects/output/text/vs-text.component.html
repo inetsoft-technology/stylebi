@@ -21,6 +21,7 @@
      VSDataTip [dataTipName]="model.absoluteName"
      VSPopComponent [popComponentName]="getAssemblyName()" [popContainerName]="model.container"
      [popZIndex]="model.objectFormat.zIndex"
+     [style.z-index]="viewer ? model.objectFormat.zIndex : null"
      [wTooltip]="tooltip || ''"
      [style.display]="getVisible() ? null : 'none'"
      [class.fade-assembly]="!viewer && !model.visible"
@@ -34,7 +35,6 @@
      outOfZone (onDocKeydown)="onEnterDown($event)">
   <div class="border-div"
        [class.bd-gray]="vsWizardPreview"
-       [style.z-index]="getZIndex()"
        [style.border-bottom]="model.objectFormat.border.bottom"
        [style.border-top]="model.objectFormat.border.top"
        [style.border-left]="model.objectFormat.border.left"

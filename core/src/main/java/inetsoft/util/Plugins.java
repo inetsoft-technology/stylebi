@@ -21,6 +21,7 @@ import com.github.zafarkhaja.semver.Version;
 import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.storage.*;
+import inetsoft.uql.service.DataSourceRegistry;
 import inetsoft.uql.util.Config;
 import inetsoft.uql.util.Drivers;
 import inetsoft.util.audit.ActionRecord;
@@ -542,6 +543,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
       plugins.remove(pluginId);
       blobStorage.delete(pluginId);
       Drivers.getInstance().pluginRemoved(pluginId);
+      DataSourceRegistry.getRegistry().clearCache();
       plugin.getClassLoader().close();
       delete(plugin.getFolder());
 
@@ -650,6 +652,7 @@ public final class Plugins implements BlobStorage.Listener<Plugin.Descriptor>, A
          Plugin plugin = plugins.remove(pluginId);
 
          if(plugin != null) {
+            DataSourceRegistry.getRegistry().clearCache();
             Drivers.getInstance().pluginRemoved(pluginId);
 
             try {

@@ -93,7 +93,7 @@ public class AirtableQuery extends EndpointJsonQuery<AirtableEndpoint> {
             .hasNextParam(PaginationParamType.JSON_PATH, "$.offset")
             .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.offset")
             .pageOffsetParamToWrite(PaginationParamType.QUERY, "offset")
-            .maxResultsPerPageParam(PaginationParamType.QUERY, "maxRecords")
+            .maxResultsPerPageParam(PaginationParamType.QUERY, "pageSize")
             .maxResultsPerPage(100)
             .build();
       }

@@ -17,6 +17,7 @@
  */
 package inetsoft.web.admin.schedule.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.value.Value;
@@ -30,6 +31,7 @@ import javax.annotation.Nullable;
 @Value.Immutable
 @JsonSerialize(as = ImmutableCompletionConditionModel.class)
 @JsonDeserialize(as = ImmutableCompletionConditionModel.class)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public abstract class CompletionConditionModel extends ScheduleConditionModel {
    @Nullable
    public abstract String taskName();

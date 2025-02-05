@@ -6302,20 +6302,16 @@ public final class VSEventUtil {
     * 2 for untitled dashboard, select no will move auto save file to recycle bin.
     */
    public static void deleteAutoSavedFile(AssetEntry entry, Principal user) {
-      File savefile = AutoSaveUtils.getAutoSavedFile(entry, user);
-
       if(entry.getScope() != AssetRepository.TEMPORARY_SCOPE) {
-         if(savefile.exists()) {
-            savefile.delete();
-         }
-
+         AutoSaveUtils.deleteAutoSaveFile(entry, user);
          return;
       }
 
-      File recyclefile = AutoSaveUtils.getAutoSavedFile(entry, user, true);
+      String savefile = AutoSaveUtils.getAutoSavedFile(entry, user);
 
-      if(savefile.exists()) {
-         AutoSaveUtils.recycleAutoSaveFile(savefile, recyclefile);
+      if(AutoSaveUtils.exists(savefile, user)) {
+         String recyclefile = AutoSaveUtils.getAutoSavedFile(entry, user, true);
+         AutoSaveUtils.renameAutoSaveFile(savefile, recyclefile, user);
       }
    }
 

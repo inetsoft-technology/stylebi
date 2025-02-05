@@ -17,6 +17,7 @@
  */
 package inetsoft.web.health;
 
+import inetsoft.util.StatusDumpService;
 import inetsoft.util.health.OutOfMemoryHealthService;
 import inetsoft.util.health.OutOfMemoryStatus;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,7 @@ public class OutOfMemoryHealthIndicator implements HealthIndicator {
       if(status.isOutOfMemory()) {
          LoggerFactory.getLogger(getClass()).error(
             "OutOfMemoryHealthIndicator DOWN: time={}", status.getTime());
+         StatusDumpService.getInstance().dumpStatus();
          return Health.down().withDetail("time", status.getTime()).build();
       }
 

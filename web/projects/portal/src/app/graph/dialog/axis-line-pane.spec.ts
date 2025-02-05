@@ -116,7 +116,7 @@ describe("AxisLinePane Unit Tests", () => {
    // Bug #16369 Use correct checks for axis line pane elements visibility
    // Bug #19013 major increment should not allow negative number
    // Bug #21133 major increment should allow float number
-   xit("should only have major increment visible", () => { // broken test
+   it("should only have major increment visible", () => { // broken test
       fixture.componentInstance.model.truncate = false;
       fixture.componentInstance.linear = false;
       fixture.componentInstance.timeSeries = true;
@@ -124,9 +124,9 @@ describe("AxisLinePane Unit Tests", () => {
       fixture.componentInstance.incrementValid = true;
       fixture.detectChanges();
 
-      let minimum: any = fixture.debugElement.query(By.css("[id=minimum]")).nativeElement;
-      let maximum = fixture.debugElement.query(By.css("[id=maximum]")).nativeElement;
-      let minorIncrement = fixture.debugElement.query(By.css("[id=minorIncrement]")).nativeElement;
+      let minimum: any = fixture.debugElement.query(By.css("[id=minimum]"));
+      let maximum = fixture.debugElement.query(By.css("[id=maximum]"));
+      let minorIncrement = fixture.debugElement.query(By.css("[id=minorIncrement]"));
       let majorIncrement = fixture.debugElement.query(By.css("[id=majorIncrement]")).nativeElement;
 
       expect(minimum).toBeFalsy();
@@ -147,12 +147,12 @@ describe("AxisLinePane Unit Tests", () => {
       majorIncrement.dispatchEvent(new Event("input"));
       fixture.detectChanges();
 
-      let warnings = fixture.debugElement.query(By.css("div.alert.alert-danger")).nativeElement;
+      let warnings = fixture.debugElement.query(By.css("div.alert.alert-danger"));
       expect(warnings).toBeNull();
    });
 
    // Bug #18322 should disable major increment when logarithmic scale
-   xit("should disable major increment when logarithmic scale", (done) => {
+   it("should disable major increment when logarithmic scale", (done) => {
       fixture.componentInstance.linear = true;
       fixture.detectChanges();
 

@@ -64,6 +64,7 @@ export class DailyConditionEditorComponent implements OnInit {
       this.form.get("weekdayOnly").setValue(this._condition.weekdayOnly || false);
       this.form.get("interval").setValue(this._condition.interval || 0);
       this.form.get("timeZone").setValue(this._condition.timeZone || "");
+      this.initFormState();
 
       this.startTimeData = {
          startTime: this.dateTimeService.getStartTime(this._condition),
@@ -76,6 +77,9 @@ export class DailyConditionEditorComponent implements OnInit {
       if(!!this.startTimeData) {
          this.timeZoneEnabled = this.startTimeData.startTimeSelected;
       }
+
+      this.timeZoneLabel = this.dateTimeService
+         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone);
    }
 
    get weekdayOnly(): boolean {
@@ -132,13 +136,7 @@ export class DailyConditionEditorComponent implements OnInit {
       this.condition.interval = this.form.get("interval").value;
       this.condition.timeZone = this.form.get("timeZone").value;
       this.condition.weekdayOnly = this.weekdayOnly;
-
-      if(this.condition.weekdayOnly) {
-         this.form.get("interval").disable();
-      }
-      else {
-         this.form.get("interval").enable();
-      }
+      this.initFormState();
 
       if(this.startTimeData) {
          this.startTimeData = this.dateTimeService
@@ -153,5 +151,14 @@ export class DailyConditionEditorComponent implements OnInit {
          valid: this.form.valid && this.startTimeValid,
          model: this.condition
       });
+   }
+
+   private initFormState(): void {
+      if(this.condition.weekdayOnly) {
+         this.form.get("interval").disable();
+      }
+      else {
+         this.form.get("interval").enable();
+      }
    }
 }

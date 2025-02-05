@@ -35,6 +35,7 @@ import { RecentColorService } from "../color-picker/recent-color.service";
 import { MessageDialog } from "../dialog/message-dialog/message-dialog.component";
 import { NewAggrDialog } from "../dialog/new-aggr-dialog/new-aggr-dialog.component";
 import { ScriptPane } from "../dialog/script-pane/script-pane.component";
+import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
 import { FixedDropdownDirective } from "../fixed-dropdown/fixed-dropdown.directive";
 import { ComboMode } from "../dynamic-combo-box/dynamic-combo-box-model";
 import { AlphaDropdown } from "../format/alpha-dropdown.component";
@@ -152,7 +153,8 @@ describe("LinePanel Unit Tests", () => {
             ColorComponentEditor,
             ColorPane,
             ScriptPane,
-            FixedDropdownDirective
+            FixedDropdownDirective,
+            DynamicComboBox
          ],
          providers: [
             NgbModal,
@@ -196,13 +198,13 @@ describe("LinePanel Unit Tests", () => {
    });
 
    //Bug #17366 should show right promptstring on datefield column
-   xit("should show right promptstring when field type is date", () => {
+   it("should show right promptstring when field type is date", () => {
       linePanel.model.measure.dateField = true;
       fixture.detectChanges();
 
 
       let valueElem: HTMLElement = fixture.debugElement.query(By.css("date-input-field dynamic-combo-box")).nativeElement;
-      expect(valueElem.getAttribute("promptstring")).toBe("yyyy-MM-dd HH:mm:ss");
+      expect(valueElem.getAttribute("ng-reflect-prompt-string")).toBe("yyyy-MM-dd HH:mm:ss");
 
       const valueInput = valueElem.querySelector("input");
       valueInput.dispatchEvent(new Event("click"));

@@ -378,6 +378,8 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
     * @return a set containing the names of the entities that have been granted the permission.
     */
    public Set<PermissionIdentity> getGrants(ResourceAction action, int identityType) {
+      String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
       Set<PermissionIdentity> grants = switch(identityType) {
          case Identity.USER -> userGrants.get(action);
          case Identity.ROLE -> roleGrants.get(action);
@@ -390,7 +392,15 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
          grants = new HashSet<>();
       }
 
-      return grants;
+      Set<PermissionIdentity> filteredGrants = new HashSet<>();
+
+      for(PermissionIdentity grant : grants) {
+         if(currentOrgID.equals(grant.organizationID)) {
+            filteredGrants.add(grant);
+         }
+      }
+
+      return filteredGrants;
    }
 
    /**

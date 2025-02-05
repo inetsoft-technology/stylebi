@@ -22,7 +22,7 @@ import { LineActions } from "./line-actions";
 describe("LineActions", () => {
    const createModel = () => TestUtils.createMockVSLineModel("Line1");
 
-   xit("check status of menu actions of line in composer", () => {
+   it("check status of menu actions of line in composer", () => {
       const expectedMenu = [
          [
             { id: "line properties", visible: true },
@@ -67,7 +67,7 @@ describe("LineActions", () => {
       expect(menuActions[0].actions[3].visible()).toBe(false);
    });
 
-   xit("check status of menu actions of line in viewer and preview", () => {
+   it("check status of menu actions of line in viewer and preview", () => {
       const expectedMenu = [
          [
             { id: "line properties", visible: false },

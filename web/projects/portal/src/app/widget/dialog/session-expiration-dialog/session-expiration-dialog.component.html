@@ -15,7 +15,7 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
-<w-standard-dialog [title]="'_#(Session Timeout)'" (onClose)="closeDialog()" (onSubmit)="stayLoggedInClicked()">
+<w-standard-dialog [title]="nodeProtection ? '_#(Server Shutdown)' : '_#(Session Timeout)'" (onClose)="closeDialog()" (onSubmit)="stayLoggedInClicked()">
   <ng-template wDialogContent>
     <div class="container">
       <div class="row">
@@ -26,7 +26,8 @@
         </div>
         <div class="col">
           <div class="row">
-            <div class="col">_#(login.session.expiring.warning)</div>
+            <div *ngIf="!nodeProtection" class="col">_#(login.session.expiring.warning)</div>
+            <div *ngIf="nodeProtection" class="col">_#(login.nodeProtection.expiring.warning)</div>
           </div>
           <div class="row">
             <div class="col countdown-timer">
@@ -39,8 +40,8 @@
   </ng-template>
   <ng-template wDialogButtons>
     <button type="button" class="btn btn-primary text-nowrap" (click)="stayLoggedInClicked()">
-      _#(Stay Logged In)
+      {{ nodeProtection ? "_#(OK)" : "_#(Stay Logged In)" }}
     </button>
-    <button type="button" class="btn btn-default" (click)="logoutClicked()">_#(Logout)</button>
+    <button *ngIf="!nodeProtection" type="button" class="btn btn-default" (click)="logoutClicked()">_#(Logout)</button>
   </ng-template>
 </w-standard-dialog>

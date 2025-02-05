@@ -24,8 +24,6 @@ import inetsoft.mv.fs.FSService;
 import inetsoft.mv.fs.internal.BlockFileStorage;
 import inetsoft.mv.mr.XJobPool;
 import inetsoft.report.LibManager;
-import inetsoft.report.composition.WorksheetWrapper;
-import inetsoft.report.composition.execution.AssetDataCache;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.RepletRegistry;
 import inetsoft.sree.SreeEnv;
@@ -46,7 +44,8 @@ import inetsoft.uql.service.XEngine;
 import inetsoft.uql.util.*;
 import inetsoft.util.*;
 import inetsoft.util.audit.*;
-import inetsoft.util.config.*;
+import inetsoft.util.css.CSSDictionary;
+import inetsoft.web.AutoSaveUtils;
 import inetsoft.web.RecycleBin;
 import inetsoft.web.admin.favorites.FavoriteList;
 import inetsoft.web.admin.security.user.*;
@@ -58,7 +57,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
-import org.hsqldb.jdbc.JDBCBlobClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -163,6 +161,8 @@ public class IdentityService {
                   identityId, type, IdentityInfoRecord.ACTION_TYPE_DELETE, null, state);
 
             try {
+               objectName.append(identityId != null ? identityId.getName() : null).append(" ");
+
                if(type == Identity.GROUP) {
                   IdentityID[] users = provider.getUsers(identityId);
 
@@ -183,7 +183,6 @@ public class IdentityService {
                   deleteUserIDs.add(identityId);
                }
 
-               objectName.append(identityId != null ? identityId.getName() : null).append(" ");
                syncIdentity(provider, identityId != null ? new DefaultIdentity(identityId, type) :
                   new DefaultIdentity(), null);
             }
@@ -213,6 +212,10 @@ public class IdentityService {
          IdentityID[] names = new IdentityID[deleteUserIDs.size()];
          deleteUserIDs.toArray(names);
          actionRecord.setObjectName(objectName.toString());
+
+         if(!warnings.isEmpty()) {
+            actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
+         }
       }
       catch(Exception e) {
          actionRecord.setActionStatus(ActionRecord.ACTION_STATUS_FAILURE);
@@ -394,6 +397,7 @@ public class IdentityService {
 
             if(oOrg != null) {
                String orgID = oOrg.getOrganizationID();
+               PortalThemesManager themesManager = PortalThemesManager.getManager();
                eprovider.removeOrganization(identityId.orgID);
 
                // delete organization identityId inside of permissions
@@ -404,6 +408,9 @@ public class IdentityService {
                removeOrgScopedDataSpaceElements(oOrg);
                updateRepletRegistry(orgID, null);
                themeService.removeTheme(orgID);
+               themesManager.removeCSSEntry(orgID);
+               CSSDictionary.resetDictionaryCache();
+               themesManager.save();
                removeStorages(orgID);
                DataSourceRegistry.getRegistry().clearCache(orgID);
                FSService.clearServerNodeCache(orgID);
@@ -419,8 +426,8 @@ public class IdentityService {
             Organization oldOrg = eprovider.getOrganization(oId);
 
             if(!identityId.equals(oID)) {
-               eprovider.copyOrganization(oldOrg, id, identity.getName(),this,
-                                          themeService, ThreadContext.getContextPrincipal(), true);
+               eprovider.copyOrganization(oldOrg, (Organization) identity, id, identity.getName(),
+                  this, themeService, ThreadContext.getContextPrincipal(), true);
             }
 
             // Update current orgID
@@ -836,6 +843,7 @@ public class IdentityService {
    }
 
    public void removeStorages(String orgID) throws Exception {
+      removeOldOrgTaskFormScheduleServer(orgID);
       DashboardManager.getManager().removeDashboardStorage(orgID);
       DependencyStorageService.getInstance().removeDependencyStorage(orgID);
       RecycleBin.getRecycleBin().removeStorage(orgID);
@@ -856,10 +864,10 @@ public class IdentityService {
          IndexedStorage.getIndexedStorage().copyStorageData(oOrg, nOrg);
 
          FSService.copyServerNode(oOrg.getId(), nOrg.getId(), true);
-         updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
-         MVManager.getManager().copyStorageData(oOrg, nOrg);
+         //updateBlobStorageName("__mvBlock", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
          updateBlobStorageName("__mvws", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
          updateBlobStorageName("__pdata", oOrg.getId(), nOrg.getId(), BlockFileStorage.Metadata.class, true);
+         MVManager.getManager().copyStorageData(oOrg, nOrg);
 
          addNewOrgTaskToScheduleServer(nOrg.getOrganizationID());
          updateLibraryStorage(oOrg.getId(), nOrg.getId(), true);
@@ -881,6 +889,32 @@ public class IdentityService {
       for(ScheduleTask scheduleTask : scheduleTasks) {
          ScheduleClient.getScheduleClient().taskAdded(scheduleTask);
       }
+   }
+
+   private void removeOldOrgTaskFormScheduleServer(String oorgId)
+      throws RemoteException
+   {
+      ScheduleManager scheduleManager = ScheduleManager.getScheduleManager();
+      Vector<ScheduleTask> scheduleTasks = scheduleManager.getScheduleTasks(oorgId);
+      ScheduleServer scheduleServer = ScheduleServer.getInstance();
+
+      if(scheduleTasks == null || scheduleServer == null) {
+         return;
+      }
+
+      ScheduleClient scheduleClient = ScheduleClient.getScheduleClient();
+
+      for(ScheduleTask scheduleTask : scheduleTasks) {
+         // should not remove the global task.
+         if(ScheduleManager.isInternalTask(scheduleTask.getName())) {
+            continue;
+         }
+
+         scheduleClient.taskRemoved(scheduleTask.getTaskId());
+      }
+
+      scheduleClient.removeTaskCacheOfOrg(oorgId);
+      scheduleManager.removeTaskCacheOfOrg(oorgId);
    }
 
    private <T extends Serializable> void removeBlobStorage(String suffix, String orgID,
@@ -2186,32 +2220,19 @@ public class IdentityService {
       }
    }
 
-   public void updateAutoSaveFiles(Organization oorg, Organization norg) {
+   public void updateAutoSaveFiles(Organization oorg, Organization norg, Principal principal) {
       if(oorg.getId().equals(norg.getId())) {
          return;
       }
 
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      String path = SreeEnv.getProperty("sree.home") + "/" + "autoSavedFile/recycle";
-      File folder = fileSystemService.getFile(path);
+      List<String> list = AutoSaveUtils.getAutoSavedFiles(principal, true);
 
-      if(!folder.exists()) {
+      if(list.isEmpty()) {
          return;
       }
 
-      File[] list = folder.listFiles();
-
-      if(list == null) {
-         return;
-      }
-
-      for(File file : list) {
-         String asset = file.getName();
-
-         if(!file.isFile()) {
-            continue;
-         }
-
+      for(String file : list) {
+         String asset = AutoSaveUtils.getName(file);
          String[] attrs = Tool.split(asset, '^');
 
          if(attrs.length > 3) {
@@ -2227,9 +2248,8 @@ public class IdentityService {
             if(oorg.getId().equals(userID.getOrgID())) {
                userID.setOrgID(norg.getId());
                attrs[2] = userID.convertToKey();
-               String newFilePath = path + "/" + String.join("^", attrs);
-               File newFile = fileSystemService.getFile(newFilePath);
-               fileSystemService.rename(file, newFile);
+               String newFilePath = "recycle/" + String.join("^", attrs);
+               AutoSaveUtils.renameAutoSaveFile(file, newFilePath, principal);
             }
          }
       }
@@ -2256,27 +2276,15 @@ public class IdentityService {
          return;
       }
 
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      String path = SreeEnv.getProperty("sree.home") + "/" + "autoSavedFile/recycle";
-      File folder = fileSystemService.getFile(path);
+      Principal principal = ThreadContext.getContextPrincipal();
+      List<String> list = AutoSaveUtils.getAutoSavedFiles(principal, true);
 
-      if(!folder.exists()) {
+      if(list.isEmpty()) {
          return;
       }
 
-      File[] list = folder.listFiles();
-
-      if(list == null) {
-         return;
-      }
-
-      for(File file : list) {
-         String asset = file.getName();
-
-         if(!file.isFile()) {
-            continue;
-         }
-
+      for(String file : list) {
+         String asset = AutoSaveUtils.getName(file);
          String[] attrs = Tool.split(asset, '^');
 
          if(attrs.length > 3) {
@@ -2291,9 +2299,8 @@ public class IdentityService {
 
             if(fileUserID.equals(oID)) {
                attrs[2] = nID.convertToKey();
-               String newFilePath = path + "/" + String.join("^", attrs);
-               File newFile = fileSystemService.getFile(newFilePath);
-               fileSystemService.rename(file, newFile);
+               String newFilePath = "recycle/" + String.join("^", attrs);
+               AutoSaveUtils.renameAutoSaveFile(file, newFilePath, principal);
             }
          }
       }

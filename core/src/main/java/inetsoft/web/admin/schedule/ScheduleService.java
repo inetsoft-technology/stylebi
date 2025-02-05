@@ -336,14 +336,14 @@ public class ScheduleService {
       ScheduleTask currTask = scheduleManager.getScheduleTask(oldId);
 
       if(currTask == null) {
-         throw new Exception(catalog.getString(
+         throw new MessageException(catalog.getString(
             "em.scheduler.taskNotFound", oldId));
       }
 
       if(scheduleManager.hasDependency(allTasks, oldId)) {
          oldId = SUtil.getTaskNameWithoutOrg(oldId);
 
-         throw new Exception(catalog.getString(
+         throw new MessageException(catalog.getString(
             "em.schedule.task.renameDependency", oldId));
       }
 

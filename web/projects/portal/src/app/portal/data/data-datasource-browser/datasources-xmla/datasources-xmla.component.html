@@ -246,7 +246,7 @@
                                                [label]="formatString" (closed)="updateFormatString()">
                                     <attribute-formatting-pane
                                             [formatModel]="selectedCubeNode?.member?.metaInfo?.formatInfo"
-                                            [userDecimalFmts]="selectedCubeNode?.cube.decimalFmts"
+                                            [userDecimalFmts]="selectedCubeNode?.cube?.decimalFmts"
                                             (onApply)="updateFormatString(); formatDropdown.close()">
                                     </attribute-formatting-pane>
                                 </dropdown-view>

@@ -17,9 +17,11 @@
  */
 import { Component, EventEmitter, Input, OnInit, Output } from "@angular/core";
 import { UntypedFormBuilder, UntypedFormGroup, Validators } from "@angular/forms";
+import dayjs from "dayjs";
 import { FeatureFlagValue } from "../../../../../../../shared/feature-flags/feature-flags.service";
 import { TimeConditionModel } from "../../../../../../../shared/schedule/model/time-condition-model";
 import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
+import { TimeZoneService } from "../../../../../../../shared/schedule/time-zone.service";
 import { DateTypeFormatter } from "../../../../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { DateTimeService } from "../date-time.service";
@@ -52,23 +54,13 @@ export class RunOnceConditionEditorComponent implements OnInit {
       }
 
       this._condition = Object.assign({}, value);
-      let date: Date;
-
-      if(this._condition.date) {
-         if(this._condition.timeZone == null) {
-            date = this.dateTimeService.getDate(this._condition);
-         }
-         else {
-            date = new Date(this.convertToLocalTime(this._condition.date));
-         }
-      }
-      else {
-         date = new Date();
-      }
-
-      this.dateValue = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      this.form.get("startTime").setValue(this.dateTimeService.getTimeString(date));
-      this.form.get("timeZone").setValue(this._condition.timeZone || "");
+      const date = dayjs(this._condition.date)
+         .utcOffset(this.timeZoneService.calculateTimezoneOffset(this._condition.timeZone) / 60000);
+      this.dateValue = new Date(date.year(), date.month(), date.date(), date.hour(), date.minute());
+      this.form.get("startTime").setValue(this.dateTimeService.getTimeString(this.dateValue), {emitEvent: false});
+      this.form.get("timeZone").setValue(this._condition.timeZone || "", {emitEvent: false});
+      this.timeZoneLabel = this.dateTimeService
+         .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone);
    }
 
    form: UntypedFormGroup;
@@ -77,7 +69,9 @@ export class RunOnceConditionEditorComponent implements OnInit {
    timeValue: string;
    timeZoneLabel: string;
 
-   constructor(private dateTimeService: DateTimeService, fb: UntypedFormBuilder) {
+   constructor(private dateTimeService: DateTimeService, fb: UntypedFormBuilder,
+               private timeZoneService: TimeZoneService)
+   {
       this.form = fb.group({
          date: new UntypedFormGroup({}),
          startTime: [this.dateTimeService.getTimeString(new Date()), [Validators.required]],
@@ -105,18 +99,6 @@ export class RunOnceConditionEditorComponent implements OnInit {
       this.timeZoneLabel = label;
    }
 
-   convertToLocalTime(time: number): number {
-      const localOffset = this.dateTimeService.getLocalTimezoneOffset(this._condition.timeZone);
-      const serverOffset: number = this._condition.timeZoneOffset;
-      return time - localOffset - serverOffset;
-   }
-
-   convertToServerTime(time: number): number {
-      const localOffset = this.dateTimeService.getLocalTimezoneOffset(this._condition.timeZone);
-      const serverOffset: number = this._condition.timeZoneOffset;
-      return time + localOffset + serverOffset;
-   }
-
    fireModelChanged(_date?: Date): void {
       const oldTZ = this.condition.timeZone;
       const newTZ = this.form.get("timeZone").value;
@@ -142,28 +124,12 @@ export class RunOnceConditionEditorComponent implements OnInit {
       this.condition.timeZone = this.form.get("timeZone").value;
       this.dateTimeService.setDate(
          DateTypeFormatter.format(date, DateTypeFormatter.ISO_8601_DATE_FORMAT),
-         time, this.condition);
-
-      this.condition.date = this.convertToServerTime(this.condition.date);
+         time, this.timeZoneService.calculateTimezoneOffset(this.condition.timeZone),
+         this.condition);
 
       this.modelChanged.emit({
          valid: this.form.valid,
          model: this.condition
       });
-   }
-
-   updateDateTimeZone(oldDate: Date, oldTZ: string, newTZ: string): Date {
-      if(oldTZ == null && newTZ == null) {
-         return oldDate;
-      }
-
-      let time = oldDate.getTime();
-
-      let date = new Date();
-      const oldTZOffset = new Date(date.toLocaleString([], { timeZone: oldTZ })).getTime();
-      const newTZOffset = new Date(date.toLocaleString([], { timeZone: newTZ })).getTime();
-      time += oldTZOffset - newTZOffset;
-
-      return new Date(time);
    }
 }

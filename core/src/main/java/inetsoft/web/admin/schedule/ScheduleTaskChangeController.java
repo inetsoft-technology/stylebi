@@ -151,9 +151,11 @@ public class ScheduleTaskChangeController {
    private void dispatchPortalScheduleTask(ScheduleTaskMessage message) {
       ScheduleTask task = message.getTask();
       String taskId = task == null ? null : task.getTaskId();
+      String orgID = OrganizationManager.getInstance().getCurrentOrgID(subscriber);
 
       if(!portalSubscribed || ScheduleManager.isInternalTask(taskId) ||
-         taskId != null && !checkPortalPermission(taskId))
+         taskId != null && !checkPortalPermission(taskId) ||
+         !Tool.equals(orgID, OrganizationManager.getInstance().getCurrentOrgID()))
       {
          return;
       }

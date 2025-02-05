@@ -49,6 +49,11 @@ describe("CompletionConditionEditorComponent", () => {
    beforeEach(() => {
       fixture = TestBed.createComponent(CompletionConditionEditorComponent);
       component = fixture.componentInstance;
+      component.condition = {
+         taskName: "",
+         label: "",
+         conditionType: "CompletionCondition"
+      };
       fixture.detectChanges();
    });
 

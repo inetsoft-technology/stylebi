@@ -44,20 +44,6 @@ public class VSWizardDataController {
    }
 
    /**
-    * Check trap for tree select fields.
-    * Trap can only contains in logic model, so only check for logic model. For logic model, can't
-    * change source in wizard. So do not check source changed.
-    */
-   @PostMapping("/api/vswizard/binding/tree/checktrap")
-   public boolean treeCheckTrap(@RequestParam("runtimeId") String vsId,
-                                 @RequestBody RefreshBindingFieldsEvent event,
-                                 Principal principal)
-      throws Exception
-   {
-      return wizardDataService.treeCheckTrap(vsId, event.selectedEntries(), principal);
-   }
-
-   /**
     * Check trap for select second fields in aggregate pane.
     */
    @PostMapping("/api/vswizard/binding/aggregate/checktrap")

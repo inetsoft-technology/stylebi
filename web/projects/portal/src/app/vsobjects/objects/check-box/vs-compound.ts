@@ -380,7 +380,7 @@ export abstract class VSCompound<T extends VSCompoundModel> extends NavigationCo
    }
 
    getCellFormat(index: number): VSFormatModel {
-      if(!this.model?.formats || !this.model.formatIndexes || !this.model?.formatIndexes[index]) {
+      if(!this.model?.formats || !this.model.formatIndexes || this.model?.formatIndexes[index] == undefined) {
          return this.model.detailFormat;
       }
 

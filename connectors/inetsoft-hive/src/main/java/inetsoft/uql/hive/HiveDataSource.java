@@ -33,7 +33,6 @@ import java.util.Objects;
    @View1("host"),
    @View1("port"),
    @View1("dbName"),
-   @View1("hiveType"),
    @View1(type=ViewType.LABEL, text="authentication.required.text", col=1, paddingLeft=3),
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
@@ -91,38 +90,6 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
     */
    public void setPort(int port) {
       this.port = port;
-   }
-
-   /**
-    * get the Hive server types, as determinied by the getHiveServerTypes method
-    *
-    * @return Hive server type
-    */
-   @Property(label="HiveServer Type")
-   @PropertyEditor(tagsMethod="getHiveServerTypes")
-   public String getHiveType() {
-      return hiveType;
-   }
-
-   /**
-    * determine the available hive server types
-    *
-    * @return list of available types
-    */
-   public String[] getHiveServerTypes() {
-      String[] hiveTypes = new String[2];
-      hiveTypes[0] = "HiveServer1";
-      hiveTypes[1] = "HiveServer2";
-
-      return hiveTypes;
-   }
-
-   /**
-    * set Hive server type
-    * @param hType type of Hive server
-    */
-   public void setHiveType(String hType) {
-      this.hiveType = hType;
    }
 
    /**
@@ -201,10 +168,6 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
       if(dbName != null) {
          writer.println("<db><![CDATA[" + dbName + "]]></db>");
       }
-
-      if(hiveType != null) {
-         writer.println("<hiveType><![CDATA[" + hiveType + "]]></hiveType>");
-      }
    }
 
    @Override
@@ -222,19 +185,20 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
       super.parseContents(root);
       host = Tool.getChildValueByTagName(root, "host");
       dbName = Tool.getChildValueByTagName(root, "db");
-      hiveType = Tool.getChildValueByTagName(root, "hiveType");
    }
 
    @Override
    public boolean equals(Object obj) {
+      if(!super.equals(obj)) {
+         return false;
+      }
+
       try {
          HiveDataSource ds = (HiveDataSource) obj;
 
          return Objects.equals(host, ds.host) &&
             port == ds.port &&
-            Objects.equals(hiveType, ds.hiveType) &&
-            Objects.equals(dbName, ds.dbName) &&
-            Objects.equals(getCredential(), ds.getCredential());
+            Objects.equals(dbName, ds.dbName);
       }
       catch(Exception ex) {
          return false;
@@ -256,6 +220,5 @@ public class HiveDataSource extends TabularDataSource<HiveDataSource> {
 
    private String host;
    private int port = 10000;
-   private String hiveType;
    private String dbName = "default";
 }

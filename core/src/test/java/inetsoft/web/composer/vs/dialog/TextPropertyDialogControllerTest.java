@@ -24,6 +24,7 @@ import inetsoft.uql.viewsheet.TextVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.TextVSAssemblyInfo;
 import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.TextPropertyDialogModel;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
@@ -51,8 +52,9 @@ public class TextPropertyDialogControllerTest {
                                                     vsOutputService,
                                                     runtimeViewsheetRef,
                                                     engine,
-                                                    dialogService, 
-                                                    trapService);
+                                                    dialogService,
+                                                    trapService,
+                                                    infoHandler);
 
       when(runtimeViewsheetRef.getRuntimeId()).thenReturn("Viewsheet1");
       when(engine.getViewsheet(anyString(), nullable(Principal.class))).thenReturn(rvs);
@@ -96,6 +98,8 @@ public class TextPropertyDialogControllerTest {
    @Mock VSObjectPropertyService vsObjectPropertyService;
    @Mock TextVSAssembly textAssembly;
    @Mock ViewsheetService engine;
+   @Mock
+   VSAssemblyInfoHandler infoHandler;
    @Mock VSDialogService dialogService;
    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
    private TextPropertyDialogModel textPropertyDialogModel;

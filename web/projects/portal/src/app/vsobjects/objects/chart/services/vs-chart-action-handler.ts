@@ -68,7 +68,7 @@ export class VSChartActionHandler extends AbstractActionHandler {
       super(modalService, context);
    }
 
-   handleEvent(event: AssemblyActionEvent<VSChartModel>, variableValues: string[]): void {
+   handleEvent(event: AssemblyActionEvent<VSChartModel>, variableValues: string[], assetId?: string): void {
       switch(event.id) {
       case "chart axis-properties":
          this.showAxisPropertiesDialog(event.model);
@@ -80,10 +80,10 @@ export class VSChartActionHandler extends AbstractActionHandler {
          this.showLegendPropertiesDialog(event.model, variableValues);
          break;
       case "chart properties":
-         this.showPropertyDialog(event.model, variableValues);
+         this.showPropertyDialog(event.model, variableValues, assetId);
          break;
       case "chart edit-script":
-         this.showPropertyDialog(event.model, variableValues, true);
+         this.showPropertyDialog(event.model, variableValues, assetId, true);
          break;
       case "chart group":
          this.showGroupDialog(event.model);
@@ -167,7 +167,7 @@ export class VSChartActionHandler extends AbstractActionHandler {
          }, params, model.absoluteName);
    }
 
-   private showPropertyDialog(model: VSChartModel, variableValues: string[],
+   private showPropertyDialog(model: VSChartModel, variableValues: string[], assetId: string,
                               openToScript: boolean = false): void
    {
       const modelUri: string = "../api/" + CHART_PROPERTY_URI +
@@ -209,6 +209,7 @@ export class VSChartActionHandler extends AbstractActionHandler {
          dialog.variableValues = variableValues;
          dialog.openToScript = openToScript;
          dialog.runtimeId = this.viewsheetClient.runtimeId;
+         dialog.assetId = assetId;
          dialog.assemblyName = model.absoluteName;
          dialog.viewer = this.viewer || model.inEmbeddedViewsheet;
          dialog.chartType = model.chartType;

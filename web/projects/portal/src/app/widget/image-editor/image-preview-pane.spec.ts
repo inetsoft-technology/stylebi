@@ -184,7 +184,7 @@ describe("Image Preview Pane Test", () => {
 
       expect(animateGif.getAttribute("ng-reflect-model")).toBe("true");
       expect(selectedImg.getAttribute("src")).toBe(
-         "../composer/vs/image-preview-pane/image/test~_2e_~png/^UPLOADED^/?" + imagePreviewPane.currentTime);
+         "../api/image/composer/vs/image-preview-pane/image/test~_2e_~png/^UPLOADED^/?" + imagePreviewPane.currentTime);
 
       clearBtn.click();
       fixture.detectChanges();

@@ -196,13 +196,16 @@ public class CassandraDataSource extends TabularDataSource<CassandraDataSource> 
 
    @Override
    public boolean equals(Object obj) {
+      if(!super.equals(obj)) {
+         return false;
+      }
+
       try {
          CassandraDataSource ds = (CassandraDataSource) obj;
 
          return Objects.equals(host, ds.host) &&
             port == ds.port &&
             Objects.equals(keyspace, ds.keyspace) &&
-            Objects.equals(getCredential(), ds.getCredential()) &&
             ssl == ds.ssl;
       }
       catch(Exception ex) {

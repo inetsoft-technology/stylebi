@@ -29,6 +29,7 @@ import inetsoft.util.Tool;
 import inetsoft.web.adhoc.DecodeParam;
 import inetsoft.web.binding.drm.AggregateRefModel;
 import inetsoft.web.binding.drm.DataRefModel;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.binding.handler.VSColumnHandler;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,8 +42,8 @@ import java.util.*;
 public class VSFormulaController {
    @RequestMapping(value = "/api/composer/vsformula/fields", method=RequestMethod.GET)
    public Map<String, Object> getFields(@DecodeParam("vsId") String vsId,
-                           @RequestParam("assemblyName") String assemblyName,
-                           @RequestParam(value="tableName", required=false) String tableName,
+                              @RequestParam("assemblyName") String assemblyName,
+                              @RequestParam(value="tableName", required=false) String tableName,
       Principal principal)
       throws Exception
    {
@@ -75,6 +76,30 @@ public class VSFormulaController {
          result.put("allcolumns", allcolumns);
          result.put("calcFieldsGroup", calcFieldsGroup);
          result.put("sqlMergeable", selection.getProperty("sqlMergeable"));
+         boolean isWS = viewsheet.getBaseEntry() != null && viewsheet.getBaseEntry() .isWorksheet();
+         DataRefModel[] grayedOutFields = assemblyInfoHandler.getGrayedOutFields(rvs);
+
+         if(grayedOutFields == null) {
+            return result;
+         }
+
+         if(isWS) {
+            List<DataRefModel> grayedFields = new ArrayList<>();
+
+            for(int i = 0; i < grayedOutFields.length; i++) {
+               DataRefModel refModel = grayedOutFields[i];
+
+               if(Tool.equals(tableName, refModel.getEntity())) {
+                  refModel.setName(refModel.getAttribute());
+                  grayedFields.add(refModel);
+               }
+            }
+
+            result.put("grayedOutFields", grayedFields);
+         }
+         else {
+            result.put("grayedOutFields", grayedOutFields);
+         }
 
          return result;
       }
@@ -282,8 +307,14 @@ public class VSFormulaController {
    }
 
    @Autowired
+   public void setAssemblyInfoHandler(VSAssemblyInfoHandler assemblyInfoHandler) {
+      this.assemblyInfoHandler = assemblyInfoHandler;
+   }
+
+   @Autowired
    private VSColumnHandler columnHandler;
    @Autowired
    private DataRefModelFactoryService refModelFactoryService;
    private ViewsheetService viewsheetService;
+   private VSAssemblyInfoHandler assemblyInfoHandler;
 }

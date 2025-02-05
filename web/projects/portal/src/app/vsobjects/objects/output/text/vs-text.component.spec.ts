@@ -23,6 +23,7 @@ import { By } from "@angular/platform-browser";
 import { Router } from "@angular/router";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { Subject } from "rxjs";
+import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
 import { TestUtils } from "../../../../common/test/test-utils";
 import { ViewsheetClientService } from "../../../../common/viewsheet-client";
 import { ViewDataService } from "../../../../viewer/services/view-data.service";
@@ -98,7 +99,8 @@ describe("VS Text Component Unit Test", () => {
             ShowHyperlinkService,
             DebounceService,
             {provide: DataTipService, useValue: dataTipService},
-            { provide: RichTextService, useValue: richTextService }
+            { provide: RichTextService, useValue: richTextService },
+            AppInfoService
          ]
       });
       TestBed.compileComponents();

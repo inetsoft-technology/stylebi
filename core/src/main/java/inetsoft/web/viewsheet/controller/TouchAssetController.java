@@ -178,9 +178,8 @@ public class TouchAssetController {
    private void writeAutosaveFile(RuntimeSheet rs, XMLSerializable value,
                                   Principal principal) throws IOException {
       AssetEntry entry = rs.getEntry();
-      File savefile = AutoSaveUtils.getAutoSavedFile(entry, principal);
 
-      if(rs.getLastAccessed() > savefile.lastModified()) {
+      if(rs.getLastAccessed() > AutoSaveUtils.getLastModified(entry, principal)) {
          ViewsheetSandbox vbox = rs instanceof RuntimeViewsheet
             ? ((RuntimeViewsheet) rs).getViewsheetSandbox() : null;
 
@@ -198,14 +197,7 @@ public class TouchAssetController {
                return;
             }
 
-            if(!savefile.exists()) {
-               savefile.createNewFile();
-            }
-
-            try(FileOutputStream outstream = new FileOutputStream(savefile)) {
-               outstream.write(data);
-               outstream.flush();
-            }
+            AutoSaveUtils.writeAutoSaveFile(data, entry, principal);
          }
          finally {
 //            XTableStorageService.setEnabled(true);

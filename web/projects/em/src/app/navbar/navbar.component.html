@@ -25,13 +25,13 @@
   <a class="em-home em-button" href=".." aria-label="_#(Home)" [title]="'_#(Home)'">
     <mat-icon fontSet="ineticons" fontIcon="home-icon"></mat-icon>
   </a>
-  <a mat-icon-button class="em-button" routerLink="/monitoring" routerLinkActive="active" aria-label="_#(Monitoring)" [title]="'_#(Monitoring)'">
+  <a mat-icon-button *ngIf="monitoringVisible" class="em-button" routerLink="/monitoring" routerLinkActive="active" aria-label="_#(Monitoring)" [title]="'_#(Monitoring)'">
     <mat-icon fontSet="ineticons" fontIcon="gauge-icon"></mat-icon>
   </a>
-  <a mat-icon-button *ngIf="model?.enterprise" class="em-button" routerLink="/auditing" routerLinkActive="active" aria-label="_#(Auditing)" [title]="'_#(Auditing)'">
+  <a mat-icon-button *ngIf="model?.enterprise && auditingVisible" class="em-button" routerLink="/auditing" routerLinkActive="active" aria-label="_#(Auditing)" [title]="'_#(Auditing)'">
     <mat-icon fontSet="ineticons" fontIcon="auditing-icon"></mat-icon>
   </a>
-  <a mat-icon-button class="em-button" routerLink="/settings" routerLinkActive="active" aria-label="_#(Settings)" [title]="'_#(Settings)'">
+  <a mat-icon-button *ngIf="settingsVisible" class="em-button" routerLink="/settings" routerLinkActive="active" aria-label="_#(Settings)" [title]="'_#(Settings)'">
     <mat-icon fontSet="ineticons" fontIcon="setting-icon"></mat-icon>
   </a>
   <span *ngIf="model?.elasticLicenseExhausted">_#(elastic.license.exhausted)</span>

@@ -49,6 +49,11 @@ public interface TaskConditionPaneModel {
       return TimeZone.getDefault().getOffset(System.currentTimeMillis());
    }
 
+   @Value.Default
+   default String serverTimeZoneId() {
+      return TimeZone.getDefault().getID();
+   }
+
    static Builder builder() {
       return new Builder();
    }

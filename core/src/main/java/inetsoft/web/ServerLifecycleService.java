@@ -22,13 +22,16 @@ import inetsoft.sree.internal.SUtil;
 import inetsoft.util.*;
 import inetsoft.web.service.LicenseService;
 import jakarta.annotation.PostConstruct;
+import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
 @Component
 @Lazy(false)
-public class ServerLifecycleService {
+public class ServerLifecycleService implements ApplicationContextAware {
    /**
     * Creates a new instance of <tt>ServerLifecycleService</tt>.
     */
@@ -56,6 +59,11 @@ public class ServerLifecycleService {
       if("true".equals(SreeEnv.getProperty("replet.cache.clean"))) {
          FileSystemService.getInstance().clearCacheFiles("viewer");
       }
+   }
+
+   @Override
+   public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+      StatusDumpService.getInstance().setApplicationContext(applicationContext);
    }
 
    private final LicenseService licenseService;

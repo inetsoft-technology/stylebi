@@ -228,7 +228,7 @@ describe("VSSelection Test", () => {
    });
 
    //Bug #18554 should show dropdown pane when click show button.
-   xit("check selection dropdown pane height and visible", () => {
+   it("check selection dropdown pane height and visible", () => {
       fixture.componentInstance.model.dropdown = true;
       fixture.componentInstance.model.hidden = false;
       fixture.componentInstance.model.listHeight = 6;

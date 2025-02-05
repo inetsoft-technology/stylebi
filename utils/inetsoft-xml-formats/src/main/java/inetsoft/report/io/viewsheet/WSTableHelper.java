@@ -67,7 +67,7 @@ public class WSTableHelper {
       ColumnIndexMap columnIndexMap = new ColumnIndexMap(lens, true);
 
       for(ColumnInfo info : colInfo) {
-         int col = findColumn(columnIndexMap, info, lens);
+         int col = Util.findColumn(columnIndexMap, info, lens);
 
          if(col >= 0) {
             columnWidths[col] = info.getWidth();
@@ -90,34 +90,11 @@ public class WSTableHelper {
     * @param lens the source table lens
     * @param colInfo column information
     */
-   public void writeData(TableLens lens, List<ColumnInfo> colInfo) {
+   public void writeData(TableLens lens, List<ColumnInfo> colInfo, Class[] colTypes, Map<Integer,Integer> map) {
       calculateColumnsPosition(lens, colInfo);
       int rowCount = lens.getRowCount();
       int colCount = lens.getColCount();
-      ColumnIndexMap columnIndexMap = new ColumnIndexMap(lens, true);
-      HashMap<Integer,Integer> map = new HashMap<>();
-
-      for(int i = 0; i < colInfo.size(); i++) {
-         ColumnInfo info = colInfo.get(i);
-         String attr = "null";
-         ColumnRef ref = new ColumnRef(new AttributeRef(attr));
-
-         // avoid the value at the specified cell is null.
-         if(!Tool.equals(ref, info.getColumnRef())) {
-            map.put(findColumn(columnIndexMap, info, lens), i);
-         }
-         else {
-            map.put(i, i);
-         }
-      }
-
       SparseMatrix isWritten = new SparseMatrix();
-      Class[] colTypes = new Class[colCount];
-
-      for(int icol = 0; icol < colCount; icol++) {
-         colTypes[icol] = lens.getColType(icol);
-         // numbers[icol] = cls != null && Number.class.isAssignableFrom(cls);
-      }
 
       for(int irow = 0; irow < rowCount; irow++) {
          for(int icol = 0; icol < colCount; icol++) {
@@ -242,31 +219,6 @@ public class WSTableHelper {
          record.setDataFormat(df.getFormat(fmt));
          cell.setCellStyle(PoiExcelVSUtil.createCellStyle(book, record, styleCache));
       }
-   }
-
-   private int findColumn(ColumnIndexMap columnIndexMap, ColumnInfo colInfo, TableLens lens) {
-      if(columnIndexMap == null || colInfo == null || lens == null) {
-         return -1;
-      }
-
-      int col = Util.findColumn(columnIndexMap, colInfo.getColumnRef());
-
-      if(col < 0 && lens instanceof SubTableLens) {
-         TableLens table = ((SubTableLens) lens).getTable();
-
-         if(table instanceof FormatTableLens2) {
-            Map<TableDataPath, TableFormat> formatMap = ((FormatTableLens2) table).getFormatMap();
-            String header = colInfo.getHeader();
-            TableFormat tableFormat = formatMap.get(new TableDataPath(header));
-
-            if(tableFormat != null) {
-               Format format = tableFormat.getFormat(Catalog.getCatalog().getLocale());
-               col = Util.findColumn(columnIndexMap, format.format(header));
-            }
-         }
-      }
-
-      return col;
    }
 
    private Sheet sheet;

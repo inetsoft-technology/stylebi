@@ -134,7 +134,7 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
 
       @Override
       public synchronized Set<SRPrincipal> getActiveSessions() {
-         return Collections.unmodifiableSet(new HashSet<>(principals));
+         return Set.copyOf(principals);
       }
 
       /**
@@ -328,7 +328,7 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
             HostedLicenseService service = HostedLicenseService.getInstance();
 
             if(principals.add(srPrincipal)) {
-               if(!service.startSession(license, srPrincipal.getOrgId(), srPrincipal.getName())) {
+               if(!service.startSession(license, srPrincipal)) {
                   principals.remove(srPrincipal);
 
                   if(logoutAfterFailure) {
@@ -361,7 +361,7 @@ public abstract class SessionLicenseService implements SessionLicenseManager {
 
          if(license != null) {
             HostedLicenseService service = HostedLicenseService.getInstance();
-            service.stopSession(license.key(), srPrincipal.getOrgId(), srPrincipal.getName());
+            service.stopSession(license.key(), srPrincipal);
          }
       }
 

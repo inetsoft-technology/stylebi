@@ -270,12 +270,15 @@ public class MongoDataSource extends TabularDataSource<MongoDataSource> {
 
    @Override
    public boolean equals(Object obj) {
+      if(!super.equals(obj)) {
+         return false;
+      }
+
       try {
          MongoDataSource dx = (MongoDataSource) obj;
 
          return Objects.equals(host, dx.host) &&
             Objects.equals(db, dx.db) &&
-            Objects.equals(getCredential(), dx.getCredential()) &&
             Objects.equals(authDB, dx.authDB) &&
             Objects.equals(replicaSet, dx.replicaSet) &&
             port == dx.port && ssl == dx.ssl;

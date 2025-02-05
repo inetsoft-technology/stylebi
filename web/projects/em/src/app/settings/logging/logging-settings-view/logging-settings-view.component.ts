@@ -122,7 +122,7 @@ export class LoggingSettingsViewComponent {
       let defaultLevels = [];
 
       for(let level of levels) {
-         if(level != null && level.name != "inetsoft_audit" && level.name != "org.apache.ignite") {
+         if(level != null && level.name != "inetsoft_audit") {
             defaultLevels.push(level);
          }
       }

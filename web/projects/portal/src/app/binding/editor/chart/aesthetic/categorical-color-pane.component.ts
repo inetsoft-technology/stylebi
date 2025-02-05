@@ -28,6 +28,7 @@ import {
 import { NgbModal, NgbModalOptions } from "@ng-bootstrap/ng-bootstrap";
 import { Observable } from "rxjs";
 import { filter, map, tap } from "rxjs/operators";
+import { createAssetEntry } from "../../../../../../../shared/data/asset-entry";
 import { ColorMap } from "../../../../common/data/color-map";
 import {
    CategoricalColorModel,
@@ -56,6 +57,7 @@ const COLOR_MAPPING_URI: string = "../api/composer/vs/getColorMappingDialogModel
 })
 export class CategoricalColorPane extends CategoricalFramePane implements OnInit {
    @Input() vsId: string;
+   @Input() assetId: string;
    @Input() assemblyName: string;
    @Input() frameModel: CategoricalColorModel;
    @Input() field: AestheticInfo;
@@ -102,7 +104,10 @@ export class CategoricalColorPane extends CategoricalFramePane implements OnInit
     * load color palettes.
     */
    private getColorPalettes(): Observable<any> {
-      return this.modelService.getModel(COLOR_PALETTES_URI);
+      const params = new HttpParams()
+         .set("orgId", createAssetEntry(this.assetId).organization);
+
+      return this.modelService.getModel(COLOR_PALETTES_URI, params);
    }
 
    clickPaletteButton() {

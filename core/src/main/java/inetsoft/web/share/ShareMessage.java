@@ -19,6 +19,8 @@ package inetsoft.web.share;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import inetsoft.uql.asset.AssetEntry;
+import inetsoft.util.Tool;
 import org.immutables.value.Value;
 
 import javax.annotation.Nullable;
@@ -36,6 +38,11 @@ public interface ShareMessage {
    @Nullable List<String> recipients();
    @Nullable List<String> ccs();
    @Nullable List<String> bccs();
+
+   default String getOrgId() {
+      return !Tool.isEmptyString(viewsheetId()) ?
+         AssetEntry.createAssetEntry(viewsheetId()).getOrgID() : null;
+   }
 
    static Builder builder() {
       return new Builder();

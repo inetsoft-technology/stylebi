@@ -44,7 +44,9 @@
       <a ngbNavLink>_#(Statistics)</a>
       <ng-template ngbNavContent>
         <stat-panel [variables]="variables" [hideDcombox]="hideDcombox"
-                    [model]="chartTarget" [availableFields]="availableFields" [vsId]="vsId" [chartType]="chartType">
+                    [model]="chartTarget" [availableFields]="availableFields" [vsId]="vsId"
+                    [assetId]="assetId"
+                    [chartType]="chartType">
         </stat-panel>
       </ng-template>
     </ng-container>

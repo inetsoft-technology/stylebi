@@ -78,7 +78,7 @@
     <legend>_#(Fill)</legend>
     <div class="row form-row-float-label">
       <div class="col-3">
-        <b-categorical-color-pane [(colorModel)]="model.bandFill" label="_#(Fill Band)"></b-categorical-color-pane>
+        <b-categorical-color-pane [(colorModel)]="model.bandFill" [assetId]="assetId" label="_#(Fill Band)"></b-categorical-color-pane>
       </div>
       <div class="col-3">
         <color-editor class="col fill-above" [(color)]="model.fillAboveColor.color"

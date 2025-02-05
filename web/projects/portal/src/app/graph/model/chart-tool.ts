@@ -518,8 +518,7 @@ export namespace ChartTool {
                                            type: string): boolean
    {
       return chartSelection && chartSelection.regions && chartSelection.regions.length > 0
-         && chartSelection.regions.some((region) =>
-            ChartTool.getMea(model, region) == null || ChartTool.areaType(model, region) == type);
+         && chartSelection.regions.some((region) => ChartTool.areaType(model, region) == type);
    }
 
    export function axisSelected(model: ChartModel): boolean {

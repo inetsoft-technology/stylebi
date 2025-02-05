@@ -539,7 +539,16 @@ public class TabularUtil {
     * Sets values from the views to the bean
     */
    public static void setValuesToBean(TabularView[] views, Object bean,
-      Map<String, PropertyMeta> pmap)
+                                      Map<String, PropertyMeta> pmap)
+   {
+      setValuesToBean(views, bean, pmap, new HashSet<>());
+   }
+
+   /**
+    * Sets values from the views to the bean
+    */
+   public static void setValuesToBean(TabularView[] views, Object bean,
+      Map<String, PropertyMeta> pmap,  Set<String> affectedViews)
    {
       for(TabularView tView : views) {
          if(tView.getEditor() != null) {
@@ -551,15 +560,22 @@ public class TabularUtil {
             // screen is removed. need to clear out the array items when the dialog is
             // submitted. restricted the change to tags to avoid impacting others.
             boolean apply = tView.isVisible() ||
-               tView.getEditor() != null && tView.getEditor().getType() == TabularEditor.Type.TAGS;
+               tView.getEditor() != null && tView.getEditor().getType() == TabularEditor.Type.TAGS &&
+               !tView.getVisibleMethod().equals("useCredential");
 
-            if(propertyMeta != null && apply) {
+            if(propertyMeta != null && apply &&
+               (affectedViews == null || !tView.isVisible() || !affectedViews.contains(propName)))
+            {
                Object value = tView.getEditor().getValue();
                propertyMeta.setValue(bean, value);
+
+               if(tView.getAffectedViews() != null && affectedViews != null) {
+                  affectedViews.addAll(Arrays.asList(tView.getAffectedViews()));
+               }
             }
          }
 
-         setValuesToBean(tView.getViews(), bean, pmap);
+         setValuesToBean(tView.getViews(), bean, pmap, affectedViews);
       }
    }
 

@@ -59,10 +59,11 @@ public class ScheduleTaskAsset extends AbstractXAsset {
     * @param taskId the schedule task asset id.
     * @param user the schedule task asset owner.
     */
-   public ScheduleTaskAsset(String taskId, IdentityID user) {
+   public ScheduleTaskAsset(String taskId, IdentityID user, long lastModifiedTime) {
       this();
       this.task = taskId;
       this.user = user;
+      this.lastModifiedTime = lastModifiedTime;
    }
 
    /**
@@ -121,7 +122,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
                      catalog.getString("common.xasset.task5", task),
                      catalog.getString("common.xasset.task0", tname));
                   dependencies.add(new XAssetDependency(
-                     new ScheduleTaskAsset(tname, stask2.getOwner()), this,
+                     new ScheduleTaskAsset(tname, stask2.getOwner(), stask2.getLastModified()), this,
                      XAssetDependency.SCHEDULETASK_SCHEDULETASK, desc));
                }
 
@@ -178,7 +179,7 @@ public class ScheduleTaskAsset extends AbstractXAsset {
                      catalog.getString("common.xasset.task3", task),
                      catalog.getString("common.xasset.task0", tname));
                   dependencies.add(new XAssetDependency(
-                     new ScheduleTaskAsset(tname, stask2.getOwner()), this,
+                     new ScheduleTaskAsset(tname, stask2.getOwner(), stask2.getLastModified()), this,
                      XAssetDependency.SCHEDULETASK_SCHEDULETASK, desc));
                }
             }

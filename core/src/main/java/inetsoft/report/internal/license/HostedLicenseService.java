@@ -18,9 +18,10 @@
 
 package inetsoft.report.internal.license;
 
+import inetsoft.sree.security.SRPrincipal;
 import inetsoft.util.SingletonManager;
 
-import java.util.ServiceLoader;
+import java.util.*;
 
 @SingletonManager.Singleton(HostedLicenseService.Reference.class)
 public interface HostedLicenseService {
@@ -28,14 +29,38 @@ public interface HostedLicenseService {
 
    long getGracePeriodHours(String licenseKey, String orgId, String user);
 
-   boolean startSession(License license, String orgId, String user);
+   boolean startSession(License license, SRPrincipal principal);
 
-   void stopSession(String licenseKey, String orgId, String user);
+   void stopSession(String licenseKey, SRPrincipal principal);
 
    void removeLicense(String licenseKey);
 
+   void addNotificationListener(NotificationListener listener);
+
+   void removeNotificationListener(NotificationListener listener);
+
    static HostedLicenseService getInstance() {
       return SingletonManager.getInstance(HostedLicenseService.class);
+   }
+
+   final class NotificationEvent extends EventObject {
+      public NotificationEvent(Object source, Set<String> principals) {
+         super(source);
+         this.principals = principals;
+      }
+
+      public Set<String> getPrincipals() {
+         return principals;
+      }
+
+      private final Set<String> principals;
+   }
+
+   interface NotificationListener extends EventListener {
+      void onGracePeriodStarted(NotificationEvent event);
+      void onGracePeriodEnded(NotificationEvent event);
+      void onHoursAdded(NotificationEvent event);
+      void onTerminated(NotificationEvent event);
    }
 
    final class Reference extends SingletonManager.Reference<HostedLicenseService> {

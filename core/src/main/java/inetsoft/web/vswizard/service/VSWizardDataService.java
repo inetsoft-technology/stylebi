@@ -67,10 +67,10 @@ public class VSWizardDataService {
    }
 
    public boolean treeCheckTrap(String vsId, AssetEntry[] entries,
-                                Principal principal)
+                                SourceInfo source, Principal principal)
       throws Exception
    {
-      if(entries.length <= 1) {
+      if(entries.length <= 0) {
          return false;
       }
 
@@ -108,6 +108,11 @@ public class VSWizardDataService {
 
       ChartVSAssemblyInfo ninfo =
          (ChartVSAssemblyInfo) vsTemporaryInfo.getTempChart().getVSAssemblyInfo();
+
+      if(source != null) {
+         ninfo.setSourceInfo(source);
+      }
+
       oinfo.getVSChartInfo().clearRuntime();
       ninfo.getVSChartInfo().clearRuntime();
       boolean trap = checkTrap0(rvs, oinfo, ninfo);

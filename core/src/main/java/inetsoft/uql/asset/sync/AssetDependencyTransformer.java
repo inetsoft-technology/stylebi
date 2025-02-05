@@ -28,6 +28,7 @@ import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.erm.XLogicalModel;
 import inetsoft.uql.erm.XPartition;
+import inetsoft.uql.erm.vpm.VirtualPrivateModel;
 import inetsoft.uql.viewsheet.VSBookmark;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.xmla.Domain;
@@ -307,6 +308,10 @@ public class AssetDependencyTransformer extends DependencyTransformer {
 
       if(asset.isDomain()) {
          return Domain.class.getName();
+      }
+
+      if(asset.isVPM()) {
+         return VirtualPrivateModel.class.getName();
       }
 
       return null;

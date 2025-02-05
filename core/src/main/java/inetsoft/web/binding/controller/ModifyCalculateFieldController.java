@@ -32,8 +32,7 @@ import inetsoft.uql.erm.ExpressionRef;
 import inetsoft.uql.util.XUtil;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.internal.CalcTableVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.xmla.XMLAHandler;
 import inetsoft.uql.xmla.XMLAQuery2;
 import inetsoft.util.Catalog;
@@ -89,7 +88,6 @@ public class ModifyCalculateFieldController {
       VSWizardBindingHandler wizardBindingHandler,
       VSRefreshController refreshController,
       ViewsheetService viewsheetService,
-      VSWizardTemporaryInfoService temporaryInfoService,
       VSAssemblyInfoHandler assemblyInfoHandler)
    {
       this.bindingFactory = bindingFactory;
@@ -100,7 +98,6 @@ public class ModifyCalculateFieldController {
       this.wizardBindingHandler = wizardBindingHandler;
       this.refreshController = refreshController;
       this.viewsheetService = viewsheetService;
-      this.temporaryInfoService = temporaryInfoService;
       this.assemblyInfoHandler = assemblyInfoHandler;
    }
 
@@ -504,14 +501,12 @@ public class ModifyCalculateFieldController {
          return "false";
       }
 
-      ViewsheetService engine = viewsheetService;
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      Viewsheet vs = rvs.getViewsheet();
       CalculateRef cref = calc == null || calc.getDataRefModel() == null
          ? null : (CalculateRef) calc.createDataRef();
 
       // check modelTrap?
-      String oname = cref != null ? ((ExpressionRef) cref.getDataRef()).getName() : null;
+      String oname = cref != null ? cref.getDataRef().getName() : null;
       boolean rename = !"true".equals(create) && refname != null && cref != null &&
          !refname.equals(cref.getName());
 
@@ -521,7 +516,9 @@ public class ModifyCalculateFieldController {
             cref.setName(refname);
          }
 
-         trap = containsTrap(tname, null, rvs, false, cref);
+         if(cref != null) {
+            trap = containsTrap(tname, rvs, cref);
+         }
       }
       catch(Exception ex) {
          // ignore it
@@ -533,55 +530,6 @@ public class ModifyCalculateFieldController {
       }
 
       return trap ? "true" : "false";
-   }
-
-   @RequestMapping(
-      value = "/api/vs/calculate/is-calc-in-use/**",
-      method = RequestMethod.GET
-   )
-   @ResponseBody
-   public String isCalcInUse (@RemainingPath String runtimeId,
-                              @RequestParam("tname") String tname,
-                              @RequestParam("refname") String refname,
-                              Principal principal)
-      throws Exception
-   {
-      String assemblyName = getInUseAssemblyName(runtimeId, tname, refname, principal);
-      return "".equals(assemblyName) ? Boolean.FALSE.toString() : Boolean.TRUE.toString();
-   }
-
-   @RequestMapping(
-      value = "/api/vs/calculate/get-in-use-assembly-name/**",
-      method = RequestMethod.GET
-   )
-   @ResponseBody
-   public String getInUseAssemblyName (@RemainingPath String runtimeId,
-                                       @RequestParam("tname") String tname,
-                                       @RequestParam("refname") String refname,
-                                       Principal principal)
-      throws Exception
-   {
-      RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs == null || tname == null || refname == null) {
-         return "";
-      }
-
-      Assembly[] assembies = vs.getAssemblies();
-
-      for(int i = 0; i < assembies.length; i++) {
-         if(assembies[i] instanceof BindableVSAssembly && !(assembies[i] instanceof InputVSAssembly)) {
-            BindableVSAssembly bind = ((BindableVSAssembly) assembies[i]);
-            String vtable = bind.getTableName();
-
-            if(Tool.equals(tname, vtable) && getUsingAssemblies(bind, refname).size() > 0) {
-               return getUsingAssemblies(bind, refname).get(0);
-            }
-         }
-      }
-
-      return "";
    }
 
    /**
@@ -692,13 +640,6 @@ public class ModifyCalculateFieldController {
                }
                else {
                   if(getUsingAssemblies(bind, refname).size() > 0) {
-                     /**
-                     Catalog catalog = Catalog.getCatalog();
-                     ConfirmException cevent = new ConfirmException(
-                           catalog.getString("field.vsused.warning")
-                           + usingAssemblies, ConfirmException.CONFIRM);
-                     cevent.setEvent(this);
-                     throw cevent;*/
                      return false;
                   }
                }
@@ -805,85 +746,21 @@ public class ModifyCalculateFieldController {
    /**
     * Get model trap command if needed.
     */
-   private boolean containsTrap(String tname, String refname, RuntimeViewsheet rvs,
-      boolean rename, CalculateRef cref) throws Exception
-   {
+   private boolean containsTrap(String tname, RuntimeViewsheet rvs, CalculateRef cref) {
       Viewsheet vs = rvs.getViewsheet();
 
       if(vs == null) {
          return false;
       }
 
-      VSAssembly[] ass =
-         getEffectedAssemblies(true, tname, null, vs, false, cref, false);
       VSModelTrapContext mtc = new VSModelTrapContext(rvs, true);
-      boolean warning = false;
-      boolean check = mtc.isCheckTrap();
+      TrapInfo trapInfo = mtc.checkCalcTrap(tname, cref);
 
-      for(int i = 0; i < ass.length; i++) {
-         TrapInfo trapInfo =
-            mtc.checkTrap(ass[i].getVSAssemblyInfo(), tname, cref);
-
-         if(trapInfo.showWarning()) {
-            return true;
-         }
+      if(trapInfo.showWarning()) {
+         return true;
       }
 
       return false;
-   }
-
-   /**
-    * Get the binding vsassembly which binding to the tname source.
-    */
-   private VSAssembly[] getEffectedAssemblies(boolean check, String tname,
-                                            String refname, Viewsheet vs,
-                                            boolean rename, CalculateRef cref,
-                                            boolean confirmed)
-                                            throws Exception
-   {
-      Assembly[] assembies = vs.getAssemblies();
-      List<VSAssembly> effected = check ? new ArrayList<>() : null;
-
-      for(int i = 0; i < assembies.length; i++) {
-         if(assembies[i] instanceof BindableVSAssembly &&
-            !(assembies[i] instanceof InputVSAssembly))
-         {
-            BindableVSAssembly bind = ((BindableVSAssembly) assembies[i]);
-            String vtable = bind.getTableName();
-
-            if(Tool.equals(tname, vtable)) {
-               if(check) {
-                  effected.add(bind);
-               }
-               else if(confirmed) {
-                  if(rename) {
-                     bind.renameBindingCol(refname, cref.getName());
-                  }
-                  else {
-                     bind.removeBindingCol(refname);
-                  }
-               }
-               else {
-                  DataRef[] refs = bind.getAllBindingRefs();
-                  List<String> usingAssemblies = new ArrayList<>();
-
-                  for(int j = 0; j < refs.length; j++) {
-                     if(isUsed(refs[j], refname)) {
-                        if(bind instanceof AbstractVSAssembly) {
-                           String aname = ((AbstractVSAssembly) bind).getName();
-
-                           if(!usingAssemblies.contains(aname)) {
-                              usingAssemblies.add(aname);
-                           }
-                        }
-                     }
-                  }
-               }
-            }
-         }
-      }
-
-      return effected == null ? null : effected.toArray(new VSAssembly[0]);
    }
 
    private final VSBindingService bindingFactory;
@@ -894,6 +771,5 @@ public class ModifyCalculateFieldController {
    private final XRepository xrepository;
    private final ViewsheetService viewsheetService;
    private final VSWizardBindingHandler wizardBindingHandler;
-   private final VSWizardTemporaryInfoService temporaryInfoService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
 }

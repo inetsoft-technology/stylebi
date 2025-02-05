@@ -473,7 +473,7 @@ public class DataSourceBrowserService {
 
          final Thread thread = new Thread(() -> {
             DataSourceStatus status;
-            MDC.put(LogContext.USER.name(), ThreadContext.getContextPrincipal().getName());
+            LogContext.setUser(ThreadContext.getContextPrincipal());
             MDC.put("DATA_SOURCE", paths.get(idx));
 
             try {

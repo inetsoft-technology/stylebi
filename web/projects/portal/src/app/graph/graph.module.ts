@@ -25,7 +25,9 @@ import { WidgetDirectivesModule } from "../widget/directive/widget-directives.mo
 import { DynamicComboBoxModule } from "../widget/dynamic-combo-box/dynamic-combo-box.module";
 import { WidgetFormatModule } from "../widget/format/widget-format.module";
 import { ModalHeaderModule } from "../widget/modal-header/modal-header.module";
+import { MouseEventModule } from "../widget/mouse-event/mouse-event.module";
 import { MultiSelectModule } from "../widget/multi-select/multi-select.module";
+import { ResizeModule } from "../widget/resize/resize.module";
 import { SlideOutModule } from "../widget/slide-out/slide-out.module";
 import { TargetModule } from "../widget/target/target.module";
 import { TooltipModule } from "../widget/tooltip/tooltip.module";
@@ -44,13 +46,12 @@ import { TitleFormatPane } from "./dialog/title-format-pane.component";
 import { ChartArea } from "./objects/chart-area.component";
 import { ChartAxisArea } from "./objects/chart-axis-area.component";
 import { ChartFacetArea } from "./objects/chart-facet.component";
+import { ChartImageDirective } from "./objects/chart-image.directive";
 import { ChartLegendArea } from "./objects/chart-legend-area.component";
 import { ChartLegendContainer } from "./objects/chart-legend-container.component";
 import { ChartNavBar } from "./objects/chart-nav-bar.component";
 import { ChartPlotArea } from "./objects/chart-plot-area.component";
 import { ChartTitleArea } from "./objects/chart-title-area.component";
-import { ResizeModule } from "../widget/resize/resize.module";
-import { MouseEventModule } from "../widget/mouse-event/mouse-event.module";
 
 @NgModule({
    imports: [
@@ -79,6 +80,7 @@ import { MouseEventModule } from "../widget/mouse-event/mouse-event.module";
       ChartArea,
       ChartAxisArea,
       ChartFacetArea,
+      ChartImageDirective,
       ChartLegendArea,
       ChartLegendContainer,
       ChartLinePane,
@@ -102,6 +104,7 @@ import { MouseEventModule } from "../widget/mouse-event/mouse-event.module";
       ChartArea,
       ChartAxisArea,
       ChartFacetArea,
+      ChartImageDirective,
       ChartLegendArea,
       ChartLegendContainer,
       ChartLinePane,

@@ -19,6 +19,7 @@ package inetsoft.web.composer.vs.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.graph.EGraph;
+import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.RuntimeWorksheet;
@@ -28,18 +29,17 @@ import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.composition.graph.VGraphPair;
 import inetsoft.report.filter.ColumnMapFilter;
 import inetsoft.report.internal.LicenseException;
-import inetsoft.report.internal.table.DcFormatTableLens;
-import inetsoft.report.internal.table.FormatTableLens2;
+import inetsoft.report.internal.Util;
+import inetsoft.report.internal.table.*;
 import inetsoft.report.io.csv.CSVConfig;
 import inetsoft.report.io.viewsheet.OfficeExporterFactory;
 import inetsoft.report.io.viewsheet.excel.CSVWSExporter;
 import inetsoft.report.io.viewsheet.excel.WSExporter;
-import inetsoft.report.lens.DefaultTableLens;
-import inetsoft.report.lens.MaxRowsTableLens;
+import inetsoft.report.lens.*;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.asset.*;
-import inetsoft.uql.asset.internal.ColumnInfo;
-import inetsoft.uql.asset.internal.TableAssemblyInfo;
+import inetsoft.uql.asset.internal.*;
+import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Catalog;
@@ -59,6 +59,7 @@ import org.springframework.web.bind.annotation.*;
 import java.awt.*;
 import java.io.OutputStream;
 import java.security.Principal;
+import java.text.Format;
 import java.util.List;
 import java.util.*;
 import java.util.stream.IntStream;
@@ -427,11 +428,26 @@ public class ExportController {
       String name = fileName == null || "".equals(fileName) ? "ExportedWorksheet" : fileName;
       WSExporter exporter;
       String format = SreeEnv.getProperty("table.export.format");
+      String threshold = SreeEnv.getProperty("table.export.cell.threshold.forcetocsv");
+      int cellThreshold = -1;
+
+      if(threshold != null) {
+         try {
+            cellThreshold = Integer.parseInt(threshold);
+         }
+         catch(NumberFormatException ignore) {
+         }
+      }
+
       int row = lens == null ? 1 : lens.getRowCount();
       int col = lens == null ? 1 : lens.getColCount();
 
       // if the table has a lot of rows, use csv format to save memory
-      if(lens != null && lens.moreRows(5000) && format == null || "csv".equals(format)) {
+      if(lens != null && (lens.moreRows(5000) && format == null ||
+         // force to use csv if cell numbers larger than the cell threshold setted by property.
+         cellThreshold != -1 && lens.getColCount() * lens.getRowCount() > cellThreshold) ||
+         "csv".equals(format))
+      {
          exporter = new CSVWSExporter();
          suffix = "csv";
          String agent = request.getHeader("User-Agent");
@@ -454,11 +470,34 @@ public class ExportController {
 
          if(lens != null) {
             exporter.prepareSheet(assemblyName, worksheet, row, col);
-            exporter.writeTable(lens, columns);
+            Class[] colTypes = exporter.getColTypes(lens);
+            HashMap<Integer, Integer> map = getColumnMap(lens, columns);
+            exporter.writeTable(lens, columns, colTypes, map);
          }
 
          exporter.write(out);
       }
+   }
+
+   private HashMap<Integer, Integer> getColumnMap(TableLens lens, List<ColumnInfo> colInfo) {
+      ColumnIndexMap columnIndexMap = new ColumnIndexMap(lens, true);
+      HashMap<Integer, Integer> map = new HashMap<>();
+
+      for(int i = 0; i < colInfo.size(); i++) {
+         ColumnInfo info = colInfo.get(i);
+         String attr = "null";
+         ColumnRef ref = new ColumnRef(new AttributeRef(attr));
+
+         // avoid the value at the specified cell is null.
+         if(!Tool.equals(ref, info.getColumnRef())) {
+            map.put(Util.findColumn(columnIndexMap, info, lens), i);
+         }
+         else {
+            map.put(i, i);
+         }
+      }
+
+      return map;
    }
 
    private String getWorksheetFileName(AssetEntry entry) {

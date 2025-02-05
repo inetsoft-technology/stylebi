@@ -64,6 +64,7 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
    /** If true, select node on click; if false, select on mousedown. */
    @Input() selectOnClick: boolean = false;
    @Input() grayedOutFields: DataRef[];
+   @Input() grayedOutValues: string[];
    @Input() selectedNodes: TreeNodeModel[] = [];
    @Input() contextmenu: boolean = false;
    @Input() showIcon: boolean = true;
@@ -229,6 +230,10 @@ export class TreeComponent implements OnInit, OnChanges, AfterViewChecked, After
 
       if(useVirtualScrollChange && !useVirtualScrollChange.currentValue) {
          this.unSubscribeVScroll();
+      }
+
+      if(this.outerScrollContainer) {
+         needRefreshVirtualScroll = false;
       }
 
       if(needRefreshVirtualScroll) {

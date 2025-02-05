@@ -112,7 +112,7 @@ public class LibManager implements AutoCloseable {
    private BlobStorage<Metadata> getStorage() {
       String storeID = getStorageId(OrganizationManager.getInstance().getCurrentOrgID());
 
-      if(storages.containsKey(storeID)) {
+      if(storages.containsKey(storeID) && !storages.get(storeID).isClosed()) {
          return storages.get(storeID);
       }
       else {

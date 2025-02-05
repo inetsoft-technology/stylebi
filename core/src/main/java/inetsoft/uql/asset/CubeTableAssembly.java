@@ -144,10 +144,15 @@ public class CubeTableAssembly extends BoundTableAssembly {
       while(meas.hasMoreElements()) {
          XCubeMember mea = (XCubeMember) meas.nextElement();
 
-         String label = mea instanceof Measure ?
-            ((Measure) mea).getCaption() : mea.getName();
+         String label = mea.getName();
+         boolean calc = false;
 
-         AttributeRef aref = new AttributeRef(null, mea.getName());
+         if(mea instanceof Measure) {
+            label = ((Measure) mea).getCaption();
+            calc = ((Measure) mea).isCalcMeasure();
+         }
+
+         AttributeRef aref = new AttributeRef(null, mea.getName(), calc);
          aref.setRefType(DataRef.CUBE_MEASURE);
          aref.setCaption(label);
          ColumnRef column = new ColumnRef(aref);

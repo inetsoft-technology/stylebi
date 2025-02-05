@@ -22,7 +22,7 @@ import { RectangleActions } from "./rectangle-actions";
 describe("RectangleActions", () => {
    const createModel = () => TestUtils.createMockVSRectangleModel("Rectangle1");
 
-   xit("check status of menu actions of rectangle in composer", () => {
+   it("check status of menu actions of rectangle in composer", () => {
       const expectedMenu = [
          [
             { id: "rectangle properties", visible: true },
@@ -67,7 +67,7 @@ describe("RectangleActions", () => {
       expect(menuActions[0].actions[3].visible()).toBe(false);
    });
 
-   xit("check status of menu actions of rectangle in viewer and preview", () => {
+   it("check status of menu actions of rectangle in viewer and preview", () => {
       const expectedMenu = [
          [
             { id: "rectangle properties", visible: false },

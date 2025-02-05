@@ -21,7 +21,9 @@ import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.CurrentSelectionVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
+import inetsoft.web.composer.model.vs.AddFilterDialogModel;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.event.HideSelectionListEvent;
@@ -56,7 +58,8 @@ public class VSSelectionContainerController {
                                          VSSelectionContainerService vsSelectionContainerService,
                                          VSObjectModelFactoryService objectModelService,
                                          ViewsheetService viewsheetService,
-                                         VSOutputService vsOutputService)
+                                         VSOutputService vsOutputService,
+                                         VSAssemblyInfoHandler assemblyInfoHandler)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.placeholderService = placeholderService;
@@ -64,6 +67,7 @@ public class VSSelectionContainerController {
       this.objectModelService = objectModelService;
       this.viewsheetService = viewsheetService;
       this.vsOutputService = vsOutputService;
+      this.assemblyInfoHandler = assemblyInfoHandler;
    }
 
    /**
@@ -129,7 +133,7 @@ public class VSSelectionContainerController {
     */
    @GetMapping("api/selectioncontainer/add-filter/tree")
    @ResponseBody
-   public TreeNodeModel getTargetTree(@RequestParam("vsId") String vsId, Principal principal)
+   public AddFilterDialogModel getTargetTree(@RequestParam("vsId") String vsId, Principal principal)
       throws Exception
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(vsId, principal);
@@ -138,7 +142,12 @@ public class VSSelectionContainerController {
          return null;
       }
 
-      return this.vsOutputService.getSelectionTablesTree(rvs, principal);
+      AddFilterDialogModel model = new AddFilterDialogModel();
+      TreeNodeModel target = this.vsOutputService.getSelectionTablesTree(rvs, principal);
+      model.setTargetTree(target);
+      model.setGrayedOutFields(assemblyInfoHandler.getGrayedOutFields(rvs));
+
+      return model;
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
@@ -147,4 +156,5 @@ public class VSSelectionContainerController {
    private final VSObjectModelFactoryService objectModelService;
    private final ViewsheetService viewsheetService;
    private final VSOutputService vsOutputService;
+   private final VSAssemblyInfoHandler assemblyInfoHandler;
 }

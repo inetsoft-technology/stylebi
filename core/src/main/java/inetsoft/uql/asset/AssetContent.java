@@ -20,8 +20,6 @@ package inetsoft.uql.asset;
 import inetsoft.util.TransformListener;
 import org.w3c.dom.*;
 
-import java.util.Arrays;
-
 /**
  * This enum defines the different asset contents for loading.
  *
@@ -45,7 +43,7 @@ public enum AssetContent implements TransformListener {
    @Override
    public void transform(Document node, String cname) {
       for(String[] tags : rmtags) {
-         trim0(node.getDocumentElement(), tags);
+         trimTags(node.getDocumentElement(), tags);
       }
    }
 
@@ -60,23 +58,32 @@ public enum AssetContent implements TransformListener {
    /**
     * Remove the elements with the tags.
     */
-   private void trim0(Element node, String[] tags) {
-      String[] childTags = Arrays.copyOfRange(tags, 1, tags.length);
-      String tag = tags[0];
+   private void trimTags(Element root, String[] tags) {
+      trimTags(root, tags, 0);
+   }
+
+   private void trimTags(Element node, String[] tags, int depth) {
+      if(depth >= tags.length) {
+         return;
+      }
+
+      String tag = tags[depth];
       NodeList list = node.getElementsByTagName(tag);
 
       for(int i = list.getLength() - 1; i >= 0; i--) {
-         final Element elem = (Element) list.item(i);
+         Element elem = (Element) list.item(i);
 
-         if(childTags.length > 0) {
-            trim0(node, childTags);
-         }
-         else {
+         if(depth == tags.length - 1) {
+            // last tag in the sequence, remove the element
             Node parentNode = elem.getParentNode();
 
             if(parentNode != null) {
                parentNode.removeChild(elem);
             }
+         }
+         else {
+            // recurse into children to match deeper tags
+            trimTags(elem, tags, depth + 1);
          }
       }
    }

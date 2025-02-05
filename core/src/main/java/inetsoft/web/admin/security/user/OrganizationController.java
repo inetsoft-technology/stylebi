@@ -87,6 +87,16 @@ public class OrganizationController {
       return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationNames()).toList();
    }
 
+   @GetMapping("/api/em/security/users/get-all-organization-ids/")
+   public List<String> getAllOrganizationIDs(Principal principal)
+   {
+      if(!SUtil.isMultiTenant()) {
+         return new ArrayList<>();
+      }
+
+      return Arrays.stream(SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs()).toList();
+   }
+
    @GetMapping("/api/em/security/users/get-all-organizations")
    public List<IdentityID> getAllOrganizationIdentityIDs(@RequestParam("name") String name,
                                                          Principal principal)

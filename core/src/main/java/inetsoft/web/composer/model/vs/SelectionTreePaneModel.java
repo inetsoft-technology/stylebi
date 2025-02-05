@@ -143,12 +143,21 @@ public class SelectionTreePaneModel {
       this.grayedOutFields = grayedOutFields;
    }
 
+   public void setModelSource(boolean isModel) {
+      this.modelSource = isModel;
+   }
+
+   public boolean isModelSource() {
+      return this.modelSource;
+   }
+
    private SelectionMeasurePaneModel selectionMeasurePaneModel;
    private String selectedTable;
    private List<String> additionalTables;
    private OutputColumnRefModel[] selectedColumns = new OutputColumnRefModel[0];
    private TreeNodeModel targetTree;
    private int mode;
+   private boolean modelSource = false;
    private boolean selectChildren;
    private String parentId;
    private String id;

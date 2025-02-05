@@ -22,9 +22,6 @@ import inetsoft.uql.rest.json.OAuthEndpointJsonDataSource;
 import inetsoft.uql.tabular.*;
 import inetsoft.util.credential.CredentialType;
 
-import java.util.HashMap;
-import java.util.Map;
-
 @View(vertical = true, value = {
    @View1(value = "useCredentialId", visibleMethod = "supportToggleCredential"),
    @View1(value = "credentialId", visibleMethod = "isUseCredentialId"),
@@ -60,7 +57,7 @@ public class WordPressDataSource extends OAuthEndpointJsonDataSource<WordPressDa
 
    @Override
    protected CredentialType getCredentialType() {
-      return CredentialType.CLINET;
+      return CredentialType.CLIENT;
    }
 
    @Override

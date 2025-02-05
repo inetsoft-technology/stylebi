@@ -41,6 +41,7 @@ import java.util.Map;
          @View2(value = "expanded", paddingRight = 30),
          @View2(value = "expandTop", visibleMethod = "isExpanded", align = ViewAlign.FILL)
       }),
+   @View1(value = "expandedPath", visibleMethod = "isExpandedPathEnabled"),
    @View1(value = "timeout"),
    //Pagination for custom endpoints
    @View1(value = "paginationType", visibleMethod = "isCustomEndpoint"),

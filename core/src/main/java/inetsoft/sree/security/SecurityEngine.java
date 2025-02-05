@@ -349,7 +349,7 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
          }
       }
       else if(ClientInfo.ANONYMOUS.equals(user.getLoginUserID().name)) {
-         if(containsAnonymous()) {
+         if(containsAnonymous(user.getUserIdentity().getOrgID())) {
             principal = users.get(user);
 
             if(principal == null ||
@@ -419,11 +419,18 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
     * Check if contains user anonymous.
     */
    public boolean containsAnonymous() {
+      return containsAnonymous(OrganizationManager.getInstance().getCurrentOrgID());
+   }
+
+   /**
+    * Check if contains user anonymous.
+    */
+   public boolean containsAnonymous(String orgId) {
       if(provider == null) {
          return false;
       }
 
-      return provider.containsAnonymousUser();
+      return provider.containsAnonymousUser(orgId);
    }
 
    /**
@@ -1082,7 +1089,14 @@ public class SecurityEngine implements SessionListener, MessageListener, AutoClo
     *         if no security provided is defined
     */
    public SecurityProvider getSecurityProvider() {
-      return isSecurityEnabled() && provider != null ? provider : vprovider;
+      initLock.lock();
+
+      try {
+         return isSecurityEnabled() && provider != null ? provider : vprovider;
+      }
+      finally {
+         initLock.unlock();
+      }
    }
 
    /**

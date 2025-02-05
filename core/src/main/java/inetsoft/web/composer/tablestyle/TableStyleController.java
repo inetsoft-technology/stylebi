@@ -21,6 +21,7 @@ import inetsoft.report.*;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.style.XTableStyle;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
@@ -127,6 +128,9 @@ public class TableStyleController {
 
       try {
          styleFormat.updateTableStyle(style);
+         IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+         style.setLastModified(System.currentTimeMillis());
+         style.setLastModifiedBy(pId.getName());
          manager.setTableStyle(style.getID(), style);
          manager.save();
       }
@@ -207,6 +211,11 @@ public class TableStyleController {
          style = new XTableStyle(tableStyleService.getTableModel());
          style.setID(styleId);
          style.setName(styleName);
+         IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
+         style.setLastModified(System.currentTimeMillis());
+         style.setLastModifiedBy(pId.getName());
+         style.setCreated(System.currentTimeMillis());
+         style.setCreatedBy(pId.getName());
 
          if(requestModel.getTableStyleModel() != null &&
             requestModel.getTableStyleModel().getStyleFormat() != null)

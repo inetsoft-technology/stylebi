@@ -267,7 +267,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
 
    newTask(): void {
       this.loading = true;
-      const condition: ScheduleConditionModel = this.getConditionModelsForServer(getStoredCondition());
+      const condition: ScheduleConditionModel = getStoredCondition();
 
       const requestModel: PortalNewTaskRequest = <PortalNewTaskRequest>{
          parentEntry: this.parentFolder,
@@ -282,24 +282,6 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
          },
          () => this.loading = false
       );
-   }
-
-   getConditionModelsForServer(condition: ScheduleConditionModel): ScheduleConditionModel {
-      if(!condition) {
-         return condition;
-      }
-
-      if(condition.conditionType == "TimeCondition" &&
-         (<TimeConditionModel> condition).type == TimeConditionType.AT)
-      {
-         let timeCondition: TimeConditionModel = <TimeConditionModel> condition;
-
-         if(!timeCondition.changed || !!timeCondition.timeZone) {
-            timeCondition.timeZoneOffset = -timeCondition.timeZoneOffset;
-         }
-      }
-
-      return condition;
    }
 
    newFolder(parentFolder: any): void {

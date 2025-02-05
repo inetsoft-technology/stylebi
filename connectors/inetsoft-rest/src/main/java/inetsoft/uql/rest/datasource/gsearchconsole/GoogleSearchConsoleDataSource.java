@@ -30,7 +30,7 @@ import inetsoft.util.credential.CredentialType;
          type = ButtonType.OAUTH,
          style = ButtonStyle.GOOGLE_AUTH,
          method = "updateTokens",
-         oauth = @Button.OAuth(serviceName = "google-search"))),
+         oauth = @Button.OAuth(serviceName = GoogleSearchConsoleDataSource.SERVICE_NAME))),
    @View1("accessToken"),
    @View1("refreshToken"),
    @View1("tokenExpiration")
@@ -39,7 +39,8 @@ public class GoogleSearchConsoleDataSource
    extends OAuthEndpointJsonDataSource<GoogleSearchConsoleDataSource>
 {
    static final String TYPE = "Rest.GoogleSearchConsole";
-   
+   static final String SERVICE_NAME = "google-search";
+
    public GoogleSearchConsoleDataSource() {
       super(TYPE, GoogleSearchConsoleDataSource.class);
       setAuthType(AuthType.NONE);
@@ -80,6 +81,11 @@ public class GoogleSearchConsoleDataSource
    @Override
    public void setQueryHttpParameters(HttpParameter[] parameters) {
       // no-op
+   }
+
+   @Override
+   public String getServiceName() {
+      return SERVICE_NAME;
    }
 
    @Override

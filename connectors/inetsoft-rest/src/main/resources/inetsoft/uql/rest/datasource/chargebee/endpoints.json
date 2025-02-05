@@ -205,7 +205,7 @@
     {
       "paged": "false", 
       "name": "Subscription Renewal Estimate", 
-      "suffix": "/v2/subscriptions/{Subscription ID}/renewal_estimate?include_delayed_charges={Include Delayed Charges?}&use_existing_balances={Use Existing Balances?}&ignore_scheduled_cancellation={Ignore Scheduled Cancellation}&ignore_scheduled_changes={Ignore Scheduled Changes?}"
+      "suffix": "/v2/subscriptions/{Subscription ID}/renewal_estimate?include_delayed_charges={Include Delayed Charges?}&use_existing_balances={Use Existing Balances?}&ignore_scheduled_cancellation={Ignore Scheduled Cancellation?}&ignore_scheduled_changes={Ignore Scheduled Changes?}"
     }, 
     {
       "paged": "false", 

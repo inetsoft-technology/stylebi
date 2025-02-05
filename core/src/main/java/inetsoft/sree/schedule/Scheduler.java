@@ -31,6 +31,8 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.util.*;
 import inetsoft.util.config.CloudRunnerConfig;
 import inetsoft.util.config.InetsoftConfig;
+import inetsoft.util.health.SchedulerHealthService;
+import inetsoft.util.health.SchedulerStatus;
 import inetsoft.web.admin.logviewer.LogMonitoringService;
 import inetsoft.web.admin.server.ServerServiceMessageListener;
 import org.quartz.*;
@@ -42,6 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Calendar;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 
@@ -163,6 +166,11 @@ public class Scheduler {
     * @throws SchedulerException if the scheduler could not be stopped.
     */
    public void stop() throws SchedulerException {
+      if(healthCheckExecutor != null) {
+         healthCheckExecutor.shutdown();
+         healthCheckExecutor = null;
+      }
+
       if(scheduler != null) {
          scheduler.shutdown();
          scheduler = null;
@@ -176,11 +184,14 @@ public class Scheduler {
          listeners.clear();
       }
 
-      try {
-         cluster.close();
-      }
-      catch(Exception ex) {
-         LOG.debug("Failed to shut down cluster instance", ex);
+      // only shutdown the cluster when running in a separate process
+      if("true".equals(System.getProperty("ScheduleServer"))) {
+         try {
+            cluster.close();
+         }
+         catch(Exception ex) {
+            LOG.debug("Failed to shut down cluster instance", ex);
+         }
       }
 
       running.set(false);
@@ -294,7 +305,7 @@ public class Scheduler {
       long now = System.currentTimeMillis();
 
       // if next run time passes task stopOn time, pause trigger
-      if(task.getEndDate() != null && task.getEndDate().getTime() < now) {
+      if(task != null && task.getEndDate() != null && task.getEndDate().getTime() < now) {
          try {
             for(Trigger trigger : triggers) {
                scheduler.pauseTrigger(trigger.getKey());
@@ -626,7 +637,27 @@ public class Scheduler {
     * Main worker for the scheduler.
     */
    private void run() throws Exception {
+      healthCheckExecutor = Executors.newSingleThreadScheduledExecutor(
+         r -> new Thread(r, "SchedulerHealthCheck"));
       scheduler.start();
+
+      JobDetail job = JobBuilder
+         .newJob(HealthCheckJob.class)
+         .withIdentity("__health check job__", INTERNAL_GROUP_NAME)
+         .storeDurably()
+         .build();
+      scheduler.addJob(job, true);
+      healthCheckFuture = healthCheckExecutor
+         .scheduleAtFixedRate(this::checkHealth, 0L, 1L, TimeUnit.MINUTES);
+   }
+
+   private void checkHealth() {
+      try {
+         scheduler.triggerJob(new JobKey("__health check job__", INTERNAL_GROUP_NAME));
+      }
+      catch(SchedulerException e) {
+         LOG.warn("Failed to check health", e);
+      }
    }
 
    /**
@@ -643,6 +674,33 @@ public class Scheduler {
       catch(SchedulerException e) {
          return false;
       }
+   }
+
+   public SchedulerStatus getSchedulerStatus() {
+      boolean started = false;
+      boolean shutdown = false;
+      boolean standby = false;
+      long lastCheck = SchedulerHealthService.getInstance().getLastCheck();
+      long nextCheck = healthCheckFuture == null ?
+         0L : healthCheckFuture.getDelay(TimeUnit.MILLISECONDS);
+      Future.State checkState = healthCheckFuture.state();
+      int executingCount = 0;
+      int threadCount = 0;
+
+      if(scheduler != null) {
+         try {
+            started = scheduler.isStarted();
+            shutdown = scheduler.isShutdown();
+            standby = scheduler.isInStandbyMode();
+            executingCount = scheduler.getCurrentlyExecutingJobs().size();
+            threadCount = scheduler.getMetaData().getThreadPoolSize();
+         }
+         catch(SchedulerException ignore) {
+         }
+      }
+
+      return new SchedulerStatus(
+         started, shutdown, standby, lastCheck, nextCheck, checkState, executingCount, threadCount);
    }
 
    /**
@@ -846,6 +904,10 @@ public class Scheduler {
       }
    }
 
+   public void removeTaskCacheOfOrg(String oldOrgId) {
+      ScheduleManager.getScheduleManager().removeTaskCacheOfOrg(oldOrgId);
+   }
+
    /**
     * Get the last scheduled (ignore run-now) start time for the task.
     */
@@ -869,6 +931,8 @@ public class Scheduler {
    private final AtomicBoolean initialized = new AtomicBoolean(false);
    private final AtomicBoolean running = new AtomicBoolean(false);
    private org.quartz.Scheduler scheduler;
+   private ScheduledExecutorService healthCheckExecutor;
+   private ScheduledFuture<?> healthCheckFuture;
    private Date startTime;
    private String startMsg;
    private boolean first = true;
@@ -879,6 +943,7 @@ public class Scheduler {
    private static final Logger SCHEDULE_TEST_LOG =
       LoggerFactory.getLogger("inetsoft.scheduler_test");
    public static final String GROUP_NAME = "inetsoft";
+   private static final String INTERNAL_GROUP_NAME = "inetsoft_internal";
    public static final String INIT_LOCK = Scheduler.class.getName() + ".initLock";
    public static final String CLOUD_RUNNER_SCHEDULER_TASK_LOADED = "CLOUD_RUNNER_SCHEDULER_TASK_LOADED";
 }

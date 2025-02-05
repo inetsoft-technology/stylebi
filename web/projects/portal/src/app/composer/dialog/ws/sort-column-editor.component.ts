@@ -87,6 +87,10 @@ export class SortColumnEditor implements OnChanges {
             label = this.model.aliasMap[name];
          }
 
+         if(!this.showColumnName && this.model.captionMap[name]) {
+            label = this.model.captionMap[name];
+         }
+
          this.columnList.push({
             name, label: label.replace("OUTER_", ""),
             tooltip: this.getTooltip(name, this.model.originalNames[i],

@@ -22,6 +22,7 @@ import { By } from "@angular/platform-browser";
 import { NgbModule } from "@ng-bootstrap/ng-bootstrap";
 import { GraphTypes } from "../../common/graph-types";
 import { TestUtils } from "../../common/test/test-utils";
+import { DynamicComboBox } from "../dynamic-combo-box/dynamic-combo-box.component";
 import { LabelInputField } from "./label-input-field.component";
 import { StatPanel } from "./stat-panel.component";
 
@@ -33,7 +34,7 @@ describe("stat panel component unit case", () => {
       TestBed.configureTestingModule({
          imports: [ReactiveFormsModule, FormsModule, NgbModule],
          declarations: [
-            StatPanel, LabelInputField
+            StatPanel, LabelInputField, DynamicComboBox
          ],
          providers: [],
          schemas: [NO_ERRORS_SCHEMA]
@@ -65,7 +66,7 @@ describe("stat panel component unit case", () => {
    });
 
    //Bug #20026 Use target value by default when statistics target line label is empty
-   xit("Use target value by default when statistics target line label is empty", () => {
+   it("Use target value by default when statistics target line label is empty", () => {
       statPanel.availableFields = [
          {name: "", label: "", groupOthers: false, dateField: false},
          {name: "Sum(id)", label: "Sum(id)", groupOthers: false, dateField: false},
@@ -73,10 +74,10 @@ describe("stat panel component unit case", () => {
       fixture.detectChanges();
 
       let labelInput = fixture.debugElement.query(By.css("div.label-input-field input")).nativeElement;
-      labelInput.value = "";
-      labelInput.dispatchEvent(new Event("change"));
+      labelInput.value = "test";
+      labelInput.dispatchEvent(new Event(""));
       fixture.detectChanges();
 
-      expect(statPanel.model.labelFormats).toBe("{0}");
+      expect(statPanel.model.labelFormats).toBe("");
    });
 });

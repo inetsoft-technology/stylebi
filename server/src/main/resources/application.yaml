@@ -24,14 +24,18 @@ spring:
     lazy-initialization: true
   servlet:
     multipart:
-      max-file-size: 25MB
-      max-request-size: 25MB
+      max-file-size: 100MB
+      max-request-size: 100MB
   groovy:
     template:
       check-template-location: false
   thymeleaf:
     check-template-location: false
 management:
+  simple:
+    metrics:
+      export:
+        enabled: true
   metrics:
     mongo:
       command:
@@ -63,6 +67,7 @@ management:
             - deadlock
             - cacheSwap
             - reportFailure
+            - scheduler
         liveness:
           include:
             - livenessState
@@ -70,6 +75,7 @@ management:
             - deadlock
             - cacheSwap
             - reportFailure
+            - scheduler
       show-details: always
       show-components: always
   health:
@@ -86,6 +92,8 @@ management:
     cacheSwap:
       enabled: true
     reportFailure:
+      enabled: true
+    scheduler:
       enabled: true
   server:
     port: 8081

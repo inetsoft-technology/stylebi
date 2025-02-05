@@ -149,6 +149,7 @@ public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
       converters.add(jsonMessageConverter());
       converters.add(resourceMessageConvertor());
       converters.add(textMessageConverter());
+      converters.add(byteArrayHttpMessageConverter());
    }
 
    @Bean
@@ -172,7 +173,19 @@ public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
    @Bean
    public StringHttpMessageConverter textMessageConverter() {
       StringHttpMessageConverter converter = new StringHttpMessageConverter();
-      converter.setSupportedMediaTypes(Collections.singletonList(MediaType.TEXT_PLAIN));
+      converter.setSupportedMediaTypes(List.of(
+         MediaType.TEXT_PLAIN,
+         MediaType.parseMediaType("application/openmetrics-text")));
+      return converter;
+   }
+
+   @Bean
+   public ByteArrayHttpMessageConverter byteArrayHttpMessageConverter() {
+      ByteArrayHttpMessageConverter converter = new ByteArrayHttpMessageConverter();
+      converter.setSupportedMediaTypes(List.of(
+         MediaType.APPLICATION_OCTET_STREAM,
+         MediaType.TEXT_PLAIN,
+         MediaType.parseMediaType("application/openmetrics-text")));
       return converter;
    }
 

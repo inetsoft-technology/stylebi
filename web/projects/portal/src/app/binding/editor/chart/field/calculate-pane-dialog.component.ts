@@ -161,7 +161,9 @@ export class CalculatePaneDialog implements OnInit {
          return false;
       }
 
-      if(!this.runningTotalCalculator.breakBy && this.breakByDims.length > 0) {
+      if(!this.runningTotalCalculator.breakBy &&
+         this.breakByDims != null &&  this.breakByDims.length > 0)
+      {
          this.runningTotalCalculator.breakBy = this.breakByDims[0].data;
       }
 
