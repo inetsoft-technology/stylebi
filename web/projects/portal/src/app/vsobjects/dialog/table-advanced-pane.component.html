@@ -28,15 +28,6 @@
           </label>
         </div>
       </div>
-      <div class="checkbox col embeddedTable_id">
-        <div class="form-check">
-          <input type="checkbox" class="form-check-input" [(ngModel)]="model.embeddedTable"
-               [disabled]="!model.embeddedEnabled" id="embedded">
-          <label class="form-check-label" for="embedded">
-            _#(Embedded Table)
-          </label>
-        </div>
-      </div>
       <div class="checkbox col enableAdhoc_id">
         <div class="form-check">
           <input type="checkbox" class="form-check-input" [disabled]="model.form"
@@ -62,7 +53,7 @@
       </div>
       <div class="col checkbox enableTableEdit_id">
         <div class="form-check">
-          <input type="checkbox" class="form-check-input" [disabled]="!model.form || !model.embeddedTable"
+          <input type="checkbox" class="form-check-input" [disabled]="!model.form"
                  [(ngModel)]="model.writeBack" id="writaBackOption">
           <label class="form-check-label" for="writaBackOption">
             _#(Write Back to Storage)
@@ -101,6 +92,6 @@
     </div>
   </fieldset>
 </form>
-<fieldset [disabled]="model.embeddedTable || model.form">
+<fieldset [disabled]="model.form">
   <tip-pane [model]="model.tipPaneModel"></tip-pane>
 </fieldset>

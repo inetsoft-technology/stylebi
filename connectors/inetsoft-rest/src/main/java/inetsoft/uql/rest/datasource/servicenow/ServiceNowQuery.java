@@ -105,15 +105,29 @@ public class ServiceNowQuery extends EndpointJsonQuery<ServiceNowEndpoint> {
 
    @Override
    protected void updatePagination(ServiceNowEndpoint endpoint) {
+      final PaginationType pageType = endpoint.getPageType();
+
       if(endpoint.isPaged()) {
-        paginationSpec = PaginationSpec.builder()
-            .type(PaginationType.OFFSET)
-            .offsetParam(PaginationParamType.QUERY, "sysparm_offset")
-            .maxResultsPerPageParam(PaginationParamType.QUERY, "sysparm_limit")
-            .maxResultsPerPage(1000)
-            .baseRecordLength(1)
-            .recordCountPath("$.result.length()")
-            .build();
+         if(pageType == PaginationType.OFFSET){
+            paginationSpec = PaginationSpec.builder()
+               .type(PaginationType.OFFSET)
+               .offsetParam(PaginationParamType.QUERY, "sysparm_offset")
+               .maxResultsPerPageParam(PaginationParamType.QUERY, "sysparm_limit")
+               .maxResultsPerPage(1000)
+               .baseRecordLength(1)
+               .recordCountPath("$.result.length()")
+               .build();
+         }
+         else if (pageType == PaginationType.PAGE) {
+            paginationSpec = PaginationSpec.builder()
+               .type(PaginationType.PAGE)
+               .pageNumberParamToWrite(PaginationParamType.QUERY, "sysparm_page")
+               .maxResultsPerPageParam(PaginationParamType.QUERY, "sysparm_per_page")
+               .maxResultsPerPage(100)
+               .recordCountPath("$.result.length()")
+               .baseRecordLength(1)
+               .build();
+         }
       }
       else {
          paginationSpec = PaginationSpec.builder()

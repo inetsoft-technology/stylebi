@@ -113,5 +113,7 @@
         <property name="autoCommit">true</property>
       </defaultPoolProperties>
     </jdbcdriver>
+    <jdbcdriver name="Exasol" driver="com.exasol.jdbc.EXADriver"
+                url="jdbc:exa:&lt;hostname>:&lt;port>"/>
   </jdbcdrivers>
 </config>

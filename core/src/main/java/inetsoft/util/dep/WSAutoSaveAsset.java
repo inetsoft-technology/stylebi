@@ -92,7 +92,7 @@ public class WSAutoSaveAsset extends WorksheetAsset {
    @Override
    public synchronized void parseContent(InputStream input, XAssetConfig config, boolean isImport) throws Exception {
       boolean overwriting = config != null && config.isOverwriting();
-      String file = "recycle/" + SUtil.addAutoSaveOrganization(autoFile);
+      String file = AutoSaveUtils.RECYCLE_PREFIX + SUtil.addAutoSaveOrganization(autoFile);
       Principal principal = ThreadContext.getContextPrincipal();
 
       if(!overwriting && AutoSaveUtils.exists(file, principal)) {
@@ -115,7 +115,7 @@ public class WSAutoSaveAsset extends WorksheetAsset {
    }
 
    private void writeAutoSaveFile(JarOutputStream out) throws Exception {
-      String file = "recycle/" + SUtil.addAutoSaveOrganization(autoFile);
+      String file = AutoSaveUtils.RECYCLE_PREFIX + SUtil.addAutoSaveOrganization(autoFile);
       Principal principal = ThreadContext.getContextPrincipal();
 
       if(!AutoSaveUtils.exists(file, principal)) {

@@ -553,6 +553,11 @@ public abstract class VisualFrame implements Cloneable, Serializable {
          VisualFrame frame = (VisualFrame) super.clone();
          frame.legendSpec = legendSpec.clone();
          frame.legendSpec0 = null;
+
+         if(scale != null) {
+            frame.scale = scale.clone();
+         }
+
          return frame;
       }
       catch(Exception ex) {

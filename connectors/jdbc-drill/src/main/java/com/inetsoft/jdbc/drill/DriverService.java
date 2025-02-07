@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,17 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { TipPaneModel } from "./tip-pane-model";
+package com.inetsoft.jdbc.drill;
 
-export interface TableAdvancedPaneModel {
-   formVisible: boolean;
-   shrinkEnabled: boolean;
-   shrink: boolean;
-   enableAdhoc: boolean;
-   form: boolean;
-   insert: boolean;
-   del: boolean;
-   edit: boolean;
-   writeBack: boolean;
-   tipPaneModel: TipPaneModel;
+import inetsoft.uql.jdbc.drivers.AbstractDriverService;
+
+import java.util.Collections;
+import java.util.Set;
+
+public class DriverService extends AbstractDriverService {
+   @Override
+   public Set<String> getDrivers() {
+      return drivers;
+   }
+
+   @Override
+   protected Set<String> getUrls() {
+      return urls;
+   }
+
+   private final Set<String> drivers = Collections.singleton("org.apache.drill.jdbc.Driver");
+   private final Set<String> urls = Collections.singleton("jdbc:drill");
 }

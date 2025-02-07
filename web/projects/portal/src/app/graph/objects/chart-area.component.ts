@@ -22,7 +22,7 @@ import {
    EventEmitter,
    Input,
    OnChanges,
-   OnDestroy,
+   OnDestroy, OnInit,
    Output,
    QueryList,
    SimpleChanges,
@@ -75,7 +75,7 @@ import { PagingControlService } from "../../common/services/paging-control.servi
    templateUrl: "chart-area.component.html",
    styleUrls: ["chart-area.component.scss"],
 })
-export class ChartArea implements OnChanges, OnDestroy {
+export class ChartArea implements OnInit, OnChanges, OnDestroy {
    @Input() zIndex: number;
    @Input() supportHyperlink = true;
    @Input() emptyChart = false;
@@ -248,6 +248,7 @@ export class ChartArea implements OnChanges, OnDestroy {
    private dropType: number = -1;
    private _plotLoaded = true;
    private _axisLoaded = true;
+   private devicePixelRatioMedia: MediaQueryList;
 
    // Mouse position
    eventXdown: number;
@@ -314,7 +315,29 @@ export class ChartArea implements OnChanges, OnDestroy {
       }
    }
 
+   ngOnInit() {
+      window.addEventListener("resize", this.onResize);
+
+      this.devicePixelRatioMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      this.devicePixelRatioMedia.addEventListener("change", this.onDevicePixelRatioChange);
+   }
+
+   private onResize = (): void => {
+      GuiTool.resetScrollbarWidth();
+      this.scrollbarWidth = this.mobileDevice ? 0 : GuiTool.measureScrollbars();
+      this.changeDetectorRef.detectChanges();
+   };
+
+   private onDevicePixelRatioChange = (): void => {
+      GuiTool.resetScrollbarWidth();
+      this.scrollbarWidth = this.mobileDevice ? 0 : GuiTool.measureScrollbars();
+      this.changeDetectorRef.detectChanges();
+   };
+
    ngOnDestroy(): void {
+      window.removeEventListener("resize", this.onResize);
+      this.devicePixelRatioMedia.removeEventListener("change", this.onDevicePixelRatioChange);
+
       if(this.clearCanvasSubscription) {
          this.clearCanvasSubscription.unsubscribe();
          this.clearCanvasSubscription = null;

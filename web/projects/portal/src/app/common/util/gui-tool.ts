@@ -125,6 +125,10 @@ export class GuiTool {
       return GuiTool.scrollbarWidth;
    }
 
+   public static resetScrollbarWidth(): void {
+      GuiTool.scrollbarWidth = undefined;
+   }
+
    /**
     * Checks whether the element matches the selector.
     *

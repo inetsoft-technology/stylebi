@@ -61,6 +61,7 @@ export class RunOnceConditionEditorComponent implements OnInit {
       this.form.get("timeZone").setValue(this._condition.timeZone || "", {emitEvent: false});
       this.timeZoneLabel = this.dateTimeService
          .getTimeZoneLabel(this.timeZoneOptions, this._condition.timeZone, this.timeZone);
+      this.dateTimeService.resetTimeOfDate(this.dateValue);
    }
 
    form: UntypedFormGroup;
@@ -79,11 +80,7 @@ export class RunOnceConditionEditorComponent implements OnInit {
       });
 
       this.form.get("startTime").valueChanges.subscribe(value => {
-         if(!!!this.timeValue) {
-            // init
-            this.timeValue = value;
-         }
-         else if(!Tool.isEquals(value, this.timeValue)) {
+         if(!Tool.isEquals(value, this.timeValue)) {
             this.timeValue = value;
             this.fireModelChanged();
          }

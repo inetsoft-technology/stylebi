@@ -53,7 +53,9 @@
     <module>inetsoft-sharepoint-online</module>
     <module>jdbc-access</module>
     <module>jdbc-derby</module>
+    <module>jdbc-drill</module>
     <module>jdbc-h2</module>
+    <module>jdbc-hpcc</module>
     <module>jdbc-mysql</module>
     <module>jdbc-oracle</module>
     <module>jdbc-postgresql</module>

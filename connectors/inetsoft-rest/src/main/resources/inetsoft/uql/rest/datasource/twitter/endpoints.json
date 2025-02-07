@@ -234,11 +234,6 @@
       "name": "Communities by Query",
       "paged": false,
       "suffix": "/2/communities/search?query={query}&community.fields={Community Fields?}"
-    },
-    {
-      "name": "Account Verify Credentials",
-      "paged": false,
-      "suffix": "/1.1/account/verify_credentials.json?include_entities={Include Entities?:true|false}&skip_status={Skip Status?:true|false}&include_email={Include Email?:true|false}"
     }
   ]
 }

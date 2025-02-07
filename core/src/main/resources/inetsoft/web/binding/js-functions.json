@@ -1188,86 +1188,94 @@
     "!type" : "fn(className: string) -> ?",
     "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=importClass"
   },
-  "concat" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=concat"
+  "Array": {
+    "prototype" : {
+      "concat" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=concat"
+      },
+      "join" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=join"
+      },
+      "pop" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=pop"
+      },
+      "push" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=push"
+      },
+      "reverse" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=reverse"
+      },
+      "shift" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=shift"
+      },
+      "slice" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=slice"
+      },
+      "sort" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=sort"
+      },
+      "splice" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=splice"
+      },
+      "unshift" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=unshift"
+      },
+      "indexOf" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=indexOf"
+      }
+    }
   },
-  "join" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=join"
-  },
-  "pop" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=pop"
-  },
-  "push" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=push"
-  },
-  "reverse" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=reverse"
-  },
-  "shift" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=shift"
-  },
-  "slice" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=slice"
-  },
-  "sort" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=sort"
-  },
-  "splice" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=splice"
-  },
-  "unshift" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=unshift"
-  },
-  "indexOf" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=indexOf"
-  },
-  "charAt" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectCharAt"
-  },
-  "charCodeAt" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectCharCodeAt"
-  },
-  "localeCompare" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLocaleCompare"
-  },
-  "toLocaleUpperCase" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectToLocaleUpperCase"
-  },
-  "concat" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectConcat"
-  },
-  "indexOf" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectIndexOf"
-  },
-  "lastIndexOf" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLastIndexOf"
-  },
-  "length" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLength"
-  },
-  "match" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectMatch"
-  },
-  "replace" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectMatch"
-  },
-  "search" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSearch"
-  },
-  "slice" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSlice"
-  },
-  "split" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSplit"
-  },
-  "substring" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectsubString"
-  },
-  "toLowerCase" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectToLowerCase"
-  },
-  "toUpperCase" : {
-    "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectToUpperCase"
+  "String": {
+    "prototype": {
+      "charAt" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectCharAt"
+      },
+      "charCodeAt" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectCharCodeAt"
+      },
+      "localeCompare" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLocaleCompare"
+      },
+      "toLocaleUpperCase" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectToLocaleUpperCase"
+      },
+      "concat" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectConcat"
+      },
+      "indexOf" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectIndexOf"
+      },
+      "lastIndexOf" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLastIndexOf"
+      },
+      "length" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectLength"
+      },
+      "match" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectMatch"
+      },
+      "replace" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectMatch"
+      },
+      "search" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSearch"
+      },
+      "slice" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSlice"
+      },
+      "split" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectSplit"
+      },
+      "substring" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectsubString"
+      },
+      "toLowerCase" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectToLowerCase"
+      },
+      "toUpperCase" : {
+        "!url" : "https://www.inetsoft.com/docs/stylebi/index.html#cshid=StringObjectToUpperCase"
+      }
+    }
   },
   "Math" : {
     "abs" : {
@@ -3564,4 +3572,4 @@
       "!type": "string"
     }
   }
-}
+},

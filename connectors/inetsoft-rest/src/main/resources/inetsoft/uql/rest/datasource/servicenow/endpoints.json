@@ -16,7 +16,8 @@
       "suffix": "/now/cmdb/app_service/{Application Service ID}/getContent?Mode={Mode?:Shallow|Full}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Attachments", 
       "suffix": "api/now/attachment?sysparm_query={Query}"
     }, 
@@ -26,7 +27,8 @@
       "suffix": "api/now/attachment/{Attachment ID}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Standard Changes", 
       "suffix": "/sn_chg_rest/change/standard?sysparm_query={Query?}&textSearch={Text Search?}",
       "lookups": [
@@ -44,7 +46,8 @@
       "suffix": "/sn_chg_rest/change/standard/{Change ID}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Change Templates", 
       "suffix": "/sn_chg_rest/change/standard/template?sysparm_query={Query?}&textSearch={Text Search?}"
     }, 
@@ -54,7 +57,8 @@
       "suffix": "/sn_chg_rest/change/standard/template/{Change Template ID}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Normal Changes", 
       "suffix": "/sn_chg_rest/change/normal?sysparm_query={Query?}&textSearch={Text Search?}",
       "lookups": [
@@ -72,7 +76,8 @@
       "suffix": "/sn_chg_rest/change/normal/{Change ID}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Emergency Changes", 
       "suffix": "/sn_chg_rest/change/emergency?sysparm_query={Query?}&textSearch={Text Search?}",
       "lookups": [
@@ -90,7 +95,8 @@
       "suffix": "/sn_chg_rest/change/emergency/{Change ID}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Change Tasks", 
       "suffix": "/sn_chg_rest/change/{Change ID}/task?sysparm_query={Query?}"
     }, 
@@ -105,7 +111,8 @@
       "suffix": "/sn_chg_rest/change/{Change ID}/conflict"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Change Cls", 
       "suffix": "/sn_chg_rest/change/{Change ID}/ci?association_type={Association Type?:affected|impacted|offering}&sysparm_query={Query}"
     }, 
@@ -120,7 +127,8 @@
       "suffix": "/now/account/{Account ID}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Accounts", 
       "suffix": "/now/account?sysparm_query={Query?}",
       "lookups": [
@@ -138,7 +146,8 @@
       "suffix": "api/sn_customerservice/case/{Case ID}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "CSM Cases", 
       "suffix": "/sn_customerservice/case?sysparm_query={Query?}"
     }, 
@@ -148,7 +157,8 @@
       "suffix": "/now/consumer/{Consumer Record ID}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "CSM Consumer Records", 
       "suffix": "/now/consumer?sysparm_query={Query?}"
     }, 
@@ -158,12 +168,14 @@
       "suffix": "/now/contact/{Contact ID}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "CSM Contacts", 
       "suffix": "/now/contact?sysparm_query={Query?}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "DevOps Tools", 
       "suffix": "/sn_devops/devops/admin?id={Tool ID?}&name={Name?}&type={Type?:Planning|Coding|TaskExecution}"
     }, 
@@ -208,12 +220,14 @@
       "suffix": "/sn_major_inc_mgmt/mim/status/{Incident ID}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Metric Time Series", 
       "suffix": "api/now/clotho/table/{Table Name}/{Time Series ID}/{Metric Field Name}?sysparm_start={Start Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_end={End Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_display_value={Display Value?:true|false}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Metric Transform", 
       "suffix": "/now/clotho/transform/{Table Name}/{Metric Field Name}?sysparm_start={Start Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_end={End Time?:YYYY-MM-DDTHH:MM:SS}&sysparm_transforms={Transforms?:avg,sum,add,mul,resample,top,label}&sysparm_subject_limit={Subject Limit?}&sysparm_display_value={Display Value?:true|false}"
     }, 
@@ -228,7 +242,8 @@
       "suffix": "/now/open-nlu/models/{Model ID}/intents"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "PAGE",
       "name": "Analytics Indicators", 
       "suffix": "/now/pa/scorecards?sysparm_uuid={Indicator/Breakdown/Aggregate/Domain IDs?}&sysparm_breakdown={Breakdown ID?}&sysparm_display_value={Display Value?:true|false|all}&sysparm_include_scores={Include Scores?:true|false}&sysparm_include_aggregates={Include Aggregates?:true|false}&sysparm_include_available_breakdowns={Include Available Breakdowns?:true|false }&sysparm_include_available_aggregates={Include Available Aggregates?:true|false}&sysparm_exclude_reference_link={Exclude Reference Link?:true|false}"
     }, 
@@ -238,9 +253,9 @@
       "suffix": "/now/agent_intelligence/solution/{Solution Name}/prediction"
     }, 
     {
-      "paged": "true", 
+      "paged": "false",
       "name": "Service Catalogs", 
-      "suffix": "/sn_sc/servicecatalog/catalogs?sysparm_view={View?:desktop|mobile|both}&sysparm_text={Title Keyword?}",
+      "suffix": "/sn_sc/servicecatalog/catalogs?sysparm_view={View?:desktop|mobile|both}&sysparm_text={Title Keyword?}&sysparm_limit=10000",
       "lookups": [
         {
           "endpoint": "Service Catalog Categories",
@@ -256,7 +271,8 @@
       "suffix": "/sn_sc/servicecatalog/catalogs/{Catalog ID}?sysparm_view={View?:desktop|mobile|both}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Service Catalog Categories", 
       "suffix": "/sn_sc/servicecatalog/catalogs/{Catalog ID}/categories?sysparm_top_level_only={Top Level Only?:true|false}&sysparm_view={View?:desktop|mobile|both}"
     }, 
@@ -266,7 +282,8 @@
       "suffix": "/sn_sc/servicecatalog/categories/{Category ID}?sysparm_view={View?:desktop|mobile|both}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Service Catalog Items", 
       "suffix": "/sn_sc/servicecatalog/items?sysparm_catalog={Catalog ID?}&sysparm_category={Category ID}sysparm_text={Search Text?}&sysparm_type={Type?:Record Producer|Order Guide}&sysparm_view={View?:desktop|mobile|both}"
     }, 
@@ -286,7 +303,8 @@
       "suffix": "/sn_sc/servicecatalog/cart/delivery_address/{User ID}"
     }, 
     {
-      "paged": "true", 
+      "paged": "true",
+      "pageType": "OFFSET", 
       "name": "Table Records", 
       "suffix": "/now/table/{Table Name}?sysparm_display_value={Display Value?:true|false|all}&sysparm_fields={Fields?:field1,field2,...}&sysparm_query={Query?}&sysparm_view={View?:desktop|mobile|both}"
     }, 

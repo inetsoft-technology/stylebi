@@ -24,8 +24,7 @@ import inetsoft.storage.BlobStorage;
 import inetsoft.storage.BlobTransaction;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
-import inetsoft.util.SingletonManager;
-import inetsoft.util.Tool;
+import inetsoft.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,10 +74,10 @@ public final class AutoSaveUtils {
    public static String getAutoSavedFile(AssetEntry entry, Principal user) {
       String fileName = entry.getProperty("autoFileName");
       fileName = SUtil.addAutoSaveOrganization(fileName);
-      boolean isCycle = "true".equals(entry.getProperty("isRecycle"));
+      boolean isRecycle = "true".equals(entry.getProperty("isRecycle"));
 
       if(entry.getScope() == AssetRepository.TEMPORARY_SCOPE && fileName != null) {
-         return getAutoSavedByName(fileName, isCycle);
+         return getAutoSavedByName(fileName, isRecycle);
       }
 
       return getAutoSavedFile(entry, user, false);
@@ -192,8 +191,8 @@ public final class AutoSaveUtils {
    public static List<String> getAutoSavedFiles(Principal principal, boolean recycle) {
       BlobStorage<Metadata> blobStorage = getStorage(principal);
       return blobStorage.paths().filter(path -> {
-         boolean isRecyclePath = path.startsWith("recycle/");
-         return recycle && isRecyclePath || !recycle && !isRecyclePath;
+         boolean isRecyclePath = path.startsWith(RECYCLE_PREFIX);
+         return (recycle && isRecyclePath) || (!recycle && !isRecyclePath);
       }).collect(Collectors.toList());
    }
 
@@ -281,7 +280,7 @@ public final class AutoSaveUtils {
 
    public static String getAutoSavedTime(String name, Principal principal) {
       String file = getAutoSavedByName(name, true);
-      BlobStorage blobStorage = getStorage(principal);
+      BlobStorage<Metadata> blobStorage = getStorage(principal);
       long time = 0;
 
       try {
@@ -297,10 +296,14 @@ public final class AutoSaveUtils {
    }
 
    private static String getAutoSavedByName(String name, boolean recycle) {
-      return recycle ? "recycle/" + name : name;
+      return recycle ? RECYCLE_PREFIX + name : name;
    }
 
    public static BlobStorage<Metadata> getStorage(Principal principal) {
+      if(principal == null) {
+         principal = ThreadContext.getContextPrincipal();
+      }
+
       String orgId = OrganizationManager.getInstance().getUserOrgId(principal);
 
       if(orgId == null) {
@@ -339,8 +342,8 @@ public final class AutoSaveUtils {
    }
 
    public static String getName(String file) {
-      if(file != null && file.startsWith("recycle/")) {
-         return file.substring("recycle/".length());
+      if(file != null && file.startsWith(RECYCLE_PREFIX)) {
+         return file.substring(RECYCLE_PREFIX.length());
       }
 
       return file;
@@ -397,6 +400,7 @@ public final class AutoSaveUtils {
       blobStorage.delete(file);
    }
 
+   public static final String RECYCLE_PREFIX = "recycle/";
    private static final Logger LOG = LoggerFactory.getLogger(AutoSaveUtils.class);
 
    public static final class Metadata implements Serializable {

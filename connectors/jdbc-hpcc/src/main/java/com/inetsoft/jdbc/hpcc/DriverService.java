@@ -15,17 +15,24 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-import { TipPaneModel } from "./tip-pane-model";
+package com.inetsoft.jdbc.hpcc;
 
-export interface TableAdvancedPaneModel {
-   formVisible: boolean;
-   shrinkEnabled: boolean;
-   shrink: boolean;
-   enableAdhoc: boolean;
-   form: boolean;
-   insert: boolean;
-   del: boolean;
-   edit: boolean;
-   writeBack: boolean;
-   tipPaneModel: TipPaneModel;
+import inetsoft.uql.jdbc.drivers.AbstractDriverService;
+
+import java.util.Collections;
+import java.util.Set;
+
+public class DriverService extends AbstractDriverService {
+   @Override
+   public Set<String> getDrivers() {
+      return drivers;
+   }
+
+   @Override
+   protected Set<String> getUrls() {
+      return urls;
+   }
+
+   private final Set<String> drivers = Collections.singleton("org.hpccsystems.jdbcdriver.HPCCDriver");
+   private final Set<String> urls = Collections.singleton("jdbc:hpcc");
 }

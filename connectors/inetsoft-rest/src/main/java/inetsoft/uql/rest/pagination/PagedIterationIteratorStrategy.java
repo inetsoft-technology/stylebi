@@ -114,13 +114,14 @@ public class PagedIterationIteratorStrategy<Q extends AbstractRestQuery, T exten
       hasNext = getHasNext(spec, json, response);
 
       if(hasNext) {
-         final String newPageOffset = getPageOffset(spec, json, response);
+         String newPageOffset = getPageOffset(spec, json, response);
+
+         if(pageOffset != null && spec.isIncrementOffset()) {
+            newPageOffset = incrementOffset(pageOffset);
+         }
+
          checkAgainstLastPageOffset(newPageOffset, pageOffset);
          pageOffset = newPageOffset;
-
-         if(spec.isIncrementOffset()) {
-            pageOffset = incrementOffset(pageOffset);
-         }
       }
       else {
          pageOffset = null;

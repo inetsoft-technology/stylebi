@@ -152,11 +152,6 @@ public class TableViewPropertyDialogController {
       sizePositionPaneModel.setContainer(tableAssembly.getContainer() != null);
 
       tableAdvancedPaneModel.setFormVisible(LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM));
-      tableAdvancedPaneModel.setEmbeddedEnabled(
-         isEmbeddedTable || tableAssemblyInfo.getSourceInfo() == null ||
-         this.vsObjectPropertyService.isEmbeddedEnabled(rvs, tableAssemblyInfo));
-      tableAdvancedPaneModel.setEmbeddedTable(isEmbeddedTable ||
-                                            tableAssemblyInfo.isEmbeddedTable());
       tableAdvancedPaneModel.setForm(tableAssemblyInfo.getFormValue());
       tableAdvancedPaneModel.setInsert(tableAssemblyInfo.getInsertValue());
       tableAdvancedPaneModel.setDel(tableAssemblyInfo.getDelValue());
@@ -275,18 +270,7 @@ public class TableViewPropertyDialogController {
          tableAssemblyInfo.getHiddenColumns().removeAllAttributes();
       }
 
-      // if embedded table is turned to regular table, make sure previously set
-      // selection conditions are cleared
-      if(tableAssemblyInfo.isEmbeddedTable() && !tableAdvancedPaneModel.isEmbeddedTable() &&
-         tableAssemblyInfo.getTableName() != null)
-      {
-         Worksheet ws = viewsheet.getViewsheetSandbox().getAssetQuerySandbox().getWorksheet();
-         TableAssembly base = (TableAssembly) ws.getAssembly(tableAssemblyInfo.getTableName());
-         base.setPreRuntimeConditionList(null);
-      }
-
       tableAssemblyInfo.setShrinkValue(tableAdvancedPaneModel.isShrink());
-      tableAssemblyInfo.setEmbeddedTable(tableAdvancedPaneModel.isEmbeddedTable());
       tableAssemblyInfo.setFormValue(tableAdvancedPaneModel.isForm());
       tableAssemblyInfo.setInsertValue(tableAdvancedPaneModel.isInsert());
       tableAssemblyInfo.setDelValue(tableAdvancedPaneModel.isDel());
@@ -294,9 +278,7 @@ public class TableViewPropertyDialogController {
       tableAssemblyInfo.setWriteBackValue(tableAdvancedPaneModel.isWriteBack());
       tableAssemblyInfo.setEnableAdhocValue(tableAdvancedPaneModel.isEnableAdhoc());
 
-      if(tipPaneModel.isTipOption() &&
-         !tableAdvancedPaneModel.isForm() && !tableAdvancedPaneModel.isEmbeddedTable())
-      {
+      if(tipPaneModel.isTipOption() && !tableAdvancedPaneModel.isForm()) {
          tableAssemblyInfo.setTipOptionValue(TipVSAssemblyInfo.VIEWTIP_OPTION);
          String str = tipPaneModel.getAlpha();
          tableAssemblyInfo.setAlphaValue(str != null && str.length() > 0 ? str : null);
@@ -313,7 +295,7 @@ public class TableViewPropertyDialogController {
          tableAssemblyInfo.setTipViewValue(null);
       }
 
-      if(!tableAdvancedPaneModel.isForm() && !tableAdvancedPaneModel.isEmbeddedTable()) {
+      if(!tableAdvancedPaneModel.isForm()) {
          String[] flyovers = VSUtil.getValidFlyovers(tipPaneModel.getFlyOverViews(),
                                                      viewsheet.getViewsheet());
          tableAssemblyInfo.setFlyoverViewsValue(flyovers);

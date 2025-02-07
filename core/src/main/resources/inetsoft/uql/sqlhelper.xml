@@ -84,6 +84,9 @@
   <helper type="luciddb" class="inetsoft.uql.jdbc.LucidDbHelper">
     <maxidentifier>128</maxidentifier>
   </helper>
+  <helper type="exasol" class="inetsoft.uql.jdbc.ExasolHelper">
+    <maxidentifier>128</maxidentifier>
+  </helper>
 
   <!--row limit-->
    <unsupported type="default" op="maxrows"/>
@@ -210,6 +213,7 @@
    <testQuery type="derby">SELECT 1 FROM SYSIBM.SYSDUMMY1</testQuery>
    <testQuery type="informix">SELECT count(1) FROM systables</testQuery>
    <testQuery type="luciddb">SELECT count(1) FROM SYS_ROOT.DBA_FUNCTIONS</testQuery>
+  <testQuery type="exasol">SELECT 1</testQuery>
 
    <!-- math functions -->
    <sqlfunc type="access" function="ceil" command="int({0} + 0.999999999)"/>

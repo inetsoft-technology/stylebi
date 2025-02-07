@@ -544,16 +544,14 @@ public final class AnnotationVSUtil {
          return 1;
       }
 
-      String value = Tool.toString(lens.getObject(row, col));
       int hrcnt = lens.getHeaderRowCount();
       int idx = 1;
 
       for(int i = col - 1; i >= 0; i--) {
-         String temp = Tool.toString(lens.getObject(row, i));
          boolean check = false;
 
          for(int r = 0; r < hrcnt; r++) {
-            if(Tool.equals(value, temp) && Tool.equals(Tool.toString(lens.getObject(r, col)),
+            if(Tool.equals(Tool.toString(lens.getObject(r, col)),
                Tool.toString(lens.getObject(r, i))))
             {
                check = true;

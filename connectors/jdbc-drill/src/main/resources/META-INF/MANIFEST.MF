@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+Plugin-Id: com.inetsoft.jdbc.drill
+Plugin-Provider: InetSoft Technology
+Plugin-Version: 14.0.${plugin.build.number}
+Plugin-Name: Apache Drill Driver
+Plugin-Classloader-First: true
+Plugin-Merge-Into-Required: false

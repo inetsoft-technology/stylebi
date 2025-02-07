@@ -36,10 +36,8 @@ import { DebounceService } from "../../widget/services/debounce.service";
 let createModel: () => TableAdvancedPaneModel = () => {
    return {
       formVisible: true,
-      embeddedEnabled: true,
       shrinkEnabled: true,
       shrink: false,
-      embeddedTable: false,
       enableAdhoc: false,
       form: false,
       insert: false,

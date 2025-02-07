@@ -40,14 +40,6 @@ public class TableAdvancedPaneModel {
       this.formVisible = formVisible;
    }
 
-   public boolean isEmbeddedEnabled() {
-      return embeddedEnabled;
-   }
-
-   public void setEmbeddedEnabled(boolean embeddedEnabled) {
-      this.embeddedEnabled = embeddedEnabled;
-   }
-
    public boolean isShrinkEnabled() {
       return shrinkEnabled;
    }
@@ -62,14 +54,6 @@ public class TableAdvancedPaneModel {
 
    public void setShrink(boolean shrink) {
       this.shrink = shrink;
-   }
-
-   public boolean isEmbeddedTable() {
-      return embeddedTable;
-   }
-
-   public void setEmbeddedTable(boolean embeddedTable) {
-      this.embeddedTable = embeddedTable;
    }
 
    public boolean isEnableAdhoc() {
@@ -121,10 +105,8 @@ public class TableAdvancedPaneModel {
    }
 
    private boolean formVisible;
-   private boolean embeddedEnabled;
    private boolean shrinkEnabled;
    private boolean shrink;
-   private boolean embeddedTable;
    private boolean enableAdhoc;
    private boolean form;
    private boolean insert;

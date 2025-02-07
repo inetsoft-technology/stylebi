@@ -2248,7 +2248,7 @@ public class IdentityService {
             if(oorg.getId().equals(userID.getOrgID())) {
                userID.setOrgID(norg.getId());
                attrs[2] = userID.convertToKey();
-               String newFilePath = "recycle/" + String.join("^", attrs);
+               String newFilePath = AutoSaveUtils.RECYCLE_PREFIX + String.join("^", attrs);
                AutoSaveUtils.renameAutoSaveFile(file, newFilePath, principal);
             }
          }
@@ -2299,7 +2299,7 @@ public class IdentityService {
 
             if(fileUserID.equals(oID)) {
                attrs[2] = nID.convertToKey();
-               String newFilePath = "recycle/" + String.join("^", attrs);
+               String newFilePath = AutoSaveUtils.RECYCLE_PREFIX + String.join("^", attrs);
                AutoSaveUtils.renameAutoSaveFile(file, newFilePath, principal);
             }
          }

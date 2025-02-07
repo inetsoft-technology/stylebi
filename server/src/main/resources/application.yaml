@@ -24,8 +24,8 @@ spring:
     lazy-initialization: true
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 100MB
+      max-file-size: 160MB
+      max-request-size: 160MB
   groovy:
     template:
       check-template-location: false

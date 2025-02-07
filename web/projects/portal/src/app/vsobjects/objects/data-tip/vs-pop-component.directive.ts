@@ -314,6 +314,10 @@ export class VSPopComponentDirective implements DoCheck, OnInit, OnDestroy {
          }
       }
 
+      if(alpha != null && alpha != 1) {
+         this.renderer.setStyle(nativeElement, "opacity", alpha / 100);
+      }
+
       setTimeout(() => this.createOutsideClickListener(), 200);
    }
 
