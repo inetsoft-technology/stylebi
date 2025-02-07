@@ -33,8 +33,6 @@ Once the server has started, you can press `Ctrl-C` to stop tailing the log. Ope
 
 ## Build from Source
 
-> **NOTE** This repository contains submodule references that are not publicly available. These are for the commercial Enterprise version of the software and are not required to build the Community version of StyleBI.
-
 ### Prerequisites
 
 You will need a GitHub account and a [classic personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens) in order to access the Maven repository. When creating the classic personal access token, the `read:packages` scope will need to be enabled. You do not need any special permissions to access the Maven repository, but GitHub [requires](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-apache-maven-registry#installing-a-package) an account to access public Package repositories.

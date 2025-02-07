@@ -38,6 +38,18 @@
     <ng.verify.script>verify</ng.verify.script>
   </properties>
 
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.inetsoft.stylebi</groupId>
+        <artifactId>inetsoft-stylebi-bom</artifactId>
+        <version>${project.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <build>
     <resources>
       <resource>

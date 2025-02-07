@@ -37,6 +37,18 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven-plugin-tools.version>3.11.0</maven-plugin-tools.version>
   </properties>
+  
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.inetsoft.stylebi</groupId>
+        <artifactId>inetsoft-stylebi-bom</artifactId>
+        <version>${project.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <dependency>

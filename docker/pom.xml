@@ -26,34 +26,313 @@
     <version>1.0.0-SNAPSHOT</version>
   </parent>
 
-  <artifactId>inetsoft-docker-images</artifactId>
+  
+
+  <artifactId>inetsoft-docker-community</artifactId>
   <packaging>pom</packaging>
 
   <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.build.timestamp.format>yyyyMMddHHmm</maven.build.timestamp.format>
     <docker.build.version>${maven.build.timestamp}</docker.build.version>
     <inetsoft.docker.repository>ghcr.io/inetsoft-technology</inetsoft.docker.repository>
+    <community.docker.tags>"${inetsoft.docker.repository}/stylebi-community:1.0","${inetsoft.docker.repository}/stylebi-community:1.0.${docker.build.version}","${inetsoft.docker.repository}/stylebi-community:latest"</community.docker.tags>
   </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.inetsoft.stylebi</groupId>
+      <artifactId>inetsoft-server</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-enterprise</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-shell</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-docker</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-kubernetes</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-aws</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-azure</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-google</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-mapdb</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.inetsoft.stylebi</groupId>
+          <artifactId>inetsoft-integration-mongo</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-cassandra</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-datagov</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-googledoc</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-hive</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-mongodb</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-odata</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-onedrive</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-r</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-rest</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>inetsoft-sharepoint-online</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-access</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-derby</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-h2</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-mysql</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-oracle</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-postgresql</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-snowflake</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.inetsoft.stylebi.connectors</groupId>
+      <artifactId>jdbc-sqlserver</artifactId>
+      <version>${project.version}</version>
+      <type>zip</type>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>com.inetsoft.stylebi.build</groupId>
+        <artifactId>path-utils-maven-plugin</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <executions>
+          <execution>
+            <id>dockerize-target-directory</id>
+            <goals>
+              <goal>dockerize-paths</goal>
+            </goals>
+            <configuration>
+              <properties>
+                <project.build.directory>inetsoft.docker.directory</project.build.directory>
+              </properties>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>3.3.1</version>
+        <executions>
+          <execution>
+            <id>copy-test-resources</id>
+            <phase>process-test-resources</phase>
+            <goals>
+              <goal>copy-resources</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/docker-test</outputDirectory>
+              <resources>
+                <resource>
+                  <directory>${project.basedir}/src/test/docker</directory>
+                  <filtering>true</filtering>
+                </resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <id>assemble</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+            <configuration>
+              <appendAssemblyId>false</appendAssemblyId>
+              <attach>false</attach>
+              <descriptorSourceDirectory>${basedir}/src/main/assembly</descriptorSourceDirectory>
+              <finalName>docker-build</finalName>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 
   <profiles>
     <profile>
-      <id>community</id>
-      <activation>
-        <activeByDefault>true</activeByDefault>
-      </activation>
-      <modules>
-        <module>community</module>
-      </modules>
-    </profile>
-    <profile>
-      <id>enterprise</id>
-      <properties>
-        <inetsoft.docker.repository>636869400126.dkr.ecr.us-east-2.amazonaws.com/inetsoft</inetsoft.docker.repository>
-      </properties>
-      <modules>
-        <module>community</module>
-        <module>enterprise</module>
-      </modules>
+      <id>dockerImage</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>io.fabric8</groupId>
+            <artifactId>docker-maven-plugin</artifactId>
+            <version>0.45.0</version>
+            <configuration>
+              <images>
+                <image>
+                  <name>${inetsoft.docker.repository}/stylebi-community</name>
+                  <build>
+                    <contextDir>${project.build.directory}/docker-build</contextDir>
+                    <tags>
+                      <tag>1.0</tag>
+                      <tag>1.0.${docker.build.version}</tag>
+                      <tag>latest</tag>
+                    </tags>
+                  </build>
+                </image>
+              </images>
+            </configuration>
+            <executions>
+              <execution>
+                <id>build-docker-image</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>build</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
   </profiles>
 
