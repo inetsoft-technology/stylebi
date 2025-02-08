@@ -150,6 +150,24 @@ public class AreaElement extends LineElement {
    }
 
    /**
+    * Set the variable for the base of the interval.
+    */
+   @TernMethod
+   public void setBaseVar(String base) {
+      for(int i = 0; i < bases.size(); i++) {
+         bases.set(i, base);
+      }
+   }
+
+   /**
+    * Get the interval base variable.
+    */
+   @TernMethod
+   public String getBaseVar(int i) {
+      return i < bases.size() ? bases.get(i) : null;
+   }
+
+   /**
     * Create the geometry object.
     */
    @Override
