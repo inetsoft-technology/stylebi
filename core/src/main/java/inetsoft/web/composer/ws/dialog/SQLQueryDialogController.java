@@ -90,16 +90,6 @@ public class SQLQueryDialogController extends WorksheetController {
                                        @RequestParam(name = "dataSource", required = false) String dataSource,
       Principal principal) throws Exception
    {
-//      boolean sqlEnabled = SecurityEngine.getSecurity().checkPermission(
-//         principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
-//
-//      if(!sqlEnabled) {
-//         throw new MessageException(
-//            Catalog.getCatalog().getString("composer.nopermission.physicalTable"));
-//      }
-//
-//      RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
-//      return queryManagerService.getSqlQueryDialogModel(rws, tableName, dataSource, principal);
       return dialogService.getModel(runtimeId, tableName, dataSource, principal);
    }
 

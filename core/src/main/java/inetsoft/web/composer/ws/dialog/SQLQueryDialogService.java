@@ -19,13 +19,12 @@
 package inetsoft.web.composer.ws.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.cluster.*;
+import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.sree.security.*;
 import inetsoft.util.Catalog;
 import inetsoft.util.MessageException;
 import inetsoft.web.composer.model.ws.SQLQueryDialogModel;
-import inetsoft.web.portal.controller.database.QueryGraphModelService;
 import inetsoft.web.portal.controller.database.QueryManagerService;
 import org.springframework.stereotype.Service;
 
@@ -34,14 +33,17 @@ import java.security.Principal;
 @Service
 @ClusterProxy
 public class SQLQueryDialogService {
-   public SQLQueryDialogService(ViewsheetService wsEngine, QueryManagerService queryManagerService, QueryGraphModelService queryGraphService) {
+   public SQLQueryDialogService(ViewsheetService wsEngine, QueryManagerService queryManagerService)
+   {
       this.wsEngine = wsEngine;
       this.queryManagerService = queryManagerService;
-      this.queryGraphService = queryGraphService;
    }
 
    @ClusterProxyMethod("runtimeSheets")
-   public SQLQueryDialogModel getModel(@ClusterProxyKey String runtimeId, String tableName, String dataSource, Principal principal) throws Exception {
+   public SQLQueryDialogModel getModel(@ClusterProxyKey String runtimeId, String tableName,
+                                       String dataSource, Principal principal)
+      throws Exception
+   {
       boolean sqlEnabled = SecurityEngine.getSecurity().checkPermission(
          principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
 
@@ -56,5 +58,4 @@ public class SQLQueryDialogService {
 
    private final ViewsheetService wsEngine;
    private final QueryManagerService queryManagerService;
-   private final QueryGraphModelService queryGraphService;
 }
