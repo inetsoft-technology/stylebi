@@ -842,6 +842,7 @@ public class PlaceholderService {
       Viewsheet sheet = rvs.getViewsheet();
       final ViewsheetSandbox box = rvs.getViewsheetSandbox();
       boolean ignoreRefreshTempAssembly = WizardRecommenderUtil.ignoreRefreshTempAssembly();
+      boolean loadTablesInLock = Boolean.TRUE.equals(VSUtil.OPEN_VIEWSHEET.get());
 
       if(box == null || sheet == null) {
          return;
@@ -1196,6 +1197,13 @@ public class PlaceholderService {
 
                addDeleteVSObject(rvs, vsassembly, dispatcher);
             }
+
+            // Bug #70029, prevent race conditions between CollectParametersOverEvent and bookmark
+            // being processed on viewsheet open. Load tables in lock so that they don't cause
+            // issues for each other such as clearing column widths.
+            if(loadTablesInLock) {
+               initTables(rvs, dispatcher, uri, assemblies);
+            }
          }
          finally {
             box.setRefreshing(false);
@@ -1207,13 +1215,8 @@ public class PlaceholderService {
       }
 
       // loading table can take a long time, move it out of the locked block
-      for(Assembly assembly : assemblies) {
-         if(assembly instanceof Viewsheet) {
-            initTable(rvs, dispatcher, uri, ((Viewsheet) assembly).getAssemblies(true, false));
-         }
-         else {
-            initTable(rvs, dispatcher, uri, assembly);
-         }
+      if(!loadTablesInLock) {
+         initTables(rvs, dispatcher, uri, assemblies);
       }
 
       List errors = (List) AssetRepository.ASSET_ERRORS.get();
@@ -1309,6 +1312,19 @@ public class PlaceholderService {
             if(value != null) {
                ((SingleInputVSAssembly) vsassembly).setSelectedObject(value);
             }
+         }
+      }
+   }
+
+   private void initTables(RuntimeViewsheet rvs, CommandDispatcher dispatcher,
+                           String uri, Assembly[] assemblies) throws Exception
+   {
+      for(Assembly assembly : assemblies) {
+         if(assembly instanceof Viewsheet) {
+            initTable(rvs, dispatcher, uri, ((Viewsheet) assembly).getAssemblies(true, false));
+         }
+         else {
+            initTable(rvs, dispatcher, uri, assembly);
          }
       }
    }
