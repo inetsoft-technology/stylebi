@@ -22,7 +22,7 @@
           ],
           "jsonPath": "$.[*]",
           "key": "id",
-          "parameterName": "Project ID"
+          "parameterName": "Workspace ID"
         }
       ]
     },
