@@ -745,6 +745,14 @@
     </dependency>
 
     <dependency>
+      <groupId>com.inetsoft.stylebi.build</groupId>
+      <artifactId>cluster-proxy-annotations</artifactId>
+      <version>${project.version}</version>
+      <scope>provided</scope>
+      <classifier>shaded</classifier>
+    </dependency>
+
+    <dependency>
       <groupId>io.soabase.record-builder</groupId>
       <artifactId>record-builder-processor</artifactId>
       <scope>provided</scope>

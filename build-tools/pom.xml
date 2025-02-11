@@ -37,6 +37,7 @@
     <module>node-maven-plugin</module>
     <module>tern-annotations</module>
     <module>path-utils-maven-plugin</module>
+    <module>cluster-proxy-annotations</module>
   </modules>
 
 </project>
