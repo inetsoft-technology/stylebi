@@ -12,8 +12,7 @@
       "lookups": [
         {
           "endpoints": [
-            "Time Entries",
-            "Tasks"
+            "Time Entries"
           ],
           "jsonPath": "$.[*]",
           "key": "display_id",
