@@ -96,6 +96,14 @@ public class KubernetesCloudRunnerConfig implements Serializable {
       this.volumeMounts = volumeMounts;
    }
 
+   public String[] getTolerations() {
+      return tolerations;
+   }
+
+   public void setTolerations(String[] tolerations) {
+      this.tolerations = tolerations;
+   }
+
    private String configFilePath;
    private String namespace = "default";
    private String dockerImageUri;
@@ -104,4 +112,5 @@ public class KubernetesCloudRunnerConfig implements Serializable {
    private int ttlSecondsAfterFinished = 120;
    private int backoffLimit = 4;
    private String[] volumeMounts;
+   private String[] tolerations;
 }
