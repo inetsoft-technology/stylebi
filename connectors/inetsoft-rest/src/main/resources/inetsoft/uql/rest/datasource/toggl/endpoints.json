@@ -79,8 +79,7 @@
             "Workspace Projects",
             "Workspace Tasks",
             "Workspace Tags",
-            "Workspace Users",
-            "Dashboard"
+            "Workspace Users"
           ],
           "jsonPath": "$.[*]",
           "key": "id",
