@@ -297,7 +297,7 @@ public final class XTableFragment extends XSwappable {
          files.add(file);
          channel = Files.newByteChannel(file, StandardOpenOption.WRITE);
 
-         channel.position(Files.size(file) - columns.length * 16L);
+         channel.position(CacheFS.size(file) - columns.length * 16L);
          ByteBuffer footer = ByteBuffer.allocate(columns.length * 16);
          channel.read(footer);
          XSwapUtil.flip(footer);

@@ -21,6 +21,7 @@ import com.esotericsoftware.kryo.kryo5.io.Input;
 import com.esotericsoftware.kryo.kryo5.io.Output;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.util.Tool;
+import inetsoft.util.cachefs.CacheFS;
 import inetsoft.util.graphics.ImageWrapper;
 import inetsoft.util.swap.*;
 import org.slf4j.Logger;
@@ -364,7 +365,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
       try {
          fout = Files.newOutputStream(file, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
          ByteArrayOutputStream2 bout = new ByteArrayOutputStream2(4096);
-         int len = (int) (Files.exists(file) ? Files.size(file) : 0);
+         int len = (int) (Files.exists(file) ? CacheFS.size(file) : 0);
 
          for(int i = 0; i < pos; i++) {
             if(disposed) {
