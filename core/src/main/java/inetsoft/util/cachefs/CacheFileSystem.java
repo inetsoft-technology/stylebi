@@ -22,21 +22,37 @@ import inetsoft.storage.BlobStorage;
 import inetsoft.util.SingletonManager;
 
 import java.io.IOException;
-import java.io.Serializable;
+import java.net.URI;
 import java.nio.file.*;
 import java.nio.file.attribute.UserPrincipalLookupService;
 import java.nio.file.spi.FileSystemProvider;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class CacheFileSystem extends FileSystem {
    @SuppressWarnings("unchecked")
-   public CacheFileSystem(CacheFileSystemProvider provider, String storeId, Map<String, ?> env) {
+   CacheFileSystem(CacheFileSystemProvider provider, URI uri, PathService pathService,
+                   String storeId)
+   {
       this.provider = provider;
+      this.uri = uri;
+      this.pathService = pathService;
       this.storeId = storeId;
-      this.blobStorage = SingletonManager.getInstance(BlobStorage.class, storeId, true);
+      this.storage = SingletonManager.getInstance(BlobStorage.class, storeId, true);
+
+      if(!storage.exists("/")) {
+         CacheMetadata metadata = new CacheMetadata(System.currentTimeMillis());
+         metadata.setChildren(new String[0]);
+
+         try {
+            storage.createDirectory("/", metadata);
+         }
+         catch(IOException e) {
+            throw new RuntimeException("Failed to create root directory", e);
+         }
+      }
    }
 
    @Override
@@ -44,13 +60,18 @@ public class CacheFileSystem extends FileSystem {
       return provider;
    }
 
+   public URI getUri() {
+      return uri;
+   }
+
    @Override
    public void close() throws IOException {
       storageLock.lock();
 
       try {
-         if(blobStorage != null) {
-            blobStorage.close();
+         if(storage != null) {
+            storage.close();
+            storage = null;
          }
       }
       catch(IOException e) {
@@ -70,7 +91,7 @@ public class CacheFileSystem extends FileSystem {
       storageLock.lock();
 
       try {
-         return blobStorage != null;
+         return storage != null;
       }
       finally {
          storageLock.unlock();
@@ -84,17 +105,21 @@ public class CacheFileSystem extends FileSystem {
 
    @Override
    public String getSeparator() {
-      return "/";
+      return pathService.getSeparator();
    }
 
    @Override
    public Iterable<Path> getRootDirectories() {
-      return null;
+      return List.of(pathService.createRoot(Name.create("/", "/")));
+   }
+
+   public CachePath getWorkingDirectory() {
+      return pathService.createRoot(Name.create("/", "/"));
    }
 
    @Override
    public Iterable<FileStore> getFileStores() {
-      return null;
+      return List.of();
    }
 
    @Override
@@ -104,33 +129,41 @@ public class CacheFileSystem extends FileSystem {
 
    @Override
    public Path getPath(String first, String... more) {
-      return null;
+      return pathService.parsePath(first, more);
+   }
+
+   public URI toUri(CachePath path) {
+      return pathService.toUri(uri, (CachePath) path.toAbsolutePath());
    }
 
    @Override
    public PathMatcher getPathMatcher(String syntaxAndPattern) {
-      return null;
+      return pathService.createPathMatcher(syntaxAndPattern);
    }
 
    @Override
    public UserPrincipalLookupService getUserPrincipalLookupService() {
-      return null;
+      throw new UnsupportedOperationException();
    }
 
    @Override
    public WatchService newWatchService() throws IOException {
-      return null;
+      return new CacheWatchService(storage, pathService);
    }
 
    String getStoreId() {
       return storeId;
    }
 
+   BlobStorage<CacheMetadata> getBlobStorage() {
+      return storage;
+   }
+
    private final CacheFileSystemProvider provider;
+   private final URI uri;
+   private final PathService pathService;
    private final String storeId;
    private final Lock storageLock = new ReentrantLock();
-   private BlobStorage<Metadata> blobStorage;
+   private BlobStorage<CacheMetadata> storage;
 
-   public static final class Metadata implements Serializable {
-   }
 }
