@@ -22,6 +22,7 @@ import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.util.ThreadContext;
 import inetsoft.util.Tool;
+import inetsoft.util.cachefs.CacheFS;
 import inetsoft.util.swap.*;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -719,7 +720,7 @@ public abstract class RuntimeSheet {
             Document document = Tool.parseXML(input);
 
             if(isCountRW) {
-               monitor.countRead(Files.size(file), XSwappableMonitor.DATA);
+               monitor.countRead(CacheFS.size(file), XSwappableMonitor.DATA);
             }
 
             Element element = document.getDocumentElement();
@@ -794,7 +795,7 @@ public abstract class RuntimeSheet {
             sheet = null;
 
             if(isCountRW && output != null) {
-               monitor.countWrite(Files.size(file), XSwappableMonitor.DATA);
+               monitor.countWrite(CacheFS.size(file), XSwappableMonitor.DATA);
             }
 
             output = null;
