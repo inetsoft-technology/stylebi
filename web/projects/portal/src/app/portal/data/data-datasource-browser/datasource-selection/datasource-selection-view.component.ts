@@ -50,6 +50,7 @@ export class DatasourceSelectionViewComponent implements OnInit, OnDestroy, CanC
    searchString = "";
    private parentPath: string = "";
    private openByGettingStarted: boolean;
+   private leaveByCancelButton: boolean;
    private subscriptions: Subscription = new Subscription();
 
    constructor(private datasourceService: DatasourceSelectionService,
@@ -87,7 +88,9 @@ export class DatasourceSelectionViewComponent implements OnInit, OnDestroy, CanC
                         currentState?: RouterStateSnapshot,
                         nextState?: RouterStateSnapshot): Observable<boolean> | Promise<boolean> | boolean
    {
-      if(this.openByGettingStarted && this.gettingStartedService.isConnectTo()) {
+      if(this.openByGettingStarted && this.gettingStartedService.isConnectTo() &&
+         !this.leaveByCancelButton)
+      {
          if(!currentState?.url?.startsWith("/portal/tab/data/datasources/listing/") ||
             !nextState?.url?.startsWith("/portal/tab/data/datasources/database/listing") &&
             !nextState?.url?.startsWith("/portal/tab/data/datasources/datasource/listing") &&
@@ -152,6 +155,7 @@ export class DatasourceSelectionViewComponent implements OnInit, OnDestroy, CanC
 
    cancel(): void {
       if(this.openByGettingStarted && this.gettingStartedService.isConnectTo()) {
+         this.leaveByCancelButton = true;
          setTimeout(() => this.gettingStartedService.continue(), 100);
       }
       else {
