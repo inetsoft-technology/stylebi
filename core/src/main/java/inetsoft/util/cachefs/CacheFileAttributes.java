@@ -78,6 +78,17 @@ class CacheFileAttributes implements BasicFileAttributes {
       return path;
    }
 
+   @Override
+   public String toString() {
+      return "CacheFileAttributes{" +
+         "lastModifiedTime=" + lastModifiedTime +
+         ", creationTime=" + creationTime +
+         ", directory=" + directory +
+         ", size=" + size +
+         ", path='" + path + '\'' +
+         '}';
+   }
+
    private final FileTime lastModifiedTime;
    private final FileTime creationTime;
    private final boolean directory;

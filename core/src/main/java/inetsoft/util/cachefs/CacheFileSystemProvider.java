@@ -18,6 +18,7 @@
 
 package inetsoft.util.cachefs;
 
+import com.google.auto.service.AutoService;
 import inetsoft.storage.BlobStorage;
 
 import java.io.*;
@@ -33,6 +34,7 @@ import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+@AutoService(FileSystemProvider.class)
 public class CacheFileSystemProvider extends FileSystemProvider {
    @Override
    public String getScheme() {
@@ -159,7 +161,13 @@ public class CacheFileSystemProvider extends FileSystemProvider {
    @Override
    public void delete(Path path) throws IOException {
       CachePath cachePath = checkPath(path);
-      getStorage(cachePath).delete(cachePath.toAbsolutePath().toString());
+
+      try {
+         getStorage(cachePath).delete(cachePath.toAbsolutePath().toString());
+      }
+      catch(FileNotFoundException e) {
+         throw new NoSuchFileException(path.toString());
+      }
 
       // update parent folder
       removeFromParent(cachePath);

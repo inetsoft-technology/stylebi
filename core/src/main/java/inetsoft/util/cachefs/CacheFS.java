@@ -18,34 +18,39 @@
 
 package inetsoft.util.cachefs;
 
-import java.io.Serializable;
-import java.util.Arrays;
+import java.net.URI;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
-public final class CacheMetadata implements Serializable {
-   public CacheMetadata(long creationTime) {
-      this.creationTime = creationTime;
+public final class CacheFS {
+   private CacheFS() {
    }
 
-   public long getCreationTime() {
-      return creationTime;
-   }
+   public static Path getPath(String storeId, String first, String... more) {
+      StringBuilder uri = new StringBuilder()
+         .append("cachefs://")
+         .append(storeId);
 
-   public String[] getChildren() {
-      return children;
-   }
+      if(!first.startsWith("/")) {
+         uri.append("/");
+      }
 
-   public void setChildren(String[] children) {
-      this.children = children;
-   }
+      if(first.length() > 1 && first.endsWith("/")) {
+         uri.append(first, 0, first.length() - 1);
+      }
+      else {
+         uri.append(first);
+      }
 
-   @Override
-   public String toString() {
-      return "CacheMetadata{" +
-         "creationTime=" + creationTime +
-         ", children=" + Arrays.toString(children) +
-         '}';
-   }
+      for(String m : more) {
+         if(m.startsWith("/")) {
+            uri.append(m);
+         }
+         else {
+            uri.append('/').append(m);
+         }
+      }
 
-   private final long creationTime;
-   private String[] children;
+      return Paths.get(URI.create(uri.toString()));
+   }
 }
