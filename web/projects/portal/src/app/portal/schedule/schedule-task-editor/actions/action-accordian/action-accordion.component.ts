@@ -630,6 +630,7 @@ export class ActionAccordion implements OnInit, OnChanges, OnDestroy {
 
                   if(modify) {
                      this.action.filePaths.splice(this.selectedFormatIndex, 1);
+                     this.action.saveFormats.splice(this.selectedFormatIndex, 1);
                      this.saveStrings.splice(this.selectedFormatIndex, 1);
                   }
 
