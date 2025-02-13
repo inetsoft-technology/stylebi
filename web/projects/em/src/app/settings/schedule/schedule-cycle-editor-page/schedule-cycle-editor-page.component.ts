@@ -19,6 +19,7 @@ import { Component, OnDestroy, OnInit, ViewEncapsulation } from "@angular/core";
 import { UntypedFormControl, Validators } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { HttpClient, HttpHeaders } from "@angular/common/http";
+import { TimeZoneService } from "../../../../../../shared/schedule/time-zone.service";
 import { ContextHelp } from "../../../context-help";
 import { ScheduleCycleDialogModel } from "../model/schedule-cycle-dialog-model";
 import { TaskItem } from "../schedule-task-editor-page/schedule-task-editor-page.component";
@@ -73,7 +74,8 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
                private http: HttpClient,
                private router: Router,
                private dialog: MatDialog,
-               private snackBar: MatSnackBar)
+               private snackBar: MatSnackBar,
+               private timeZoneService: TimeZoneService)
    {
    }
 
@@ -98,6 +100,8 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
             this.model = model;
             this.model.cycleInfo.name = cycleName;
             this.name.setValue(this.model.name, {emitEvent: false});
+            this.model.timeZoneOptions = this.timeZoneService.updateTimeZoneOptions(
+               this.model.timeZoneOptions, null);
             this.originalModel = Tool.clone(model);
             this.updateList();
          });
@@ -214,6 +218,8 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
       this.http.post<ScheduleCycleDialogModel>(EDIT_DATA_CYCLE_URI, this.model, {headers}).subscribe(
          (newModel) => {
             this.model = newModel;
+            this.model.timeZoneOptions = this.timeZoneService.updateTimeZoneOptions(
+               this.model.timeZoneOptions, null);
             this.originalModel = Tool.clone(this.model);
 
             for(let i = 0; i < this.model.conditionPaneModel.conditions.length; i++) {
