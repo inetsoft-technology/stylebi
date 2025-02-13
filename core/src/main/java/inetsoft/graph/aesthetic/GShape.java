@@ -763,7 +763,7 @@ public abstract class GShape implements Cloneable, Serializable {
     */
    @TernClass(url = "#cshid=ImageShape")
    public static class ImageShape extends GShape {
-     /**
+      /**
        * Alignment of the image relative to data point position.
        */
       public enum Alignment { CENTER, TOP, RIGHT };
@@ -860,6 +860,7 @@ public abstract class GShape implements Cloneable, Serializable {
       }
 
       private InputStream getInputStream(String path) throws IOException {
+         // file usage ok, fails over to classpath and data space
          File file = FileSystemService.getInstance().getFile(path);
 
          if(file.exists()) {

@@ -17,7 +17,7 @@
  */
 package inetsoft.uql.table;
 
-import java.io.File;
+import java.nio.file.Path;
 
 /**
  * XTableColumn, maintains the meta information and data of one table column.
@@ -114,7 +114,7 @@ public interface XTableColumn extends XSerializable {
    /**
     * Set the swap file information.
     */
-   public void setSwapInfo(File file, long pos, int size, int len);
+   public void setSwapInfo(Path file, long pos, int size, int len);
 
    /**
     * Clears internal object pool.

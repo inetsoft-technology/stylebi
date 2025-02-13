@@ -20,12 +20,14 @@ package inetsoft.util.swap;
 import com.esotericsoftware.kryo.kryo5.Kryo;
 import com.esotericsoftware.kryo.kryo5.io.Input;
 import com.esotericsoftware.kryo.kryo5.io.Output;
+import inetsoft.util.cachefs.CacheFS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -163,22 +165,20 @@ public final class XObjectFragment<T> extends XSwappable {
     * Validate the object fragment internally.
     */
    private synchronized Object[] validate0(boolean reset) {
-      File file = getFile(prefix + "_0.tdat");
+      Path file = getFile(prefix + "_0.tdat");
 
-      RandomAccessFile fin = null;
-      FileChannel channel = null;
+      SeekableByteChannel channel = null;
       ByteBuffer buf = null;
       ObjectArrayHolder holder =  null;
       int counter = 0;
 
       try {
-         fin = new RandomAccessFile(file, "r");
-         buf = ByteBuffer.allocate((int) file.length());
-         channel = fin.getChannel();
+         buf = ByteBuffer.allocate((int) CacheFS.size(file));
+         channel = Files.newByteChannel(file, StandardOpenOption.READ);
          channel.read(buf);
 
          if(isCountRW) {
-            getMonitor().countRead(file.length(), XSwappableMonitor.DATA);
+            getMonitor().countRead(CacheFS.size(file), XSwappableMonitor.DATA);
          }
 
          XSwapUtil.flip(buf);
@@ -193,17 +193,15 @@ public final class XObjectFragment<T> extends XSwappable {
          while(validate(buf, holder) != -1) {
             buf = null;
             channel.close();
-            fin.close();
 
             counter++;
             file = getFile(prefix + '_' + counter + ".tdat");
-            fin = new RandomAccessFile(file, "r");
-            buf = ByteBuffer.allocate((int) file.length());
-            channel = fin.getChannel();
+            buf = ByteBuffer.allocate((int) CacheFS.size(file));
+            channel = Files.newByteChannel(file, StandardOpenOption.READ);
             channel.read(buf);
 
             if(isCountRW) {
-               getMonitor().countRead(file.length(), XSwappableMonitor.DATA);
+               getMonitor().countRead(CacheFS.size(file), XSwappableMonitor.DATA);
             }
 
             XSwapUtil.flip(buf);
@@ -249,11 +247,6 @@ public final class XObjectFragment<T> extends XSwappable {
                channel.close();
                channel = null;
             }
-
-            if(fin != null) {
-               fin.close();
-               fin = null;
-            }
          }
          catch(Exception ex) {
             // ignore it
@@ -280,9 +273,9 @@ public final class XObjectFragment<T> extends XSwappable {
     */
    @Override
    public boolean swap() {
-      File file = getFile(prefix + "_0.tdat");
+      Path file = getFile(prefix + "_0.tdat");
 
-      if(length() != 0 && !file.exists()) {
+      if(length() != 0 && !Files.exists(file)) {
          XSwapper.getSwapper().waitForMemory();
       }
 
@@ -307,9 +300,9 @@ public final class XObjectFragment<T> extends XSwappable {
          return;
       }
 
-      File file = getFile(prefix + "_0.tdat");
+      Path file = getFile(prefix + "_0.tdat");
 
-      if(file.exists()) {
+      if(Files.exists(file)) {
          if(disposed) {
             return;
          }
@@ -318,14 +311,12 @@ public final class XObjectFragment<T> extends XSwappable {
          return;
       }
 
-      RandomAccessFile fout = null;
-      FileChannel channel = null;
+      SeekableByteChannel channel = null;
       ByteBuffer buf = null;
       int counter = 0;
 
       try {
-         fout = new RandomAccessFile(file, "rw");
-         channel = fout.getChannel();
+         channel = Files.newByteChannel(file, StandardOpenOption.WRITE);
          buf = ByteBuffer.allocate((int) len);
          int spos = 0; // current save pos
          int lspos = 0; // last save pos
@@ -344,58 +335,48 @@ public final class XObjectFragment<T> extends XSwappable {
             channel.write(buf);
             channel.close();
             channel = null;
-            fout.close();
 
             if(isCountRW) {
-               getMonitor().countWrite(file.length(), XSwappableMonitor.DATA);
+               getMonitor().countWrite(CacheFS.size(file), XSwappableMonitor.DATA);
             }
 
-            fout = null;
             int nrecordSaved = spos - lspos;
-	    int newRecordSize = (int) Math.min(file.length() / nrecordSaved, 1024);
+	         int newRecordSize = (int) Math.min(CacheFS.size(file) / nrecordSaved, 1024);
             recordSize = nrecordSaved == 0 ? 0 : Math.max(newRecordSize, recordSize);
             long new_len = Math.min((pos - spos) * recordSize, 20*1024*1024);
             len = Math.max(len, new_len);
 
-	    counter++;
+	         counter++;
             file = getFile(prefix + '_' + counter + ".tdat");
-            fout = new RandomAccessFile(file, "rw");
-            channel = fout.getChannel();
+            channel = Files.newByteChannel(file, StandardOpenOption.WRITE);
 
             buf = ByteBuffer.allocate((int) len);
             lspos = spos;
          }
 
-	 swapFileCount = counter + 1;
+	      swapFileCount = counter + 1;
          XSwapUtil.flip(buf);
          buf = XSwapUtil.compressByteBuffer(buf);
          channel.write(buf);
          channel.close();
          channel = null;
-         fout.close();
 
          if(isCountRW) {
-            getMonitor().countWrite(file.length(), XSwappableMonitor.DATA);
+            getMonitor().countWrite(CacheFS.size(file), XSwappableMonitor.DATA);
          }
 
-         fout = null;
          file = null;
       }
       catch(Exception ex) {
-         LOG.error("Failed to write swap file: " + file, ex);
+         LOG.error("Failed to write swap file: {}", file, ex);
       }
       finally {
-	 buf = null;
+         buf = null;
 
          try {
             if(channel != null) {
                channel.close();
                channel = null;
-            }
-
-            if(fout != null) {
-               fout.close();
-               fout = null;
             }
          }
          catch(Exception ex) {
@@ -728,14 +709,14 @@ public final class XObjectFragment<T> extends XSwappable {
    }
 
    @Override
-   public File[] getSwapFiles() {
-      List<File> swapFiles = new ArrayList<>();
+   public Path[] getSwapFiles() {
+      List<Path> swapFiles = new ArrayList<>();
 
       for(int i = 0; i < swapFileCount; i++) {
          swapFiles.add(getFile(prefix + "_" + i + ".tdat"));
       }
 
-      return swapFiles.toArray(new File[0]);
+      return swapFiles.toArray(new Path[0]);
    }
 
    public boolean isDisposed() {

@@ -127,6 +127,7 @@ public class PDFPrinter extends Graphics2D implements PDFDevice {
     * @param outf output file.
     */
    public PDFPrinter(File outf) throws IOException {
+      // file usage ok, not used in code explict calls ok
       this(new FileOutputStream(outf));
    }
 

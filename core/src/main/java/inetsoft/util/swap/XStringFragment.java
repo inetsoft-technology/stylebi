@@ -17,11 +17,13 @@
  */
 package inetsoft.util.swap;
 
-import inetsoft.util.FileSystemService;
+import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -158,14 +160,12 @@ public final class XStringFragment extends XSwappable {
       XSwapper.deregister(this);
       disposed = true;
       value = null;
-      File file = getFile(prefix + ".tdat");
+      Path file = getFile(prefix + ".tdat");
 
-      if(file.exists()) {
-         boolean result = file.delete();
-
-         if(!result) {
-            FileSystemService.getInstance().remove(file, 30000);
-         }
+      try {
+         Files.deleteIfExists(file);
+      }
+      catch(IOException ignore) {
       }
 
       if(listeners != null) {
@@ -223,38 +223,22 @@ public final class XStringFragment extends XSwappable {
     */
    private void access0() {
       valid = true;
-      File file = getFile(prefix + ".tdat");
+      Path file = getFile(prefix + ".tdat");
 
-      RandomAccessFile fin = null;
-
-      try {
-         fin = new RandomAccessFile(file, "r");
-         byte[] buf = new byte[(int) file.length()];
-
-         fin.readFully(buf);
-         value = new String(buf, "UTF-8");
+      try(InputStream in = Files.newInputStream(file)) {
+         byte[] buf = IOUtils.toByteArray(in);
+         value = new String(buf, StandardCharsets.UTF_8);
          fireEvent(false);
 
          if(isCountRW) {
             monitor.countRead(buf.length, XSwappableMonitor.DATA);
          }
       }
-      catch(FileNotFoundException ex) {
+      catch(FileNotFoundException | NoSuchFileException ex) {
          return;
       }
       catch(Exception ex) {
-         LOG.error("Failed to read swap file: " + file, ex);
-      }
-      finally {
-         try {
-            if(fin != null) {
-               fin.close();
-               fin = null;
-            }
-         }
-         catch(Exception ex) {
-            // ignore it
-         }
+         LOG.error("Failed to read swap file: {}", file, ex);
       }
 
       file = null;
@@ -264,13 +248,10 @@ public final class XStringFragment extends XSwappable {
     * Swap the int fragment internally.
     */
    private void swap0() {
-      File file = getFile(prefix + ".tdat");
-      RandomAccessFile fout = null;
+      Path file = getFile(prefix + ".tdat");
 
       try {
-         if(!file.exists()) {
-            fout = new RandomAccessFile(file, "rw");
-         }
+         boolean create = !Files.exists(file);
 
          if(disposed) {
             return;
@@ -278,35 +259,27 @@ public final class XStringFragment extends XSwappable {
 
          int len = 0;
 
-         if(fout != null) {
-	    XSwapper.getSwapper().waitForMemory();
-            byte[] buf = value.getBytes("UTF-8");
+         if(create) {
+	         XSwapper.getSwapper().waitForMemory();
+            byte[] buf = value.getBytes(StandardCharsets.UTF_8);
             len = buf.length;
-            fout.write(buf);
+
+            try(OutputStream out = Files.newOutputStream(file)) {
+               IOUtils.write(buf, out);
+            }
          }
 
          value = null;
          fireEvent(true);
 
-         if(isCountRW && fout != null) {
+         if(isCountRW && create) {
             monitor.countWrite(len, XSwappableMonitor.DATA);
          }
 
          file = null;
       }
       catch(Exception ex) {
-         LOG.error("Failed to write swap file: " + file, ex);
-      }
-      finally {
-         try {
-            if(fout != null) {
-               fout.close();
-               fout = null;
-            }
-         }
-         catch(Exception ex) {
-            // ignore it
-         }
+         LOG.error("Failed to write swap file: {}", file, ex);
       }
    }
 

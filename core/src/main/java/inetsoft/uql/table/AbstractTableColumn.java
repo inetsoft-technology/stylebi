@@ -17,18 +17,18 @@
  */
 package inetsoft.uql.table;
 
-import inetsoft.mv.MVTool;
+import inetsoft.storage.BlobChannel;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
+import inetsoft.util.cachefs.CacheFS;
 import inetsoft.util.swap.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.RandomAccessFile;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.*;
 import java.util.Date;
 
 /**
@@ -61,7 +61,7 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
     * Called to swap data to a file.
     */
    @Override
-   public synchronized void swap(File file, FileChannel fc) throws Exception {
+   public synchronized void swap(Path file, SeekableByteChannel fc) throws Exception {
       this.swapfile = file;
       this.swappos = fc.position();
       ByteBuffer buf0 = copyToBuffer();
@@ -92,14 +92,12 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
          return;
       }
 
-      MappedByteBuffer buf0 = null;
-      RandomAccessFile fin = null;
-      FileChannel channel = null;
+      ByteBuffer buf0 = null;
+      SeekableByteChannel channel = null;
       long uncompressedSize = -1;
 
       try {
-         fin = new RandomAccessFile(swapfile, "r");
-         channel = fin.getChannel();
+         channel = Files.newByteChannel(swapfile, StandardOpenOption.READ);
 
          if(isCountRW) {
             monitor.countRead(swapsize, XSwappableMonitor.DATA);
@@ -107,39 +105,42 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
 
          channel.position(swappos);
 
-         buf0 = channel.map(FileChannel.MapMode.READ_ONLY, swappos, swapsize);
+         buf0 = ((BlobChannel) channel).map(swappos, swapsize);
 
          ByteBuffer buf = XSwapUtil.uncompressByteBuffer(buf0);
          uncompressedSize = buf.remaining();
          copyFromBuffer(buf);
       }
       catch(Exception ex) {
-         if(!swapfile.exists()) {
+         if(!Files.exists(swapfile)) {
             Tool.addUserMessage(Catalog.getCatalog().getString("common.worksheet.swap.missing"));
 
             if(LOG.isDebugEnabled()) {
-               LOG.debug("Failed to read swap file: " + swapInfo + " " +
-                            (swapfile.exists() ? "size: " + swapfile.length() : " missing"), ex);
+               LOG.debug(
+                  "Failed to read swap file: {} {}",
+                  swapInfo, Files.exists(swapfile) ? "size: " + CacheFS.size(swapfile) : " missing",
+                  ex);
             }
          }
          else {
-            LOG.error("Failed to read swap file: " + swapInfo + " size: " + swapfile.length() +
-               " uncompressed: " + uncompressedSize + " ts: " + new Date(swapfile.lastModified()),
-                      ex);
+            LOG.error(
+               "Failed to read swap file: {} size: {} uncompressed: {} ts: {}",
+               swapInfo, CacheFS.size(swapfile), uncompressedSize,
+               new Date(CacheFS.lastModified(swapfile)), ex);
          }
       }
       finally {
          if(buf0 != null) {
-            MVTool.unmap(buf0);
+            try {
+               ((BlobChannel) channel).unmap(buf0);
+            }
+            catch(IOException ignore) {
+            }
          }
 
          try {
             if(channel != null) {
                channel.close();
-            }
-
-            if(fin != null) {
-               fin.close();
             }
          }
          catch(Exception ex) {
@@ -157,7 +158,7 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
    }
 
    @Override
-   public void setSwapInfo(File file, long swappos, int swapsize, int len) {
+   public void setSwapInfo(Path file, long swappos, int swapsize, int len) {
       this.swapfile = file;
       this.swappos = swappos;
       this.swapsize = swapsize;
@@ -183,7 +184,7 @@ public abstract class AbstractTableColumn implements XTableColumn, XSerializable
    }
 
    protected char pos; // next position in array (length of current values)
-   private File swapfile;
+   private Path swapfile;
    private long swappos;
    private int swapsize;
    private transient boolean isCountRW;

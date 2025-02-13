@@ -35,6 +35,7 @@ public class AFMGenerator extends AFontMetrics {
    public static void main(String[] args) {
       for(int i = 0; i < args.length; i++) {
          try {
+            // file usage ok, utility class
             new AFMGenerator(FileSystemService.getInstance().getFile(args[i]));
          }
          catch(Exception e) {
@@ -43,6 +44,7 @@ public class AFMGenerator extends AFontMetrics {
       }
    }
 
+   // file usage ok, utility class
    public AFMGenerator(File afm) throws IOException {
       super(new FileInputStream(afm));
 

@@ -17,20 +17,19 @@
  */
 package inetsoft.uql.table;
 
+import com.esotericsoftware.kryo.kryo5.io.Input;
+import com.esotericsoftware.kryo.kryo5.io.Output;
 import inetsoft.uql.schema.XSchema;
-import inetsoft.util.FileSystemService;
 import inetsoft.util.Tool;
 import inetsoft.util.graphics.ImageWrapper;
 import inetsoft.util.swap.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.io.*;
-import java.nio.channels.FileChannel;
-
-import com.esotericsoftware.kryo.kryo5.io.Input;
-import com.esotericsoftware.kryo.kryo5.io.Output;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.*;
 
 /**
  * XBigObjectColumn, maintains the meta information and data of one big object
@@ -359,13 +358,13 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          return false;
       }
 
-      File file = getFile(prefix + ".tdat");
-      FileOutputStream fout = null;
+      Path file = getFile(prefix + ".tdat");
+      OutputStream fout = null;
 
       try {
-         fout = new FileOutputStream(file, true);
+         fout = Files.newOutputStream(file, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
          ByteArrayOutputStream2 bout = new ByteArrayOutputStream2(4096);
-         int len = (int) file.length();
+         int len = (int) (Files.exists(file) ? Files.size(file) : 0);
 
          for(int i = 0; i < pos; i++) {
             if(disposed) {
@@ -432,12 +431,12 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
       }
 
       int skip = parr[r];
-      File file = getFile(prefix + ".tdat");
-      FileInputStream fin = null;
+      Path file = getFile(prefix + ".tdat");
+      InputStream fin = null;
       Object obj = null;
 
       try {
-         fin = new FileInputStream(file);
+         fin = Files.newInputStream(file);
          long s = fin.skip(skip);
          BufferedInputStream in = new BufferedInputStream(fin, 4096);
          InputStream kryoInput;
@@ -479,7 +478,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
    }
 
    @Override
-   public void swap(File file, FileChannel fc) throws Exception {
+   public void swap(Path file, SeekableByteChannel fc) throws Exception {
    }
 
    @Override
@@ -504,14 +503,12 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          mlist = null;
       }
 
-      File file = getFile(prefix + ".tdat");
+      Path file = getFile(prefix + ".tdat");
 
-      if(file.exists()) {
-         boolean removed = file.delete();
-
-         if(!removed) {
-            FileSystemService.getInstance().remove(file, 30000);
-         }
+      try {
+         Files.deleteIfExists(file);
+      }
+      catch(IOException ignore) {
       }
    }
 
@@ -521,7 +518,7 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
    }
 
    @Override
-   public void setSwapInfo(File file, long pos, int size, int len) {
+   public void setSwapInfo(Path file, long pos, int size, int len) {
       this.arr = null;
    }
 

@@ -25,6 +25,11 @@ import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.table.*;
 import inetsoft.uql.util.XEmbeddedTable;
 import inetsoft.util.*;
+import org.apache.commons.codec.digest.DigestUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -32,17 +37,11 @@ import java.io.*;
 import java.lang.ref.Reference;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
-import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
-
-import org.apache.commons.codec.digest.DigestUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 
 /**
  * Embedded table assembly for snapshot, mainly deal with large data.
@@ -222,21 +221,22 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
     */
    @Override
    public void writeData(JarOutputStream out) {
-      List<File> list = stable.getFilesList();
+      List<Path> list = stable.getFilesList();
       String tprefix = getTablePrefix();
 
-      for(File file : list) {
+      for(Path file : list) {
          try {
-            String fileName = file.getName();
+            String fileName = file.getFileName().toString();
             String dataPath = containsTablePrefix(fileName) ? fileName : tprefix + fileName;
             ZipEntry zipEntry = new ZipEntry("__WS_EMBEDDED_TABLE_" + PDATA + "^_^" + dataPath);
             out.putNextEntry(zipEntry);
+
             // 1: should not use dataspace to release the input, because
             // the input is not opened by space
             // 2: should not release the output
-            FileInputStream in = new FileInputStream(file);
-            Tool.fileCopy(in, false, out, false);
-            in.close();
+            try(InputStream in = Files.newInputStream(file)) {
+               Tool.fileCopy(in, false, out, false);
+            }
          }
          catch(Exception exc) {
             LOG.error("Failed to serialize data", exc);
@@ -466,7 +466,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
       String[] dataPaths = new String[prefixes.length];
 
       if(dataPaths.length > 0) {
-         List<File> files = stable.getFilesList();
+         List<Path> files = stable.getFilesList();
 
          for(int i = 0; i < dataPaths.length; i++) {
             dataPaths[i] = tprefix + prefixes[i];
@@ -489,7 +489,7 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
 
          for(int i = 0; i < dataPaths.length; i++) {
             if(!dataFileExist(dataPaths[i])) {
-               try(InputStream input = new FileInputStream(files.get(i))) {
+               try(InputStream input = Files.newInputStream(files.get(i))) {
                   EmbeddedTableStorage.getInstance().writeTable(dataPaths[i] + "_s.tdat", input);
                   dataTS = System.currentTimeMillis();
                }

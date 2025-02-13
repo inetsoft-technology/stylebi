@@ -77,6 +77,7 @@ public class GDebug {
                            double w, double h)
    {
       int GAP = 20;
+      // file usage ok, used for debugging
       File file = getFile(fname);
       int w2 = (int) (w + 2 * GAP);
       int h2 = (int) (h + 2 * GAP);
@@ -114,6 +115,7 @@ public class GDebug {
    /**
     * Write an image to a file.
     */
+   // file usage ok, used for debugging
    public static void writeImage(File file, Image img) {
       try(java.io.FileOutputStream fout = new java.io.FileOutputStream(file)) {
          CoreTool.writePNG(img, fout);
@@ -123,6 +125,7 @@ public class GDebug {
       }
    }
 
+   // file usage ok, used for debugging
    public static void writeGraphics(File file, Graphics2D svg) {
       try(FileOutputStream fout = new FileOutputStream(file)) {
          SVGSupport.getInstance().writeSVG(svg, fout);
@@ -135,6 +138,7 @@ public class GDebug {
    /**
     * Get the image file name.
     */
+   // file usage ok, used for debugging
    private static File getFile(String fname) {
       if(fname.indexOf("/") >= 0) {
          return FileSystemService.getInstance().getFile(fname);

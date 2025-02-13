@@ -17,13 +17,15 @@
  */
 package inetsoft.util.swap;
 
-import inetsoft.util.FileSystemService;
+import inetsoft.util.cachefs.CacheFS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -177,21 +179,19 @@ public final class XIntFragment extends XSwappable {
     * Validate the int fragment internally.
     */
    private synchronized void validate0(boolean reset) {
-      File file = getFile(prefix + ".tdat");
+      Path file = getFile(prefix + ".tdat");
 
-      RandomAccessFile fin = null;
-      FileChannel channel = null;
+      SeekableByteChannel channel = null;
       ByteBuffer buf = null;
 
       try {
-         fin = new RandomAccessFile(file, "r");
-         channel = fin.getChannel();
-         buf = ByteBuffer.allocate((int) file.length());
+         channel = Files.newByteChannel(file, StandardOpenOption.READ);
+         buf = ByteBuffer.allocate((int) CacheFS.size(file));
          channel.read(buf);
          buf = XSwapUtil.uncompressByteBuffer(buf);
 
          if(isCountRW) {
-            monitor.countRead(file.length(), XSwappableMonitor.DATA);
+            monitor.countRead(CacheFS.size(file), XSwappableMonitor.DATA);
          }
 
          // @by yanie: after uncompress, the buffer is wrapped,
@@ -222,19 +222,18 @@ public final class XIntFragment extends XSwappable {
                channel.close();
                channel = null;
             }
-
-            if(fin != null) {
-               fin.close();
-               fin = null;
-            }
          }
          catch(Exception ex) {
             // ignore it
          }
       }
 
-      if(reset) {
-         file.delete();
+      if(reset && file != null) {
+         try {
+            Files.deleteIfExists(file);
+         }
+         catch(IOException ignore) {
+         }
       }
    }
 
@@ -267,15 +266,13 @@ public final class XIntFragment extends XSwappable {
     */
    private void swap0() {
       long len = length();
-      File file = getFile(prefix + ".tdat");
-      RandomAccessFile fout = null;
+      Path file = getFile(prefix + ".tdat");
       ByteBuffer buf = null;
-      FileChannel channel = null;
+      SeekableByteChannel channel = null;
 
       try {
-         if(!file.exists()) {
-            fout = new RandomAccessFile(file, "rw");
-            channel = fout.getChannel();
+         if(!Files.exists(file)) {
+            channel = Files.newByteChannel(file, StandardOpenOption.WRITE);
             XSwapper.getSwapper().waitForMemory();
             buf = ByteBuffer.allocate((int) len);
          }
@@ -310,11 +307,6 @@ public final class XIntFragment extends XSwappable {
                channel.close();
                channel = null;
             }
-
-            if(fout != null) {
-               fout.close();
-               fout = null;
-            }
          }
          catch(Exception ex) {
             // ignore it
@@ -333,14 +325,12 @@ public final class XIntFragment extends XSwappable {
 
       disposed = true;
       arr = null;
-      File file = getFile(prefix + ".tdat");
+      Path file = getFile(prefix + ".tdat");
 
-      if(file.exists()) {
-         boolean result = file.delete();
-
-         if(!result) {
-            FileSystemService.getInstance().remove(file, 30000);
-         }
+      try {
+         Files.deleteIfExists(file);
+      }
+      catch(IOException ignore) {
       }
    }
 

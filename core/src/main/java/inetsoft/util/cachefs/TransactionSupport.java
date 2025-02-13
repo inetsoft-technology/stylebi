@@ -18,13 +18,11 @@
 
 package inetsoft.util.cachefs;
 
-import inetsoft.storage.BlobStorage;
-import inetsoft.storage.BlobTransaction;
+import inetsoft.storage.*;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.ref.Cleaner;
-import java.nio.channels.SeekableByteChannel;
 import java.util.*;
 
 class TransactionSupport {
@@ -48,7 +46,7 @@ class TransactionSupport {
       }
    }
 
-   public SeekableByteChannel openChannel() throws IOException {
+   public BlobChannel openChannel() throws IOException {
       try {
          return transaction.newChannel(path, metadata);
       }

@@ -20,7 +20,8 @@ package inetsoft.report.composition;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
-import inetsoft.util.*;
+import inetsoft.util.ThreadContext;
+import inetsoft.util.Tool;
 import inetsoft.util.swap.*;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -29,6 +30,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.Principal;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -702,25 +706,25 @@ public abstract class RuntimeSheet {
 
       private void validate(boolean reset) {
          valid = true;
-         File file = getFile(prefix + ".tdat");
+         Path file = getFile(prefix + ".tdat");
 
-         if(!file.exists()) {
+         if(!Files.exists(file)) {
             return;
          }
 
          InputStream input = null;
 
          try {
-            input = Tool.createUncompressInputStream(new FileInputStream(file));
+            input = Tool.createUncompressInputStream(Files.newInputStream(file));
             Document document = Tool.parseXML(input);
 
             if(isCountRW) {
-               monitor.countRead(file.length(), XSwappableMonitor.DATA);
+               monitor.countRead(Files.size(file), XSwappableMonitor.DATA);
             }
 
             Element element = document.getDocumentElement();
             Class<?> clazz = Class.forName(Tool.getAttribute(element, "class"));
-            AbstractSheet sheet = (AbstractSheet) clazz.newInstance();
+            AbstractSheet sheet = (AbstractSheet) clazz.getConstructor().newInstance();
             sheet.parseXML(element);
             this.sheet = sheet;
          }
@@ -732,7 +736,11 @@ public abstract class RuntimeSheet {
          }
 
          if(reset) {
-            file.delete();
+            try {
+               Files.deleteIfExists(file);
+            }
+            catch(IOException ignore) {
+            }
          }
       }
 
@@ -762,12 +770,12 @@ public abstract class RuntimeSheet {
       }
 
       private void _swap() {
-         File file = getFile(prefix + ".tdat");
+         Path file = getFile(prefix + ".tdat");
          OutputStream output = null;
 
          try {
-            if(!file.exists()) {
-               output = Tool.createCompressOutputStream(new FileOutputStream(file));
+            if(!Files.exists(file)) {
+               output = Tool.createCompressOutputStream(Files.newOutputStream(file));
             }
 
             if(disposed) {
@@ -775,7 +783,8 @@ public abstract class RuntimeSheet {
             }
 
             if(output != null) {
-               PrintWriter writer = new PrintWriter(new OutputStreamWriter(output, "UTF-8"));
+               PrintWriter writer =
+                  new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
                writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
                Worksheet.setIsTEMP(true);
                sheet.writeXML(writer);
@@ -785,7 +794,7 @@ public abstract class RuntimeSheet {
             sheet = null;
 
             if(isCountRW && output != null) {
-               monitor.countWrite(file.length(), XSwappableMonitor.DATA);
+               monitor.countWrite(Files.size(file), XSwappableMonitor.DATA);
             }
 
             output = null;
@@ -807,10 +816,12 @@ public abstract class RuntimeSheet {
 
          disposed = true;
          sheet = null;
-         File file = getFile(prefix + ".tdat");
+         Path file = getFile(prefix + ".tdat");
 
-         if(file.exists() && !file.delete()) {
-            FileSystemService.getInstance().remove(file, 30000);
+         try {
+            Files.deleteIfExists(file);
+         }
+         catch(IOException ignore) {
          }
       }
 

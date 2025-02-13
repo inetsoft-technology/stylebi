@@ -158,6 +158,7 @@ class MVCompositeDispatcher extends MVDispatcher implements Runnable {
    /**
     * Get cache sree home directly.
     */
+   // file usage ok, only used for explicitly saving to local FS
    private File getSharedDir() {
       // make sure the file is saved in sree home, because data server
       // and report server must share sree home, so we don't need to
@@ -169,6 +170,7 @@ class MVCompositeDispatcher extends MVDispatcher implements Runnable {
       }
 
       cdir = cdir + "/cache";
+      // file usage ok, only used for explicitly saving to local FS
       File cdirF = FileSystemService.getInstance().getFile(cdir);
       Tool.lock(cdirF.getAbsolutePath());
 
@@ -199,6 +201,7 @@ class MVCompositeDispatcher extends MVDispatcher implements Runnable {
       XFileSystem fsys = server.getFSystem();
       MVStorage storage = MVStorage.getInstance();
       String file = Tool.getUniqueName(name, 61);
+      // file usage ok, MV is eventually saved to blob storage
       File smfile = fileSystemService.getFile(getSharedDir(), file + ".mv"); // shared mv file as lock
       String mfile = MVStorage.getFile(name); // stored mv file
 

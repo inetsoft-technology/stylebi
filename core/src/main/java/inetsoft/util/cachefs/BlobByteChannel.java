@@ -18,6 +18,7 @@
 
 package inetsoft.util.cachefs;
 
+import inetsoft.storage.BlobChannel;
 import inetsoft.storage.BlobStorage;
 
 import java.io.IOException;
@@ -25,7 +26,7 @@ import java.lang.ref.Cleaner;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
 
-final class BlobByteChannel implements SeekableByteChannel {
+final class BlobByteChannel implements BlobChannel {
    public BlobByteChannel(CachePath path, CacheMetadata metadata,
                           BlobStorage<CacheMetadata> storage,
                           Cleaner cleaner)
@@ -76,6 +77,16 @@ final class BlobByteChannel implements SeekableByteChannel {
       transaction.commit();
    }
 
+   @Override
+   public ByteBuffer map(long pos, long size) throws IOException {
+      return channel.map(pos, size);
+   }
+
+   @Override
+   public void unmap(ByteBuffer buf) throws IOException {
+      channel.unmap(buf);
+   }
+
    private final TransactionSupport transaction;
-   private final SeekableByteChannel channel;
+   private final BlobChannel channel;
 }
