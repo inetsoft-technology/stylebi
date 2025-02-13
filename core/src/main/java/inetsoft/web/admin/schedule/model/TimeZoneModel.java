@@ -63,7 +63,7 @@ public interface TimeZoneModel {
         "Poland",
         "Asia/Amman",
         "Europe/Moscow",
-        "Asia/Jerusalem ",
+        "Asia/Jerusalem",
         "Africa/Juba",
         "Asia/Yerevan",
         "Iran",
