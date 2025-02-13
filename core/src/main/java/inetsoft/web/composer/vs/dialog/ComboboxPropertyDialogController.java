@@ -393,6 +393,7 @@ public class ComboboxPropertyDialogController {
          VariableListDialogModel variableListDialogModel = model.getVariableListDialogModel();
          ListData data = new ListData();
          String dtype = variableListDialogModel.getDataType();
+         cassembly.setDataType(dtype);
          List<Object> values = new ArrayList<>();
 
          for(String val : variableListDialogModel.getValues()) {
