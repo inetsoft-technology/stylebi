@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -970,7 +971,7 @@ public class XSwappableTable implements XTable {
    /**
     * Write table to swap file and return swapped files list.
     */
-   public List<File> getFilesList() {
+   public List<Path> getFilesList() {
       try {
          rlock.lock();
 
@@ -987,7 +988,7 @@ public class XSwappableTable implements XTable {
          rlock.unlock();
       }
 
-      List<File> list = new ArrayList<>();
+      List<Path> list = new ArrayList<>();
 
       for(XTableFragment table : tables) {
          if(table != null) {

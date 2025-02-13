@@ -70,6 +70,7 @@ public class CSVInfo implements inetsoft.util.XMLSerializable {
     * if encode is GB2312 or GB18030, return "GBK" instead.
     */
    public static String getFileEncode(File file) throws IOException {
+      // file usage ok, transient use of local file
       FileInputStream fis = new FileInputStream(file);
       UniversalDetector detector = new UniversalDetector(null);
       byte[] buf = new byte[4096];

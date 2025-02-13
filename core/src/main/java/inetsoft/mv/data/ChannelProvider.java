@@ -17,11 +17,10 @@
  */
 package inetsoft.mv.data;
 
-import org.apache.commons.io.IOUtils;
-
-import java.io.*;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.file.*;
 
 public interface ChannelProvider {
    String getName();
@@ -32,23 +31,23 @@ public interface ChannelProvider {
 
    SeekableByteChannel newWriteChannel() throws IOException;
 
-   static ChannelProvider file(File file) {
+   static ChannelProvider file(Path file) {
       return new FileChannelProvider(file);
    }
 
    final class FileChannelProvider implements ChannelProvider {
-      FileChannelProvider(File file) {
+      FileChannelProvider(Path file) {
          this.file = file;
       }
 
       @Override
       public String getName() {
-         return file.getAbsolutePath();
+         return file.toAbsolutePath().toString();
       }
 
       @Override
       public boolean exists() {
-         return file.exists();
+         return Files.exists(file);
       }
 
       @Override
@@ -62,21 +61,10 @@ public interface ChannelProvider {
       }
 
       private SeekableByteChannel newChannel(String mode) throws IOException {
-         RandomAccessFile raf = new RandomAccessFile(file, mode);
-         return new DelegatingChannel(raf.getChannel()) {
-            @Override
-            public void close() throws IOException {
-               try {
-                  super.close();
-               }
-               finally {
-                  IOUtils.closeQuietly(raf);
-               }
-            }
-         };
+         return Files.newByteChannel(file, StandardOpenOption.CREATE);
       }
 
-      private final File file;
+      private final Path file;
    }
 
    abstract class DelegatingChannel implements SeekableByteChannel {

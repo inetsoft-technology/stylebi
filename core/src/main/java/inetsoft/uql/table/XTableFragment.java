@@ -17,17 +17,17 @@
  */
 package inetsoft.uql.table;
 
-import inetsoft.util.FileSystemService;
-import inetsoft.util.Tool;
+import inetsoft.util.cachefs.CacheFS;
 import inetsoft.util.swap.*;
-
-import java.io.*;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.util.*;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.Writer;
+import java.nio.ByteBuffer;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.*;
+import java.util.*;
 
 /**
  * XTableFragment, the swappable table fragment.
@@ -160,9 +160,8 @@ public final class XTableFragment extends XSwappable {
     * Swap the columns.
     */
    private void swapColumns() {
-      File file = getSwapFile();
-      RandomAccessFile fout = null;
-      FileChannel channel = null;
+      Path file = getSwapFile();
+      SeekableByteChannel channel = null;
       boolean swapped = true;
       files.clear();
 
@@ -170,9 +169,8 @@ public final class XTableFragment extends XSwappable {
          ByteBuffer footer = null;
          files.add(file);
 
-         if(!file.exists()) {
-            fout = new RandomAccessFile(file, "rw");
-            channel = fout.getChannel();
+         if(!Files.exists(file) || isOldVersionSnapWrapFile()) {
+            channel = Files.newByteChannel(file, StandardOpenOption.WRITE);
             swapped = false;
             footer = ByteBuffer.allocate(columns.length * 16);
          }
@@ -220,10 +218,6 @@ public final class XTableFragment extends XSwappable {
             if(channel != null) {
                channel.close();
             }
-
-            if(fout != null) {
-               fout.close();
-            }
          }
          catch(Exception ex) {
             // ignore it
@@ -259,7 +253,7 @@ public final class XTableFragment extends XSwappable {
     * Get swapped files.
     * @return the swapped files.
     */
-   public List<File> getFiles() {
+   public List<Path> getFiles() {
       return files;
    }
 
@@ -270,27 +264,25 @@ public final class XTableFragment extends XSwappable {
       this.path = path;
       this.snappath = path;
 
-      FileChannel channel = null;
-      RandomAccessFile fout = null;
+      SeekableByteChannel channel = null;
 
       try {
          Arrays.stream(columns).forEach(c -> c.setSwapLog("Loading " + path));
-         File file = getSwapFile();
+         Path file = getSwapFile();
 
-         if(!file.exists()) {
+         if(!Files.exists(file)) {
             Arrays.stream(columns).forEach(c -> c.setSwapLog("File missing: " + file));
 
             if(LOG.isDebugEnabled()) {
-               LOG.warn("Snapshot file missing: " + file);
+               LOG.warn("Snapshot file missing: {}", file);
             }
             return;
          }
 
          files.add(file);
-         fout = new RandomAccessFile(file, "rw");
-         channel = fout.getChannel();
+         channel = Files.newByteChannel(file, StandardOpenOption.WRITE);
 
-         channel.position(file.length() - columns.length * 16L);
+         channel.position(Files.size(file) - columns.length * 16L);
          ByteBuffer footer = ByteBuffer.allocate(columns.length * 16);
          channel.read(footer);
          XSwapUtil.flip(footer);
@@ -319,22 +311,13 @@ public final class XTableFragment extends XSwappable {
                // ignore
             }
          }
-
-         if(fout != null) {
-            try {
-               fout.close();
-            }
-            catch(Exception ex2) {
-               // ignore
-            }
-         }
       }
    }
 
    /**
     * Get the swap/data file of this table fragment.
     */
-   public File getSwapFile() {
+   public Path getSwapFile() {
       return getFileByPostfix("_s.tdat");
    }
 
@@ -349,7 +332,7 @@ public final class XTableFragment extends XSwappable {
     * Get the file by postfix.
     * @return the file by postfix.
     */
-   protected File getFileByPostfix(String postfix) {
+   protected Path getFileByPostfix(String postfix) {
       if(prefix != null) {
          prefix = prefix.replace(postfix, "");
       }
@@ -359,7 +342,7 @@ public final class XTableFragment extends XSwappable {
       }
 
       return path == null ? getFile(prefix + postfix) :
-         FileSystemService.getInstance().getFile(Tool.convertUserFileName(path + postfix));
+         CacheFS.getPath("cache", path + postfix);
    }
 
    /**
@@ -445,7 +428,7 @@ public final class XTableFragment extends XSwappable {
    }
 
    public boolean isDataPathFileExist() {
-      return files != null && files.stream().anyMatch(file -> file.exists());
+      return files != null && files.stream().anyMatch(Files::exists);
    }
 
    /**
@@ -458,25 +441,25 @@ public final class XTableFragment extends XSwappable {
    }
 
    @Override
-   public File[] getSwapFiles() {
-      FileSystemService fileSystemService = FileSystemService.getInstance();
-      List<File> swapFiles = new ArrayList<>();
-      List<File> files = this.files == null ? new ArrayList<>() : new ArrayList<>(this.files);
+   public Path[] getSwapFiles() {
+      Path cacheDir = CacheFS.getPath("cache", "/cache");
+      List<Path> swapFiles = new ArrayList<>();
+      List<Path> files = this.files == null ? new ArrayList<>() : new ArrayList<>(this.files);
 
-      for(File file : files) {
-         if(fileSystemService.isCacheFile(file)) {
+      for(Path file : files) {
+         if(file.startsWith(cacheDir)) {
             swapFiles.add(file);
          }
       }
 
-      return swapFiles.toArray(new File[0]);
+      return swapFiles.toArray(new Path[0]);
    }
 
    private XTableColumn[] columns; // table column
    private String path;
    private long iaccessed; // last accessed timestamp
    private boolean valid; // valid flag
-   private List<File> files; // cache files
+   private List<Path> files; // cache files
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
    private String snappath; // snapshot path

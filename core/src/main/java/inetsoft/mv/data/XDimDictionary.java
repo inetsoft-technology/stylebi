@@ -22,7 +22,6 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.Condition;
 import inetsoft.uql.jdbc.XBinaryCondition;
 import inetsoft.uql.jdbc.XExpression;
-import inetsoft.util.FileSystemService;
 import inetsoft.util.Tool;
 import inetsoft.util.swap.*;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -30,9 +29,12 @@ import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
@@ -876,14 +878,12 @@ public class XDimDictionary extends XSwappable implements Cloneable {
          rawValues.dispose();
       }
 
-      File file = getFile(prefix + "_dict.tdat");
+      Path file = getFile(prefix + "_dict.tdat");
 
-      if(file.exists()) {
-         boolean result = file.delete();
-
-         if(!result) {
-            FileSystemService.getInstance().remove(file, 30000);
-         }
+      try {
+         Files.deleteIfExists(file);
+      }
+      catch(IOException ignore) {
       }
    }
 

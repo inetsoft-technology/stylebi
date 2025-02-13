@@ -21,15 +21,15 @@ import inetsoft.mv.fs.BlockFile;
 import inetsoft.mv.fs.internal.CacheBlockFile;
 import inetsoft.mv.util.SeekableInputStream;
 import inetsoft.mv.util.TransactionChannel;
-import inetsoft.util.FileSystemService;
 import inetsoft.util.swap.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * XDimIndex, the index for one dimension.
@@ -516,14 +516,12 @@ public abstract class XDimIndex extends XSwappable {
 
       disposed = true;
 
-      File fileTest = getFile(prefix + EXTENSION);
+      Path fileTest = getFile(prefix + EXTENSION);
 
-      if(fileTest.exists()) {
-         boolean result = fileTest.delete();
-
-         if(!result) {
-            FileSystemService.getInstance().remove(fileTest, 30000);
-         }
+      try {
+         Files.delete(fileTest);
+      }
+      catch(IOException ignore) {
       }
    }
 

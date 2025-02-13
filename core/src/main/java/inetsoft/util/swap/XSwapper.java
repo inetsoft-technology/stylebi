@@ -20,11 +20,14 @@ package inetsoft.util.swap;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.util.*;
+import inetsoft.util.cachefs.CacheFS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -754,7 +757,7 @@ public final class XSwapper {
             // the files can be removed once they are no longer referenced
             for(int i = 0; i < swapped.size(); i++) {
                XSwappable swappable = swapped.get(i);
-               File[] swapFiles = swappable.getSwapFiles();
+               Path[] swapFiles = swappable.getSwapFiles();
 
                if(swapFiles != null && swapFiles.length > 0) {
                   Cleaner.add(new XSwappableReference(swappable, swapFiles));
@@ -888,11 +891,13 @@ public final class XSwapper {
    public static final String SWAP_FILE_MAP_LOCK = "inetsoft.swap.file.map.lock";
 
    public static final class XSwappableReference extends Cleaner.Reference<XSwappable> {
-      XSwappableReference(XSwappable referent, File[] files) {
+      XSwappableReference(XSwappable referent, Path[] files) {
          super(referent);
          Cluster cluster = Cluster.getInstance();
          Map<String, Integer> map = cluster.getMap(SWAP_FILE_MAP);
-         this.files = Arrays.stream(files).map(File::getAbsolutePath).toArray(String[]::new);
+         this.files = Arrays.stream(files)
+            .map(f -> f.toAbsolutePath().toString())
+            .toArray(String[]::new);
 
          for(String file : this.files) {
             int count = map.getOrDefault(file, 0) + 1;
@@ -917,7 +922,13 @@ public final class XSwapper {
                   boolean result = new File(file).delete();
 
                   if(!result) {
-                     FileSystemService.getInstance().remove(new File(file), 30000);
+                     Path path = CacheFS.getPath("cache", file);
+
+                     try {
+                        Files.deleteIfExists(path);
+                     }
+                     catch(IOException ignore) {
+                     }
                   }
                }
                else {

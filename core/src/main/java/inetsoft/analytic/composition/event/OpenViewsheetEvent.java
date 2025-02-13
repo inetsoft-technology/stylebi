@@ -39,7 +39,6 @@ import inetsoft.web.AutoSaveUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.security.Principal;
 import java.sql.Date;
 import java.util.*;

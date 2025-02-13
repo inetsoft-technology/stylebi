@@ -34,6 +34,8 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.Format;
 import java.util.*;
 import java.util.function.Function;
@@ -862,7 +864,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
       };
 
       // don't reuse swap data. since selection values are mutable, need to write them out.
-      try(Output objout = new Output(new FileOutputStream(swapFile))) {
+      try(Output objout = new Output(Files.newOutputStream(swapFile))) {
          Kryo kryo = XSwapUtil.getKryo();
          ArrayList<SelectionValue> list2 = new ArrayList<>();
 
@@ -899,7 +901,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
                Function<Integer, Format> defFmtMapper = idx -> defFmtDict.get(idx);
                Function<Integer, VSCompositeFormat> fmtMapper = idx -> fmtDict.get(idx);
 
-               try(Input inp = new Input(new FileInputStream(swapFile))) {
+               try(Input inp = new Input(Files.newInputStream(swapFile))) {
                   Kryo kryo = XSwapUtil.getKryo();
 
                   for(int i = 0; i < this.list.size(); i++) {
@@ -931,7 +933,11 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    @Override
    public synchronized void dispose() {
       if(swapFile != null) {
-         swapFile.delete();
+         try {
+            Files.deleteIfExists(swapFile);
+         }
+         catch(IOException ignore) {
+         }
       }
 
       list.clear();
@@ -1175,7 +1181,7 @@ public class SelectionList extends XSwappable implements AssetObject, DataSerial
    // for swapping
    private boolean completed;
    private boolean valid = true;
-   private File swapFile;
+   private Path swapFile;
    private long lastAccess = 0;
    private List<Format> defFmtDict;
    private List<VSCompositeFormat> fmtDict;

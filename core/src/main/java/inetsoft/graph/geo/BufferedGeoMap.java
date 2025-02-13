@@ -60,6 +60,7 @@ public class BufferedGeoMap extends GeoMap {
     */
    @Override
    protected void load(String file) throws IOException {
+      // file usage ok, local cache of classpath resource
       final File tmpfile = FileSystemService.getInstance().getCacheTempFile("map", "csv");
 
       InputStream input = null;

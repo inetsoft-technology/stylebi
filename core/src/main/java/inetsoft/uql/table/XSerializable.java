@@ -17,9 +17,9 @@
  */
 package inetsoft.uql.table;
 
-import java.io.File;
 import java.io.Serializable;
-import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.Path;
 
 /**
  * XSerializable, it performs as a container, which could swap out/in data
@@ -57,7 +57,7 @@ public interface XSerializable extends Serializable {
    /**
     * Swap data to file.
     */
-   public void swap(File file, FileChannel fc) throws Exception;
+   public void swap(Path file, SeekableByteChannel fc) throws Exception;
 
    /**
     * Clear out the internal array (after swapping).

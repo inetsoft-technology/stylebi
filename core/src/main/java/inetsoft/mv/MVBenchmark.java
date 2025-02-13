@@ -108,6 +108,7 @@ public class MVBenchmark {
             benchmark.context.get("condition")
          }
       });
+      // file usage ok, used for debugging
       File file = fs.getFile(home, "mv-benchmark-context.csv");
       Tool.lock(file.getAbsolutePath());
 
@@ -171,6 +172,7 @@ public class MVBenchmark {
    private void writeFileInfo(BenchmarkMetadata data) {
       String home = ConfigurationContext.getContext().getHome();
       FileSystemService fs = FileSystemService.getInstance();
+      // file usage ok, used for debugging
       File file = fs.getFile(home, "mv-benchmark-files.csv");
 
       DefaultTableLens table = new DefaultTableLens(new Object[][] {

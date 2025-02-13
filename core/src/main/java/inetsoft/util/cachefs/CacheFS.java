@@ -18,9 +18,9 @@
 
 package inetsoft.util.cachefs;
 
+import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
 
 public final class CacheFS {
    private CacheFS() {
@@ -52,5 +52,29 @@ public final class CacheFS {
       }
 
       return Paths.get(URI.create(uri.toString()));
+   }
+
+   public static long size(Path path) {
+      try {
+         if(Files.exists(path)) {
+            return Files.size(path);
+         }
+      }
+      catch(IOException ignore) {
+      }
+
+      return 0L;
+   }
+
+   public static long lastModified(Path path) {
+      try {
+         if(Files.exists(path)) {
+            return Files.getLastModifiedTime(path).toMillis();
+         }
+      }
+      catch(IOException ignore) {
+      }
+
+      return 0L;
    }
 }

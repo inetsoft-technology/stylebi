@@ -18,10 +18,10 @@
 package inetsoft.util.swap;
 
 import inetsoft.sree.SreeEnv;
-import inetsoft.util.FileSystemService;
+import inetsoft.util.cachefs.CacheFS;
 
-import java.io.File;
 import java.io.Serializable;
+import java.nio.file.Path;
 import java.util.Comparator;
 
 /**
@@ -87,7 +87,7 @@ public abstract class XSwappable implements Serializable {
    /**
     * Get the swap files of this swappable
     */
-   public File[] getSwapFiles() {
+   public Path[] getSwapFiles() {
       return null;
    }
 
@@ -108,8 +108,8 @@ public abstract class XSwappable implements Serializable {
     * Get the file by name.
     * @return the file by name.
     */
-   protected final File getFile(String name) {
-      return FileSystemService.getInstance().getCacheFile(name);
+   protected final Path getFile(String name) {
+      return CacheFS.getPath("cache", "/cache", name);
    }
 
    /**
