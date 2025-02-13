@@ -540,10 +540,10 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          buffer.append(catalog.getString("TimeCondition")).append(": ");
 
          if(days_of_week.length > 0) {
-            buffer.append(Arrays.stream(days_of_week)
-                             .mapToObj(this::getWeekDayName)
-                             .collect(Collectors.joining(", ")))
-               .append(" ").append(catalog.getString("of Hour"));
+            buffer.append(catalog.getString("Hour of")).append(" ")
+               .append(Arrays.stream(days_of_week)
+                          .mapToObj(this::getWeekDayName)
+                          .collect(Collectors.joining(", ")));
          }
 
          if(hourlyInterval > 0) {
