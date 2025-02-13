@@ -18,9 +18,14 @@
 
 package inetsoft.util.cachefs;
 
+import java.util.Comparator;
 import java.util.Objects;
 
-public class Name {
+final class Name {
+   public static Name create(String display, String canonical) {
+      return new Name(display, canonical);
+   }
+
    private Name(String display, String canonical) {
       this.display = Objects.requireNonNull(display);
       this.canonical = Objects.requireNonNull(canonical);
@@ -41,6 +46,21 @@ public class Name {
       return Objects.hashCode(canonical);
    }
 
+   @Override
+   public String toString() {
+      return display;
+   }
+
+   static Comparator<Name> displayComparator() {
+      return DISPLAY_COMPARATOR;
+   }
+
+   static final Name EMPTY = new Name("", "");
+   public static final Name SELF = new Name(".", ".");
+   public static final Name PARENT = new Name("..", "..");
+
    private final String display;
    private final String canonical;
+
+   private static final Comparator<Name> DISPLAY_COMPARATOR = Comparator.comparing((Name n) -> n.display);
 }

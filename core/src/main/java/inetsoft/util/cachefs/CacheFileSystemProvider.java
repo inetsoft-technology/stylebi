@@ -18,14 +18,17 @@
 
 package inetsoft.util.cachefs;
 
-import javax.swing.filechooser.FileSystemView;
-import java.io.IOException;
-import java.io.InputStream;
+import inetsoft.storage.BlobStorage;
+
+import java.io.*;
+import java.lang.ref.Cleaner;
 import java.net.URI;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.file.FileSystem;
 import java.nio.file.*;
 import java.nio.file.attribute.*;
 import java.nio.file.spi.FileSystemProvider;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -48,7 +51,10 @@ public class CacheFileSystemProvider extends FileSystemProvider {
             throw new FileSystemAlreadyExistsException(storeId);
          }
 
-         CacheFileSystem fileSystem = new CacheFileSystem(this, storeId, env);
+         PathService pathService = new PathService();
+         CacheFileSystem fileSystem = new CacheFileSystem(this, uri, pathService, storeId);
+         pathService.setFileSystem(fileSystem);
+
          fileSystems.put(storeId, fileSystem);
          return fileSystem;
       }
@@ -101,7 +107,14 @@ public class CacheFileSystemProvider extends FileSystemProvider {
    @Override
    public InputStream newInputStream(Path path, OpenOption... options) throws IOException {
       CachePath cachePath = checkPath(path);
-      return getFileSystem(cachePath).newInputStream(cachePath, options);
+      return getStorage(cachePath).getInputStream(cachePath.toAbsolutePath().toString());
+   }
+
+   @Override
+   public OutputStream newOutputStream(Path path, OpenOption... options) throws IOException {
+      CachePath cachePath = checkPath(path);
+      CacheMetadata metadata = getOrCreateMetadata(cachePath);
+      return new BlobOutputStream(cachePath, metadata, getStorage(cachePath), cleaner);
    }
 
    @Override
@@ -109,7 +122,8 @@ public class CacheFileSystemProvider extends FileSystemProvider {
                                              FileAttribute<?>... attrs) throws IOException
    {
       CachePath cachePath = checkPath(path);
-      return getFileSystem(cachePath).newByteChannel(cachePath, options, attrs);
+      CacheMetadata metadata = getOrCreateMetadata(cachePath);
+      return new BlobByteChannel(cachePath, metadata, getStorage(cachePath), cleaner);
    }
 
    @Override
@@ -118,33 +132,78 @@ public class CacheFileSystemProvider extends FileSystemProvider {
       throws IOException
    {
       CachePath cachePath = checkPath(dir);
-      return getFileSystem(cachePath).newDirectoryStream(cachePath, filter);
+      BlobStorage<CacheMetadata> storage = getStorage(cachePath);
+
+      if(!storage.exists(cachePath.toAbsolutePath().toString())) {
+         throw new NoSuchFileException(dir.toString());
+      }
+
+      if(!storage.isDirectory(cachePath.toAbsolutePath().toString())) {
+         throw new NotDirectoryException(dir.toString());
+      }
+
+      CacheMetadata metadata = storage.getMetadata(cachePath.toAbsolutePath().toString());
+      return new CacheDirectoryStream(cachePath, metadata, filter);
    }
 
    @Override
    public void createDirectory(Path dir, FileAttribute<?>... attrs) throws IOException {
       CachePath cachePath = checkPath(dir);
-      getFileSystem(cachePath).createDirectory(cachePath, attrs);
+      CacheMetadata metadata = getOrCreateMetadata(cachePath);
+      getStorage(cachePath).createDirectory(cachePath.toAbsolutePath().toString(), metadata);
+
+      // update parent folder
+      addToParent(cachePath);
    }
 
    @Override
    public void delete(Path path) throws IOException {
       CachePath cachePath = checkPath(path);
-      getFileSystem(cachePath).delete(cachePath);
+      getStorage(cachePath).delete(cachePath.toAbsolutePath().toString());
+
+      // update parent folder
+      removeFromParent(cachePath);
    }
 
    @Override
    public void copy(Path source, Path target, CopyOption... options) throws IOException {
       CachePath sourcePath = checkPath(source);
       CachePath targetPath = checkPath(target);
-      getFileSystem(sourcePath).copy(sourcePath, targetPath, options);
+      getStorage(sourcePath).copy(
+         sourcePath.toAbsolutePath().toString(), targetPath.toAbsolutePath().toString());
+
+      // update parent folder
+      addToParent(targetPath);
    }
 
    @Override
    public void move(Path source, Path target, CopyOption... options) throws IOException {
       CachePath sourcePath = checkPath(source);
       CachePath targetPath = checkPath(target);
-      getFileSystem(sourcePath).move(sourcePath, targetPath, options);
+      getStorage(sourcePath).rename(
+         sourcePath.toAbsolutePath().toString(), targetPath.toAbsolutePath().toString());
+
+      // update parent folders
+      removeFromParent(sourcePath);
+      addToParent(targetPath);
+   }
+
+   private void addToParent(CachePath path) throws IOException {
+      BlobStorage<CacheMetadata> storage = getStorage(path);
+      CacheMetadata metadata = storage.getMetadata(path.toAbsolutePath().getParent().toString());
+      Set<String> children = new TreeSet<>(Arrays.asList(metadata.getChildren()));
+      children.add(path.toAbsolutePath().getFileName().toString());
+      metadata.setChildren(children.toArray(new String[0]));
+      storage.createDirectory(path.toAbsolutePath().getParent().toString(), metadata);
+   }
+
+   private void removeFromParent(CachePath path) throws IOException {
+      BlobStorage<CacheMetadata> storage = getStorage(path);
+      CacheMetadata metadata = storage.getMetadata(path.toAbsolutePath().getParent().toString());
+      Set<String> children = new TreeSet<>(Arrays.asList(metadata.getChildren()));
+      children.remove(path.toAbsolutePath().getFileName().toString());
+      metadata.setChildren(children.toArray(new String[0]));
+      storage.createDirectory(path.toAbsolutePath().getParent().toString(), metadata);
    }
 
    @Override
@@ -153,12 +212,9 @@ public class CacheFileSystemProvider extends FileSystemProvider {
          return true;
       }
 
-      if(!(path instanceof CachePath && path2 instanceof CachePath)) {
+      if(!(path instanceof CachePath cachePath && path2 instanceof CachePath cachePath2)) {
          return false;
       }
-
-      CachePath cachePath = (CachePath) path;
-      CachePath cachePath2 = (CachePath) path2;
 
       CacheFileSystem fs1 = getFileSystem(cachePath);
       CacheFileSystem fs2 = getFileSystem(cachePath2);
@@ -176,14 +232,21 @@ public class CacheFileSystemProvider extends FileSystemProvider {
    }
 
    @Override
+   public boolean exists(Path path, LinkOption... options) {
+      CachePath cachePath = checkPath(path);
+      return getStorage(cachePath).exists(cachePath.toAbsolutePath().toString());
+   }
+
+   @Override
    public FileStore getFileStore(Path path) {
       throw new UnsupportedOperationException();
    }
 
    @Override
    public void checkAccess(Path path, AccessMode... modes) throws IOException {
-      CachePath cachePath = checkPath(path);
-      // todo check that file exists
+      if(!exists(path)) {
+         throw new NoSuchFileException(path.toString());
+      }
    }
 
    @Override
@@ -197,12 +260,27 @@ public class CacheFileSystemProvider extends FileSystemProvider {
    public <A extends BasicFileAttributes> A readAttributes(Path path, Class<A> type,
                                                            LinkOption... options) throws IOException
    {
-      throw new UnsupportedOperationException();
+      if(!type.isAssignableFrom(CacheFileAttributes.class)) {
+         throw new UnsupportedOperationException();
+      }
+
+      CachePath cachePath = checkPath(path);
+      String p = cachePath.toAbsolutePath().toString();
+      BlobStorage<CacheMetadata> storage = getStorage(cachePath);
+
+      boolean directory = storage.isDirectory(p);
+      long creationTime = storage.getMetadata(p).getCreationTime();
+      Instant lastModifiedTime = storage.getLastModified(p);
+      long size = storage.getLength(p);
+
+      CacheFileAttributes attrs =
+         new CacheFileAttributes(p, directory, creationTime, lastModifiedTime, size);
+      return type.cast(attrs);
    }
 
    @Override
    public Map<String, Object> readAttributes(Path path, String attributes,
-                                             LinkOption... options) throws IOException
+                                             LinkOption... options)
    {
       throw new UnsupportedOperationException();
    }
@@ -227,6 +305,21 @@ public class CacheFileSystemProvider extends FileSystemProvider {
       return (CacheFileSystem) path.getFileSystem();
    }
 
+   private BlobStorage<CacheMetadata> getStorage(CachePath path) {
+      return getFileSystem(path).getBlobStorage();
+   }
+
+   private CacheMetadata getOrCreateMetadata(CachePath path) throws IOException {
+      BlobStorage<CacheMetadata> storage = getStorage(path);
+      String p = path.getFileName().toString();
+
+      if(storage.exists(p)) {
+         return storage.getMetadata(p);
+      }
+
+      return new CacheMetadata(System.currentTimeMillis());
+   }
+
    @SuppressWarnings("resource")
    void removeFileSystem(CacheFileSystem fs) {
       fileSystemsLock.lock();
@@ -242,4 +335,5 @@ public class CacheFileSystemProvider extends FileSystemProvider {
    private final Lock fileSystemsLock = new ReentrantLock();
    private final Map<String, CacheFileSystem> fileSystems = new HashMap<>();
    static final String URI_SCHEME = "cachefs";
+   private final Cleaner cleaner = Cleaner.create();
 }
