@@ -24,7 +24,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.internal.Util;
 import inetsoft.report.io.viewsheet.CoordinateHelper;
 import inetsoft.sree.SreeEnv;
-import inetsoft.sree.security.ResourceAction;
+import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
@@ -4286,6 +4286,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       if(vsnode != null) {
          vsnode = Tool.getFirstChildNode(vsnode);
          ventry = AssetEntry.createAssetEntry(vsnode);
+         ventry.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
       }
 
       Element wnode = Tool.getChildNodeByTagName(elem, "worksheetEntry");
