@@ -472,12 +472,7 @@ public final class XObjectColumn extends AbstractTableColumn {
 
    @Override
    public void copyFromBuffer(ByteBuffer buf) {
-      if(parseWithKryo4) {
-         oldVersionCopyFromBuffer(buf);
-      }
-      else {
-         copyFromBuffer0(buf);
-      }
+      copyFromBuffer0(buf);
    }
 
    public void copyFromBuffer0(ByteBuffer buf) {
@@ -499,48 +494,6 @@ public final class XObjectColumn extends AbstractTableColumn {
 
          for(int i = 0; i < pos; i++) {
             Object obj = kryo.readClassAndObject(oin);
-
-            if(image) {
-               obj = ((ImageWrapper) obj).unwrap();
-            }
-
-            obj = tryCache(obj);
-            arr[i] = obj;
-         }
-
-         cache = null;
-         this.arr = arr;
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to read data", ex);
-      }
-   }
-
-   /**
-    * Old version use kryo4 to write object, so try to read them by kryo4.
-    * kryo5 do not backwards compatible
-    *
-    * @param buf
-    */
-   private void oldVersionCopyFromBuffer(ByteBuffer buf) {
-      if(serial == FALSE) {
-         return;
-      }
-
-      if(creator.isCache()) {
-         cache = new XObjectCache<>();
-      }
-
-      com.esotericsoftware.kryo.Kryo kryo4 = XSwapUtil.getKryo4();
-
-      try {
-         ByteArrayInputStream in = new ByteArrayInputStream(buf.array());
-         com.esotericsoftware.kryo.io.Input oin = new com.esotericsoftware.kryo.io.Input(in);
-
-         Object[] arr = new Object[pos];
-
-         for(int i = 0; i < pos; i++) {
-            Object obj = kryo4.readClassAndObject(oin);
 
             if(image) {
                obj = ((ImageWrapper) obj).unwrap();
@@ -639,10 +592,6 @@ public final class XObjectColumn extends AbstractTableColumn {
       return cache != null;
    }
 
-   public void setParseWithKryo4(boolean parseWithKryo4) {
-      this.parseWithKryo4 = parseWithKryo4;
-   }
-
    private static final int HEADER_LENGTH = 8;
 
    private Object[] arr; // object array
@@ -652,7 +601,5 @@ public final class XObjectColumn extends AbstractTableColumn {
    private boolean image; // image flag
    private XObjectCache<Object> cache; // object cache
    private XTableColumnCreator creator; // column creator
-   private boolean parseWithKryo4;
-
    private static final Logger LOG = LoggerFactory.getLogger(XObjectColumn.class);
 }

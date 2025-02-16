@@ -413,20 +413,11 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
    }
 
    /**
-    * Read an object at a row index.
-    * @param r the specified row index.
-    * @return the object at the row index.
-    */
-   private synchronized Object readObject(int r) {
-      return readObject(r, parseWithKryo4);
-   }
-
-   /**
     * Read an object at a row index for old version case.
     * @param r the specified row index.
     * @return the object at the row index.
     */
-   private synchronized Object readObject(int r, boolean oldVersion) {
+   private synchronized Object readObject(int r) {
       if(disposed) {
          return null;
       }
@@ -442,16 +433,9 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
          BufferedInputStream in = new BufferedInputStream(fin, 4096);
          InputStream kryoInput;
 
-         if(oldVersion) {
-            com.esotericsoftware.kryo.io.Input oin = new com.esotericsoftware.kryo.io.Input(in);
-            kryoInput = oin;
-            obj = XSwapUtil.getKryo4().readClassAndObject(oin);
-         }
-         else {
-            Input oin = new Input(in);
-            kryoInput = oin;
-            obj = XSwapUtil.getKryo().readClassAndObject(oin);
-         }
+         Input oin = new Input(in);
+         kryoInput = oin;
+         obj = XSwapUtil.getKryo().readClassAndObject(oin);
 
          if(image) {
             obj = ((ImageWrapper) obj).unwrap();
@@ -534,10 +518,6 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
       return arr == null ? 0 : arr.length;
    }
 
-   public void setParseWithKryo4(boolean parseWithKryo4) {
-      this.parseWithKryo4 = parseWithKryo4;
-   }
-
    private Object[] arr; // object array
    private int[] parr; // pointer array
    private char size; // max size
@@ -548,7 +528,6 @@ public final class XBigObjectColumn extends XSwappable implements XTableColumn {
    private int scount; // swapped row count
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
-   private boolean parseWithKryo4;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(XBigObjectColumn.class);

@@ -170,24 +170,11 @@ public final class XTableFragment extends XSwappable {
          ByteBuffer footer = null;
          files.add(file);
 
-         if(!file.exists() || isOldVersionSnapWrapFile()) {
-            if(isOldVersionSnapWrapFile() && file.exists()) {
-               try(FileWriter fileWriter = new FileWriter(file)){
-                  fileWriter.write("");
-                  fout = new RandomAccessFile(file, "rw");
-                  channel = fout.getChannel();
-                  swapped = false;
-                  footer = ByteBuffer.allocate(columns.length * 16);
-               }
-               catch(Exception ignore) {
-               }
-            }
-            else {
-               fout = new RandomAccessFile(file, "rw");
-               channel = fout.getChannel();
-               swapped = false;
-               footer = ByteBuffer.allocate(columns.length * 16);
-            }
+         if(!file.exists()) {
+            fout = new RandomAccessFile(file, "rw");
+            channel = fout.getChannel();
+            swapped = false;
+            footer = ByteBuffer.allocate(columns.length * 16);
          }
 
          for(XTableColumn column : columns) {
@@ -224,8 +211,6 @@ public final class XTableFragment extends XSwappable {
             XSwapUtil.flip(footer);
             channel.write(footer);
          }
-
-         setParseWithKryo4(false);
       }
       catch(Exception ex) {
          LOG.error("Failed to write XTableFragment swap file: " + file, ex);
@@ -459,32 +444,6 @@ public final class XTableFragment extends XSwappable {
       return columns;
    }
 
-   public boolean isOldVersionSnapWrapFile() {
-      return parseWithKryo4;
-   }
-
-   public void setParseWithKryo4(boolean val) {
-      this.parseWithKryo4 = val;
-      XTableColumn[] cols = getColumns();
-
-      if(cols == null) {
-         return;
-      }
-
-      for(XTableColumn col : cols) {
-         if(col instanceof XObjectColumn) {
-            ((XObjectColumn) col).setParseWithKryo4(val);
-         }
-         else if(col instanceof XBigObjectColumn) {
-            ((XBigObjectColumn) col).setParseWithKryo4(val);
-         }
-      }
-   }
-
-   public boolean isParseWithKryo4() {
-      return parseWithKryo4;
-   }
-
    public boolean isDataPathFileExist() {
       return files != null && files.stream().anyMatch(file -> file.exists());
    }
@@ -520,7 +479,6 @@ public final class XTableFragment extends XSwappable {
    private List<File> files; // cache files
    private boolean completed; // completed flag
    private boolean disposed; // disposed flag
-   private boolean parseWithKryo4;
    private String snappath; // snapshot path
    private static final Logger LOG =
       LoggerFactory.getLogger(XTableFragment.class);

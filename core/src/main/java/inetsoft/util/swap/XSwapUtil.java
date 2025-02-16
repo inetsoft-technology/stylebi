@@ -26,7 +26,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import com.esotericsoftware.kryo.Kryo;
 import net.jpountz.lz4.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -494,13 +493,6 @@ public final class XSwapUtil {
    }
 
    /**
-    * Get a shared Kryo object.
-    */
-   public static Kryo getKryo4() {
-      return kryo4s.get();
-   }
-
-   /**
     * Flip a buffer. Avoid problem with ByteBuffer.flip signature change.
     */
    public static Buffer flip(Buffer buf) {
@@ -550,15 +542,6 @@ public final class XSwapUtil {
       @Override
       protected com.esotericsoftware.kryo.kryo5.Kryo initialValue() {
          com.esotericsoftware.kryo.kryo5.Kryo kryo = new com.esotericsoftware.kryo.kryo5.Kryo();
-         kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
-         return kryo;
-      }
-   };
-
-   private static ThreadLocal<Kryo> kryo4s = new ThreadLocal<Kryo>() {
-      @Override
-      protected Kryo initialValue() {
-         Kryo kryo = new Kryo();
          kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
          return kryo;
       }
