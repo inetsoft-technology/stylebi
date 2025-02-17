@@ -634,7 +634,7 @@ public class HighlightDialogController {
       if(GraphTypeUtil.isWordCloud(chartInfo) || isText) {
          AestheticRef aref = null;
          boolean noTextBinding = chartInfo instanceof RelationChartInfo &&
-            ref.equals(((RelationChartInfo) chartInfo).getSourceField());
+            Tool.equals(ref, ((RelationChartInfo) chartInfo).getSourceField());
 
          if(!noTextBinding) {
             aref = chartInfo.isMultiAesthetic() && ref instanceof ChartBindable
