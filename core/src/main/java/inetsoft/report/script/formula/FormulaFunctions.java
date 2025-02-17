@@ -1911,7 +1911,7 @@ public class FormulaFunctions {
       public int getInteger(String opt, int def) {
          String val = (String) get(optmap, opt);
 
-         if(val != null) {
+         if(val != null && !"null".equals(val)) {
             try {
                return Tool.getIntegerData(val);
             }
