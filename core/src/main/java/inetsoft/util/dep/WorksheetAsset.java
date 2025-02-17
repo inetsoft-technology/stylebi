@@ -31,6 +31,7 @@ import inetsoft.util.Tool;
 import inetsoft.util.TransformerManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Element;
 
 import java.util.*;
 
@@ -487,6 +488,22 @@ public class WorksheetAsset extends AbstractSheetAsset implements
     */
    public void setSnapshot(boolean snapshot) {
       this.snapshot = snapshot;
+   }
+
+   @Override
+   protected void parseSheet(AbstractSheet sheet, Element elem, XAssetConfig config, String orgId)
+      throws Exception
+   {
+      sheet.parseXML(elem);
+      Worksheet ws = (Worksheet) sheet;
+
+      if(orgId != null) {
+         for(Assembly assembly : ws.getAssemblies()) {
+            if(assembly instanceof SQLBoundTableAssembly) {
+               ((SQLBoundTableAssemblyInfo) assembly.getInfo()).getQuery().setOrganizationId(orgId);
+            }
+         }
+      }
    }
 
    private boolean snapshot = false;

@@ -517,7 +517,7 @@ public class ViewsheetAsset extends AbstractSheetAsset implements FolderChangeab
     * Parse sheet.
     */
    @Override
-   protected void parseSheet(AbstractSheet sheet, Element elem, XAssetConfig config)
+   protected void parseSheet(AbstractSheet sheet, Element elem, XAssetConfig config, String orgId)
       throws Exception
    {
       if("viewsheet".equals(elem.getNodeName()) &&

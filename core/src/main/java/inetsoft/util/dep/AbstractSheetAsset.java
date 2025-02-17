@@ -73,9 +73,9 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
       Element root = doc.getDocumentElement();
       boolean overwriting = config != null && config.isOverwriting();
       AbstractSheet sheet0 = getSheet();
-      parseSheet(sheet0, root, config);
-      AssetRepository engine = AssetUtil.getAssetRepository(false);
       AssetEntry entry = getAssetEntry();
+      parseSheet(sheet0, root, config, entry.getOrgID());
+      AssetRepository engine = AssetUtil.getAssetRepository(false);
       AssetEntry pentry = entry.getParent();
 
       if(engine.containsEntry(entry)) {
@@ -381,7 +381,7 @@ public abstract class AbstractSheetAsset extends AbstractXAsset {
     * Parse sheet.
     */
    protected void parseSheet(AbstractSheet sheet, Element elem,
-                             XAssetConfig config)
+                             XAssetConfig config, String orgId)
       throws Exception
    {
       sheet.parseXML(elem);
