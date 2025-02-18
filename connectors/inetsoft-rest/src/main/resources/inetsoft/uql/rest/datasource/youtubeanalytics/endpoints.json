@@ -3,7 +3,7 @@
         {
             "name": "Reports Query",
             "pageType": 1,
-            "suffix": "/v2/reports?startDate={Start Date:YYYY-MM-DD}&endDate={End Date:YYYY-MM-DD}&ids={ID of YouTube Channel:channel==MINE}&metrics={Metrics:views,likes,dislikes}&currency={Currency?:estimatedRevenue | estimatedAdRevenue | ...}&dimensions={Dimensions?:video,ageGroup,gender}&filters={Filters?:country==IT}&includeHistoricalChannelData={Include Historical Channel Data?:true | false}"
+            "suffix": "/v2/reports?startDate={Start Date:YYYY-MM-DD}&endDate={End Date:YYYY-MM-DD}&ids={ID :channel==CHANNEL ID Or contentOwner==OWNER NAME}&metrics={Metrics:views,likes,dislikes}&currency={Currency?:estimatedRevenue | estimatedAdRevenue | ...}&dimensions={Dimensions?:video,ageGroup,gender}&filters={Filters?:country==IT}&includeHistoricalChannelData={Include Historical Channel Data?:true | false}"
         },
         {
             "name": "Groups",
