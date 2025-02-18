@@ -195,6 +195,14 @@ public abstract class AbstractModelTrapContext extends AbstractModelContext {
          }
       }
 
+      cond = table.getRankingConditionList().getConditionList();
+
+      for(int i = 0; i < cond.getSize(); i++) {
+         if(cond.isConditionItem(i)) {
+            addAttributes(helper, refs, cond.getAttribute(i));
+         }
+      }
+
       agg = agg || table.isAggregate();
 
       if(agg) {
