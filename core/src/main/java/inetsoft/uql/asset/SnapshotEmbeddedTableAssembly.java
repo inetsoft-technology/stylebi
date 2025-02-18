@@ -340,17 +340,6 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
                .anyMatch(p -> getLastModified(p, Long.MAX_VALUE) > dataTS);
          }
 
-         XTableFragment[] stables = stable.getTables();
-
-         //Temporary code for Test case, rewrite the snapshot with current version logic.
-         if("true".equals(SreeEnv.getProperty("try.parse.old.version.snapshot")) && stables != null
-            && Arrays.stream(stables).anyMatch(t -> t != null && t.isOldVersionSnapWrapFile()))
-         {
-            if(swapOldVersionSnapshotTables()) {
-               fileDirty = true;
-            }
-         }
-
          if(dataPaths == null || fileDirty) {
             writeDataFiles(stable);
          }
@@ -470,12 +459,6 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
 
          for(int i = 0; i < dataPaths.length; i++) {
             dataPaths[i] = tprefix + prefixes[i];
-
-            if(tables != null && i < tables.length && tables[i].isOldVersionSnapWrapFile()) {
-               if(tables[i].isParseWithKryo4()) {
-                  dataPathsLoadVersion.put(dataPaths[i], "13.0");
-               }
-            }
          }
 
          if(files.size() != prefixes.length) {
@@ -893,20 +876,6 @@ public class SnapshotEmbeddedTableAssembly extends EmbeddedTableAssembly
       }
 
       XTableFragment table = new XTableFragment(columns, false);
-
-      try {
-         if(versionMap != null) {
-            String loadVersion = versionMap.get(path);
-
-            if(!Tool.isEmptyString(loadVersion)) {
-               if(Float.parseFloat(loadVersion) <= 13.8F) {
-                  table.setParseWithKryo4("true".equals(SreeEnv.getProperty("try.parse.old.version.snapshot")));
-               }
-            }
-         }
-      }
-      catch(Exception ignore) {
-      }
 
       table.setSnapshotPath(path);
 
