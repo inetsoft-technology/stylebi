@@ -690,7 +690,7 @@ public class RepletEngine extends AbstractAssetEngine
          throw new RemoteException("Failed to reset repository folder", ex);
       }
 
-      String orgId = user != null ? ((XPrincipal) user).getOrgId() : null;
+      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       if(SUtil.isDefaultVSGloballyVisible(user) && isDefaultOrgAsset) {
          orgId = Organization.getDefaultOrganizationID();
