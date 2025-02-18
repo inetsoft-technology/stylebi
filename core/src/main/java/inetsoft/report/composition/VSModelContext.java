@@ -293,6 +293,7 @@ public class VSModelContext extends AbstractModelContext {
       TableAssembly table = (TableAssembly) ws.getAssembly(tname);
       ColumnSelection selection = table == null ? new ColumnSelection() :
          table.getColumnSelection(true).clone();
+      boolean found = false;
 
       for(int i = 0; i < selection.getAttributeCount(); i++) {
          DataRef ref = selection.getAttribute(i);
@@ -300,9 +301,17 @@ public class VSModelContext extends AbstractModelContext {
          if(Tool.equals(ref.getAttribute(), measureValue)) {
             addAttributes(all, ref);
             AggregateRef agg = new AggregateRef(ref,
-               AggregateFormula.getFormula(formula));
+                                                AggregateFormula.getFormula(formula));
             addAttributes(aggs, agg);
+            found = true;
          }
+      }
+
+      if(!found && vs.getCalcField(tname, measureValue) != null) {
+         CalculateRef calc = vs.getCalcField(tname, measureValue);
+         addAttributes(all, calc);
+         AggregateRef agg = new AggregateRef(calc, AggregateFormula.getFormula(formula));
+         addAttributes(aggs, agg);
       }
    }
 
