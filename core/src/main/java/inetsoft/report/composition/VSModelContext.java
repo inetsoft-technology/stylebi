@@ -300,8 +300,7 @@ public class VSModelContext extends AbstractModelContext {
 
          if(Tool.equals(ref.getAttribute(), measureValue)) {
             addAttributes(all, ref);
-            AggregateRef agg = new AggregateRef(ref,
-                                                AggregateFormula.getFormula(formula));
+            AggregateRef agg = new AggregateRef(ref, AggregateFormula.getFormula(formula));
             addAttributes(aggs, agg);
             found = true;
          }
