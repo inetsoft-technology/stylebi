@@ -63,33 +63,34 @@ public class ShareController {
     * @return the configuration
     */
    @GetMapping("/api/share/config")
-   @SwitchOrg
    public ShareConfig getConfig(@OrganizationID String orgId, Principal user) {
-      boolean emailEnabled = "true".equals(SreeEnv.getProperty("share.email.enabled")) &&
-         checkPermission("email", user);
-      boolean facebookEnabled = "true".equals(SreeEnv.getProperty("share.facebook.enabled")) &&
-         checkPermission("facebook", user);
-      boolean googleChatEnabled = "true".equals(SreeEnv.getProperty("share.googlechat.enabled")) &&
-         StringUtils.hasText("share.googlechat.url") && checkPermission("googlechat", user);
-      boolean linkedinEnabled = "true".equals(SreeEnv.getProperty("share.linkedin.enabled")) &&
-         checkPermission("linkedin", user);
-      boolean slackEnabled = "true".equals(SreeEnv.getProperty("share.slack.enabled")) &&
-         StringUtils.hasText(SreeEnv.getProperty("share.slack.url")) &&
-         checkPermission("slack", user);
-      boolean twitterEnabled = "true".equals(SreeEnv.getProperty("share.twitter.enabled")) &&
-         checkPermission("twitter", user);
-      boolean linkEnabled = "true".equals(SreeEnv.getProperty("share.link.enabled")) &&
-         checkPermission("link", user);
+      return OrganizationManager.runInOrgScope(orgId, () -> {
+         boolean emailEnabled = "true".equals(SreeEnv.getProperty("share.email.enabled")) &&
+            checkPermission("email", user);
+         boolean facebookEnabled = "true".equals(SreeEnv.getProperty("share.facebook.enabled")) &&
+            checkPermission("facebook", user);
+         boolean googleChatEnabled = "true".equals(SreeEnv.getProperty("share.googlechat.enabled")) &&
+            StringUtils.hasText("share.googlechat.url") && checkPermission("googlechat", user);
+         boolean linkedinEnabled = "true".equals(SreeEnv.getProperty("share.linkedin.enabled")) &&
+            checkPermission("linkedin", user);
+         boolean slackEnabled = "true".equals(SreeEnv.getProperty("share.slack.enabled")) &&
+            StringUtils.hasText(SreeEnv.getProperty("share.slack.url")) &&
+            checkPermission("slack", user);
+         boolean twitterEnabled = "true".equals(SreeEnv.getProperty("share.twitter.enabled")) &&
+            checkPermission("twitter", user);
+         boolean linkEnabled = "true".equals(SreeEnv.getProperty("share.link.enabled")) &&
+            checkPermission("link", user);
 
-      return ShareConfig.builder()
-         .emailEnabled(emailEnabled)
-         .facebookEnabled(facebookEnabled)
-         .googleChatEnabled(googleChatEnabled)
-         .linkedinEnabled(linkedinEnabled)
-         .slackEnabled(slackEnabled)
-         .twitterEnabled(twitterEnabled)
-         .linkEnabled(linkEnabled)
-         .build();
+         return ShareConfig.builder()
+            .emailEnabled(emailEnabled)
+            .facebookEnabled(facebookEnabled)
+            .googleChatEnabled(googleChatEnabled)
+            .linkedinEnabled(linkedinEnabled)
+            .slackEnabled(slackEnabled)
+            .twitterEnabled(twitterEnabled)
+            .linkEnabled(linkEnabled)
+            .build();
+      });
    }
 
    @GetMapping("/api/share/email")
