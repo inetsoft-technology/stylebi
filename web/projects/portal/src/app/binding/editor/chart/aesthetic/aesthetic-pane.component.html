@@ -79,7 +79,7 @@
        <div class="unhighlightable aesthetic-row-label">_#(Color)</div>
        <color-field-mc class="fill-width" [bindingModel]="bindingModel"
                        targetField="nodeColorField" targetFrame="nodeColorFrame"
-                       [vsId]="vsId" [assemblyName]="assemblyName"
+                       [vsId]="vsId" [assemblyName]="assemblyName" [assetId]="assetId"
                        [objectType]="objectType" [grayedOutValues]="grayedOutValues">
        </color-field-mc>
      </div>
@@ -87,7 +87,7 @@
        <div class="unhighlightable aesthetic-row-label">_#(Size)</div>
        <size-field-mc class="fill-width" [bindingModel]="bindingModel"
                       targetField="nodeSizeField" targetFrame="nodeSizeFrame"
-                      [vsId]="vsId" [assemblyName]="assemblyName"
+                      [vsId]="vsId" [assemblyName]="assemblyName" [assetId]="assetId"
                       [objectType]="objectType" [grayedOutValues]="grayedOutValues">
        </size-field-mc>
      </div>
@@ -95,7 +95,7 @@
        <div class="unhighlightable aesthetic-row-label">_#(Text)</div>
        <text-field-mc class="fill-width" [bindingModel]="bindingModel" [aggr]="currAggregate"
                       [assemblyName]="assemblyName" [objectType]="objectType"
-                      [grayedOutValues]="grayedOutValues"
+                      [grayedOutValues]="grayedOutValues" [assetId]="assetId"
                       [chartModel]="chartModel" (onUpdateData)="updateData($event)">
        </text-field-mc>
      </div>
