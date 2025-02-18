@@ -395,7 +395,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       Set<PermissionIdentity> filteredGrants = new HashSet<>();
 
       for(PermissionIdentity grant : grants) {
-         if(currentOrgID.equals(grant.organizationID)) {
+         if(currentOrgID.equals(grant.organizationID) || identityType != Identity.USER) {
             filteredGrants.add(grant);
          }
       }
