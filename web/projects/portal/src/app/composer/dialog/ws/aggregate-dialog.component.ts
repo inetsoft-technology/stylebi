@@ -211,7 +211,9 @@ export class AggregateDialog implements OnInit {
 
       for(const grayField of grayedFields) {
          const matchedColumn =
-            this.model.columns.find((column) => ColumnRef.equal(grayField, column));
+            this.model.columns.find((column) => ColumnRef.equal(grayField, column) ||
+               column.alias != null && column.attribute == grayField.attribute &&
+               column.entity == grayField.entity);
 
          if(matchedColumn != null) {
             updatedTrapFields.push(matchedColumn);
