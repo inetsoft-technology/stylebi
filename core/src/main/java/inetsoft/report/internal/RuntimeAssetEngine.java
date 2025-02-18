@@ -455,6 +455,11 @@ public class RuntimeAssetEngine implements AssetRepository {
       return getRepository().getVSBookmark(entry, user);
    }
 
+   @Override
+   public VSBookmark getVSBookmark(AssetEntry entry, Principal user, boolean ignoreCache) throws Exception {
+      return getRepository().getVSBookmark(entry, user, ignoreCache);
+   }
+
    /**
     * Set the viewsheet bookmark.
     * @param entry the entry of the specified viewsheet.

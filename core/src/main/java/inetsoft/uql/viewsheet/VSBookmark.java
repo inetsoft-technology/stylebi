@@ -445,6 +445,10 @@ public class VSBookmark implements XMLSerializable {
              ", " + bookmark + ", " + bmap + ", " + bookmarksInfo + "]";
    }
 
+   public static String getLockKey(String identifier, String bookmarkOwner) {
+      return "VSBookmarkKey_" + identifier + "_" + bookmarkOwner;
+   }
+
    public class DefaultBookmark {
       public DefaultBookmark(String name, IdentityID owner) {
          this.name = name;

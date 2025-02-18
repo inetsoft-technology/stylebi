@@ -23,6 +23,7 @@ import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.XPrincipal;
@@ -854,41 +855,50 @@ public class RuntimeViewsheet extends RuntimeSheet {
          updateVSBookmark();
       }
 
-      VSBookmark bookmark = getUserBookmark(user);
+      String lockKey = VSBookmark.getLockKey(entry.toIdentifier(), user.convertToKey());
+      Cluster cluster = Cluster.getInstance();
+      cluster.lockKey(lockKey);
 
-      if(bookmark == null) {
-         return;
-      }
+      try {
+         VSBookmark bookmark = rep.getVSBookmark(entry, new XPrincipal(user), true);
 
-      if(VSBookmark.HOME_BOOKMARK.equals(name)) {
-         ibookmark = new VSBookmark();
-         ibookmark.addBookmark(VSBookmark.INITIAL_STATE, vs,
-            VSBookmarkInfo.PRIVATE, false, true);
-      }
+         if(bookmark == null) {
+            return;
+         }
 
-      // @by davidd 2012-12-28, When adding bookmarks commit the adhoc filters.
-      // Macquarie use-case initiates add bookmark from our API.
-      if(vs.hasAdhocFilters()) {
-         Viewsheet vsClone = (Viewsheet) vs.clone();
-         // Copy the RVS to not disturb the active adhoc filters
-         RuntimeViewsheet rvsClone = new RuntimeViewsheet(entry, vsClone,
-            this.user, rep, engine, bookmarksMap, false);
-         VSEventUtil.changeAdhocFilterStatus(rvsClone, new AssetCommand());
-         vsClone = rvsClone.getViewsheet();
-         bookmark.addBookmark(name, vsClone, type, readOnly, true);
+         if(VSBookmark.HOME_BOOKMARK.equals(name)) {
+            ibookmark = new VSBookmark();
+            ibookmark.addBookmark(VSBookmark.INITIAL_STATE, vs,
+                                  VSBookmarkInfo.PRIVATE, false, true);
+         }
+
+         // @by davidd 2012-12-28, When adding bookmarks commit the adhoc filters.
+         // Macquarie use-case initiates add bookmark from our API.
+         if(vs.hasAdhocFilters()) {
+            Viewsheet vsClone = (Viewsheet) vs.clone();
+            // Copy the RVS to not disturb the active adhoc filters
+            RuntimeViewsheet rvsClone = new RuntimeViewsheet(entry, vsClone,
+                                                             this.user, rep, engine, bookmarksMap, false);
+            VSEventUtil.changeAdhocFilterStatus(rvsClone, new AssetCommand());
+            vsClone = rvsClone.getViewsheet();
+            bookmark.addBookmark(name, vsClone, type, readOnly, true);
+         }
+         else {
+            bookmark.addBookmark(name, vs, type, readOnly, true);
+         }
+
          // update this RVS with the new bookmark
          bookmarksMap.put(user.convertToKey(), bookmark);
+         AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
+         rep.setVSBookmark(entry, bookmark, new XPrincipal(user));
+         setOpenedBookmark(bookmark.getBookmarkInfo(name));
+         // clear the old bookmark lock first
+         clearLock();
+         lockBookmark(name, user);
       }
-      else {
-         bookmark.addBookmark(name, vs, type, readOnly, true);
+      finally {
+         cluster.unlockKey(lockKey);
       }
-
-      AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
-      rep.setVSBookmark(entry, bookmark, new XPrincipal(user));
-      setOpenedBookmark(bookmark.getBookmarkInfo(name));
-      // clear the old bookmark lock first
-      clearLock();
-      lockBookmark(name, user);
    }
 
    /**
@@ -936,28 +946,37 @@ public class RuntimeViewsheet extends RuntimeSheet {
       throws Exception
    {
       updateVSBookmark();
-      VSBookmark bookmark = getUserBookmark(user);
+      String lockKey = VSBookmark.getLockKey(entry.toIdentifier(), user.convertToKey());
+      Cluster cluster = Cluster.getInstance();
+      cluster.lockKey(lockKey);
 
-      if(bookmark == null) {
-         return;
-      }
+      try {
+         VSBookmark bookmark = rep.getVSBookmark(entry, new XPrincipal(user), true);
 
-      if(checkLock) {
-         String lockedUser = getLockedBookmarkUser(name, user);
-
-         if(lockedUser != null) {
-            Catalog catalog = Catalog.getCatalog();
-            throw new MessageException(
-               catalog.getString("viewer.viewsheet.bookmark.otherUserLock",
-               name, lockedUser));
+         if(bookmark == null) {
+            return;
          }
-      }
 
-      bookmark.removeBookmark(name);
-      AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
-      rep.setVSBookmark(entry, bookmark, new XPrincipal(user));
-      // delete the all locks of this bookmark
-      unLockBookmark(name, user);
+         if(checkLock) {
+            String lockedUser = getLockedBookmarkUser(name, user);
+
+            if(lockedUser != null) {
+               Catalog catalog = Catalog.getCatalog();
+               throw new MessageException(
+                  catalog.getString("viewer.viewsheet.bookmark.otherUserLock",
+                                    name, lockedUser));
+            }
+         }
+
+         bookmark.removeBookmark(name);
+         AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
+         rep.setVSBookmark(entry, bookmark, new XPrincipal(user));
+         // delete the all locks of this bookmark
+         unLockBookmark(name, user);
+      }
+      finally {
+         cluster.unlockKey(lockKey);
+      }
    }
 
    /**
@@ -983,49 +1002,58 @@ public class RuntimeViewsheet extends RuntimeSheet {
            throws Exception
    {
       updateVSBookmark();
-      VSBookmark bookmark = getUserBookmark(user);
+      String lockKey = VSBookmark.getLockKey(entry.toIdentifier(), user.convertToKey());
+      Cluster cluster = Cluster.getInstance();
+      cluster.lockKey(lockKey);
 
-      if(bookmark == null) {
-         return;
-      }
+      try {
+         VSBookmark bookmark = rep.getVSBookmark(entry, new XPrincipal(user), true);
 
-      Map<String, String> lockedBKMap = new HashMap<>();
-
-      for(String name : names) {
-         if(checkLock) {
-            String lockedUser = getLockedBookmarkUser(name, user);
-
-            if(lockedUser != null) {
-               lockedBKMap.put(name, lockedUser);
-               continue;
-            }
+         if(bookmark == null) {
+            return;
          }
 
-         VSBookmarkInfo bookmarkInfo = getBookmarkInfo(name, user);
-         bookmark.removeBookmark(name);
-         AuditRecordUtils.executeBookmarkRecord(
-            getViewsheet(), bookmarkInfo, BookmarkRecord.ACTION_TYPE_DELETE);
+         Map<String, String> lockedBKMap = new HashMap<>();
+
+         for(String name : names) {
+            if(checkLock) {
+               String lockedUser = getLockedBookmarkUser(name, user);
+
+               if(lockedUser != null) {
+                  lockedBKMap.put(name, lockedUser);
+                  continue;
+               }
+            }
+
+            VSBookmarkInfo bookmarkInfo = getBookmarkInfo(name, user);
+            bookmark.removeBookmark(name);
+            AuditRecordUtils.executeBookmarkRecord(
+               getViewsheet(), bookmarkInfo, BookmarkRecord.ACTION_TYPE_DELETE);
+         }
+
+         AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
+         rep.setVSBookmark(entry, bookmark, new XPrincipal(user));
+
+         if(!lockedBKMap.isEmpty()) {
+            Catalog catalog = Catalog.getCatalog();
+            StringBuilder message = new StringBuilder();
+
+            lockedBKMap.forEach((bkName, lockedUser) -> {
+               String msg = catalog.getString(
+                  "viewer.viewsheet.bookmark.otherUserLock", bkName, lockedUser);
+               message.append(msg).append("\n");
+            });
+
+            throw new MessageException(message.toString());
+         }
+
+         for(String name : names) {
+            // delete the all locks of this bookmark
+            unLockBookmark(name, user);
+         }
       }
-
-      AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
-      rep.setVSBookmark(entry, bookmark, new XPrincipal(user));
-
-      if(!lockedBKMap.isEmpty()) {
-         Catalog catalog = Catalog.getCatalog();
-         StringBuilder message = new StringBuilder();
-
-         lockedBKMap.forEach((bkName, lockedUser) -> {
-            String msg = catalog.getString(
-               "viewer.viewsheet.bookmark.otherUserLock", bkName, lockedUser);
-            message.append(msg).append("\n");
-         });
-
-         throw new MessageException(message.toString());
-      }
-
-      for(String name : names) {
-         // delete the all locks of this bookmark
-         unLockBookmark(name, user);
+      finally {
+         cluster.unlockKey(lockKey);
       }
    }
 
@@ -1038,24 +1066,44 @@ public class RuntimeViewsheet extends RuntimeSheet {
    public void editBookmark(String nname, String oname, int type,
       boolean readOnly) throws Exception
    {
-      VSBookmark bookmark = getUserBookmark(user);
+      String userName = user == null ? null : user.getName();
+      String lockKey = VSBookmark.getLockKey(entry.toIdentifier(), userName);
+      Cluster cluster = Cluster.getInstance();
+      cluster.lockKey(lockKey);
+      VSBookmark bookmark;
 
-      if(bookmark == null) {
-         return;
-      }
+      try {
+         bookmark = rep.getVSBookmark(entry, user, true);
 
-      bookmark.editBookmark(nname, oname, type, readOnly);
-
-      if(bookmark.getDefaultBookmark() != null) {
-         VSBookmark.DefaultBookmark dbookmark = bookmark.getDefaultBookmark();
-
-         if(oname.equals(dbookmark.getName())) {
-            dbookmark.setName(nname);
+         if(bookmark == null) {
+            return;
          }
+
+         bookmark.editBookmark(nname, oname, type, readOnly);
+
+         if(bookmark.getDefaultBookmark() != null) {
+            VSBookmark.DefaultBookmark dbookmark = bookmark.getDefaultBookmark();
+
+            if(oname.equals(dbookmark.getName())) {
+               dbookmark.setName(nname);
+            }
+         }
+
+         // reset opened bookmark
+         VSBookmarkInfo openedBookmark = getOpenedBookmark();
+
+         if(openedBookmark != null && oname.equals(openedBookmark.getName())) {
+            setOpenedBookmark(bookmark.getBookmarkInfo(nname));
+         }
+
+         AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
+         rep.setVSBookmark(entry, bookmark, user);
+         bookmarksMap.put(userName, bookmark);
+      }
+      finally {
+         cluster.unlockKey(lockKey);
       }
 
-      AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
-      rep.setVSBookmark(entry, bookmark, user);
       AssetEntry vsEntry = getEntry();
 
       if(vsEntry != null) {
@@ -1437,15 +1485,24 @@ public class RuntimeViewsheet extends RuntimeSheet {
     */
    public void setDefaultBookmark(DefaultBookmark defBookmark) throws Exception
    {
-      VSBookmark bookmark = getUserBookmark(user);
+      String userName = user == null ? null : user.getName();
+      String lockKey = VSBookmark.getLockKey(entry.toIdentifier(), userName);
+      Cluster cluster = Cluster.getInstance();
+      cluster.lockKey(lockKey);
 
-      if(bookmark == null) {
-         return;
+      try {
+         VSBookmark bookmark = rep.getVSBookmark(entry, user, true);
+         if(bookmark == null) {
+            return;
+         }
+
+         bookmark.setDefaultBookmark(defBookmark);
+         AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
+         rep.setVSBookmark(entry, bookmark, user);
       }
-
-      bookmark.setDefaultBookmark(defBookmark);
-      AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
-      rep.setVSBookmark(entry, bookmark, user);
+      finally {
+         cluster.unlockKey(lockKey);
+      }
    }
 
    /**

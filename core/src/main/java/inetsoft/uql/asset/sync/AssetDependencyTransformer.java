@@ -20,6 +20,7 @@ package inetsoft.uql.asset.sync;
 import inetsoft.report.CellBinding;
 import inetsoft.report.XSessionManager;
 import inetsoft.report.composition.execution.AssetDataCache;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.sree.store.port.TransformerUtil;
 import inetsoft.uql.XPrincipal;
@@ -426,18 +427,27 @@ public class AssetDependencyTransformer extends DependencyTransformer {
 
             if(users != null) {
                for(IdentityID user : users) {
-                  VSBookmark vsBookmark = repository.getVSBookmark(asset, new XPrincipal(user));
-                  String[] bookMarkNames = vsBookmark.getBookmarks();
+                  String lockKey = VSBookmark.getLockKey(asset.toIdentifier(), user.convertToKey());
+                  Cluster cluster = Cluster.getInstance();
+                  cluster.lockKey(lockKey);
 
-                  if(bookMarkNames == null || bookMarkNames.length == 0) {
-                     continue;
+                  try {
+                     VSBookmark vsBookmark = repository.getVSBookmark(asset, new XPrincipal(user), true);
+                     String[] bookMarkNames = vsBookmark.getBookmarks();
+
+                     if(bookMarkNames == null || bookMarkNames.length == 0) {
+                        continue;
+                     }
+
+                     for(String bookMarkName : bookMarkNames) {
+                        renameBookMark(vsBookmark, bookMarkName, info);
+                     }
+
+                     repository.setVSBookmark(asset, vsBookmark, new XPrincipal(user));
                   }
-
-                  for(String bookMarkName : bookMarkNames) {
-                     renameBookMark(vsBookmark, bookMarkName, info);
+                  finally {
+                     cluster.unlockKey(lockKey);
                   }
-
-                  repository.setVSBookmark(asset, vsBookmark, new XPrincipal(user));
                }
             }
          }

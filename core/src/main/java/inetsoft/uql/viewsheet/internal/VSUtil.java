@@ -42,6 +42,7 @@ import inetsoft.report.script.ReportJavaScriptEngine;
 import inetsoft.report.style.TableStyle;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -80,6 +81,7 @@ import java.lang.reflect.Array;
 import java.security.Principal;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -6855,24 +6857,52 @@ public final class VSUtil {
       vs = bookmark.getBookmark(bookmarkName, vs);
       AuditRecordUtils.executeBookmarkRecord(
          vs, bookmark.getBookmarkInfo(bookmarkName), BookmarkRecord.ACTION_TYPE_ACCESS);
+      VSBookmarkInfo bookmarkInfo = bookmark.getBookmarkInfo(bookmarkName);
 
-      try {
-         VSBookmarkInfo bookmarkInfo = bookmark.getBookmarkInfo(bookmarkName);
-
-         if(!VSBookmark.HOME_BOOKMARK.equals(bookmarkName) && !VSBookmark.INITIAL_STATE.equals(bookmarkName) &&
-            bookmarkInfo != null && rep != null)
-         {
-            bookmarkInfo.setLastAccessed(System.currentTimeMillis());
-            AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
-            rep.setVSBookmark(entry, bookmark, new XPrincipal(bookmark.getUser()));
-         }
-      }
-      catch(Exception e) {
-         LOG.error("Failed to update the " + bookmark.getUser() + " user bookmark last accessed time for "
-                 + vs.getAbsoluteName(), e);
+      if(!VSBookmark.HOME_BOOKMARK.equals(bookmarkName) && !VSBookmark.INITIAL_STATE.equals(bookmarkName) &&
+         bookmarkInfo != null && rep != null)
+      {
+         String debounceKey = VSBookmark.getLockKey(bookmark.getIdentifier(), bookmarkInfo.getOwner().convertToKey())
+            + "_" + bookmarkName;
+         getDebouncer().debounce(debounceKey, 2L, TimeUnit.SECONDS, () -> {
+            updateBookmarkLastAccessedTime(bookmark.getIdentifier(), bookmarkName,
+                                           bookmarkInfo.getOwner(), rep);
+         });
       }
 
       return vs;
+   }
+
+   private static void updateBookmarkLastAccessedTime(String identifier, String bookmarkName,
+                                                      IdentityID bookmarkOwner, AssetRepository rep)
+   {
+      String key = VSBookmark.getLockKey(identifier, bookmarkOwner.convertToKey());
+      Cluster.getInstance().lockKey(key);
+
+      try {
+         AssetEntry entry = AssetEntry.createAssetEntry(identifier);
+         XPrincipal principal = new XPrincipal(bookmarkOwner);
+         VSBookmark bookmark = rep.getVSBookmark(entry, principal, true);
+         VSBookmarkInfo bookmarkInfo = bookmark.getBookmarkInfo(bookmarkName);
+
+         if(bookmarkInfo != null) {
+            bookmarkInfo.setLastAccessed(System.currentTimeMillis());
+         }
+
+         rep.setVSBookmark(entry, bookmark, principal);
+      }
+      catch(Exception ex) {
+         LOG.error("Failed to update the " + bookmarkOwner + " user bookmark last accessed time for "
+                      + identifier, ex);
+      }
+      finally {
+         Cluster.getInstance().unlockKey(key);
+      }
+   }
+
+   public static Debouncer<String> getDebouncer() {
+      return ConfigurationContext.getContext()
+         .computeIfAbsent(DEBOUNCER_KEY, k -> new DefaultDebouncer<>(false));
    }
 
    /**
@@ -8602,6 +8632,7 @@ public final class VSUtil {
    private static DataCache<String, Set<AssemblyRef>> scriptDeps = new DataCache<>(1000, 5000);
    private static final Pattern CONTAINS_VARIABLE_PATTERN = Pattern.compile("([\\s\\S]+)(\\$\\([\\s\\S]*?\\))([\\s\\S]*)");
    public static final ThreadLocal<Boolean> OPEN_VIEWSHEET = ThreadLocal.withInitial(() -> Boolean.FALSE);
+   private static final String DEBOUNCER_KEY = "VSUtil.debouncer";
 
    private static final Logger LOG = LoggerFactory.getLogger(VSUtil.class);
 }

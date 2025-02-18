@@ -4203,6 +4203,16 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
    public VSBookmark getVSBookmark(AssetEntry entry, Principal user)
       throws Exception
    {
+      return getVSBookmark(entry, user, false);
+   }
+
+   /**
+    * {@inheritDoc}
+    */
+   @Override
+   public VSBookmark getVSBookmark(AssetEntry entry, Principal user, boolean ignoreCache)
+      throws Exception
+   {
       IdentityID pId = IdentityID.getIdentityIDFromKey(user.getName());
       AssetEntry bentry = getVSBookmarkEntry(entry, user == null ? null : IdentityID.getIdentityIDFromKey(user.getName()));
 
@@ -4215,7 +4225,7 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
       }
 
       String bidentifier = bentry.toIdentifier();
-      VSBookmark bookmark = bookmarkmap.get(bidentifier);
+      VSBookmark bookmark = ignoreCache ? null : bookmarkmap.get(bidentifier);
 
       if(bookmark == null) {
          try {
@@ -4475,8 +4485,18 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return;
       }
 
-      VSBookmark book1 = getVSBookmark(entry1, user);
-      setVSBookmark(entry2, book1, user);
+      String userName = user == null ? null : user.getName();
+      String lockKey = VSBookmark.getLockKey(entry2.toIdentifier(), userName);
+      Cluster cluster = Cluster.getInstance();
+      cluster.lockKey(lockKey);
+
+      try {
+         VSBookmark book1 = getVSBookmark(entry1, user, true);
+         setVSBookmark(entry2, book1, user);
+      }
+      finally {
+         cluster.unlockKey(lockKey);
+      }
    }
 
    /**

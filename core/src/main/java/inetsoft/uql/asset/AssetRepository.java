@@ -389,6 +389,16 @@ public interface AssetRepository {
       throws Exception;
 
    /**
+    * Get the viewsheet bookmark.
+    * @param entry the entry of the specified viewsheet.
+    * @param user the specified user.
+    * @param ignoreCache whether to ignore the cache entry and load directly from the storage
+    * @return the viewsheet bookmark if any, <tt>null<tt> not found.
+    */
+   VSBookmark getVSBookmark(AssetEntry entry, Principal user, boolean ignoreCache)
+      throws Exception;
+
+   /**
     * Set the viewsheet bookmark.
     * @param entry the entry of the specified viewsheet.
     * @param bookmark the specified viewsheet bookmark.
