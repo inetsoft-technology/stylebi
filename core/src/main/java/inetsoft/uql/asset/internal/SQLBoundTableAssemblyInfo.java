@@ -107,7 +107,8 @@ public class SQLBoundTableAssemblyInfo extends BoundTableAssemblyInfo {
       if(node != null) {
          String name = Tool.getAttribute(node, "name");
          XRepository repository = XFactory.getRepository();
-         JDBCDataSource dataSource = (JDBCDataSource) repository.getDataSource(name);
+         JDBCDataSource dataSource = (JDBCDataSource) repository.getDataSource(name,
+            query.getOrganizationId());
          query.setDataSource(dataSource);
          UniformSQL sql = (UniformSQL) query.getSQLDefinition();
 

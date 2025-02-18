@@ -218,8 +218,8 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
                uvar.getValueNode().getValue() == null && ouvar.getValueNode() != null ||
                "".equals(uvar.getValueNode().getValue()) ||
                (ouvar.getValueNode() != null &&
-                ouvar.getValueNode().getValue() != null &&
-                !(uvar.getValueNode().getValue().equals(ouvar.getValueNode().getValue()))))
+                  ouvar.getValueNode().getValue() != null &&
+                  !(uvar.getValueNode().getValue().equals(ouvar.getValueNode().getValue()))))
             {
                nmap.put(varName, ovar);
             }
@@ -464,6 +464,12 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
          setName(Tool.getValue(nlist.item(0)));
       }
 
+      nlist = Tool.getChildNodesByTagName(root, "orgId");
+
+      if(nlist.getLength() > 0) {
+         setOrganizationId(Tool.getValue(nlist.item(0)));
+      }
+
       nlist = Tool.getChildNodesByTagName(root, "folder");
 
       if(nlist.getLength() > 0) {
@@ -480,7 +486,7 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
             this.datasourceFullName = datasourceName;
          }
 
-         XDataSource xds = registry.getDataSource(datasourceName);
+         XDataSource xds = registry.getDataSource(datasourceName, orgId);
          setDataSource(xds != null ? xds : getDataSource());
       }
 
@@ -609,6 +615,10 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
 
       if(dataSourceName != null) {
          writer.println("<datasource><![CDATA[" + dataSourceName + "]]></datasource>");
+      }
+
+      if(orgId != null) {
+         writer.println("<orgId><![CDATA[" + orgId + "]]></orgId>");
       }
 
       if(partition != null) {
@@ -843,6 +853,7 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
       try {
          XQuery nquery = (XQuery) super.clone();
          nquery.datasource = datasource == null ? null : (XDataSource) datasource.clone();
+         nquery.orgId = orgId;
          nquery.varmap = new ConcurrentHashMap<>(varmap);
          nquery.propmap = (HashMap<String, Object>) propmap.clone();
          nquery.dependencies = new HashSet<>(dependencies);
@@ -875,6 +886,14 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
       return super.equals(obj);
    }
 
+   public void setOrganizationId(String orgId) {
+      this.orgId = orgId;
+   }
+
+   public String getOrganizationId() {
+      return this.orgId;
+   }
+
    /**
     * Get the string representation.
     */
@@ -900,6 +919,7 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
    private long modified;
    private String createdBy;
    private String modifiedBy;
+   private String orgId;
 
    public static final ThreadLocal<Boolean> REMOTE_PUT = ThreadLocal.withInitial(() -> Boolean.FALSE);
 

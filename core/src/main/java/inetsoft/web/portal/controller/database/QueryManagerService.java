@@ -1091,6 +1091,7 @@ public class QueryManagerService {
       query.setUserQuery(true);
       query.setDataSource(dataSourceService.getDataSource(database));
       query.setSQLDefinition(new UniformSQL());
+      query.setOrganizationId(OrganizationManager.getInstance().getCurrentOrgID());
       return query;
    }
 
