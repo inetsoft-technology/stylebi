@@ -53,7 +53,7 @@ public class InsertColumnsController extends WorksheetController {
       RuntimeWorksheet rws =
          super.getWorksheetEngine().getWorksheet(runtimeId, principal);
 
-      return validateInsertColumns0(rws, event, principal);
+      return validateInsertColumns0(rws, event, principal, null);
    }
 
    @Undoable
