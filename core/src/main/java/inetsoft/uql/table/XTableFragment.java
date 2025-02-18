@@ -169,7 +169,7 @@ public final class XTableFragment extends XSwappable {
          ByteBuffer footer = null;
          files.add(file);
 
-         if(!Files.exists(file) || isOldVersionSnapWrapFile()) {
+         if(!Files.exists(file)) {
             channel = Files.newByteChannel(file, StandardOpenOption.WRITE);
             swapped = false;
             footer = ByteBuffer.allocate(columns.length * 16);
