@@ -285,12 +285,6 @@
 
     <dependency>
       <groupId>com.esotericsoftware</groupId>
-      <artifactId>kryo</artifactId>
-      <scope>compile</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>com.esotericsoftware</groupId>
       <artifactId>kryo5</artifactId>
       <scope>compile</scope>
     </dependency>
