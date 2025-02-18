@@ -123,7 +123,8 @@ public class WorksheetController {
    protected WSInsertColumnsEventValidator validateInsertColumns0(
       RuntimeWorksheet rws,
       WSInsertColumnsEvent event,
-      Principal principal) throws Exception
+      Principal principal,
+      ColumnRef replaceRef) throws Exception
    {
       WSInsertColumnsEventValidator.Builder builder = WSInsertColumnsEventValidator.builder();
 
@@ -161,6 +162,10 @@ public class WorksheetController {
          }
          else {
             index = 0;
+         }
+
+         if(replaceRef != null) {
+            columns.removeAttribute(replaceRef);
          }
 
          for(AssetEntry entry : event.entries()) {

@@ -92,7 +92,8 @@ public class ReplaceColumnsController extends WorksheetController {
                  .name(event.tableName())
                  .build();
 
-         WSInsertColumnsEventValidator validator = validateInsertColumns0(rws, insertEvent, principal);
+         WSInsertColumnsEventValidator validator =
+            validateInsertColumns0(rws, insertEvent, principal, column);
 
          builder.trap(validator.trap());
       }
