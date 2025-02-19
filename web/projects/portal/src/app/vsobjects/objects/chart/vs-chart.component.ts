@@ -1034,6 +1034,11 @@ export class VSChart extends AbstractVSObject<VSChartModel>
          this.model.clearCanvasSubject.next(null);
       }
 
+      // Check if chart has no axes
+      if(command.axes.every(axis => axis.tiles.length == 0)) {
+         this.chartArea.axisLoaded(true);
+      }
+
       this.checkNoData();
       this.resetShowEmptyAreaStatus();
       this.modelTS = (new Date()).getTime();
