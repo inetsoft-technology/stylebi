@@ -187,10 +187,14 @@ public class PresentationSettingsController {
    public PresentationSettingsModel resetSettings(@RequestBody() PresentationSettingsModel model,
                                                   Principal principal) throws Exception
    {
-      IdentityID pId = IdentityID.getIdentityIDFromKey(principal.getName());
-      boolean securityEnabled = !SecurityEngine.getSecurity().getSecurityProvider().isVirtual();
+      SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
+      boolean securityEnabled = !provider.isVirtual();
       boolean globalSettings = OrganizationManager.getInstance().isSiteAdmin(principal) &&
-         (model.orgSettings() != null && !model.orgSettings()) || !securityEnabled;
+            (model.orgSettings() != null && !model.orgSettings()) || !securityEnabled;
+
+      if(!globalSettings && securityEnabled && !SUtil.isMultiTenant()) {
+         globalSettings = provider.checkPermission(principal,  ResourceType.EM, "*", ResourceAction.ACCESS);
+      }
 
       formatsSettingsService.resetSettings(globalSettings);
       lookAndFeelService.resetSettings(globalSettings);
