@@ -71,8 +71,7 @@ public class OrganizationManager {
       String orgID;
 
       if(principal != null) {
-         orgID = xPrincipal.getProperty("curr_org_id") != null ?
-            xPrincipal.getProperty("curr_org_id") : xPrincipal.getOrgId();
+         orgID = xPrincipal.getCurrentOrgId();
       }
       else {
          // If org ID isn't retrieved properly, users will write to the wrong storages.
@@ -191,8 +190,7 @@ public class OrganizationManager {
       String orgID, providerName;
 
       if(xPrincipal != null) {
-         orgID = xPrincipal.getProperty("curr_org_id") != null ?
-            xPrincipal.getProperty("curr_org_id") : xPrincipal.getOrgId();
+         orgID = xPrincipal.getCurrentOrgId();
          providerName = xPrincipal.getProperty("curr_provider_name");
       }
       else {
