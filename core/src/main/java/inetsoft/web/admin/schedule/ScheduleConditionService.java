@@ -431,7 +431,8 @@ public class ScheduleConditionService {
          else if(XSchema.TIME.equals(type)) {
             SimpleDateFormat formatter =
                new SimpleDateFormat("HH:mm:ss");
-            value = formatter.parse((String) value);
+            Date date = formatter.parse((String) value);
+            value = formatter.format(date);
          }
          else if(XSchema.TIME_INSTANT.equals(type)) {
             String dateTime = (String) value;
