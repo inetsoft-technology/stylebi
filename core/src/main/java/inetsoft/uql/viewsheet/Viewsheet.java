@@ -4294,6 +4294,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       if(wnode != null) {
          wnode = Tool.getFirstChildNode(wnode);
          wentry = AssetEntry.createAssetEntry(wnode);
+         wentry.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
       }
 
       Element vinode = Tool.getChildNodeByTagName(elem, "viewsheetInfo");
