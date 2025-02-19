@@ -140,7 +140,7 @@ public class AuthenticationService {
             }
 
             if(principal != null) {
-               updateLocale(principal, userId, locale);
+               updateLocale(principal, userId, locale, clientLocale);
 
                if(principal instanceof SRPrincipal) {
                   setOlapAuthenticator((SRPrincipal) principal, userId, password);
@@ -453,8 +453,12 @@ public class AuthenticationService {
     * @param userId    the log in name of the user.
     * @param locale    the locale name.
     */
-   private void updateLocale(Principal principal, IdentityID userId, String locale) {
-      String localeName = LocaleService.getInstance().getLocale(locale, userId, principal);
+   public void updateLocale(Principal principal, IdentityID userId, String locale,
+                             Locale clientLocale)
+   {
+      String clientLocaleString = clientLocale != null ? clientLocale.toString() : null;
+      String localeName =
+         LocaleService.getInstance().getLocale(locale, clientLocaleString, userId, principal);
 
       if(principal instanceof SRPrincipal) {
          ((SRPrincipal) principal).setProperty(SRPrincipal.LOCALE, localeName);

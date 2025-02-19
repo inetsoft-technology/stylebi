@@ -68,6 +68,22 @@ public class LocaleService {
     * @return the locale.
     */
    public String getLocale(String localeName, IdentityID userId, Principal principal) {
+      return getLocale(localeName, null, userId, principal);
+   }
+
+   /**
+    * Gets the locale for the user.
+    *
+    * @param localeName the name of the locale.
+    * @param clientLocale user client locale
+    * @param userId     the user name.
+    * @param principal  a principal object identifying the user.
+    *
+    * @return the locale.
+    */
+   public String getLocale(String localeName, String clientLocale, IdentityID userId,
+                           Principal principal)
+   {
       initLocale();
       String locale = null;
 
@@ -89,6 +105,10 @@ public class LocaleService {
               if(userOrg != null && userOrg.getLocale() != null && !"".equals(userOrg.getLocale())) {
                  locale = userOrg.getLocale();
               }
+            }
+
+            if((locale == null || locale.isEmpty()) && clientLocale != null) {
+               locale = localeMap.containsValue(clientLocale) ? clientLocale : locale;
             }
          }
 
