@@ -1351,7 +1351,7 @@ export class ChartArea implements OnInit, OnChanges, OnDestroy {
       this.fireLoading();
    }
 
-   axisLoaded(success: boolean) {
+   public axisLoaded(success: boolean) {
       this.imageError = !success;
       this._axisLoaded = true;
       this.fireLoaded();
