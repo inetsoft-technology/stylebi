@@ -322,6 +322,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          hoff -= 1;
       }
 
+      fixDateDiff(cal1, hour, hoff);
       cal1.set(Calendar.HOUR_OF_DAY, getHour(hour, hoff));
       cal1.set(Calendar.MINUTE, serverZoneMinute);
       cal1.set(Calendar.SECOND, second);
@@ -399,6 +400,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          if(containsIn(days_of_week,  cal1.get(Calendar.DAY_OF_WEEK))) {
             Calendar calEnd = Calendar.getInstance(TimeZone.getDefault());
             calEnd.setTime(new Date(curr));
+            fixDateDiff(calEnd, hour_end, hoff);
             calEnd.set(Calendar.HOUR_OF_DAY, getHour(hour_end, hoff));
             calEnd.set(Calendar.MINUTE, minute_end);
             calEnd.set(Calendar.SECOND, second_end);
@@ -896,6 +898,17 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       }
 
       return hour;
+   }
+
+   private void fixDateDiff(Calendar calendar, int hour, int diff) {
+      hour += diff;
+
+      if(hour >= 24) {
+         calendar.add(Calendar.DAY_OF_MONTH, 1);
+      }
+      else if(hour < 0) {
+         calendar.add(Calendar.DAY_OF_MONTH, -1);
+      }
    }
 
    /**
