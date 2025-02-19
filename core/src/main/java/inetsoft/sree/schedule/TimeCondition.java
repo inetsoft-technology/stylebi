@@ -322,6 +322,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          hoff -= 1;
       }
 
+      fixDateDiff(cal1, hour, hoff);
       cal1.set(Calendar.HOUR_OF_DAY, getHour(hour, hoff));
       cal1.set(Calendar.MINUTE, serverZoneMinute);
       cal1.set(Calendar.SECOND, second);
@@ -332,8 +333,8 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          if(isWeekdayOnly()) {
             // if weekdays, do not run on weekend
             while(cal1.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY ||
-                  cal1.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY ||
-                  cal1.getTimeInMillis() < curr)
+               cal1.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY ||
+               cal1.getTimeInMillis() < curr)
             {
                cal1.add(Calendar.DATE, 1);
             }
@@ -399,6 +400,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          if(containsIn(days_of_week,  cal1.get(Calendar.DAY_OF_WEEK))) {
             Calendar calEnd = Calendar.getInstance(TimeZone.getDefault());
             calEnd.setTime(new Date(curr));
+            fixDateDiff(calEnd, hour_end, hoff);
             calEnd.set(Calendar.HOUR_OF_DAY, getHour(hour_end, hoff));
             calEnd.set(Calendar.MINUTE, minute_end);
             calEnd.set(Calendar.SECOND, second_end);
@@ -499,7 +501,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          cal.set(Calendar.SECOND, second);
          buffer.append(catalog.getString("TimeCondition")).append(": ")
             .append(timeFmt.format(cal.getTime()) +
-               (twelveHourSystem ? cal.get(Calendar.AM_PM) > 0 ? "PM" : "AM" : ""));
+                       (twelveHourSystem ? cal.get(Calendar.AM_PM) > 0 ? "PM" : "AM" : ""));
 
          boolean dst = tz.inDaylightTime(cal.getTime());
          buffer.append("(").append(tz.getDisplayName(dst, TimeZone.LONG)).append(")");
@@ -595,6 +597,17 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       }
 
       return catalog.getString("TimeCondition");
+   }
+
+   public void fixDateDiff(Calendar calendar, int hour, int hoff) {
+      int newHour = hour + hoff;
+
+      if(newHour >= 24) {
+         calendar.add(Calendar.DAY_OF_MONTH, 1);
+      }
+      else if(newHour < 0) {
+         calendar.add(Calendar.DAY_OF_MONTH, -1);
+      }
    }
 
    /**
@@ -831,7 +844,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
     * Set days of week.
     */
    public void setDaysOfWeek(int[] days_of_week) {
-       this.days_of_week = days_of_week;
+      this.days_of_week = days_of_week;
    }
 
    /**
@@ -920,7 +933,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
    @Override
    public void writeXML(PrintWriter writer) {
       writer.print("<Condition type=\"TimeCondition\" timeType=\"" +
-         type + "\"");
+                      type + "\"");
       writeAttributes(writer);
       writer.print(">");
 
@@ -946,7 +959,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       long off = tz.getRawOffset();
 
       return new int[] { (int) ((coff - off) / ONE_HOUR),
-         (int) (((coff - off) % ONE_HOUR) / ONE_MINUTE) };
+                         (int) (((coff - off) % ONE_HOUR) / ONE_MINUTE) };
    }
 
    protected void writeAttributes(PrintWriter writer) {
@@ -1068,7 +1081,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
 
          if(Tool.getAttribute(tag, "hour_end") != null) {
             this.hour_end = Tool.getCompatibleHour(Integer.parseInt(
-                                                      Tool.getAttribute(tag, "hour_end")));
+               Tool.getAttribute(tag, "hour_end")));
             this.minute_end = Integer.parseInt(Tool.getAttribute(tag, "minute_end"));
             this.second_end = Integer.parseInt(Tool.getAttribute(tag, "second_end"));
          }
@@ -1100,7 +1113,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
 
          if(Tool.getAttribute(tag, "hour_end") != null) {
             this.hour_end = Tool.getCompatibleHour(Integer.parseInt(
-                                                      Tool.getAttribute(tag, "hour_end")));
+               Tool.getAttribute(tag, "hour_end")));
             this.minute_end = Integer.parseInt(Tool.getAttribute(tag, "minute_end"));
             this.second_end = Integer.parseInt(Tool.getAttribute(tag, "second_end"));
          }
@@ -1122,7 +1135,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
 
          if(Tool.getAttribute(tag, "hour_end") != null) {
             this.hour_end = Tool.getCompatibleHour(Integer.parseInt(
-                                                      Tool.getAttribute(tag, "hour_end")));
+               Tool.getAttribute(tag, "hour_end")));
             this.minute_end = Integer.parseInt(Tool.getAttribute(tag, "minute_end"));
             this.second_end = Integer.parseInt(Tool.getAttribute(tag, "second_end"));
          }
@@ -1162,7 +1175,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
 
          if(Tool.getAttribute(tag, "hour_end") != null) {
             this.hour_end = Tool.getCompatibleHour(Integer.parseInt(
-                                                      Tool.getAttribute(tag, "hour_end")));
+               Tool.getAttribute(tag, "hour_end")));
             this.minute_end = Integer.parseInt(Tool.getAttribute(tag, "minute_end"));
             this.second_end = Integer.parseInt(Tool.getAttribute(tag, "second_end"));
          }
