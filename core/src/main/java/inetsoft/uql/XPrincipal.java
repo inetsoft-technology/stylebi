@@ -641,5 +641,5 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    private transient IdentityID[] allGroups;
    private transient long allRolesTimeout = 0;
    private transient long allGroupsTimeout = 0;
-   private static final ThreadLocal<String> CURRENT_ORG_ID = new ThreadLocal<>();
+   private static final InheritableThreadLocal<String> CURRENT_ORG_ID = new InheritableThreadLocal<>();
 }
