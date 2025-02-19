@@ -378,7 +378,8 @@ public class RepositoryTreeSearchController {
    }
 
    private boolean isHostOrgGlobalRepoVisible(Principal principal) {
-      String orgId = ((XPrincipal) principal).getCurrentOrgId();
+      String orgId = ((XPrincipal) principal).getProperty("curr_org_id") != null
+         ? ((XPrincipal) principal).getProperty("curr_org_id") : ((XPrincipal) principal).getOrgId();
       return SUtil.isDefaultVSGloballyVisible(principal) && !orgId.equals(Organization.getDefaultOrganizationID());
    }
 

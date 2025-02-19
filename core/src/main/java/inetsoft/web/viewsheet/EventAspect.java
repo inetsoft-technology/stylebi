@@ -611,8 +611,10 @@ public class EventAspect {
    }
 
    @After("@annotation(SwitchOrg) && within(inetsoft.web..*)")
-   public void afterController() {
-      XPrincipal.clearThreadCurrentOrgId();
+   public void afterController(JoinPoint joinPoint) throws Exception {
+      if(!Tool.equals(principal.getProperty("curr_org_id"), principal.getOrgId())) {
+         switchOrganization(principal.getOrgId(), principal);
+      }
    }
 
    private static class AnnotationParameterTuple<T> {
@@ -641,8 +643,8 @@ public class EventAspect {
       private Object parameter;
    }
 
-   public static void switchOrganization(String orgID, Principal principal) {
-      XPrincipal.setThreadCurrentOrgId(orgID);
+   public static void switchOrganization(String orgID, Principal principal) throws Exception {
+      ((XPrincipal) principal).setProperty("curr_org_id", orgID);
       ThreadContext.setContextPrincipal(principal);
    }
 

@@ -602,29 +602,10 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
       return toView();
    }
 
-   public String getCurrentOrgId() {
-      String currentOrgId = getThreadCurrentOrgId();
-      currentOrgId = currentOrgId == null ? getProperty("curr_org_id") : currentOrgId;
-      currentOrgId = currentOrgId == null ? getOrgId() : currentOrgId;
-
-      return currentOrgId;
-   }
-
-   public static void setThreadCurrentOrgId(String orgId) {
-      CURRENT_ORG_ID.set(orgId);
-   }
-
-   public static String getThreadCurrentOrgId() {
-      return CURRENT_ORG_ID.get();
-   }
-
-   public static void clearThreadCurrentOrgId() {
-      CURRENT_ORG_ID.remove();
-   }
-
    // for backward compatibility
    private static final long serialVersionUID = 615300870728701542L;
-   private static final Logger LOG = LoggerFactory.getLogger(XPrincipal.class);
+   private static final Logger LOG =
+      LoggerFactory.getLogger(XPrincipal.class);
    protected String name;
    protected IdentityID[] roles = {};
    protected String[] groups = {};
@@ -641,5 +622,4 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    private transient IdentityID[] allGroups;
    private transient long allRolesTimeout = 0;
    private transient long allGroupsTimeout = 0;
-   private static final ThreadLocal<String> CURRENT_ORG_ID = new ThreadLocal<>();
 }
