@@ -937,8 +937,7 @@ public class SUtil {
 
          SecurityEngine engine = SecurityEngine.getSecurity();
          String[] names = registry.getDataSourceFullNames();
-         String orgID = principal.getProperty("curr_org_id") != null ?
-            principal.getProperty("curr_org_id") : principal.getOrgId();
+         String orgID = principal.getCurrentOrgId();
 
          for(String name : names) {
             XDataSource ds = registry.getDataSource(name, orgID);
