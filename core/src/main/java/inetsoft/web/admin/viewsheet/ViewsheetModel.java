@@ -70,7 +70,7 @@ public interface ViewsheetModel extends Serializable {
          }
          else {
             task(null);
-            user = new IdentityID(XPrincipal.SYSTEM, OrganizationManager.getInstance().getCurrentOrgID());
+            user = new IdentityID(XPrincipal.SYSTEM, rvs.getEntry().getOrgID());
          }
 
          id(rvs.getID());
