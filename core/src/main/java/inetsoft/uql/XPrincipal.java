@@ -18,15 +18,12 @@
 package inetsoft.uql;
 
 import inetsoft.sree.internal.SUtil;
-import inetsoft.sree.security.AuthenticationProvider;
-import inetsoft.sree.security.IdentityID;
-import inetsoft.sree.security.Organization;
+import inetsoft.sree.security.*;
 import inetsoft.uql.util.Identity;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.script.JavaScriptEngine;
-import jakarta.persistence.Id;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Element;
@@ -603,23 +600,11 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    }
 
    public String getCurrentOrgId() {
-      String currentOrgId = getThreadCurrentOrgId();
+      String currentOrgId = OrganizationContextHolder.getCurrentOrgId();
       currentOrgId = currentOrgId == null ? getProperty("curr_org_id") : currentOrgId;
       currentOrgId = currentOrgId == null ? getOrgId() : currentOrgId;
 
       return currentOrgId;
-   }
-
-   public static void setThreadCurrentOrgId(String orgId) {
-      CURRENT_ORG_ID.set(orgId);
-   }
-
-   public static String getThreadCurrentOrgId() {
-      return CURRENT_ORG_ID.get();
-   }
-
-   public static void clearThreadCurrentOrgId() {
-      CURRENT_ORG_ID.remove();
    }
 
    // for backward compatibility
@@ -641,5 +626,4 @@ public class XPrincipal implements Principal, Serializable, Cloneable {
    private transient IdentityID[] allGroups;
    private transient long allRolesTimeout = 0;
    private transient long allGroupsTimeout = 0;
-   private static final InheritableThreadLocal<String> CURRENT_ORG_ID = new InheritableThreadLocal<>();
 }
