@@ -191,7 +191,6 @@ export abstract class RepositoryBaseComponent {
    }
 
    private createAddFavoritesAction(entry: RepositoryEntry): AssemblyAction {
-      console.log(entry);
       return {
          id: () => "repository-tree add-favorites",
          label: () => "_#(js:Add to Favorites)",
