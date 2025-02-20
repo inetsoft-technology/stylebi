@@ -18,10 +18,8 @@
 
 package inetsoft.util.migrate;
 
-import inetsoft.report.Hyperlink;
 import inetsoft.sree.security.Organization;
 import inetsoft.uql.asset.AssetEntry;
-import inetsoft.uql.asset.sync.UpdateDependencyHandler;
 import inetsoft.uql.util.AbstractIdentity;
 import inetsoft.util.Tool;
 import org.w3c.dom.*;
@@ -73,15 +71,33 @@ public class MigrateWorksheetTask extends MigrateDocumentTask {
 
       for(int i = 0; i < list.getLength(); i++) {
          Element dependency = (Element) list.item(i);
+         Element entry = dependency == null ?
+            null : Tool.getChildNodeByTagName(dependency, "assetEntry");
 
-         if(dependency == null) {
+         if(entry == null) {
             continue;
          }
 
-         updateAssetEntry(dependency);
+         updateAssetEntry(entry);
       }
 
       updateDrillPaths(root);
+
+      String orgId = getNewOrganization() instanceof Organization ?
+         ((Organization)getNewOrganization()).getId() : null;
+
+      if(orgId != null) {
+         list = getChildNodes(root,
+                              "./assemblies/oneAssembly/assembly/assemblyInfo/query/*/orgId");
+
+         for(int i = 0; i < list.getLength(); i++) {
+            Element elem = (Element) list.item(i);
+
+            if(getNewOrganization() instanceof Organization) {
+               replaceElementCDATANode(elem, orgId);
+            }
+         }
+      }
    }
 
    private void updateAssetDependency(Element mirror) {
