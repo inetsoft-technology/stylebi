@@ -577,6 +577,7 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
          Worksheet ws = null;
 
          if(wentry != null && wentry.isWorksheet()) {
+            wentry.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
             ws = wentry == null ? null :
                (Worksheet) rep.getSheet(wentry, null, false, AssetContent.ALL);
             // if binding source is worksheet, use worksheet max rows.
@@ -4294,7 +4295,6 @@ public class Viewsheet extends AbstractSheet implements VSAssembly, VariableProv
       if(wnode != null) {
          wnode = Tool.getFirstChildNode(wnode);
          wentry = AssetEntry.createAssetEntry(wnode);
-         wentry.setOrgID(OrganizationManager.getInstance().getCurrentOrgID());
       }
 
       Element vinode = Tool.getChildNodeByTagName(elem, "viewsheetInfo");
