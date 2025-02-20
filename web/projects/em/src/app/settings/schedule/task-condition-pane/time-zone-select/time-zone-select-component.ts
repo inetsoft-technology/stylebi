@@ -74,8 +74,8 @@ export class TimeZoneSelectComponent implements OnInit, ControlValueAccessor {
    }
 
    setTimeZoneLabel(changed: boolean) {
-      const localTimeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      let timeZoneLabel = this.dateTimeService.getTimeZoneLabel(this.timeZoneOptions, this.timeZoneId, localTimeZoneId);
+      let timeZoneLabel = this.dateTimeService
+         .getTimeZoneLabel(this.timeZoneOptions, this.timeZoneId, this.timeZoneOptions[0].timeZoneId);
       this.labelChanged.emit(timeZoneLabel);
 
       if(changed) {
