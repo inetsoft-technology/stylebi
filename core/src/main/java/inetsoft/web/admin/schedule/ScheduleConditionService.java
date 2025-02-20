@@ -30,6 +30,7 @@ import inetsoft.web.viewsheet.model.dialog.schedule.TimeRangeModel;
 import org.springframework.stereotype.Service;
 
 import java.security.Principal;
+import java.sql.Time;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -426,12 +427,14 @@ public class ScheduleConditionService {
          if(XSchema.DATE.equals(type)) {
             SimpleDateFormat formatter =
                new SimpleDateFormat("yyyy-MM-dd");
-            value = new java.sql.Date(formatter.parse((String) value).getTime());
+            Date date = formatter.parse((String) value);
+            value = date != null ? new java.sql.Date(date.getTime()) : null;
          }
          else if(XSchema.TIME.equals(type)) {
             SimpleDateFormat formatter =
                new SimpleDateFormat("HH:mm:ss");
-            value = formatter.parse((String) value);
+            Date date = formatter.parse((String) value);
+            value = date != null ? new java.sql.Time(date.getTime()) : null;
          }
          else if(XSchema.TIME_INSTANT.equals(type)) {
             String dateTime = (String) value;
