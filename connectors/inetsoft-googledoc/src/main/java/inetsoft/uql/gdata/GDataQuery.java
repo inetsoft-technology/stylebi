@@ -76,9 +76,9 @@ public class GDataQuery extends TabularQuery {
       super.writeContents(writer);
 
       if(spreadsheet != null) {
-         writer.format("<spreadsheet>");
+         writer.println("<spreadsheet>");
          spreadsheet.writeXML(writer);
-         writer.format("</spreadsheet>%n");
+         writer.println("</spreadsheet>");
       }
 
       if(worksheetId != null) {

@@ -54,13 +54,13 @@ public class GooglePicker implements Serializable, XMLSerializable, Cloneable {
 
    @Override
    public void writeXML(PrintWriter writer) {
-      writer.format("<googlePicker>");
+      writer.println("<googlePicker>");
 
       if(selectedFile != null) {
          selectedFile.writeXML(writer);
       }
 
-      writer.format("</googlePicker>");
+      writer.println("</googlePicker>");
    }
 
    @Override

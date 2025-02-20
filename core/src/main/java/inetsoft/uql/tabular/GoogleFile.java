@@ -50,7 +50,7 @@ public class GoogleFile implements Serializable, XMLSerializable, Cloneable {
 
    @Override
    public void writeXML(PrintWriter writer) {
-      writer.format("<googleFile>");
+      writer.println("<googleFile>");
 
       if(name != null) {
          writer.format("<name><![CDATA[%s]]></name>", name);
@@ -60,7 +60,7 @@ public class GoogleFile implements Serializable, XMLSerializable, Cloneable {
          writer.format("<id><![CDATA[%s]]></id>", id);
       }
 
-      writer.format("</googleFile>");
+      writer.println("</googleFile>");
    }
 
    @Override
