@@ -427,13 +427,14 @@ public class ScheduleConditionService {
          if(XSchema.DATE.equals(type)) {
             SimpleDateFormat formatter =
                new SimpleDateFormat("yyyy-MM-dd");
-            value = new java.sql.Date(formatter.parse((String) value).getTime());
+            Date date = formatter.parse((String) value);
+            value = date != null ? new java.sql.Date(date.getTime()) : null;
          }
          else if(XSchema.TIME.equals(type)) {
             SimpleDateFormat formatter =
                new SimpleDateFormat("HH:mm:ss");
             Date date = formatter.parse((String) value);
-            value = new java.sql.Time(date.getTime());
+            value = date != null ? new java.sql.Time(date.getTime()) : null;
          }
          else if(XSchema.TIME_INSTANT.equals(type)) {
             String dateTime = (String) value;
