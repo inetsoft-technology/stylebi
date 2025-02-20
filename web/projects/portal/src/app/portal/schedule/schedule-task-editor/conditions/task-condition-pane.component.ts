@@ -85,6 +85,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
    @Output() listViewChanged = new EventEmitter<boolean>();
    @Output() closeEditor = new EventEmitter<TaskConditionPaneModel>();
    @Output() cancelTask = new EventEmitter();
+   @Output() showMessage: EventEmitter<string> = new EventEmitter<string>();
 
    @Input()
    get model(): TaskConditionPaneModel {
@@ -205,6 +206,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
    localTimeZoneOffset = 0;
    localTimeZoneId: string;
    localTimeZoneLabel: string;
+   isSaving:boolean = false;
 
    get startTime(): NgbTimeStruct {
       return this._startTime;
@@ -551,6 +553,11 @@ export class TaskConditionPane implements OnInit, OnChanges {
    }
 
    public changeConditionType(option: any): void {
+      if(this.isSaving) {
+         this.showMessage.emit("_#(js:portal.schedule.isSaving.warning)");
+         return;
+      }
+
       this.saveConditionType(this.selectedOption);
       const optionType = option.value;
 
@@ -589,7 +596,9 @@ export class TaskConditionPane implements OnInit, OnChanges {
    }
 
    public save(ok: boolean): void {
+      this.isSaving = true;
       this.saveTask().then(() => {
+         this.isSaving = false;
          storeCondition(this.condition);
          this.updateTimesAndDates();
          this.form.markAsPristine();
@@ -598,6 +607,8 @@ export class TaskConditionPane implements OnInit, OnChanges {
          if(ok && this.model.conditions.length > 1 && !this.listView) {
             this.changeView(true);
          }
+      }).finally(() => {
+         this.isSaving = false;
       });
    }
 
