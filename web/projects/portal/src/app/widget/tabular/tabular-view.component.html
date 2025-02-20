@@ -138,6 +138,14 @@
                                            [enabled]="cell.view.editor.enabled"
                                            [required]="cell.view.required"
                                            (validChange)="validChanged($event, cell)"></tabular-autocomplete-editor>
+              <tabular-google-picker-editor *ngIf="cell.view.editor.type == 'GOOGLE_PICKER'"
+                                            [(value)]="cell.view.editor.value"
+                                            (valueChange)="viewChanged(cell.view)"
+                                            [editorPropertyNames]="cell.view.editor.editorPropertyNames"
+                                            [editorPropertyValues]="cell.view.editor.editorPropertyValues"
+                                            [enabled]="cell.view.editor.enabled"
+                                            [required]="cell.view.required"
+                                            (validChange)="validChanged($event, cell)"></tabular-google-picker-editor>
             </ng-template>
             <button type="button" *ngIf="cell.type === 'BUTTON'" class="btn btn-default"
                     [class.btn-google-auth]="cell.view?.button?.style === 'GOOGLE_AUTH'"

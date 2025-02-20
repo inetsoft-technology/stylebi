@@ -917,7 +917,7 @@ public class TabularEditor implements XMLSerializable {
    public enum Type {
       BOOLEAN, INT, LONG, SHORT, BYTE, FLOAT, DOUBLE, DATE, FILE, COLUMN,
       LIST, TEXT, TAGS, PARAMETER, HTTP_PARAMETER, AUTOCOMPLETE, CUSTOM,
-      REST_PARAMETERS
+      REST_PARAMETERS, GOOGLE_PICKER
    }
 
    public static final class Deserializer extends StdDeserializer<TabularEditor> {

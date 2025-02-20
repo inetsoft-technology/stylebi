@@ -5,7 +5,8 @@
     "outDir": "../../out-tsc/app",
     "types": [
       "geojson",
-      "node"
+      "node",
+      "google.picker"
     ]
   },
   "files": [
