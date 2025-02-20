@@ -28,5 +28,4 @@ export interface TableAdvancedPaneModel {
    edit: boolean;
    writeBack: boolean;
    tipPaneModel: TipPaneModel;
-   embeddedSource: boolean;
 }

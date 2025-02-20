@@ -151,8 +151,9 @@ public class TableViewPropertyDialogController {
       sizePositionPaneModel.setTitleHeight(tableAssemblyInfo.getTitleHeightValue());
       sizePositionPaneModel.setContainer(tableAssembly.getContainer() != null);
 
-      tableAdvancedPaneModel.setEmbeddedSource(this.vsObjectPropertyService.isEmbeddedEnabled(rvs, tableAssemblyInfo));
-      tableAdvancedPaneModel.setFormVisible(LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM));
+      boolean embeddedSource = this.vsObjectPropertyService.isEmbeddedEnabled(rvs, tableAssemblyInfo);
+      tableAdvancedPaneModel.setFormVisible(embeddedSource &&
+         LicenseManager.isComponentAvailable(LicenseManager.LicenseComponent.FORM));
       tableAdvancedPaneModel.setForm(tableAssemblyInfo.getFormValue());
       tableAdvancedPaneModel.setInsert(tableAssemblyInfo.getInsertValue());
       tableAdvancedPaneModel.setDel(tableAssemblyInfo.getDelValue());

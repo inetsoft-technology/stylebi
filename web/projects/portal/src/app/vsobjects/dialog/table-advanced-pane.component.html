@@ -53,7 +53,7 @@
       </div>
       <div class="col checkbox enableTableEdit_id">
         <div class="form-check">
-          <input type="checkbox" class="form-check-input" [disabled]="!model.form || !model.embeddedSource"
+          <input type="checkbox" class="form-check-input" [disabled]="!model.form"
                  [(ngModel)]="model.writeBack" id="writaBackOption">
           <label class="form-check-label" for="writaBackOption">
             _#(Write Back to Storage)
