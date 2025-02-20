@@ -104,6 +104,14 @@ public class TableAdvancedPaneModel {
       this.writeBack = writeBack;
    }
 
+   public boolean isEmbeddedSource() {
+      return embeddedSource;
+   }
+
+   public void setEmbeddedSource(boolean embeddedSource) {
+      this.embeddedSource = embeddedSource;
+   }
+
    private boolean formVisible;
    private boolean shrinkEnabled;
    private boolean shrink;
@@ -113,5 +121,6 @@ public class TableAdvancedPaneModel {
    private boolean del;
    private boolean edit;
    private boolean writeBack;
+   private boolean embeddedSource;
    private TipPaneModel tipPaneModel;
 }

@@ -7407,7 +7407,7 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       String name = assembly.getAbsoluteName();
       TableVSAssemblyInfo info = (TableVSAssemblyInfo) assembly.getVSAssemblyInfo();
 
-      if(!info.isEmbeddedTable() || !info.isForm() || !info.isWriteBack()) {
+      if(!info.isForm() || !info.isWriteBack()) {
          return;
       }
 
