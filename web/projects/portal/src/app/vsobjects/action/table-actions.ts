@@ -343,7 +343,7 @@ export class TableActions extends BaseTableActions<VSTableModel> {
    }
 
    private get formApplyVisible(): boolean {
-      return this.model.embedded && this.model.form &&
+      return this.model.form &&
          this.model.writeBack && this.model.formChanged;
    }
 

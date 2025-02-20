@@ -113,5 +113,6 @@ public class TableAdvancedPaneModel {
    private boolean del;
    private boolean edit;
    private boolean writeBack;
+   private boolean embeddedSource;
    private TipPaneModel tipPaneModel;
 }
