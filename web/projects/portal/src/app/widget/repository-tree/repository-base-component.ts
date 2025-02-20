@@ -157,7 +157,7 @@ export abstract class RepositoryBaseComponent {
          group.actions.push(this.createOpenInNewTabAction(entry));
       }
 
-      if(entry.path != "/") {
+      if(entry.path != "/" && entry.path != "" && entry.path != "Host Organization Global Repository") {
          if(!this.isFavoritesTree && !defaultOrgAsset) {
             group.actions.push(this.createAddFavoritesAction(entry));
          }
