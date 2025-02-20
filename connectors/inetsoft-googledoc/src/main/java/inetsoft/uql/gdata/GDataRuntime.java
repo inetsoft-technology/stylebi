@@ -53,7 +53,7 @@ public class GDataRuntime extends TabularRuntime {
       try {
          Sheets service = getSheets(ds, true);
          Spreadsheet spreadsheet = service.spreadsheets()
-            .get(gdataQuery.getSpreadsheetId())
+            .get(gdataQuery.getSpreadsheet().getSelectedFile().getId())
             .setFields("properties.title,sheets(properties.sheetId,properties.title,properties.gridProperties)")
             .execute();
          Sheet worksheet = spreadsheet.getSheets().stream()
@@ -66,7 +66,7 @@ public class GDataRuntime extends TabularRuntime {
          String range = wsName + "!" + "A1:" + getColumnName(columnCount) + rowCount;
 
          spreadsheet = service.spreadsheets()
-            .get(gdataQuery.getSpreadsheetId())
+            .get(gdataQuery.getSpreadsheet().getSelectedFile().getId())
             .setFields("properties.title,sheets(data.rowData.values(effectiveValue,effectiveFormat.numberFormat))")
             .setRanges(Collections.singletonList(range))
             .execute();
@@ -196,7 +196,7 @@ public class GDataRuntime extends TabularRuntime {
 
    public void testDataSource(TabularDataSource ds, VariableTable params) throws Exception {
       GDataDataSource gdataDs = (GDataDataSource) ds;
-      listSpreadsheets(gdataDs);
+      getDrive(gdataDs).about().get().setFields("user").execute();
    }
 
    private static Sheets getSheets(GDataDataSource ds, boolean saveTokens) {
@@ -213,38 +213,6 @@ public class GDataRuntime extends TabularRuntime {
 
    private static HttpRequestInitializer createInitializer(GDataDataSource ds, boolean saveTokens) {
       return new GDataRequestInitializer(ds, saveTokens);
-   }
-
-   static String[][] listSpreadsheets(GDataDataSource ds) throws IOException {
-      List<String[]> spreadsheets = new ArrayList<>();
-      String pageToken = null;
-
-      do {
-         FileList result = getDrive(ds).files().list()
-            .setQ("mimeType='application/vnd.google-apps.spreadsheet'")
-            .setFields("nextPageToken, files(id, name)")
-            .setIncludeItemsFromAllDrives(true)
-            .setIncludeTeamDriveItems(true)
-            .setSupportsAllDrives(true)
-            .setSupportsTeamDrives(true)
-            .setPageToken(pageToken)
-            .setPageSize(1000)
-            .setOrderBy("name")
-            .execute();
-
-         for(File file : result.getFiles()) {
-            spreadsheets.add(new String[] { file.getName(), file.getId() });
-
-            if(spreadsheets.size() > 3500) {
-               return spreadsheets.toArray(new String[0][]);
-            }
-         }
-
-         pageToken = result.getNextPageToken();
-      }
-      while(pageToken != null);
-
-      return spreadsheets.toArray(new String[0][]);
    }
 
    static String[][] listWorksheets(GDataDataSource ds, String spreadsheetId) throws IOException {

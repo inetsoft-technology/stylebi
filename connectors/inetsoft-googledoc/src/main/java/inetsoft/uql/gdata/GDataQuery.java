@@ -28,7 +28,7 @@ import java.io.PrintWriter;
 
 @SuppressWarnings("unused")
 @View(vertical = true, value = {
-   @View1("spreadsheetId"),
+   @View1("spreadsheet"),
    @View1("worksheetId"),
    @View1("firstRowAsHeader")
 })
@@ -38,17 +38,22 @@ public class GDataQuery extends TabularQuery {
    }
 
    @Property(label = "Spreadsheet")
-   @PropertyEditor(tagsMethod = "getSpreadsheets")
-   public String getSpreadsheetId() {
-      return spreadsheetId;
+   public GooglePicker getSpreadsheet() {
+      if(spreadsheet == null) {
+         spreadsheet = new GooglePicker();
+      }
+
+      GDataDataSource dataSource = (GDataDataSource) getDataSource();
+      spreadsheet.setOauthToken(dataSource.getAccessToken());
+      return spreadsheet;
    }
 
-   public void setSpreadsheetId(String spreadsheetId) {
-      this.spreadsheetId = spreadsheetId;
+   public void setSpreadsheet(GooglePicker spreadsheet) {
+      this.spreadsheet = spreadsheet;
    }
 
    @Property(label = "Worksheet")
-   @PropertyEditor(tagsMethod = "getWorksheets", dependsOn = { "spreadsheetId" })
+   @PropertyEditor(tagsMethod = "getWorksheets", dependsOn = { "spreadsheet" })
    public String getWorksheetId() {
       return worksheetId;
    }
@@ -70,15 +75,16 @@ public class GDataQuery extends TabularQuery {
    public void writeContents(PrintWriter writer) {
       super.writeContents(writer);
 
-      if(spreadsheetId != null) {
-         writer.format("<spreadsheetId><![CDATA[%s]]></spreadsheetId>%n", spreadsheetId);
+      if(spreadsheet != null) {
+         writer.println("<spreadsheet>");
+         spreadsheet.writeXML(writer);
+         writer.println("</spreadsheet>");
       }
 
       if(worksheetId != null) {
          writer.format("<worksheetId><![CDATA[%s]]></worksheetId>%n", worksheetId);
       }
 
-      writer.format("<largeSpreadsheetCount>%s</largeSpreadsheetCount>%n", largeSpreadsheetCount);
       writer.format("<firstRowAsHeader>%s</firstRowAsHeader>%n", firstRowAsHeader);
    }
 
@@ -87,23 +93,15 @@ public class GDataQuery extends TabularQuery {
       super.parseContents(root);
       Element element;
 
-      if((element = Tool.getChildNodeByTagName(root, "spreadsheetId")) != null) {
-         spreadsheetId = Tool.getValue(element);
+      if((element = Tool.getChildNodeByTagName(root, "spreadsheet")) != null) {
+         if((element = Tool.getChildNodeByTagName(element, "googlePicker")) != null) {
+            spreadsheet = new GooglePicker();
+            spreadsheet.parseXML(element);
+         }
       }
 
       if((element = Tool.getChildNodeByTagName(root, "worksheetId")) != null) {
          worksheetId = Tool.getValue(element);
-      }
-
-      if((element = Tool.getChildNodeByTagName(root, "largeSpreadsheetCount")) != null) {
-         String value = Tool.getValue(element);
-
-         if(value == null) {
-            largeSpreadsheetCount = false;
-         }
-         else {
-            largeSpreadsheetCount = Boolean.parseBoolean(value);
-         }
       }
 
       if((element = Tool.getChildNodeByTagName(root, "firstRowAsHeader")) != null) {
@@ -118,30 +116,11 @@ public class GDataQuery extends TabularQuery {
       }
    }
 
-   public String[][] getSpreadsheets() {
-      if(!largeSpreadsheetCount) {
-         try {
-            String[][] spreadsheets = GDataRuntime.listSpreadsheets((GDataDataSource) getDataSource());
-
-            if(spreadsheets.length > 3500) {
-               largeSpreadsheetCount = true;
-            }
-            else {
-               return spreadsheets;
-            }
-         }
-         catch(IOException e) {
-            LOG.error("Failed to list spreadsheets", e);
-         }
-      }
-
-      return new String[0][];
-   }
-
    public String[][] getWorksheets() {
-      if(spreadsheetId != null) {
+      if(spreadsheet != null && spreadsheet.getSelectedFile() != null) {
          try {
-            return GDataRuntime.listWorksheets((GDataDataSource) getDataSource(), spreadsheetId);
+            return GDataRuntime.listWorksheets((GDataDataSource) getDataSource(),
+                                               spreadsheet.getSelectedFile().getId());
          }
          catch(IOException e) {
             LOG.error("Failed to list worksheets", e);
@@ -151,9 +130,8 @@ public class GDataQuery extends TabularQuery {
       return new String[0][];
    }
 
-   private String spreadsheetId;
+   private GooglePicker spreadsheet;
    private String worksheetId;
-   private boolean largeSpreadsheetCount = false;
    private boolean firstRowAsHeader = true;
 
    private static final Logger LOG = LoggerFactory.getLogger(GDataQuery.class.getName());

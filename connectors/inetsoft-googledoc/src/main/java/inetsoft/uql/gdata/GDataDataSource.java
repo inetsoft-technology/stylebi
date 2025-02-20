@@ -38,7 +38,7 @@ import java.util.Objects;
          type = ButtonType.OAUTH,
          style = ButtonStyle.GOOGLE_AUTH,
          method = "updateTokens",
-         oauth = @Button.OAuth(serviceName = "google-sheets")
+         oauth = @Button.OAuth(serviceName = "google-sheets-picker")
       )),
       @View1(value = "accessToken"),
       @View1(value = "refreshToken"),

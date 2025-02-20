@@ -455,6 +455,9 @@ public class TabularUtil {
       else if(RestParameters.class.isAssignableFrom(cls)) {
          result = TabularEditor.Type.REST_PARAMETERS;
       }
+      else if(GooglePicker.class.isAssignableFrom(cls)) {
+         result = TabularEditor.Type.GOOGLE_PICKER;
+      }
       else {
          result = TabularEditor.Type.TEXT;
       }

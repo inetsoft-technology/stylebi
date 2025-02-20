@@ -1,6 +1,6 @@
 <!--
   ~ This file is part of StyleBI.
-  ~ Copyright (C) 2024  InetSoft Technology
+  ~ Copyright (C) 2025  InetSoft Technology
   ~
   ~ This program is free software: you can redistribute it and/or modify
   ~ it under the terms of the GNU Affero General Public License as published by
@@ -15,19 +15,14 @@
   ~ You should have received a copy of the GNU Affero General Public License
   ~ along with this program.  If not, see <https://www.gnu.org/licenses/>.
   -->
+
 <div class="input-group">
-  <input type="text" class="form-control folder-input"
-         [ngModel]="path" readonly="true" [disabled]="!enabled"/>
+  <input type="text" class="form-control file-input"
+         [ngModel]="value?.selectedFile?.name" readonly="true" [disabled]="!enabled"/>
   <button type="button" title="_#(Browse)" class="btn btn-default input-group-btn-addon"
-          (click)="showFileBrowser()" [disabled]="!enabled">
+          (click)="openPicker()" [disabled]="!enabled">
     <i class="folder-expanded-icon"></i></button>
 </div>
-<div class="alert-error" *ngIf="required && value == null">
-  <div *ngIf="foldersOnly" class="alert alert-danger">_#(viewer.needSelectFolder)</div>
-  <div *ngIf="!foldersOnly" class="alert alert-danger">_#(tabular.needSelectFolderOrFile)</div>
-</div>
-<ng-template #tabularFileBrowser let-close="close" let-dismiss="dismiss">
-  <tabular-file-browser (onCommit)="close($event)" (onCancel)="dismiss($event)"
-                        [path]="path" [property]="property" [pattern]="pattern"
-                        [browseFunction]="browseFunction"></tabular-file-browser>
-</ng-template>
+<span class="form-floating" *ngIf="valueControl.getError('required')">
+  <span class="invalid-feedback">_#(enter.value)</span>
+</span>
