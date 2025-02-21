@@ -244,7 +244,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * @return Vector of ScheduleTask.
     */
    @Override
-   public List<ScheduleTask> getTasks() {
+   public synchronized List<ScheduleTask> getTasks() {
       return pregeneratedTasks;
    }
 
