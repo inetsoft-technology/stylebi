@@ -301,12 +301,9 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    newTask(): void {
-      const localTimeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const params = new HttpParams().set("timeZone", localTimeZoneId);
-
       // http REST requests use URI and a body object with data
-      this.http.post(NEW_TASKS_URI, this.currentFolder, {params}).subscribe(
-         (model: ScheduleTaskDialogModel) => this.navigateToTaskEditor(model.name),
+      this.http.post(NEW_TASKS_URI, this.currentFolder).subscribe(
+         (model: ScheduleTaskDialogModel) => this.navigateToTaskEditor(model.name, model.taskDefaultTime),
          (error) => {
             let message = error?.error?.type == "SecurityException" ? error.error.message : "Failed to get schedule task model";
             this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
@@ -501,11 +498,11 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
       this.dataSource.filter = filter.trim().toLowerCase();
    }
 
-   private navigateToTaskEditor(name: string): void {
+   private navigateToTaskEditor(name: string, taskDefaultTime: boolean = true): void {
       let path = !!this.selectedNodes && this.selectedNodes.length != 0 ?
          this.selectedNodes[0].data.path : "/";
       this.router.navigate(["/settings/schedule/tasks", name],
-         {queryParams: {path: path}});
+         {queryParams: {taskDefaultTime: taskDefaultTime, path: path}});
    }
 
    getEditorQueryParams(): any {
@@ -1079,7 +1076,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    public getDateLabel(dateNumber: number): string {
-      return DateTypeFormatter.getLocalTime(dateNumber,  this.dateTimeFormat);
+      return DateTypeFormatter.format((dateNumber),  this.dateTimeFormat, true);
    }
 
    public getLabel(fieldName: string, fieldValue: number): string {
