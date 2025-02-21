@@ -18,9 +18,9 @@
 export interface ScheduleTaskStatusModel {
    lastRunStatus: string;
    nextRunStatus: string;
-   lastRunStart: string;
-   lastRunEnd: string;
-   nextRunStart: string;
+   lastRunStart: number;
+   lastRunEnd: number;
+   nextRunStart: number;
    errorMessage: string;
    cleanMessage: string;
 }
