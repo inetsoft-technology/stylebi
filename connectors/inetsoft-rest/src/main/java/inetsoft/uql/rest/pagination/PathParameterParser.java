@@ -54,6 +54,11 @@ class PathParameterParser extends AbstractParameterParser {
    }
 
    @Override
+   public Object parseObject(String jsonPath) {
+      return transformer.transform(json, jsonPath);
+   }
+
+   @Override
    public URL parseURL(PaginationParameter param) throws IOException {
       final String urlStr = parseString(param.getValue());
 
