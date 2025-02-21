@@ -249,7 +249,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
 
       for(let task of this.tasks) {
          if(!!task.status && !!task.status.lastRunEnd) {
-            task.lastRunTime = DateTypeFormatter.format(task.status.lastRunEnd, list.dateTimeFormat, true);
+            task.lastRunTime = DateTypeFormatter.format(task.status.lastRunEnd, list.dateTimeFormat, false);
          }
       }
    }
