@@ -84,12 +84,14 @@ export class AuthenticationProviderDetailViewComponent implements OnInit, OnDest
       if(this.model == null) {
          this.appInfoService.isEnterprise().subscribe(isEnterprise => {
             if(this.model == null) {
-               this.model = {
-                  providerName: "", providerType: undefined,
-                  dbProviderEnabled: isEnterprise,
-                  customProviderEnabled: isEnterprise,
-                  ldapProviderEnabled: !this.isMultiTenant
-               }
+               setTimeout(() => {
+                  this.model = {
+                     providerName: "", providerType: undefined,
+                     dbProviderEnabled: isEnterprise,
+                     customProviderEnabled: isEnterprise,
+                     ldapProviderEnabled: !this.isMultiTenant
+                  }
+               }, 0);
             }
          });
       }
