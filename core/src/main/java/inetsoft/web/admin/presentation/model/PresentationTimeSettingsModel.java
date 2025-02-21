@@ -30,9 +30,6 @@ public interface PresentationTimeSettingsModel {
    @Nullable
    String weekStart();
 
-   @Nullable
-   String localTimezone();
-
    boolean scheduleTime12Hours();
 
    static PresentationTimeSettingsModel.Builder builder() {

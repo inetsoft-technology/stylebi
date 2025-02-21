@@ -17,6 +17,5 @@
  */
 export interface PresentationTimeSettingsModel {
    weekStart: string;
-   localTimezone: string;
    scheduleTime12Hours: boolean;
 }

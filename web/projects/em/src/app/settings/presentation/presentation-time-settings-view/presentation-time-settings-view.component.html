@@ -24,12 +24,6 @@
         <input matInput [(ngModel)]="model.weekStart" (input)="emitModel()">
       </mat-form-field>
     </section>
-    <section class="flex-row">
-      <mat-form-field appearance="outline" color="accent">
-        <mat-label>_#(Local Timezone)</mat-label>
-        <input matInput [(ngModel)]="model.localTimezone" (input)="emitModel()">
-      </mat-form-field>
-    </section>
     <section>
       <mat-checkbox [(ngModel)]="model.scheduleTime12Hours" (change)="emitModel()">_#(Schedule Time 12 Hours)</mat-checkbox>
     </section>
