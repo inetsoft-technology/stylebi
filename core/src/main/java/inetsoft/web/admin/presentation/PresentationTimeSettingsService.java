@@ -31,7 +31,6 @@ public class PresentationTimeSettingsService {
    public PresentationTimeSettingsModel getModel(boolean globalProperty) {
       return PresentationTimeSettingsModel.builder()
          .weekStart(SreeEnv.getProperty("week.start", false, !globalProperty))
-         .localTimezone(SreeEnv.getProperty("local.timezone",  false, !globalProperty))
          .scheduleTime12Hours(Boolean.parseBoolean(SreeEnv.getProperty("schedule.time.12hours", false, !globalProperty)))
          .build();
    }
@@ -44,7 +43,6 @@ public class PresentationTimeSettingsService {
    public void setModel(PresentationTimeSettingsModel model, boolean globalSettings) throws IOException {
       SreeEnv.setProperty("week.start", model.weekStart(), !globalSettings);
       SreeEnv.setProperty("schedule.time.12hours", model.scheduleTime12Hours()+"", !globalSettings);
-      SreeEnv.setProperty("local.timezone", model.localTimezone(), !globalSettings);
       SreeEnv.save();
    }
 
@@ -56,7 +54,6 @@ public class PresentationTimeSettingsService {
    public void resetSettings(boolean globalSettings) throws IOException {
       SreeEnv.resetProperty("week.start", !globalSettings);
       SreeEnv.resetProperty("schedule.time.12hours", !globalSettings);
-      SreeEnv.resetProperty("local.timezone", !globalSettings);
       SreeEnv.save();
    }
 }
