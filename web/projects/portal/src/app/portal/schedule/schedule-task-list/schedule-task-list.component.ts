@@ -33,6 +33,7 @@ import { KEY_DELIMITER, IdentityId } from "../../../../../../em/src/app/settings
 import { ScheduleConditionModel } from "../../../../../../shared/schedule/model/schedule-condition-model";
 import { ScheduleTaskChange } from "../../../../../../shared/schedule/model/schedule-task-change";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
+import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { AssemblyAction } from "../../../common/action/assembly-action";
 import { AssemblyActionGroup } from "../../../common/action/assembly-action-group";
 import { Point } from "../../../common/data/point";
@@ -246,7 +247,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
 
       for(let task of this.tasks) {
          if(!!task.status && !!task.status.lastRunEnd) {
-            task.lastRunTime = task.status.lastRunEnd;
+            task.lastRunTime = DateTypeFormatter.format(task.status.lastRunEnd, list.dateTimeFormat, false);
          }
       }
    }

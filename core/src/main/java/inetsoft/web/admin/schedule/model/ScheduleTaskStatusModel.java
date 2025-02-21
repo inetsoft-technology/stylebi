@@ -46,20 +46,18 @@ public abstract class ScheduleTaskStatusModel {
    /**
     * The date and time at which the last run started.
     */
-   @Nullable
-   public abstract String lastRunStart();
+   public abstract long lastRunStart();
 
    /**
     * The date and time at which the last run ended.
     */
-   @Nullable
-   public abstract String lastRunEnd();
+   public abstract long lastRunEnd();
 
    /**
     * The date and time at which the next run is scheduled.
     */
-   @Nullable
-   public abstract String nextRunStart();
+
+   public abstract long nextRunStart();
 
    /**
     * The clean message.
@@ -90,9 +88,9 @@ public abstract class ScheduleTaskStatusModel {
          if(activity != null) {
             lastRunStatus(activity.getLastRunStatus());
             nextRunStatus(activity.getNextRunStatus());
-            lastRunStart(activity.getFormattedLastRunStart());
-            lastRunEnd(activity.getFormattedLastRunEnd());
-            nextRunStart(activity.getFormattedNextRunStart());
+            lastRunStart(activity.getLastRunStart());
+            lastRunEnd(activity.getLastRunEnd());
+            nextRunStart(activity.getNextRunStart());
             errorMessage(activity.getError());
             cleanMessage(activity.getCleanMessage());
          }

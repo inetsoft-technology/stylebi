@@ -47,6 +47,7 @@ import { MatTableDataSource } from "@angular/material/table";
 import { MatTreeFlatDataSource, MatTreeFlattener } from "@angular/material/tree";
 import { DomSanitizer, SafeResourceUrl } from "@angular/platform-browser";
 import { ActivatedRoute, ParamMap, Router } from "@angular/router";
+import dayjs from "dayjs";
 import { Observable, of as observableOf, Subject, throwError, timer } from "rxjs";
 import { catchError, finalize, map, takeUntil, tap } from "rxjs/operators";
 import { GuiTool } from "../../../../../../portal/src/app/common/util/gui-tool";
@@ -1072,5 +1073,17 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
       let node: RepositoryFlatNode = this.selectedNodes?.length > 0 ? this.selectedNodes[0] : null;
       return node == null && !this.noRootPermission ||
          !!node?.data?.properties && node.data.properties[ScheduleFolderTreeAction.READ] == "true";
+   }
+
+   public getDateLabel(dateNumber: number): string {
+      return DateTypeFormatter.format((dateNumber),  this.dateTimeFormat, true);
+   }
+
+   public getLabel(fieldName: string, fieldValue: number): string {
+      if("lastRunStart" == fieldName || fieldName == "lastRunEnd") {
+         return this.getDateLabel(fieldValue);
+      }
+
+      return fieldValue + "";
    }
 }
