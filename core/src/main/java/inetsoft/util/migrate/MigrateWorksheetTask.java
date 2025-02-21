@@ -67,17 +67,10 @@ public class MigrateWorksheetTask extends MigrateDocumentTask {
          }
       }
 
-      list = getChildNodes(root, "//dependencies");
+      list = getChildNodes(root, "//dependencies/assetEntry");
 
       for(int i = 0; i < list.getLength(); i++) {
-         Element dependency = (Element) list.item(i);
-         Element entry = dependency == null ?
-            null : Tool.getChildNodeByTagName(dependency, "assetEntry");
-
-         if(entry == null) {
-            continue;
-         }
-
+         Element entry = (Element) list.item(i);
          updateAssetEntry(entry);
       }
 
