@@ -165,11 +165,6 @@
              driver="com.informix.jdbc.IfxDriver" requireLogin="true">
     </ds_jdbc>
   </datasource>
-  <datasource name="sybase" type="jdbc">
-    <ds_jdbc url="jdbc:sybase:Tds:192.168.1.177:5000/psdemodb"
-             driver="com.sybase.jdbc2.jdbc.SybDriver" requireLogin="true" user="sa" password="">
-    </ds_jdbc>
-  </datasource>
   <datasource name="Text1" type="text">
     <ds_text url="http://localhost:8100/servlet/TestDataServlet">
       <request>

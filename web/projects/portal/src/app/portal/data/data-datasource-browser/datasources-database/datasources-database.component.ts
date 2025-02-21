@@ -49,8 +49,7 @@ import {
    InformixDatabaseInfoModel,
    OracleDatabaseInfoModel,
    PostgreSQLDatabaseInfoModel,
-   SQLServerDatabaseInfoModel,
-   SybaseDatabaseInfoModel
+   SQLServerDatabaseInfoModel
 } from "../../../../../../../shared/util/model/database-info-model";
 import { DatasourceDatabaseType } from "../../../../../../../shared/util/model/datasource-database-type";
 import { DriverInfo } from "../../../../../../../shared/util/model/driver-availability";
@@ -629,11 +628,6 @@ export class DatasourcesDatabaseComponent extends DataSourceSettingsPage impleme
          let instanceName = sqlServer.instanceName;
          url = "jdbc:sqlserver://" + network.hostName + (Tool.isEmpty(instanceName) ? ":" + network.portNumber
             : "\\" + instanceName + ":" + network.portNumber);
-      }
-      else if(DatasourceDatabaseType.SYBASE == type) {
-         let sybase: SybaseDatabaseInfoModel = <SybaseDatabaseInfoModel> info;
-         url = "jdbc:sybase:Tds:" + network.hostName + ":" + network.portNumber
-            + (Tool.isEmpty(sybase.databaseName) ? "" : "/" + sybase.databaseName);
       }
 
       return url;

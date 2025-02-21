@@ -64,14 +64,6 @@
                 url="jdbc:ingres://&lt;host>[:&lt;port>]/&lt;databaseName>"/>
     <jdbcdriver name="Ingres" driver="ca.edbc.jdbc.EdbcDriver" description="2.6"
                 url="jdbc:edbc://&lt;host>[:&lt;port>]/&lt;databaseName>"/>
-    <jdbcdriver name="Sybase" driver="com.sybase.jdbc3.jdbc.SybDriver" description="jdbc3"
-                url="jdbc:sybase:Tds:&lt;host>[:&lt;port>][?serviceName]"/>
-    <jdbcdriver name="Sybase" driver="com.sybase.jdbc2.jdbc.SybDriver" description="jdbc2"
-                url="jdbc:sybase:Tds:&lt;host>[:&lt;port>][?serviceName]">
-      <defaultPoolProperties>
-        <property name="autoCommit">true</property>
-      </defaultPoolProperties>
-    </jdbcdriver>
     <jdbcdriver name="Derby" driver="org.apache.derby.jdbc.ClientDriver"
                 url="jdbc:derby://&lt;host>[:&lt;port>]/databaseName"/>
     <jdbcdriver name="Derby Embedded" driver="org.apache.derby.jdbc.EmbeddedDriver"
