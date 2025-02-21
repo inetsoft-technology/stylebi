@@ -110,6 +110,7 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    selectedItems: string[] = [];
    loading = false;
    noRootPermission: boolean = false;
+   dateFormat: string = "YYYY-MM-DD HH:mm:ss";
 
    private subscriptions: Subscription;
 
@@ -244,10 +245,11 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
       this.tasks = list.tasks;
       this.originalOrder = this.tasks.map(task => task.name);
       this.showOwners = list.showOwners;
+      this.dateFormat = list.dateTimeFormat;
 
       for(let task of this.tasks) {
          if(!!task.status && !!task.status.lastRunEnd) {
-            task.lastRunTime = DateTypeFormatter.format(task.status.lastRunEnd, list.dateTimeFormat, false);
+            task.lastRunTime = DateTypeFormatter.format(task.status.lastRunEnd, list.dateTimeFormat, true);
          }
       }
    }
@@ -1027,4 +1029,11 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
       return node == null && !this.noRootPermission ||
          !!node?.data?.properties && node.data.properties[ScheduleFolderTreeAction.READ] == "true";
    }
+
+   public getDateLabel(dateNumber: number): string {
+      console.log("=========="+dateNumber);
+      return DateTypeFormatter.format((dateNumber),  this.dateFormat, true);
+   }
+
+
 }
