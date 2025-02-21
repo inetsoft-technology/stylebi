@@ -41,6 +41,11 @@ public class AbstractParameterParser implements ParameterParser {
    }
 
    @Override
+   public Object parseObject(String value) {
+      throw new UnsupportedOperationException();
+   }
+
+   @Override
    public URL parseURL(PaginationParameter name) throws IOException {
       throw new UnsupportedOperationException();
    }

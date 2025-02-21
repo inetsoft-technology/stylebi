@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
 import java.util.Collections;
+import java.util.Objects;
 
 /**
  * Strategy for iterating over multiple pages of an endpoint.
@@ -92,7 +93,17 @@ public class PagedIterationIteratorStrategy<Q extends AbstractRestQuery, T exten
 
       if(pageOffset != null) {
          final String name = spec.getPageOffsetParamToWrite().getValue();
-         builder.queryParameters(Collections.singletonMap(name, pageOffset));
+
+         if(spec.getPageOffsetParamToWrite().getType() == PaginationParamType.JSON_PATH &&
+            query.getContentType().equals("application/json"))
+         {
+            String content = isEmpty(query.getRequestBody()) ? "{}" : query.getRequestBody();
+            content = transformer.updateOutputString(content, name, pageOffset);
+            query.setRequestBody(content);
+         }
+         else {
+            builder.queryParameters(Collections.singletonMap(name, pageOffset + ""));
+         }
       }
 
       return fetchPage(builder.build());
@@ -114,7 +125,7 @@ public class PagedIterationIteratorStrategy<Q extends AbstractRestQuery, T exten
       hasNext = getHasNext(spec, json, response);
 
       if(hasNext) {
-         String newPageOffset = getPageOffset(spec, json, response);
+         Object newPageOffset = getPageOffset(spec, json, response);
 
          if(pageOffset != null && spec.isIncrementOffset()) {
             newPageOffset = incrementOffset(pageOffset);
@@ -143,9 +154,16 @@ public class PagedIterationIteratorStrategy<Q extends AbstractRestQuery, T exten
       }
    }
 
-   private String getPageOffset(PaginationSpec spec, Object json, HttpResponse response) {
+   private Object getPageOffset(PaginationSpec spec, Object json, HttpResponse response) {
       try {
-         return parser.parseString(spec.getPageOffsetParamToRead(), json, response);
+         if(spec.getPageOffsetParamToWrite().getType() == PaginationParamType.JSON_PATH &&
+            query.getContentType().equals("application/json"))
+         {
+            return parser.parseObject(spec.getPageOffsetParamToRead(), json, response);
+         }
+         else {
+            return parser.parseString(spec.getPageOffsetParamToRead(), json, response);
+         }
       }
       catch(Exception e) {
          throw new ParameterParseException(
@@ -156,15 +174,15 @@ public class PagedIterationIteratorStrategy<Q extends AbstractRestQuery, T exten
    /**
     * Check that the offset is not repeating to not get stuck in an infinite loop.
     */
-   private void checkAgainstLastPageOffset(String pageOffset, String lastPageOffset) {
-      if(lastPageOffset != null && lastPageOffset.equals(pageOffset)) {
+   private void checkAgainstLastPageOffset(Object pageOffset, Object lastPageOffset) {
+      if(Objects.equals(lastPageOffset, pageOffset)) {
          throw new IllegalStateException("Offset parameter is not updating.");
       }
    }
 
-   private String incrementOffset(String offset) {
+   private String incrementOffset(Object offset) {
       try {
-         return (Long.parseLong(offset) + 1L) + "";
+         return (Long.parseLong(offset + "") + 1L) + "";
       }
       catch(Exception e) {
          throw new ParameterParseException(
@@ -172,7 +190,7 @@ public class PagedIterationIteratorStrategy<Q extends AbstractRestQuery, T exten
       }
    }
 
-   private String pageOffset;
+   private Object pageOffset;
    private boolean hasNext = true;
 
    private final HttpResponseParameterParser parser;
