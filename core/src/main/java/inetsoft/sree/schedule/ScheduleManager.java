@@ -684,10 +684,12 @@ public class ScheduleManager {
             throw new IOException("Task is not removable: " + task.getName());
          }
 
+         boolean isSiteAdminInOtherOrg = isSiteAdminOtherOrg(task.getOwner());
+
          boolean adminPermission = SecurityEngine.getSecurity().checkPermission(
             principal, ResourceType.SECURITY_USER, task.getOwner(), ResourceAction.ADMIN);
 
-         if(!engine.checkPermission(
+         if(!isSiteAdminInOtherOrg && !engine.checkPermission(
             principal, ResourceType.SCHEDULE_TASK, taskName, ResourceAction.DELETE) &&
             principal != null && !Tool.equals(principal.getName(), task.getOwner()) &&
             isDeleteOnlyByOwner(task, principal) && !adminPermission)
@@ -736,6 +738,21 @@ public class ScheduleManager {
       if(extChanged) {
          reloadExtensions();
       }
+   }
+
+   //return true if user does not actually exist and a site admin of the same name exists
+   private boolean isSiteAdminOtherOrg(IdentityID principalID) {
+      if(SecurityEngine.getSecurity().isSecurityEnabled() &&
+         SecurityEngine.getSecurity().getSecurityProvider().getUser(principalID) == null)
+      {
+         for(IdentityID user : SecurityEngine.getSecurity().getUsers()) {
+            if(Tool.equals(principalID.name,user.name) && OrganizationManager.getInstance().isSiteAdmin(user)) {
+               return true;
+            }
+         }
+      }
+
+      return false;
    }
 
    private String getTaskOrgID(String taskId) {
