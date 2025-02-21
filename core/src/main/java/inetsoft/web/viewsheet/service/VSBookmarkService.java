@@ -128,7 +128,7 @@ public class VSBookmarkService {
       }
 
       if(isGlobalVSPermDenied) {
-         messageCommand.setMessage(catalog.getString("common.writeAuthority", rvs.getEntry().getName()));
+         messageCommand.setMessage(catalog.getString("Can't create simple scheduler for default organization"));
          messageCommand.setType(MessageCommand.Type.WARNING);
          return messageCommand;
       }
