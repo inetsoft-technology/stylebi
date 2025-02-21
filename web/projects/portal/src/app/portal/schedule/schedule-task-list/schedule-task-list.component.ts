@@ -1031,7 +1031,6 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    }
 
    public getDateLabel(dateNumber: number): string {
-      console.log("=========="+dateNumber);
       return DateTypeFormatter.format((dateNumber),  this.dateFormat, true);
    }
 
