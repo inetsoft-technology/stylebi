@@ -18,6 +18,7 @@
 package inetsoft.uql;
 
 import inetsoft.report.internal.Util;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.asset.AssetObject;
 import inetsoft.uql.erm.XDataModel;
@@ -79,6 +80,8 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
     */
    protected XQuery(String type) {
       this.type = type;
+
+      setOrganizationId(OrganizationManager.getInstance().getCurrentOrgID());
    }
 
    /**
