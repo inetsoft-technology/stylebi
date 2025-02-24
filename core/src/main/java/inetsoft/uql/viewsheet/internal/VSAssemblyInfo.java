@@ -20,6 +20,7 @@ package inetsoft.uql.viewsheet.internal;
 import inetsoft.report.*;
 import inetsoft.report.internal.Util;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.asset.internal.AssemblyInfo;
@@ -1036,6 +1037,9 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       if(lnode != null) {
          Hyperlink link = new Hyperlink();
          link.parseXML((Element) lnode.getFirstChild());
+
+         link = handleAssetLinkOrgMismatch(link);
+
          linkValue.setDValue(link);
       }
 
@@ -1510,6 +1514,28 @@ public class VSAssemblyInfo extends AssemblyInfo implements FloatableVSAssemblyI
       }
 
       return new StyleFont(DEFAULT_FONT, style, size);
+   }
+
+   /**
+    * In cases that hyperlink linked asset does not match current orgID, replace orgID to match
+    */
+   public Hyperlink handleAssetLinkOrgMismatch(Hyperlink link) {
+      String linkPath = link.getLink();
+      String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      int orgIdx = linkPath.lastIndexOf("^");
+
+      if(orgIdx > 0) {
+         String linkOrg = linkPath.substring(orgIdx + 1);
+
+         if(!Tool.equals(linkOrg, curOrgId)) {
+            String updatedLink = linkPath.substring(0,orgIdx + 1) + curOrgId;
+            link.setLink(updatedLink);
+
+            return link;
+         }
+      }
+
+      return link;
    }
 
    /**
