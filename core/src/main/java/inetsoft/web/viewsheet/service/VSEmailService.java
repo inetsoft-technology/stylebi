@@ -297,7 +297,7 @@ public class VSEmailService {
          String sfmt = "".equals(subject) ?
             SreeEnv.getProperty("mail.subject.format", "Viewsheet " + name) : subject;
          Object[] fmtparams = new Object[]{
-            name, new Date(), (principal != null) ? principal.getName() : ""
+            name, new Date(), (principal != null) ? IdentityID.getIdentityIDFromKey(principal.getName()).getName() : ""
          };
 
          try {
