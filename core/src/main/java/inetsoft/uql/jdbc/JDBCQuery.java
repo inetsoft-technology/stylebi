@@ -49,6 +49,13 @@ public class JDBCQuery extends XQuery {
       venabled = true;
    }
 
+   public JDBCQuery(String orgId) {
+      super(XDataSource.JDBC);
+
+      setOrganizationId(orgId);
+      venabled = true;
+   }
+
    /**
     * Add a variable to this query.
     * @param var variable definition.

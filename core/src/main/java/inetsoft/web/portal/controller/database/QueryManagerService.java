@@ -1086,12 +1086,11 @@ public class QueryManagerService {
    }
 
    private JDBCQuery createNewQuery(String name, String database) {
-      JDBCQuery query = new JDBCQuery();
+      JDBCQuery query = new JDBCQuery(OrganizationManager.getInstance().getCurrentOrgID());
       query.setName(name);
       query.setUserQuery(true);
       query.setDataSource(dataSourceService.getDataSource(database));
       query.setSQLDefinition(new UniformSQL());
-      query.setOrganizationId(OrganizationManager.getInstance().getCurrentOrgID());
       return query;
    }
 

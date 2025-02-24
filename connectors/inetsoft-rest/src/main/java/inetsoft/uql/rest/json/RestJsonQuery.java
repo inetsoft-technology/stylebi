@@ -276,8 +276,8 @@ public class RestJsonQuery extends AbstractRestQuery {
    }
 
    @Property(label="Page Offset Parameter To Write Type")
-   @PropertyEditor(tags={"QUERY", "HEADER"},
-                   labels={"Query", "Header"},
+   @PropertyEditor(tags={"QUERY", "HEADER", "JSON_PATH"},
+                   labels={"Query", "Header", "Json Path"},
                    dependsOn = "paginationType")
    public PaginationParamType getPageOffsetParamToWriteType() {
       return getPageOffsetParamToWrite().getType();

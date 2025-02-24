@@ -93,7 +93,7 @@
                   <ng-template #normalStatus>
                     <td class="status-container">{{ task.status ? task.status.lastRunStatus : "" }}</td>
                   </ng-template>
-                  <td class="run-time-container">{{ task.status ? task.status.lastRunEnd : "" }}</td>
+                  <td class="run-time-container">{{ task.status ? getDateLabel(task.status.lastRunEnd) : "" }}</td>
                   <td class="schedule-container">{{ task.schedule }}</td>
                   <td class="actiones-container">
                     <span class="btn icon-hover-bg schedule-button p-0 icon-size-medium edit-icon"
