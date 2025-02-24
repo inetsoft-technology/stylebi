@@ -83,6 +83,9 @@ public abstract class TaskOptionsPaneModel {
    public abstract String description();
 
    @Nullable
+   public abstract String timeZone();
+
+   @Nullable
    public abstract String idName();
 
    @Value.Default

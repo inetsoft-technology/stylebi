@@ -32,10 +32,11 @@ import { MatDialog } from "@angular/material/dialog";
 import { Observable } from "rxjs";
 import { map, startWith } from "rxjs/operators";
 import { TaskOptionsPaneModel } from "../../../../../../shared/schedule/model/task-options-pane-model";
+import { TimeZoneModel } from "../../../../../../shared/schedule/model/time-zone-model";
 import { ScheduleUsersService } from "../../../../../../shared/schedule/schedule-users.service";
 import { FormValidators } from "../../../../../../shared/util/form-validators";
-import { Tool } from "../../../../../../shared/util/tool";
 import { KEY_DELIMITER, IdentityId } from "../../security/users/identity-id";
+import { DateTimeService } from "../task-condition-pane/date-time.service";
 import { ExecuteAsDialogComponent } from "./execute-as-dialog.component";
 
 export interface TaskOptionChanges {
@@ -57,9 +58,11 @@ export class GroupErrorState implements ErrorStateMatcher {
 @Component({
    selector: "em-task-options-pane",
    templateUrl: "./task-options-pane.component.html",
-   styleUrls: ["./task-options-pane.component.scss"]
+   styleUrls: ["./task-options-pane.component.scss"],
+   providers: [ DateTimeService ]
 })
 export class TaskOptionsPane {
+   @Input() timeZoneOptions: TimeZoneModel[];
    @Input()
    get model(): TaskOptionsPaneModel {
       return this._model;
@@ -86,6 +89,7 @@ export class TaskOptionsPane {
          this.optionsForm.get("taskEnabled").setValue(this.model.enabled || false);
          this.optionsForm.get("deleteIfNotScheduledToRun").setValue(this.model.deleteIfNotScheduledToRun || false);
          this.optionsForm.get("description").setValue(this.model.description);
+         this.optionsForm.get("timeZone").setValue(this.model.timeZone);
          this.optionsForm.get("locale").setValue(this.model.locale || TaskOptionsPane.DEFAULT_LOCALE);
          this.optionsForm.get("owner").setValue(this.model.owner);
          const idName: string = this.model.idName || this._model.owner;
@@ -128,6 +132,7 @@ export class TaskOptionsPane {
             startDate: [new Date()],
             endDate: [new Date()],
             description: [null],
+            timeZone: [null],
             locale: [TaskOptionsPane.DEFAULT_LOCALE],
             owner: [null, [Validators.required, this.validUser]],
             executeAs: [null]
@@ -182,6 +187,7 @@ export class TaskOptionsPane {
       date = this.optionsForm.get("endDate").value;
       this.model.stopOn = date ? date.getTime() : 0;
       this.model.description = this.optionsForm.get("description").value;
+      this.model.timeZone = this.optionsForm.get("timeZone").value;
       const locale = this.optionsForm.get("locale").value;
       this.model.locale = locale === TaskOptionsPane.DEFAULT_LOCALE ? null : locale;
       this.model.owner = this.optionsForm.get("owner").value;
