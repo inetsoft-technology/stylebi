@@ -177,7 +177,6 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
                   maxInactiveInterval = Duration.ofSeconds(timeoutSeconds);
                   session.setMaxInactiveInterval(maxInactiveInterval);
                }
-
             }
             catch(NumberFormatException e) {
                LOG.error("Invalid value for http.session.timeout: {}", systemTimeout, e);

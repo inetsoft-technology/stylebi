@@ -21,7 +21,6 @@ import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
-import inetsoft.web.MapSession;
 import inetsoft.web.MapSessionRepository;
 import inetsoft.web.security.DeniedMultiTenancyOrgUser;
 import inetsoft.web.viewsheet.AuditObjectName;
