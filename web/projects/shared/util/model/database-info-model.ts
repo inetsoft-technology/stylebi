@@ -59,9 +59,6 @@ export interface InformixDatabaseInfoModel extends DatabaseNameInfoModel {
 export interface PostgreSQLDatabaseInfoModel extends DatabaseNameInfoModel {
 }
 
-export interface SybaseDatabaseInfoModel extends DatabaseNameInfoModel {
-}
-
 export interface DB2DatabaseInfoModel extends DatabaseNameInfoModel {
 }
 
