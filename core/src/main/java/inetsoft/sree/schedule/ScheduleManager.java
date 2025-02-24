@@ -154,7 +154,11 @@ public class ScheduleManager {
 
          // get ext tasks from the exts
          for(ScheduleExt ext : extensions) {
-            List<ScheduleTask> tasks = new ArrayList<>(ext.getTasks());
+            List<ScheduleTask> tasks;
+
+            synchronized(ext) {
+               tasks = new ArrayList<>(ext.getTasks());
+            }
 
             for(ScheduleTask task : tasks) {
                ExtTaskKey key = createExtensionTaskKey(task);
