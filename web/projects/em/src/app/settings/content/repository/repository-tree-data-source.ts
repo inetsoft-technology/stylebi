@@ -183,7 +183,7 @@ export class RepositoryTreeDataSource
             this._data.next();
          }
 
-         if(!this._data.closed) {
+         if(!this._loading.closed) {
             this._loading.next(false);
          }
       });
