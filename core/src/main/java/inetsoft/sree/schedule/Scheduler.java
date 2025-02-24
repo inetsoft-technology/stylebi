@@ -843,8 +843,8 @@ public class Scheduler {
                                    ScheduleTask task)
    {
       Date time = new Date(next);
-      Date startDate = getDate(time, task.getStartDate());
-      Date endDate = task.getEndDate() != null ? getDate(time, task.getEndDate()) : null;
+      Date startDate = getDate(time, task.getStartDate(), task.getTimeZone());
+      Date endDate = task.getEndDate() != null ? getDate(time, task.getEndDate(), task.getTimeZone()) : null;
       startDate = time.getTime() > startDate.getTime() ? time : startDate;
       trigger.setStartTime(startDate);
       trigger.setEndTime(endDate);
@@ -861,10 +861,12 @@ public class Scheduler {
     * @param time is next time.
     * @param date is start or end date.
     */
-   private static Date getDate(Date time, Date date) {
+   private static Date getDate(Date time, Date date, String timeZone) {
       if(date != null && time != null) {
          Calendar time1 = Calendar.getInstance();
          Calendar date1 = Calendar.getInstance();
+         time1.setTimeZone(TimeZone.getTimeZone(timeZone));
+         date1.setTimeZone(TimeZone.getTimeZone(timeZone));
          time1.setTime(time);
          date1.setTime(date);
          date1.set(Calendar.HOUR_OF_DAY, time1.get(Calendar.HOUR_OF_DAY));
