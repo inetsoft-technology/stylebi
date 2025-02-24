@@ -165,25 +165,6 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
       for(MapSession session : sessions.asMap().values()) {
          Instant lastAccessedTime = session.getLastAccessedTime();
          Duration maxInactiveInterval = session.getMaxInactiveInterval();
-
-         //if system timeout has changed, update for session
-         String systemTimeout = SreeEnv.getProperty("http.session.timeout");
-
-         if(StringUtils.hasText(systemTimeout)) {
-            try {
-               int timeoutSeconds = Integer.parseInt(systemTimeout);
-
-               if(timeoutSeconds != (int) maxInactiveInterval.toSeconds()) {
-                  maxInactiveInterval = Duration.ofSeconds(timeoutSeconds);
-                  session.setMaxInactiveInterval(maxInactiveInterval);
-               }
-            }
-            catch(NumberFormatException e) {
-               LOG.error("Invalid value for http.session.timeout: {}", systemTimeout, e);
-               //ignore system timeout and use existing session
-            }
-         }
-
          long sessionRemainingTime = lastAccessedTime.toEpochMilli() +
             maxInactiveInterval.toMillis() - currentTime;
 
