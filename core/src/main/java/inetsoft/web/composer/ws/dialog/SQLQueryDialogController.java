@@ -21,6 +21,7 @@ import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.event.AssetEventUtil;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
@@ -68,8 +69,10 @@ import java.util.stream.Collectors;
  */
 @Controller
 public class SQLQueryDialogController extends WorksheetController {
-   public SQLQueryDialogController(QueryGraphModelService queryGraphService) {
+   public SQLQueryDialogController(QueryGraphModelService queryGraphService, SQLQueryDialogServiceProxy dialogService) {
       this.queryGraphService = queryGraphService;
+      this.dialogService = dialogService;
+      runtimeSheetCache = Cluster.getInstance().getMap("runtimeSheets");
    }
 
    /**
@@ -87,16 +90,7 @@ public class SQLQueryDialogController extends WorksheetController {
                                        @RequestParam(name = "dataSource", required = false) String dataSource,
       Principal principal) throws Exception
    {
-      boolean sqlEnabled = SecurityEngine.getSecurity().checkPermission(
-         principal, ResourceType.PHYSICAL_TABLE, "*", ResourceAction.ACCESS);
-
-      if(!sqlEnabled) {
-         throw new MessageException(
-            Catalog.getCatalog().getString("composer.nopermission.physicalTable"));
-      }
-
-      RuntimeWorksheet rws = super.getWorksheetEngine().getWorksheet(runtimeId, principal);
-      return queryManagerService.getSqlQueryDialogModel(rws, tableName, dataSource, principal);
+      return dialogService.getModel(runtimeId, tableName, dataSource, principal);
    }
 
    /**
@@ -756,4 +750,6 @@ public class SQLQueryDialogController extends WorksheetController {
    private SecurityEngine securityEngine;
    private QueryManagerService queryManagerService;
    private final QueryGraphModelService queryGraphService;
+   private final SQLQueryDialogServiceProxy dialogService;
+   private final Map<String, String> runtimeSheetCache;
 }

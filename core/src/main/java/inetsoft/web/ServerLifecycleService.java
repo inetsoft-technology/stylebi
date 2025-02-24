@@ -64,6 +64,7 @@ public class ServerLifecycleService implements ApplicationContextAware {
    @Override
    public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
       StatusDumpService.getInstance().setApplicationContext(applicationContext);
+      ConfigurationContext.getContext().setApplicationContext(applicationContext);
    }
 
    private final LicenseService licenseService;

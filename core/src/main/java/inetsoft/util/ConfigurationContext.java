@@ -20,6 +20,7 @@ package inetsoft.util;
 import inetsoft.util.config.InetsoftConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationContext;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
@@ -153,6 +154,22 @@ public class ConfigurationContext implements AutoCloseable {
       support.removePropertyChangeListener(propertyName, listener);
    }
 
+   public void setApplicationContext(ApplicationContext applicationContext) {
+      this.applicationContext = applicationContext;
+   }
+
+   public <T> T getSpringBean(Class<T> type) {
+      return applicationContext.getBean(type);
+   }
+
+   public Object getSpringBean(String name) {
+      return applicationContext.getBean(name);
+   }
+
+   public <T> T getSpringBean(String name, Class<T> type) {
+      return applicationContext.getBean(name, type);
+   }
+
    @Override
    public void close() throws IOException {
       for(Iterator<Object> it = data.values().iterator(); it.hasNext();) {
@@ -174,5 +191,6 @@ public class ConfigurationContext implements AutoCloseable {
    private final Map<String, Object> data = new ConcurrentHashMap<>();
    private final PropertyChangeSupport support = new PropertyChangeSupport(this);
    private volatile String home = ".";
+   private ApplicationContext applicationContext;
    private static final Logger LOG = LoggerFactory.getLogger(ConfigurationContext.class);
 }
