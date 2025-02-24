@@ -75,7 +75,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       // read in the properties specified for cycles in the EM
       try {
          load();
-         generateTasks(false);
+         generateTasks(false, true);
       }
       catch(Exception ex) {
          LOG.error("Failed to initialize data cycle manager", ex);
@@ -174,10 +174,10 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       String name = evt.getPropertyName();
 
       if(RepletRegistry.CHANGE_EVENT.equals(name)) {
-         generateTasks(true);
+         generateTasks(true, false);
       }
       else if(MVManager.MV_CHANGE_EVENT.equals(name)) {
-         generateTasks(true);
+         generateTasks(true, false);
       }
    }
 
@@ -253,14 +253,16 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       return pregeneratedTasks.iterator();
    }
 
-   private void generateTasks(boolean reloadExtensions) {
-      generateTasks(null, null, reloadExtensions);
+   private void generateTasks(boolean reloadExtensions, boolean allMVs) {
+      generateTasks(null, null, reloadExtensions, allMVs);
    }
 
    /**
     * Internal method used to set pregeneratedTasks.
     */
-   private void generateTasks(Organization oorg, Organization norg, boolean reloadExtensions) {
+   private void generateTasks(Organization oorg, Organization norg, boolean reloadExtensions,
+                              boolean allMVs)
+   {
       // don't load in secondary schedulers
       if(Scheduler.getSchedulerCount() != 1 &&
          "true".equals(System.getProperty("ScheduleServer")))
@@ -292,7 +294,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
             task.addCondition(getCondition(cycle.name, cycle.orgId, i));
          }
 
-         generateMVActions(task, cycle.name, tasks, oorg, norg);
+         generateMVActions(task, cycle.name, tasks, oorg, norg, allMVs);
 
          if(task.getActionCount() == 0) {
             continue;
@@ -338,13 +340,19 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * Generate emv actions.
     */
    private void generateMVActions(ScheduleTask task, String cycle, List<ScheduleTask> tasks,
-                                  Organization oorg, Organization norg)
+                                  Organization oorg, Organization norg, boolean allMVs)
    {
       MVManager manager = MVManager.getManager();
       MVDef[] mvs = null;
 
       if(oorg == null && norg == null) {
-         mvs = manager.list(false);
+         if(allMVs) {
+            String[] ids = SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs();
+            mvs = manager.list(ids).toArray(MVDef[]::new);
+         }
+         else {
+            mvs = manager.list(false);
+         }
       }
       else {
          mvs = manager.list(getNewOrgIds(oorg.getId(), norg.getId())).toArray(MVDef[]::new);
@@ -523,10 +531,10 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       }
 
       if(replace) {
-         generateTasks(oorg, norg, true);
+         generateTasks(oorg, norg, true, false);
       }
       else {
-         generateTasks(null, null, true);
+         generateTasks(null, null, true, true);
       }
    }
 
