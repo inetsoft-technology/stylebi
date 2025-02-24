@@ -165,6 +165,26 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
       for(MapSession session : sessions.asMap().values()) {
          Instant lastAccessedTime = session.getLastAccessedTime();
          Duration maxInactiveInterval = session.getMaxInactiveInterval();
+
+         //if system timeout has changed, update for session
+         String systemTimeout = SreeEnv.getProperty("http.session.timeout");
+
+         if(StringUtils.hasText(systemTimeout)) {
+            try {
+               int timeoutSeconds = Integer.parseInt(systemTimeout);
+
+               if(timeoutSeconds != (int) maxInactiveInterval.toSeconds()) {
+                  maxInactiveInterval = Duration.ofSeconds(timeoutSeconds);
+                  session.setMaxInactiveInterval(maxInactiveInterval);
+               }
+
+            }
+            catch(NumberFormatException e) {
+               LOG.error("Invalid value for http.session.timeout: {}", systemTimeout, e);
+               //ignore system timeout and use existing session
+            }
+         }
+
          long sessionRemainingTime = lastAccessedTime.toEpochMilli() +
             maxInactiveInterval.toMillis() - currentTime;
 
@@ -442,6 +462,22 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
       if(sessionId != null) {
          synchronized(sessionExpiringSoonListeners) {
             sessionExpiringSoonListeners.remove(sessionId);
+         }
+      }
+   }
+
+   public void updateSessionTimeout(String newTimeoutString) {
+      if(StringUtils.hasText(newTimeoutString)) {
+         try {
+            int timeoutSeconds = Integer.parseInt(newTimeoutString);
+            Duration newTimeoutDuration = Duration.ofSeconds(timeoutSeconds);
+
+            for(MapSession session : sessions.asMap().values()) {
+               session.setMaxInactiveInterval(newTimeoutDuration);
+            }
+         }
+         catch(NumberFormatException e) {
+            LOG.error("Cannot update Session timeout, Invalid value for http.session.timeout: {}", newTimeoutString, e);
          }
       }
    }

@@ -19,7 +19,10 @@ package inetsoft.web.admin.properties;
 
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.sree.SreeEnv;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.web.MapSession;
+import inetsoft.web.MapSessionRepository;
 import inetsoft.web.security.DeniedMultiTenancyOrgUser;
 import inetsoft.web.viewsheet.AuditObjectName;
 import inetsoft.web.viewsheet.Audited;
@@ -28,6 +31,7 @@ import java.io.IOException;
 import java.security.Principal;
 import java.util.Properties;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -68,6 +72,10 @@ public class PropertiesController {
 
       SreeEnv.setProperty(property, value);
       SreeEnv.save();
+
+      if(Tool.equals(property,"http.session.timeout")) {
+         mapSessionRepository.updateSessionTimeout(value);
+      }
    }
 
    @GetMapping("/api/admin/properties")
@@ -105,4 +113,7 @@ public class PropertiesController {
       properties.remove("log.level.inetsoft.web.portal.controller.ControllerErrorHandler");
       properties.remove("log.level.inetsoft_audit");
    }
+
+   @Autowired
+   private MapSessionRepository mapSessionRepository;
 }
