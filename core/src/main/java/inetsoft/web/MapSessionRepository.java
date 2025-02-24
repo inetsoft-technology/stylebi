@@ -446,6 +446,22 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
       }
    }
 
+   public void updateSessionTimeout(String newTimeoutString) {
+      if(StringUtils.hasText(newTimeoutString)) {
+         try {
+            int timeoutSeconds = Integer.parseInt(newTimeoutString);
+            Duration newTimeoutDuration = Duration.ofSeconds(timeoutSeconds);
+
+            for(MapSession session : sessions.asMap().values()) {
+               session.setMaxInactiveInterval(newTimeoutDuration);
+            }
+         }
+         catch(NumberFormatException e) {
+            LOG.error("Cannot update Session timeout, Invalid value for http.session.timeout: {}", newTimeoutString, e);
+         }
+      }
+   }
+
    /**
     * If non-null, this value is used to override
     * {@link Session#setMaxInactiveInterval(Duration)}.
