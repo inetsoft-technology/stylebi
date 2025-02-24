@@ -1000,6 +1000,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       if(!Tool.equals(st.getLocale(), locale) ||
          !Tool.equals(st.getIdentity(), identity) ||
          !Tool.equals(st.getDescription(), getDescription()) ||
+         !Tool.equals(st.getTimeZone(), getTimeZone()) ||
          !Tool.equals(st.getOwner(), owner) || st.isEnabled() != enabled ||
          st.isEditable() != editable || st.isRemovable() != removable ||
          st.isDeleteIfNoMoreRun() != delNotRun ||
@@ -1111,6 +1112,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          task.owner = owner;
          task.locale = locale;
          task.description = description;
+         task.timeZone = timeZone;
          task.enabled = enabled;
          task.editable = editable;
          task.removable = removable;
@@ -1248,6 +1250,10 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          writer.print(" description=\"" + Tool.escape(description) + "\"");
       }
 
+      if(timeZone != null) {
+         writer.print(" timeZone=\"" + Tool.escape(timeZone) + "\"");
+      }
+
       writer.println(">");
 
       int cnt = getConditionCount();
@@ -1332,6 +1338,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
 
       locale = Tool.getAttribute(elem, "locale");
       description = Tool.getAttribute(elem, "description");
+      timeZone = Tool.getAttribute(elem, "timeZone");
 
       IdentityID idname = IdentityID.getIdentityIDFromKey(Tool.getAttribute(elem, "idname"));
       int idtype = 0;
@@ -1557,6 +1564,21 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
       }
    }
 
+   public String getTimeZone() {
+      return timeZone;
+   }
+
+   /**
+    * Sets the condition time zone using the string ID.
+    *
+    * @param timeZone the time zone's string ID.
+    *
+    * @since 2023
+    */
+   public void setTimeZone(String timeZone) {
+      this.timeZone = timeZone;
+   }
+
    public enum Type {
       NORMAL_TASK,
       MV_TASK,
@@ -1571,6 +1593,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
    private String locale;
    private String path;
    private String description;
+   private String timeZone;
    private long lastModified;
    private boolean enabled = true;
    private boolean editable = true;

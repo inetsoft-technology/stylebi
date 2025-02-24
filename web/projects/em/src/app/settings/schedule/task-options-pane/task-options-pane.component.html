@@ -52,6 +52,11 @@
         </button>
       </div>
       <div class="flex-row">
+        <em-time-zone-select formControlName="timeZone"
+            [timeZoneOptions]="timeZoneOptions" (changed)="fireModelChanged()">
+        </em-time-zone-select>
+      </div>
+      <div class="flex-row">
         <mat-form-field class="full-width" appearance="outline" color="accent">
           <mat-label>_#(Description)</mat-label>
           <textarea matInput placeholder="_#(Description)"
