@@ -50,7 +50,7 @@
     </em-time-zone-select>
     <mat-form-field appearance="outline" color="accent">
       <mat-label>_#(Interval)</mat-label>
-      <input matInput type="number" placeholder="_#(Interval)" step="0.01" formControlName="interval" (input)="fireModelChanged()"/>
+      <input matInput type="number" placeholder="_#(Interval)" step="1" formControlName="interval" (input)="fireModelChanged()"/>
       <mat-hint>_#(Every) <i>n</i> _#(Hour_s)</mat-hint>
       <mat-error>
         _#(viewer.schedule.condition.hourValid)
