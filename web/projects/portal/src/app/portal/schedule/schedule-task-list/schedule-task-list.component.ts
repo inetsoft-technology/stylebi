@@ -1033,6 +1033,4 @@ export class ScheduleTaskListComponent implements OnInit, OnDestroy, AfterConten
    public getDateLabel(dateNumber: number): string {
       return DateTypeFormatter.getLocalTime(dateNumber,  this.dateFormat);
    }
-
-
 }
