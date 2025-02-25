@@ -549,6 +549,8 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
    }
 
    public void updateTokens(Tokens tokens) {
+      LOG.debug("Updated Access Token " + tokens.accessToken());
+      LOG.debug("Updated Refresh Token " + tokens.refreshToken());
       setAccessToken(tokens.accessToken());
       setRefreshToken(tokens.refreshToken());
       setTokenExpiration(tokens.expiration());
@@ -766,6 +768,9 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
          if(flags != null && !flags.isEmpty()) {
             flagsSet.addAll(Arrays.asList(getOauthFlags().split(" ")));
          }
+
+         LOG.debug("Current Access Token " + getAccessToken());
+         LOG.debug("Current Refresh Token " + getRefreshToken());
 
          Tokens tokens = AuthorizationClient.refresh(getServiceName(),
                                                      getRefreshToken(), getClientId(), getClientSecret(), getTokenUri(), flagsSet,
