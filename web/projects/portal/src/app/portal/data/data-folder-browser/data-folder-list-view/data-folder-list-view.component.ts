@@ -224,7 +224,7 @@ export class DataFolderListViewComponent {
       return this.multiObjectSelectList.isSelected(asset);
    }
 
-   public getDateLabel(dateNumber: number, dateFormat): string {
-      return DateTypeFormatter.format((dateNumber),  dateFormat, true);
+   public getDateLabel(dateNumber: number, dateFormat: string): string {
+      return DateTypeFormatter.getLocalTime(dateNumber,  dateFormat);
    }
 }

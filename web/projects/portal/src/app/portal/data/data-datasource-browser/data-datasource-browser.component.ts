@@ -1019,10 +1019,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    public getDateLabel(dateNumber: number, dateFormat): string {
-      if(dateNumber == 0) {
-         return null;
-      }
-
-      return DateTypeFormatter.format((dateNumber),  dateFormat, true);
+      return DateTypeFormatter.getLocalTime(dateNumber,  dateFormat);
    }
 }
