@@ -24,4 +24,5 @@ export interface MVManagementModel {
    showDateAsAges?: boolean;
    cycle?: string;
    runInBackground?: boolean;
+   dateFormat: string;
 }
