@@ -471,6 +471,11 @@ public abstract class XQuery implements Serializable, Cloneable, XMLSerializable
 
       if(nlist.getLength() > 0) {
          setOrganizationId(Tool.getValue(nlist.item(0)));
+         String curOrgID = OrganizationManager.getInstance().getCurrentOrgID();
+
+         if(!this.orgId.equals(curOrgID)) {
+            setOrganizationId(curOrgID);
+         }
       }
 
       nlist = Tool.getChildNodesByTagName(root, "folder");

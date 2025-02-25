@@ -29,6 +29,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
+import inetsoft.uql.asset.internal.SQLBoundTableAssemblyInfo;
 import inetsoft.uql.erm.*;
 import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.schema.XSchema;
@@ -2379,6 +2380,16 @@ public final class MVDef implements Comparable, XMLSerializable, Serializable, C
       try {
          Worksheet.setIsTEMP(true);
          String orgID = handleUpdatingOrgID();
+
+         // Queries must use the correct orgID to get the datasource
+         if(orgID != null) {
+            for(Assembly assembly : ws.getAssemblies()) {
+               if(assembly instanceof SQLBoundTableAssembly) {
+                  ((SQLBoundTableAssemblyInfo) assembly.getInfo()).getQuery().setOrganizationId(orgID);
+               }
+            }
+         }
+
          MVWorksheetStorage.getInstance().putWorksheet(getWorksheetPath(), ws, orgID);
       }
       finally {
