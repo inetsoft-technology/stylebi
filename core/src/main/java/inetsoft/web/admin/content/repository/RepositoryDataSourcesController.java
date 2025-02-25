@@ -29,6 +29,7 @@ import inetsoft.web.admin.content.database.DriverAvailability;
 import inetsoft.web.admin.content.database.types.CustomDatabaseType;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.portal.data.DataSourceBrowserService;
 import inetsoft.web.security.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -40,10 +41,12 @@ import java.util.Objects;
 public class RepositoryDataSourcesController {
    @Autowired
    public RepositoryDataSourcesController(DatabaseDatasourcesService databaseDatasourcesService,
-                                          ResourcePermissionService permissionService)
+                                          ResourcePermissionService permissionService,
+                                          DataSourceBrowserService dataSourceBrowserService)
    {
       this.databaseDatasourcesService = databaseDatasourcesService;
       this.permissionService = permissionService;
+      this.dataSourceBrowserService = dataSourceBrowserService;
    }
 
    @GetMapping("/api/em/settings/content/repository/dataSource/driverAvailability")
@@ -135,6 +138,9 @@ public class RepositoryDataSourcesController {
 
          status = databaseDatasourcesService.saveDatabase(path,
             model, actionName, fullPath, actionError, principal);
+
+         String dsFullName = this.databaseDatasourcesService.getDataSourceFullName(path, database);
+         dataSourceBrowserService.updateDataSourceConnectionStatus(dsFullName, principal);
       }
 
       if(model.permissions() != null && model.permissions().changed()) {
@@ -180,4 +186,5 @@ public class RepositoryDataSourcesController {
 
    private final DatabaseDatasourcesService databaseDatasourcesService;
    private final ResourcePermissionService permissionService;
+   private final DataSourceBrowserService dataSourceBrowserService;
 }

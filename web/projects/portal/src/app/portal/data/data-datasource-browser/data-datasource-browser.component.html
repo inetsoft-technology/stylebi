@@ -42,6 +42,11 @@
              title="_#(data.datasets.searchWithinFolder)"
              (click)="toggleSearch($event)">
           </i>
+          <i role="button" class="btn py-1 refresh-icon"
+             title="_#(data.datasources.refreshStatus)"
+             [class.disabled]="selectionOn && selectedItems.length == 0"
+             (click)="loadDataSourceStatus()">
+          </i>
           <i *ngIf="newDatasourceEnabled && !selectionOn" class="btn database-plus-icon py-1 no-caret"
              title="_#(data.datasources.newDataSource)"
              aria-label="_#(data.datasources.newDataSource)"

@@ -279,25 +279,17 @@ public class DataSourceController {
    }
 
    /**
-    * Determines whether a connection can be made to the data source
-    *
-    * @param path data source name.
-    */
-   @GetMapping("/api/data/datasources/status/**")
-   public DataSourceStatus getConnectionStatus(@RemainingPath() String path) throws Exception {
-      return dataSourceBrowserService.getDataSourceConnectionStatus(path, true);
-   }
-
-   /**
     * Determines whether a connection can be made to the data sources.
     *
-    * @param paths data source paths.
+    * @param request data source connection status request.
     */
    @PostMapping("/api/data/datasources/statuses")
-   public List<DataSourceStatus> getConnectionStatuses(@RequestBody List<String> paths)
+   public List<DataSourceStatus> getConnectionStatuses(
+      @RequestBody DataSourceConnectionStatusRequest request,
+      Principal principal)
       throws Exception
    {
-      return dataSourceBrowserService.getDataSourceConnectionStatuses(paths);
+      return dataSourceBrowserService.getDataSourceConnectionStatuses(request, principal);
    }
 
    /**
@@ -599,6 +591,8 @@ public class DataSourceController {
       throws Exception
    {
       datasourcesService.createNewDataSource(definition, false, principal);
+      dataSourceBrowserService.updateDataSourceConnectionStatus(
+         datasourcesService.getDataSourceFullName(definition), principal);
    }
 
    /**
@@ -632,6 +626,8 @@ public class DataSourceController {
       throws Exception
    {
       datasourcesService.updateDataSource(name, definition, principal);
+      dataSourceBrowserService.updateDataSourceConnectionStatus(
+         datasourcesService.getDataSourceFullName(definition), principal);
    }
 
    /**
