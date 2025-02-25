@@ -22,6 +22,7 @@ import inetsoft.sree.security.ResourceType;
 import inetsoft.web.admin.security.ConnectionStatus;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.factory.RemainingPath;
+import inetsoft.web.portal.data.DataSourceBrowserService;
 import inetsoft.web.portal.data.DataSourceXmlaDefinition;
 import inetsoft.web.portal.model.database.cube.xmla.*;
 import inetsoft.web.portal.service.datasource.XmlaDatasourceService;
@@ -33,8 +34,11 @@ import java.util.List;
 
 @RestController
 public class XmlaDataSourceController {
-   public XmlaDataSourceController(XmlaDatasourceService xmlaDatasourceService) {
+   public XmlaDataSourceController(XmlaDatasourceService xmlaDatasourceService,
+                                   DataSourceBrowserService dataSourceBrowserService)
+   {
       this.xmlaDatasourceService = xmlaDatasourceService;
+      this.dataSourceBrowserService = dataSourceBrowserService;
    }
 
    @PostMapping("api/portal/data/datasource/xmla/new")
@@ -42,6 +46,8 @@ public class XmlaDataSourceController {
       throws Exception
    {
       xmlaDatasourceService.createNewDataSource(model, true, principal);
+      dataSourceBrowserService.updateDataSourceConnectionStatus(
+         xmlaDatasourceService.getDataSourceFullName(model), principal);
    }
 
    @GetMapping("api/portal/data/datasource/xmla/new")
@@ -71,6 +77,8 @@ public class XmlaDataSourceController {
       throws Exception
    {
       xmlaDatasourceService.updateDataSource(path, model, principal);
+      dataSourceBrowserService.updateDataSourceConnectionStatus(
+         xmlaDatasourceService.getDataSourceFullName(model), principal);
    }
 
    @PostMapping("api/portal/data/datasource/xmla/catalogs")
@@ -103,4 +111,5 @@ public class XmlaDataSourceController {
    }
 
    private final XmlaDatasourceService xmlaDatasourceService;
+   private final DataSourceBrowserService dataSourceBrowserService;
 }

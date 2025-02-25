@@ -579,6 +579,18 @@ public abstract class DatasourcesBaseService {
       return result;
    }
 
+   public String getDataSourceFullName(BaseDataSourceDefinition definition) throws Exception {
+      String parentPath = "";
+
+      if(definition.getParentPath() != null && !definition.getParentPath().isEmpty() &&
+         !"/".equals(definition.getParentPath()))
+      {
+         parentPath = definition.getParentPath() + "/";
+      }
+
+      return "/".equals(parentPath) ? definition.getName() : parentPath + definition.getName();
+   }
+
    private final XRepository repository;
    private final SecurityProvider securityProvider;
    private static final Logger LOG = LoggerFactory.getLogger(DatasourcesBaseService.class);

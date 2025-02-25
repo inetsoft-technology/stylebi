@@ -46,6 +46,7 @@ import {SearchCommand} from "../commands/search-command";
 import {AddFolderConfig} from "../data-folder-browser/data-folder-browser.component";
 import {PortalDataType} from "../data-navigation-tree/portal-data-type";
 import {DataNotificationsComponent} from "../data-notifications.component";
+import {DataSourceConnectionStatusRequest} from "../model/data-source-connection-status-request";
 import {DataSourceInfo} from "../model/data-source-info";
 import {DataSourceStatus} from "../model/data-source-status";
 import {SearchDataSourceResultsModel} from "../model/search-data-source-results-model";
@@ -237,7 +238,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    private disableAction(): void {
       this.httpClient.get<DataSourceInfo[]>(DATASOURCES_LIST_URI).subscribe(model => {
          for (let i = 0; i < model.length; i++) {
-            console.log(this.isDataSourceFolder(model[i]));
             if(this.isDataSourceFolder(model[i])) {
                this.isdisableAction = false;
             }
@@ -268,26 +268,41 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
             this.newVpmEnabled = model.newVpmEnabled;
             this.datasources = this.sortDataSources(model.dataSourceList, this.sortOptions);
             this.multiObjectSelectList.setObjectsKeepSelection(this.datasources);
-            this.refreshDataSourceStatuses(this.datasources);
+            this.fetchDataSourceStatuses(this.datasources, false);
             this.currentFolderPathString = path;
          });
    }
 
-   private refreshDataSourceStatuses(datasources: DataSourceInfo[]): void {
+   public loadDataSourceStatus() {
+      // in selection mode, load only the selected data sources
+      this.fetchDataSourceStatuses(
+         this.selectionOn ? this.selectedItems : this.datasources, true);
+   }
+
+   private fetchDataSourceStatuses(datasources: DataSourceInfo[], updateStatus: boolean): void {
       const dsCopy = datasources.filter(ds => !this.isDataSourceFolder(ds));
 
       if(dsCopy.length == 0) {
          return;
       }
 
-      dsCopy.forEach(ds => ds.statusMessage = this.attemptingConnectionStatus);
-      const names = dsCopy.map(ds => ds.path);
+      if(updateStatus) {
+         dsCopy.forEach(ds => ds.statusMessage = this.attemptingConnectionStatus);
+      }
 
-      const sub = this.httpClient.post<DataSourceStatus[]>(DATASOURCE_STATUSES_URI, names)
+      const names = dsCopy.map(ds => ds.path);
+      const request = <DataSourceConnectionStatusRequest>{
+         paths: names,
+         updateStatus: updateStatus
+      };
+
+      const sub = this.httpClient.post<DataSourceStatus[]>(DATASOURCE_STATUSES_URI, request)
          .subscribe(statuses => {
             for(let i = 0; i < dsCopy.length; i++) {
-               dsCopy[i].statusMessage = statuses[i].message;
-               dsCopy[i].connected = statuses[i].connected;
+               if(!!statuses[i]) {
+                  dsCopy[i].statusMessage = statuses[i].message;
+                  dsCopy[i].connected = statuses[i].connected;
+               }
             }
          }, () => {
             dsCopy.forEach(ds => {
@@ -295,30 +310,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
                ds.connected = false;
             });
          }, () => this.requests.remove(sub));
-
-      this.requests.add(sub);
-   }
-
-   /**
-    * Send request to refresh the data source's status.
-    */
-   private refreshDataSourceStatus(datasource: DataSourceInfo): void {
-      datasource.statusMessage = this.attemptingConnectionStatus;
-      const uri = DATASOURCES_URI + "/status/"
-         + Tool.encodeURIComponentExceptSlash(datasource.path);
-
-      const sub = this.httpClient.get<DataSourceStatus>(uri)
-         .subscribe(status => {
-               datasource.statusMessage = status.message;
-               datasource.connected = status.connected;
-            },
-            () => {
-               datasource.statusMessage = this.failedConnectionStatus;
-               datasource.connected = false;
-            },
-            () => {
-               this.requests.remove(sub);
-            });
 
       this.requests.add(sub);
    }
@@ -338,7 +329,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          );
 
       if(!this.isDataSourceFolder(datasource)) {
-         this.refreshDataSourceStatus(datasource);
+         this.fetchDataSourceStatuses([datasource], true);
       }
    }
 
@@ -354,7 +345,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
                this.datasources = data.dataSourceInfos;
                this.multiObjectSelectList.setObjectsKeepSelection(this.datasources);
                this.sortOptions = new SortOptions([], SortTypes.ASCENDING);
-               this.refreshDataSourceStatuses(this.datasources);
+               this.fetchDataSourceStatuses(this.datasources, false);
             },
             () => {
                this.datasources = [];
@@ -434,7 +425,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       if(datasource.statusMessage === this.attemptingConnectionStatus) {
          return "help-question-mark-icon text-warning";
       }
-      else if(this.isDataSourceFolder(datasource)) {
+      else if(this.isDataSourceFolder(datasource) || !datasource.statusMessage) {
          return "";
       }
       else if(!datasource.connected) {
