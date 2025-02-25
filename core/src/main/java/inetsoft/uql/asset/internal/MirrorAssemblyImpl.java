@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.asset.internal;
 
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.*;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
@@ -368,6 +369,7 @@ public class MirrorAssemblyImpl implements MirrorAssembly {
       String identifier = Tool.getAttribute(elem, "source");
 
       if(identifier != null) {
+         identifier = handleWSOrgMismatch(identifier);
          entry = AssetEntry.createAssetEntry(identifier);
       }
 
@@ -405,6 +407,19 @@ public class MirrorAssemblyImpl implements MirrorAssembly {
     */
    public synchronized void clearCache() {
       assembly = null;
+   }
+
+   public String handleWSOrgMismatch(String identifier){
+      String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      int orgIdx = identifier.lastIndexOf("^");
+
+      if(orgIdx > 0) {
+         String updatedID = identifier.substring(0, orgIdx + 1) + curOrgId;
+
+         return updatedID;
+      }
+
+      return identifier;
    }
 
    private static ThreadLocal local = new ThreadLocal(); // thread local
