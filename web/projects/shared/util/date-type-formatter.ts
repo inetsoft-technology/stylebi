@@ -109,6 +109,18 @@ export class DateTypeFormatter {
       return dayjs().format(DateTypeFormatter.fixFormatToMoment(format));
    }
 
+   public static getLocalTime(value: number, format: string): string {
+      if(value == 0) {
+         return null;
+      }
+
+      if(format == null) {
+         format = "YYYY-MM-DD HH:mm:ss";
+      }
+
+      return DateTypeFormatter.format(value,  format, true);
+   }
+
    public static format(value: number | Date, format: string, autoFix: boolean = true): string | null {
       const date = dayjs(value);
 

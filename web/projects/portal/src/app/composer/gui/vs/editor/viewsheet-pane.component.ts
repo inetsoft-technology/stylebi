@@ -754,7 +754,9 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.statusText = command.info["statusText"];
 
       if(command.info["lastModifiedTime"] != null) {
-         this.vs.statusText = this.vs.statusText +  DateTypeFormatter.format(command.info["lastModifiedTime"], command.info["dateFormat"]);
+         this.vs.statusText = this.vs.statusText +
+            DateTypeFormatter.getLocalTime(command.info["lastModifiedTime"],
+            command.info["dateFormat"]);
       }
 
       this.templateWidth = command.info["templateWidth"];
