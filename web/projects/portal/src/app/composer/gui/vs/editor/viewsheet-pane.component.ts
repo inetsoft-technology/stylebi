@@ -37,6 +37,7 @@ import { AssetEntry, createAssetEntry } from "../../../../../../../shared/data/a
 import { AssetType } from "../../../../../../../shared/data/asset-type";
 import { DownloadService } from "../../../../../../../shared/download/download.service";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
+import { DateTypeFormatter } from "../../../../../../../shared/util/date-type-formatter";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { RefreshBindingTreeCommand } from "../../../../binding/command/refresh-binding-tree-command";
 import { SetGrayedOutFieldsCommand } from "../../../../binding/command/set-grayed-out-fields-command";
@@ -751,6 +752,12 @@ export class VSPane extends CommandProcessor implements OnInit, OnDestroy, After
       this.vs.baseEntry = command.baseEntry;
       this.viewsheetBackground = command.info["viewsheetBackground"];
       this.vs.statusText = command.info["statusText"];
+console.log("======111===");
+      if(command.info["lastModifiedTime"] != null) {
+         this.vs.statusText = this.vs.statusText +  DateTypeFormatter.format(command.info["lastModifiedTime"], command.info["dateFormat"]);
+         console.log("======1111======="+command.info["lastModifiedTime"]);
+      }
+
       this.templateWidth = command.info["templateWidth"];
       this.templateHeight = command.info["templateHeight"];
       this.templateEnabled = command.info["templateEnabled"];

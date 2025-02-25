@@ -59,6 +59,7 @@ export class MoveAssetDialogComponent implements OnInit {
       createdDateLabel: "",
       modifiedDate: new Date().getDate(),
       modifiedDateLabel: "",
+      dateFormat: "YYYY-MM-DD HH:mm:ss",
       editable: false,
       deletable: false,
       materialized: false,
