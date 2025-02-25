@@ -149,7 +149,7 @@
         <span class="truncate-text">{{asset.createdBy}}</span>
       </div>
       <div class="table-cell-padding-sm" [ngClass]="{'col-3 col-md-2': !searchView, 'col-2': searchView}">
-        {{asset.modifiedDate == 0 ? null : asset.modifiedDateLabel}}
+        {{asset.modifiedDate == 0 ? null : getDateLabel(asset.modifiedDate, asset.dateFormat)}}
       </div>
     </div>
   </div>

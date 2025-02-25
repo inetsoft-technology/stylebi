@@ -1076,11 +1076,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    }
 
    public getDateLabel(dateNumber: number): string {
-      if(dateNumber == 0) {
-         return "";
-      }
-
-      return DateTypeFormatter.format((dateNumber),  this.dateTimeFormat, true);
+      return DateTypeFormatter.getLocalTime(dateNumber,  this.dateTimeFormat);
    }
 
    public getLabel(fieldName: string, fieldValue: number): string {

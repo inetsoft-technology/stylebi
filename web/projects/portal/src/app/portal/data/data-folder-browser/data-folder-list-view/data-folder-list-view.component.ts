@@ -17,6 +17,7 @@
  */
 import { Component, EventEmitter, Input, Output } from "@angular/core";
 import { AssetType } from "../../../../../../../shared/data/asset-type";
+import { DateTypeFormatter } from "../../../../../../../shared/util/date-type-formatter";
 import { SortOptions } from "../../../../../../../shared/util/sort/sort-options";
 import { SortTypes } from "../../../../../../../shared/util/sort/sort-types";
 import { AssetConstants } from "../../../../common/data/asset-constants";
@@ -221,5 +222,9 @@ export class DataFolderListViewComponent {
       }
 
       return this.multiObjectSelectList.isSelected(asset);
+   }
+
+   public getDateLabel(dateNumber: number, dateFormat: string): string {
+      return DateTypeFormatter.getLocalTime(dateNumber,  dateFormat);
    }
 }

@@ -24,6 +24,7 @@ export interface DataSourceInfo {
    createdBy: string;
    createdDate: number;
    createdDateLabel: string;
+   dateFormat: string;
    editable: boolean;
    deletable: boolean;
    queryCreatable?: boolean;

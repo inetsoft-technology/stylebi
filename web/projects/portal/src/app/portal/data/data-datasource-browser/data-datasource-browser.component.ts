@@ -22,6 +22,7 @@ import {NgbModal, NgbPopover} from "@ng-bootstrap/ng-bootstrap";
 import {Observable, of, Subscription} from "rxjs";
 import {catchError, debounceTime, distinctUntilChanged, map, switchMap} from "rxjs/operators";
 import {AssetType} from "../../../../../../shared/data/asset-type";
+import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import {FormValidators} from "../../../../../../shared/util/form-validators";
 import {SortOptions} from "../../../../../../shared/util/sort/sort-options";
 import {SortTypes} from "../../../../../../shared/util/sort/sort-types";
@@ -1015,5 +1016,9 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       if(checked) {
          this.selectedItems.push(...this.viewAssets);
       }
+   }
+
+   public getDateLabel(dateNumber: number, dateFormat): string {
+      return DateTypeFormatter.getLocalTime(dateNumber,  dateFormat);
    }
 }
