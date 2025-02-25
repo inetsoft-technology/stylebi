@@ -21,6 +21,8 @@ import inetsoft.report.internal.Util;
 import inetsoft.sree.RepositoryEntry;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
+import inetsoft.sree.internal.cluster.DistributedMap;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.*;
@@ -42,6 +44,7 @@ import inetsoft.web.composer.model.ws.*;
 import inetsoft.web.portal.controller.SearchComparator;
 import inetsoft.web.portal.controller.database.DataSourceService;
 import inetsoft.web.viewsheet.*;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -69,6 +72,11 @@ public class DataSourceBrowserService {
       this.repositoryObjectService = repositoryObjectService;
       this.assetRepository = assetRepository;
       this.dataSourceService = dataSourceService;
+   }
+
+   @PostConstruct
+   public void init() {
+      statusMap = Cluster.getInstance().getMap(STATUS_MAP);
    }
 
    public List<DataSourceInfo> getDataSources(String path, boolean root, String[] movingFolders,
@@ -368,12 +376,21 @@ public class DataSourceBrowserService {
          principal, ResourceType.DATA_SOURCE, name, ResourceAction.WRITE);
    }
 
+   public void updateDataSourceConnectionStatus(String path, Principal principal) {
+      try {
+         getDataSourceConnectionStatus(path, true, principal);
+      }
+      catch(Exception ignore) {
+      }
+   }
+
    /**
     * @param path    the data source path.
-    * @param refresh true to ignore cached status, otherwise false.
+    * @param updateStatus true to update status, otherwise false to retrieve cached status if any.
     * @return the status for the data source.
     */
-   public DataSourceStatus getDataSourceConnectionStatus(String path, boolean refresh)
+   public DataSourceStatus getDataSourceConnectionStatus(String path, boolean updateStatus,
+                                                         Principal principal)
       throws Exception
    {
       XDataSource dataSource = repository.getDataSource(path);
@@ -384,49 +401,18 @@ public class DataSourceBrowserService {
 
       boolean connected = true;
       String statusMessage = Catalog.getCatalog().getString("data.datasources.dataSourceConnected");
-      DataSourceStatusKey key = null;
+      String key = null;
 
       try {
+         key = getDataSourceStatusKey(path, principal);
+
+         // don't try to execute the data source unless updateStatus is true and return
+         // the current status even if it's null
+         if(!updateStatus) {
+            return statusMap.get(key);
+         }
+
          Object session = repository.bind(System.getProperty("user.name"));
-
-         final AssetEntry entry =
-            new AssetEntry(AssetRepository.QUERY_SCOPE, AssetEntry.Type.DATA_SOURCE, path, null);
-         final IndexedStorage storage = assetRepository.getStorage(entry);
-         final long lastModified = storage.lastModified(entry.toIdentifier());
-
-         VariableTable vars = null;
-
-         if(dataSource instanceof JDBCDataSource && dataSource.getParameters() != null) {
-            vars = new VariableTable();
-            Principal principal = ThreadContext.getContextPrincipal();
-
-            if(principal instanceof XPrincipal) {
-               Object username = ((XPrincipal) principal).getParameter(
-                  XUtil.DB_USER_PREFIX + dataSource.getFullName());
-
-               if(username != null) {
-                  vars.put(XUtil.DB_USER_PREFIX + dataSource.getFullName(), username.toString());
-               }
-
-               Object password = ((XPrincipal) principal).getParameter(
-                  XUtil.DB_PASSWORD_PREFIX + dataSource.getFullName());
-
-               if(password != null) {
-                  vars.put(XUtil.DB_PASSWORD_PREFIX + dataSource.getFullName(), password.toString());
-               }
-            }
-         }
-
-         key = new DataSourceStatusKey(path, lastModified, session, vars);
-
-         if(!refresh) {
-            final DataSourceStatus status = statuses.get(key);
-
-            if(status != null) {
-               return status;
-            }
-         }
-
          repository.testDataSource(session, dataSource, null);
       }
       catch(Exception ex) {
@@ -457,17 +443,16 @@ public class DataSourceBrowserService {
          .message(statusMessage)
          .build();
 
-      if(key != null) {
-         statuses.put(key, status);
-      }
-
+      statusMap.put(key, status);
       return status;
    }
 
-   public List<DataSourceStatus> getDataSourceConnectionStatuses(List<String> paths)
+   public List<DataSourceStatus> getDataSourceConnectionStatuses(
+      DataSourceConnectionStatusRequest request, Principal principal)
       throws Exception
    {
       final List<Thread> threads = new ArrayList<>();
+      final List<String> paths = request.paths();
       final DataSourceStatus[] statuses = new DataSourceStatus[paths.size()];
 
       for(int i = 0; i < paths.size(); i++) {
@@ -479,7 +464,8 @@ public class DataSourceBrowserService {
             MDC.put("DATA_SOURCE", paths.get(idx));
 
             try {
-               status = getDataSourceConnectionStatus(paths.get(idx), false);
+               status = getDataSourceConnectionStatus(paths.get(idx), request.updateStatus(),
+                                                      principal);
             }
             catch(Exception ex) {
                status = DataSourceStatus.builder()
@@ -895,49 +881,18 @@ public class DataSourceBrowserService {
       return new DataSourceFolder("/", time, user != null ? user.getName() : null);
    }
 
-   private static class DataSourceStatusKey {
-      private DataSourceStatusKey(String path, long mtime, Object session, VariableTable vars) {
-         this.path = path;
-         this.mtime = mtime;
-         this.session = session;
-         this.vars = vars;
-      }
-
-      @Override
-      public boolean equals(Object o) {
-         if(this == o) {
-            return true;
-         }
-
-         if(o == null || getClass() != o.getClass()) {
-            return false;
-         }
-
-         DataSourceStatusKey that = (DataSourceStatusKey) o;
-         return Objects.equals(path, that.path) &&
-            Objects.equals(mtime, that.mtime) &&
-            Objects.equals(session, that.session) &&
-            Objects.equals(vars, that.vars);
-      }
-
-      @Override
-      public int hashCode() {
-         return Objects.hash(path, mtime, session, vars);
-      }
-
-      private final String path;
-      private final long mtime;
-      private final Object session;
-      private final VariableTable vars;
+   private static String getDataSourceStatusKey(String path, Principal principal) {
+      String userName = principal == null ? "anonymous" : principal.getName();
+      return userName + "_" + path;
    }
 
    private final SecurityEngine securityEngine;
    private final XRepository repository;
    private final RepositoryObjectService repositoryObjectService;
    private final AssetRepository assetRepository;
-   private final DataCache<DataSourceStatusKey, DataSourceStatus> statuses =
-      new DataCache<>(8192, 10);
+   private DistributedMap<String, DataSourceStatus> statusMap;
    private final DataSourceService dataSourceService;
 
+   private static final String STATUS_MAP = DataSourceBrowserService.class.getName() + ".statusMap";
    private static final Logger LOG = LoggerFactory.getLogger(DataSourceBrowserService.class);
 }

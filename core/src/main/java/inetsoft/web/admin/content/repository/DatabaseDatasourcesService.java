@@ -802,6 +802,12 @@ public class DatabaseDatasourcesService {
          return Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE, path, principal);
       }
 
+      String fullName = getDataSourceFullName(path, database);
+
+      return Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE, fullName, principal);
+   }
+
+   public String getDataSourceFullName(String path, DatabaseDefinition database) throws Exception {
       boolean exists = dataSourceExists(path, database.getName());
       String fullName = path;
 
@@ -817,7 +823,7 @@ public class DatabaseDatasourcesService {
          }
       }
 
-      return Util.getObjectFullPath(RepositoryEntry.DATA_SOURCE, fullName, principal);
+      return fullName;
    }
 
    public String getActionName(String path, String oldPath) throws Exception {
