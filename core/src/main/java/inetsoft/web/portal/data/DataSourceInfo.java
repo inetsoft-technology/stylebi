@@ -53,6 +53,7 @@ public interface DataSourceInfo {
    }
 
    String createdDateLabel();
+   String dateFormat();
    boolean editable();
    boolean deletable();
    boolean hasSubFolder();

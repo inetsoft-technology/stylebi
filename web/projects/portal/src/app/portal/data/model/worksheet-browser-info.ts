@@ -28,6 +28,7 @@ export interface WorksheetBrowserInfo {
    createdDate: number;
    createdDateLabel: string;
    modifiedDate: number;
+   dateFormat: string;
    modifiedDateLabel: string;
    editable: boolean;
    deletable: boolean;
