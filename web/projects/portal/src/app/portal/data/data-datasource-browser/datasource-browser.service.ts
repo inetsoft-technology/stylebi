@@ -177,6 +177,7 @@ export class DatasourceBrowserService {
             path: movingEntry.path,
             queryCreatable: false,
             statusMessage: "",
+            dateFormat: "YYYY-MM-DD HH:mm:ss",
             type: {name: typeName, label: ""}
          });
       }

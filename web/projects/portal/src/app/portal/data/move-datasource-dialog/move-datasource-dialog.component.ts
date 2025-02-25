@@ -63,6 +63,7 @@ export class MoveDataSourceDialogComponent implements OnInit {
       createdBy: "",
       createdDate: new Date().getDate(),
       createdDateLabel: "",
+      dateFormat: "YYYY-MM-DD HH:mm:ss",
       editable: false,
       deletable: false,
    };

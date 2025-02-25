@@ -514,9 +514,9 @@ public class PlaceholderService {
             }
          }
 
-         infoMap.put("statusText", rvs.getEntry().getDescription() + " " +
-            AssetUtil.getDateTimeFormat().format(vs.getLastModified()));
-         infoMap.put("templateWidth", vsInfo.getTemplateWidth());
+         infoMap.put("statusText", rvs.getEntry().getDescription() + " ");
+         infoMap.put("lastModifiedTime", vs.getLastModified());
+         infoMap.put("dateFormat", Tool.getDateFormatPattern());
          infoMap.put("templateHeight", vsInfo.getTemplateHeight());
          infoMap.put("templateEnabled", vsInfo.isTemplateEnabled());
          infoMap.put("metadata", vsInfo.isMetadata());
