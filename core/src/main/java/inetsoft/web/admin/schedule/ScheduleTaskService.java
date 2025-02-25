@@ -782,6 +782,7 @@ public class ScheduleTaskService {
       task.setOwner(getIdentityId(model.owner(), principal));
       task.setLocale(getTaskLocale(model.locale()));
       task.setDescription(model.description());
+      task.setTimeZone(model.timeZone());
       IdentityID modelID = getIdentityId(model.idName(), principal);
 
       //handle vs bookmark when executer has changed.
@@ -924,6 +925,7 @@ public class ScheduleTaskService {
       model.locales(localeTexts);
 
       model.description(task.getDescription());
+      model.timeZone(task.getTimeZone());
 
       return model.build();
    }

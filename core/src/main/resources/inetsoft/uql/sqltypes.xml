@@ -21,7 +21,6 @@
   <types type="db2" class="inetsoft.uql.jdbc.util.DB2SQLTypes"/>
   <types type="oracle" class="inetsoft.uql.jdbc.util.OracleSQLTypes"/>
   <types type="sql server" class="inetsoft.uql.jdbc.util.SQLServerSQLTypes"/>
-  <types type="sybase" class="inetsoft.uql.jdbc.util.SybaseSQLTypes"/>
   <types type="informix" class="inetsoft.uql.jdbc.util.InformixSQLTypes"/>
   <types type="mysql" class="inetsoft.uql.jdbc.util.MySQLTypes"/>
   <types type="ingres" class="inetsoft.uql.jdbc.util.IngresSQLTypes"/>
