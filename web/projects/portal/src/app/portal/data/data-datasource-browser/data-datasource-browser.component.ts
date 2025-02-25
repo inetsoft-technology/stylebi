@@ -46,7 +46,6 @@ import {SearchCommand} from "../commands/search-command";
 import {AddFolderConfig} from "../data-folder-browser/data-folder-browser.component";
 import {PortalDataType} from "../data-navigation-tree/portal-data-type";
 import {DataNotificationsComponent} from "../data-notifications.component";
-import {DataSourceConnectionStatusRequest} from "../model/data-source-connection-status-request";
 import {DataSourceInfo} from "../model/data-source-info";
 import {DataSourceStatus} from "../model/data-source-status";
 import {SearchDataSourceResultsModel} from "../model/search-data-source-results-model";
@@ -101,7 +100,6 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    selectedFile: DataSourceInfo = null;
    selectionOn: boolean = false;
    isdisableAction: boolean = true;
-   updatingStatus = false;
    private composedDashboard = false;
    private requests = new Subscription();
    private attemptingConnectionStatus: string = "_#(js:data.datasources.attemptingToConnectToDataSource)";
@@ -191,10 +189,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
              path = !path || path === "/" ? "" : path;
              this.currentFolderScope = params.get("scope");
              this.refreshAllData(path);
-
-             if(this.currentFolderPathString != path) {
-                this.selectedItems = [];
-             }
+             this.selectedItems = [];
           });
 
       this.repositoryClient.connect();
@@ -242,6 +237,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    private disableAction(): void {
       this.httpClient.get<DataSourceInfo[]>(DATASOURCES_LIST_URI).subscribe(model => {
          for (let i = 0; i < model.length; i++) {
+            console.log(this.isDataSourceFolder(model[i]));
             if(this.isDataSourceFolder(model[i])) {
                this.isdisableAction = false;
             }
@@ -272,62 +268,57 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
             this.newVpmEnabled = model.newVpmEnabled;
             this.datasources = this.sortDataSources(model.dataSourceList, this.sortOptions);
             this.multiObjectSelectList.setObjectsKeepSelection(this.datasources);
-            this.updateSelectedItems(this.datasources);
-            this.fetchDataSourceStatuses(this.datasources, false);
+            this.refreshDataSourceStatuses(this.datasources);
             this.currentFolderPathString = path;
          });
    }
 
-   public loadDataSourceStatus() {
-      // in selection mode, load only the selected data sources
-      this.fetchDataSourceStatuses(
-         this.selectionOn ? this.selectedItems : this.datasources, true);
-   }
-
-   private fetchDataSourceStatuses(datasources: DataSourceInfo[], updateStatus: boolean): void {
+   private refreshDataSourceStatuses(datasources: DataSourceInfo[]): void {
       const dsCopy = datasources.filter(ds => !this.isDataSourceFolder(ds));
 
       if(dsCopy.length == 0) {
          return;
       }
 
-      if(updateStatus) {
-         // don't allow multiple requests to update the status at the same time
-         if(this.updatingStatus) {
-            return;
-         }
-
-         dsCopy.forEach(ds => ds.statusMessage = this.attemptingConnectionStatus);
-         this.updatingStatus = true;
-      }
-
+      dsCopy.forEach(ds => ds.statusMessage = this.attemptingConnectionStatus);
       const names = dsCopy.map(ds => ds.path);
-      const request = <DataSourceConnectionStatusRequest>{
-         paths: names,
-         updateStatus: updateStatus,
-         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      };
 
-      const sub = this.httpClient.post<DataSourceStatus[]>(DATASOURCE_STATUSES_URI, request)
+      const sub = this.httpClient.post<DataSourceStatus[]>(DATASOURCE_STATUSES_URI, names)
          .subscribe(statuses => {
             for(let i = 0; i < dsCopy.length; i++) {
-               if(!!statuses[i]) {
-                  dsCopy[i].statusMessage = statuses[i].message;
-                  dsCopy[i].connected = statuses[i].connected;
-               }
+               dsCopy[i].statusMessage = statuses[i].message;
+               dsCopy[i].connected = statuses[i].connected;
             }
          }, () => {
             dsCopy.forEach(ds => {
                ds.statusMessage = this.failedConnectionStatus;
                ds.connected = false;
             });
-         }, () => {
-            if(updateStatus) {
-               this.updatingStatus = false;
-            }
+         }, () => this.requests.remove(sub));
 
-            this.requests.remove(sub);
-         });
+      this.requests.add(sub);
+   }
+
+   /**
+    * Send request to refresh the data source's status.
+    */
+   private refreshDataSourceStatus(datasource: DataSourceInfo): void {
+      datasource.statusMessage = this.attemptingConnectionStatus;
+      const uri = DATASOURCES_URI + "/status/"
+         + Tool.encodeURIComponentExceptSlash(datasource.path);
+
+      const sub = this.httpClient.get<DataSourceStatus>(uri)
+         .subscribe(status => {
+               datasource.statusMessage = status.message;
+               datasource.connected = status.connected;
+            },
+            () => {
+               datasource.statusMessage = this.failedConnectionStatus;
+               datasource.connected = false;
+            },
+            () => {
+               this.requests.remove(sub);
+            });
 
       this.requests.add(sub);
    }
@@ -347,7 +338,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
          );
 
       if(!this.isDataSourceFolder(datasource)) {
-         this.fetchDataSourceStatuses([datasource], true);
+         this.refreshDataSourceStatus(datasource);
       }
    }
 
@@ -363,7 +354,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
                this.datasources = data.dataSourceInfos;
                this.multiObjectSelectList.setObjectsKeepSelection(this.datasources);
                this.sortOptions = new SortOptions([], SortTypes.ASCENDING);
-               this.fetchDataSourceStatuses(this.datasources, false);
+               this.refreshDataSourceStatuses(this.datasources);
             },
             () => {
                this.datasources = [];
@@ -443,7 +434,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
       if(datasource.statusMessage === this.attemptingConnectionStatus) {
          return "help-question-mark-icon text-warning";
       }
-      else if(this.isDataSourceFolder(datasource) || !datasource.statusMessage) {
+      else if(this.isDataSourceFolder(datasource)) {
          return "";
       }
       else if(!datasource.connected) {
@@ -606,22 +597,21 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    moveSelected(): void {
-      for(let i = 0; i < this.selectedItems.length; i++) {
-         let ds = this.selectedItems[i];
-
+      for(var i=0;i<this.selectedItems.length;i++) {
+         var ds = this.selectedItems[i];
          if(!(ds.editable && ds.deletable)) {
             return;
          }
       }
 
-      this.datasourceService.moveSelected(this.selectedItems, this.currentFolderPathString, () => {
-            this.refreshAllData(this.currentFolderPathString);
-            this.datasourceService.refreshTree();
-            this.selectedItems = [];
-         },
-         (error) => {
-            this.dataNotifications.notifications.danger(error.error.message);
-         });
+      this.datasourceService.moveSelected(this.selectedItems, this.currentFolderPathString,() => {
+             this.refreshAllData(this.currentFolderPathString);
+             this.datasourceService.refreshTree();
+             this.selectedItems = [];
+          },
+          (error) => {
+             this.dataNotifications.notifications.danger(error.error.message);
+          });
    }
 
    /**
@@ -920,6 +910,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     * Turn selection state on or off.
     */
    toggleSelectionState(): void {
+
       this.selectionOn = !this.selectionOn;
       this.selectedItems=[];
    }
@@ -929,6 +920,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     * @returns {boolean} true if the deletion toolbar icon should be enabled
     */
    isSelectionDeletable(): boolean {
+
       return !this.selectedItems.some(item => (!item.deletable));
    }
 
@@ -937,6 +929,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     * @returns {boolean} true has edit permission on all items in the current selection
     */
    isSelectionEditable(): boolean {
+
       return !this.selectedItems.some(item => (!item.editable));
    }
 
@@ -945,6 +938,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     * @param item    the asset item being updated
     */
    updateSelection(item: DataSourceInfo): void {
+
       const index: number = this.selectedItems.indexOf(item);
       this.disableAction();
 
@@ -957,6 +951,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    deleteSelected(): void {
+
       const request = this.selectedItems.reduce<SelectedDataSourcesRequest>((previous, current) => {
            const item = { name: current.name, path: current.path };
 
@@ -994,6 +989,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
    }
 
    deleteSelected0(request: SelectedDataSourcesRequest): void {
+
       this.httpClient.post(DATASOURCES_URI+"/deleteDataSources", request).subscribe();
       this.selectedItems=[];
    }
@@ -1003,6 +999,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     * @returns {boolean}   true if there is at least one item and all items are selected.
     */
    get selectAllChecked(): boolean {
+
       return this.selectedItems.length > 0 &&
          this.viewAssets.every(item => this.selectedItems.indexOf(item) !== -1);
    }
@@ -1012,6 +1009,7 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
     * @param checked the new state of select all
     */
    selectAllChanged(checked: boolean): void {
+
       this.disableAction();
       this.selectedItems = [];
 
@@ -1022,15 +1020,5 @@ export class DataDatasourceBrowserComponent extends CommandProcessor implements 
 
    public getDateLabel(dateNumber: number, dateFormat): string {
       return DateTypeFormatter.getLocalTime(dateNumber,  dateFormat);
-   }
-
-   private updateSelectedItems(newDataSources: DataSourceInfo[]) {
-      if(!this.selectedItems || this.selectedItems.length == 0) {
-         return;
-      }
-
-      this.selectedItems = this.selectedItems
-         .map(ds => newDataSources.find(newDs => newDs.path === ds.path))
-         .filter(ds => !!ds);
    }
 }

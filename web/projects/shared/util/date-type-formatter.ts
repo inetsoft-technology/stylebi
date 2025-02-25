@@ -23,7 +23,6 @@ import duration from "dayjs/plugin/duration";
 import toObject from "dayjs/plugin/toObject";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import advancedFormat from "dayjs/plugin/advancedFormat";
-import { TimeZoneModel } from "../schedule/model/time-zone-model";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -111,7 +110,7 @@ export class DateTypeFormatter {
    }
 
    public static getLocalTime(value: number, format: string): string {
-      if(value <= 0 || value == null) {
+      if(value == 0) {
          return null;
       }
 
@@ -120,33 +119,6 @@ export class DateTypeFormatter {
       }
 
       return DateTypeFormatter.format(value,  format, true);
-   }
-
-   public static convertToLocalTimeZone(time1: number, tz: string, timeZoneOptions: TimeZoneModel[]): number {
-      let diff = this.getLocalMinuteOffset(timeZoneOptions) - this.getMinuteOffset(tz, timeZoneOptions);
-      const timezoneDiffInMilliseconds = diff * 60 * 1000;
-
-      return time1 - timezoneDiffInMilliseconds;
-   }
-
-   public static convertToOtherTimeZone(time1: number, tz: string, timeZoneOptions: TimeZoneModel[]): number {
-      let diff = this.getLocalMinuteOffset(timeZoneOptions) - this.getMinuteOffset(tz, timeZoneOptions);
-      const timezoneDiffInMilliseconds = diff * 60 * 1000;
-
-      return time1 + timezoneDiffInMilliseconds;
-   }
-
-   public static getLocalMinuteOffset(timeZoneOptions: TimeZoneModel[]): number {
-      const localTimeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-      return this.getMinuteOffset(localTimeZoneId, timeZoneOptions);
-   }
-
-   public static getMinuteOffset(tz: string, timeZoneOptions: TimeZoneModel[]): number {
-      let result = timeZoneOptions.find((opt) => opt.timeZoneId == tz &&
-         opt.minuteOffset != null);
-
-      return result.minuteOffset;
    }
 
    public static format(value: number | Date, format: string, autoFix: boolean = true): string | null {
