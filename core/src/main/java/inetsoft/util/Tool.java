@@ -2861,6 +2861,18 @@ public final class Tool extends CoreTool {
       return dateFmt;
    }
 
+   public static String getDateFormatPattern() {
+      String dateFormat = SreeEnv.getProperty("format.date.time");
+
+      if(dateFormat == null) {
+         return "YYYY-MM-DD HH:mm:ss";
+      }
+
+      dateFormat = dateFormat.replace("yyyy", "YYYY").replace("dd", "DD");
+
+      return dateFormat;
+   }
+
    /**
     * Get the time format.
     */

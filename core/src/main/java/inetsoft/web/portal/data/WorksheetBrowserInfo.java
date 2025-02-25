@@ -41,6 +41,8 @@ public interface WorksheetBrowserInfo {
    String createdDateLabel();
    long modifiedDate();
    String modifiedDateLabel();
+   @Nullable
+   String dateFormat();
    boolean editable();
    boolean deletable();
    boolean materialized();

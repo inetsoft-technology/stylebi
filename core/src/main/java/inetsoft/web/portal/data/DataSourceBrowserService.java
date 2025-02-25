@@ -218,6 +218,7 @@ public class DataSourceBrowserService {
                                                          OrganizationManager.getInstance().getCurrentOrgID())))
             .createdDate(createDate)
             .createdDateLabel(dateLabel)
+            .dateFormat(Tool.getDateFormatPattern())
             .type(type)
             .editable(securityEngine.checkPermission(principal,
                ResourceType.DATA_SOURCE_FOLDER, dsFolder.getFullName(), ResourceAction.WRITE))
@@ -344,6 +345,7 @@ public class DataSourceBrowserService {
             new IdentityID(dataSource.getCreatedBy(), OrganizationManager.getInstance().getCurrentOrgID())))
          .createdDate(cdate)
          .createdDateLabel(dateLabel)
+         .dateFormat(Tool.getDateFormatPattern())
          .editable(securityEngine.checkPermission(
             principal, ResourceType.DATA_SOURCE, dataSource.getFullName(), ResourceAction.WRITE))
          .deletable(securityEngine.checkPermission(

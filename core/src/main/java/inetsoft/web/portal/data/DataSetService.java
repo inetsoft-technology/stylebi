@@ -488,6 +488,7 @@ public class DataSetService {
          .createdBy(entry.getCreatedUsername())
          .createdDate(entry.getCreatedDate() == null ? 0 : entry.getCreatedDate().getTime())
          .createdDateLabel(createdDateLabel)
+         .dateFormat(Tool.getDateFormatPattern())
          .modifiedDate(entry.getModifiedDate() == null ? 0 : entry.getModifiedDate().getTime())
          .modifiedDateLabel(modifiedDateLabel)
          .editable(editable)
