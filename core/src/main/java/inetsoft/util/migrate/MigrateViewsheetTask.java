@@ -64,7 +64,16 @@ public class MigrateViewsheetTask extends MigrateDocumentTask {
       NodeList childNodes = getChildNodes(root, "//worksheetEntry/assetEntry");
 
       if(childNodes.getLength() > 0) {
-         updateAssetEntry((Element) childNodes.item(0));
+         for (int i = 0; i < childNodes.getLength(); i++) {
+            updateAssetEntry((Element) childNodes.item(i));
+         }
+      }
+
+      list = getChildNodes(root, "//dependencies/assetEntry");
+
+      for(int i = 0; i < list.getLength(); i++) {
+         Element entry = (Element) list.item(i);
+         updateAssetEntry(entry);
       }
    }
 
