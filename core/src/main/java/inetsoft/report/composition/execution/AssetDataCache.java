@@ -307,7 +307,7 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
       // occurred. Note that MVQuery has been modified to use an XSwappableTable
       // for *any* table over 10,000 rows to prevent memory issues in the data
       // cache.
-      if(nomvcache && containsMV(table)) {
+      if("false".equals(SreeEnv.getProperty("mv.cache.data")) && containsMV(table)) {
          return null;
       }
 
@@ -589,7 +589,6 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
     */
    private AssetDataCache() {
       super();
-      nomvcache = "false".equals(SreeEnv.getProperty("mv.cache.data"));
       String prop = SreeEnv.getProperty("query.cache.limit", "100");
 
       if(prop != null) {
@@ -1210,8 +1209,6 @@ public class AssetDataCache extends DataCache<DataKey, TableLens> {
    private final AtomicInteger hits = new AtomicInteger();
    private final AtomicInteger noHits = new AtomicInteger();
    private final ThreadLocal<LockHolder> lockEntries = ThreadLocal.withInitial(LockHolder::new);
-
-   private static boolean nomvcache = true;
    private static final Duration EXECUTION_WAITING_TIMEOUT = Duration.ofMinutes(10);
    private static final Duration EXECUTION_WAIT_TIME = Duration.ofSeconds(5);
    private static final ThreadLocal<Boolean> processorThread =
