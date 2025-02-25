@@ -119,7 +119,7 @@ public class RepositoryTreeSearchController {
       List<String> list = new ArrayList<>(searchResults.keySet());
 
       for(String path : list) {
-         addSearchResult(searchResults.get(path), rootFolder);
+         addSearchResult(searchResults.get(path), rootFolder, hostOrgGlobalRepo);
       }
 
       return sortSearchResult(rootFolder, searchString);
@@ -280,6 +280,7 @@ public class RepositoryTreeSearchController {
 
       String label;
       RepletFolderEntry folderEntry = new RepletFolderEntry(folder.path);
+      folderEntry.setDefaultOrgAsset(folder.isDefaultOrgAsset());
       RepositoryEntryModel folderModel = repositoryEntryModelFactoryService.createModel(folderEntry);
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       boolean hostOrgGlobalRepoVisible = isHostOrgGlobalRepoVisible(principal);
@@ -331,7 +332,7 @@ public class RepositoryTreeSearchController {
       return name.substring(index + 1);
    }
 
-   private void addSearchResult(RepositoryEntry entry, SearchResultFolder folder) {
+   private void addSearchResult(RepositoryEntry entry, SearchResultFolder folder, boolean hostOrgGlobalRepo) {
       String filePath = entry.getPath();
       String folderPath = entry.getParentPath();
 
@@ -350,10 +351,11 @@ public class RepositoryTreeSearchController {
 
          if(nextFolder == null) {
             nextFolder = new SearchResultFolder(nextPath);
+            nextFolder.setDefaultOrgAsset(hostOrgGlobalRepo);
             folder.folders.add(nextFolder);
          }
 
-         addSearchResult(entry, nextFolder);
+         addSearchResult(entry, nextFolder, hostOrgGlobalRepo);
       }
    }
 
@@ -417,7 +419,16 @@ public class RepositoryTreeSearchController {
          return folders.isEmpty() && files.isEmpty();
       }
 
+      public boolean isDefaultOrgAsset() {
+         return defaultOrgAsset;
+      }
+
+      public void setDefaultOrgAsset(boolean defaultOrgAsset) {
+         this.defaultOrgAsset = defaultOrgAsset;
+      }
+
       private String path;
+      private boolean defaultOrgAsset = false;
       private List<SearchResultFolder> folders;
       private List<RepositoryEntry> files;
    }
