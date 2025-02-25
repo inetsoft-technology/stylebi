@@ -94,6 +94,7 @@ public class QuickbooksReportsDataSource
 
    @Override
    public HttpParameter[] getQueryHttpParameters() {
+      refreshTokens(true);
       return new HttpParameter[]{
          HttpParameter.builder()
             .type(HttpParameter.ParameterType.HEADER)

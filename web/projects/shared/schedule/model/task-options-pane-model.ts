@@ -30,4 +30,5 @@ export interface TaskOptionsPaneModel {
    ownerAlias?: string;
    organizationName: string;
    selfOrg?: boolean;
+   timeZone?: string;
 }

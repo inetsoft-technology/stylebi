@@ -103,16 +103,6 @@ public class YouTubeAnalyticsQuery extends EndpointJsonQuery<YouTubeAnalyticsEnd
          setHeadersPath("columnHeaders");
          setRowsPath("rows");
       }
-      else if(paged == 2) {
-         paginationSpec = PaginationSpec.builder()
-            .type(PaginationType.ITERATION)
-            .hasNextParam(PaginationParamType.JSON_PATH, "$.nextPageToken")
-            .pageOffsetParamToRead(PaginationParamType.JSON_PATH, "$.nextPageToken")
-            .pageOffsetParamToWrite(PaginationParamType.QUERY, "pageToken")
-            .build();
-         setHeadersPath(null);
-         setRowsPath(null);
-      }
       else {
          paginationSpec = PaginationSpec.builder()
             .type(PaginationType.NONE)

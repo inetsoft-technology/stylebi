@@ -78,7 +78,8 @@
                        (loaded)="updateConditionModel($event)"
                        (updateTaskName)="updateOldTaskName($event)"
                        (closeEditor)="onCloseEditor()"
-                       (cancelTask)="onCancelTask()">
+                       (cancelTask)="onCancelTask()"
+                       (showMessage)="notifications.warning($event)">
   </task-condition-pane>
   <task-action-pane *ngIf="selectedTab === 'action'"
                     [model]="model.taskActionPaneModel"

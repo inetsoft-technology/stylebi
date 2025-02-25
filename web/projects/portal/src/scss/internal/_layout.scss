@@ -431,3 +431,7 @@ li.active, a.active {
     z-index: 9999 !important;
   }
 }
+
+.picker.picker-dialog {
+  z-index: 1000000;
+}

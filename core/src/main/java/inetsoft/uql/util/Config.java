@@ -609,9 +609,6 @@ public class Config implements Serializable {
       else if(driver.contains("derby")) {
          return "Derby";
       }
-      else if(driver.contains("sybase")) {
-         return "Sybase";
-      }
       else if(driver.contains("denodo")) {
          return "Denodo";
       }

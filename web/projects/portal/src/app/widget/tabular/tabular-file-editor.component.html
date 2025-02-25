@@ -18,11 +18,9 @@
 <div class="input-group">
   <input type="text" class="form-control folder-input"
          [ngModel]="path" readonly="true" [disabled]="!enabled"/>
-  <span class="input-group-btn">
-    <button type="button" title="_#(Browse)" class="btn btn-default"
-            (click)="showFileBrowser()" [disabled]="!enabled">
-      <i class="folder-expanded-icon"></i></button>
-  </span>
+  <button type="button" title="_#(Browse)" class="btn btn-default input-group-btn-addon"
+          (click)="showFileBrowser()" [disabled]="!enabled">
+    <i class="folder-expanded-icon"></i></button>
 </div>
 <div class="alert-error" *ngIf="required && value == null">
   <div *ngIf="foldersOnly" class="alert alert-danger">_#(viewer.needSelectFolder)</div>

@@ -33,7 +33,6 @@ import java.util.TreeMap;
    @JsonSubTypes.Type(value = SQLServerDatabaseType.SQLServerDatabaseInfo.class, name = SQLServerDatabaseType.TYPE),
    @JsonSubTypes.Type(value = InformixDatabaseType.InformixDatabaseInfo.class, name = InformixDatabaseType.TYPE),
    @JsonSubTypes.Type(value = PostgreSQLDatabaseType.PostgreSQLDatabaseInfo.class, name = PostgreSQLDatabaseType.TYPE),
-   @JsonSubTypes.Type(value = SybaseDatabaseType.SybaseDatabaseInfo.class, name = SybaseDatabaseType.TYPE),
    @JsonSubTypes.Type(value = DB2DatabaseType.DB2DatabaseInfo.class, name = DB2DatabaseType.TYPE),
    @JsonSubTypes.Type(value = MySQLDatabaseType.MySQLDatabaseInfo.class, name = MySQLDatabaseType.TYPE)
 })

@@ -22,7 +22,12 @@ import java.net.URL;
 
 interface ParameterParser {
    int parseInt(String value);
+
    boolean parseBoolean(String value);
+
    String parseString(String value);
+
+   Object parseObject(String value);
+
    URL parseURL(PaginationParameter name) throws IOException;
 }

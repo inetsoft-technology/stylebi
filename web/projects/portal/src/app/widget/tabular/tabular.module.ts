@@ -17,6 +17,8 @@
  */
 import {CommonModule} from "@angular/common";
 import {NgModule} from "@angular/core";
+import { GooglePickerService } from "./google-picker/google-picker.service";
+import { TabularGooglePickerEditor } from "./google-picker/tabular-google-picker-editor.component";
 import {
    TabularAutocompleteEditor
 } from "./tabular-autocomplete-editor.component";
@@ -73,6 +75,7 @@ import {TreeModule} from "../tree/tree.module";
       TabularRestParametersEditorComponent,
       TabularTagsEditor,
       TabularTextEditor,
+      TabularGooglePickerEditor,
       TabularViewComponent
    ],
    exports: [
@@ -89,9 +92,12 @@ import {TreeModule} from "../tree/tree.module";
       TabularRestParametersEditorComponent,
       TabularTagsEditor,
       TabularTextEditor,
-      TabularViewComponent,
+      TabularGooglePickerEditor,
+      TabularViewComponent
    ],
-   providers: [],
+   providers: [
+      GooglePickerService
+   ]
 })
 export class TabularModule {
 }

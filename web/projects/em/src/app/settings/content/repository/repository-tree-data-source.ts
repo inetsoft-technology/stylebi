@@ -178,8 +178,14 @@ export class RepositoryTreeDataSource
    private initTreeDate(): void {
       this.init().subscribe((nodes) => {
          this.data = nodes;
-         this._data.next();
-         this._loading.next(false);
+
+         if(!this._data.closed) {
+            this._data.next();
+         }
+
+         if(!this._loading.closed) {
+            this._loading.next(false);
+         }
       });
    }
 

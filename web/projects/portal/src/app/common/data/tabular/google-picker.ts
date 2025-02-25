@@ -1,6 +1,6 @@
 /*
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,24 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.uql.listing;
 
-import inetsoft.uql.DataSourceListing;
-import inetsoft.uql.XDataSource;
-import inetsoft.uql.jdbc.JDBCDataSource;
+export interface GooglePicker {
+   oauthToken: string;
+   selectedFile: GoogleFile;
+}
 
-public class SpliceMachineDataSourceListing extends DataSourceListing {
-   public SpliceMachineDataSourceListing() {
-      super("Splice Machine", "Big Data", "/inetsoft/uql/listing/spliceMachine.svg");
-   }
-
-   @Override
-   public XDataSource createDataSource() throws Exception {
-      final JDBCDataSource ds = new JDBCDataSource();
-      ds.setName(getAvailableName());
-      ds.setURL("jdbc:splice://localhost:1527/splicedb");
-      ds.setDriver("com.splicemachine.db.jdbc.ClientDriver");
-
-      return ds;
-   }
+export interface GoogleFile {
+   name: string;
+   id: string;
 }

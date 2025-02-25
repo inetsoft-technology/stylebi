@@ -47,7 +47,7 @@ public class GDataRequestInitializer implements HttpRequestInitializer {
 
          try {
             Tokens tokens =
-               AuthorizationClient.refresh("google-sheets", dataSource.getRefreshToken(), null);
+               AuthorizationClient.refresh("google-sheets-picker", dataSource.getRefreshToken(), null);
             dataSource.updateTokens(tokens);
          }
          catch(Exception e) {

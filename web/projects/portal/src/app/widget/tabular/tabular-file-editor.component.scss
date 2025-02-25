@@ -15,15 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-.folder-input {
-  width: 100%;
-  margin-right: 0.5rem;
-}
+:host {
+  .folder-input {
+    width: 100%;
+  }
 
-.input-group-btn button {
-  padding-bottom: 0;
-}
-
-.alert-error {
-  text-align: left;
+  .alert-error {
+    text-align: left;
+  }
 }

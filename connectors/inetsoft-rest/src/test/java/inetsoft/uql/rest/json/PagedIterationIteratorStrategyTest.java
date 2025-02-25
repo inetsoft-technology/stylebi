@@ -74,4 +74,52 @@ public class PagedIterationIteratorStrategyTest {
 
         assertEquals(3, count);
     }
+
+   @Test
+   public void testOffsetInBody() throws Exception {
+      final RestJsonQuery query = new RestJsonQuery();
+      query.setRequestType("POST");
+      final RestJsonDataSource datasource = new RestJsonDataSource();
+      datasource.setURL("http://host");
+      query.setDataSource(datasource);
+      final PaginationSpec spec = query.getPaginationSpec();
+      spec.setType(PaginationType.ITERATION);
+      spec.setHasNextParam(new PaginationParameter("$.next_offset", PaginationParamType.JSON_PATH));
+      spec.setPageOffsetParamToRead(new PaginationParameter("$.next_offset", PaginationParamType.JSON_PATH));
+      spec.setPageOffsetParamToWrite(new PaginationParameter("offset", PaginationParamType.JSON_PATH));
+
+      final List<RequestResponse> requestResponses = new ArrayList<>();
+
+      // expected queries in query requests
+      final RestJsonQuery query1 = (RestJsonQuery) query.clone();
+      final RestJsonQuery query2 = (RestJsonQuery) query.clone();
+      query2.setRequestBody("{\"offset\":[2]}");
+      final RestJsonQuery query3 = (RestJsonQuery) query.clone();
+      query3.setRequestBody("{\"offset\":\"strOffset\"}");
+
+      final String page1 = "{\"next_offset\": [2]}";
+      final String page2 = "{\"next_offset\": \"strOffset\"}";
+      final String page3 = "{}";
+
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query1)
+                                                  .build(), new TestHttpResponse(page1)));
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query2)
+                                                  .build(), new TestHttpResponse(page2)));
+      requestResponses.add(new RequestResponse(RestRequest.builder().query(query3)
+                                                  .build(), new TestHttpResponse(page3)));
+
+      final TestHttpHandler httpHandler = new TestHttpHandler(requestResponses);
+      final JsonTransformer transformer = new JsonTransformer();
+
+      final RestDataIteratorStrategy<Object> strategy = new PagedIterationIteratorStrategy<>(
+         query, transformer, httpHandler, new RestErrorHandler(), new HttpResponseParameterParser(transformer));
+      int count = 0;
+
+      while(strategy.hasNext()) {
+         assertNotNull(strategy.next());
+         count++;
+      }
+
+      assertEquals(3, count);
+   }
 }

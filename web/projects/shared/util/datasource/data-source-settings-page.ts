@@ -74,7 +74,6 @@ export abstract class DataSourceSettingsPage implements OnInit {
       {value: DatasourceDatabaseType.SQLSERVER, label: "_#(js:em.data.databases.sqlserver)"},
       {value: DatasourceDatabaseType.MYSQL, label: "_#(js:em.data.databases.mysql)"},
       {value: DatasourceDatabaseType.DB2, label: "_#(js:em.data.databases.db2)"},
-      {value: DatasourceDatabaseType.SYBASE, label: "_#(js:em.data.databases.sybase)"},
       {value: DatasourceDatabaseType.INFORMIX, label: "_#(js:em.data.databases.informix)"},
       {value: DatasourceDatabaseType.POSTGRESQL, label: "_#(js:em.data.databases.postgresql)"},
       {value: DatasourceDatabaseType.ACCESS, label: "_#(js:em.data.databases.access)"},

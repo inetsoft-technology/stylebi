@@ -1632,9 +1632,6 @@ public class JDBCUtil {
       databaseTypes.add(new OracleDatabaseType());
       databaseTypes.add(new PostgreSQLDatabaseType());
       databaseTypes.add(new SQLServerDatabaseType());
-      databaseTypes.add(new SybaseDatabaseType());
-      databaseTypes.add(new SybaseJDBC2DatabaseType());
-      databaseTypes.add(new SybaseJDBC3DatabaseType());
       databaseTypes.add(new CustomDatabaseType());
    }
 

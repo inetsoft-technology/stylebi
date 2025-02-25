@@ -46,6 +46,11 @@ public class HttpResponseParameterParser {
       return parser.parseBoolean(param.getValue());
    }
 
+   public Object parseObject(PaginationParameter param, Object obj, HttpResponse response) {
+      final ParameterParser parser = getParser(param, obj, response);
+      return parser.parseObject(param.getValue());
+   }
+
    public URL parseURL(PaginationParameter param, Object json, HttpResponse response)
       throws IOException
    {

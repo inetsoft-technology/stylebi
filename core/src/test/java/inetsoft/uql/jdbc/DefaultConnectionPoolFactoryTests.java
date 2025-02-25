@@ -54,7 +54,6 @@ class DefaultConnectionPoolFactoryTests {
    private static Stream<Arguments> provideArgsForAutoCommit() {
       return Stream.of(
          Arguments.of("org.apache.derby.jdbc.EmbeddedDriver", "jdbc:derby:test", true, false),
-         Arguments.of("com.sybase.jdbc2.jdbc.SybDriver", "jdbc:sybase:Tds:localhost", true, true),
          Arguments.of("com.dremio.jdbc.Driver", "jdbc:dremio:direct=localhost", true, true),
          Arguments.of("com.simba.googlebigquery.jdbc42.Driver", "jdbc:bigquery://localhost;ProjectId=my-project", false, true),
          Arguments.of("org.apache.drill.jdbc.Driver", "jdbc:drill:zk=maprdemo:5181", true, true)

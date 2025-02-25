@@ -1,6 +1,6 @@
-/*
+/*!
  * This file is part of StyleBI.
- * Copyright (C) 2024  InetSoft Technology
+ * Copyright (C) 2025  InetSoft Technology
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -15,24 +15,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package inetsoft.uql.listing;
+:host {
+  .file-input {
+    width: 100%;
+  }
 
-import inetsoft.uql.DataSourceListing;
-import inetsoft.uql.XDataSource;
-import inetsoft.uql.jdbc.JDBCDataSource;
-
-public class DataStaxEnterpriseDataSourceListing extends DataSourceListing {
-   public DataStaxEnterpriseDataSourceListing() {
-      super("DataStax Enterprise", "NoSQL", "/inetsoft/uql/listing/datastax.svg");
-   }
-
-   @Override
-   public XDataSource createDataSource() throws Exception {
-      final JDBCDataSource ds = new JDBCDataSource();
-      ds.setName(getAvailableName());
-      ds.setURL("jdbc:spark://<hostname>:<port>");
-      ds.setDriver("com.simba.spark.jdbc41.Driver");
-
-      return ds;
-   }
+  .alert-error {
+    text-align: left;
+  }
 }

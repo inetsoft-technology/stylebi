@@ -111,7 +111,7 @@
       </ng-template>
     </mat-tab>
     <mat-tab label="_#(Options)">
-      <em-task-options-pane
+      <em-task-options-pane [timeZoneOptions]="model?.timeZoneOptions"
         [model]="model?.taskOptionsPaneModel" [internal]="model?.internalTask"
         (modelChanged)="onOptionsChanged($event)"
       >

@@ -21,6 +21,15 @@ package inetsoft.web.portal.model.database;
  * Wrapper for sending strings in requests.
  */
 public class StringWrapper {
+   public StringWrapper() {
+      super();
+   }
+
+   public StringWrapper(String body) {
+      super();
+      setBody(body);
+   }
+
    public String getBody() {
       return body;
    }

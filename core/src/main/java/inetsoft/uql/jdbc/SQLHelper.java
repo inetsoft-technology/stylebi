@@ -3786,7 +3786,7 @@ public class SQLHelper implements KeywordProvider {
                String tz_cmd = "";
 
                if(tz_valid) {
-                  String locale_tz = SreeEnv.getProperty("local.timezone");
+                  String locale_tz = SreeEnv.getProperty("mysql.local.timezone");
                   locale_tz = locale_tz == null ? "" : locale_tz.trim();
 
                   if(locale_tz.length() <= 0) {
