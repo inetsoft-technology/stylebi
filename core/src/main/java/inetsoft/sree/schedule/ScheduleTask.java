@@ -1092,6 +1092,7 @@ public class ScheduleTask implements Serializable, Cloneable, XMLSerializable {
          st.dependency = (Vector<String>) dependency.clone();
          st.startDate = startDate == null ? null : (Date) startDate.clone();
          st.endDate = endDate == null ? null : (Date) endDate.clone();
+         st.timeZone = timeZone;
       }
       catch(Exception e) {
          LOG.error("Failed to clone schedule task", e);
