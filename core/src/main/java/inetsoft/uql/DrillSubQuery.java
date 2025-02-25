@@ -17,6 +17,7 @@
  */
 package inetsoft.uql;
 
+import inetsoft.sree.security.OrganizationManager;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Tool;
 import inetsoft.util.XMLSerializable;
@@ -165,6 +166,8 @@ public class DrillSubQuery implements XMLSerializable, Serializable, Cloneable {
       if(wsNode != null) {
          wsNode = Tool.getFirstChildNode(wsNode);
          wsEntry = AssetEntry.createAssetEntry(wsNode);
+
+         handleWSRefOrgMismatch();
       }
 
       NodeList list = Tool.getChildNodesByTagName(tag, "variableField");
@@ -244,6 +247,15 @@ public class DrillSubQuery implements XMLSerializable, Serializable, Cloneable {
 
       builder.append("}");
       return builder.toString();
+   }
+
+   public void handleWSRefOrgMismatch() {
+      String curOrgId = OrganizationManager.getInstance().getCurrentOrgID();
+      String wsOrg = wsEntry.getOrgID();
+
+      if(!Tool.equals(curOrgId, wsOrg)) {
+         wsEntry.setOrgID(curOrgId);
+      }
    }
 
    private String query;
