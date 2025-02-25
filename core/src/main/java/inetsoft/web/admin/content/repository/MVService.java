@@ -293,6 +293,7 @@ public class MVService {
          .dataCycles(dataCycles)
          .showDateAsAges(isShowAges)
          .runInBackground(runInBackground)
+         .dateFormat(Tool.getDateFormatPattern())
          .build();
    }
 

@@ -22,6 +22,7 @@ import {MatDialog, MatDialogConfig} from "@angular/material/dialog";
 import {MatSnackBarConfig} from "@angular/material/snack-bar";
 import {Subject} from "rxjs";
 import {takeUntil} from "rxjs/operators";
+import { DateTypeFormatter } from "../../../../../../../shared/util/date-type-formatter";
 import {AnalyzeMVResponse} from "../../../../../../../shared/util/model/mv/analyze-mv-response";
 import {MaterializedModel} from "../../../../../../../shared/util/model/mv/materialized-model";
 import {MVExceptionResponse} from "../../../../../../../shared/util/model/mv/mv-exception-response";
@@ -176,6 +177,11 @@ export class MvManagementViewComponent implements OnInit, OnDestroy {
                mv.dataString = mv.hasData ? "_#(js:Yes)" : "_#(js:No)";
                mv.incrementalString = mv.incremental ? "_#(js:Yes)" : "_#(js:No)";
                mv.validString = mv.valid ? "_#(js:True)" : "_#(js:False)";
+
+               if(mv.lastModifiedTimestamp != 0) {
+                  mv.lastModifiedTime = DateTypeFormatter.getLocalTime(mv.lastModifiedTimestamp,
+                     model.dateFormat);
+               }
             });
 
             this.dataSource = model.mvs;

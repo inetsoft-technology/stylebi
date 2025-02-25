@@ -37,6 +37,9 @@ public interface MVManagementModel {
    @Nullable
    String cycle();
 
+   @Nullable
+   String dateFormat();
+
    @Value.Default
    default boolean runInBackground() {
       return false;
