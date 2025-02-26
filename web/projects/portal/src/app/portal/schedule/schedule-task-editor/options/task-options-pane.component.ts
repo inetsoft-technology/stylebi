@@ -22,6 +22,7 @@ import { NgbDateStruct, NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { IdentityId } from "../../../../../../../em/src/app/settings/security/users/identity-id";
 import { IdentityType } from "../../../../../../../shared/data/identity-type";
 import { TaskOptionsPaneModel } from "../../../../../../../shared/schedule/model/task-options-pane-model";
+import { TimeZoneModel } from "../../../../../../../shared/schedule/model/time-zone-model";
 import { ScheduleUsersService } from "../../../../../../../shared/schedule/schedule-users.service";
 import { FormValidators } from "../../../../../../../shared/util/form-validators";
 import { ComponentTool } from "../../../../common/util/component-tool";
@@ -50,6 +51,8 @@ export class TaskOptionsPane implements OnInit {
          day: end.getDate()
       } : null;
 
+      this.localTimeZoneId = value.timeZone == null ?
+         Intl.DateTimeFormat().resolvedOptions().timeZone : value.timeZone;
       this.getExecuteAsName();
       this.executeAsType = value.idType;
 
@@ -62,6 +65,7 @@ export class TaskOptionsPane implements OnInit {
    @Input() taskName: string;
    @Input() parentForm: UntypedFormGroup;
    @Input() newTask: boolean;
+   @Input() timeZoneOptions: TimeZoneModel[];
    @Input() saveTask: () =>  Promise<any>;
    @Output() doneLoading = new EventEmitter<ScheduleTaskDialogModel>();
    @Output() updateTaskName = new EventEmitter<string>();
@@ -77,6 +81,8 @@ export class TaskOptionsPane implements OnInit {
    form: UntypedFormGroup = null;
    executeAsName: string;
    executeAsType: number;
+   localTimeZoneId: string;
+
    public static DEFAULT_LOCALE: string = "Default";
    executeAsTypes: any[] = [
       {value: IdentityType.USER, label: "_#(js:User)"},
@@ -219,7 +225,8 @@ export class TaskOptionsPane implements OnInit {
    initForm() {
       this.form = new UntypedFormGroup({
          "start": new UntypedFormControl(this.startDate, []),
-         "stop": new UntypedFormControl(this.endDate, [])
+         "stop": new UntypedFormControl(this.endDate, []),
+         "timeZone": new UntypedFormControl({value: this._model.timeZone})
       }, FormValidators.dateSmallerThan("start", "stop"));
 
       this.form.get("start").valueChanges.subscribe((date) => {
@@ -228,6 +235,10 @@ export class TaskOptionsPane implements OnInit {
 
       this.form.get("stop").valueChanges.subscribe((date) => {
          this.endDateChange(date);
+      });
+
+      this.form.get("timeZone").valueChanges.subscribe((timeZoneId) => {
+         this._model.timeZone = timeZoneId;
       });
    }
 
