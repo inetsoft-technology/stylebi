@@ -24,6 +24,7 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.util.*;
 import inetsoft.util.log.*;
 import inetsoft.util.log.logback.LogbackUtil;
@@ -242,6 +243,13 @@ public class PropertiesEngine {
     */
    private void applyProperty(String name) {
       applyLogProperty(name);
+      applySqlHelperProperty(name);
+   }
+
+   private void applySqlHelperProperty(String name) {
+      if("mysql.server.timezone".equals(name) || "mysql.local.timezone".equals(name)) {
+         SQLHelper.resetCache();
+      }
    }
 
    /**
