@@ -113,10 +113,12 @@ export class PropertySettingsDatasourceService {
    }
 
    changeRow(row: PropertySetting): Observable<void> {
-      const params: HttpParams = new HttpParams()
-         .set("property", row.propertyName)
-         .set("value", row.propertyValue);
-      return this.http.put<void>("../api/admin/properties/edit", null, {params});
+      let property = {
+         name: row.propertyName,
+         value: row.propertyValue
+      };
+
+      return this.http.put<void>("../api/admin/properties/edit", property);
    }
 
    cancelRow() {
