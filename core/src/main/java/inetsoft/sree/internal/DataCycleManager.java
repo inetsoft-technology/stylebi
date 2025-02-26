@@ -326,7 +326,8 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          }
 
          for(ScheduleTask task : tasks) {
-            String orgID = task.getOwner().getOrgID();
+            String orgID = task.getOwner() != null ?
+               task.getOwner().getOrgID() : OrganizationManager.getInstance().getCurrentOrgID();
             pregeneratedTasksMap.computeIfAbsent(orgID, k -> new Vector<>());
             List<ScheduleTask> taskList = pregeneratedTasksMap.get(orgID);
 
