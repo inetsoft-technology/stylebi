@@ -19,6 +19,7 @@ package inetsoft.web.admin.schedule;
 
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.internal.SUtil;
+import inetsoft.sree.internal.cluster.Cluster;
 import inetsoft.sree.schedule.*;
 import inetsoft.sree.security.ResourceAction;
 import inetsoft.sree.security.ResourceType;
@@ -26,6 +27,7 @@ import inetsoft.storage.ExternalStorageService;
 import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
+import inetsoft.util.config.InetsoftConfig;
 import inetsoft.web.admin.content.repository.ResourcePermissionService;
 import inetsoft.web.admin.schedule.model.*;
 import inetsoft.web.admin.schedule.model.CheckMailInfo;
@@ -135,6 +137,10 @@ public class SchedulerConfigurationService {
       setServerLocations(model.serverLocations());
       SreeEnv.setProperty("schedule.save.autoSuffix", model.saveAutoSuffix());
       SreeEnv.save();
+
+      if(InetsoftConfig.getInstance().getCloudRunner() != null) {
+         Cluster.getInstance().sendMessage(new RestartSchedulerMessage());
+      }
    }
 
    public ScheduleStatusModel getStatus() {
@@ -184,7 +190,11 @@ public class SchedulerConfigurationService {
    }
 
    public void setStatus(ScheduleStatusModel status) throws Exception {
-      switch(Objects.requireNonNull(status.action())) {
+      setStatus(status.action());
+   }
+
+   public void setStatus(String action) throws Exception {
+      switch(Objects.requireNonNull(action)) {
       case "start":
          SUtil.stopScheduler();
          SUtil.startScheduler();

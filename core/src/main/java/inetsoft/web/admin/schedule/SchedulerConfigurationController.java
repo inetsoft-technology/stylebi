@@ -17,6 +17,8 @@
  */
 package inetsoft.web.admin.schedule;
 
+import inetsoft.sree.internal.cluster.*;
+import inetsoft.sree.schedule.RestartSchedulerMessage;
 import inetsoft.util.config.InetsoftConfig;
 import inetsoft.web.admin.schedule.model.CheckMailInfo;
 import inetsoft.web.admin.schedule.model.ScheduleConfigurationModel;
@@ -25,11 +27,17 @@ import inetsoft.web.security.DeniedMultiTenancyOrgUser;
 
 import java.security.Principal;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-public class SchedulerConfigurationController {
+@EnableAspectJAutoProxy(proxyTargetClass = true)
+public class SchedulerConfigurationController implements MessageListener {
    @Autowired
    public SchedulerConfigurationController(SchedulerConfigurationService configService) {
       this.configService = configService;
@@ -71,5 +79,29 @@ public class SchedulerConfigurationController {
       return InetsoftConfig.getInstance().getCloudRunner() != null;
    }
 
+   @PostConstruct
+   public void addListeners() throws Exception {
+      Cluster.getInstance().addMessageListener(this);
+   }
+
+   @PreDestroy
+   public void removeListeners() throws Exception {
+      Cluster.getInstance().removeMessageListener(this);
+   }
+
+   @Override
+   public void messageReceived(MessageEvent event) {
+      if(event.getMessage() instanceof RestartSchedulerMessage) {
+         try {
+            configService.setStatus("restart");
+         }
+         catch(Exception e) {
+            LOG.error("Failed to restart scheduler", e);
+         }
+      }
+   }
+
    private final SchedulerConfigurationService configService;
+
+   private static final Logger LOG = LoggerFactory.getLogger(SchedulerConfigurationController.class);
 }
