@@ -38,8 +38,9 @@ public class LogSettingService {
    public LogSettingsModel getConfiguration() {
       try {
          String provider = SreeEnv.getProperty("log.provider");
+         boolean fluentd = "fluentd".equals(provider);
 
-         if(!"fluentd".equals(provider)) {
+         if(!fluentd) {
             provider = "file";
          }
 
@@ -52,14 +53,18 @@ public class LogSettingService {
             .map(LogLevelDTO.builder()::from)
             .collect(Collectors.toList());
 
-         return LogSettingsModel.builder()
+         LogSettingsModel.Builder builder = LogSettingsModel.builder()
             .provider(provider)
             .fileSettings(getFileSettings())
-            .fluentdSettings(getFluentdSettings())
             .outputToStd(outputToStd)
             .detailLevel(detailLevel)
-            .logLevels(logLevelDTOList)
-            .build();
+            .logLevels(logLevelDTOList);
+
+         if(fluentd) {
+            builder.fluentdSettings(getFluentdSettings());
+         }
+
+         return builder.build();
       }
       catch(Exception exc) {
          LOG.error("Failed to encode log configuration", exc);
