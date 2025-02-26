@@ -24,8 +24,10 @@ import inetsoft.sree.security.OrganizationManager;
 import inetsoft.sree.security.SecurityEngine;
 import inetsoft.storage.KeyValueStorage;
 import inetsoft.uql.XPrincipal;
+import inetsoft.uql.jdbc.SQLHelper;
 import inetsoft.util.*;
 import inetsoft.util.log.*;
+import inetsoft.util.log.logback.LogbackUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -229,6 +231,24 @@ public class PropertiesEngine {
             prop.put(name, val);
             changedProps.add(name);
          }
+
+         applyProperty(name);
+      }
+   }
+
+   /**
+    * To apply the property.
+    *
+    * @param name property name.
+    */
+   private void applyProperty(String name) {
+      applyLogProperty(name);
+      applySqlHelperProperty(name);
+   }
+
+   private void applySqlHelperProperty(String name) {
+      if("mysql.server.timezone".equals(name) || "mysql.local.timezone".equals(name)) {
+         SQLHelper.resetCache();
       }
    }
 
@@ -662,47 +682,71 @@ public class PropertiesEngine {
 
       reloadLoggingFramework();
 
-      String prop = getProperty("log.detail.level");
-      logManager.setLevel(LogManager.getInstance().parseLevel(prop));
-
       Properties props = getInternalProperties();
 
       for(Enumeration<?> e = props.propertyNames(); e.hasMoreElements();) {
-         prop = (String) e.nextElement();
-
-         if(prop.startsWith("log.level.")) {
-            try {
-               LogLevel level = logManager.parseLevel(getProperty(prop));
-               prop = prop.substring(10);
-
-               if(prop.isEmpty()) {
-                  throw new IllegalArgumentException("Empty logger name");
-               }
-
-               logManager.setLevel(prop, level);
-            }
-            catch(IllegalArgumentException exc) {
-               // log is not initialized yet, use standard error
-               System.err.println("Invalid log property: " + prop + "=" + getProperty(prop));
-            }
-         }
-         else if(prop.matches("^log\\.[A-Z_]+\\.level\\..+$")) {
-            try {
-               LogContext context = LogContext.valueOf(
-                  prop.substring(4, prop.indexOf('.', 4)));
-               String contextName = prop.substring(prop.indexOf('.', 4) + 7);
-               LogLevel level = LogManager.getInstance().parseLevel(getProperty(prop));
-               logManager.setContextLevel(context, contextName, level);
-            }
-            catch(IllegalArgumentException exc) {
-               // log is not initialized yet, use standard error
-               System.err.println("Invalid log context property: " + prop + "=" +
-                  getProperty(prop));
-            }
-         }
+         applyLogProperty((String) e.nextElement());
       }
 
       System.out.println("Using built-in log configuration");
+   }
+
+   private void applyLogProperty(String prop) {
+      if(Tool.isEmptyString(prop) ||
+         !prop.startsWith("log.level.") && !prop.matches("^log\\.[A-Z_]+\\.level\\..+$") &&
+         !prop.equals("log.detail.level"))
+      {
+         return;
+      }
+
+      applyLogProperty(prop, getProperty(prop));
+
+      try {
+         LogbackUtil.resetLog();
+      }
+      catch(Exception e) {
+         LOG.error("Failed to reset Logback", e);
+      }
+
+      SreeEnv.reloadLoggingFramework();
+   }
+
+   private void applyLogProperty(String prop, String val) {
+      LogManager logManager = LogManager.getInstance();
+
+      if("log.detail.level".equals(prop)) {
+         logManager.setLevel(logManager.parseLevel(val));
+      }
+      else if(prop.startsWith("log.level.")) {
+         try {
+            LogLevel level = logManager.parseLevel(val);
+            prop = prop.substring(10);
+
+            if(prop.isEmpty()) {
+               throw new IllegalArgumentException("Empty logger name");
+            }
+
+            logManager.setLevel(prop, level);
+         }
+         catch(IllegalArgumentException exc) {
+            // log is not initialized yet, use standard error
+            System.err.println("Invalid log property: " + prop + "=" + getProperty(prop));
+         }
+      }
+      else if(prop.matches("^log\\.[A-Z_]+\\.level\\..+$")) {
+         try {
+            LogContext context = LogContext.valueOf(
+               prop.substring(4, prop.indexOf('.', 4)));
+            String contextName = prop.substring(prop.indexOf('.', 4) + 7);
+            LogLevel level = LogManager.getInstance().parseLevel(val);
+            logManager.setContextLevel(context, contextName, level);
+         }
+         catch(IllegalArgumentException exc) {
+            // log is not initialized yet, use standard error
+            System.err.println("Invalid log context property: " + prop + "=" +
+               getProperty(prop));
+         }
+      }
    }
 
    private boolean isScheduler() {

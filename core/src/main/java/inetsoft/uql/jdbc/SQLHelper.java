@@ -35,6 +35,8 @@ import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -3694,6 +3696,23 @@ public class SQLHelper implements KeywordProvider {
    }
 
    /**
+    * Rest the helper cache.
+    */
+   public static void resetCache() {
+      LOAD_LOCK.lock();
+
+      try {
+         helperTable = null;
+         unsupported = null;
+         afuncs = null;
+         dfuncs = null;
+      }
+      finally {
+         LOAD_LOCK.unlock();
+      }
+   }
+
+   /**
     * Get the alias length.
     */
    private static int getAliasLength(String alias) {
@@ -3718,107 +3737,114 @@ public class SQLHelper implements KeywordProvider {
     */
    private static String getHelperClass(String dbType) {
       if(helperTable == null) {
-         helperTable = new Hashtable<>();
-         unsupported = new HashSet<>();
-         afuncs = new Hashtable<>();
-         dfuncs = new Hashtable<>();
+         LOAD_LOCK.lock();
 
          try {
-            InputStream input = XNode.class.getResourceAsStream(
-               "/inetsoft/uql/sqlhelper.xml");
-            Document doc = Tool.parseXML(input);
-            NodeList nlist = doc.getElementsByTagName("config");
+            helperTable = new Hashtable<>();
+            unsupported = new HashSet<>();
+            afuncs = new Hashtable<>();
+            dfuncs = new Hashtable<>();
 
-            if(nlist != null && nlist.getLength() > 0) {
-               Element node = (Element) nlist.item(0);
-               nlist = Tool.getChildNodesByTagName(node, "helper");
+            try {
+               InputStream input = XNode.class.getResourceAsStream(
+                  "/inetsoft/uql/sqlhelper.xml");
+               Document doc = Tool.parseXML(input);
+               NodeList nlist = doc.getElementsByTagName("config");
 
-               for(int i = 0; nlist != null && i < nlist.getLength(); i++) {
-                  Element node2 = (Element) nlist.item(i);
-                  String type = node2.getAttribute("type");
-                  String className = node2.getAttribute("class");
-                  helperTable.put(type, className);
+               if(nlist != null && nlist.getLength() > 0) {
+                  Element node = (Element) nlist.item(0);
+                  nlist = Tool.getChildNodesByTagName(node, "helper");
 
-                  Element mnode =
-                     Tool.getChildNodeByTagName(node2, "maxidentifier");
+                  for(int i = 0; nlist != null && i < nlist.getLength(); i++) {
+                     Element node2 = (Element) nlist.item(i);
+                     String type = node2.getAttribute("type");
+                     String className = node2.getAttribute("class");
+                     helperTable.put(type, className);
 
-                  if(mnode != null) {
-                     String str = Tool.getValue(mnode);
-                     maxidentifier.put(type, Integer.valueOf(str));
-                  }
-               }
+                     Element mnode =
+                        Tool.getChildNodeByTagName(node2, "maxidentifier");
 
-               nlist = Tool.getChildNodesByTagName(node, "testQuery");
-
-               for(int i = 0; i < nlist.getLength(); i++) {
-                  Element node2 = (Element) nlist.item(i);
-                  String type = node2.getAttribute("type");
-                  String testQuery = Tool.getValue(node2);
-                  connectionTestQuery.put(type, testQuery);
-               }
-
-               nlist = Tool.getChildNodesByTagName(node, "unsupported");
-
-               for(int i = 0; nlist != null && i < nlist.getLength(); i++) {
-                  Element node2 = (Element) nlist.item(i);
-                  String type = node2.getAttribute("type");
-                  String op = node2.getAttribute("op");
-                  unsupported.add(type + ":" + op);
-               }
-
-               nlist = Tool.getChildNodesByTagName(node, "aggregate");
-
-               for(int i = 0; nlist != null && i < nlist.getLength(); i++) {
-                  Element node2 = (Element) nlist.item(i);
-                  String type = node2.getAttribute("type");
-                  String func = node2.getAttribute("function");
-                  String name = node2.getAttribute("name");
-
-                  afuncs.put(type + ":" + func, name);
-               }
-
-               nlist = Tool.getChildNodesByTagName(node, "sqlfunc");
-               String mysql = "mysql";
-               String convert_tz = "convert_tz(";
-               String server_tz = SreeEnv.getProperty("mysql.server.timezone");
-               server_tz = server_tz == null ? "" : server_tz.trim();
-               boolean tz_valid = server_tz.length() > 0;
-               String tz_cmd = "";
-
-               if(tz_valid) {
-                  String locale_tz = SreeEnv.getProperty("mysql.local.timezone");
-                  locale_tz = locale_tz == null ? "" : locale_tz.trim();
-
-                  if(locale_tz.length() <= 0) {
-                     locale_tz = TimeZone.getDefault().getID();
-                  }
-
-                  tz_cmd = ",''" + locale_tz + "'',''" + server_tz + "''";
-               }
-
-               for(int i = 0; nlist != null && i < nlist.getLength(); i++) {
-                  Element node2 = (Element) nlist.item(i);
-                  String type = node2.getAttribute("type");
-                  String func = node2.getAttribute("function");
-                  String cmd = node2.getAttribute("command");
-
-                  if(mysql.equalsIgnoreCase(type) && cmd.startsWith(convert_tz))
-                  {
-                     if(tz_valid) {
-                        cmd = cmd.substring(0, cmd.length() - 1) + tz_cmd + ")";
-                     }
-                     // no time zone? ignore it
-                     else {
-                        cmd = cmd.substring(11, cmd.length() - 1);
+                     if(mnode != null) {
+                        String str = Tool.getValue(mnode);
+                        maxidentifier.put(type, Integer.valueOf(str));
                      }
                   }
 
-                  dfuncs.put(type + ":" + func, cmd);
+                  nlist = Tool.getChildNodesByTagName(node, "testQuery");
+
+                  for(int i = 0; i < nlist.getLength(); i++) {
+                     Element node2 = (Element) nlist.item(i);
+                     String type = node2.getAttribute("type");
+                     String testQuery = Tool.getValue(node2);
+                     connectionTestQuery.put(type, testQuery);
+                  }
+
+                  nlist = Tool.getChildNodesByTagName(node, "unsupported");
+
+                  for(int i = 0; nlist != null && i < nlist.getLength(); i++) {
+                     Element node2 = (Element) nlist.item(i);
+                     String type = node2.getAttribute("type");
+                     String op = node2.getAttribute("op");
+                     unsupported.add(type + ":" + op);
+                  }
+
+                  nlist = Tool.getChildNodesByTagName(node, "aggregate");
+
+                  for(int i = 0; nlist != null && i < nlist.getLength(); i++) {
+                     Element node2 = (Element) nlist.item(i);
+                     String type = node2.getAttribute("type");
+                     String func = node2.getAttribute("function");
+                     String name = node2.getAttribute("name");
+
+                     afuncs.put(type + ":" + func, name);
+                  }
+
+                  nlist = Tool.getChildNodesByTagName(node, "sqlfunc");
+                  String mysql = "mysql";
+                  String convert_tz = "convert_tz(";
+                  String server_tz = SreeEnv.getProperty("mysql.server.timezone");
+                  server_tz = server_tz == null ? "" : server_tz.trim();
+                  boolean tz_valid = server_tz.length() > 0;
+                  String tz_cmd = "";
+
+                  if(tz_valid) {
+                     String locale_tz = SreeEnv.getProperty("mysql.local.timezone");
+                     locale_tz = locale_tz == null ? "" : locale_tz.trim();
+
+                     if(locale_tz.length() <= 0) {
+                        locale_tz = TimeZone.getDefault().getID();
+                     }
+
+                     tz_cmd = ",''" + locale_tz + "'',''" + server_tz + "''";
+                  }
+
+                  for(int i = 0; nlist != null && i < nlist.getLength(); i++) {
+                     Element node2 = (Element) nlist.item(i);
+                     String type = node2.getAttribute("type");
+                     String func = node2.getAttribute("function");
+                     String cmd = node2.getAttribute("command");
+
+                     if(mysql.equalsIgnoreCase(type) && cmd.startsWith(convert_tz))
+                     {
+                        if(tz_valid) {
+                           cmd = cmd.substring(0, cmd.length() - 1) + tz_cmd + ")";
+                        }
+                        // no time zone? ignore it
+                        else {
+                           cmd = cmd.substring(11, cmd.length() - 1);
+                        }
+                     }
+
+                     dfuncs.put(type + ":" + func, cmd);
+                  }
                }
             }
+            catch(Exception ex) {
+               LOG.error("Failed to load SQL helper configuration", ex);
+            }
          }
-         catch(Exception ex) {
-            LOG.error("Failed to load SQL helper configuration", ex);
+         finally {
+            LOAD_LOCK.unlock();
          }
       }
 
@@ -4511,6 +4537,7 @@ public class SQLHelper implements KeywordProvider {
    private static Pattern pattern = Pattern.compile("\\([\\s]*select[\\s]+",
                                     Pattern.CASE_INSENSITIVE);
    private static ConcurrentMap<String, Class> helperClasses = new ConcurrentHashMap<>();
+   private static final Lock LOAD_LOCK = new ReentrantLock();
 
    protected UniformSQL uniformSql; // uniform sql
    protected int inpmaxrows = 0; // max row limit on individual tables
