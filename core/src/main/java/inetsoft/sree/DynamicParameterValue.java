@@ -36,8 +36,15 @@ public class DynamicParameterValue implements Serializable, Cloneable {
         this.dataType = dataType;
     }
 
+    public DynamicParameterValue(Object value, String type, String dataType, boolean array) {
+       this.value = value;
+       this.type = type;
+       this.dataType = dataType;
+       this.array = array;
+    }
+
     public DynamicValueModel convertModel() {
-        return new DynamicValueModel(this.value, this.type, this.dataType);
+        return new DynamicValueModel(this.value, this.type, this.dataType, this.array);
     }
 
     public Object getValue() {
@@ -64,7 +71,16 @@ public class DynamicParameterValue implements Serializable, Cloneable {
         this.dataType = dataType;
     }
 
+    public boolean isArray() {
+       return array;
+    }
+
+    public void setArray(boolean array) {
+       this.array = array;
+    }
+
     private Object value;
     private String type = DynamicValueModel.VALUE;
     private String dataType;
+    private boolean array;
 }
