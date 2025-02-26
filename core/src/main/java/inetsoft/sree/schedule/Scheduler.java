@@ -120,6 +120,19 @@ public class Scheduler {
    }
 
    /**
+    * Dispose the scheduler.
+    *
+    */
+   public static synchronized void disposeScheduler() throws SchedulerException {
+      if(INSTANCE == null) {
+         return;
+      }
+
+      INSTANCE.stop();
+      INSTANCE = null;
+   }
+
+   /**
     * Starts this scheduler instance.
     */
    public void start() {
