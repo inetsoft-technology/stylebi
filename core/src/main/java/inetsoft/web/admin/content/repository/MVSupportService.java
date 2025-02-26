@@ -1099,17 +1099,23 @@ public class MVSupportService {
                identities.isEmpty())
             {
                String orgID = Optional.ofNullable(entry.getOrgID()).orElse(Organization.getDefaultOrganizationID());
+               List<IdentityID> orgAdminUsers = OrganizationManager.getInstance().orgAdminUsers(orgID);
 
                if(!orgID.equals(Organization.getDefaultOrganizationID()) &&
-                  !OrganizationManager.getInstance().orgAdminUsers(orgID).isEmpty())
+                  !orgAdminUsers.isEmpty())
                {
                   //assign org admin role instead of printing all org admins
-                  SecurityProvider provider =  SecurityEngine.getSecurity().getSecurityProvider();
+                  if(orgAdminUsers.size() > 1) {
+                     SecurityProvider provider = SecurityEngine.getSecurity().getSecurityProvider();
 
-                  for(IdentityID roleID : provider.getRoles()) {
-                     if(roleID != null && (roleID.orgID == null || Tool.equals(roleID.orgID, orgID)) && provider.isOrgAdministratorRole(roleID)) {
-                        identities.add(new DefaultIdentity(roleID.name, orgID, Identity.ROLE));
+                     for(IdentityID roleID : provider.getRoles()) {
+                        if(roleID != null && (roleID.orgID == null || Tool.equals(roleID.orgID, orgID)) && provider.isOrgAdministratorRole(roleID)) {
+                           identities.add(new DefaultIdentity(roleID.name, orgID, Identity.ROLE));
+                        }
                      }
+                  }
+                  else {
+                     identities.add(new DefaultIdentity(orgAdminUsers.get(0).name, orgID, Identity.USER));
                   }
                }
                else {
