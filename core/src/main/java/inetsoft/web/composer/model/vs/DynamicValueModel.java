@@ -58,8 +58,15 @@ public class DynamicValueModel {
       this.dataType = dataType;
    }
 
+   public DynamicValueModel(Object value, String type, String dataType, boolean array) {
+      this.value = value;
+      this.type = type;
+      this.dataType = dataType;
+      this.array = array;
+   }
+
    public DynamicParameterValue convertParameterValue() {
-      return new DynamicParameterValue(this.value, this.type, this.dataType);
+      return new DynamicParameterValue(this.value, this.type, this.dataType, this.array);
    }
 
    public String convertToValue() {
@@ -94,9 +101,18 @@ public class DynamicValueModel {
       this.dataType = dataType;
    }
 
+   public boolean isArray() {
+      return array;
+   }
+
+   public void setArray(boolean array) {
+      this.array = array;
+   }
+
    private Object value;
    private String type;
    private String dataType;
+   private boolean array;
 
    public static final String VALUE = ConditionValueModel.VALUE;
    public static final String VARIABLE = ConditionValueModel.VARIABLE;
