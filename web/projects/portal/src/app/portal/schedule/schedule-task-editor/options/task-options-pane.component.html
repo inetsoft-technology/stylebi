@@ -84,6 +84,15 @@
         </div>
       </div>
     </div>
+
+    <div class="form-row-float-label row form-group">
+      <div class="col form-floating">
+        <select class="form-control" [ngModel]="localTimeZoneId" formControlName="timeZone">
+          <option *ngFor="let tz of timeZoneOptions" [value]="tz.timeZoneId" [title]="tz.timeZoneId">{{ tz.hourOffset + " " + tz.label }}</option>
+        </select>
+        <label>_#(Time Zone)</label>
+      </div>
+    </div>
     <div class="form-row-float-label row form-group">
       <div class="col form-floating">
           <div class="input-group btn-group">
