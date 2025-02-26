@@ -19,8 +19,10 @@
 package inetsoft.sree.schedule;
 
 import inetsoft.sree.internal.cluster.Cluster;
-import inetsoft.util.SingletonManager;
 import inetsoft.util.health.HealthStatus;
+import org.quartz.SchedulerException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.rmi.RemoteException;
 import java.util.Optional;
@@ -39,7 +41,12 @@ public class CloudRunnerServerScheduleClient extends ScheduleClient {
 
    @Override
    public void stopServer() throws RemoteException {
-      getSchedule().stop();
+      try {
+         Scheduler.disposeScheduler();
+      }
+      catch(SchedulerException e) {
+         LOG.error("Failed to stop scheduler", e);
+      }
    }
 
    @Override
@@ -118,4 +125,6 @@ public class CloudRunnerServerScheduleClient extends ScheduleClient {
    private ScheduleServer getSchedule() {
       return ScheduleServer.getInstance();
    }
+
+   private static final Logger LOG = LoggerFactory.getLogger(CloudRunnerServerScheduleClient.class);
 }
