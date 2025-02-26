@@ -22,6 +22,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.web.MapSessionRepository;
+import inetsoft.web.admin.security.PropertyModel;
 import inetsoft.web.security.DeniedMultiTenancyOrgUser;
 import inetsoft.web.viewsheet.AuditObjectName;
 import inetsoft.web.viewsheet.Audited;
@@ -56,23 +57,30 @@ public class PropertiesController {
    )
    @PutMapping("/api/admin/properties/edit")
    public void editProperty(Principal user,
-                            @RequestParam(value = "property", required = true) @AuditObjectName
-                               String property,
-                            @RequestParam(value = "value", required = true) String value)
+                            @RequestBody @AuditObjectName("name()") PropertyModel property)
       throws Exception
    {
-      property = property.trim();
-      value = value.trim();
+      String propertyName = property.name();
+
+      if(propertyName != null) {
+         propertyName = propertyName.trim();
+      }
+
+      String value = property.value();
+
+      if(value != null) {
+         value = value.trim();
+      }
 
       if("".equals(value)) {
-         value = SreeEnv.getProperty(property);
+         value = SreeEnv.getProperty(propertyName);
          value = value == null ? "" : value;
       }
 
-      SreeEnv.setProperty(property, value);
+      SreeEnv.setProperty(propertyName, value);
       SreeEnv.save();
 
-      if(Tool.equals(property,"http.session.timeout")) {
+      if(Tool.equals(propertyName,"http.session.timeout")) {
          mapSessionRepository.updateSessionTimeout(value);
       }
    }
