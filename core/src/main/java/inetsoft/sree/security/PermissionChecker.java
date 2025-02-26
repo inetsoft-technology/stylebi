@@ -51,10 +51,10 @@ public class PermissionChecker {
       boolean rolePermission = checkRolePermission(identity, permission, action,
          recursive, info);
       boolean isUserGroupEmpty =
-         isEmptyPermission(permission, Identity.USER, action) &&
-         isEmptyPermission(permission, Identity.GROUP, action);
+         isEmptyPermission(permission, Identity.USER, action, identity.getOrganizationID()) &&
+         isEmptyPermission(permission, Identity.GROUP, action, identity.getOrganizationID());
       boolean isRoleEmpty =
-         isEmptyPermission(permission, Identity.ROLE, action);
+         isEmptyPermission(permission, Identity.ROLE, action, identity.getOrganizationID());
 
       // Only read/write/delete type permission can call this. To other type
       // permission, if the two permission is empty, it will not call this but
@@ -243,9 +243,8 @@ public class PermissionChecker {
    /**
     * Check if the user/group or role is empty.
     */
-   private boolean isEmptyPermission(Permission permission, int type, ResourceAction action) {
+   private boolean isEmptyPermission(Permission permission, int type, ResourceAction action, String orgId) {
       Set<IdentityID> identities;
-      String orgId = OrganizationManager.getInstance().getCurrentOrgID();
 
       switch(type) {
       case Identity.USER:

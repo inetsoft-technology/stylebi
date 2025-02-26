@@ -139,7 +139,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
 
    public Set<IdentityID> getOrgScopedRoleGrants(ResourceAction action, String orgId) {
       String thisOrgID = orgId == null ? globalOrgId : orgId;
-      return getRoleGrants(action).stream()
+      return getGrants(action, Identity.ROLE, thisOrgID).stream()
          .filter(pId -> thisOrgID.equals(pId.organizationID) ||
                         globalOrgId.equals(pId.organizationID)|| Tool.equals(null,pId.organizationID))
          .map(pI -> new IdentityID(pI.name, globalOrgId.equals(pI.organizationID) ||
@@ -380,6 +380,22 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
    public Set<PermissionIdentity> getGrants(ResourceAction action, int identityType) {
       String currentOrgID = OrganizationManager.getInstance().getCurrentOrgID();
 
+      return getGrants(action, identityType, currentOrgID);
+   }
+
+   /**
+    * Gets the entities that have been granted permission to perform the specified action.
+    *
+    * @param action       the granted action.
+    * @param identityType the type of the entities' identity. This must be one of
+    *                     {@link Identity#USER}, {@link Identity#ROLE}, {@link Identity#GROUP}, or {@link Identity#ORGANIZATION}.
+    * @param orgId        the organization to get grants from
+    *
+    * @return a set containing the names of the entities that have been granted the permission.
+    */
+   public Set<PermissionIdentity> getGrants(ResourceAction action, int identityType, String orgId) {
+
+
       Set<PermissionIdentity> grants = switch(identityType) {
          case Identity.USER -> userGrants.get(action);
          case Identity.ROLE -> roleGrants.get(action);
@@ -395,7 +411,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       Set<PermissionIdentity> filteredGrants = new HashSet<>();
 
       for(PermissionIdentity grant : grants) {
-         if(currentOrgID.equals(grant.organizationID) || identityType == Identity.ROLE && grant.organizationID == null) {
+         if(orgId.equals(grant.organizationID) || identityType == Identity.ROLE && grant.organizationID == null) {
             filteredGrants.add(grant);
          }
       }
