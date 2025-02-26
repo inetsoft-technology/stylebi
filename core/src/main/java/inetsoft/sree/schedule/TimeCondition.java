@@ -302,29 +302,16 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          }
       }
 
-      int[] zoneOffset = getTimeZoneOffset();
-      int hoff = zoneOffset[0];
-      int moff = zoneOffset[1];
-      Calendar cal1 = Calendar.getInstance(TimeZone.getDefault());
+      curr = toLocalTimeZone(curr);
+      lastRun = toLocalTimeZone(lastRun);
+      Calendar cal1 = Calendar.getInstance(getTimeZone());
 
       if(getInterval() > 1 && lastRun > 0) {
          cal1.setTimeInMillis(lastRun);
       }
 
-      int serverZoneMinute = minute + moff;
-
-      if(serverZoneMinute >= 60) {
-         serverZoneMinute -= 60;
-         hoff += 1;
-      }
-      else if(serverZoneMinute < 0) {
-         serverZoneMinute += 60;
-         hoff -= 1;
-      }
-
-      fixDateDiff(cal1, hour, hoff);
-      cal1.set(Calendar.HOUR_OF_DAY, getHour(hour, hoff));
-      cal1.set(Calendar.MINUTE, serverZoneMinute);
+      cal1.set(Calendar.HOUR_OF_DAY, hour);
+      cal1.set(Calendar.MINUTE, minute);
       cal1.set(Calendar.SECOND, second);
 
       // cal1 contains current date and scheduled time
@@ -400,8 +387,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          if(containsIn(days_of_week,  cal1.get(Calendar.DAY_OF_WEEK))) {
             Calendar calEnd = Calendar.getInstance(TimeZone.getDefault());
             calEnd.setTime(new Date(curr));
-            fixDateDiff(calEnd, hour_end, hoff);
-            calEnd.set(Calendar.HOUR_OF_DAY, getHour(hour_end, hoff));
+            calEnd.set(Calendar.HOUR_OF_DAY, hour_end);
             calEnd.set(Calendar.MINUTE, minute_end);
             calEnd.set(Calendar.SECOND, second_end);
             long end = calEnd.getTimeInMillis();
@@ -467,12 +453,30 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
       }
 
       scheduleTime = cal1.getTimeInMillis();
-      return scheduleTime;
+
+      return toServerTimeZone(scheduleTime);
+   }
+
+   private long toLocalTimeZone(long timemillis) {
+      Calendar calendar = Calendar.getInstance();
+      calendar.setTimeInMillis(timemillis);
+      calendar.setTimeZone(getTimeZone());
+      long ntimemillis = calendar.getTimeInMillis();
+
+      return ntimemillis;
+   }
+
+   private long toServerTimeZone(long timemillis) {
+      Calendar calendar = Calendar.getInstance();
+      calendar.setTimeInMillis(timemillis);
+      calendar.setTimeZone(TimeZone.getDefault());
+      long ntimemillis = calendar.getTimeInMillis();
+
+      return ntimemillis;
    }
 
    public String toString() {
       Catalog catalog = Catalog.getCatalog();
-      int hoff = getHourOffset();
       setCurrTimeformat();
       boolean twelveHourSystem = SreeEnv.getBooleanProperty("schedule.time.12hours");
 
