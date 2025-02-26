@@ -174,7 +174,7 @@ public class SSOSettingsService {
                Tool.equals(Organization.getDefaultOrganizationID(), r.getOrgID());
          })
          .map(role -> NameLabelTuple.builder()
-            .name(role.convertToKey())
+            .name(role.getName())
             .label(role.getName()).build())
          .toArray(NameLabelTuple[]::new);
    }

@@ -170,8 +170,12 @@ public abstract class AbstractSecurityFilter
       final IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       final IdentityID[] currentRoles = principal.getRoles();
       final String[] roles = getSSODefaultRole();
+      IdentityID[] defRoles = Arrays.stream(roles)
+         .map(role -> "Administrator".equals(role) ? new IdentityID(role, null)
+            : new IdentityID(role, Organization.getDefaultOrganizationID()))
+         .toArray(IdentityID[]::new);
       final IdentityID[] newRoles =
-         Stream.concat(Arrays.stream(roles).map(IdentityID::getIdentityIDFromKey), Arrays.stream(currentRoles)).toArray(IdentityID[]::new);
+         Stream.concat(Arrays.stream(defRoles), Arrays.stream(currentRoles)).toArray(IdentityID[]::new);
       principal.setRoles(newRoles);
       createSession(request, principal);
       final ClientInfo info = createClientInfo(principal.getIdentityID(), request);
