@@ -49,24 +49,6 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
    ScheduleTaskMap(String orgID) {
       this.orgID = orgID;
       indexedStorage = IndexedStorage.getIndexedStorage();
-
-      Lock lock = Cluster.getInstance().getLock(Scheduler.INIT_LOCK);
-      lock.lock();
-
-      try {
-         DataSpace space = DataSpace.getDataSpace();
-         String file = SreeEnv.getProperty("schedule.task.file");
-
-         if(space.exists(null, file)) {
-            portScheduleTaskFile();
-         }
-      }
-      catch(Exception e) {
-         throw new RuntimeException("Failed to import legacy tasks", e);
-      }
-      finally {
-         lock.unlock();
-      }
    }
 
    @Override
@@ -379,86 +361,6 @@ class ScheduleTaskMap extends AbstractMap<String, ScheduleTask> {
             indexedStorage.putXMLSerializable(
                getRootIdentifier(this.orgID), new AssetFolder());
          }
-      }
-      finally {
-         indexedStorage.close();
-      }
-   }
-
-   /**
-    * Port schedule tasks from schedule.xml to the indexed storage
-    */
-   private void portScheduleTaskFile() throws Exception {
-      DataSpace space = DataSpace.getDataSpace();
-      Document doc = null;
-      String file = SreeEnv.getProperty("schedule.task.file");
-
-      try(InputStream in = space.getInputStream(null, file)) {
-         if(in == null) {
-            return;
-         }
-
-         doc = Tool.parseXML(in);
-         TransformerManager transf =
-            TransformerManager.getManager(TransformerManager.SCHEDULE);
-         transf.transform(doc);
-
-         // delete schedule.xml.bak file if exists
-         if(space.exists(null, file + ".bak")) {
-            space.delete(null, file + ".bak");
-         }
-
-         // rename schedule.xml to schedule.xml.bak
-         space.rename(space.getPath(null, file),
-                      space.getPath(null, file + ".bak"));
-      }
-      catch(Exception exc) {
-         try {
-            // rename schedule.xml to schedule.xml.corrupt
-            space.rename(space.getPath(null, file),
-                         space.getPath(null, file + ".corrupt"));
-
-            // @by jasons, try to load backup if parsing fails bug1249046764114
-            if(!space.exists(null, file + ".bak")) {
-               throw exc;
-            }
-
-            LOG.warn("Corrupt schedule.xml file, loading from back up", exc);
-
-            try(InputStream in = space.getInputStream(null, file + ".bak")) {
-               doc = Tool.parseXML(in);
-               TransformerManager transf =
-                  TransformerManager.getManager(TransformerManager.SCHEDULE);
-               transf.transform(doc);
-            }
-         }
-         catch(Throwable exc2) {
-            // if the backup failed to load then rename
-            // the file to schedule.xml.corrupt.2
-            space.rename(space.getPath(null, file + ".bak"),
-                         space.getPath(null, file + ".corrupt.2"));
-
-            throw new Exception("Failed to load back up schedule.xml", exc2);
-         }
-      }
-
-      NodeList tnodes = doc.getElementsByTagName("Task");
-      AssetFolder rootFolder = getRoot();
-
-      try {
-         for(int i = 0; i < tnodes.getLength(); i++) {
-            Element elem = (Element) tnodes.item(i);
-            ScheduleTask task = new ScheduleTask();
-            task.parseXML(elem);
-
-            AssetEntry entry = new AssetEntry(
-               AssetRepository.GLOBAL_SCOPE, AssetEntry.Type.SCHEDULE_TASK,
-               "/" + task.getTaskId(), null);
-            rootFolder.addEntry(entry);
-            indexedStorage.putXMLSerializable(entry.toIdentifier(), task);
-         }
-
-         indexedStorage.putXMLSerializable(getRootIdentifier(this.orgID), rootFolder);
       }
       finally {
          indexedStorage.close();
