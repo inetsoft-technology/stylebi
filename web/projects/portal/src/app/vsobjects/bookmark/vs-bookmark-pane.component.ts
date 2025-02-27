@@ -66,7 +66,7 @@ export class VsBookmarkPaneComponent implements OnInit {
    }
 
    isSetDefaultBookmarkVisible(bookmark: VSBookmarkInfoModel): boolean {
-      return !bookmark.defaultBookmark;
+      return !bookmark.defaultBookmark && !this.isDefaultOrgAsset;
    }
 
    isEditBookmarkDisabled(bookmark: VSBookmarkInfoModel): boolean {
