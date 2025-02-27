@@ -2695,6 +2695,7 @@ export class ViewerAppComponent extends CommandProcessor implements OnInit, Afte
     * Requests that the server open the viewsheet.
     */
    private openViewsheet0(runtimeId: string = null): void {
+      console.log(52365);
       this.setAppSize();
       let event: OpenViewsheetEvent = new OpenViewsheetEvent(
          this.assetId, this.appSize.width, this.appSize.height, this.mobileDevice,
