@@ -655,8 +655,10 @@ public class ImportCSVDialogController extends WorksheetController {
       }
 
       if(csvmax != null && file.length() > Long.parseLong(csvmax)) {
-         long sizeM = Long.parseLong(csvmax) / 1024 / 1024;
-         String msg = Catalog.getCatalog().getString("common.csvmax", sizeM + "M");
+         long sizeK = Long.parseLong(csvmax) / 1024;
+         long sizeM = sizeK / 1024;
+         String sizeStr = sizeM > 0 ? sizeM + "M" : sizeK + "K";
+         String msg = Catalog.getCatalog().getString("common.csvmax", sizeStr);
 
          // when using excel max for excel file, hint to the user to use CSV instead
          if(!csv && csvImportMax != null && excelImportMax != null) {
