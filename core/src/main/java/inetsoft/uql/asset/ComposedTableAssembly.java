@@ -17,6 +17,7 @@
  */
 package inetsoft.uql.asset;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
 import inetsoft.uql.asset.internal.*;
 import inetsoft.uql.erm.DataRef;
@@ -496,6 +497,8 @@ public abstract class ComposedTableAssembly extends AbstractTableAssembly {
          return false;
       }
 
+      writer.print("join.table.maxrows_");
+      writer.println(SreeEnv.getProperty("join.table.maxrows", "0"));
       writer.print("Composed[");
       TableAssembly[] tables = getTableAssemblies(true);
 
