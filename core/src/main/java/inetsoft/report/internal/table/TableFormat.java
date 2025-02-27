@@ -833,6 +833,10 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
       return fmt;
    }
 
+   public static void invalidateTableFormatCache() {
+      formatCache.clear();
+   }
+
    public Color foreground;
    public Color background;
    public Font font;

@@ -19,6 +19,7 @@ package inetsoft.web.admin.properties;
 
 import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.internal.license.LicenseManager;
+import inetsoft.report.internal.table.TableFormat;
 import inetsoft.sree.SreeEnv;
 import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
@@ -83,6 +84,10 @@ public class PropertiesController {
 
       if(Tool.equals(propertyName, "asset.max.idle")) {
          RuntimeSheet.invalidateMaxIdle();
+      }
+
+      if(Tool.equals(propertyName, "format.number.round")) {
+         TableFormat.invalidateTableFormatCache();
       }
 
       if(Tool.equals(propertyName,"http.session.timeout")) {
