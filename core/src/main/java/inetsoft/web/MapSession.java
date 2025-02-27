@@ -108,7 +108,6 @@ public final class MapSession implements Session, Serializable {
    @Override
    public void setMaxInactiveInterval(Duration interval) {
       //ignore, maxInactiveInterval controlled by system property
-      System.out.println("attempting to set interval in MapSession");
    }
 
    @Override
