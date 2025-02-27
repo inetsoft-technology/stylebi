@@ -18,7 +18,7 @@
 package inetsoft.web.binding.handler;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.SetInputObjectValueEvent;
+import inetsoft.analytic.composition.event.InputScriptEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.*;
 import inetsoft.report.composition.*;
@@ -158,8 +158,7 @@ public class VSAssemblyInfoHandler {
          int hint = assembly.setVSAssemblyInfo(info);
 
          if(isEvent) {
-            scope.addVariable("event",
-                              new SetInputObjectValueEvent.InputScriptEvent(name, assembly));
+            scope.addVariable("event", new InputScriptEvent(name, assembly));
          }
 
          if(info instanceof DataVSAssemblyInfo && oinfo instanceof DataVSAssemblyInfo) {

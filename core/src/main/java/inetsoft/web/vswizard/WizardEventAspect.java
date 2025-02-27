@@ -18,7 +18,7 @@
 package inetsoft.web.vswizard;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.CheckMVEvent;
+import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.execution.BoundTableNotFoundException;
@@ -117,7 +117,7 @@ public class WizardEventAspect {
             if(ex instanceof ConfirmException) {
                ConfirmException e = (ConfirmException) ex;
 
-               if(!(e.getEvent() instanceof CheckMVEvent)) {
+               if(!(e.getEvent() instanceof CheckMissingMVEvent)) {
                   commandDispatcher.ifPresent(dispatcher -> {
                      sendMessage(e, MessageCommand.Type.CONFIRM, dispatcher);
                   });

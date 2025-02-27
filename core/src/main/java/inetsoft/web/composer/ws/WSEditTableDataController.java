@@ -19,7 +19,6 @@ package inetsoft.web.composer.ws;
 
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.report.composition.event.LoadTableDataEvent;
 import inetsoft.report.composition.execution.*;
 import inetsoft.report.internal.Util;
 import inetsoft.uql.ColumnSelection;
@@ -175,9 +174,9 @@ public class WSEditTableDataController extends WorksheetController {
                   int lastY = queue.lastSuccesfulEvent.getY();
                   int start = 1;
 
-                  if(lastY / LoadTableDataEvent.BLOCK > 0) {
-                     start = ((lastY - 1) / LoadTableDataEvent.BLOCK) *
-                        LoadTableDataEvent.BLOCK + 1;
+                  if(lastY / WorksheetController.BLOCK > 0) {
+                     start = ((lastY - 1) / WorksheetController.BLOCK) *
+                        WorksheetController.BLOCK + 1;
                   }
 
                   WorksheetEventUtil.loadTableData(rws, name, true, true);

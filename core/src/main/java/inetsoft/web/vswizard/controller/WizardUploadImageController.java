@@ -76,7 +76,7 @@ public class WizardUploadImageController {
          vs.addUploadedImage(mpf.getOriginalFilename(), mpf.getBytes());
          ((ImageVSAssemblyInfo) assembly.getVSAssemblyInfo())
             .setImageValue(ImageVSAssemblyInfo.UPLOADED_IMAGE + mpf.getOriginalFilename());
-         rvs.addCheckpoint(vs.prepareCheckpoint(), null);
+         rvs.addCheckpoint(vs.prepareCheckpoint());
       }
       catch(MessageException messageException) {
          throw messageException;

@@ -629,9 +629,6 @@ public class VSObjectPropertyService {
       }
 
       infoHander.getGrayedOutFields(rvs, commandDispatcher);
-      VSModelTableContext tcontext = new VSModelTableContext(rvs);
-      //TODO re-create VSModelTableContext.process
-      //tcontext.process(oinfo, info, this, command);
 
       if(info instanceof RangeOutputVSAssemblyInfo) {
          VSCompositeFormat format = oldInfo.getFormat();

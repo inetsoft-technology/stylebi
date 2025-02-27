@@ -25,9 +25,9 @@ import inetsoft.graph.element.SchemaElement;
 import inetsoft.graph.scale.*;
 import inetsoft.graph.schema.CandlePainter;
 import inetsoft.graph.schema.SchemaPainter;
-import inetsoft.report.composition.command.MessageCommand;
 import inetsoft.uql.CompositeValue;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.XAggregateRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
@@ -86,7 +86,7 @@ public class CandleGraphGenerator extends MergedGraphGenerator {
       if(xmeasures.size() > 0) {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.graph.candleNotInverted"), LogLevel.WARN, true,
-                                    MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       ChartRef[] refs = info.getRTYFields();
@@ -94,7 +94,7 @@ public class CandleGraphGenerator extends MergedGraphGenerator {
       if(refs.length > 0 && GraphUtil.isMeasure(refs[refs.length - 1])) {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.graph.aggNotAllowed"), LogLevel.WARN, true,
-            MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       return true;

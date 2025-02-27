@@ -19,9 +19,7 @@ package inetsoft.sree.schedule;
 
 import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.CloseViewsheetEvent;
-import inetsoft.analytic.composition.event.OpenViewsheetEvent;
-import inetsoft.report.composition.*;
+import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.report.script.viewsheet.ViewsheetVSAScriptable;
@@ -30,19 +28,17 @@ import inetsoft.sree.RepletRequest;
 import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
-import inetsoft.util.ItemMap;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
-import java.util.Enumeration;
 
 /**
  * Defines the common API for actions that support executing viewsheet.
  *
- * @version 13.3
  * @author InetSoft Technology Corp
+ * @version 13.3
  */
 public interface ViewsheetSupport extends ScheduleAction {
 
@@ -109,31 +105,13 @@ public interface ViewsheetSupport extends ScheduleAction {
       return fullName.substring(idx + 1);
    }
 
-   /**
-    * Build parameters by {@link RepletRequest}
-    */
-   default ItemMap buildParameters(RepletRequest repletRequest) {
-      ItemMap params = new ItemMap();
-      Enumeration<?> names = repletRequest.getParameterNames();
-
-      while(names.hasMoreElements()) {
-         String paramName = (String) names.nextElement();
-         Object obj = repletRequest.getParameter(paramName) == null ?
-            null : repletRequest.getParameter(paramName);
-         String value = Tool.encodeParameter(obj);
-         params.putItem(paramName, value);
-      }
-
-      return params;
-   }
-
    default String prepareViewsheet(Principal principal) throws Throwable {
       // create a default principal so developer key can work on local machine
       if(principal == null) {
          try {
             String ipAddress = Tool.getIP();
             principal = new SRPrincipal(new ClientInfo(new IdentityID(ClientInfo.ANONYMOUS, OrganizationManager.getInstance().getCurrentOrgID()),
-               ipAddress), new IdentityID[0], new String[0], null, 0L);
+                                                       ipAddress), new IdentityID[0], new String[0], null, 0L);
             ((SRPrincipal) principal).setProperty("__internal__", "true");
             SecurityEngine engine = SecurityEngine.getSecurity();
 
@@ -152,39 +130,18 @@ public interface ViewsheetSupport extends ScheduleAction {
          principal = ignore ? null : principal;
       }
 
-      ViewsheetService engine = ViewsheetEngine.getViewsheetEngine();
       AssetEntry entry = buildAssetEntry(principal);
       entry.setProperty("_scheduler_", "true");
       entry.setProperty("taskName", getViewsheetTaskName(principal));
-      OpenViewsheetEvent oevent = new OpenViewsheetEvent(entry);
-      oevent.put("viewer", "false");
-      oevent.put("parameters", buildParameters(getRepletRequest()));
-      AssetCommand cmd = engine.process(oevent, principal);
-      Throwable e;
 
-      if((e = ((WorksheetEngine) engine).getScheduleEx()) != null) {
-         ((WorksheetEngine) engine).removeScheduleEx();
-         throw e;
-      }
-
-      synchronized(cmd) {
-         while(!cmd.isCompleted()) {
-            try {
-               cmd.wait(10000);
-            }
-            catch(Exception ex) {
-               // ignore it
-            }
-         }
-      }
-
-      return cmd.getID();
+      return ScheduleViewsheetService.getInstance().openViewsheet(entry, getRepletRequest(),
+                                                                  principal);
    }
 
    default AssetEntry buildAssetEntry(Principal principal) {
       IdentityID pId = principal == null ? null : IdentityID.getIdentityIDFromKey(principal.getName());
       return new AssetEntry(getScope(), AssetEntry.Type.VIEWSHEET,
-         getViewsheetName(), principal != null ? pId : null);
+                            getViewsheetName(), principal != null ? pId : null);
    }
 
    default AssetEntry getViewsheetEntry() {
@@ -192,26 +149,7 @@ public interface ViewsheetSupport extends ScheduleAction {
    }
 
    default void closeViewsheet(String id, Principal principal) {
-      if(id != null) {
-         try {
-            CloseViewsheetEvent cevent = new CloseViewsheetEvent();
-            cevent.setID(id);
-            ViewsheetService engine = ViewsheetEngine.getViewsheetEngine();
-            AssetCommand cmd = engine.process(cevent, principal);
-
-            while(!cmd.isCompleted()) {
-               try {
-                  cmd.wait(10000);
-               }
-               catch(Exception ex) {
-                  // ignore it
-               }
-            }
-         }
-         catch(Exception ex) {
-            LOG.error("Failed to close viewsheet: " + id, ex);
-         }
-      }
+      ScheduleViewsheetService.getInstance().closeViewsheet(id, principal);
    }
 
    Logger LOG = LoggerFactory.getLogger(ViewsheetSupport.class);

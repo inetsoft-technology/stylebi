@@ -31,7 +31,6 @@ import inetsoft.graph.scale.*;
 import inetsoft.graph.schema.*;
 import inetsoft.graph.visual.ElementVO;
 import inetsoft.report.StyleConstants;
-import inetsoft.report.composition.command.MessageCommand;
 import inetsoft.report.composition.execution.VSAQuery;
 import inetsoft.report.composition.graph.calc.AbstractColumn;
 import inetsoft.report.composition.graph.calc.ChangeColumn;
@@ -3787,7 +3786,7 @@ public abstract class GraphGenerator {
       if(info.isMultiStyles()) {
          throw new MessageException(Catalog.getCatalog().getString(
                "em.common.graph.invalidCaller"), LogLevel.WARN, true,
-                                    MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       return info.getRTChartType();
@@ -3851,7 +3850,7 @@ public abstract class GraphGenerator {
       else {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.graph.cooNotEmpty"), LogLevel.WARN, true,
-            MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       ArrayList<String> xfields = new ArrayList<>(xdims);
@@ -5717,7 +5716,7 @@ public abstract class GraphGenerator {
       default:
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.graph.invalidTrendLine", "" + trendLine),
-                                    LogLevel.WARN, true, MessageCommand.INFO);
+                                    LogLevel.WARN, true, ConfirmException.INFO);
       }
    }
 
@@ -6544,7 +6543,7 @@ public abstract class GraphGenerator {
             if(!GraphTypes.supportsInvertedChart(ctype)) {
                throw new MessageException(Catalog.getCatalog().getString(
                   "em.common.graph.invalidTypeFound",
-                  GraphTypes.getDisplayName(ctype)), LogLevel.WARN, false, MessageCommand.INFO);
+                  GraphTypes.getDisplayName(ctype)), LogLevel.WARN, false, ConfirmException.INFO);
             }
          }
       }
@@ -6553,14 +6552,14 @@ public abstract class GraphGenerator {
       if(ymeasures.size() > 0 && xmeasures.size() > 1) {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.graph.tooManyXMeasure"), LogLevel.WARN, false,
-            MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       // check if both x and y have measures
       if(xmeasures.size() > 0 && ymeasures.size() > 0 && !isXYSupported()) {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.graph.XYNotSupported"), LogLevel.INFO, false,
-            MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       int ctype = getFirstChartType();
@@ -6579,7 +6578,7 @@ public abstract class GraphGenerator {
                throw new MessageException(Catalog.getCatalog().getString(
                   "em.common.graph.incompatibleTypes",
                   GraphTypes.getDisplayName(ctype),
-                  GraphTypes.getDisplayName(ctype2)), LogLevel.WARN, false, MessageCommand.INFO);
+                  GraphTypes.getDisplayName(ctype2)), LogLevel.WARN, false, ConfirmException.INFO);
             }
          }
       }
@@ -6588,7 +6587,7 @@ public abstract class GraphGenerator {
       if(ctype == GraphTypes.CHART_WATERFALL && ymeasures.size() > 1) {
          throw new MessageException(Catalog.getCatalog().getString(
                 "em.common.graph.measureForWaterfall"), LogLevel.WARN, false,
-                MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       return true;
@@ -6608,7 +6607,7 @@ public abstract class GraphGenerator {
       {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.graph.invalidTypeFound",
-            GraphTypes.getDisplayName(ctype)), LogLevel.WARN, false, MessageCommand.INFO);
+            GraphTypes.getDisplayName(ctype)), LogLevel.WARN, false, ConfirmException.INFO);
       }
 
       // check if both x and y have measures
@@ -6618,14 +6617,14 @@ public abstract class GraphGenerator {
       {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.graph.XYNotSupported"), LogLevel.INFO, false,
-            MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       // binding more than one measure is not allowed for waterfall chart
       if(ctype == GraphTypes.CHART_WATERFALL && ymeasures.size() > 1) {
          throw new MessageException(Catalog.getCatalog().getString(
                 "em.common.graph.measureForWaterfall"), LogLevel.INFO, false,
-                MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       return true;

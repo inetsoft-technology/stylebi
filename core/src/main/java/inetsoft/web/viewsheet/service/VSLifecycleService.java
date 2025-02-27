@@ -18,12 +18,11 @@
 package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.CheckMVEvent;
+import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.Hyperlink;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
-import inetsoft.report.internal.LicenseException;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.IdentityID;
 import inetsoft.uql.VariableTable;
@@ -370,7 +369,7 @@ public class VSLifecycleService {
       }
       catch(ConfirmException ex) {
          // have already handled this exception when refreshViewsheet.
-         if(!(ex.getEvent() instanceof CheckMVEvent)) {
+         if(!(ex.getEvent() instanceof CheckMissingMVEvent)) {
             throw ex;
          }
       }

@@ -20,7 +20,6 @@ package inetsoft.web.composer.ws;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
 import inetsoft.report.composition.event.AssetEventUtil;
-import inetsoft.report.composition.event.LoadTableDataEvent;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.uql.asset.TableAssembly;
 import inetsoft.uql.asset.Worksheet;
@@ -66,7 +65,7 @@ public class WSLoadTableDataCountController extends WorksheetController {
             // force to move ahead
             count = lens.getRowCount();
             count = count < 0 ? -count - 1 : count;
-            lens.moreRows(count + LoadTableDataEvent.BLOCK * 5);
+            lens.moreRows(count + WorksheetController.BLOCK * 5);
 
             count = lens.getRowCount();
             more = count < 0;

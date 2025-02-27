@@ -87,7 +87,7 @@ public class WSUtilControllers extends WorksheetController {
                values = new ItemList("Values");
             }
             else if(source.getType() == SourceAttr.EMBEDDED_DATA) {
-               values = engine.getEmbeddedValues(field.getName());
+               values = null;
             }
             else {
                VariableTable vars = new VariableTable();

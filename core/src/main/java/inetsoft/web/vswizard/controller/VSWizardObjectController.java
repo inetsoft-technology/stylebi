@@ -428,7 +428,7 @@ public class VSWizardObjectController {
 
          // click cancel on objectWizard and finish on binding.
          if(vsTemporaryInfo == null) {
-            orvs.addCheckpoint(orvs.getViewsheet().prepareCheckpoint(), null);
+            orvs.addCheckpoint(orvs.getViewsheet().prepareCheckpoint());
             dispatcher.sendCommand(command);
 
             return;
@@ -481,7 +481,7 @@ public class VSWizardObjectController {
             dispatcher.sendCommand(cmd);
          }
 
-         orvs.addCheckpoint(vs.prepareCheckpoint(), null);
+         orvs.addCheckpoint(vs.prepareCheckpoint());
          dispatcher.sendCommand(command);
       }
       finally {
@@ -527,7 +527,7 @@ public class VSWizardObjectController {
          Viewsheet vs = rvs.getViewsheet();
          ViewsheetInfo vinfo = vs.getViewsheetInfo();
          vinfo.setMetadata(true);
-         rvs.addCheckpoint(rvs.getViewsheet().prepareCheckpoint(), null);
+         rvs.addCheckpoint(rvs.getViewsheet().prepareCheckpoint());
 
          // don't switch edit mode, see comment in vs-wizard.component:switchToMeta
          /*

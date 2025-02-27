@@ -47,7 +47,6 @@ public class VSCheckBoxController {
 
    /**
     * Apply selection.
-    * {@link inetsoft.analytic.composition.event.SetInputObjectValueEvent}
     *
     * @param principal  a principal identifying the current user.
     * @param event      the apply event

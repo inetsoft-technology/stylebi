@@ -209,7 +209,7 @@ public class VSCloseObjectWizardController {
          }
 
          model = objectModelService.createModel(tempAssembly, orvs);
-         orvs.addCheckpoint(orvs.getViewsheet().prepareCheckpoint(), null);
+         orvs.addCheckpoint(orvs.getViewsheet().prepareCheckpoint());
 
          UpdateUndoStateCommand command = new UpdateUndoStateCommand();
          command.setPoints(orvs.size());

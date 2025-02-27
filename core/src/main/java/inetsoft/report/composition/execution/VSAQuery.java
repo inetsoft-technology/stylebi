@@ -21,7 +21,6 @@ import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.WorksheetService;
 import inetsoft.report.composition.WorksheetWrapper;
-import inetsoft.report.composition.command.MessageCommand;
 import inetsoft.report.internal.XNodeMetaTable;
 import inetsoft.report.lens.MaxRowsTableLens;
 import inetsoft.sree.SreeEnv;
@@ -1083,7 +1082,7 @@ public abstract class VSAQuery {
             if(exs != null) {
                String msg = Catalog.getCatalog().
                   getString("common.ignore.filtering");
-               exs.add(new MessageException(msg, LogLevel.INFO, true, MessageCommand.INFO));
+               exs.add(new MessageException(msg, LogLevel.INFO, true, ConfirmException.INFO));
             }
          }
          else if(mode == AssetQuerySandbox.LIVE_MODE &&

@@ -18,7 +18,7 @@
 package inetsoft.web.viewsheet.controller.chart;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.ChartEvent;
+import inetsoft.analytic.composition.event.ChartVSSelectionUtil;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.data.DataSet;
@@ -135,10 +135,10 @@ public class VSChartBrushController extends VSChartController<VSChartBrushEvent>
       VSDataSet lens = vdset instanceof VSDataSet
          ? (VSDataSet) vdset : (VSDataSet) box.getData(name);
       // with Others expanded
-      VSSelection selection = ChartEvent.getVSSelection(
+      VSSelection selection = ChartVSSelectionUtil.getVSSelection(
          selected, lens, alens, vdset, rangeSelection, chartInfo, false, ctype, true, false, false);
       // without Others expanded
-      VSSelection selection2 = ChartEvent.getVSSelection(
+      VSSelection selection2 = ChartVSSelectionUtil.getVSSelection(
          selected, lens, alens, vdset, rangeSelection, chartInfo, false, ctype, false, false, false);
       VSSelection oselection = chartAssembly.getBrushSelection();
       String table = chartAssembly.getTableName();

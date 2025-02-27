@@ -93,7 +93,6 @@ public abstract class RuntimeSheet {
       editable = true;
       isLockProcessed = false;
       points = new XSwappableSheetList(this.contextPrincipal);
-      events = new LinkedList<>();
 
       access(true);
    }
@@ -273,35 +272,31 @@ public abstract class RuntimeSheet {
    /**
     * Replace a check point for undo.
     * @param sheet the specified sheet.
-    * @param event the specified event.
     * @return current point.
     */
-   public synchronized int replaceCheckpoint(AbstractSheet sheet, GridEvent event) {
+   public synchronized int replaceCheckpoint(AbstractSheet sheet) {
       if(disposed) {
          return -1;
       }
 
       if(points.size() == 0) {
-         return addCheckpoint(sheet, event);
+         return addCheckpoint(sheet);
       }
 
       int index = points.size() - 1;
       sheet.reset();
       points.set(index, sheet);
-      events.set(index, new EventInfo(event));
       return index;
    }
 
    /**
     * Add a check point for undo.
     * @param sheet the specified sheet.
-    * @param event the specified event.
     * @return current point.
     */
-   public synchronized int addCheckpoint(AbstractSheet sheet, GridEvent event) {
+   public synchronized int addCheckpoint(AbstractSheet sheet) {
       for(int i = points.size() - 1; point >= 0 && i > point; i--) {
          points.remove(i);
-         events.remove(i);
 
          // clear save point is required
          if(savePoint == i) {
@@ -311,13 +306,11 @@ public abstract class RuntimeSheet {
 
       if(points.size() == max) {
          points.remove(0);
-         events.remove(0);
          savePoint -= 1;
       }
 
       sheet.reset();
       points.add(sheet);
-      events.add(new EventInfo(event));
       point = points.size() - 1;
 
       return point;
@@ -356,53 +349,12 @@ public abstract class RuntimeSheet {
    }
 
    /**
-    * Get the undo name.
-    * @return the undo name.
-    */
-   public String getUndoName() {
-      if(point >= 1 && point < size()) {
-         try {
-            EventInfo event = events.get(point);
-            return event.getName();
-         }
-         catch(Throwable ex) {
-            // avoid synchronization, in case it fails, just return ""
-         }
-      }
-
-      return "";
-   }
-
-   /**
-    * Get the redo name.
-    * @return the redo name.
-    */
-   public String getRedoName() {
-      if(point + 1 >= 0 && point + 1 < size()) {
-         try {
-            EventInfo event = events.get(point + 1);
-            return event.getName();
-         }
-         catch(Throwable ex) {
-            // avoid synchronization, in case it fails, just return ""
-         }
-      }
-
-      return "";
-   }
-
-   /**
     * Dispose the runtime sheet.
     */
    public synchronized void dispose() {
       if(points != null) {
          points.dispose();
          points = null;
-      }
-
-      if(events != null) {
-         events.clear();
-         events = null;
       }
 
       disposed = true;
@@ -498,67 +450,6 @@ public abstract class RuntimeSheet {
     * otherwise.
     */
    public abstract boolean isPreview();
-
-   /**
-    * Event info.
-    */
-   protected static class EventInfo implements Serializable {
-      /**
-       * Constructor.
-       */
-      public EventInfo(GridEvent event) {
-         this.name = event == null ? "" : event.getName();
-         this.sname = event == null ? null : getSheetName();
-         this.assemblies = event == null ?
-            new String[0] :
-            event.getAssemblies();
-         this.reset = event == null ? false : event.requiresReset();
-      }
-
-      /**
-       * Get the name.
-       * @return the name of the event info.
-       */
-      public String getName() {
-         return name;
-      }
-
-      /**
-       * Get the name of the sheet container.
-       * @return the name of the sheet container to perform undo/redo.
-       */
-      public String getSheetName() {
-         return sname;
-      }
-
-      /**
-       * Get the influenced assemblies.
-       * @return the influenced assemblies.
-       */
-      public String[] getAssemblies() {
-         return assemblies;
-      }
-
-      /**
-       * Check if requires reset when undo/redo.
-       */
-      public boolean requiresReset() {
-         return reset;
-      }
-
-      /**
-       * Get the string representation.
-       * @return the string representation.
-       */
-      public String toString() {
-         return "EventInfo[" + name + "^" + Arrays.asList(assemblies) + "]";
-      }
-
-      private String name;
-      private String sname;
-      private String[] assemblies;
-      private boolean reset;
-   }
 
    static final class XSwappableSheetList {
       public XSwappableSheetList(XPrincipal contextPrincipal) {
@@ -840,7 +731,6 @@ public abstract class RuntimeSheet {
    protected Principal user;        // user who opened it
    protected XPrincipal contextPrincipal;
    protected boolean editable;      // editable flag
-   protected List<EventInfo> events; // event infos
    protected XSwappableSheetList points; // total points
    protected int point;             // current point
    protected int max;               // max undoes

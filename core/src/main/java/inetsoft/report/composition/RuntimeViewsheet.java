@@ -135,7 +135,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
       this.box.getAssetQuerySandbox().setMVProcessor(new MVProcessorImpl(this));
       // the cloned viewsheet is for undo/redo, and we should share the cloned
       // viewsheet in cached query and undo/redo
-      addCheckpoint(this.vs.prepareCheckpoint(), null);
+      addCheckpoint(this.vs.prepareCheckpoint());
    }
 
    /**
@@ -344,9 +344,9 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    @Override
-   public int addCheckpoint(AbstractSheet sheet, GridEvent event) {
+   public int addCheckpoint(AbstractSheet sheet) {
       ((Viewsheet) sheet).prepareCheckpoint();
-      return super.addCheckpoint(sheet, event);
+      return super.addCheckpoint(sheet);
    }
 
    /**
@@ -596,37 +596,16 @@ public class RuntimeViewsheet extends RuntimeSheet {
 
          point = -1;
          points = new XSwappableSheetList(this.contextPrincipal);
-         events = new ArrayList<>();
 
          getEntry().setProperty("bookmarkName", name);
          getEntry().setProperty("bookmarkUser", user.convertToKey());
          setViewsheet(processedViewsheet);
-         addCheckpoint(processedViewsheet.prepareCheckpoint(), null);
+         addCheckpoint(processedViewsheet.prepareCheckpoint());
 
          return true;
       }
 
       return false;
-   }
-
-   /**
-    * Refresh the current opened bookmark.
-    */
-   public void refreshCurrentBookmark(AssetCommand command) throws Exception {
-      VSBookmarkInfo cinfo = getOpenedBookmark();
-
-      if(cinfo == null || VSBookmark.HOME_BOOKMARK.equals(cinfo.getName())) {
-         return;
-      }
-
-      Assembly[] oldArr = vs.getAssemblies(true, false);
-      boolean refreshed = refreshBookmark(cinfo.getName(), cinfo.getOwner(),
-                                          cinfo.getLastModified());
-
-      if(refreshed) {
-         Assembly[] newArr = vs.getAssemblies(true, false);
-         AnnotationVSUtil.removeUselessAssemblies(oldArr, newArr, command);
-      }
    }
 
    /**
@@ -872,21 +851,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
                                   VSBookmarkInfo.PRIVATE, false, true);
          }
 
-         // @by davidd 2012-12-28, When adding bookmarks commit the adhoc filters.
-         // Macquarie use-case initiates add bookmark from our API.
-         if(vs.hasAdhocFilters()) {
-            Viewsheet vsClone = (Viewsheet) vs.clone();
-            // Copy the RVS to not disturb the active adhoc filters
-            RuntimeViewsheet rvsClone = new RuntimeViewsheet(entry, vsClone,
-                                                             this.user, rep, engine, bookmarksMap, false);
-            VSEventUtil.changeAdhocFilterStatus(rvsClone, new AssetCommand());
-            vsClone = rvsClone.getViewsheet();
-            bookmark.addBookmark(name, vsClone, type, readOnly, true);
-         }
-         else {
-            bookmark.addBookmark(name, vs, type, readOnly, true);
-         }
-
+         bookmark.addBookmark(name, vs, type, readOnly, true);
          // update this RVS with the new bookmark
          bookmarksMap.put(user.convertToKey(), bookmark);
          AssetEntry entry = AssetEntry.createAssetEntry(bookmark.getIdentifier());
@@ -1651,8 +1616,7 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    private void restoreCheckpoint(int point) {
-      EventInfo event = events.get(point);
-      restoreCheckpoint0(point, event.requiresReset());
+      restoreCheckpoint0(point, false);
    }
 
    private void restoreCheckpoint0(int point, boolean requiresReset) {

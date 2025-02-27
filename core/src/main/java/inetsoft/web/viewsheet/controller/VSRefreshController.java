@@ -86,7 +86,7 @@ public class VSRefreshController {
    }
 
    /**
-    * From {@link inetsoft.analytic.composition.event.VSRefreshEvent}
+    * Refresh a viewsheet
     */
    @LoadingMask
    @MessageMapping("/vs/refresh")
@@ -294,7 +294,7 @@ public class VSRefreshController {
          // if this refresh event is call from other events, don't modify the
          // undo queue since it's managed by the top event
          if(vs != null && userRefresh) {
-            rvs.replaceCheckpoint(vs.prepareCheckpoint(), null);
+            rvs.replaceCheckpoint(vs.prepareCheckpoint());
          }
 
          if(!rvs.isViewer() && !rvs.isPreview()) {
@@ -310,7 +310,6 @@ public class VSRefreshController {
 
    /**
     * Check if need refresh.
-    * From {@link inetsoft.analytic.composition.event.VSRefreshEvent}
     * @return <tt>true</tt> if Refresh/unRefresh.
     */
    private Boolean isShareFilterNeedRefresh(RuntimeViewsheet rvs) {

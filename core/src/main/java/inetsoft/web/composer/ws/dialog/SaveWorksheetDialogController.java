@@ -143,7 +143,6 @@ public class SaveWorksheetDialogController extends WorksheetController {
 
    /**
     * Process save worksheet event.
-    * From {@link inetsoft.report.composition.event.SaveWorksheetEvent}
     */
    public SaveWorksheetDialogModelValidator process(
       RuntimeWorksheet rws, SaveWorksheetDialogModel model, Principal principal,

@@ -18,7 +18,6 @@
 package inetsoft.analytic.composition;
 
 import inetsoft.analytic.AnalyticAssistant;
-import inetsoft.analytic.composition.command.ExportVSCommand;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
 import inetsoft.sree.UserEnv;
@@ -671,20 +670,6 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
       UserEnv.setProperty(user, key, val);
    }
 
-   @Override
-   protected void process0(AssetEvent event, Principal user,
-                           AssetCommand command)
-      throws Throwable
-   {
-      try {
-         AssetDataCache.monitor(true);
-         super.process0(event, user, command);
-      }
-      finally {
-         AssetDataCache.monitor(false);
-      }
-   }
-
    /**
     * Get the viewsheet data changed timestamp.
     * @param entry - the viewsheet entry.
@@ -800,14 +785,6 @@ public class ViewsheetEngine extends WorksheetEngine implements ViewsheetService
 
          throw re;
       }
-   }
-
-   /**
-    * Get the command for exporting to web.
-    */
-   @Override
-   public AssetCommand export(String url) {
-      return new ExportVSCommand(url);
    }
 
    /**
