@@ -32,6 +32,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
+import java.beans.PropertyChangeListener;
+import java.beans.PropertyChangeSupport;
 import java.io.*;
 import java.util.List;
 import java.util.*;
@@ -1003,6 +1005,14 @@ public class PropertiesEngine {
       }
    }
 
+   public void addPropertyChangeListener(String propertyName, PropertyChangeListener listener) {
+      support.addPropertyChangeListener(propertyName, listener);
+   }
+
+   public void removePropertyChangeListener(String propertyName, PropertyChangeListener listener) {
+      support.removePropertyChangeListener(propertyName, listener);
+   }
+
    private final KeyValueStorage.Listener<String> changeListener = new KeyValueStorage.Listener<String>() {
       @Override
       public void entryAdded(KeyValueStorage.Event<String> event) {
@@ -1021,6 +1031,11 @@ public class PropertiesEngine {
 
       private void onChange(KeyValueStorage.Event<String> e) {
          PropertyChange change = new PropertyChange(e.getKey(), e.getOldValue(), e.getNewValue());
+
+         if(Tool.equals(e.getKey(),"format.number.round")){
+            support.firePropertyChange(e.getKey(), e.getOldValue(), e.getNewValue());
+         }
+
          getDebouncer().debounce(
             "change", 500L, TimeUnit.MILLISECONDS, new ChangeTask(change), this::reduce);
       }
@@ -1122,6 +1137,7 @@ public class PropertiesEngine {
    }
 
    private final Set<String> changedProps = new TreeSet<>();
+   private final PropertyChangeSupport support = new PropertyChangeSupport(PropertiesEngine.class);
    private static final String EARLY_LOADED_PROPERTIES_KEY = PropertiesEngine.class.getName() + "_early_loaded_properties";
    private static final String PROPERTIES_KEY = PropertiesEngine.class.getName() + ".properties";
    private static final String DEFAULTS_PROPERTIES_KEY = PropertiesEngine.class.getName() + "_defaults.properties";
