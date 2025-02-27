@@ -163,26 +163,6 @@ public class AnalyticEngine extends RepletEngine implements AnalyticRepository {
       return null;
    }
 
-   /**
-    * Get a serializable Object from engine.
-    * @param req the specified request to process.
-    * @return a serializable Object.
-    */
-   @Override
-   public Serializable getObject(String req) throws RemoteException {
-      int queryStringStart = req.indexOf('?');
-      boolean param = queryStringStart >= 0;
-      String op = param ? req.substring(0, queryStringStart) : req;
-
-      // get date range provider
-      if(op.equals("getDateRange")) {
-         AssetRepository rep = AssetUtil.getAssetRepository(false);
-         return WorksheetEngine.getDateRangeProvider(rep, null);
-      }
-
-      return null;
-   }
-
    private AnalyticRegistry aregistry;
 
    private static final Logger LOG =

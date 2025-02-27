@@ -18,7 +18,7 @@
 package inetsoft.web.viewsheet;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.CheckMVEvent;
+import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.mv.MVSession;
 import inetsoft.report.composition.*;
 import inetsoft.sree.internal.SUtil;
@@ -420,7 +420,7 @@ public class EventAspect {
                if(ex instanceof ConfirmException) {
                   ConfirmException e = (ConfirmException) ex;
 
-                  if(!(e.getEvent() instanceof CheckMVEvent)) {
+                  if(!(e.getEvent() instanceof CheckMissingMVEvent)) {
                      sendMessage(e, MessageCommand.Type.CONFIRM, dispatcher);
                   }
                   else if(!mvHandled) {

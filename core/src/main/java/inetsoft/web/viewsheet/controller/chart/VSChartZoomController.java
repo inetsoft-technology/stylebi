@@ -18,7 +18,7 @@
 package inetsoft.web.viewsheet.controller.chart;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.ChartEvent;
+import inetsoft.analytic.composition.event.ChartVSSelectionUtil;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.data.DataSet;
@@ -130,7 +130,7 @@ public class VSChartZoomController extends VSChartController<VSChartZoomEvent> {
             VSEventUtil.getAssemblyInfo(rvs, chartAssembly)).getCubeType();
          VSDataSet lens = vdset instanceof VSDataSet
             ? (VSDataSet) vdset : (VSDataSet) box.getData(name);
-         VSSelection selection = ChartEvent.getVSSelection(
+         VSSelection selection = ChartVSSelectionUtil.getVSSelection(
             selected, lens, alens, vdset, rangeSelection, chartInfo,
             false, ctype, true, false, false);
          PlotDescriptor plot = chartState.getChartDescriptor().getPlotDescriptor();

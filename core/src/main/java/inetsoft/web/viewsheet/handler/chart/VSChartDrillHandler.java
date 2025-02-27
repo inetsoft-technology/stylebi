@@ -18,7 +18,7 @@
 package inetsoft.web.viewsheet.handler.chart;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.ChartEvent;
+import inetsoft.analytic.composition.event.ChartVSSelectionUtil;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.data.DataSet;
@@ -719,9 +719,9 @@ public class VSChartDrillHandler extends BaseDrillHandler<ChartVSAssembly, Chart
       String ctype = ((ChartVSAssemblyInfo)
          VSEventUtil.getAssemblyInfo(rvs, assembly)).getCubeType();
       DataSet vdset = vgraph.getCoordinate().getDataSet();
-      VSSelection selection = ChartEvent.getVSSelection(selected, lens, alens, vdset,
-                                                        rangeSelection, chartInfo, false, ctype,
-                                                        true, true, true);
+      VSSelection selection = ChartVSSelectionUtil.getVSSelection(selected, lens, alens, vdset,
+                                                                  rangeSelection, chartInfo, false, ctype,
+                                                                  true, true, true);
 
       if(selection == null) {
          return null;

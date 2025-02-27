@@ -17,7 +17,6 @@
  */
 package inetsoft.analytic.composition.event;
 
-import inetsoft.analytic.composition.ViewsheetEvent;
 import inetsoft.graph.data.*;
 import inetsoft.report.composition.graph.GraphTypeUtil;
 import inetsoft.report.composition.graph.VSDataSet;
@@ -26,8 +25,6 @@ import inetsoft.uql.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.VSDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
-import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
-import inetsoft.util.Catalog;
 import inetsoft.util.Tool;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,12 +33,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Chart event.
+ * Chart VSSelection util.
  *
  * @version 10.0
  * @author InetSoft Technology Corp
  */
-public abstract class ChartEvent extends ViewsheetEvent {
+public abstract class ChartVSSelectionUtil {
    /**
     * Create the VSSelection according to the selection string.
     * @param selected selected values in the form of, e.g.
@@ -627,64 +624,5 @@ public abstract class ChartEvent extends ViewsheetEvent {
       }
    }
 
-   /**
-    * Constructor.
-    */
-   public ChartEvent() {
-      super();
-   }
-
-   /**
-    * Constructor.
-    */
-   public ChartEvent(ChartVSAssemblyInfo info) {
-      this();
-      put("info", info);
-   }
-
-   /**
-    * Check if is undoable/redoable.
-    * @return <tt>true</tt> if undoable/redoable.
-    */
-   @Override
-   public boolean isUndoable() {
-      return true;
-   }
-
-   /**
-    * Check if requires return.
-    * @return <tt>true</tt> if requires, <tt>false</tt> otherwise.
-    */
-   @Override
-   public boolean requiresReturn() {
-      return false;
-   }
-
-   /**
-    * Get the influenced assemblies.
-    * @return the influenced assemblies, <tt>null</tt> means all.
-    */
-   @Override
-   public String[] getAssemblies() {
-      ChartVSAssemblyInfo info = (ChartVSAssemblyInfo) get("info");
-      String tname = info == null ? null : info.getAbsoluteName2();
-
-      if(tname == null) {
-         tname = (String) get("name");
-      }
-
-      return tname != null ? new String[] {tname} : new String[0];
-   }
-
-   /**
-    * Get the name of the asset event.
-    * @return the name of the asset event.
-    */
-   @Override
-   public String getName() {
-      return Catalog.getCatalog().getString("Chart change");
-   }
-
-   private static final Logger LOG =
-      LoggerFactory.getLogger(ChartEvent.class);
+   private static final Logger LOG = LoggerFactory.getLogger(ChartVSSelectionUtil.class);
 }

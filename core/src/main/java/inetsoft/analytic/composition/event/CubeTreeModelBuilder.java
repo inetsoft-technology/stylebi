@@ -51,59 +51,6 @@ public class CubeTreeModelBuilder extends BaseTreeModelBuilder {
       super();
    }
 
-   /**
-    * Create Info by event and viewsheet.
-    */
-   public static CubeTreeModelBuilder getBuilder(AssetEvent event,
-                                                 RuntimeViewsheet rvs,
-                                                 Processor processor) {
-      CubeTreeModelBuilder model = new CubeTreeModelBuilder();
-      model.engine = event.getWorksheetEngine().getAssetRepository();
-      model.processor = processor;
-      model.rvs = rvs;
-      model.runtime = rvs.isRuntime();
-      model.principal = event.getUser();
-      model.user = model.principal == null ? null : IdentityID.getIdentityIDFromKey(model.principal.getName());
-
-      String prefix = (String) event.get("prefix");
-      String source = (String) event.get("source");
-      // get properties for cube table
-      Properties props = new Properties();
-
-      if(prefix != null) {
-         props.setProperty("prefix", prefix);
-      }
-
-      if(source != null) {
-         props.setProperty("source", source);
-      }
-
-      model.props = props;
-      model.cube = source != null && source.indexOf(Assembly.CUBE_VS) >= 0;
-
-      // get viewsheet
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs == null) {
-         return model;
-      }
-
-      VSAssemblyInfo info = (VSAssemblyInfo) event.get("assemblyInfo");
-      model.info = info;
-      String aname = info.getAbsoluteName2();
-      aname = aname == null ? info.getAbsoluteName() : aname;
-      int idx = aname.lastIndexOf(".");
-
-      if(idx != -1) {
-         vs = (Viewsheet) vs.getAssembly(aname.substring(0, idx));
-      }
-
-      model.vs = vs;
-      model.baseWS = vs.getBaseWorksheet();
-      model.baseEntry = vs.getBaseEntry();
-      return model;
-   }
-
    public static CubeTreeModelBuilder getBuilder(AssetRepository engine,
       Principal principal, String prefix, String source, VSAssemblyInfo info,
       RuntimeViewsheet rvs, boolean isVSWizard, Processor processor)

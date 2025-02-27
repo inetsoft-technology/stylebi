@@ -18,7 +18,6 @@
 package inetsoft.web.viewsheet.controller.table;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.ShowDetailEvent;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.*;
@@ -764,7 +763,7 @@ public class BaseTableShowDetailsController extends BaseTableController<ShowDeta
 
                if(col >= rcnt) {
                   ConditionList conds1 = new ConditionList();
-                  ShowDetailEvent.createCrosstabConditions(assembly, conds1, cheaders,
+                  TableConditionUtil.createCrosstabConditions(assembly, conds1, cheaders,
                                                            col, lens, true, cubeType,
                                                            0, path, xmla);
                   conds1.trim();
@@ -774,7 +773,7 @@ public class BaseTableShowDetailsController extends BaseTableController<ShowDeta
                if(row >= cheaders.length) {
                   int offset = 0; //period ? 1 : 0;
                   ConditionList conds2 = new ConditionList();
-                  ShowDetailEvent.createCrosstabConditions(assembly, conds2, rheaders,
+                  TableConditionUtil.createCrosstabConditions(assembly, conds2, rheaders,
                                                            row, lens, false, cubeType,
                                                            offset, path, xmla);
                   conds2.trim();

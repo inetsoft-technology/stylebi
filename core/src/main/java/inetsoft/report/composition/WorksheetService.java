@@ -63,28 +63,6 @@ public interface WorksheetService {
    void setAssetRepository(AssetRepository engine);
 
    /**
-    * Process an asset event.
-    * @param event the specified asset event to process.
-    * @param user the specified user.
-    * @return the associated asset command.
-    */
-   AssetCommand process(AssetEvent event, Principal user);
-
-   /**
-    * Remove command from queue.
-    * @param eid the specified event id.
-    * @return the removed asset command if any, <tt>null</tt> not found.
-    */
-   AssetCommand dequeueCommand(int eid);
-
-   /**
-    * Get the asset command in queue.
-    * @param eid the specified event id.
-    * @return the asset command if any, <tt>null</tt> not found.
-    */
-   AssetCommand getCommand(int eid);
-
-   /**
     * Dispose the worksheet service.
     */
    void dispose();
@@ -205,11 +183,6 @@ public interface WorksheetService {
     * Set the cached property by providing the specified key-value pair.
     */
    void setCachedProperty(Principal user, String key, Object val);
-
-   /**
-    * Get the command for exporting to web.
-    */
-   AssetCommand export(String url);
 
    String getLockOwner(AssetEntry entry);
 

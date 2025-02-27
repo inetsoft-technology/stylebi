@@ -467,4 +467,5 @@ public class WorksheetController {
 
    protected static final int ROW_LIMIT = 10000;
    protected static final int COL_LIMIT = 1000;
+   protected static final int BLOCK = 100; // Table row counts per loading process
 }

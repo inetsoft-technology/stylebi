@@ -17,7 +17,7 @@
  */
 package inetsoft.util;
 
-import inetsoft.report.composition.command.MessageCommand;
+import inetsoft.uql.asset.ConfirmException;
 import inetsoft.util.log.LogLevel;
 
 /**
@@ -67,7 +67,7 @@ public class MessageException extends RuntimeException implements LogException {
     *                  the log; <code>false</code> otherwise.
     */
    public MessageException(String message, LogLevel logLevel, boolean dumpStack) {
-      this(message, logLevel, dumpStack, MessageCommand.WARNING);
+      this(message, logLevel, dumpStack, ConfirmException.WARNING);
    }
 
    /**
@@ -79,7 +79,7 @@ public class MessageException extends RuntimeException implements LogException {
     *                  the log; <code>false</code> otherwise.
     */
    public MessageException(Throwable cause, LogLevel logLevel, boolean dumpStack) {
-      this(cause.getMessage(), logLevel, dumpStack, MessageCommand.WARNING);
+      this(cause.getMessage(), logLevel, dumpStack, ConfirmException.WARNING);
       initCause(cause);
    }
 
@@ -104,7 +104,7 @@ public class MessageException extends RuntimeException implements LogException {
     * Gets the warning level at which to warn the user.
     *
     * @return the warning level. The level be one of the constants defined in
-    *         {@link inetsoft.report.composition.command.MessageCommand}.
+    *         {@link inetsoft.uql.asset.ConfirmException}.
     */
    public int getWarningLevel() {
       return warningLevel;
@@ -147,6 +147,6 @@ public class MessageException extends RuntimeException implements LogException {
 
    private boolean dumpStack = true;
    private LogLevel logLevel = LogLevel.ERROR;
-   private int warningLevel = MessageCommand.WARNING;
+   private int warningLevel = ConfirmException.WARNING;
    private String keywords;
 }

@@ -21,8 +21,8 @@ import inetsoft.graph.AxisSpec;
 import inetsoft.graph.coord.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.scale.Scale;
-import inetsoft.report.composition.command.MessageCommand;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.ChartVSAssemblyInfo;
@@ -82,7 +82,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
          ymeasures.size() == 1 && groups.length == 1 && groups[0] instanceof XDimensionRef))
       {
          throw new MessageException(catalog.getString("viewer.viewsheet.alert.radar"),
-            LogLevel.INFO, false, MessageCommand.INFO);
+                                    LogLevel.INFO, false, ConfirmException.INFO);
       }
 
       // never enter this condition
@@ -102,7 +102,7 @@ public class RadarGraphGenerator extends MergedGraphGenerator {
       if(xmeasures.size() > 0) {
          throw new MessageException(catalog.getString(
             "em.common.graph.radarNotInverted"), LogLevel.WARN, false,
-            MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       return true;

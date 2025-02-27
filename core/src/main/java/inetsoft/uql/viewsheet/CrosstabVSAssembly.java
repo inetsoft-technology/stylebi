@@ -768,7 +768,6 @@ public class CrosstabVSAssembly extends CrossBaseVSAssembly implements
    /**
     * Gets the last Table Lens sent to the client, that should represent the
     * current view.
-    * @see inetsoft.analytic.composition.event.LoadTableLensEvent
     */
    public VSTableLens getLastTableLens() {
       return lastTableLens != null ? lastTableLens.get() : null;

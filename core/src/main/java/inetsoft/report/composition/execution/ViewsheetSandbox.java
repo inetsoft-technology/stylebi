@@ -19,7 +19,6 @@ package inetsoft.report.composition.execution;
 
 import inetsoft.analytic.composition.ViewsheetEngine;
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.command.RefreshVSObjectCommand;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.mv.*;
 import inetsoft.report.*;
@@ -1265,12 +1264,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                if(ex instanceof ConfirmDataException && entry != null) {
                   ConfirmDataException cex = (ConfirmDataException) ex;
                   cex.setName(entry.getAbsoluteName());
-
-                  if(cex.getEvent() == null) {
-                     AssetEvent revent = AssetEvent.helper.refreshAssembly();
-                     revent.put("name", entry.getAbsoluteName());
-                     cex.setEvent(revent);
-                  }
                }
 
                if(exs != null) {
@@ -1601,12 +1594,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
                if(ex instanceof ConfirmDataException && entry != null) {
                   ConfirmDataException cex2 = (ConfirmDataException) ex;
                   cex2.setName(entry.getAbsoluteName());
-
-                  if(cex2.getEvent() == null) {
-                     AssetEvent revent2 = AssetEvent.helper.refreshAssembly();
-                     revent2.put("name", entry.getAbsoluteName());
-                     cex2.setEvent(revent2);
-                  }
                }
 
                if(exs != null) {
@@ -1720,12 +1707,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          if(ex instanceof ConfirmDataException && assembly != null) {
             ConfirmDataException cex = (ConfirmDataException) ex;
             cex.setName(assembly.getAbsoluteName());
-
-            if(cex.getEvent() == null) {
-               AssetEvent revent = AssetEvent.helper.refreshAssembly();
-               revent.put("name", assembly.getAbsoluteName());
-               cex.setEvent(revent);
-            }
          }
 
          if(exs != null) {
@@ -1751,12 +1732,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             if(ex instanceof ConfirmDataException && assembly != null) {
                ConfirmDataException cex2 = (ConfirmDataException) ex;
                cex2.setName(assembly.getAbsoluteName());
-
-                if(cex2.getEvent() == null) {
-                  AssetEvent revent2 = AssetEvent.helper.refreshAssembly();
-                  revent2.put("name", assembly.getAbsoluteName());
-                  cex2.setEvent(revent2);
-               }
             }
 
             if(exs != null) {
@@ -2494,12 +2469,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          if(ex instanceof ConfirmDataException && entry != null) {
             ConfirmDataException cex = (ConfirmDataException) ex;
             cex.setName(entry.getAbsoluteName());
-
-             if(cex.getEvent() == null) {
-               AssetEvent revent = AssetEvent.helper.refreshAssembly();
-               revent.put("name", entry.getAbsoluteName());
-               cex.setEvent(revent);
-            }
          }
 
          if(exs != null) {
@@ -4389,31 +4358,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
       catch(ConfirmDataException ex) {
          if(assembly != null) {
             ex.setName(assembly.getAbsoluteName());
-
-            if(ex.getEvent() == null) {
-               AssetEvent revent = AssetEvent.helper.refreshAssembly();
-               revent.put("name", assembly.getAbsoluteName());
-
-               StringBuilder names = new StringBuilder(); // names of associated selections
-               String table = assembly.getTableName();
-               SelectionVSAssembly[] sarr = getSelectionVSAssemblies(table);
-
-               for(int i = 0; i < sarr.length; i++) {
-                  if(!sarr[i].equals(assembly)) {
-                     if(names.length() != 0) {
-                        names.append(',');
-                     }
-
-                     names.append(sarr[i].getAbsoluteName());
-                  }
-               }
-
-               if(names.length() != 0) {
-                  revent.put("associatedSelections", names.toString());
-               }
-
-               ex.setEvent(revent);
-            }
          }
 
          throw ex;
@@ -5565,12 +5509,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
          if(ex instanceof ConfirmDataException && assembly != null) {
             ConfirmDataException cex = (ConfirmDataException) ex;
             cex.setName(assembly.getAbsoluteName());
-
-            if(cex.getEvent() == null) {
-               AssetEvent revent = AssetEvent.helper.refreshAssembly();
-               revent.put("name", assembly.getAbsoluteName());
-               cex.setEvent(revent);
-            }
          }
 
          if(exs != null) {
@@ -6678,49 +6616,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
    }
 
    /**
-    * Dispatch event to trigger ViewsheetScope script execution.
-    * @param event event provide event source, type and other properties.
-    */
-   public void dispatchEvent(ScriptEvent event, AssetCommand command, RuntimeViewsheet rvs) {
-      ViewsheetScope vsscope = getScope();
-      vsscope.addVariable("event" , event);
-      String onload = vs.getViewsheetInfo().getOnLoad();
-
-      if(vs.getViewsheetInfo().isScriptEnabled() &&
-         onload != null && onload.trim().length() > 0)
-      {
-         executeVSScript(onload, ViewsheetScope.VIEWSHEET_SCRIPTABLE);
-
-         Set<AssemblyRef> refs = new HashSet<>();
-         VSUtil.getReferencedAssets(onload, refs, vs, null);
-
-         // refresh modified components
-         for(AssemblyRef ref : refs) {
-            String name = ref.getEntry().getName();
-            boolean contained = vs.containsAssembly(name);
-
-            if(contained) {
-               VSAssembly assembly = vs.getAssembly(name);
-
-               try {
-                  VSAssemblyInfo info =
-                     VSEventUtil.getAssemblyInfo(rvs, assembly);
-
-                  command.addCommand(new RefreshVSObjectCommand(
-                     info, null, false, this));
-               }
-               catch(Exception exception) {
-                  LOG.warn(
-                              "Unable to to trigger script execution", exception);
-               }
-            }
-         }
-      }
-
-      vsscope.removeVariable("event");
-   }
-
-   /**
     * Table metadata repository.
     */
    private class TableMetaDataRepository implements ActionListener {
@@ -7035,33 +6930,6 @@ public class ViewsheetSandbox implements Cloneable, ActionListener {
             return metadata;
          }
          catch(ConfirmException ex) {
-            if(ex.getEvent() == null) {
-               AssetEvent event = AssetEvent.helper.refreshSheet();
-
-               if(event != null) {
-                  // assembly name to set time limit in viewsheet sandbox
-                  event.put("name", key.getAbsoluteName());
-                  event.put("__tableMetaData__", "true");
-
-                  StringBuilder names = new StringBuilder(); // names of associated selections
-                  SelectionVSAssembly[] sarr = getSelectionVSAssemblies(key.getTable());
-
-                  for(SelectionVSAssembly name : sarr) {
-                     if(names.length() != 0) {
-                        names.append(',');
-                     }
-
-                     names.append(name.getAbsoluteName());
-                  }
-
-                  if(names.length() != 0) {
-                     event.put("associatedSelections", names.toString());
-                  }
-
-                  ex.setEvent(event);
-               }
-            }
-
             throw ex;
          }
       }

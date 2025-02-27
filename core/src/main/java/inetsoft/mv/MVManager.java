@@ -17,7 +17,7 @@
  */
 package inetsoft.mv;
 
-import inetsoft.analytic.composition.event.CheckMVEvent;
+import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.mv.data.MV;
 import inetsoft.mv.data.MVStorage;
 import inetsoft.mv.fs.*;
@@ -392,9 +392,9 @@ public final class MVManager {
          if(entry != null) {
             ConfirmException confirm = new ConfirmException(
                msg, ConfirmException.INFO);
-            CheckMVEvent event = new CheckMVEvent(entry);
-            event.put("refresh.directly", "true");
-            event.put("background", "true");
+            CheckMissingMVEvent event = new CheckMissingMVEvent(entry);
+            event.setRefreshDirectly(true);
+            event.setBackground(true);
             confirm.setEvent(event);
             throw confirm;
          }
@@ -412,7 +412,7 @@ public final class MVManager {
       String msg = Catalog.getCatalog().getString("vs.mv.prepare");
       ConfirmException progress = new ConfirmException(
          msg, ConfirmException.PROGRESS);
-      progress.setEvent(new CheckMVEvent(entry));
+      progress.setEvent(new CheckMissingMVEvent(entry));
       throw progress;
    }
 

@@ -833,7 +833,7 @@ public class VSBindingService {
       orvs.getViewsheet().setMaxMode(false);
 
       if(!VSWizardEditModes.WIZARD_DASHBOARD.equals(originalMode)) {
-         orvs.addCheckpoint(nvs.prepareCheckpoint(), null);
+         orvs.addCheckpoint(nvs.prepareCheckpoint());
       }
 
       engine.closeViewsheet(nid, principal);

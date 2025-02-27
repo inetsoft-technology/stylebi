@@ -18,7 +18,6 @@
 package inetsoft.web.viewsheet.controller.table;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.ShowDetailEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.*;
 import inetsoft.report.composition.*;
@@ -670,7 +669,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
    }
 
    /**
-    * {@link ShowDetailEvent#createCalcTableConditions(VSAssembly, int[][], String, ViewsheetSandbox)}
+    * {@link TableConditionUtil#createCalcTableConditions(VSAssembly, int[][], String, ViewsheetSandbox)}
     *
     * Use for both flyovers and showdetails
     */
@@ -705,7 +704,7 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
          return new ConditionList();
       }
 
-      ConditionList conds = ShowDetailEvent.createCalcTableConditions(assembly, rowcolsArr, name, box);
+      ConditionList conds = TableConditionUtil.createCalcTableConditions(assembly, rowcolsArr, name, box);
       conds.trim();
 
       if(conds.getSize() < 1 && tipMsg != null) {
@@ -1081,24 +1080,6 @@ public abstract class BaseTableController<T extends BaseTableEvent> {
       }
 
       return ref;
-   }
-
-   /**
-    * @see ShowDetailEvent:getTableAssembly(CalcTableVSAssembly, ViewsheetSandbox)
-    */
-   protected static TableAssembly getTableAssembly(CalcTableVSAssembly calc,
-                                                 ViewsheetSandbox box) throws Exception
-   {
-      String name = calc.getAbsoluteName();
-      int dot = name.lastIndexOf(".");
-
-      if(dot >= 0) {
-         box = box.getSandbox(name.substring(0, dot));
-         name = name.substring(dot + 1);
-      }
-
-      CalcTableVSAQuery cquery = new CalcTableVSAQuery(box, name, false);
-      return cquery.getTableAssembly();
    }
 
    /**
