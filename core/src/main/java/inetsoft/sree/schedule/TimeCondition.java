@@ -488,7 +488,6 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          Date displayTime = new Date(time.getTime() + tz.getOffset(now) - serverTZ.getOffset(now));
 
          cal.setTime(displayTime);
-         cal.setTimeZone(tz);
 
          boolean dst = tz.inDaylightTime(displayTime);
          return catalog.getString("TimeCondition") + ": at " +
