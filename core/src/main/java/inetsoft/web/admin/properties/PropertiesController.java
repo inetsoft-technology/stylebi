@@ -81,10 +81,6 @@ public class PropertiesController {
 
       SreeEnv.setProperty(propertyName, value);
       SreeEnv.save();
-
-      if(Tool.equals(propertyName, "format.number.round")) {
-         TableFormat.invalidateTableFormatCache();
-      }
    }
 
    @GetMapping("/api/admin/properties")

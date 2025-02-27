@@ -1032,9 +1032,7 @@ public class PropertiesEngine {
       private void onChange(KeyValueStorage.Event<String> e) {
          PropertyChange change = new PropertyChange(e.getKey(), e.getOldValue(), e.getNewValue());
 
-         if(Tool.equals(e.getKey(),"format.number.round")){
-            support.firePropertyChange(e.getKey(), e.getOldValue(), e.getNewValue());
-         }
+         support.firePropertyChange(e.getKey(), e.getOldValue(), e.getNewValue());
 
          getDebouncer().debounce(
             "change", 500L, TimeUnit.MILLISECONDS, new ChangeTask(change), this::reduce);
