@@ -141,8 +141,6 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
    @Override
    public MapSession createSession() {
       MapSession result = new MapSession(servletContext);
-      result.setMaxInactiveInterval(
-         Duration.of(this.defaultMaxInactiveInterval, ChronoUnit.SECONDS));
       return result;
    }
 
@@ -308,32 +306,6 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
     * @return the timeout in seconds.
     */
    private int getSessionTimeout() {
-      final String webXmlPath = this.servletContext.getRealPath("/WEB-INF/web.xml");
-
-      if(webXmlPath != null) {
-         final File webXmlFile = new File(webXmlPath);
-
-         if(webXmlFile.exists()) {
-            final XPath xpath = XPathFactory.newInstance().newXPath();
-
-            try(InputStream input = new FileInputStream(webXmlFile)) {
-               final Document document = Tool.parseXML(input);
-               final String xmlPath = "/web-app/session-config/session-timeout/text()";
-               final Double timeout =
-                  (Double) xpath.evaluate(xmlPath, document, XPathConstants.NUMBER);
-
-               if(timeout != null && !Double.isNaN(timeout)) {
-                  int value = (int) TimeUnit.MINUTES.toSeconds(timeout.longValue());
-                  SreeEnv.setProperty("http.session.timeout", Integer.toString(value));
-                  return value;
-               }
-            }
-            catch(Exception e) {
-               LOG.error("Failed to read session-timeout from web.xml", e);
-            }
-         }
-      }
-
       String property = SreeEnv.getProperty("http.session.timeout");
 
       if(StringUtils.hasText(property)) {
@@ -442,22 +414,6 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
       if(sessionId != null) {
          synchronized(sessionExpiringSoonListeners) {
             sessionExpiringSoonListeners.remove(sessionId);
-         }
-      }
-   }
-
-   public void updateSessionTimeout(String newTimeoutString) {
-      if(StringUtils.hasText(newTimeoutString)) {
-         try {
-            int timeoutSeconds = Integer.parseInt(newTimeoutString);
-            Duration newTimeoutDuration = Duration.ofSeconds(timeoutSeconds);
-
-            for(MapSession session : sessions.asMap().values()) {
-               session.setMaxInactiveInterval(newTimeoutDuration);
-            }
-         }
-         catch(NumberFormatException e) {
-            LOG.error("Cannot update Session timeout, Invalid value for http.session.timeout: {}", newTimeoutString, e);
          }
       }
    }

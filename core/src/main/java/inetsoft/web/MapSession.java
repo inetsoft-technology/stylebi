@@ -17,6 +17,7 @@
  */
 package inetsoft.web;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.util.ThreadContext;
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.http.*;
@@ -76,7 +77,6 @@ public final class MapSession implements Session, Serializable {
          session instanceof MapSession ? ((MapSession) session).servletContext : null;
       this.lastAccessedTime = session.getLastAccessedTime();
       this.creationTime = session.getCreationTime();
-      this.maxInactiveInterval = session.getMaxInactiveInterval();
    }
 
    @Override
@@ -107,17 +107,16 @@ public final class MapSession implements Session, Serializable {
 
    @Override
    public void setMaxInactiveInterval(Duration interval) {
-      if(interval.getSeconds() < 0) {
-         this.maxInactiveInterval = null;
-      }
-      else {
-         this.maxInactiveInterval = interval;
-      }
+      //ignore, maxInactiveInterval controlled by system property
+      System.out.println("attempting to set interval in MapSession");
    }
 
    @Override
    public Duration getMaxInactiveInterval() {
-      return this.maxInactiveInterval;
+      String sysMax = SreeEnv.getProperty("http.session.timeout", Integer.toString(MapSession.DEFAULT_MAX_INACTIVE_INTERVAL_SECONDS));
+
+      int timeoutSeconds = Integer.parseInt(sysMax);
+      return Duration.ofSeconds(timeoutSeconds);
    }
 
    @Override
@@ -126,11 +125,11 @@ public final class MapSession implements Session, Serializable {
    }
 
    boolean isExpired(Instant now) {
-      if(this.maxInactiveInterval == null) {
+      if(getMaxInactiveInterval() == null) {
          return false;
       }
 
-      return now.minus(maxInactiveInterval).isAfter(lastAccessedTime);
+      return now.minus(getMaxInactiveInterval()).isAfter(lastAccessedTime);
    }
 
    @Override
@@ -242,8 +241,6 @@ public final class MapSession implements Session, Serializable {
    private final ServletContext servletContext;
    private Instant creationTime = Instant.now();
    private Instant lastAccessedTime = this.creationTime;
-   private Duration maxInactiveInterval =
-      Duration.of(DEFAULT_MAX_INACTIVE_INTERVAL_SECONDS, ChronoUnit.SECONDS);
    final Map<String, Object[]> modifiedAttributes = new ConcurrentHashMap<>();
 
    /**
