@@ -53,14 +53,6 @@ public interface AnalyticRepository extends RepletRepository {
       throws RemoteException;
 
    /**
-    * Get a serializable Object from engine.
-    * @param op the specified operation to process.
-    * @return a serializable Object.
-    */
-   Serializable getObject(String op)
-           throws RemoteException;
-
-   /**
     * Factory that handles creating the shared instance of <tt>AnalyticRepository</tt>.
     */
    class Reference extends SingletonManager.Reference<AnalyticRepository> {

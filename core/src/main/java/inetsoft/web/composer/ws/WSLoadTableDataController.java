@@ -19,7 +19,6 @@ package inetsoft.web.composer.ws;
 
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeWorksheet;
-import inetsoft.report.composition.event.LoadTableDataEvent;
 import inetsoft.report.composition.execution.AssetQuerySandbox;
 import inetsoft.report.filter.SortFilter;
 import inetsoft.uql.XConstants;
@@ -42,7 +41,7 @@ import java.security.Principal;
 @Controller
 public class WSLoadTableDataController extends WorksheetController {
    /**
-    * {@link LoadTableDataEvent}
+    * Load WS table data
     */
    @MessageMapping("/ws/table/reload-table-data/{name}")
    public void loadWSTableData(

@@ -18,7 +18,7 @@
 package inetsoft.web.composer.controller;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.SetInputObjectValueEvent;
+import inetsoft.analytic.composition.event.InputScriptEvent;
 import inetsoft.report.composition.ChangedAssemblyList;
 import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.report.composition.execution.ViewsheetSandbox;
@@ -474,8 +474,7 @@ public class SelectionListTestController {
 
       ViewsheetScope scope = box.getScope();
 
-      scope.addVariable("event", new SetInputObjectValueEvent.
-         InputScriptEvent(assembly.getAbsoluteName(), assembly));
+      scope.addVariable("event", new InputScriptEvent(assembly.getAbsoluteName(), assembly));
 
       try {
          box.processChange(assembly.getAbsoluteName(), hint, clist);

@@ -19,7 +19,7 @@ package inetsoft.web.viewsheet.service;
 
 import inetsoft.analytic.composition.VSCSSUtil;
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.CheckMVEvent;
+import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.*;
 import inetsoft.report.composition.*;
@@ -27,7 +27,6 @@ import inetsoft.report.composition.execution.*;
 import inetsoft.report.composition.graph.GraphUtil;
 import inetsoft.report.filter.CrossTabFilter;
 import inetsoft.report.internal.ParameterTool;
-import inetsoft.report.internal.Util;
 import inetsoft.report.internal.binding.Field;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.RuntimeCalcTableLens;
@@ -401,7 +400,7 @@ public class PlaceholderService {
    public boolean waitForMV(ConfirmException e, RuntimeViewsheet rvs,
                             CommandDispatcher commandDispatcher)
    {
-      if(e.getLevel() != ConfirmException.PROGRESS || !(e.getEvent() instanceof CheckMVEvent)) {
+      if(e.getLevel() != ConfirmException.PROGRESS || !(e.getEvent() instanceof CheckMissingMVEvent)) {
          return false;
       }
 
@@ -412,8 +411,8 @@ public class PlaceholderService {
          .anyMatch(evt -> evt instanceof inetsoft.web.viewsheet.event.CheckMVEvent);
 
       if(!checkMVHandled) {
-         CheckMVEvent event = (CheckMVEvent) e.getEvent();
-         AssetEntry entry = (AssetEntry) event.get("entry");
+         CheckMissingMVEvent event = (CheckMissingMVEvent) e.getEvent();
+         AssetEntry entry = event.getEntry();
 
          MessageCommand cmd = new MessageCommand();
          cmd.setMessage(e.getMessage());
@@ -422,16 +421,16 @@ public class PlaceholderService {
          inetsoft.web.viewsheet.event.CheckMVEvent checkEvent =
             new inetsoft.web.viewsheet.event.CheckMVEvent();
          checkEvent.setEntryId(entry.toIdentifier());
-         checkEvent.setWaitFor("true".equals(event.get("waitfor")));
-         checkEvent.setBackground("true".equals(event.get("BACKGROUND")));
-         checkEvent.setConfirmed(event.isConfirmed());
-         checkEvent.setRefreshDirectly("true".equals(event.get("refresh.directly")));
+         checkEvent.setWaitFor(false);
+         checkEvent.setBackground(event.isBackground());
+         checkEvent.setConfirmed(false);
+         checkEvent.setRefreshDirectly(event.isRefreshDirectly());
 
          cmd.addEvent("/events/composer/viewsheet/checkmv", checkEvent);
          commandDispatcher.sendCommand(cmd);
 
          if(rvs != null) {
-            rvs.addCheckpoint(rvs.getSheet().prepareCheckpoint(), null);
+            rvs.addCheckpoint(rvs.getSheet().prepareCheckpoint());
             UpdateUndoStateCommand pointCommand = new UpdateUndoStateCommand();
             pointCommand.setPoints(rvs.size());
             pointCommand.setCurrent(rvs.getCurrent());
@@ -1134,7 +1133,7 @@ public class PlaceholderService {
                   return;
                }
 
-               rvs.replaceCheckpoint(sheet.prepareCheckpoint(), null);
+               rvs.replaceCheckpoint(sheet.prepareCheckpoint());
                // visibility may be changed in reset
                sheet.layout();
             }
@@ -3646,7 +3645,7 @@ public class PlaceholderService {
          dispatcher.sendCommand(command);
       }
       else {
-         rs.addCheckpoint(rs.getSheet().prepareCheckpoint(), null);
+         rs.addCheckpoint(rs.getSheet().prepareCheckpoint());
 
          UpdateUndoStateCommand command = new UpdateUndoStateCommand();
          command.setPoints(rs.size());

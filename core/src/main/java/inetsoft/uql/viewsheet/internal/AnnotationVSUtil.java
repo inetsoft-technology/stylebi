@@ -17,7 +17,6 @@
  */
 package inetsoft.uql.viewsheet.internal;
 
-import inetsoft.analytic.composition.command.*;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.EGraph;
 import inetsoft.graph.VGraph;
@@ -907,130 +906,6 @@ public final class AnnotationVSUtil {
    /**
     * Reset chart data point annotation visible and position.
     */
-   public static void resetDataAnnotation(RuntimeViewsheet rvs,
-                                          VSAssembly assembly,
-                                          DataSet chart,
-                                          ChartArea area,
-                                          AssetCommand command,
-                                          boolean maxMode,
-                                          boolean checkMaxOrTip)
-      throws Exception
-   {
-      if(!rvs.isRuntime() || assembly == null) {
-         return;
-      }
-
-      Viewsheet vs = rvs.getViewsheet();
-      VSAssemblyInfo cinfo = VSEventUtil.getAssemblyInfo(rvs, assembly);
-      boolean visible = cinfo.isVisible() && VSEventUtil.isVisibleInTab(cinfo);
-      String cname = assembly.getName();
-      DataSet data = chart;
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-      if(visible && data == null) {
-         data = AnnotationVSUtil.getDataSet(box, assembly);
-      }
-
-      if(!(cinfo instanceof ChartVSAssemblyInfo) || data == null && visible) {
-         return;
-      }
-
-      List<String> list =
-         ((BaseAnnotationVSAssemblyInfo) cinfo).getAnnotations();
-      Map<ChartToolTip, List<String>> notesMap = new HashMap<>();
-
-      for(int i = 0; i < list.size(); i++) {
-         String name = list.get(i);
-         VSAssembly annotation = (VSAssembly) vs.getAssembly(name);
-
-         if(annotation != null) {
-            AnnotationVSAssemblyInfo ainfo =
-               (AnnotationVSAssemblyInfo) annotation.getInfo();
-
-            if(ainfo.getType() == AnnotationVSAssemblyInfo.ASSEMBLY) {
-               if(!Tool.equals(visible && cinfo.isEnabled(), ainfo.isVisible()))
-               {
-                  resetAnnotation(ainfo, vs, command,
-                                  visible && cinfo.isEnabled(), box);
-               }
-               else if(Tool.equals(maxMode || rvs.isTipView(cname) ||
-                  rvs.isPopComponent(cname), ainfo.isVisible()) && checkMaxOrTip)
-               {
-                  resetAnnotation(ainfo, vs, command, !maxMode &&
-                    !rvs.isTipView(cname) && !rvs.isPopComponent(cname), box);
-               }
-            }
-            else if(ainfo.getType() == AnnotationVSAssemblyInfo.DATA) {
-               String line = ainfo.getLine();
-               String rect = ainfo.getRectangle();
-               VSAssemblyInfo lineInfo =
-                  (VSAssemblyInfo) vs.getAssembly(line).getInfo();
-               AnnotationRectangleVSAssemblyInfo rectInfo =
-                  (AnnotationRectangleVSAssemblyInfo)
-                  vs.getAssembly(rect).getInfo();
-               int row = visible ? getRuntimeRowIndex(data, ainfo,
-                  (ChartVSAssembly) assembly) : -1;
-               boolean found = true;
-
-               if(row > -1) {
-                  ainfo.setRow(row);
-                  ainfo.setAvailable(true);
-                  found = resetAnnotationPosition(rvs.getViewsheet(), assembly,
-                     area, ainfo, row, notesMap);
-               }
-               else {
-                  ainfo.setRow(-1);
-                  ainfo.setAvailable(false);
-               }
-
-               boolean vis = row > -1 && found && visible &&
-                  cinfo.isEnabled() && !rvs.isTipView(cname) &&
-                  !rvs.isPopComponent(cname);
-               lineInfo.setVisible(
-                  "show".equals(lineInfo.getVisibleValue()) && vis);
-               rectInfo.setVisible(vis);
-               ainfo.setVisible(vis);
-
-               // @by skyf, when chart refreshed, we should also refresh
-               // its related annotation assemblies for re-position.
-               command.addCommand(new RefreshVSObjectCommand(ainfo, null, true, box));
-               command.addCommand(new RefreshVSObjectCommand(lineInfo, null, true, box));
-               command.addCommand(new RefreshVSObjectCommand(rectInfo, null, true, box));
-            }
-         }
-      }
-
-      Object show = UserEnv.getProperty(rvs.getUser(), "annotation");
-      VSAssemblyInfo viewsheetInfo = vs.getVSAssemblyInfo();
-
-      if(("false".equals(show) || !viewsheetInfo.isActionVisible("Bookmark"))
-         && !notesMap.isEmpty())
-      {
-         Iterator keys = notesMap.keySet().iterator();
-
-         while(keys.hasNext()) {
-            ChartToolTip tip = (ChartToolTip) keys.next();
-            String customTip = tip.getCustomToolTip();
-            List notes = (List) notesMap.get(tip);
-            String content = "";
-
-            for(int i = 0; i < notes.size(); i++) {
-               if(content.length() > 0) {
-                  content += "<br/>";
-               }
-
-               content += notes.get(i) == null ? "" : notes.get(i);
-            }
-
-            String newTip = "<B>" + catalog.getString("Note") + ":</B>\n" +
-               content + "<B>" + catalog.getString("ToolTip") + ":</B>";
-
-            tip.setCustomToolTip(customTip != null ? newTip + "\n" + customTip :
-                                 newTip);
-         }
-      }
-   }
-
    public static void resetDataAnnotation(RuntimeViewsheet rvs, VSAssembly assembly,
                                           DataSet chart, ChartArea area,
                                           CommandDispatcher dispatcher,
@@ -1838,39 +1713,6 @@ public final class AnnotationVSUtil {
    /**
     * Refresh all related annotations include assemblies in container.
     */
-   public static void refreshAllAnnotations(RuntimeViewsheet rvs,
-      VSAssembly assembly, AssetCommand command) throws Exception
-   {
-      Viewsheet vs =  rvs.getViewsheet();
-
-      if(vs == null) {
-         return;
-      }
-
-      if(assembly instanceof ContainerVSAssembly) {
-         List<Assembly> list = new ArrayList<>();
-         VSEventUtil.getAssembliesInContainer(vs, assembly, list);
-
-         for(int i = 0; i < list.size(); i++) {
-            VSAssembly child = (VSAssembly) list.get(i);
-            refreshAnnotations(rvs, vs, child, command);
-         }
-      }
-      else if(assembly instanceof Viewsheet) {
-         ViewsheetVSAssemblyInfo vinfo =
-            (ViewsheetVSAssemblyInfo) assembly.getInfo();
-         List objList = vinfo.getChildAssemblies();
-
-         for(int i = 0; i < objList.size(); i++) {
-            VSAssembly sassembly = (VSAssembly) objList.get(i);
-            refreshAnnotations(rvs, vs, sassembly, command);
-         }
-      }
-      else {
-         refreshAnnotations(rvs, vs, assembly, command);
-      }
-   }
-
    public static void refreshAllAnnotations(RuntimeViewsheet rvs, VSAssembly assembly,
                                             CommandDispatcher dispatcher,
                                             PlaceholderService placeholderService)
@@ -1908,107 +1750,6 @@ public final class AnnotationVSUtil {
    /**
     * Refresh related annotations.
     */
-   public static void refreshAnnotations(RuntimeViewsheet rvs,
-      Viewsheet vs, VSAssembly assembly, AssetCommand command)
-      throws Exception
-   {
-      VSAssemblyInfo info = VSEventUtil.getAssemblyInfo(rvs, assembly);
-
-      if(info instanceof BaseAnnotationVSAssemblyInfo && rvs.isRuntime()) {
-         ViewsheetSandbox box = rvs.getViewsheetSandbox();
-         List<String> list =
-            ((BaseAnnotationVSAssemblyInfo) info).getAnnotations();
-
-         if(list.isEmpty()) {
-            return;
-         }
-
-         if(info instanceof ChartVSAssemblyInfo) {
-            try {
-               String aname = assembly.getAbsoluteName();
-               VSAssemblyInfo vinfo =
-                  VSEventUtil.getAssemblyInfo(rvs, assembly);
-               boolean visible = vinfo.isVisible() &&
-                  VSEventUtil.isVisibleInTab(vinfo);
-
-               DataSet data = null;
-               ChartArea area = null;
-
-               if(visible) {
-                  VSChartInfo cinfo =
-                     ((ChartVSAssembly) assembly).getVSChartInfo();
-                  VGraphPair pair = box.getVGraphPair(aname);
-                  data = pair != null ? pair.getData() : (DataSet) box.getData(aname);
-                  area = pair == null || !pair.isCompleted()
-                     ? null : new ChartArea(pair, null, cinfo, null, false, true);
-               }
-
-               resetDataAnnotation(rvs, assembly, data, area, command, false, false);
-            }
-            catch(Exception ex) {
-               // chart area maybe not ready, just ignore it, we will
-               // re-position the annotation in GetChartAreaEvent
-            }
-         }
-         else {
-            for(int i = 0; i < list.size(); i++) {
-               String name = list.get(i);
-               Assembly annotation = vs.getAssembly(name);
-
-               if(annotation == null) {
-                  continue;
-               }
-
-               AnnotationVSAssemblyInfo ainfo =
-                  (AnnotationVSAssemblyInfo) annotation.getInfo();
-               boolean visible =
-                  info.isVisible() && VSEventUtil.isVisibleInTab(info);
-
-               // reset the data annotation position
-               if(ainfo.getType() == AnnotationVSAssemblyInfo.DATA) {
-                  boolean isForm = info instanceof TableVSAssemblyInfo &&
-                     ((TableVSAssemblyInfo) info).isForm();
-
-                  if(!isForm && visible && info.isEnabled()) {
-                     int[] idx = getRuntimeIndex(box, assembly, null, ainfo);
-                     ainfo.setAvailable(idx != null ? true : false);
-
-                     if(idx != null) {
-                        ainfo.setRow(idx[0]);
-                        ainfo.setCol(idx[1]);
-
-                        RefreshVSObjectCommand cmd2 = new RefreshVSObjectCommand(
-                           ainfo, null, true, box);
-                        // annotation relies on refresh to get the correct
-                        // target (cell) information and must be executed
-                        cmd2.put("NO_SHRINK", "true");
-                        command.addCommand(cmd2);
-                     }
-                     else {
-                        ainfo.setRow(-1);
-                        ainfo.setCol(-1);
-
-                        resetAnnotation(ainfo, vs, command, false, box);
-                     }
-                  }
-                  else {
-                     ainfo.setRow(-1);
-                     ainfo.setCol(-1);
-
-                     resetAnnotation(ainfo, vs, command, false, box);
-                  }
-               }
-               else if(!Tool.equals(visible && info.isEnabled(),
-                  ainfo.isVisible()))
-               {
-                  resetAnnotation(ainfo, vs, command,
-                                  visible && info.isEnabled(), box);
-               }
-            }
-         }
-      }
-   }
-
    public static void refreshAnnotations(RuntimeViewsheet rvs, Viewsheet vs,
                                          VSAssembly assembly,
                                          CommandDispatcher dispatcher,
@@ -2125,39 +1866,6 @@ public final class AnnotationVSUtil {
    /**
     * Show or hide annotation component.
     */
-   public static void resetAnnotation(AnnotationVSAssemblyInfo ainfo,
-                                      Viewsheet vs, AssetCommand command,
-                                      boolean vis, ViewsheetSandbox box)
-   {
-      RefreshVSObjectCommand rcommand =
-         new RefreshVSObjectCommand(ainfo, null, true, box);
-
-      if(ainfo.isVisible() != vis) {
-         rcommand.put("refresh", "force");
-      }
-
-      ainfo.setVisible(vis);
-      command.addCommand(rcommand);
-
-      String line = ainfo.getLine();
-      VSAssembly lass = (VSAssembly) vs.getAssembly(line);
-
-      if(lass != null) {
-         VSAssemblyInfo linfo = (VSAssemblyInfo) lass.getInfo();
-         linfo.setVisible(vis);
-         command.addCommand(new RefreshVSObjectCommand(linfo, null, true, box));
-      }
-
-      String rect = ainfo.getRectangle();
-      VSAssembly rass = (VSAssembly) vs.getAssembly(rect);
-
-      if(rass != null) {
-         VSAssemblyInfo rinfo = (VSAssemblyInfo) rass.getInfo();
-         rinfo.setVisible(vis);
-         command.addCommand(new RefreshVSObjectCommand(rinfo, null, true, box));
-      }
-   }
-
    public static void resetAnnotation(AnnotationVSAssembly annotation, RuntimeViewsheet rvs,
                                       CommandDispatcher dispatcher,
                                       PlaceholderService placeholderService, boolean vis,
@@ -2202,41 +1910,6 @@ public final class AnnotationVSUtil {
     * annotations, because after load tablelens, we will re-position all
     * annotations.
     */
-   public static boolean needRefreshAnnotation(VSAssemblyInfo info,
-      AssetCommand command)
-   {
-      if(info instanceof BaseAnnotationVSAssemblyInfo) {
-         BaseAnnotationVSAssemblyInfo binfo =
-            (BaseAnnotationVSAssemblyInfo) info;
-         List annos = binfo.getAnnotations();
-
-         if(annos == null || annos.size() == 0) {
-            return false;
-         }
-      }
-
-      if(!(info instanceof TableDataVSAssemblyInfo)) {
-         return true;
-      }
-
-      int cnt = command.getCommandCount();
-
-      for(int i = 0; i < cnt; i++) {
-         AssetCommand acmd = command.getCommand(i);
-
-         if(acmd instanceof LoadTableLensCommand) {
-            VSAssemblyInfo ainfo = (VSAssemblyInfo) acmd.get("info");
-            String aname = info.getAbsoluteName();
-
-            if(aname.equals(ainfo.getAbsoluteName())) {
-               return false;
-            }
-         }
-      }
-
-      return true;
-   }
-
    public static boolean needRefreshAnnotation(VSAssemblyInfo info,
                                                CommandDispatcher dispatcher)
    {
@@ -2551,32 +2224,6 @@ public final class AnnotationVSUtil {
    /**
     * Remove useless assemblies.
     */
-   public static void removeUselessAssemblies(Assembly[] oldAss,
-      Assembly[] newAss, AssetCommand command)
-   {
-      for(int i = 0; i < oldAss.length; i++) {
-         Assembly oass = oldAss[i];
-         boolean found = false;
-
-         for(int j = 0; j < newAss.length; j++) {
-            Assembly nass = newAss[j];
-
-            // same name, same view?
-            if(oass.getAbsoluteName().equals(nass.getAbsoluteName()) &&
-               oass.getClass().getName().equals(nass.getClass().getName()))
-            {
-               found = true;
-               break;
-            }
-         }
-
-         if(!found) {
-            command.addCommand(new RemoveVSObjectCommand(
-               oass.getAbsoluteName()));
-         }
-      }
-   }
-
    public static void removeUselessAssemblies(Assembly[] oldAss,
                                               Assembly[] newAss,
                                               CommandDispatcher dispatcher)

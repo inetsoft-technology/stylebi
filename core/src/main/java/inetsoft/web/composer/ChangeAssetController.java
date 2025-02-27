@@ -58,9 +58,6 @@ public class ChangeAssetController {
       this.viewsheetService = viewsheetService;
    }
 
-   /**
-    * From {@link inetsoft.report.composition.event.ChangeAssetEvent}
-    */
    @PostMapping("api/composer/asset-tree/change-asset")
    @ResponseBody
    public MessageCommand changeAsset(

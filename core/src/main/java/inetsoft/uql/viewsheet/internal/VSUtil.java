@@ -5346,7 +5346,7 @@ public final class VSUtil {
             return VSAssembly.NONE_CHANGED;
          }
 
-         VSSelection selection = ChartEvent.getVSSelection(
+         VSSelection selection = ChartVSSelectionUtil.getVSSelection(
             value, lens, alens, vdset, false, cinfo, false, null, true, false, false, true);
          DateComparisonUtil.fixDatePartSelection((ChartVSAssembly) comp, lens, selection);
          DateComparisonUtil.fixDatePartSelection((ChartVSAssembly) comp, lens, selection);
@@ -5460,7 +5460,7 @@ public final class VSUtil {
          // if target cell is row header cell,
          // don't need to merge the condition of the same column in column headers.
          if(!(row >= hrcount && col < hccount)) {
-            ShowDetailEvent.createCrosstabConditions(
+            TableConditionUtil.createCrosstabConditions(
                crosstab, colConds, cheaders, col, lens, true, cubeType, 0, path, xmla);
             colConds.trim();
             condList.add(colConds);
@@ -5469,7 +5469,7 @@ public final class VSUtil {
          // if target cell is col header cell,
          // don't need to merge the condition of the same column in row headers.
          if(!(row < hrcount && col >= hccount)) {
-            ShowDetailEvent.createCrosstabConditions(
+            TableConditionUtil.createCrosstabConditions(
                crosstab, rowConds, rheaders, row, lens, false, cubeType, offset, path, xmla);
             rowConds.trim();
             condList.add(rowConds);
@@ -5491,7 +5491,7 @@ public final class VSUtil {
    {
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
       int[][] rowcols = getRowColumns(value);
-      return ShowDetailEvent.createCalcTableConditions(calc, rowcols,
+      return TableConditionUtil.createCalcTableConditions(calc, rowcols,
          calc.getAbsoluteName(), box);
    }
 
@@ -5516,7 +5516,7 @@ public final class VSUtil {
          String[] pair = str.split("X");
          int row = Integer.parseInt(pair[0]);
          int col = Integer.parseInt(pair[1]);
-         conds = ShowDetailEvent.createTableConditions(table, conds, row, col, lens, afterGroup);
+         conds = TableConditionUtil.createTableConditions(table, conds, row, col, lens, afterGroup);
       }
 
       conds.trim();

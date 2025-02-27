@@ -19,7 +19,7 @@ package inetsoft.web.viewsheet.service;
 
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.SetInputObjectValueEvent;
+import inetsoft.analytic.composition.event.InputScriptEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.report.*;
 import inetsoft.report.composition.ChangedAssemblyList;
@@ -70,7 +70,6 @@ public class VSInputService {
 
    /**
     * Apply selection.
-    * {@link SetInputObjectValueEvent}
     *
     * @param assemblyName   the name of the selection assembly
     * @param selectedObject the selected object
@@ -119,7 +118,6 @@ public class VSInputService {
 
    /**
     * Apply selection.
-    * {@link SetInputObjectValueEvent}
     *
     * @param assemblyName   the name of the selection assembly
     * @param selectedObject the selected object
@@ -246,7 +244,7 @@ public class VSInputService {
       // VSScope, otherwise, both the call to execute and the call to dispatchEvent
       // will execute the onLoad script.
       if(form) {
-         ScriptEvent event0 = new SetInputObjectValueEvent.InputScriptEvent(assemblyName, assembly);
+         ScriptEvent event0 = new InputScriptEvent(assemblyName, assembly);
          box.attachScriptEvent(event0);
       }
 

@@ -299,11 +299,6 @@ public class LogicalModelController {
          .toArray(String[]::new);
    }
 
-   @GetMapping("/api/data/logicalModel/report/autoDrill-parameters")
-   public String[] getReportParameters(@RequestParam("report") String report, Principal principal) {
-      return VSEventUtil.getReportParameters(report, principal);
-   }
-
    @GetMapping("/api/data/logicalmodel/settings")
    public LogicalModelSettings getLMHierarchyEnableProperty(@RequestParam("ds") String ds)
       throws RemoteException

@@ -18,7 +18,6 @@
 package inetsoft.web.viewsheet.controller.table;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.ShowDetailEvent;
 import inetsoft.report.TableDataPath;
 import inetsoft.report.TableLens;
 import inetsoft.report.composition.RuntimeViewsheet;
@@ -28,8 +27,7 @@ import inetsoft.uql.*;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.internal.TipVSAssemblyInfo;
-import inetsoft.uql.viewsheet.internal.VSUtil;
+import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.event.table.FlyoverEvent;
@@ -123,7 +121,7 @@ public class BaseTableFlyoverController extends BaseTableController<FlyoverEvent
          int[] cols = entry.getValue();
 
          for(int col : cols) {
-            clist = ShowDetailEvent.createTableConditions(comp, clist, row, col, lens, true);
+            clist = TableConditionUtil.createTableConditions(comp, clist, row, col, lens, true);
          }
       }
 
@@ -170,9 +168,9 @@ public class BaseTableFlyoverController extends BaseTableController<FlyoverEvent
                continue;
             }
 
-            ShowDetailEvent.createCrosstabConditions(
+            TableConditionUtil.createCrosstabConditions(
                comp, colConds, cheaders, col, lens, true, cubeType, 0, path, xmla, 1);
-            ShowDetailEvent.createCrosstabConditions(
+            TableConditionUtil.createCrosstabConditions(
                comp, rowConds, rheaders, row, lens, false, cubeType, offset, path, xmla, 1);
             rowConds.trim();
             colConds.trim();

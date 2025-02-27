@@ -23,8 +23,8 @@ import inetsoft.graph.aesthetic.*;
 import inetsoft.graph.coord.*;
 import inetsoft.graph.element.*;
 import inetsoft.graph.visual.LineVO;
-import inetsoft.report.composition.command.MessageCommand;
 import inetsoft.sree.security.*;
+import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
@@ -567,7 +567,7 @@ public class GraphTypeUtil {
             catalog.getString("chartTypes.user.noPermission",
                               GraphTypes.getDisplayName(chartType) + " " + catalog.getString("Chart"));
          MessageException exception =
-            new MessageException(msg, LogLevel.INFO, false, MessageCommand.INFO);
+            new MessageException(msg, LogLevel.INFO, false, ConfirmException.INFO);
          exception.setKeywords("INVALID_CHART_TYPE");
          throw exception;
       }

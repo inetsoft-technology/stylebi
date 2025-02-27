@@ -19,23 +19,17 @@ package inetsoft.report.composition;
 
 import inetsoft.analytic.AnalyticAssistant;
 import inetsoft.analytic.composition.SheetLibraryEngine;
-import inetsoft.report.ReportSheet;
-import inetsoft.report.composition.command.*;
-import inetsoft.report.composition.event.*;
 import inetsoft.report.composition.execution.BoundTableHelper;
-import inetsoft.report.internal.RuntimeAssetEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.*;
-import inetsoft.uql.*;
+import inetsoft.uql.ColumnSelection;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.AssetUtil;
 import inetsoft.uql.asset.sync.*;
 import inetsoft.uql.erm.DataRef;
-import inetsoft.uql.util.XUtil;
 import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
-import inetsoft.util.log.LogManager;
-import inetsoft.web.admin.monitoring.MonitorLevelService;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +37,6 @@ import org.slf4j.LoggerFactory;
 import java.awt.*;
 import java.rmi.RemoteException;
 import java.security.Principal;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -86,32 +79,9 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       amap = new RuntimeAssetMap<>(max);
       emap = new ConcurrentHashMap<>();
       executionMap = new ExecutionMap();
-      cmap = new Hashtable<>();
 
       singlePreviewEnabled = "true".equals(SreeEnv.getProperty("single.preview.enabled"));
       setAssetRepository(engine);
-   }
-
-   /**
-    * Get date range provider.
-    * @param rep the specified asset repository.
-    * @param report the specified report sheet.
-    */
-   public static DateRangeProvider getDateRangeProvider(AssetRepository rep,
-                                                        ReportSheet report) {
-      AssetRepository engine = new RuntimeAssetEngine(rep, report);
-      DateRangeProvider provider = new DateRangeProvider();
-
-      try {
-         provider = (DateRangeProvider) dcache.get(engine);
-      }
-      catch(Exception ex) {
-         LOG.error("Failed to get date range provider", ex);
-         provider.setBuiltinDateConditions(
-            DateCondition.getBuiltinDateConditions());
-      }
-
-      return provider;
    }
 
    /**
@@ -189,521 +159,11 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    }
 
    /**
-    * Remove command from queue.
-    * @param eid the specified event id.
-    * @return the removed asset command if any, <tt>null</tt> not found.
-    */
-   @Override
-   public AssetCommand dequeueCommand(int eid) {
-      CommandEntry entry = cmap.remove(eid);
-
-      if(entry != null) {
-         entry.getCommand().setEnqueued(false);
-         return entry.getCommand();
-      }
-
-      return null;
-   }
-
-   /**
-    * Get the asset command in queue.
-    * @param eid the specified event id.
-    * @return the asset command if any, <tt>null</tt> not found.
-    */
-   @Override
-   public AssetCommand getCommand(int eid) {
-      CommandEntry entry = cmap.get(eid);
-      return entry == null ? null : entry.getCommand();
-   }
-
-   /**
-    * Process an asset event.
-    * @param event the specified asset event to process.
-    * @param user the specified user.
-    * @return the associated asset command.
-    */
-   @Override
-   public final AssetCommand process(AssetEvent event, Principal user) {
-      AssetCommand command = new AssetCommand(event);
-      String id = null;
-
-      try {
-         if(event instanceof GridEvent) {
-            GridEvent gevent = (GridEvent) event;
-            id = gevent.getID();
-
-            if(id != null) {
-               synchronized(amap) {
-                  // in case that sheet is closed
-                  if(!amap.containsKey(id)) {
-                     if(!gevent.isSecondary() && !id.startsWith(PREVIEW_WORKSHEET)) {
-                        ReloadSheetCommand cmd = new ReloadSheetCommand(id);
-                        cmd.put("expired", id);
-                        command.addCommand(cmd);
-                     }
-
-                     return command;
-                  }
-
-                  Vector<ThreadDef> threads = emap.get(id);
-
-                  if(threads == null) {
-                     threads = new Vector<>();
-                  }
-
-                  if(event.get("touchAsset") == null) {
-                     ThreadDef def = new ThreadDef();
-                     def.setStartTime(System.currentTimeMillis());
-                     def.setThread(Thread.currentThread());
-                     threads.addElement(def);
-                     emap.put(id, threads);
-
-                     if(isValidExecutingObject(id)) {
-                        executionMap.addObject(id);
-                     }
-                  }
-               }
-            }
-         }
-
-         WorksheetService.ASSET_EXCEPTIONS.set(new ArrayList<>());
-         AssetRepository.ASSET_ERRORS.set(new ArrayList());
-         XUtil.QUERY_INFOS.set(new ArrayList<>());
-
-         event.setWorksheetEngine(this);
-         event.setUser(user);
-         command.setWorksheetEngine(this);
-         process0(event, user, command);
-      }
-      catch(CancelledException ex) {
-         dequeueCommand(event.getEventID());
-      }
-      catch(Throwable ex) {
-         // it's not too safe to clear command here, for some sub commands
-         // might already be sent to client side. Let's see what's inconvenient.
-         // don't clear the command if showing preparing data progress dialog
-         if(!(ex instanceof ConfirmException)) {
-            dequeueCommand(event.getEventID());
-            command.clear();
-         }
-
-         if(ex instanceof ConfirmException) {
-            ConfirmException ex2 = (ConfirmException) ex;
-            String msg = ex.getMessage();
-
-            if(ex2.getLevel() == ConfirmException.CONFIRM) {
-               msg += "! " +
-                  Catalog.getCatalog().getString(
-                     "designer.composition.worksheetEngine.goOnAnyway");
-            }
-
-            MessageCommand mcmd = new MessageCommand(msg, ex2.getLevel());
-            AssetEvent event2 = (AssetEvent) ex2.getEvent();
-            event2 = event2 == null ? event : event2;
-
-            if(!event2.isConfirmed()) {
-               if(ex instanceof ConfirmDataException &&
-                  event2.get("name") == null &&
-                  ((ConfirmDataException) ex).getName() != null)
-               {
-                  event2.put("name", ((ConfirmDataException) ex).getName());
-               }
-
-               mcmd.addEvent(event2);
-               command.addCommand(mcmd);
-            }
-         }
-         else if(event.get("touchAsset") == null) {
-            LogLevel level = (ex instanceof LogException) ?
-               ((LogException) ex).getLogLevel() : LogLevel.ERROR;
-            LogManager.getInstance().logException(LOG, level, "Failed to process event: " + event, ex);
-
-            int warningLvl = (ex instanceof MessageException) ?
-               ((MessageException) ex).getWarningLevel() : MessageCommand.ERROR;
-
-            AssetCommand scmd = new MessageCommand(ex, warningLvl);
-
-            if(ex instanceof ViewsheetException) {
-               scmd.put("sheetnotfound", "true");
-            }
-
-            command.addCommand(scmd);
-         }
-
-         scheduleEx.set(ex);
-      }
-      finally {
-         command.complete();
-
-         if(id != null) {
-            synchronized(amap) {
-               Vector<ThreadDef> threads = emap.get(id);
-
-               if(threads != null) {
-                  if(threads.size() > 0) {
-                     threads.remove(threads.size() - 1);
-                  }
-
-                  if(threads.size() == 0) {
-                     emap.remove(id);
-
-                     if(isValidExecutingObject(id)) {
-                        executionMap.setCompleted(id);
-                     }
-                  }
-                  else {
-                     emap.put(id, threads);
-                  }
-               }
-            }
-         }
-      }
-
-      return command;
-   }
-
-   /**
     * Dispose the worksheet service.
     */
    @Override
    public void dispose() {
       engine.dispose();
-   }
-
-   /**
-    * Process an asset event internally.
-    * @param event the specified asset event to process.
-    * @param command the associated asset command.
-    */
-   protected void process0(AssetEvent event, Principal user,
-                           AssetCommand command)
-      throws Throwable
-   {
-      String id = null;
-
-      if(event instanceof GridEvent) {
-         GridEvent gevent = (GridEvent) event;
-         id = gevent.getID();
-         RuntimeSheet rs0 = amap.get(id);
-
-         if(rs0 == null && gevent.isCloseExpired()) {
-            gevent.process(null, command);
-            return;
-         }
-
-         // @by stephenwebster, For bug1420584760134
-         // The real access time flag is set to true when there is any action
-         // taken in Visual Composer (including heartbeat), or if any
-         // non-TouchAssetEvent occurs.
-         boolean raccessed = event.get("touchAsset") == null ||
-            (event.get("design") != null && "true".equals(event.get("design")));
-
-         if("true".equals(SreeEnv.getProperty("event.debug")) &&
-            !amap.containsKey(id))
-         {
-            System.err.println("Sheet not found in event: " + event +", " + id);
-         }
-
-         RuntimeSheet rs = getSheet(id, user, raccessed);
-         AbstractSheet sheet = gevent.isUndoable() && !gevent.isDefault() ?
-            rs.getSheet() : null;
-
-         // set asset name in the thread local variable
-         if(MonitorLevelService.getMonitorLevel() > 0 &&
-            rs.getEntry() != null)
-         {
-            @SuppressWarnings("unchecked")
-            List<String> infos = XUtil.QUERY_INFOS.get();
-            infos.add(0, rs.getEntry().getSheetName());
-         }
-
-         int lsize = rs.size();
-         int lcurrent = rs.getCurrent();
-         int lsave = rs.getSavePoint();
-         boolean processed = false;
-
-         try {
-            if(gevent.get("isSafariOniOS") != null) {
-               rs.setProperty("isSafariOniOS", "true");
-            }
-
-            gevent.process(rs, command);
-
-            if(sheet != null) {
-               sheet.checkDependencies();
-            }
-
-            processed = true;
-         }
-         catch(Throwable ex) {
-            if(ex instanceof StackOverflowError) {
-               ex = new InvalidDependencyException(Catalog.getCatalog()
-                  .getString("common.dependencyCycle"));
-            }
-
-            if(ex instanceof ConfirmException) {
-               processed = true;
-               throw ex;
-            }
-
-            if(ex instanceof InvalidDependencyException) {
-               rs.rollback();
-            }
-
-            if(!rs.isDisposed()) {
-               throw ex;
-            }
-         }
-         finally {
-            if(processed) {
-               // update undoable after grid event is processed
-               sheet = sheet != null && !gevent.isUndoable() ? null : sheet;
-
-               // process undo/redo
-               if(sheet != null && !rs.isDisposed() &&
-                  (!gevent.requiresReturn() || !command.isEmpty() ||
-                   command.isEnqueued() && command.isSuccessful()))
-               {
-                  if(rs.max == rs.size()) {
-                     command.put("canRedoUndo", "true");
-                  }
-
-                  rs.addCheckpoint(sheet.prepareCheckpoint(), gevent);
-               }
-
-               // update save point if a save sheet event is processed successfully
-               if(event instanceof SaveSheetEvent && command.isSuccessful()) {
-                  rs.setSavePoint(rs.getCurrent());
-               }
-
-               if(!rs.isDisposed()) {
-                  int csize = rs.size();
-                  int ccurrent = rs.getCurrent();
-                  int csave = rs.getSavePoint();
-                  command.put("point.count", csize + "");
-                  command.put("point.current", ccurrent + "");
-                  command.put("point.save", csave + "");
-                  command.put("undo.name", rs.getUndoName());
-                  command.put("redo.name", rs.getRedoName());
-
-                  if(sheet != null || lsize != csize || lcurrent != ccurrent ||
-                     lsave != csave)
-                  {
-                     // add a need auto refresh status for flex
-                     command.put("autorefresh.value", "true");
-                  }
-               }
-            }
-         }
-
-         // add grid id information
-         for(int i = 0; i < command.getCommandCount(); i++) {
-            AssetCommand tcmd = command.getCommand(i);
-
-            if(tcmd instanceof GridCommand) {
-               GridCommand gcmd = (GridCommand) tcmd;
-
-               if(gcmd.getID() == null) {
-                  gcmd.setID(gevent.getID());
-               }
-            }
-         }
-
-         // as command might be sent for times, here we make sure it's not
-         // empty, then we could support undo/redo on client side properly
-         if(command.isEnqueued() && command.isSuccessful() &&
-            command.getCommandCount() == command.getCurrentPosition())
-         {
-            command.addCommand(new MessageCommand("", MessageCommand.OK),
-                               false);
-         }
-
-         //noinspection ConstantConditions
-         if((rs instanceof RuntimeWorksheet) &&
-            (((GridEvent) event).isUndoable() || (event instanceof UndoEvent) ||
-               (event instanceof RedoEvent)))
-         {
-            AssemblyTreeModelBuilder builder
-               = new AssemblyTreeModelBuilder((RuntimeWorksheet) rs);
-            AssemblyTreeModel model = builder.createAssemblyTreeModel();
-            AssemblyTreeModel model0 = (AssemblyTreeModel)
-               rs.getProperty("_assemblyTreeModel");
-
-            if(!Tool.equals(model, model0) ||
-               event instanceof RefreshAssemblyTreeEvent)
-            {
-               command.addCommand(new RefreshAssemblyTreeCommand(model));
-               rs.setProperty("_assemblyTreeModel", model);
-            }
-         }
-      }
-      else if(event instanceof AssetRepositoryEvent) {
-         AssetRepositoryEvent aevent = (AssetRepositoryEvent) event;
-         aevent.process(engine, command);
-      }
-      else {
-         event.process(command);
-      }
-
-      // process errors
-      List<Exception> errors = WorksheetEngine.ASSET_EXCEPTIONS.get();
-
-      if(errors == null || errors.size() == 0) {
-         if(event.getConfirmExceptionCount() > 0) {
-            addConfirmCommand(event, command);
-         }
-      }
-      else {
-         MessageCommand confirm2 = new MessageCommand();
-         String msg2 = "";
-         int lvl2 = MessageCommand.CONFIRM;
-         AssetEvent assetEvent2;
-
-         // process all ConfirmDataException, get events from all
-         // ConfirmDataException, and put the events into one message conmmand
-         for(Exception error : errors) {
-            if(error instanceof ConfirmDataException) {
-               ConfirmDataException cdex = (ConfirmDataException) error;
-               msg2 = cdex.getMessage();
-               lvl2 = cdex.getLevel();
-               assetEvent2 = (AssetEvent) cdex.getEvent();
-               assetEvent2 = (assetEvent2 == null) ? event : assetEvent2;
-
-               //noinspection ConstantConditions
-               if(assetEvent2 != null && assetEvent2.get("name") == null &&
-                  cdex.getName() != null) {
-                  assetEvent2.put("name", cdex.getName());
-               }
-
-               confirm2.addEvent(assetEvent2);
-            }
-         }
-
-         if(confirm2.getEventCount() > 0) {
-            confirm2.put("message", msg2);
-            confirm2.put("level", "" + lvl2);
-            command.addCommand(confirm2);
-         }
-
-         StringBuilder sb = new StringBuilder();
-         Set<String> mset = new HashSet<>();
-
-         for(Exception ex : errors) {
-            String msg = ex instanceof SQLException ?
-               "SQL " + ex.getMessage() : ex.getMessage();
-
-            if(ex instanceof MessageException) {
-               MessageException me = (MessageException) ex;
-               command.addCommand(new MessageCommand(me.getMessage(), me.getWarningLevel()));
-               continue;
-            }
-
-            // do not construct a message command for a cancelled exception,
-            // for it's always per user's request
-            if(ex instanceof CancelledException) {
-               continue;
-            }
-
-            if(ex instanceof ConfirmDataException) {
-               continue;
-            }
-
-            if(ex instanceof ConfirmException) {
-               ConfirmException cex2 = (ConfirmException) ex;
-               MessageCommand confirm =
-                  new MessageCommand(msg, cex2.getLevel());
-               confirm.addEvent((AssetEvent) cex2.getEvent());
-               command.addCommand(confirm);
-               continue;
-            }
-
-            ExceptionKey key = new ExceptionKey(ex, id);
-            ExceptionKey key2 = exceptionMap.get(key);
-
-            if(key2 != null && !key2.isTimeout()) {
-               msg = null;
-            }
-            else {
-               exceptionMap.put(key, key);
-            }
-
-            if(msg == null) {
-               continue;
-            }
-
-            int index = msg.indexOf("\n");
-            msg = index > 0 ? msg.substring(0, index).trim() : msg;
-
-            if(!mset.contains(msg)) {
-               if(sb.length() > 0) {
-                  sb.append(", ");
-               }
-
-               sb.append(msg);
-               mset.add(msg);
-            }
-         }
-
-         errors.clear();
-
-         if(sb.length() != 0) {
-
-            // @by: ChrisSpagnoli bug1414093660974 2014-10-29
-            // Avoid creating a second ERROR message if one is already pending.
-            for(int i = 0; i < command.getCommandCount(); i++) {
-               if(command.getCommand(i) instanceof MessageCommand) {
-                  MessageCommand mc = (MessageCommand)command.getCommand(i);
-                  String level = (String)mc.get("level");
-
-                  if(level.equals(""+MessageCommand.ERROR)) {
-                     return;
-                  }
-               }
-            }
-
-            String msg = Catalog.getCatalog().getString(sb.toString());
-            MessageCommand mcmd =
-               new MessageCommand(msg, MessageCommand.ERROR);
-            command.addCommand(mcmd);
-         }
-      }
-   }
-
-   /**
-    * Adds the confirm command for any confirm exceptions logged by the event.
-    *
-    * @param event   the event.
-    * @param command the command.
-    */
-   @SuppressWarnings("ThrowableResultOfMethodCallIgnored")
-   public static void addConfirmCommand(AssetEvent event, AssetCommand command) {
-      MessageCommand confirm = new MessageCommand();
-      String msg = "";
-      int lvl = MessageCommand.CONFIRM;
-      AssetEvent assetEvent;
-
-      // get events from all ConfirmDataException, and put the events
-      // into one message command
-      for(int i = 0; i < event.getConfirmExceptionCount(); i++) {
-         ConfirmException cex = event.getConfirmException(i);
-         msg = cex.getMessage();
-         lvl = cex.getLevel();
-         assetEvent = (AssetEvent) cex.getEvent();
-
-         if(cex instanceof ConfirmDataException && assetEvent != null &&
-            assetEvent.get("name") == null &&
-            ((ConfirmDataException) cex).getName() != null)
-         {
-
-            assetEvent.put("name", ((ConfirmDataException) cex).getName());
-         }
-
-         confirm.addEvent(assetEvent);
-      }
-
-      confirm.put("message", msg);
-      confirm.put("level", "" + lvl);
-      command.addCommand(confirm);
    }
 
    /**
@@ -995,7 +455,7 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
                Catalog catalog = Catalog.getCatalog();
                exs.add(new ConfirmException(
                           catalog.getString("common.AssetLockBy", lockedBy),
-                          MessageCommand.WARNING));
+                          ConfirmException.WARNING));
             }
          }
       }
@@ -1669,18 +1129,6 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
                   rs.dispose();
                }
             }
-
-            //noinspection SynchronizeOnNonFinalField
-            synchronized(cmap) {
-               List<CommandEntry> list = new ArrayList<>(cmap.values());
-
-               for(CommandEntry entry : list) {
-                  if(entry.isTimeout()) {
-                     int eid = entry.getCommand().getEventID();
-                     cmap.remove(eid);
-                  }
-               }
-            }
          }
          catch(Exception ex) {
             LOG.error("An error occurred while cleaning up worksheets", ex);
@@ -1702,149 +1150,6 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
          }
       }
    }
-
-   /**
-    * Command entry.
-    */
-   private static class CommandEntry {
-      public CommandEntry(AssetCommand cmd) {
-         super();
-
-         this.cmd = cmd;
-         this.ts = System.currentTimeMillis();
-      }
-
-      public void access() {
-         ts = System.currentTimeMillis();
-      }
-
-      public AssetCommand getCommand() {
-         access();
-         return cmd;
-      }
-
-      public boolean isTimeout() {
-         long now = System.currentTimeMillis();
-         long idle = now - ts;
-         return idle > RuntimeSheet.getMaxIdleTime();
-      }
-
-      public long getTimestamp() {
-         return ts;
-      }
-
-      private AssetCommand cmd;
-      private long ts;
-   }
-
-   // date range provider cache
-   private static ResourceCache dcache = new ResourceCache(50) {
-      @Override
-      protected boolean checkTimeOut() {
-         @SuppressWarnings("unchecked")
-         List<Object> list = new ArrayList<>(map.keySet());
-         boolean changed = false;
-
-         for(Object item : list) {
-            RuntimeAssetEngine engine = (RuntimeAssetEngine) item;
-
-            if(!engine.isAvailable()) {
-               map.remove(engine);
-               changed = true;
-            }
-         }
-
-         changed = super.checkTimeOut() || changed;
-         return changed;
-      }
-
-      @Override
-      protected Object create(Object key) throws Exception {
-         final RuntimeAssetEngine engine = (RuntimeAssetEngine) key;
-         Principal user = ThreadContext.getContextPrincipal();
-         ReportSheet report = engine.getReport();
-         AssetEntry root = report != null ?
-            AssetEntry.createReportRoot() : null;
-         DateRangeProvider provider = new DateRangeProvider();
-         Set<AssetEntry> added = new HashSet<>();
-         AssetChangeListener listener = new AssetChangeListener() {
-            @Override
-            public void assetChanged(AssetChangeEvent event) {
-               if(event.getEntryType() == Worksheet.DATE_RANGE_ASSET) {
-                  remove(engine);
-
-                  if(!(event.getSource() instanceof ReportSheet)) {
-                     dranges.clear();
-                  }
-               }
-            }
-         };
-
-         engine.setAssetChangeListener(listener);
-         engine.addAssetChangeListener(listener);
-
-         // get global scope and user scope dateranges first,
-         // which is cached for better performance
-         List<Assembly> dateranges =
-            new ArrayList<>(getDateRanges(engine.getRepository(), user));
-
-         // add all date range assemblies from report
-         if(root != null) {
-            try {
-               AssetEntry[] arr = AssetUtil.getEntries(
-                  report, root, user, AssetEntry.Type.WORKSHEET,
-                  AbstractSheet.DATE_RANGE_ASSET, true);
-
-               for(AssetEntry entry : arr) {
-                  if(added.contains(entry)) {
-                     continue;
-                  }
-
-                  if(!entry.isSheet()) {
-                     continue;
-                  }
-
-                  Worksheet worksheet = (Worksheet) report.getSheet(
-                     entry, user, false, AssetContent.ALL);
-                  added.add(entry);
-                  Assembly assembly = worksheet.getPrimaryAssembly();
-
-                  if(assembly instanceof MirrorAssembly) {
-                     continue;
-                  }
-
-                  boolean contained = false;
-
-                  for(Assembly daterange : dateranges) {
-                     String name = assembly.getName();
-
-                     if(daterange.getName().equals(name)) {
-                        contained = true;
-                        LOG.warn(
-                           "Duplicate date range name found when creating " +
-                              "data range provider: " + name + ", path: " +
-                              entry.getDescription(false));
-                        break;
-                     }
-                  }
-
-                  if(!contained) {
-                     dateranges.add(assembly);
-                  }
-               }
-            }
-            catch(Exception ex) {
-               LOG.warn("Failed to get date range assemblies", ex);
-            }
-         }
-
-         DateRangeAssembly[] assemblies = new DateRangeAssembly[dateranges.size()];
-         //noinspection SuspiciousToArrayCall
-         provider.setDateRangeAssemblies(dateranges.toArray(assemblies));
-         provider.setBuiltinDateConditions(DateCondition.getBuiltinDateConditions());
-         return provider;
-      }
-   };
 
    /**
     * Get the viewsheet data changed timestamp.
@@ -1875,7 +1180,6 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
     */
    protected void print0() {
       System.err.println("--amap size: " + amap.size() + "<>" + amap);
-      System.err.println("--cmap size: " + cmap.size() + "<>" + cmap.keySet());
    }
 
    /**
@@ -1940,22 +1244,6 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
       private String exString; // cached string
    }
 
-   /**
-    * Get the command for exporting to web.
-    */
-   @Override
-   public AssetCommand export(String url) {
-      throw new RuntimeException("Incorrect WorksheetService is used!");
-   }
-
-   public Throwable getScheduleEx() {
-      return scheduleEx.get();
-   }
-
-   public void removeScheduleEx() {
-      scheduleEx.remove();
-   }
-
    private class ViewsheetException extends MessageException {
       /**
        * Constructor.
@@ -1978,13 +1266,11 @@ public class WorksheetEngine extends SheetLibraryEngine implements WorksheetServ
    protected Map<String,Vector<ThreadDef>> emap; // id -> event threads
    protected ExecutionMap executionMap; // the executing viewsheet
    protected int counter; // counter
-   protected Map<Integer,CommandEntry> cmap; // command map
    private final static AtomicLong nextId = new AtomicLong(1);
 
    private boolean singlePreviewEnabled;
    private boolean server = false; // server flag
    private Map<Object, List<RenameDependencyInfo>> renameInfoMap = new HashMap<>();
-   private ThreadLocal<Throwable> scheduleEx = new ThreadLocal<>();
    private static final Logger LOG =
       LoggerFactory.getLogger(WorksheetEngine.class);
 }

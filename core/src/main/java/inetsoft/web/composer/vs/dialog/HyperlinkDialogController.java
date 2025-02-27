@@ -287,18 +287,6 @@ public class HyperlinkDialogController {
    }
 
    @RequestMapping(
-      value = "/api/composer/report/hyperlink-parameters",
-      method = RequestMethod.GET
-   )
-   @ResponseBody
-   public String[] getReportParameters(
-      @RequestParam("report") String report, Principal principal)
-      throws Exception
-   {
-      return VSEventUtil.getReportParameters(report, principal);
-   }
-
-   @RequestMapping(
       value = "/api/composer/vs/hyperlink-dialog-model/tree",
       method = RequestMethod.GET
    )

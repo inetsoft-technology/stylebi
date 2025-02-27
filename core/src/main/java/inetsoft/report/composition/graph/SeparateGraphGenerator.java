@@ -26,9 +26,9 @@ import inetsoft.graph.data.PairsDataSet;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.guide.form.LabelForm;
 import inetsoft.graph.scale.*;
-import inetsoft.report.composition.command.MessageCommand;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.*;
+import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
@@ -252,7 +252,7 @@ public class SeparateGraphGenerator extends GraphGenerator {
             if(polar && xmcontained) {
                throw new MessageException(Catalog.getCatalog().getString(
                   "em.common.graph.XmeaNotAllowed"), LogLevel.WARN, true,
-                                          MessageCommand.INFO);
+                                          ConfirmException.INFO);
             }
 
             // polar? x dimension is not required in coord
@@ -272,7 +272,7 @@ public class SeparateGraphGenerator extends GraphGenerator {
                if(ymeasures.size() > 1 && xmeasures.size() > 1) {
                   throw new MessageException(Catalog.getCatalog().getString(
                      "em.common.graph.oneAxisSupported"), LogLevel.WARN, true,
-                     MessageCommand.INFO);
+                                             ConfirmException.INFO);
                }
 
                for(int j = 0; j < xmeasures.size(); j++) {

@@ -19,11 +19,8 @@ package inetsoft.analytic;
 
 import inetsoft.sree.AnalyticRepository;
 import inetsoft.sree.internal.*;
-import inetsoft.util.ItemList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.rmi.RemoteException;
 
 /**
  * AnalyticAssistant provides all non-presentation logic to support the
@@ -69,14 +66,6 @@ public class AnalyticAssistant extends SreeAssistant {
     */
    public AnalyticAssistant(AnalyticRepository engine) {
       this.engine = engine;
-   }
-
-   /**
-    * Get embedded values.
-    */
-   public ItemList getEmbeddedValues(String col) throws RemoteException {
-      String req = "getEmbeddedValues?column=" + col;
-      return (ItemList) engine.getObject(req);
    }
 
    private static AnalyticAssistant analyticAssistant = null;

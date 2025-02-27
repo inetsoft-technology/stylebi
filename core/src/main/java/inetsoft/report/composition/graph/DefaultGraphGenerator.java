@@ -22,8 +22,8 @@ import inetsoft.graph.coord.*;
 import inetsoft.graph.data.DataSet;
 import inetsoft.graph.element.GraphElement;
 import inetsoft.graph.scale.*;
-import inetsoft.report.composition.command.MessageCommand;
 import inetsoft.uql.VariableTable;
+import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.viewsheet.VSDataRef;
 import inetsoft.uql.viewsheet.XDimensionRef;
 import inetsoft.uql.viewsheet.graph.*;
@@ -194,7 +194,7 @@ public class DefaultGraphGenerator extends GraphGenerator {
             if(polar && xmcontained) {
                throw new MessageException(Catalog.getCatalog().getString(
                   "em.common.graph.XmeaNotAllowed"), LogLevel.WARN, true,
-                  MessageCommand.INFO);
+                                          ConfirmException.INFO);
             }
 
             boolean stackMeasure = GraphTypeUtil.isStackMeasures(info, desc);
@@ -244,7 +244,7 @@ public class DefaultGraphGenerator extends GraphGenerator {
                if(!GraphTypes.isPoint(type0) && !GraphTypes.isLine(type0)) {
                   throw new MessageException(Catalog.getCatalog().getString(
                      "em.common.graph.onePointSupport", "" + type0),
-                     LogLevel.WARN, true, MessageCommand.INFO);
+                     LogLevel.WARN, true, ConfirmException.INFO);
                }
 
                String measure = xmeasures.get(0);

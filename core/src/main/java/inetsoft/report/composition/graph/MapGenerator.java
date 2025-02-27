@@ -28,7 +28,6 @@ import inetsoft.graph.geo.service.WebMapService;
 import inetsoft.graph.geo.solver.*;
 import inetsoft.graph.scale.LinearScale;
 import inetsoft.graph.scale.Scale;
-import inetsoft.report.composition.command.MessageCommand;
 import inetsoft.report.filter.HighlightGroup;
 import inetsoft.report.internal.graph.MapData;
 import inetsoft.report.internal.graph.MapHelper;
@@ -36,6 +35,7 @@ import inetsoft.sree.SreeEnv;
 import inetsoft.uql.ColumnSelection;
 import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.ColumnRef;
+import inetsoft.uql.asset.ConfirmException;
 import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.uql.viewsheet.graph.*;
@@ -425,7 +425,7 @@ public class MapGenerator extends MergedGraphGenerator {
       if(coord == null && xmeasures.size() > 0 && ymeasures.size() > 0) {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.graph.convertFailed"), LogLevel.WARN, false,
-                                    MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       Coordinate graphCoord = createCoord(coord, GraphTypes.CHART_MAP);
@@ -731,7 +731,7 @@ public class MapGenerator extends MergedGraphGenerator {
       if(polygons.length > 1) {
          throw new MessageException(Catalog.getCatalog().getString(
             "em.common.graph.multiPolygons"), LogLevel.WARN, false,
-            MessageCommand.INFO);
+                                    ConfirmException.INFO);
       }
 
       // type and layer compatible
@@ -753,7 +753,7 @@ public class MapGenerator extends MergedGraphGenerator {
             if(i > 0 && !otype.equals(colType)) {
                throw new MessageException(Catalog.getCatalog().getString(
                   "composer.graph.mapType.doNotSupport"), LogLevel.WARN, false,
-                  MessageCommand.INFO);
+                                          ConfirmException.INFO);
             }
 
             otype = colType;
@@ -779,7 +779,7 @@ public class MapGenerator extends MergedGraphGenerator {
             String typeName = Catalog.getCatalog().getString(type);
             throw new MessageException(Catalog.getCatalog().getString(
                "em.common.graph.layerNotSupported", layerName, typeName),
-                                       LogLevel.WARN, false, MessageCommand.INFO);
+                                       LogLevel.WARN, false, ConfirmException.INFO);
          }
       }
    }

@@ -18,7 +18,7 @@
 package inetsoft.web.viewsheet.controller.chart;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.ChartEvent;
+import inetsoft.analytic.composition.event.ChartVSSelectionUtil;
 import inetsoft.graph.VGraph;
 import inetsoft.graph.data.DataSet;
 import inetsoft.report.StyleConstants;
@@ -228,7 +228,7 @@ public class VSChartShowDetailsController extends VSChartController<VSChartShowD
       VSDataSet lens = vdset instanceof VSDataSet
          ? (VSDataSet) vdset : (VSDataSet) box.getData(name);
       VSChartInfo cinfo = chartVSAssembly.getVSChartInfo();
-      VSSelection selection = ChartEvent.getVSSelection(
+      VSSelection selection = ChartVSSelectionUtil.getVSSelection(
          value, lens, alens, vdset, event.isRangeSelection(), cinfo,
          XCube.SQLSERVER.equals(ctype) || XCube.MONDRIAN.equals(ctype),
          null, true, false, false);

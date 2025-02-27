@@ -976,7 +976,7 @@ public class WorksheetEventUtil {
       commandDispatcher.sendCommand(messageLevelsCommand);
 
       if(!openAutoSaved && rws.getWorksheet() != null) {
-         rws.replaceCheckpoint(rws.getWorksheet().prepareCheckpoint(), null);
+         rws.replaceCheckpoint(rws.getWorksheet().prepareCheckpoint());
       }
 
       if(errors != null && errors.size() > 0) {

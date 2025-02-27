@@ -90,7 +90,7 @@ public class RuntimeWorksheet extends RuntimeSheet
       this.syncData = syncData;
 
       if(ws != null) {
-         addCheckpoint(ws.prepareCheckpoint(), null);
+         addCheckpoint(ws.prepareCheckpoint());
       }
 
       if(syncData) {
@@ -132,7 +132,6 @@ public class RuntimeWorksheet extends RuntimeSheet
    public boolean undo(ChangedAssemblyList clist) {
       if(point - 1 >= 0 && point < size()) {
          Worksheet ws = (Worksheet) points.get(point - 1);
-         EventInfo event = events.get(point);
 
          if(point == savePoint) {
             updateDependencyState(ws, (Worksheet) points.get(savePoint));
@@ -149,14 +148,9 @@ public class RuntimeWorksheet extends RuntimeSheet
 
          this.ws = (Worksheet) ws.clone();
          box.setWorksheet(this.ws);
-         String[] eventAssemblies = event.getAssemblies();
 
          // Bug #39589, make sure tables are rest on undo
-         if(eventAssemblies != null && eventAssemblies.length == 0) {
-            eventAssemblies = null;
-         }
-
-         reset(eventAssemblies);
+         reset(null);
 
          // Bug #39589, clear cache for bound tables on undo
          for(Assembly assembly : ws.getAssemblies()) {
@@ -186,10 +180,9 @@ public class RuntimeWorksheet extends RuntimeSheet
    public boolean redo(ChangedAssemblyList clist) {
       if(point + 1 >= 0 && point + 1 < size()) {
          Worksheet ws = (Worksheet) points.get(point + 1);
-         EventInfo event = events.get(point + 1);
          this.ws = (Worksheet) ws.clone();
          box.setWorksheet(this.ws);
-         reset(event.getAssemblies());
+         reset(null);
          point += 1;
          return true;
       }
@@ -215,7 +208,6 @@ public class RuntimeWorksheet extends RuntimeSheet
 
       for(int i = 0; i < points.size(); i++) {
          joinWS.points.add(points.get(i));
-         joinWS.events.add(events.get(i));
       }
 
       joinWS.point = point;
@@ -224,11 +216,9 @@ public class RuntimeWorksheet extends RuntimeSheet
    public void cancelJoin() throws Exception {
       this.ws = this.joinWS.ws;
       points = new XSwappableSheetList(this.contextPrincipal);
-      events = new LinkedList<>();
 
       for(int i = 0; i < joinWS.points.size(); i++) {
          points.add(joinWS.points.get(i));
-         events.add(joinWS.events.get(i));
       }
 
       point = joinWS.point;
