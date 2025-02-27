@@ -151,7 +151,7 @@ public class DataSpaceSettingsService extends BackupSupport {
 
       for(int i = 0; i <= deleteCount; i++) {
          try {
-            storageService.delete(zips.get(i));
+            storageService.delete(BACKUP_FOLDER + "\\"+ zips.get(i));
          }
          catch(IOException e) {
             LOG.error("Failed to delete backup file {}", zips.get(i), e);
