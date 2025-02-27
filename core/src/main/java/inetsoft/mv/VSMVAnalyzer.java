@@ -1189,31 +1189,7 @@ public final class VSMVAnalyzer implements MVAnalyzer {
 
          while(assemblies.hasNext()) {
             String vassembly = assemblies.next();
-            String assembly = vassembly;
-
-            if(vassembly.length() > 64) {
-               String[] parts = vassembly.split(",");
-               StringBuilder wrappedAssembly = new StringBuilder();
-               StringBuilder currentLine = new StringBuilder();
-
-               for(String part : parts) {
-                  if(currentLine.length() + part.length() + 1 > 64) {
-                     wrappedAssembly.append(currentLine).append("\n");
-                     currentLine = new StringBuilder();
-                  }
-
-                  if(currentLine.length() > 0) {
-                     currentLine.append(", ");
-                  }
-
-                  currentLine.append(part);
-               }
-
-               wrappedAssembly.append(currentLine);
-               assembly = wrappedAssembly.toString();
-            }
-
-            buf.append("\n").append(blank).append(blank).append(idx).append(". ").append(assembly);
+            buf.append("\n").append(blank).append(blank).append(idx).append(". ").append(vassembly);
             buf.append(",").append(blank).append("[base table:");
             List<MVDef> defs2 = v2defs.get(vassembly);
 
