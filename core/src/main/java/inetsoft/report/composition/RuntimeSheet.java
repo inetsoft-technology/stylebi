@@ -829,6 +829,10 @@ public abstract class RuntimeSheet {
       private transient boolean isCountRW = false;
    }
 
+   public static void invalidateMaxIdle() {
+      maxIdle = 0;
+   }
+
    private static long maxIdle;   // max idle time
 
    protected AssetEntry entry;      // asset entry
