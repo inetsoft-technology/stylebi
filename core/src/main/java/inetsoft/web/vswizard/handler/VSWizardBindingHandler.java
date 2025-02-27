@@ -2165,6 +2165,10 @@ public class VSWizardBindingHandler {
             }
          }
          catch(Exception ex) {
+            if(rvs.isDisposed()) {
+               return;
+            }
+
             LOG.error("Failed to get chart data", ex);
          }
 
