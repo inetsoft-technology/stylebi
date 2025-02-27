@@ -179,6 +179,8 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
 
    private appendCondition(appendItem: boolean = false): void {
       this.taskChanged = true;
+      const localTimeZoneId = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
       const condition: TimeConditionModel = {
          label: "_#(js:New Condition)",
          hour: 1,
@@ -187,6 +189,7 @@ export class ScheduleCycleEditorPageComponent implements OnInit, OnDestroy {
          interval: 1,
          conditionType: "TimeCondition",
          type: TimeConditionType.EVERY_DAY,
+         timeZone: localTimeZoneId,
          timeZoneOffset: this.model.conditionPaneModel.timeZoneOffset || 0
       };
 
