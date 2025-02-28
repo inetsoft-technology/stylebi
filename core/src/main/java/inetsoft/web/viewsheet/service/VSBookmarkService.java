@@ -197,67 +197,72 @@ public class VSBookmarkService {
       boolean result = rvs.gotoBookmark(name, owner);
 
       if(!result) {
-         throw new RuntimeException(catalog.getString(
-            "viewer.viewsheet.bookmark.notFound", name));
+         // reload vs bookmark from the storage and try again
+         rvs.reloadVSBookmark(owner);
+         result = rvs.gotoBookmark(name, owner);
+
+         if(!result) {
+            throw new RuntimeException(catalog.getString(
+               "viewer.viewsheet.bookmark.notFound", name));
+         }
       }
-      else {
-         // to init vs to apply the shared filter when switch to home bookmark,
-         // because the home bookmark created before initViewsheet in the runtime viewsheet.
-         if(VSBookmark.HOME_BOOKMARK.equals(name)) {
-            rvs.initViewsheet(rvs.getViewsheet(), false);
+
+      // to init vs to apply the shared filter when switch to home bookmark,
+      // because the home bookmark created before initViewsheet in the runtime viewsheet.
+      if(VSBookmark.HOME_BOOKMARK.equals(name)) {
+         rvs.initViewsheet(rvs.getViewsheet(), false);
+      }
+
+      // log viewsheet excecution
+      String userSessionID = user == null ?
+         XSessionService.createSessionID(XSessionService.USER, null) :
+         user.getSessionID();
+      AssetEntry entry = rvs.getEntry();
+      String objectName = entry.getDescription();
+      LogUtil.PerformanceLogEntry logEntry = new LogUtil.PerformanceLogEntry(objectName);
+      String execSessionID = XSessionService.createSessionID(
+         XSessionService.EXPORE_VIEW, entry.getName());
+      String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
+      String execType = ExecutionRecord.EXEC_TYPE_START;
+      Date execTimestamp = new Date(System.currentTimeMillis());
+      logEntry.setStartTime(execTimestamp.getTime());
+
+      ExecutionRecord executionRecord = new ExecutionRecord(
+         execSessionID, userSessionID, objectName, objectType, execType, execTimestamp,
+         ExecutionRecord.EXEC_STATUS_SUCCESS, null);
+      Audit.getInstance().auditExecution(executionRecord, user);
+      executionRecord = new ExecutionRecord(
+         execSessionID, userSessionID, objectName, objectType, ExecutionRecord.EXEC_TYPE_FINISH,
+         execTimestamp, ExecutionRecord.EXEC_STATUS_SUCCESS, null);
+
+      try {
+         removeAssemblyAndRefreshViewSheet(
+            dispatcher, rvs, url, oldArr, vsId, width, height, mobile, userAgent, clist);
+
+         if(annotationChanged) {
+            dispatcher.sendCommand(AnnotationChangedCommand.of(false));
          }
 
-         // log viewsheet excecution
-         String userSessionID = user == null ?
-            XSessionService.createSessionID(XSessionService.USER, null) :
-            user.getSessionID();
-         AssetEntry entry = rvs.getEntry();
-         String objectName = entry.getDescription();
-         LogUtil.PerformanceLogEntry logEntry = new LogUtil.PerformanceLogEntry(objectName);
-         String execSessionID = XSessionService.createSessionID(
-            XSessionService.EXPORE_VIEW, entry.getName());
-         String objectType = ExecutionRecord.OBJECT_TYPE_VIEW;
-         String execType = ExecutionRecord.EXEC_TYPE_START;
-         Date execTimestamp = new Date(System.currentTimeMillis());
-         logEntry.setStartTime(execTimestamp.getTime());
+         execTimestamp = new Date(System.currentTimeMillis());
+         executionRecord.setExecTimestamp(execTimestamp);
+         executionRecord.setExecStatus(ExecutionRecord.EXEC_STATUS_SUCCESS);
+         executionRecord.setExecError(name);
+      }
+      catch(Exception e) {
+         execTimestamp = new Date(System.currentTimeMillis());
+         executionRecord.setExecTimestamp(execTimestamp);
+         executionRecord.setExecStatus(
+            ExecutionRecord.EXEC_STATUS_FAILURE);
+         executionRecord.setExecError(e.getMessage());
 
-         ExecutionRecord executionRecord = new ExecutionRecord(
-            execSessionID, userSessionID, objectName, objectType, execType, execTimestamp,
-            ExecutionRecord.EXEC_STATUS_SUCCESS, null);
+         throw e;
+      }
+      finally {
          Audit.getInstance().auditExecution(executionRecord, user);
-         executionRecord = new ExecutionRecord(
-            execSessionID, userSessionID, objectName, objectType, ExecutionRecord.EXEC_TYPE_FINISH,
-            execTimestamp, ExecutionRecord.EXEC_STATUS_SUCCESS, null);
 
-         try {
-            removeAssemblyAndRefreshViewSheet(
-               dispatcher, rvs, url, oldArr, vsId, width, height, mobile, userAgent, clist);
-
-            if(annotationChanged) {
-               dispatcher.sendCommand(AnnotationChangedCommand.of(false));
-            }
-
-            execTimestamp = new Date(System.currentTimeMillis());
-            executionRecord.setExecTimestamp(execTimestamp);
-            executionRecord.setExecStatus(ExecutionRecord.EXEC_STATUS_SUCCESS);
-            executionRecord.setExecError(name);
-         }
-         catch(Exception e) {
-            execTimestamp = new Date(System.currentTimeMillis());
-            executionRecord.setExecTimestamp(execTimestamp);
-            executionRecord.setExecStatus(
-               ExecutionRecord.EXEC_STATUS_FAILURE);
-            executionRecord.setExecError(e.getMessage());
-
-            throw e;
-         }
-         finally {
-            Audit.getInstance().auditExecution(executionRecord, user);
-
-            if(executionRecord != null && executionRecord.getExecTimestamp() != null) {
-               logEntry.setFinishTime(executionRecord.getExecTimestamp().getTime());
-               LogUtil.logPerformance(logEntry);
-            }
+         if(executionRecord != null && executionRecord.getExecTimestamp() != null) {
+            logEntry.setFinishTime(executionRecord.getExecTimestamp().getTime());
+            LogUtil.logPerformance(logEntry);
          }
       }
    }
