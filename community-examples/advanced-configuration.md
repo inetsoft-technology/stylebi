@@ -77,7 +77,7 @@ To enable SSL in the Ignite cluster, the root CA private key, private key passwo
 
 #### Key-Value Store Properties
 
-These properties are used to configure the key-value store. The Community edition only supports using the MapDB implementation.
+These properties are used to configure the key-value store. The Open Source Edition only supports using the MapDB implementation.
 
 ```yaml
 keyValue:
@@ -88,12 +88,12 @@ keyValue:
 
 Property | Description | Required | Default Value
 --- | --- | --- | ---
-`type` | The type of key-value storage being used. This must be set to `mapdb` in the Community edition. | Yes | None
+`type` | The type of key-value storage being used. This must be set to `mapdb` in the Open Source Edition. | Yes | None
 `mapdb.directory` | The path to the directory in which the MapDB data files are stored. This *must* be mounted as a volume shared between all containers. The path is arbitrary, but it is recommended to use `/var/lib/inetsoft/kv`. | Yes | None
 
 #### Blob Store Properties
 
-These properties are used to configure the blob store. The Community edition only supports the shared filesystem implementation.
+These properties are used to configure the blob store. The Open Source Edition only supports the shared filesystem implementation.
 
 ```yaml
 blob:
@@ -105,13 +105,13 @@ blob:
 
 Property | Description | Required | Default Value
 --- | --- | --- | ---
-`type` | The type of blob storage being used. This must be set to `filesystem` in the Community edition. | Yes | None
+`type` | The type of blob storage being used. This must be set to `filesystem` in the Open Source Edition. | Yes | None
 `cacheDirectory` | The path to the local blob cache directory. It is arbitrary, but it is recommended to use `/var/lib/inetsoft/blob-cache`. This does not need to be mount and can be left in the container's ephemeral storage. | Yes | None
 `filesystem.directory` | The path to the directory containing the blob data. This *must* be mounted as a volume shared between all containers. The path is arbitrary, but it is recommended to use `/var/lib/inetsoft/blob`. | Yes | None
 
 #### External Storage Configuration
 
-These properties are used to configure the external storage where backups and files created by scheduled tasks will be saved. The Community edition only supports the shared filesystem implementation.
+These properties are used to configure the external storage where backups and files created by scheduled tasks will be saved. The Open Source Edition only supports the shared filesystem implementation.
 
 ```yaml
 externalStorage:
@@ -122,7 +122,7 @@ externalStorage:
 
 Property | Description | Required | Default Value
 --- | --- | --- | ---
-`type` | The type of external storage being used. The Community edition only supports the shard filesystem implementation. | Yes | None
+`type` | The type of external storage being used. The Open Source Edition only supports the shard filesystem implementation. | Yes | None
 `filesystem.directory` | The path to the directory where the files will be saved. This *must* be mounted as a volume shared between all containers. The path is arbitrary, but it is recommended to use `/var/lib/inetsoft/files`. | Yes | None
 
 ### Environment Variable Configuration
