@@ -29,6 +29,8 @@ import {
    ViewChild
 } from "@angular/core";
 import { NgbTooltip } from "@ng-bootstrap/ng-bootstrap";
+import { toNumber } from "lodash";
+import { DateTypeFormatter } from "../../../../../shared/util/date-type-formatter";
 import { GuiTool } from "../../common/util/gui-tool";
 import { XConstants } from "../../common/util/xconstants";
 import { BaseTableCellModel } from "../../vsobjects/model/base-table-cell-model";
@@ -198,7 +200,7 @@ export class ProfilingDialog implements OnInit {
 
    reloadTable(event: ProfileTableDataEvent) {
        this.modelService.putModel(this.tableUri, event).subscribe((data: any) => {
-         this.tableData = data.body;
+         this.tableData = this.updateTableDateLabel(data.body);
       });
    }
 
@@ -289,5 +291,25 @@ export class ProfilingDialog implements OnInit {
       const url = GET_PROFILE_EXPORT + "?name=" + encodeURIComponent(this.objName) +
          "&isViewsheet=" + this.isViewsheet;
       this.downloadService.download(url);
+   }
+
+   updateTableDateLabel(tableData: BaseTableCellModel[][]): BaseTableCellModel[][] {
+      let start = "Start Timestamp";
+      let end = "End Timestamp";
+      let startDate = this.tableData[0].findIndex(cell => cell.cellLabel === start);
+      let endDate = this.tableData[0].findIndex(cell => cell.cellLabel === end);
+      let dateFormat = "HH:mm:ss:SSS"
+
+      const formatDate = (row, index) => {
+         if(row[index] && row[index].cellLabel !== start && row[index].cellLabel !== end) {
+            row[index].cellLabel = DateTypeFormatter.format(toNumber(row[index].cellLabel), dateFormat, false);
+         }
+      };
+
+     return tableData.map(row => {
+               formatDate(row, startDate);
+               formatDate(row, endDate);
+               return row
+            });
    }
 }
