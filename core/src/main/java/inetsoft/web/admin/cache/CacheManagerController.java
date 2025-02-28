@@ -100,36 +100,6 @@ public class CacheManagerController {
          actions = ResourceAction.ACCESS
       )
    )
-   @GetMapping("/api/em/cache/properties/reportCacheFileSize")
-   public CacheProperty getReportCacheFileSize(@PermissionUser Principal principal)
-   {
-      return CacheProperty.builder()
-         .name("reportCacheFileSize")
-         .longValue(cacheService.getReportCacheFileSize())
-         .build();
-   }
-
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/general",
-         actions = ResourceAction.ACCESS
-      )
-   )
-   @PostMapping("/api/em/cache/properties/reportCacheFileSize")
-   public void setReportCacheFileSize(@RequestBody CacheProperty property,
-                                      @PermissionUser Principal principal) throws Exception
-   {
-      cacheService.setReportCacheFileSize(Tool.defaultIfNull(property.longValue(), 0L));
-   }
-
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/general",
-         actions = ResourceAction.ACCESS
-      )
-   )
    @GetMapping("/api/em/cache/properties/dataCacheFileSize")
    public CacheProperty getDataCacheFileSize(@PermissionUser Principal principal)
    {
