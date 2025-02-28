@@ -903,10 +903,7 @@ public class PlaceholderService {
             if(!applyScale) {
                // Bug #69536, delay scaling until parameters are submitted and prevent
                // an early execution of the viewsheet.
-               List<UserVariable> vars = new ArrayList<>();
-               VSEventUtil.refreshParameters(viewsheetService, box, sheet, false, initvars, vars);
-               List<String> disabledVars = sheet.getDisabledVariables();
-               vars.removeIf(var -> disabledVars.contains(var.getName()));
+               List<UserVariable> vars = getPromptParameters(sheet, box, initvars);
                applyScale = vars.isEmpty();
             }
 
@@ -1025,27 +1022,11 @@ public class PlaceholderService {
                // more reasonable, otherwise if during reset box the code need
                // parameters to access database, error will be thrown.
                // @see bug1234937851455
-               List<UserVariable> vars = new ArrayList<>();
-               VSEventUtil.refreshParameters(viewsheetService, box, sheet, false, initvars, vars);
-               String[] varNames = vars.stream().map(var -> var.getName()).toArray(String[]::new);
+               List<UserVariable> vars = getPromptParameters(sheet, box, initvars);
 
-               List<String> disabledVariables = new ArrayList<>();
-               collectVSDisabledVariables(sheet, disabledVariables);
-
-               if(!vars.isEmpty() && !disableParameterSheet &&
-                  !Tool.equals(disabledVariables.toArray(String[]::new), varNames))
-               {
+               if(!vars.isEmpty() && !disableParameterSheet) {
                   setViewsheetInfo(rvs, uri, dispatcher);
-                  Assembly[] all = sheet.getAssemblies(true, true);
-                  ArrayList list = new ArrayList();
-
-                  for(int i = 0; i < all.length; i++) {
-                     list.add(all[i].getName());
-                  }
-
-                  UserVariable[] vtable = vars.stream()
-                     .filter(n -> !list.contains(n.getName()))
-                     .toArray(UserVariable[]::new);
+                  UserVariable[] vtable = vars.toArray(new UserVariable[0]);
 
                   collectParameters(rvs.getViewsheet(), vtable,
                                     disableParameterSheet, dispatcher, isOpenVS);
@@ -1401,29 +1382,6 @@ public class PlaceholderService {
             addDeleteVSObject(rvs, vsassembly, dispatcher, false);
             refreshEmbeddedViewsheet(
                rvs, (Viewsheet) vsassembly, uri, dispatcher, manualRefresh);
-         }
-      }
-   }
-
-   private void collectVSDisabledVariables(Viewsheet sheet, List<String> disabledVariables) {
-      ViewsheetInfo viewsheetInfo = sheet.getViewsheetInfo();
-      String[] variables = viewsheetInfo.getDisabledVariables();
-
-      if(variables.length > 0) {
-         for(String variable : variables) {
-            if(!disabledVariables.contains(variable)) {
-               disabledVariables.add(variable);
-            }
-         }
-      }
-
-      Assembly[] assemblies = sheet.getAssemblies(false, true);
-
-      for(Assembly assembly : assemblies) {
-         VSAssembly vsassembly = (VSAssembly) assembly;
-
-         if(vsassembly instanceof Viewsheet) {
-            collectVSDisabledVariables((Viewsheet) vsassembly, disabledVariables);
          }
       }
    }
@@ -4102,6 +4060,25 @@ public class PlaceholderService {
       }
 
       return false;
+   }
+
+   /**
+    * Returns the parameters that will be prompted on viewsheet open
+    */
+   private List<UserVariable> getPromptParameters(Viewsheet sheet, ViewsheetSandbox box,
+                                                  VariableTable initvars)
+      throws Exception
+   {
+      List<UserVariable> vars = new ArrayList<>();
+      VSEventUtil.refreshParameters(viewsheetService, box, sheet, false, initvars, vars);
+      Set<String> disabledVars = sheet.getDisabledVariables();
+      Set<String> inputAssemblyNames = Arrays.stream(sheet.getAssemblies(true, true))
+         .filter((assembly) -> assembly instanceof InputVSAssembly)
+         .map(Assembly::getName)
+         .collect(Collectors.toSet());
+      vars.removeIf(var -> disabledVars.contains(var.getName()) ||
+         inputAssemblyNames.contains(var.getName()));
+      return vars;
    }
 
    private final VSObjectModelFactoryService objectModelService;
