@@ -1,20 +1,14 @@
 # StyleBI Open Source Edition
 
-StyleBI is an easy to use interactive dashboard software application that includes real time reporting capabilities. It focuses on business data monitoring and exploration by combining a data intelligence platform with visualization technology, serving both enterprises and solution providers.
+StyleBI is a cloud native, small-footprint business intelligence web application powered by data transformation pipeline and visualization microservices. They can be used as standalone docker containers or dropped into a microservice architecture as embedded visuazliation, analytics and reporting services.   
 
-At the core of the data intelligence platform is InetSoft's Data Block&trade; technology which enables data mashup in a Lego-like block fashion. IT creates performance tuned and security-controlled data blocks that can be transformed and assembled by business users for real-time business questions.
+## Resources & Scaliblity
 
-Casual business or consumer-type users get maximum self-service via personalizable, intuitive point-and-click visual access to information. Power users and data scientists get the ability to work with whatever data they need without relying on IT.
+StyleBI Open Source can be deployed in any Docker engine including Docker Desktop. For cloud deployment, 2 core/4G is recommended as the minimum capacity. [StyleBI Enterprise](https://www.inetsoft.com) offers elastic scaling via native cloud servies provided by AWA, GCP and Azure on top of StyleBI Open Source.
 
-## Licensing
+## Security
 
-StyleBI Open Source Edition is licensed under the Affero GNU General Public License, Version 3. Please refer to the [LICENSE](./LICENSE) file available in this repository for further details.
-
-## Enterprise Edition
-
-> Coming Soon
-
-InetSoft also provides a commercial Enterprise version of StyleBI. It includes advanced security options, cloud optimization, support for Kubernetes, clustering with elastic scaling, professional customer support and more.
+StyleBI Open Source has robust and fine granular security on both data and visual layers. InetSoft also provides a commercial Enterprise version of StyleBI. [StyleBI Enterprise](https://www.inetsoft.com) takes security further with multi-tenant, aduting and more. 
 
 ## Quickstart
 
