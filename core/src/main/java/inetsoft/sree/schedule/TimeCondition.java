@@ -385,7 +385,7 @@ public class TimeCondition implements ScheduleCondition, XMLSerializable, Binary
          long start = cal1.getTimeInMillis();
 
          if(containsIn(days_of_week,  cal1.get(Calendar.DAY_OF_WEEK))) {
-            Calendar calEnd = Calendar.getInstance(TimeZone.getDefault());
+            Calendar calEnd = Calendar.getInstance(getTimeZone());
             calEnd.setTime(new Date(curr));
             calEnd.set(Calendar.HOUR_OF_DAY, hour_end);
             calEnd.set(Calendar.MINUTE, minute_end);
