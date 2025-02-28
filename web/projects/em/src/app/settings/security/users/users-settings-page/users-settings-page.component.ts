@@ -258,6 +258,7 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
    }
 
    private postUserInfo(model: EditIdentityPaneModel, logout: boolean) {
+      this.loading = true;
       const SET_USER_URI = "../api/em/security/users/edit-user/" +
          Tool.byteEncodeURLComponent(this.selectedProvider);
       this.http.post(SET_USER_URI, model).pipe(
@@ -273,6 +274,8 @@ export class UsersSettingsPageComponent implements OnInit, OnDestroy {
          if(logout) {
             window.open("../logout?fromEm=true", "_self");
          }
+
+         this.loading = false;
       });
    }
 
