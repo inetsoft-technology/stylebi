@@ -100,36 +100,6 @@ public class CacheManagerController {
          actions = ResourceAction.ACCESS
       )
    )
-   @GetMapping("/api/em/cache/properties/maxReportsPerSession")
-   public CacheProperty getMaxReportsPerSession(@PermissionUser Principal principal)
-   {
-      return CacheProperty.builder()
-         .name("maxReportsPerSession")
-         .intValue(cacheService.getMaxReportsPerSession())
-         .build();
-   }
-
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/general",
-         actions = ResourceAction.ACCESS
-      )
-   )
-   @PostMapping("/api/em/cache/properties/maxReportsPerSession")
-   public void setMaxReportsPerSession(@RequestBody CacheProperty property,
-                                       @PermissionUser Principal principal) throws Exception
-   {
-      cacheService.setMaxReportsPerSession(Tool.defaultIfNull(property.intValue(), 0));
-   }
-
-   @Secured(
-      @RequiredPermission(
-         resourceType = ResourceType.EM_COMPONENT,
-         resource = "settings/general",
-         actions = ResourceAction.ACCESS
-      )
-   )
    @GetMapping("/api/em/cache/properties/reportCacheFileSize")
    public CacheProperty getReportCacheFileSize(@PermissionUser Principal principal)
    {

@@ -67,42 +67,6 @@ public class CacheManagerMBean {
    }
 
    /**
-    * Get Max Reports Per Session of the manager.
-    * @return the max value of Max Reports Per Session.
-    */
-   @ManagedAttribute
-   public int getMaxReportsPerSession() {
-      return cacheService.getMaxReportsPerSession();
-   }
-
-   /**
-    * Set Max Reports Per Session to the manager.
-    * @param max the Max Reports Per Session.
-    */
-   @ManagedAttribute
-   public void setMaxReportsPerSession(int max) throws Exception {
-      cacheService.setMaxReportsPerSession(max);
-   }
-
-   /**
-    * Get Report Cache File Size of the manager.
-    * @return the cacheSize value of Report Cache File Size.
-    */
-   @ManagedAttribute
-   public long getReportCacheFileSize() {
-      return cacheService.getReportCacheFileSize();
-   }
-
-   /**
-    * Set Report Cache File Size to the manager.
-    * @param cacheSize the Report Cache File Size.
-    */
-   @ManagedAttribute
-   public void setReportCacheFileSize(long cacheSize) throws Exception {
-      cacheService.setReportCacheFileSize(cacheSize);
-   }
-
-   /**
     * Get Data Cache File Size of the manager.
     * @return the dataCacheSize value of Data Cache File Size.
     */
@@ -173,6 +137,6 @@ public class CacheManagerMBean {
    public void setSecurityCachingEnabled(boolean enabled) throws Exception{
       cacheService.setSecurityCachingEnabled(enabled);
    }
-   
+
    private final CacheService cacheService;
 }

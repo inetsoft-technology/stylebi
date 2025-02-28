@@ -171,43 +171,6 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
    }
 
    /**
-    * Set Report Cache File Size to the manager.
-    * @param cacheSize the Report Cache File Size.
-    */
-   public void setReportCacheFileSize(long cacheSize) throws Exception {
-      long val = cacheSize * 1024 * 1024;
-
-      if(val < 0) {
-         throw new Exception(Catalog.getCatalog().getString(
-            "cacheManager.invalidValue"));
-      }
-
-      SreeEnv.setProperty("report.cache.file.limit", val + "");
-
-      try {
-         SreeEnv.save();
-      }
-      catch(Exception e) {
-         throw new Exception(Catalog.getCatalog().getString(
-            "monitor.setFail", "Report Cache File Size"));
-      }
-   }
-
-   /**
-    * Get Report Cache File Size of the manager.
-    * @return the cacheSize value of Report Cache File Size.
-    */
-   public long getReportCacheFileSize() {
-      long value =
-         Long.parseLong(SreeEnv.getProperty("report.cache.file.limit"));
-
-      value = value >= Long.MAX_VALUE  ? 0 : value;
-      return value / 1024 / 1024;
-   }
-
-
-
-   /**
     * Set Data Cache File Size to the manager.
     * @param dataCacheSize the Data Cache File Size.
     */
@@ -268,35 +231,6 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
       catch(Exception e) {
          throw new Exception(Catalog.getCatalog().getString(
             "monitor.setFail", "Data Cache Timeout"));
-      }
-   }
-
-   /**
-    * Get Max Reports Per Session of the manager.
-    * @return the max value of Max Reports Per Session.
-    */
-   public int getMaxReportsPerSession() {
-      return Integer.parseInt(SreeEnv.getProperty("html.session.max.report"));
-   }
-
-   /**
-    * Set Max Reports Per Session to the manager.
-    * @param max the Max Reports Per Session.
-    */
-   public void setMaxReportsPerSession(int max) throws Exception {
-      if(max < 0) {
-         throw new Exception(Catalog.getCatalog().getString(
-            "cacheManager.invalidValue"));
-      }
-
-      SreeEnv.setProperty("html.session.max.report", max + "");
-
-      try {
-         SreeEnv.save();
-      }
-      catch(Exception e) {
-         throw new Exception(Catalog.getCatalog().getString(
-            "monitor.setFail", "Max Reports Per Session"));
       }
    }
 
@@ -482,7 +416,7 @@ public class CacheService extends MonitorLevelService implements XSwappableMonit
          }
       }
    }
-   
+
    Collection<CacheState> getCacheHistory() {
       return getCacheHistory(null);
    }
