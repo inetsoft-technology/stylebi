@@ -31,6 +31,7 @@ import { takeUntil } from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../shared/data/repository-entry-type.enum";
 import { MVManagementModel } from "../../../../../../em/src/app/settings/content/materialized-views/mv-management-view/mv-management-model";
 import { SecurityEnabledEvent } from "../../../../../../em/src/app/settings/security/security-settings-page/security-enabled-event";
+import { DateTypeFormatter } from "../../../../../../shared/util/date-type-formatter";
 import { AnalyzeMVResponse } from "../../../../../../shared/util/model/mv/analyze-mv-response";
 import { CreateUpdateMvRequest } from "../../../../../../shared/util/model/mv/create-update-mv-request";
 import { MaterializedModel } from "../../../../../../shared/util/model/mv/materialized-model";
@@ -107,6 +108,11 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
             mvManagementModel.mvs.map(mv => {
                mv.dataString = mv.hasData ? "_#(js:Yes)" : "_#(js:No)";
                mv.existString = mv.exists ? "_#(js:True)" : "_#(js:False)";
+
+               if(mv.lastModifiedTimestamp != 0) {
+                  mv.lastModifiedTime = DateTypeFormatter.getLocalTime(mv.lastModifiedTimestamp,
+                     mvManagementModel.dateFormat);
+               }
             });
 
             this.existingModels = mvManagementModel.mvs;
