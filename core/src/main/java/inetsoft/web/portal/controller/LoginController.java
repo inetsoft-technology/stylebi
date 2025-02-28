@@ -141,7 +141,7 @@ public class LoginController {
 
             if(!Tool.isEmptyString(encodedUrl)) {
                Map<String, String> stateMap = new HashMap<>();
-               stateMap.put("requestedUrl", linkUri + "login/googleSSO?requestedUrl=" + encodedUrl);
+               stateMap.put("requestedUrl", encodedUrl);
                String stateJson = new ObjectMapper().writeValueAsString(stateMap);
                String encodedState = Base64.getEncoder().encodeToString(stateJson.getBytes());
                model.addObject("gState", encodedState);
