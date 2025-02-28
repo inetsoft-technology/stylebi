@@ -485,7 +485,8 @@ public class DataSetService {
          .scope(entry.getScope())
          .description(entry.getProperty("description"))
          .id(entry.toIdentifier())
-         .createdBy(entry.getCreatedUsername())
+         .createdBy(SUtil.getUserAlias(new IdentityID(entry.getCreatedUsername(),
+             OrganizationManager.getInstance().getCurrentOrgID())))
          .createdDate(entry.getCreatedDate() == null ? 0 : entry.getCreatedDate().getTime())
          .createdDateLabel(createdDateLabel)
          .dateFormat(Tool.getDateFormatPattern())
