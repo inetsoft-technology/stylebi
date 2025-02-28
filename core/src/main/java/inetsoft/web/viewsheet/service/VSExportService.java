@@ -31,6 +31,7 @@ import inetsoft.report.io.viewsheet.excel.CSVUtil;
 import inetsoft.report.io.viewsheet.excel.CSVVSExporter;
 import inetsoft.report.io.viewsheet.snapshot.SnapshotVSExporter;
 import inetsoft.sree.SreeEnv;
+import inetsoft.sree.internal.SUtil;
 import inetsoft.sree.portal.PortalThemesManager;
 import inetsoft.sree.security.*;
 import inetsoft.uql.VariableTable;
@@ -42,6 +43,7 @@ import inetsoft.uql.viewsheet.internal.AnnotationVSUtil;
 import inetsoft.uql.viewsheet.internal.VsToReportConverter;
 import inetsoft.uql.viewsheet.vslayout.PrintLayout;
 import inetsoft.util.*;
+import inetsoft.util.log.LogLevel;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -133,6 +135,10 @@ public class VSExportService {
       RuntimeViewsheet rvs;
       AssetEntry entry = getPathAssetEntry(path, principal);
       boolean matchesAssetIdFormat = true;
+
+      if(SUtil.isDefaultVSGloballyVisible() && entry != null) {
+         entry = handleAttemptExportGloballyVisibleAsset(entry, format);
+      }
 
       if(entry != null) {
          runtimeId = openViewsheet(entry, principal, parameters, sessionId, userAgent);
@@ -343,6 +349,51 @@ public class VSExportService {
                                                rvs.getViewsheetSandbox());
          }
       }
+   }
+
+   /**
+    * Attempting to export globally visible viewsheets requires passing underlying assetEntry
+    */
+   public AssetEntry handleAttemptExportGloballyVisibleAsset(AssetEntry entry, int format) {
+      String curOrg = OrganizationManager.getInstance().getCurrentOrgID();
+      boolean isSnapshot = Tool.equals(format, FileFormatInfo.EXPORT_TYPE_SNAPSHOT);
+      boolean snapShotProhibited = false;
+
+      try {
+         if(Tool.equals(entry.getOrgID(), curOrg)) {
+            if(!viewsheetService.getAssetRepository().containsEntry(entry)) {
+               String defOrgFolder = OrganizationManager.getGlobalDefOrgFolderName();
+
+               if(entry.getPath().contains(defOrgFolder)) {
+                  String defOrgPath = entry.getPath()
+                     .replace(defOrgFolder + "/", "");
+
+                  AssetEntry globallyVisibleAssetEntry = new AssetEntry(
+                     entry.getScope(), entry.getType(), defOrgPath, null, Organization.getDefaultOrganizationID());
+
+                  if(viewsheetService.getAssetRepository().containsEntry(globallyVisibleAssetEntry)) {
+                     if(!isSnapshot) {
+                        return globallyVisibleAssetEntry;
+                     }
+                     else {
+                        snapShotProhibited = true;
+                     }
+                  }
+               }
+            }
+
+         }
+      }
+      catch(Exception e){
+         //ignore
+      }
+
+      if(snapShotProhibited) {
+         throw new MessageException(Catalog.getCatalog().getString(
+            "deny.access.export.vso.globally.visible", entry), LogLevel.INFO, false);
+      }
+
+      return entry;
    }
 
    public static String getViewsheetFileName(AssetEntry entry) {
