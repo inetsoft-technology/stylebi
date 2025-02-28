@@ -245,23 +245,29 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     */
    @Override
    public List<ScheduleTask> getTasks() {
-      return pregeneratedTasks;
+      List<ScheduleTask> tasks = new ArrayList<>();
+      pregeneratedTasksMap.values().forEach(tasks::addAll);
+      return tasks;
+   }
+
+   public List<ScheduleTask> getTasks(String orgId) {
+      return pregeneratedTasksMap.get(orgId);
    }
 
    @Override
    public Iterator<ScheduleTask> iterator() {
-      return pregeneratedTasks.iterator();
+      return getTasks().iterator();
    }
 
    private void generateTasks(boolean reloadExtensions, boolean allMVs) {
-      generateTasks(null, null, reloadExtensions, allMVs);
+      generateTasks(null, null, reloadExtensions, allMVs, false);
    }
 
    /**
     * Internal method used to set pregeneratedTasks.
     */
    private void generateTasks(Organization oorg, Organization norg, boolean reloadExtensions,
-                              boolean allMVs)
+                              boolean allMVs, boolean replace)
    {
       // don't load in secondary schedulers
       if(Scheduler.getSchedulerCount() != 1 &&
@@ -271,8 +277,9 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       }
 
       List<ScheduleTask> tasks = new ArrayList<>();
-      Enumeration<DataCycleId> cycles = getDataCycles();
       Map<DataCycleId, Boolean> cycleStatusMap = new HashMap(this.cycleStatusMap);
+      allMVs = oorg == null && norg == null && allMVs;
+      Enumeration<DataCycleId> cycles = allMVs ? getDataCycles() : getDataCycles(norg);
 
       while(cycles.hasMoreElements()) {
          DataCycleId cycle = cycles.nextElement();
@@ -294,7 +301,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
             task.addCondition(getCondition(cycle.name, cycle.orgId, i));
          }
 
-         generateMVActions(task, cycle.name, tasks, oorg, norg, allMVs);
+         generateMVActions(task, cycle.name, tasks, orgId);
 
          if(task.getActionCount() == 0) {
             continue;
@@ -304,11 +311,28 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       }
 
       synchronized(this) {
-         pregeneratedTasks.clear();
+         if(allMVs) {
+            pregeneratedTasksMap.clear();
+         }
+         else {
+            if(replace && oorg != null) {
+               pregeneratedTasksMap.remove(oorg.getOrganizationID());
+            }
+            else {
+               String org = norg != null ?
+                  norg.getOrganizationID() : OrganizationManager.getInstance().getCurrentOrgID();
+               pregeneratedTasksMap.put(org, new Vector<>());
+            }
+         }
 
          for(ScheduleTask task : tasks) {
-            if(!pregeneratedTasks.contains(task)) {
-               pregeneratedTasks.add(task);
+            String orgID = task.getOwner() != null ?
+               task.getOwner().getOrgID() : OrganizationManager.getInstance().getCurrentOrgID();
+            pregeneratedTasksMap.computeIfAbsent(orgID, k -> new Vector<>());
+            List<ScheduleTask> taskList = pregeneratedTasksMap.get(orgID);
+
+            if(!taskList.contains(task)) {
+               taskList.add(task);
                taskAdded(task);
             }
          }
@@ -340,22 +364,16 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * Generate emv actions.
     */
    private void generateMVActions(ScheduleTask task, String cycle, List<ScheduleTask> tasks,
-                                  Organization oorg, Organization norg, boolean allMVs)
+                                  String orgId)
    {
       MVManager manager = MVManager.getManager();
       MVDef[] mvs = null;
 
-      if(oorg == null && norg == null) {
-         if(allMVs) {
-            String[] ids = SecurityEngine.getSecurity().getSecurityProvider().getOrganizationIDs();
-            mvs = manager.list(ids).toArray(MVDef[]::new);
-         }
-         else {
-            mvs = manager.list(false);
-         }
+      if(orgId == null) {
+         mvs = manager.list(false);
       }
       else {
-         mvs = manager.list(getNewOrgIds(oorg.getId(), norg.getId())).toArray(MVDef[]::new);
+         mvs = manager.list(new String[]{ orgId }).toArray(MVDef[]::new);
       }
 
       ScheduleTask task2 = new ScheduleTask(
@@ -369,12 +387,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
       task2.addCondition(new CompletionCondition(task.getTaskId()));
 
       for(MVDef def : mvs) {
-         String vsId = def.getVsId();
-         int index = vsId.lastIndexOf('^');
-         String mvOrgID = index == -1 ?
-            Organization.getDefaultOrganizationID() : vsId.substring(index + 1);
-
-         if(!cycle.equals(def.getCycle()) || (cycleInfo != null && !Tool.equals(cycleInfo.getOrgId(), mvOrgID))) {
+         if(!cycle.equals(def.getCycle())) {
             continue;
          }
 
@@ -530,12 +543,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
          }
       }
 
-      if(replace) {
-         generateTasks(oorg, norg, true, false);
-      }
-      else {
-         generateTasks(null, null, true, true);
-      }
+      generateTasks(oorg, norg, true, false, replace);
    }
 
    private PrintWriter createWriter(OutputStream output) {
@@ -546,11 +554,15 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     * Find the task by name.
     */
    private ScheduleTask findTask(String taskId, String orgId) {
-      for(ScheduleTask task : pregeneratedTasks) {
+      Vector<ScheduleTask> scheduleTasks = pregeneratedTasksMap.get(orgId);
+
+      if(scheduleTasks == null || scheduleTasks.isEmpty()) {
+         return null;
+      }
+
+      for(ScheduleTask task : scheduleTasks) {
          if(task.getTaskId().equals(taskId)) {
-            if(task.getCycleInfo() == null || task.getCycleInfo().getOrgId().equals(orgId)) {
-               return task;
-            }
+            return task;
          }
       }
 
@@ -666,6 +678,18 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
     */
    public Enumeration<DataCycleId> getDataCycles() {
       return Collections.enumeration(dataCycleMap.keySet());
+   }
+
+   /**
+    * Get the data cycles in an organization.
+    */
+   public Enumeration<DataCycleId> getDataCycles(Organization org) {
+      String orgId = org != null ? org.getId() : OrganizationManager.getInstance().getCurrentOrgID();
+
+      return Collections.enumeration(
+         dataCycleMap.keySet().stream()
+            .filter(id -> id.orgId.equals(orgId))
+            .toList());
    }
 
    /**
@@ -1138,7 +1162,7 @@ public class DataCycleManager implements ScheduleExt, PropertyChangeListener {
    private Map<DataCycleId, Vector<ScheduleCondition>> dataCycleMap =
       new LinkedHashMap<>();
    private Map<DataCycleId, Boolean> cycleStatusMap = new LinkedHashMap<>();
-   private Vector<ScheduleTask> pregeneratedTasks = new Vector<>();
+   private Map<String, Vector<ScheduleTask>> pregeneratedTasksMap = new HashMap<>();
    private Map<DataCycleId, CycleInfo> cycleInfoMap = new HashMap<>();
    private String dcycle;
 

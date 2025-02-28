@@ -271,13 +271,11 @@ public class CloudRunner implements Callable<Integer> {
          return ScheduleManager.getScheduleManager().getScheduleTask(taskId);
       }
       else {
-         for(ScheduleTask candidate : DataCycleManager.getDataCycleManager().getTasks()) {
+         for(ScheduleTask candidate : DataCycleManager.getDataCycleManager().getTasks(cycleOrgId)) {
             if(candidate.getTaskId().equals(taskId)) {
                DataCycleManager.CycleInfo info = candidate.getCycleInfo();
 
-               if(info == null ||
-                  info.getName().equals(cycleName) && info.getOrgId().equals(cycleOrgId))
-               {
+               if(info == null || info.getName().equals(cycleName)) {
                   return candidate;
                }
             }
