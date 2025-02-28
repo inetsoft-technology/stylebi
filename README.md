@@ -1,10 +1,13 @@
 # StyleBI Open Source Edition
 
-StyleBI is a cloud native, small-footprint business intelligence web application powered by data transformation pipeline and visualization microservices. They can be used as standalone docker containers or dropped into a microservice architecture as embedded visuazliation, analytics and reporting services.   
+StyleBI is a cloud-native, small-footprint business intelligence web application, powered by data transformation pipeline and visualization microservices. These microservices can be deployed as standalone Docker containers or seamlessly integrated into a microservice architecture, providing embedded visualization, analytics, and reporting capabilities.
+
+![StyleBI Data Pipeline](https://test.inetsoft.com/images/website/homepage/hero-bg1.png)
+
 
 ## Resources & Scaliblity
 
-StyleBI Open Source can be deployed in any Docker engine including Docker Desktop. For cloud deployment, 2 core/4G is recommended as the minimum capacity. [StyleBI Enterprise](https://www.inetsoft.com) offers elastic scaling via native cloud servies provided by AWA, GCP and Azure on top of StyleBI Open Source.
+StyleBI Open Source can be deployed on any Docker engine, including Docker Desktop. For cloud deployments, a minimum capacity of 2 cores and 4GB of RAM is recommended. [StyleBI Enterprise](https://www.inetsoft.com) offers elastic scaling through native cloud servies from AWA, GCP and Azure, built on top of StyleBI Open Source.
 
 ## Security
 
