@@ -965,58 +965,6 @@ public class Common extends Util {
    }
 
    /**
-    * Write an image to an output stream.
-    * @return the suffix the image.
-    */
-   public static String writeImage(Image img, OutputStream output) {
-      String imageType = SreeEnv.getProperty("image.type");
-
-      return writeImage(img, output, imageType);
-   }
-
-   /**
-    * Write an image to an output stream.
-    * @return the suffix the image.
-    */
-   public static String writeImage(Image img, OutputStream output,
-                                   String imageType) {
-      if(img instanceof MetaImage) {
-         InputStream input = ((MetaImage) img).getInputStream();
-
-         if(input != null &&
-            !("gif".equalsIgnoreCase(((MetaImage) img).getSuffix()) &&
-            imageType.equalsIgnoreCase("jpeg")) &&
-            !((MetaImage) img).isSVGImage())
-         {
-            try {
-               Tool.copyTo(input, output);
-            }
-            catch(Exception ex) {
-               LOG.error("Failed to write image", ex);
-            }
-            finally {
-               IOUtils.closeQuietly(input);
-            }
-
-            return ((MetaImage) img).getSuffix();
-         }
-      }
-
-      if(imageType != null && imageType.equalsIgnoreCase("jpeg")) {
-         writeJPEG(img, output);
-         return "jpg";
-      }
-      else if(img instanceof MetaImage && ((MetaImage) img).isSVGImage()) {
-         writeSVG((MetaImage) img, output);
-         return "svg";
-      }
-      else {
-         writePNG(img, output);
-         return "png";
-      }
-   }
-
-   /**
     * Paint a text string. The text is wrapped around the line if a line
     * is longer than the bound. The text is adjusted for the specified
     * alignment inside the bound.

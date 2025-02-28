@@ -207,7 +207,7 @@ public class Gop2D extends Gop {
          if(w > 0 && h > 0 && (d.width != (int) w && d.width != 0 ||
             d.height != (int) h && d.height != 0))
          {
-            String prop = SreeEnv.getProperty("StyleReport.ditherImage");
+            String prop = SreeEnv.getProperty("Graphics.Image.ScaleSmooth");
 
             if(prop != null && prop.equals("true")) {
                img = img.getScaledInstance((int) w, (int) h,
@@ -865,8 +865,7 @@ public class Gop2D extends Gop {
          g2.setStroke(new BasicStroke(1, BasicStroke.CAP_BUTT,
             BasicStroke.JOIN_MITER));
 
-         if(SreeEnv.getProperty("image.type").equalsIgnoreCase("png") &&
-            SreeEnv.getProperty("image.antialias").equalsIgnoreCase("true"))
+         if(SreeEnv.getProperty("image.antialias").equalsIgnoreCase("true"))
          {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                                 RenderingHints.VALUE_ANTIALIAS_ON);
