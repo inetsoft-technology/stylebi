@@ -72,7 +72,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
    @Input() taskName: string;
    @Input() timeZone: string;
    @Input() timeZoneOptions: TimeZoneModel[];
-   @Input() taskDefaultTime: boolean;
+   @Input() taskDefaultTimeProperty: boolean; // Indicates the value of the sree property
    @Input() parentForm: UntypedFormGroup;
    @Input() listView: boolean = false;
    @Input() timeRanges: TimeRange[] = [];
@@ -213,7 +213,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
    }
 
    set startTime(startTime: NgbTimeStruct) {
-      this._startTime = this.taskDefaultTime !== false ? startTime : null;
+      this._startTime = this.model.taskDefaultTime !== false ? startTime : null;
    }
 
    form: UntypedFormGroup = null;
@@ -334,7 +334,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
          };
       }
 
-      if(!this.taskDefaultTime) {
+      if(!this.model.taskDefaultTime) {
          this.setStartTime(null);
       }
 
@@ -395,7 +395,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
    private userSetStartTime(time: NgbTimeStruct): void {
       this.setStartTime(time);
-      this.taskDefaultTime = !!time;
+      this.model.taskDefaultTime = !!time;
    }
 
    private onStartTimeDataChanged(data: StartTimeData): void {
@@ -421,7 +421,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
 
       if(!Tool.isEquals(this.startTimeData, data)) {
          this.startTimeData = data;
-         this.taskDefaultTime = !!data && data.valid;
+         this.model.taskDefaultTime = !!data && data.valid;
       }
    }
 
@@ -616,6 +616,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       const storedCondition = getStoredCondition();
       this.model.conditions.push(storedCondition ? storedCondition : this.condition);
       this.conditionIndex = this.model.conditions.length - 1;
+      this.model.taskDefaultTime = this.taskDefaultTimeProperty;
       this.updateValues();
       this.listView = false;
    }

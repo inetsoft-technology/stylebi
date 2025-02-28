@@ -17,6 +17,7 @@
  */
 package inetsoft.web.portal.controller;
 
+import inetsoft.sree.SreeEnv;
 import inetsoft.sree.security.SecurityException;
 import inetsoft.sree.security.*;
 import inetsoft.uql.asset.AssetEntry;
@@ -99,7 +100,7 @@ public class ScheduleTaskController {
       catch(Exception ignore) {
       }
 
-      return scheduleTaskService.getDialogModel(taskName, principal, true);
+      return scheduleTaskService.getDialogModel(taskName, principal);
    }
 
    @PostMapping(value = "/api/portal/schedule/save")

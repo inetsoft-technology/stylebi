@@ -44,6 +44,8 @@ export class ScheduleSaveGuard implements CanDeactivate<ScheduleTaskEditorCompon
       if(component.originalModel && component.model) {
          const omodel = Tool.clone(component.originalModel);
          const nmodel = Tool.clone(component.model);
+         omodel.taskConditionPaneModel.taskDefaultTime = null;
+         nmodel.taskConditionPaneModel.taskDefaultTime = null;
 
          if(!Tool.isEquals(omodel, nmodel)) {
             const subject = new Subject<boolean>();
