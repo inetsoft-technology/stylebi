@@ -22,6 +22,7 @@ import { Subject, timer } from "rxjs";
 import { takeUntil } from "rxjs/operators";
 import { RepositoryEntryType } from "../../../../../../../shared/data/repository-entry-type.enum";
 import { AppInfoService } from "../../../../../../../shared/util/app-info.service";
+import { DateTypeFormatter } from "../../../../../../../shared/util/date-type-formatter";
 import { AnalyzeMVResponse } from "../../../../../../../shared/util/model/mv/analyze-mv-response";
 import { MaterializedModel } from "../../../../../../../shared/util/model/mv/materialized-model";
 import { MVExceptionResponse } from "../../../../../../../shared/util/model/mv/mv-exception-response";
@@ -77,6 +78,7 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
    cycles: NameLabelTuple[] = [];
    securityEnabled = false;
    enterprise: boolean;
+   dateFormat: string;
 
    get hideData(): boolean {
       return this._hideData;
@@ -200,6 +202,14 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
       this.http.post<MVManagementModel>(uri, data)
          .subscribe(model => {
             this.models = this.localizeModel(model.mvs);
+            this.dateFormat = model.dateFormat;
+
+            model.mvs.map(mv => {
+               if(mv.lastModifiedTimestamp != 0) {
+                  mv.lastModifiedTime = DateTypeFormatter.getLocalTime(mv.lastModifiedTimestamp,
+                     model.dateFormat);
+               }
+            });
          });
    }
 
