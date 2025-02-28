@@ -4,6 +4,12 @@ StyleBI is a cloud-native, small-footprint business intelligence web application
 
 ![StyleBI Data Pipeline](https://test.inetsoft.com/images/website/homepage/hero-bg1.png)
 
+<table>
+  <tr>
+    <td><img src="https://test.inetsoft.com/images/website/homepage/hero-bg1.png" alt="Image 1" width="300"></td>
+    <td><img src="https://test.inetsoft.com/images/website/homepage/3vizHome-1.png" alt="Image 2" width="300"></td>
+  </tr>
+</table>
 
 ## Resources & Scaliblity
 
