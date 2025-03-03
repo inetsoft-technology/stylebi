@@ -46,6 +46,9 @@ public interface AnalyzeMVResponse {
     @Nullable
     String defaultCycle();
 
+   @Nullable
+   String dateFormat();
+
     @Nullable
     List<MaterializedModel> status();
 

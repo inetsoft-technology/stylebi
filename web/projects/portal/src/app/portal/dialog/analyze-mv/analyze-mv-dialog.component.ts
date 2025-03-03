@@ -202,6 +202,13 @@ export class AnalyzeMVDialog implements OnInit, OnDestroy {
    }
 
    showCreateMVPage(response: AnalyzeMVResponse) {
+      response.status.map(mv => {
+         if(mv.lastModifiedTimestamp != 0) {
+            mv.lastModifiedTime = DateTypeFormatter.getLocalTime(mv.lastModifiedTimestamp,
+               response.dateFormat);
+         }
+      });
+
       this.models = response.status;
       this.cycles = response.cycles;
       this.mvCycle = response.onDemand ? response.defaultCycle : "";
