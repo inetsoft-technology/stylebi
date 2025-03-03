@@ -97,7 +97,7 @@ public class TaskAssetDependencyTransformer extends DependencyTransformer {
          return;
       }
 
-      ScheduleTask scheduleTask = scheduleManager.getScheduleTask(task.getName());
+      ScheduleTask scheduleTask = scheduleManager.getScheduleTask(task.getName(), task.getOrgID());
 
       if(scheduleTask == null) {
          return;
