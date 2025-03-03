@@ -354,7 +354,7 @@ public class VSExportService {
    /**
     * Attempting to export globally visible viewsheets requires passing underlying assetEntry
     */
-   public AssetEntry handleAttemptExportGloballyVisibleAsset(AssetEntry entry, int format) {
+   private AssetEntry handleAttemptExportGloballyVisibleAsset(AssetEntry entry, int format) throws MessageException {
       String curOrg = OrganizationManager.getInstance().getCurrentOrgID();
       boolean isSnapshot = Tool.equals(format, FileFormatInfo.EXPORT_TYPE_SNAPSHOT);
       boolean snapShotProhibited = false;
