@@ -320,6 +320,13 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
          .set("hideExist", String(this.hideExist));
       this.http.get("../api/em/content/repository/mv/get-model", {params})
          .subscribe((response: AnalyzeMVResponse) => {
+            response.status.map(mv => {
+               if(mv.lastModifiedTimestamp != 0) {
+                  mv.lastModifiedTime = DateTypeFormatter.getLocalTime(mv.lastModifiedTimestamp,
+                     response.dateFormat);
+               }
+            });
+
             this.models = this.localizeModel(response.status);
          });
    }
