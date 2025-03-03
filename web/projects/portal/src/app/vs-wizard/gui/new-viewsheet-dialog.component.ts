@@ -16,6 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 import { Component, EventEmitter, Output, OnInit, NgZone, Input } from "@angular/core";
+import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
+import { ComponentTool } from "../../common/util/component-tool";
 import { LocalStorage } from "../../common/util/local-storage.util";
 import { NewViewsheetDialogModel } from "../model/new-viewsheet-dialog-model";
 import { TreeNodeModel } from "../../widget/tree/tree-node-model";
@@ -33,7 +35,7 @@ export class NewViewsheetDialog implements OnInit {
 
    model: NewViewsheetDialogModel;
 
-   constructor(private zone: NgZone) {
+   constructor(private zone: NgZone, private modalService: NgbModal) {
    }
 
    ngOnInit(): void {
@@ -57,8 +59,14 @@ export class NewViewsheetDialog implements OnInit {
    }
 
    doSubmit(wizard: boolean): void {
-      this.model.openWizard = wizard;
-      this.onCommit.emit(this.model);
+      if(this.model.baseEntry != null && this.model.baseEntry.path != null && this.model.baseEntry.path.includes("^")) {
+         ComponentTool.showMessageDialog(this.modalService, "_#(js:Error)",
+            "_#(js:compose.vs.entry.contains.caret)");
+      }
+      else {
+         this.model.openWizard = wizard;
+         this.onCommit.emit(this.model);
+      }
    }
 
    cancel(): void {
