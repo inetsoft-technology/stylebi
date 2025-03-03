@@ -48,7 +48,6 @@ public class JDBCListingService implements DataSourceListingService {
          new TeradataDataSourceListing(),
          new SAPHANADataSourceListing(),
          new SnowflakeDataSourceListing(),
-         new ActianMatrixDataSourceListing(),
          new ActianVectorDataSourceListing(),
          new AmazonAuroraMySQLDataSourceListing(),
          new AmazonAuroraPostgreSQLDataSourceListing(),
