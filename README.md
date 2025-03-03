@@ -1,20 +1,21 @@
-# StyleBI Open Source Edition
+# StyleBI Open Source
 
-StyleBI is an easy to use interactive dashboard software application that includes real time reporting capabilities. It focuses on business data monitoring and exploration by combining a data intelligence platform with visualization technology, serving both enterprises and solution providers.
+StyleBI is a cloud-native, small-footprint business intelligence web application, powered by data transformation pipeline and visualization microservices. These microservices can be deployed as standalone Docker containers or seamlessly integrated into a microservice architecture, providing embedded visualization, analytics, and reporting capabilities.
 
-At the core of the data intelligence platform is InetSoft's Data Block&trade; technology which enables data mashup in a Lego-like block fashion. IT creates performance tuned and security-controlled data blocks that can be transformed and assembled by business users for real-time business questions.
+<div style="display: flex;">
+<img src="https://test.inetsoft.com/images/website/products/pipeline/vizTranform5.png" alt="Image 1" xwidth="300" style="width:48%;margin-right: 10px;">
+<img src="https://test.inetsoft.com/images/website/products/visualization/vizWizard5.png" alt="Image 2" xwidth="300" style="width: 48%">
+</div>
 
-Casual business or consumer-type users get maximum self-service via personalizable, intuitive point-and-click visual access to information. Power users and data scientists get the ability to work with whatever data they need without relying on IT.
+_Screenshots of [StyleBI Cloud](https://www.inetsoft.com/company/bi_dashboard_pricing)_.
 
-## Licensing
+## Resources & Scaliblity
 
-StyleBI Open Source Edition is licensed under the Affero GNU General Public License, Version 3. Please refer to the [LICENSE](./LICENSE) file available in this repository for further details.
+StyleBI Open Source can be deployed on any Docker engine, including Docker Desktop. For cloud deployments, a minimum capacity of 2 cores and 4GB of RAM is recommended. [StyleBI Enterprise](https://www.inetsoft.com) offers elastic scaling through native cloud servies from AWA, GCP and Azure, built on top of StyleBI Open Source.
 
-## Enterprise Edition
+## Security
 
-> Coming Soon
-
-InetSoft also provides a commercial Enterprise version of StyleBI. It includes advanced security options, cloud optimization, support for Kubernetes, clustering with elastic scaling, professional customer support and more.
+StyleBI Open Source has robust and fine granular security on both data and visual layers. InetSoft also provides a commercial Enterprise version of StyleBI. [StyleBI Enterprise](https://www.inetsoft.com) takes security further with multi-tenant, aduting and more
 
 ## Quickstart
 
