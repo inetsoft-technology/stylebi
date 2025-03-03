@@ -232,6 +232,7 @@ public class MVService {
          .onDemand(onDemand)
          .defaultCycle(defaultCycle)
          .runInBackground(runInBackground)
+         .dateFormat(Tool.getDateFormatPattern())
          .build();
    }
 

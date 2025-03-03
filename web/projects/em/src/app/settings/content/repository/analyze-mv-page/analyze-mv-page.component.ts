@@ -78,7 +78,6 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
    cycles: NameLabelTuple[] = [];
    securityEnabled = false;
    enterprise: boolean;
-   dateFormat: string;
 
    get hideData(): boolean {
       return this._hideData;
@@ -201,15 +200,14 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
       const data = { nodes: this.nodesToAnalyze };
       this.http.post<MVManagementModel>(uri, data)
          .subscribe(model => {
-            this.models = this.localizeModel(model.mvs);
-            this.dateFormat = model.dateFormat;
-
             model.mvs.map(mv => {
                if(mv.lastModifiedTimestamp != 0) {
                   mv.lastModifiedTime = DateTypeFormatter.getLocalTime(mv.lastModifiedTimestamp,
                      model.dateFormat);
                }
             });
+
+            this.models = this.localizeModel(model.mvs);
          });
    }
 
@@ -293,6 +291,13 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
    }
 
    showCreateMVPage(response: AnalyzeMVResponse) {
+      response.status.map(mv => {
+         if(mv.lastModifiedTimestamp != 0) {
+            mv.lastModifiedTime = DateTypeFormatter.getLocalTime(mv.lastModifiedTimestamp,
+               response.dateFormat);
+         }
+      });
+
       this.models = response.status;
       this.mvTableInfo = {
          selectionEnabled: true,
@@ -313,6 +318,13 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
          .set("hideExist", String(this.hideExist));
       this.http.get("../api/em/content/repository/mv/get-model", {params})
          .subscribe((response: AnalyzeMVResponse) => {
+            response.status.map(mv => {
+               if(mv.lastModifiedTimestamp != 0) {
+                  mv.lastModifiedTime = DateTypeFormatter.getLocalTime(mv.lastModifiedTimestamp,
+                     response.dateFormat);
+               }
+            });
+
             this.models = this.localizeModel(response.status);
          });
    }
