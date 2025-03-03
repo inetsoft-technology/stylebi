@@ -2084,6 +2084,7 @@ public class AssetEntry implements AssetObject, Comparable<AssetEntry>, DataSeri
       if(newEntry.getType() == AssetEntry.Type.VIEWSHEET_BOOKMARK) {
          String path = newEntry.getPath();
          newEntry.setPath(cloneBookmarkPath(path, org));
+         newEntry.user = new IdentityID(newEntry.getUser().getName(), org.getId());
       }
       else if(newEntry.isScheduleTask()) {
          String taskName = newEntry.getPath().substring(1);
