@@ -111,20 +111,21 @@ public abstract class AbstractEditableAuthenticationProvider
    {
       FSOrganization newOrg = new FSOrganization(newOrgID);
       newOrg.setName(newOrgName == null ? newOrgID : newOrgName);
-      identityService.addCopiedIdentityPermission(fromOrganization.getIdentityID(), new IdentityID(newOrg.getName(), newOrg.getId()),
-                                                  newOrg.getId(), Identity.ORGANIZATION, replace);
-      copyScopedProperties(fromOrganization.getId(),newOrg.getId(), replace);
+      identityService.addCopiedIdentityPermission(fromOrganization.getIdentityID(), new IdentityID(newOrg.getName(), newOrgID),
+                                                  newOrgID, Identity.ORGANIZATION, replace);
+      String fromOrgId = fromOrganization.getId();
+      copyScopedProperties(fromOrgId, newOrgID, replace);
       copyDataSpace(fromOrganization, newOrg, replace);
-      copyThemes(fromOrganization.getId(), newOrgID);
+      copyThemes(fromOrgId, newOrgID);
 
       if(replace) {
-         clearScopedProperties(fromOrganization.getId());
+         clearScopedProperties(fromOrgId);
          DashboardRegistry.clear(fromOrganization.getIdentityID());
-         identityService.updateOrgProperties(fromOrganization.getId(), newOrgID);
+         identityService.updateOrgProperties(fromOrgId, newOrgID);
          identityService.updateAutoSaveFiles(fromOrganization, newOrg, principal);
          identityService.updateTaskSaveFiles(fromOrganization, newOrg);
          identityService.updateIdentityPermissions(Identity.ORGANIZATION, fromOrganization.getIdentityID(),
-                                                   newOrg.getIdentityID(), fromOrganization.getId(), newOrgID, true);
+                                                   newOrg.getIdentityID(), fromOrgId, newOrgID, true);
 
          try {
             identityService.clearDataSourceMetadata();
@@ -134,24 +135,25 @@ public abstract class AbstractEditableAuthenticationProvider
          }
       }
       else {
-         copyRootPermittedIdentities(fromOrganization, newOrg.getName(), newOrg.getId(), identityService, principal, replace);
+         copyRootPermittedIdentities(fromOrganization, newOrg.getName(), newOrgID, identityService, principal, replace);
       }
 
-      List<IdentityID> addedRoles = new ArrayList<IdentityID>();
-      List<IdentityID> addedMembers = new ArrayList<IdentityID>();
+      List<IdentityID> addedRoles = new ArrayList<>();
+      List<IdentityID> addedMembers = new ArrayList<>();
       List<IdentityID> fromOrgRoles = Arrays.stream(fromOrganization.getRoles()).toList();
 
       for(IdentityID roleIdentity : getRoles()) {
          Role role = getRole(roleIdentity);
 
-         if(role != null && fromOrganization.getId().equals(role.getOrganizationID())) {
-            IdentityID newID = copyRoleToOrganization(roleIdentity, newOrg.getId(), fromOrganization.getId(), identityService, principal);
+         if(role != null && fromOrgId.equals(role.getOrganizationID())) {
+            IdentityID newID = copyRoleToOrganization(roleIdentity, newOrgID, fromOrgId, identityService, principal);
 
             if(newID != null && !newID.name.isEmpty()) {
                if(!newID.equals(roleIdentity)) {
                   addedMembers.add(newID);
                }
             }
+
             if(fromOrgRoles.contains(roleIdentity)) {
                addedRoles.add(newID);
             }
@@ -163,8 +165,8 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       for(IdentityID userID : getUsers()) {
-         if(getUser(userID).getOrganizationID().equals(fromOrganization.getId())) {
-            IdentityID newID = copyUserToOrganization(userID, newOrg.getId(), fromOrganization.getId(), identityService, principal);
+         if(getUser(userID).getOrganizationID().equals(fromOrgId)) {
+            IdentityID newID = copyUserToOrganization(userID, newOrgID, fromOrgId, identityService, principal);
 
             if(newID != null && !newID.name.isEmpty()) {
                addedMembers.add(newID);
@@ -176,21 +178,29 @@ public abstract class AbstractEditableAuthenticationProvider
          }
       }
 
+      for(IdentityID groupID : getGroups()) {
+         if(getGroup(groupID).getOrganizationID().equals(fromOrgId)) {
+            IdentityID newID = copyGroupToOrganization(groupID, newOrgID, fromOrgId, identityService, principal);
+
+            if(newID != null && !newID.name.isEmpty()) {
+               addedMembers.add(newID);
+            }
+         }
+      }
+
       PortalThemesManager manager = PortalThemesManager.getManager();
       DataSpace dataSpace = DataSpace.getDataSpace();
-      String viewsheet = manager.getCssEntries().get(fromOrganization.getOrganizationID());
+      String viewsheet = manager.getCssEntries().get(fromOrgId);
 
       if(viewsheet != null) {
          String[] viewsheetFile = viewsheet.split("/");
          String cssName = viewsheetFile[1];
-         String odir = "portal/" + fromOrganization.getOrganizationID();
+         String odir = "portal/" + fromOrgId;
          String dir = "portal/" + newOrgID;
 
-         try {
-            try(InputStream in = dataSpace.getInputStream(odir, cssName)) {
-               if(in != null) {
-                  dataSpace.withOutputStream(dir, cssName, out -> Tool.copyTo(in, out));
-               }
+         try(InputStream in = dataSpace.getInputStream(odir, cssName)) {
+            if(in != null) {
+               dataSpace.withOutputStream(dir, cssName, out -> Tool.copyTo(in, out));
             }
          }
          catch(IOException e) {
@@ -199,16 +209,6 @@ public abstract class AbstractEditableAuthenticationProvider
 
          manager.addCSSEntry(newOrgID, newOrgID + "/" + cssName);
          manager.save();
-      }
-
-      for(IdentityID groupID : getGroups()) {
-         if(getGroup(groupID).getOrganizationID().equals(fromOrganization.getId())) {
-            IdentityID newID = copyGroupToOrganization(groupID, newOrg.getId(), fromOrganization.getId(), identityService, principal);
-
-            if(newID != null && !newID.name.isEmpty()) {
-               addedMembers.add(newID);
-            }
-         }
       }
 
       // edit org update members has been process in the IdentityService#updateOrganizationMembers
@@ -226,7 +226,7 @@ public abstract class AbstractEditableAuthenticationProvider
       addOrganization(newOrg);
 
       identityService.copyStorages(fromOrganization, newOrg);
-      identityService.copyRepletRegistry(fromOrganization.getOrganizationID(), newOrg.getId());
+      identityService.copyRepletRegistry(fromOrgId, newOrgID);
 
       try {
          DataCycleManager.getDataCycleManager().migrateDataCycles(fromOrganization, newOrg, replace);
@@ -236,18 +236,18 @@ public abstract class AbstractEditableAuthenticationProvider
       }
 
       if(replace) {
-         removeOrganization(fromOrganization.getId());
-         identityService.removeOrgProperties(fromOrganization.getId());
+         removeOrganization(fromOrgId);
+         identityService.removeOrgProperties(fromOrgId);
          identityService.removeOrgScopedDataSpaceElements(fromOrganization);
-         themeService.removeTheme(fromOrganization.getId());
-         FSService.clearServerNodeCache(fromOrganization.getId());
-         XJobPool.resetOrgCache(fromOrganization.getId());
-         manager.removeCSSEntry(fromOrganization.getOrganizationID());
+         themeService.removeTheme(fromOrgId);
+         FSService.clearServerNodeCache(fromOrgId);
+         XJobPool.resetOrgCache(fromOrgId);
+         manager.removeCSSEntry(fromOrgId);
          manager.save();
 
          try{
-            identityService.updateRepletRegistry(fromOrganization.getId(), null);
-            identityService.removeStorages(fromOrganization.getId());
+            identityService.updateRepletRegistry(fromOrgId, null);
+            identityService.removeStorages(fromOrgId);
          }
          catch(Exception e) {
             LOG.warn("Unable to remove old organization storage: "+e);
@@ -297,10 +297,11 @@ public abstract class AbstractEditableAuthenticationProvider
    protected void clearScopedProperties(String oldOrgId) {
       //loop through properties, delete any containing .thisOrg.
       Properties properties = SreeEnv.getProperties();
+      String oldOrgIdentifier = "inetsoft.org" + oldOrgId;
 
       for(Enumeration<?> e = properties.propertyNames(); e.hasMoreElements();) {
          String pName = (String) e.nextElement();
-         String oldOrgIdentifier = "inetsoft.org" + oldOrgId;
+
          if (pName.startsWith(oldOrgIdentifier)) {
             SreeEnv.remove(pName);
          }
@@ -310,9 +311,11 @@ public abstract class AbstractEditableAuthenticationProvider
    private void copyDataSpace(Organization fromOrg, Organization toOrg, boolean replace) {
       DataSpace dataspace = DataSpace.getDataSpace();
       String[] paths = dataspace.getOrgScopedPaths(fromOrg);
+      String fromOrgId = fromOrg.getId();
+      String toOrgId = toOrg.getId();
 
       for(String path : paths) {
-         String newPath = path.replace(fromOrg.getId(), toOrg.getId());
+         String newPath = path.replace(fromOrgId, toOrgId);
 
          if(replace) {
             dataspace.rename(path, newPath);
@@ -323,17 +326,19 @@ public abstract class AbstractEditableAuthenticationProvider
       }
    }
 
-
    private void copyScopedProperties(String fromOrgId, String newOrgId, boolean replace) {
       Properties properties = SreeEnv.getProperties();
+      String oldOrgIdentifier = "inetsoft.org." + fromOrgId;
+      String newOrgPrefix = "inetsoft.org." + newOrgId;
+      Enumeration<?> enumeration = properties.propertyNames();
 
-      for(Enumeration<?> e = properties.propertyNames(); e.hasMoreElements();) {
-         String pName = (String) e.nextElement();
-         String oldOrgIdentifier = "inetsoft.org." + fromOrgId;
-         if (pName.startsWith(oldOrgIdentifier)) {
-            String baseName = pName.replace(oldOrgIdentifier,"");
-            String updatedName = "inetsoft.org." + newOrgId  + baseName;
-            SreeEnv.setProperty(updatedName, SreeEnv.getProperty(pName));
+      while(enumeration.hasMoreElements()) {
+         String pName = (String) enumeration.nextElement();
+
+         if(pName.startsWith(oldOrgIdentifier)) {
+            String baseName = pName.substring(oldOrgIdentifier.length());
+            String updatedName = newOrgPrefix + baseName;
+            SreeEnv.setProperty(updatedName, properties.getProperty(pName));
 
             if(replace) {
                SreeEnv.remove(pName);
@@ -346,36 +351,37 @@ public abstract class AbstractEditableAuthenticationProvider
                                             IdentityService identityService, Principal principal, boolean replace) {
       //Users
       String rootUserName = "Users";
-      IdentityID fromRootUserID = new IdentityID(rootUserName, fromOrganization.getId());
+      String fromOrgID = fromOrganization.getId();
+      IdentityID fromRootUserID = new IdentityID(rootUserName, fromOrgID);
       IdentityID toRootUserID = new IdentityID(rootUserName, newOrgID);
-      List<IdentityModel> rootUserPIDs = identityService.getPermission(fromRootUserID, ResourceType.SECURITY_USER, fromOrganization.getId(), principal);
+      List<IdentityModel> rootUserPIDs = identityService.getPermission(fromRootUserID, ResourceType.SECURITY_USER, fromOrgID, principal);
 
       identityService.setIdentityPermissions(toRootUserID, toRootUserID, ResourceType.SECURITY_USER, principal,
-                                             copyPermittedIDs(rootUserPIDs, fromOrganization.getId(), newOrgID), newOrgID);
+                                             copyPermittedIDs(rootUserPIDs, fromOrgID, newOrgID), newOrgID);
       //Groups
       String rootGroupName = "Groups";
-      IdentityID fromRootGroupID = new IdentityID(rootGroupName, fromOrganization.getId());
+      IdentityID fromRootGroupID = new IdentityID(rootGroupName, fromOrgID);
       IdentityID toRootGroupID = new IdentityID(rootGroupName, newOrgID);
-      List<IdentityModel> rootGroupPIDs = identityService.getPermission(fromRootGroupID, ResourceType.SECURITY_GROUP, fromOrganization.getId(), principal);
+      List<IdentityModel> rootGroupPIDs = identityService.getPermission(fromRootGroupID, ResourceType.SECURITY_GROUP, fromOrgID, principal);
 
       identityService.setIdentityPermissions(toRootGroupID, toRootGroupID, ResourceType.SECURITY_GROUP, principal,
-                                             copyPermittedIDs(rootGroupPIDs, fromOrganization.getId(), newOrgID), newOrgID);
+                                             copyPermittedIDs(rootGroupPIDs, fromOrgID, newOrgID), newOrgID);
       //Roles
       String rootRoleName = "Roles";
-      IdentityID fromRootID = new IdentityID(rootRoleName, fromOrganization.getId());
+      IdentityID fromRootID = new IdentityID(rootRoleName, fromOrgID);
       IdentityID toRootID = new IdentityID(rootRoleName, newOrgID);
-      List<IdentityModel> rootRolePIDs = identityService.getPermission(fromRootID, ResourceType.SECURITY_ROLE, fromOrganization.getId(), principal);
+      List<IdentityModel> rootRolePIDs = identityService.getPermission(fromRootID, ResourceType.SECURITY_ROLE, fromOrgID, principal);
 
       identityService.setIdentityPermissions(toRootID, toRootID, ResourceType.SECURITY_ROLE, principal,
-                                             copyPermittedIDs(rootRolePIDs, fromOrganization.getId(), newOrgID), newOrgID);
+                                             copyPermittedIDs(rootRolePIDs, fromOrgID, newOrgID), newOrgID);
 
       String rootOrgRoleName = "Organization Roles";
-      IdentityID fromRootOrgRoleID = new IdentityID(rootOrgRoleName, fromOrganization.getId());
+      IdentityID fromRootOrgRoleID = new IdentityID(rootOrgRoleName, fromOrgID);
       IdentityID toRootOrgRoleID = new IdentityID(rootOrgRoleName, newOrgID);
-      List<IdentityModel> rootOrgRolePIDs = identityService.getPermission(fromRootOrgRoleID, ResourceType.SECURITY_ROLE, fromOrganization.getId(), principal);
+      List<IdentityModel> rootOrgRolePIDs = identityService.getPermission(fromRootOrgRoleID, ResourceType.SECURITY_ROLE, fromOrgID, principal);
 
       identityService.setIdentityPermissions(toRootOrgRoleID, toRootOrgRoleID, ResourceType.SECURITY_ROLE, principal,
-                                             copyPermittedIDs(rootOrgRolePIDs, fromOrganization.getId(), newOrgID), newOrgID);
+                                             copyPermittedIDs(rootOrgRolePIDs, fromOrgID, newOrgID), newOrgID);
 
       if(replace) {
          identityService.setIdentityPermissions(fromRootUserID, fromRootUserID, ResourceType.SECURITY_USER,
