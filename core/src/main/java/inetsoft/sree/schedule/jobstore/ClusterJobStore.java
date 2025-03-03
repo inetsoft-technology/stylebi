@@ -18,6 +18,7 @@
 package inetsoft.sree.schedule.jobstore;
 
 import inetsoft.sree.internal.cluster.*;
+import inetsoft.util.Tool;
 import org.quartz.Calendar;
 import org.quartz.*;
 import org.quartz.impl.matchers.GroupMatcher;
@@ -177,7 +178,7 @@ public class ClusterJobStore implements JobStore, Serializable {
          storeJob(e.getKey(), true);
          for(final Trigger trigger : e.getValue()) {
             storeTrigger((OperableTrigger) trigger, true,
-               !e.getKey().getKey().equals(trigger.getJobKey()));
+               !Tool.equals(e.getKey().getKey(), trigger.getJobKey()));
          }
       }
    }
