@@ -199,7 +199,7 @@ public class AverageFormula implements PercentageFormula {
       if(keepType && dataType != null && (dataType == Long.class || dataType == Integer.class ||
          dataType == Short.class))
       {
-         douResult = (long) douResult;
+         return (long) douResult;
       }
 
       return douResult;
