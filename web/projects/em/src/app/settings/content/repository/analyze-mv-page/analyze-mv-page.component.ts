@@ -78,7 +78,6 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
    cycles: NameLabelTuple[] = [];
    securityEnabled = false;
    enterprise: boolean;
-   dateFormat: string;
 
    get hideData(): boolean {
       return this._hideData;
@@ -201,15 +200,14 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
       const data = { nodes: this.nodesToAnalyze };
       this.http.post<MVManagementModel>(uri, data)
          .subscribe(model => {
-            this.models = this.localizeModel(model.mvs);
-            this.dateFormat = model.dateFormat;
-
             model.mvs.map(mv => {
                if(mv.lastModifiedTimestamp != 0) {
                   mv.lastModifiedTime = DateTypeFormatter.getLocalTime(mv.lastModifiedTimestamp,
                      model.dateFormat);
                }
             });
+
+            this.models = this.localizeModel(model.mvs);
          });
    }
 
