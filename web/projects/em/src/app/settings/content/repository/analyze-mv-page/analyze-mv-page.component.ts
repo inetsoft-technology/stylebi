@@ -293,6 +293,13 @@ export class AnalyzeMvPageComponent implements OnInit, OnDestroy {
    }
 
    showCreateMVPage(response: AnalyzeMVResponse) {
+      response.status.map(mv => {
+         if(mv.lastModifiedTimestamp != 0) {
+            mv.lastModifiedTime = DateTypeFormatter.getLocalTime(mv.lastModifiedTimestamp,
+               response.dateFormat);
+         }
+      });
+
       this.models = response.status;
       this.mvTableInfo = {
          selectionEnabled: true,
