@@ -19,6 +19,7 @@ package inetsoft.report.internal.table;
 
 import inetsoft.report.*;
 import inetsoft.report.internal.*;
+import inetsoft.sree.PropertiesEngine;
 import inetsoft.sree.SreeEnv;
 import inetsoft.uql.XConstants;
 import inetsoft.util.MessageFormat;
@@ -40,6 +41,10 @@ import java.util.*;
  * @author InetSoft Technology Corp
  */
 public class TableFormat implements XMLSerializable, Serializable, Cloneable {
+   static {
+      PropertiesEngine.getInstance().addPropertyChangeListener("format.number.round", evt -> invalidateTableFormatCache());
+   }
+
    /**
     * Date format.
     */
@@ -831,6 +836,10 @@ public class TableFormat implements XMLSerializable, Serializable, Cloneable {
       fmt.suppressIfDuplicate = false;
 
       return fmt;
+   }
+
+   public static void invalidateTableFormatCache() {
+      formatCache.clear();
    }
 
    public Color foreground;
