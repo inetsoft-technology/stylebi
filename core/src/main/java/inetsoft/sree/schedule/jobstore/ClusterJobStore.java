@@ -176,7 +176,8 @@ public class ClusterJobStore implements JobStore, Serializable {
          .entrySet()) {
          storeJob(e.getKey(), true);
          for(final Trigger trigger : e.getValue()) {
-            storeTrigger((OperableTrigger) trigger, true);
+            storeTrigger((OperableTrigger) trigger, true,
+               !e.getKey().getKey().equals(trigger.getJobKey()));
          }
       }
    }
@@ -237,9 +238,14 @@ public class ClusterJobStore implements JobStore, Serializable {
    public void storeTrigger(OperableTrigger trigger, boolean replaceExisting)
       throws JobPersistenceException
    {
+      storeTrigger(trigger, replaceExisting, true);
+   }
+
+   private void storeTrigger(OperableTrigger trigger, boolean replaceExisting, boolean checkJobExist)
+      throws JobPersistenceException
+   {
       final OperableTrigger newTrigger = (OperableTrigger) trigger.clone();
       final TriggerKey triggerKey = newTrigger.getKey();
-
       triggersByKey.lock(triggerKey, 5, TimeUnit.MINUTES);
 
       try {
@@ -249,7 +255,7 @@ public class ClusterJobStore implements JobStore, Serializable {
             throw new ObjectAlreadyExistsException(newTrigger);
          }
 
-         if(retrieveJob(newTrigger.getJobKey()) == null) {
+         if(retrieveJob(newTrigger.getJobKey()) == null && checkJobExist) {
             throw new JobPersistenceException("The job (" + newTrigger.getJobKey()
                                                  + ") referenced by the trigger does not exist.");
          }
