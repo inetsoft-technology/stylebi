@@ -26,4 +26,5 @@ export interface AnalyzeMVResponse {
    onDemand?: boolean;
    defaultCycle?: string;
    runInBackground?: boolean;
+   dateFormat?: string;
 }

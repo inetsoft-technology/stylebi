@@ -26,6 +26,7 @@ import inetsoft.sree.security.*;
 import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.util.Catalog;
+import inetsoft.util.Tool;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.web.admin.content.repository.model.*;
@@ -102,6 +103,7 @@ public class MVController {
          .completed(true)
          .exception(false)
          .status(models)
+         .dateFormat(Tool.getDateFormatPattern())
          .build();
    }
 
