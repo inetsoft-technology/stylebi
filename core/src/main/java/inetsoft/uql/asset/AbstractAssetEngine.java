@@ -3470,6 +3470,14 @@ public abstract class AbstractAssetEngine implements AssetRepository, AutoClosea
          return false;
       }
 
+      //reject if non site admin accessing another's private repo
+      if(!OrganizationManager.getInstance().isSiteAdmin(user) && user != null &&
+         entry.getParent().getScope() == AssetRepository.USER_SCOPE &&
+         !(user.getName().equals(entry.getUser().convertToKey())) )
+      {
+         return false;
+      }
+
       ResourceType type = getAssetResourceType(entry);
       String path = entry.getPath();
 
