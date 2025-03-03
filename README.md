@@ -15,7 +15,7 @@ StyleBI Open Source can be deployed on any Docker engine, including Docker Deskt
 
 ## Security
 
-StyleBI Open Source has robust and fine granular security on both data and visual layers. InetSoft also provides a commercial Enterprise version of StyleBI. [StyleBI Enterprise](https://www.inetsoft.com) takes security further with multi-tenant, aduting and more. 
+StyleBI Open Source has robust and fine granular security on both data and visual layers. InetSoft also provides a commercial Enterprise version of StyleBI. [StyleBI Enterprise](https://www.inetsoft.com) takes security further with multi-tenant, aduting and more
 
 ## Quickstart
 
