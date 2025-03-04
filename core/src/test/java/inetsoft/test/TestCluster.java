@@ -23,7 +23,15 @@ import inetsoft.util.Tool;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.io.*;
+import javax.cache.Cache;
+import javax.cache.CacheManager;
+import javax.cache.configuration.CacheEntryListenerConfiguration;
+import javax.cache.configuration.Configuration;
+import javax.cache.expiry.ExpiryPolicy;
+import javax.cache.integration.CompletionListener;
+import javax.cache.processor.*;
+import java.io.File;
+import java.io.Serializable;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
@@ -491,6 +499,11 @@ public class TestCluster implements Cluster {
    public void close() throws Exception {
       executor.shutdown();
       scheduledExecutor.shutdown();
+   }
+
+   @Override
+   public <K, V> Cache<K, V> getCache(String name, boolean replicated, ExpiryPolicy expiryPolicy) {
+      return new LocalCache<>(name, getMap(name));
    }
 
    private final ConcurrentMap<String, Map<String, Object>> clusterNodeProperties =
@@ -1118,5 +1131,280 @@ public class TestCluster implements Cluster {
       }
 
       private final ScheduledExecutorService delegate = Executors.newSingleThreadScheduledExecutor();
+   }
+
+   private static final class LocalCache<K, V> implements Cache<K, V> {
+      public LocalCache(String name, DistributedMap<K, V> map) {
+         this.name = name;
+         this.map = map;
+      }
+
+      @Override
+      public V get(K key) {
+         return map.get(key);
+      }
+
+      @Override
+      public Map<K, V> getAll(Set<? extends K> keys) {
+         Map<K, V> results = new HashMap<>();
+
+         for(K key : keys) {
+            if(map.containsKey(key)) {
+               results.put(key, map.get(key));
+            }
+         }
+
+         return results;
+      }
+
+      @Override
+      public boolean containsKey(K key) {
+         return map.containsKey(key);
+      }
+
+      @Override
+      public void loadAll(Set<? extends K> keys, boolean replaceExistingValues,
+                          CompletionListener completionListener)
+      {
+      }
+
+      @Override
+      public void put(K key, V value) {
+         map.put(key, value);
+      }
+
+      @Override
+      public V getAndPut(K key, V value) {
+         return map.put(key, value);
+      }
+
+      @Override
+      public void putAll(Map<? extends K, ? extends V> map) {
+         for(Map.Entry<? extends K, ? extends V> entry : map.entrySet()) {
+            put(entry.getKey(), entry.getValue());
+         }
+      }
+
+      @Override
+      public boolean putIfAbsent(K key, V value) {
+         return map.putIfAbsent(key, value) != null;
+      }
+
+      @Override
+      public boolean remove(K key) {
+         return map.remove(key) != null;
+      }
+
+      @Override
+      public boolean remove(K key, V oldValue) {
+         return map.remove(key, oldValue);
+      }
+
+      @Override
+      public V getAndRemove(K key) {
+         return map.remove(key);
+      }
+
+      @Override
+      public boolean replace(K key, V oldValue, V newValue) {
+         V currentValue = map.get(key);
+
+         if(Objects.equals(currentValue, oldValue)) {
+            map.put(key, newValue);
+            return true;
+         }
+
+         return false;
+      }
+
+      @Override
+      public boolean replace(K key, V value) {
+         if(map.containsKey(key)) {
+            map.put(key, value);
+            return true;
+         }
+
+         return false;
+      }
+
+      @Override
+      public V getAndReplace(K key, V value) {
+         if(map.containsKey(key)) {
+            return map.put(key, value);
+         }
+
+         return null;
+      }
+
+      @Override
+      public void removeAll(Set<? extends K> keys) {
+         for(K key : keys) {
+            map.remove(key);
+         }
+      }
+
+      @Override
+      public void removeAll() {
+         map.clear();
+      }
+
+      @Override
+      public void clear() {
+         map.clear();
+      }
+
+      @Override
+      public <C extends Configuration<K, V>> C getConfiguration(Class<C> clazz) {
+         return null;
+      }
+
+      @Override
+      public <T> T invoke(K key, EntryProcessor<K, V, T> entryProcessor, Object... arguments)
+         throws EntryProcessorException
+      {
+         try {
+            return entryProcessor.process(new LocalMutableCacheEntry<>(key, map), arguments);
+         }
+         catch(Exception e) {
+            throw new EntryProcessorException(e);
+         }
+      }
+
+      @Override
+      public <T> Map<K, EntryProcessorResult<T>> invokeAll(Set<? extends K> keys, EntryProcessor<K, V, T> entryProcessor, Object... arguments) {
+         Map<K, EntryProcessorResult<T>> results = new HashMap<>();
+
+         for(K key : keys) {
+            results.put(key, new EntryProcessorResult<T>() {
+               @Override
+               public T get() throws EntryProcessorException {
+                  return invoke(key, entryProcessor, arguments);
+               }
+            });
+         }
+
+         return results;
+      }
+
+      @Override
+      public String getName() {
+         return name;
+      }
+
+      @Override
+      public CacheManager getCacheManager() {
+         return null;
+      }
+
+      @Override
+      public void close() {
+         closed = true;
+      }
+
+      @Override
+      public boolean isClosed() {
+         return closed;
+      }
+
+      @Override
+      public <T> T unwrap(Class<T> clazz) {
+         if(clazz.isInstance(this)) {
+            return clazz.cast(this);
+         }
+
+         return null;
+      }
+
+      @Override
+      public void registerCacheEntryListener(CacheEntryListenerConfiguration<K, V> cacheEntryListenerConfiguration) {
+
+      }
+
+      @Override
+      public void deregisterCacheEntryListener(CacheEntryListenerConfiguration<K, V> cacheEntryListenerConfiguration) {
+
+      }
+
+      @Override
+      public Iterator<Entry<K, V>> iterator() {
+         return map.entrySet().stream()
+            .map(e -> (Cache.Entry<K, V>) new LocalCacheEntry<>(e))
+            .iterator();
+      }
+
+      private final String name;
+      private final DistributedMap<K, V> map;
+      private boolean closed = false;
+   }
+
+   private static final class LocalCacheEntry<K, V> implements Cache.Entry<K, V> {
+      public LocalCacheEntry(Map.Entry<K, V> entry) {
+         this.entry = entry;
+      }
+
+      @Override
+      public K getKey() {
+         return entry.getKey();
+      }
+
+      @Override
+      public V getValue() {
+         return entry.getValue();
+      }
+
+      @Override
+      public <T> T unwrap(Class<T> clazz) {
+         if(clazz.isInstance(this)) {
+            return clazz.cast(this);
+         }
+
+         return null;
+      }
+
+      private final Map.Entry<K, V> entry;
+   }
+
+   private static final class LocalMutableCacheEntry<K, V> implements MutableEntry<K, V> {
+      private final K key;
+      private final DistributedMap<K, V> map;
+
+      public LocalMutableCacheEntry(K key, DistributedMap<K, V> map) {
+         this.key = key;
+         this.map = map;
+      }
+
+      @Override
+      public boolean exists() {
+         return map.containsKey(key);
+      }
+
+      @Override
+      public void remove() {
+         map.remove(key);
+      }
+
+      @Override
+      public void setValue(V value) {
+         map.put(key, value);
+      }
+
+      @Override
+      public K getKey() {
+         return key;
+      }
+
+      @Override
+      public V getValue() {
+         return map.get(key);
+      }
+
+      @Override
+      public <U> U unwrap(Class<U> clazz) {
+         if(clazz.isInstance(this)) {
+            return clazz.cast(this);
+         }
+
+         return null;
+      }
    }
 }
