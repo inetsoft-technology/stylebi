@@ -110,11 +110,15 @@ docker push \
 ### Running the Local Deployment
 To start the server, run the following command in the `docker/target/docker-test` folder:
 
-```docker compose up -d```
+```shell
+docker compose up -d
+```
 
 Open http://localhost:8080 in your browser to access the application. To stop the server and remove the containers, run:
 
-```docker compose down --rmi local -v```
+```shell
+docker compose down --rmi local -v
+```
 
 ## Troubleshooting
 For assistance with any issues, please see the [Troubleshooting](./Troubleshoot.md) file  in this repository. 
