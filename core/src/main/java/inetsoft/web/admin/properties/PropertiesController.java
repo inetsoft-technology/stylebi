@@ -17,7 +17,6 @@
  */
 package inetsoft.web.admin.properties;
 
-import inetsoft.report.composition.RuntimeSheet;
 import inetsoft.report.internal.license.LicenseManager;
 import inetsoft.report.internal.table.TableFormat;
 import inetsoft.sree.SreeEnv;
