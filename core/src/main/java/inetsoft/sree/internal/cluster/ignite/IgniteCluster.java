@@ -1460,6 +1460,12 @@ public final class IgniteCluster implements inetsoft.sree.internal.cluster.Clust
          else if(event.type() == EventType.EVT_CACHE_OBJECT_REMOVED) {
             listener.entryRemoved(entryEvent);
          }
+         else if(event.type() == EventType.EVT_CACHE_OBJECT_EXPIRED) {
+            listener.entryExpired(entryEvent);
+         }
+         else if(event.type() == EventType.EVT_CACHE_ENTRY_EVICTED) {
+            listener.entryEvicted(entryEvent);
+         }
 
          return true;
       }

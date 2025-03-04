@@ -1092,18 +1092,6 @@
       </dependency>
 
       <dependency>
-        <groupId>org.springframework.session</groupId>
-        <artifactId>spring-session-hazelcast</artifactId>
-        <version>3.4.2</version>
-      </dependency>
-
-      <dependency>
-        <groupId>org.springframework.session</groupId>
-        <artifactId>spring-session-data-redis</artifactId>
-        <version>3.4.2</version>
-      </dependency>
-
-      <dependency>
         <groupId>org.springframework</groupId>
         <artifactId>spring-aop</artifactId>
         <version>${spring.version}</version>

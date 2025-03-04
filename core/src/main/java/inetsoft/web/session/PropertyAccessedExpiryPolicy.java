@@ -19,6 +19,8 @@
 package inetsoft.web.session;
 
 import inetsoft.sree.SreeEnv;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
 
 import javax.cache.configuration.Factory;
@@ -26,6 +28,7 @@ import javax.cache.configuration.FactoryBuilder;
 import javax.cache.expiry.Duration;
 import javax.cache.expiry.ExpiryPolicy;
 import java.io.Serializable;
+import java.util.concurrent.TimeUnit;
 
 public final class PropertyAccessedExpiryPolicy implements ExpiryPolicy, Serializable {
    public Factory<ExpiryPolicy> factoryOf() {
@@ -34,12 +37,12 @@ public final class PropertyAccessedExpiryPolicy implements ExpiryPolicy, Seriali
 
    @Override
    public Duration getExpiryForCreation() {
-      return null;
+      return getExpiryFromProperty();
    }
 
    @Override
    public Duration getExpiryForAccess() {
-      return null;
+      return getExpiryFromProperty();
    }
 
    @Override
@@ -47,16 +50,23 @@ public final class PropertyAccessedExpiryPolicy implements ExpiryPolicy, Seriali
       return null;
    }
 
-   private Duration getExpiryFromProperty() {
+   static Duration getExpiryFromProperty() {
       String property = SreeEnv.getProperty("http.session.timeout");
 
       if(StringUtils.hasText(property)) {
          try {
-            return Integer.parseInt(property);
+            return new Duration(TimeUnit.SECONDS, Long.parseLong(property));
          }
          catch(NumberFormatException e) {
             LOG.error("Invalid value for http.session.timeout: {}", property, e);
          }
       }
+
+      property = Integer.toString(DEFAULT_MAX_INACTIVE_INTERVAL_SECONDS);
+      SreeEnv.setProperty("http.session.timeout", property);
+      return new Duration(TimeUnit.SECONDS, DEFAULT_MAX_INACTIVE_INTERVAL_SECONDS);
    }
+
+   public static final int DEFAULT_MAX_INACTIVE_INTERVAL_SECONDS = 1800;
+   private static final Logger LOG = LoggerFactory.getLogger(PropertyAccessedExpiryPolicy.class);
 }
