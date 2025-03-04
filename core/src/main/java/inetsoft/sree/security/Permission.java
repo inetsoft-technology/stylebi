@@ -60,6 +60,10 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       return getGrants(action, Identity.USER);
    }
 
+   public Set<PermissionIdentity> getAllUserGrants(ResourceAction action) {
+      return getGrants(action, Identity.USER, null);
+   }
+
    /**
     * Gets the users under the given orgid that have been granted permission to perform the specified action.
     *
@@ -114,7 +118,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
    {
       oldOrgId = oldOrgId == null ? newOrgId : oldOrgId;
       final String org = oldOrgId == null ? globalOrgId : oldOrgId;
-      Set<PermissionIdentity> userGrants = getUserGrants(action);
+      Set<PermissionIdentity> userGrants = getAllUserGrants(action);
       Set<PermissionIdentity> updatedGrants = userGrants.stream()
          .filter(pId -> !org.equals(pId.organizationID))
          .collect(Collectors.toSet());
@@ -136,6 +140,11 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
    public Set<PermissionIdentity> getRoleGrants(ResourceAction action) {
       return getGrants(action, Identity.ROLE);
    }
+
+   public Set<PermissionIdentity> getAllRoleGrants(ResourceAction action) {
+      return getGrants(action, Identity.ROLE, null);
+   }
+
 
    public Set<IdentityID> getOrgScopedRoleGrants(ResourceAction action, String orgId) {
       String thisOrgID = orgId == null ? globalOrgId : orgId;
@@ -184,7 +193,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
    {
       oldOrgId = oldOrgId == null ? newOrgId : oldOrgId;
       final String org = oldOrgId;
-      Set<PermissionIdentity> roleGrants = getRoleGrants(action);
+      Set<PermissionIdentity> roleGrants = getAllRoleGrants(action);
       Set<PermissionIdentity> updatedGrants = roleGrants.stream()
          .filter(pId -> !Tool.equals(org, pId.organizationID))
          .collect(Collectors.toSet());
@@ -205,6 +214,10 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
     */
    public Set<PermissionIdentity> getGroupGrants(ResourceAction action) {
       return getGrants(action, Identity.GROUP);
+   }
+
+   public Set<PermissionIdentity> getAllGroupGrants(ResourceAction action) {
+      return getGrants(action, Identity.GROUP, null);
    }
 
    /**
@@ -269,7 +282,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
    {
       oldOrgId = oldOrgId == null ? newOrgId : oldOrgId;
       final String org = oldOrgId == null ? globalOrgId : oldOrgId;
-      Set<PermissionIdentity> groupGrants = getGroupGrants(action);
+      Set<PermissionIdentity> groupGrants = getAllGroupGrants(action);
       Set<PermissionIdentity> updatedGrants = groupGrants.stream()
          .filter(pId -> !org.equals(pId.organizationID))
          .collect(Collectors.toSet());
@@ -394,8 +407,6 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
     * @return a set containing the names of the entities that have been granted the permission.
     */
    public Set<PermissionIdentity> getGrants(ResourceAction action, int identityType, String orgId) {
-
-
       Set<PermissionIdentity> grants = switch(identityType) {
          case Identity.USER -> userGrants.get(action);
          case Identity.ROLE -> roleGrants.get(action);
@@ -411,7 +422,7 @@ public class Permission implements Serializable, Cloneable, XMLSerializable {
       Set<PermissionIdentity> filteredGrants = new HashSet<>();
 
       for(PermissionIdentity grant : grants) {
-         if(orgId.equals(grant.organizationID) || identityType == Identity.ROLE && grant.organizationID == null) {
+         if(orgId == null || orgId.equals(grant.organizationID) || identityType == Identity.ROLE && grant.organizationID == null) {
             filteredGrants.add(grant);
          }
       }
