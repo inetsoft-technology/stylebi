@@ -21,35 +21,30 @@ import inetsoft.analytic.composition.VSCSSUtil;
 import inetsoft.analytic.composition.ViewsheetService;
 import inetsoft.analytic.composition.event.CheckMissingMVEvent;
 import inetsoft.analytic.composition.event.VSEventUtil;
-import inetsoft.report.*;
+import inetsoft.report.Hyperlink;
+import inetsoft.report.TableDataPath;
 import inetsoft.report.composition.*;
 import inetsoft.report.composition.execution.*;
-import inetsoft.report.composition.graph.GraphUtil;
-import inetsoft.report.filter.CrossTabFilter;
-import inetsoft.report.internal.ParameterTool;
-import inetsoft.report.internal.binding.Field;
 import inetsoft.report.internal.license.LicenseManager;
-import inetsoft.report.internal.table.RuntimeCalcTableLens;
-import inetsoft.report.internal.table.TableHighlightAttr;
 import inetsoft.report.script.viewsheet.ScriptEvent;
 import inetsoft.report.script.viewsheet.ViewsheetScope;
 import inetsoft.sree.SreeEnv;
 import inetsoft.sree.UserEnv;
 import inetsoft.sree.security.*;
-import inetsoft.uql.*;
+import inetsoft.uql.VariableTable;
+import inetsoft.uql.XPrincipal;
 import inetsoft.uql.asset.*;
 import inetsoft.uql.asset.internal.*;
-import inetsoft.uql.erm.*;
-import inetsoft.uql.schema.*;
+import inetsoft.uql.erm.AttributeRef;
+import inetsoft.uql.schema.UserVariable;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.uql.viewsheet.graph.VSChartInfo;
 import inetsoft.uql.viewsheet.internal.*;
-import inetsoft.uql.viewsheet.vslayout.*;
+import inetsoft.uql.viewsheet.vslayout.ViewsheetLayout;
 import inetsoft.util.*;
 import inetsoft.util.script.ScriptException;
 import inetsoft.web.composer.BrowseDataController;
 import inetsoft.web.composer.model.BrowseDataModel;
-import inetsoft.web.composer.ws.assembly.VariableAssemblyModelInfo;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.embed.EmbedAssemblyInfo;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.controller.table.BaseTableController;
@@ -61,9 +56,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.awt.*;
 import java.awt.geom.Point2D;
@@ -71,75 +64,26 @@ import java.net.URLEncoder;
 import java.security.Principal;
 import java.util.List;
 import java.util.*;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Utility methods copied from VSEventUtil. The contents of this class should be moved to
  * appropriate controller methods and this class removed.
  *
  * @since 12.3
- * @deprecated
  */
-@Deprecated
-@Component
-public class PlaceholderService {
+@Service
+public class CoreLifecycleService {
    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
    @Autowired
-   public PlaceholderService(
-      VSObjectModelFactoryService objectModelService,
-      SimpMessagingTemplate messagingTemplate,
-      ViewsheetService viewsheetService)
+   public CoreLifecycleService(
+      VSObjectModelFactoryService objectModelService, ViewsheetService viewsheetService,
+      VSLayoutService vsLayoutService, ParameterService parameterService)
    {
       this.objectModelService = objectModelService;
-      this.messagingTemplate = messagingTemplate;
       this.viewsheetService = viewsheetService;
-   }
-
-   /**
-    * Reads the parameters from the event into a variable table.
-    *
-    * @param parameters the input parameters.
-    *
-    * @return a variable table containing the parameters.
-    */
-   public VariableTable readParameters(Map<String, String[]> parameters) {
-      VariableTable result = new VariableTable();
-      final String typeSuffix = ".__type__";
-
-      if(parameters != null) {
-         for(Map.Entry<String, String[]> e : parameters.entrySet()) {
-            String name = e.getKey();
-            String[] values0 = e.getValue();
-
-            if(name.endsWith(typeSuffix)) {
-               continue;
-            }
-
-            final String[] type = parameters.get(name + typeSuffix);
-            Object[] values = Arrays.stream(values0)
-               .map(v -> type != null && type.length > 0 ? Tool.getData(type[0], v, true) : v)
-               .toArray();
-
-            Object value0 = (values != null && values.length == 1) ? values[0] : values;
-            Object value = null;
-
-            if(AssetUtil.isSelectionParam(e.getKey())) {
-               try {
-                  value = AssetUtil.getSelectionParam(name, value0);
-               }
-               catch(Exception ex) {
-                  LOG.warn("Failed to get selection parameter: {}", e.getKey(), ex);
-               }
-            }
-
-            value = value == null ? value0 : value;
-            result.put(name, value);
-         }
-      }
-
-      return result;
+      this.vsLayoutService = vsLayoutService;
+      this.parameterService = parameterService;
    }
 
    public String openViewsheet(ViewsheetService engine, OpenViewsheetEvent event,
@@ -322,7 +266,7 @@ public class PlaceholderService {
       return id;
    }
 
-   private static List<DataVSAssembly> getDataVSAssemblies(Viewsheet vs) {
+   private List<DataVSAssembly> getDataVSAssemblies(Viewsheet vs) {
       List<DataVSAssembly> dataObjs = new ArrayList<>();
 
       for(Assembly assembly : vs.getAssemblies()) {
@@ -564,45 +508,6 @@ public class PlaceholderService {
       dispatcher.sendCommand(command);
    }
 
-   public void collectParameters(Viewsheet vs, UserVariable[] variables,
-                                 boolean parameterSheet, CommandDispatcher dispatcher)
-   {
-      collectParameters(vs, variables, parameterSheet, dispatcher, false);
-   }
-
-   public void collectParameters(Viewsheet vs, UserVariable[] variables,
-                                 boolean parameterSheet, CommandDispatcher dispatcher,
-                                 boolean isOpenVS)
-   {
-      List<VariableAssemblyModelInfo> parameters = new ArrayList<>();
-      Collection<UserVariable> ordering = new LinkedHashSet<>();
-      ViewsheetInfo info = vs.getViewsheetInfo();
-
-      for(String varName : info.getOrderedVariables()) {
-         Arrays.stream(variables)
-            .filter(userVar -> varName.equals(userVar.getName()))
-            .findFirst()
-            .ifPresent(ordering::add);
-      }
-
-      Arrays.stream(variables)
-         .filter(userVar -> !ordering.contains(userVar))
-         .forEach(ordering::add);
-
-      ordering.stream()
-         .map(VariableAssemblyModelInfo::new)
-         .forEach(parameters::add);
-
-      CollectParametersCommand command = CollectParametersCommand.builder()
-         .disableParameterSheet(parameterSheet || info.isDisableParameterSheet())
-         .isOpenSheet(isOpenVS)
-         .disabledVariables(vs.getDisabledVariables())
-         .variables(parameters)
-         .build();
-
-      dispatcher.sendCommand(command);
-   }
-
    public void sendMessage(String message, MessageCommand.Type type,
                            CommandDispatcher dispatcher)
    {
@@ -612,8 +517,8 @@ public class PlaceholderService {
       dispatcher.sendCommand(command);
    }
 
-   public void updateViewsheet(Viewsheet source, RuntimeViewsheet rtarget,
-                                      CommandDispatcher dispatcher) throws Exception
+   private void updateViewsheet(Viewsheet source, RuntimeViewsheet rtarget,
+                                CommandDispatcher dispatcher) throws Exception
    {
       Viewsheet target = rtarget.getViewsheet();
 
@@ -903,7 +808,7 @@ public class PlaceholderService {
             if(!applyScale) {
                // Bug #69536, delay scaling until parameters are submitted and prevent
                // an early execution of the viewsheet.
-               List<UserVariable> vars = getPromptParameters(sheet, box, initvars);
+               List<UserVariable> vars = parameterService.getPromptParameters(sheet, box, initvars);
                applyScale = vars.isEmpty();
             }
 
@@ -966,7 +871,8 @@ public class PlaceholderService {
                   setViewsheetInfo(rvs, uri, dispatcher);
 
                   UserVariable[] vtable = vars.toArray(new UserVariable[0]);
-                  collectParameters(rvs.getViewsheet(), vtable, disableParameterSheet, dispatcher);
+                  parameterService.collectParameters(rvs.getViewsheet(), vtable,
+                                                     disableParameterSheet, dispatcher);
 
                   return;
                }
@@ -1022,14 +928,14 @@ public class PlaceholderService {
                // more reasonable, otherwise if during reset box the code need
                // parameters to access database, error will be thrown.
                // @see bug1234937851455
-               List<UserVariable> vars = getPromptParameters(sheet, box, initvars);
+               List<UserVariable> vars = parameterService.getPromptParameters(sheet, box, initvars);
 
                if(!vars.isEmpty() && !disableParameterSheet) {
                   setViewsheetInfo(rvs, uri, dispatcher);
                   UserVariable[] vtable = vars.toArray(new UserVariable[0]);
 
-                  collectParameters(rvs.getViewsheet(), vtable,
-                                    disableParameterSheet, dispatcher, isOpenVS);
+                  parameterService.collectParameters(rvs.getViewsheet(), vtable,
+                                                     disableParameterSheet, dispatcher, isOpenVS);
 
                   return;
                }
@@ -1234,7 +1140,7 @@ public class PlaceholderService {
    /**
     * Update the assembly tittle default font.
     */
-   public void updateAssembliesTittleDefaultFormat(Viewsheet vs) {
+   private void updateAssembliesTittleDefaultFormat(Viewsheet vs) {
       if(vs == null) {
          return;
       }
@@ -1616,7 +1522,7 @@ public class PlaceholderService {
          box = getSandbox(box, info.getAbsoluteName());
          info.setLinkVarTable(box.getAllVariables());
          info.setLinkSelections(box.getSelections());
-         refreshTextParameters(rvs, assembly);
+         parameterService.refreshTextParameters(rvs, assembly);
       }
 
       RefreshVSObjectCommand command = new RefreshVSObjectCommand();
@@ -1656,38 +1562,6 @@ public class PlaceholderService {
       }
 
       return box;
-   }
-
-   private void refreshTextParameters(RuntimeViewsheet rvs, VSAssembly assembly) {
-      if(!rvs.isRuntime()) {
-         return;
-      }
-
-      if(assembly instanceof TextVSAssembly) {
-         refreshTextParameters(rvs.getViewsheetSandbox(), (TextVSAssemblyInfo) assembly.getInfo());
-      }
-
-      if(assembly instanceof Viewsheet) {
-         Viewsheet vs = (Viewsheet) assembly;
-         Assembly[] assemblies = vs.getAssemblies(false, true,
-            !WizardRecommenderUtil.ignoreRefreshTempAssembly(), false);
-         Arrays.sort(assemblies, new TabAnnotationComparator());
-         Arrays.stream(assemblies)
-               .forEach(assembly0 -> refreshTextParameters(rvs, (VSAssembly) assembly0));
-      }
-   }
-
-   private void refreshTextParameters(ViewsheetSandbox box, TextVSAssemblyInfo info) {
-      ParameterTool ptool = new ParameterTool();
-      String text = info.getText();
-
-      if(ptool.containsParameter(text)) {
-         String dtext = ptool.parseParameters(box.getVariableTable(), text);
-         info.setDisplayText(dtext);
-      }
-      else {
-         info.setDisplayText(text);
-      }
    }
 
    public void addDeleteVSObject(RuntimeViewsheet rvs, VSAssembly assembly,
@@ -1891,7 +1765,7 @@ public class PlaceholderService {
             box = getSandbox(box, info.getAbsoluteName());
             ((OutputVSAssemblyInfo) info).setLinkVarTable(box.getAllVariables());
             ((OutputVSAssemblyInfo) info).setLinkSelections(box.getSelections());
-            refreshTextParameters(rvs, vsAssembly);
+            parameterService.refreshTextParameters(rvs, vsAssembly);
          }
 
          if(rvs.isRuntime() && AnnotationVSUtil.needRefreshAnnotation(info, dispatcher)) {
@@ -1975,7 +1849,7 @@ public class PlaceholderService {
 
       // remove assembly in layouts
       Viewsheet finalVs = vs;
-      names.forEach(name -> removeLayoutAssembly(finalVs, name));
+      names.forEach(name -> vsLayoutService.removeLayoutAssembly(finalVs, name));
 
       final Worksheet ws = vs.getBaseWorksheet();
       final List<AssemblyEntry> assemblyEntries = Arrays.stream(assemblies)
@@ -2377,33 +2251,6 @@ public class PlaceholderService {
                      refreshVSAssembly(rvs, child, dispatcher);
                   }
                }
-            }
-         }
-      }
-   }
-
-   public void removeLayoutAssembly(Viewsheet vs, String aname) {
-      LayoutInfo layoutInfo = vs.getLayoutInfo();
-      PrintLayout printLayout = layoutInfo.getPrintLayout();
-      List<ViewsheetLayout> viewsheetLayouts = layoutInfo.getViewsheetLayouts();
-      Predicate<VSAssemblyLayout> assemblyLayoutPredicate = v -> v.getName().equals(aname);
-
-      if(printLayout != null) {
-         List<VSAssemblyLayout> headerLayouts = printLayout.getHeaderLayouts();
-         List<VSAssemblyLayout> footerLayouts = printLayout.getFooterLayouts();
-         List<VSAssemblyLayout> printVSAssemblyLayouts = printLayout.getVSAssemblyLayouts();
-
-         Stream.<List<VSAssemblyLayout>>builder()
-            .add(headerLayouts).add(footerLayouts).add(printVSAssemblyLayouts).build()
-            .forEach(l -> l.removeIf(assemblyLayoutPredicate));
-      }
-
-      if(viewsheetLayouts != null) {
-         for(ViewsheetLayout viewsheetLayout : viewsheetLayouts) {
-            List<VSAssemblyLayout> vsAssemblyLayouts = viewsheetLayout.getVSAssemblyLayouts();
-
-            if(vsAssemblyLayouts != null) {
-               vsAssemblyLayouts.removeIf(assemblyLayoutPredicate);
             }
          }
       }
@@ -2891,7 +2738,7 @@ public class PlaceholderService {
       }
    }
 
-   public void refreshData(RuntimeViewsheet rvs, CommandDispatcher dispatcher,
+   private void refreshData(RuntimeViewsheet rvs, CommandDispatcher dispatcher,
                            AssemblyEntry entry, String uri)
       throws Exception
    {
@@ -2921,78 +2768,13 @@ public class PlaceholderService {
       refreshVSAssembly(rvs, entry.getAbsoluteName(), dispatcher);
    }
 
-   public boolean processExtSharedFilters(VSAssembly assembly, int hint,
-                                          RuntimeViewsheet vs, Principal principal,
-                                          CommandDispatcher dispatcher)
-   {
-      // @by davidd bug1370506649395, Propagate View Changes as well, for
-      // example: Calendar "Switch to ..." operations
-      if((hint & VSAssembly.OUTPUT_DATA_CHANGED) !=
-         VSAssembly.OUTPUT_DATA_CHANGED && (hint & VSAssembly.VIEW_CHANGED) !=
-         VSAssembly.VIEW_CHANGED)
-      {
-         return false;
-      }
-
-      // for shared selection, refresh vsobject command should specified
-      // process, add "SHARED_HINT" to make the RefreshVSObjectCommand not
-      // equals the original RefreshVSObjectCommand, see bug1247647231402
-      dispatcher.setSharedHint(assembly.getAbsoluteName());
-
-      // @davidd bug1364406849572, Process shared filters in other
-      // viewsheets. Local shared filters are processed in
-      // ViewsheetSandbox.processSelection
-      try {
-         RuntimeViewsheet[] arr = viewsheetService.getRuntimeViewsheets(principal);
-
-         for(RuntimeViewsheet rvs : arr) {
-            if(rvs == vs) {
-               continue;
-            }
-
-            boolean changed = rvs.getViewsheetSandbox().processSharedFilters(
-               assembly, null, true);
-
-            if(changed) {
-               SimpMessageHeaderAccessor headerAccessor = SimpMessageHeaderAccessor.create();
-               headerAccessor.setSessionId(rvs.getSocketSessionId());
-               headerAccessor.setLeaveMutable(true);
-               headerAccessor.setNativeHeader(
-                  CommandDispatcher.COMMAND_TYPE_HEADER, "UpdateSharedFiltersCommand");
-               headerAccessor.setNativeHeader(CommandDispatcher.RUNTIME_ID_ATTR, rvs.getID());
-               String user = rvs.getSocketUserName();
-
-               if(user == null) {
-                  user = dispatcher.getUserName();
-               }
-
-               messagingTemplate.convertAndSendToUser(
-                  user, CommandDispatcher.COMMANDS_TOPIC,
-                  new UpdateSharedFiltersCommand(), headerAccessor.getMessageHeaders());
-            }
-         }
-      }
-      catch(ConfirmDataException ignored) {
-         // ignored
-      }
-      catch(ConfirmException cex) {
-         throw cex;
-      }
-      catch(Exception ex) {
-         LOG.warn("Failed to process the shared filters", ex);
-      }
-
-      dispatcher.setSharedHint(null);
-      return false;
-   }
-
    public void loadTableLens(RuntimeViewsheet rvs, String name, String uri,
                              CommandDispatcher dispatcher)
    {
       loadTableLens(rvs, name, uri, dispatcher, true);
    }
 
-   public void loadTableLens(RuntimeViewsheet rvs, String name, String uri,
+   private void loadTableLens(RuntimeViewsheet rvs, String name, String uri,
                              CommandDispatcher dispatcher, boolean refreshData)
    {
       try {
@@ -3062,812 +2844,6 @@ public class PlaceholderService {
       }
    }
 
-   public void fixContainerProperties(RuntimeViewsheet rvs, VSAssemblyInfo oldInfo,
-                                      VSAssemblyInfo newInfo, CommandDispatcher commandDispatcher)
-      throws Exception
-   {
-      if(oldInfo.isPrimary() != newInfo.isPrimary()) {
-         setAssemblyPrimary(rvs, newInfo.getName(), newInfo.isPrimary(), commandDispatcher);
-      }
-   }
-
-   public void setAssemblyPrimary(RuntimeViewsheet rvs, String name, boolean primary,
-                                  CommandDispatcher commandDispatcher) throws Exception
-   {
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs == null) {
-         return;
-      }
-
-      VSAssembly as = (VSAssembly) vs.getAssembly(name);
-      VSAssembly cass = as.getContainer();
-
-      as.setPrimary(primary);
-
-      // force components in tab/current selection to have
-      // same primary setting as the tab/current selection
-      // all container display same, see bug1255069279490
-      if(cass instanceof ContainerVSAssembly) {
-         cass.setPrimary(as.isPrimary());
-         as = cass;
-         refreshVSAssembly(rvs, cass.getName(), commandDispatcher);
-      }
-
-      if(as instanceof ContainerVSAssembly) {
-         Viewsheet vs2 = as.getViewsheet();
-         String[] children = ((ContainerVSAssembly) as).getAssemblies();
-
-         for(String childName : children) {
-            VSAssembly as2 = (VSAssembly) vs2.getAssembly(childName);
-            as2.setPrimary(as.isPrimary());
-            refreshVSAssembly(rvs, childName, commandDispatcher);
-         }
-      }
-
-      refreshVSAssembly(rvs, name, commandDispatcher);
-   }
-
-   public void addDeleteEmbeddedViewsheet(RuntimeViewsheet rvs,
-                                          CommandDispatcher commandDispatcher)
-      throws Exception
-   {
-      List<Assembly> assemblies = new ArrayList<>();
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs == null) {
-         return;
-      }
-
-      listEmbeddedAssemblies(vs, assemblies);
-
-      for(Assembly assembly: assemblies) {
-         addDeleteVSObject(rvs, (VSAssembly) assembly, commandDispatcher);
-      }
-   }
-
-   private void listEmbeddedAssemblies(Viewsheet vs, List<Assembly> assemblies) {
-      Assembly[] ass = vs.getAssemblies();
-
-      for(Assembly assembly : ass) {
-         if(((VSAssembly) assembly).isEmbedded()) {
-            assemblies.add(assembly);
-         }
-
-         if(assembly instanceof Viewsheet) {
-            listEmbeddedAssemblies((Viewsheet) assembly, assemblies);
-         }
-      }
-   }
-
-   /**
-    * Get data refs available for the assembly. Called from highlight and hyperlink dialogs
-    * to get available fields.
-    *
-    * @param rvs        the Runtime Viewsheet instance
-    * @param assembly   the VS Assembly
-    * @param row        the selected row
-    * @param col        the selected col
-    * @param dpath      the table data path for table assemblies
-    * @param colName    the selected column name
-    * @return  List of available data refs
-    * @throws Exception if failed to get data refs
-    */
-   public List<DataRef> getRefsForVSAssembly(RuntimeViewsheet rvs, VSAssembly assembly, int row,
-                                             int col, TableDataPath dpath, String colName,
-                                             boolean isHighlight)
-      throws Exception
-   {
-      return getRefsForVSAssembly(rvs, assembly, row, col, dpath, colName, isHighlight, false);
-   }
-
-   /**
-    * Get data refs available for the assembly. Called from highlight and hyperlink dialogs
-    * to get available fields.
-    *
-    * @param rvs        the Runtime Viewsheet instance
-    * @param assembly   the VS Assembly
-    * @param row        the selected row
-    * @param col        the selected col
-    * @param dpath      the table data path for table assemblies
-    * @param colName    the selected column name
-    * @param applyDiscrete whether to apply discrete for aggregate.
-    * @return  List of available data refs
-    * @throws Exception if failed to get data refs
-    */
-   public List<DataRef> getRefsForVSAssembly(RuntimeViewsheet rvs, VSAssembly assembly, int row,
-                                             int col, TableDataPath dpath, String colName,
-                                             boolean isHighlight, boolean applyDiscrete)
-      throws Exception
-   {
-      List<DataRef> fieldList = new ArrayList<>();
-      ViewsheetSandbox box = rvs.getViewsheetSandbox();
-
-      if(box == null) {
-         return fieldList;
-      }
-
-      if(assembly instanceof CrosstabVSAssembly) {
-         VSCrosstabInfo info = ((CrosstabVSAssembly) assembly).getVSCrosstabInfo();
-         DataRef[] cheaders = info.getRuntimeColHeaders();
-         DataRef[] rheaders = isHighlight ?
-            info.getRuntimeRowHeaders() : info.getPeriodRuntimeRowHeaders();
-         XDimensionRef[] dcTempGroups = info.getDcTempGroups();
-         DataRef[] aggregates = info.getRuntimeAggregates();
-         Object data = box.getData(assembly.getAbsoluteName());
-
-         if(data instanceof TableLens) {
-            TableLens table = (TableLens) data;
-            Field[] fields = TableHighlightAttr.getAvailableFields(table, dpath);
-
-            if(fields != null && fields.length > 0) {
-               for(int i = 0; !isHighlight && i < fields.length; i++) {
-                  String name = fields[i].getName();
-
-                  if(name.equals(CrossTabFilter.ROW_GRAND_TOTAL_HEADER) ||
-                     name.equals(CrossTabFilter.COL_GRAND_TOTAL_HEADER))
-                  {
-                     AttributeRef attr = new AttributeRef(null, name);
-                     attr.setDataType(fields[i].getDataType());
-                     fieldList.add(attr);
-                  }
-               }
-
-               for(DataRef rheader : rheaders) {
-                  DataRef ref = getDimensionColumnRef(rheader);
-
-                  for(Field f : fields) {
-                     if(isSameField(ref, f)) {
-                        fieldList.add(ref);
-                        break;
-                     }
-                  }
-               }
-
-               for(DataRef cheader : cheaders) {
-                  DataRef ref = getDimensionColumnRef(cheader);
-
-                  for(Field f : fields) {
-                     if(isSameField(ref, f)) {
-                        fieldList.add(ref);
-                        break;
-                     }
-                  }
-               }
-
-               for(DataRef tempGroup : dcTempGroups) {
-                  DataRef ref = getDimensionColumnRef(tempGroup);
-
-                  for(Field f : fields) {
-                     if(isSameField(ref, f)) {
-                        fieldList.add(ref);
-                        break;
-                     }
-                  }
-               }
-
-               for(DataRef aggregate : aggregates) {
-                  DataRef ref = getAggregateColumn(aggregate);
-
-                  for(Field f : fields) {
-                     if(isSameField(ref, f, true)) {
-                        if(fieldList.contains(f)) {
-                           continue;
-                        }
-
-                        fieldList.add(f);
-                        break;
-                     }
-                  }
-               }
-            }
-         }
-      }
-      else if(assembly instanceof TableVSAssembly) {
-         Object data = box.getData(assembly.getAbsoluteName());
-         boolean iscrosstab = false;
-
-         if(data instanceof TableLens) {
-            TableLens table = (TableLens) data;
-            iscrosstab = table.getDescriptor().getType() == TableDataDescriptor.CROSSTAB_TABLE;
-            boolean vsAssemblyBinding = VSUtil.isVSAssemblyBinding(assembly);
-
-            while(!iscrosstab && table instanceof TableFilter && !vsAssemblyBinding) {
-               table = ((TableFilter) table).getTable();
-
-               if(table.getDescriptor().getType() == TableDataDescriptor.CROSSTAB_TABLE) {
-                  iscrosstab = true;
-               }
-            }
-
-            if(iscrosstab || vsAssemblyBinding) {
-               Field[] fields = vsAssemblyBinding ?
-                  TableHighlightAttr.getAvailableFields(table, row, col) :
-                  TableHighlightAttr.getAvailableFields((TableLens) data, dpath);
-
-               if(fields != null && fields.length > 0) {
-                  fieldList.addAll(Arrays.asList(fields));
-               }
-            }
-         }
-
-         if(fieldList.isEmpty()) {
-            if(!iscrosstab) {
-               ColumnSelection cols = VSUtil.getBaseColumns(assembly, true);
-               VSUtil.mergeColumnAlias(cols, ((TableVSAssembly)assembly).getColumnSelection());
-
-               for(int i = 0; i < cols.getAttributeCount(); i++) {
-                  fieldList.add(cols.getAttribute(i));
-               }
-            }
-            else {
-               Worksheet ws = box.getWorksheet();
-               AbstractTableAssembly tassembly = (AbstractTableAssembly)
-                  ws.getAssembly(assembly.getTableName());
-
-               if(tassembly.isAggregate()) {
-                  ColumnSelection columns = tassembly.getColumnSelection(true);
-                  columns = VSUtil.getVSColumnSelection(columns);
-
-                  for(int i = 0; i < columns.getAttributeCount(); i++) {
-                     fieldList.add(columns.getAttribute(i));
-                  }
-               }
-               else {
-                  DataVSAQuery query = (DataVSAQuery) VSAQuery.
-                     createVSAQuery(box, assembly, DataMap.NORMAL);
-                  ColumnSelection columns;
-                  columns = query.getDefaultColumnSelection();
-                  columns = VSUtil.getVSColumnSelection(columns);
-
-                  for(int i = 0; i < columns.getAttributeCount(); i++) {
-                     fieldList.add(columns.getAttribute(i));
-                  }
-               }
-            }
-         }
-      }
-      else if(assembly instanceof CalcTableVSAssembly) {
-         TableLens table = (TableLens) box.getData(assembly.getAbsoluteName());
-         Field[] fields = TableHighlightAttr.getAvailableFields(table, row, col);
-
-         if(fields != null && fields.length > 0) {
-            for(Field field : fields) {
-               if(!fieldList.contains(field)) {
-                  fieldList.add(field);
-               }
-            }
-         }
-      }
-      else if(assembly instanceof ChartVSAssembly) {
-         ChartVSAssemblyInfo assemblyInfo = (ChartVSAssemblyInfo) assembly.getVSAssemblyInfo();
-         SourceInfo sourceInfo = assemblyInfo.getSourceInfo();
-         String ctype = sourceInfo == null ? null :
-            VSUtil.getCubeType(sourceInfo.getPrefix(), sourceInfo.getSource());
-         VSChartInfo chartInfo = assemblyInfo.getVSChartInfo();
-         ColumnSelection columns = GraphUtil.createViewColumnSelection(chartInfo, colName,
-            applyDiscrete, assemblyInfo.getChartDescriptor());
-         columns = sortColumns(columns, ctype);
-
-         for(int i = 0; i < columns.getAttributeCount(); i++) {
-            fieldList.add(columns.getAttribute(i));
-         }
-      }
-
-      return fieldList;
-   }
-
-   public List<String> getNamedGroupFields(RuntimeCalcTableLens table, List<DataRef> fields) {
-      List<String> namedGroupFields = new ArrayList<>();
-      TableLayout layout = table.getElement().getTableLayout();
-
-      for(int i = 0; i < fields.size(); i++) {
-         if(fields.get(i) == null) {
-            continue;
-         }
-
-         String fieldName = fields.get(i).getName();
-         Point pos = table.getCellLocation(fieldName);
-         int row = pos.y;
-         int col = pos.x;
-         CellBinding binding = layout.getCellBinding(row, col);
-
-         if(binding.getBType() != TableCellBinding.GROUP) {
-            continue;
-         }
-
-         if(binding.getType() == TableCellBinding.BIND_FORMULA) {
-            String formula = binding.getValue();
-
-            if(formula == null || !formula.startsWith("mapList(")) {
-               continue;
-            }
-
-            namedGroupFields.add(fieldName);
-            continue;
-         }
-
-         TableCellBinding cellBinding = (TableCellBinding) binding;
-
-         if(cellBinding.getOrderInfo(false) != null &&
-            cellBinding.getOrderInfo(false).getRealNamedGroupInfo() != null)
-         {
-            namedGroupFields.add(fieldName);
-         }
-      }
-
-      return namedGroupFields;
-   }
-
-   /**
-    * Gets the correct group column reference for date range columns, Called from highlight.
-    * @param ref the base ref.
-    * @return the correct header ref.
-    */
-   public DataRef getDimensionColumnRef(DataRef ref) {
-      if(ref instanceof VSDimensionRef) {
-         VSDimensionRef dref = (VSDimensionRef) ref;
-         GroupRef gref = dref.createGroupRef(null);
-         ColumnRef cref = (ColumnRef) gref.getDataRef();
-
-         if(cref.getDataRef() instanceof DateRangeRef) {
-            cref.setView(Tool.localize(cref.toView()));
-            // @by davyc, DateRangeRef data type is number or timeinstant,
-            //  so here use original type, otherwise for part option, condition
-            //  editor will be error for time editor, in fact it is default
-            // cref.setDataType(XSchema.DATE);
-            cref.setDataType(cref.getDataRef().getDataType());
-            ref = cref;
-         }
-         // fix bug1288617773137, and crosstab highlight
-         else if(cref.getDataRef() instanceof NamedRangeRef) {
-            ref = cref;
-         }
-         else {
-            DataRef cdref = cref.getDataRef();
-
-            // for cube ref, use correct data ref
-            if((cdref.getRefType() & DataRef.CUBE) != 0) {
-               String attr = dref.getFullName();
-               attr = VSCubeTableLens.getDisplayFullValue(attr);
-               AttributeRef attrref = new AttributeRef(null, attr);
-               attrref.setDataType(cdref.getDataType());
-               attrref.setRefType(cdref.getRefType());
-               cref.setDataRef(attrref);
-               ref = cref;
-            }
-         }
-      }
-
-      return ref;
-   }
-
-   private boolean isSameField(DataRef ref1, DataRef ref2) {
-      return isSameField(ref1, ref2, false);
-   }
-
-   private boolean isSameField(DataRef ref1, DataRef ref2, boolean isAggregate) {
-      if(ref1 == null || ref2 == null) {
-         return false;
-      }
-
-      if(ref1.equals(ref2)) {
-         return true;
-      }
-
-      String refName1 = getDataRefName(ref1);
-      String refName2 = getDataRefName(ref2);
-
-      if(isAggregate) {
-         if(Tool.isEmptyString(refName1) || Tool.isEmptyString(refName2)) {
-            return false;
-         }
-
-         if(refName2.startsWith(refName1 + ".") ) {
-            return refName2.substring(refName1.length() + 1).matches("\\d+");
-         }
-      }
-
-      return Tool.equals(refName1, refName2);
-   }
-
-   private String getDataRefName(DataRef ref) {
-      String name = ref.getName();
-
-      if(ref instanceof ColumnRef && ((ColumnRef) ref).getDataRef() instanceof DateRangeRef) {
-         DateRangeRef dataRef = (DateRangeRef) ((ColumnRef) ref).getDataRef();
-         name = dataRef.getDateOption() == DateRangeRef.NONE_INTERVAL ? dataRef.getDataRef().getName() : name;
-      }
-
-      return name;
-   }
-
-   /**
-    * Add aggregate column.
-    */
-   private DataRef getAggregateColumn(DataRef dref) {
-      VSAggregateRef aggr = (VSAggregateRef) dref;
-      DataRef ref = aggr.getDataRef();
-
-      if(ref instanceof ColumnRef) {
-         ColumnRef col2 = (ColumnRef) ref;
-         DataRef bref = col2.getDataRef();
-
-         if(bref instanceof AliasDataRef || bref instanceof AttributeRef) {
-            int refType = bref.getRefType();
-            String field = bref.getAttribute();
-
-            if(aggr.getCalculator() != null) {
-               field = aggr.getFullName(field, null, aggr.getCalculator());
-            }
-
-            bref = new AttributeRef(field);
-            ((AttributeRef) bref).setRefType(refType);
-            col2 = (ColumnRef) col2.clone();
-            col2.setDataRef(bref);
-            col2.setView(dref.toView());
-            ref = col2;
-         }
-         else if(bref instanceof ExpressionRef) {
-            String field = bref.getAttribute();
-
-            if(aggr.getCalculator() != null) {
-               field = aggr.getFullName(field, null, aggr.getCalculator());
-            }
-
-            bref = (ExpressionRef) bref.clone();
-            ((ExpressionRef) bref).setName(field);
-            col2 = (ColumnRef) col2.clone();
-            col2.setDataRef(bref);
-            col2.setView(dref.toView());
-            ref = col2;
-         }
-
-         AggregateFormula formula = aggr.getFormula();
-
-         if(formula != null && formula.getDataType() != null) {
-            col2.setDataType(formula.getDataType());
-         }
-      }
-
-      return ref;
-   }
-
-   /**
-    * Sort the columns by name. For Chart GetChartColumnsEvent
-    */
-   public ColumnSelection sortColumns(ColumnSelection cols, String ctype) {
-      List<DataRef> list = new ArrayList<>();
-
-      for(int i = 0; i < cols.getAttributeCount(); i++) {
-         DataRef ref = cols.getAttribute(i);
-
-         if(ref instanceof ColumnRef) {
-            String view = ((ColumnRef) ref).getView();
-            ColumnRef column = ((ColumnRef) ref).getDataRef() instanceof DateRangeRef ||
-               ((ColumnRef) ref).getDataRef() instanceof NamedRangeRef
-               ? ((ColumnRef) ref) : VSUtil.getVSColumnRef((ColumnRef) ref);
-
-            if(view != null && (XCube.SQLSERVER.equals(ctype) &&
-               (ref.getRefType() & DataRef.CUBE_MEASURE) ==
-                  DataRef.CUBE_MEASURE ||
-               cols.getProperty("View_" + view) != null))
-            {
-               column.setView(view);
-            }
-
-            list.add(column);
-         }
-      }
-
-      list.sort(new VSUtil.DataRefComparator());
-      cols.clear();
-
-      for(DataRef ref : list) {
-         cols.addAttribute(ref);
-      }
-
-      return cols;
-   }
-
-   public void makeUndoable(RuntimeSheet rs, CommandDispatcher dispatcher,
-                            String focusedLayoutName)
-   {
-      if(rs.isDisposed()) {
-         return;
-      }
-
-      if(rs instanceof RuntimeViewsheet && focusedLayoutName != null &&
-         !Catalog.getCatalog().getString("Master").equals(focusedLayoutName)) {
-         RuntimeViewsheet rvs = (RuntimeViewsheet) rs;
-         LayoutInfo info = rvs.getViewsheet().getLayoutInfo();
-         AbstractLayout abstractLayout;
-
-         if(Catalog.getCatalog().getString("Print Layout").equals(focusedLayoutName)) {
-            abstractLayout =  info.getPrintLayout();
-         }
-         else {
-            abstractLayout = info.getViewsheetLayouts()
-               .stream()
-               .filter(l -> l.getName().equals(focusedLayoutName))
-               .findFirst()
-               .orElse(null);
-         }
-
-         rvs.addLayoutCheckPoint(abstractLayout);
-
-         UpdateLayoutUndoStateCommand command = new UpdateLayoutUndoStateCommand();
-         command.setLayoutPoint(rvs.getLayoutPoint());
-         command.setLayoutPoints(rvs.getLayoutPointsSize());
-         command.setId(rs.getID());
-         dispatcher.sendCommand(command);
-      }
-      else {
-         rs.addCheckpoint(rs.getSheet().prepareCheckpoint());
-
-         UpdateUndoStateCommand command = new UpdateUndoStateCommand();
-         command.setPoints(rs.size());
-         command.setCurrent(rs.getCurrent());
-         command.setSavePoint(rs.getSavePoint());
-         command.setId(rs.getID());
-         dispatcher.sendCommand(command);
-      }
-   }
-
-   /**
-    * Add layer command to set all objects.
-    */
-   public void addLayerCommand(Viewsheet vs, CommandDispatcher dispatcher) {
-      if(vs == null) {
-         return;
-      }
-
-      Assembly[] assemblies = vs.getAssemblies(false, true);
-      addLayerCommand(vs, assemblies, dispatcher);
-   }
-
-   /**
-    * Add layer command.
-    */
-   public void addLayerCommand(Viewsheet vs, Assembly[] assemblies,
-                               CommandDispatcher dispatcher)
-   {
-      List<String> names = new ArrayList<>();
-      List<Integer> indexes = new ArrayList<>();
-
-      Arrays.stream(assemblies)
-         .forEach(assembly -> {
-            VSAssembly vsass = (VSAssembly) assembly;
-            names.add(vsass.getAbsoluteName());
-            indexes.add(vsass.getZIndex());
-         });
-
-      UpdateZIndexesCommand command = new UpdateZIndexesCommand();
-      command.setAssemblies(names);
-      command.setzIndexes(indexes);
-      dispatcher.sendCommand(vs.getAbsoluteName(), command);
-
-      // also send command to any embedded viewsheets
-      Arrays.stream(assemblies)
-            .filter(Viewsheet.class::isInstance)
-            .map(Viewsheet.class::cast)
-            .forEach(viewsheet -> addLayerCommand(viewsheet,
-                                                    viewsheet.getAssemblies(false, true),
-                                                    dispatcher));
-   }
-
-
-   /**
-    * Adjust the z-index for all the components in the viewsheet.
-    */
-   public void shrinkZIndex(Viewsheet vs, CommandDispatcher dispatcher) {
-      shrinkZIndex0(vs);
-      addLayerCommand(vs, dispatcher);
-   }
-
-   /**
-    * Shrink all object in viewsheet, include child viewsheets.
-    */
-   private void shrinkZIndex0(Viewsheet vs) {
-      if(vs == null) {
-         return;
-      }
-
-      vs.calcChildZIndex();
-      Assembly[] ass = vs.getAssemblies(false, false);
-
-      Arrays.stream(ass)
-         .forEach(assembly -> {
-            if(assembly instanceof Viewsheet) {
-               shrinkZIndex0((Viewsheet) assembly);
-            }
-         });
-   }
-
-   /**
-    * Update all the children zindex when remove container.
-    */
-   public void updateZIndex(Viewsheet vs, Assembly assembly) {
-      if(!(assembly instanceof ContainerVSAssembly) || vs == null) {
-         return;
-      }
-
-      ContainerVSAssembly cass = (ContainerVSAssembly) assembly;
-      String[] assemblies = cass.getAssemblies();
-      updateZIndex(vs, cass, assemblies);
-   }
-
-   /**
-    * Update specified child zindex when remove container assembly or move out
-    * of container assembly.
-    */
-   public void updateZIndex(Viewsheet vs, ContainerVSAssembly assembly, String[] children) {
-      String name = assembly.getName();
-      String prefix = name.contains(".") ? name.substring(0, name.indexOf('.') + 1) : "";
-
-      Arrays.stream(children)
-         .forEach(child -> {
-            child = child.contains(".") ? child : prefix + child;
-            VSAssembly vsobj = (VSAssembly) vs.getAssembly(child);
-
-            if(vsobj != null) {
-               vsobj.setZIndex(vsobj.getZIndex() + assembly.getZIndex());
-            }
-         });
-   }
-
-   /**
-    * Remove object from container.
-    */
-   public void removeObjectFromContainer(RuntimeViewsheet rvs, String uri,
-                                         String name, CommandDispatcher dispatcher,
-                                         String[] toBeRemovedObjs, List<String> processedObjs,
-                                         List<String> needRefreshObjs)
-         throws Exception
-   {
-      if(processedObjs.indexOf(name) >= 0) {
-         return;
-      }
-
-      Viewsheet vs = rvs.getViewsheet();
-
-      if(vs == null) {
-         return;
-      }
-
-      VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
-
-      if(assembly == null) {
-         return;
-      }
-
-      VSAssembly cassembly = assembly.getContainer();
-
-      if(!(cassembly instanceof GroupContainerVSAssembly)) {
-         return;
-      }
-
-      GroupContainerVSAssembly gassembly = (GroupContainerVSAssembly) cassembly;
-      boolean changed = false;
-
-      for(String toBeRemovedObj : toBeRemovedObjs) {
-         name = toBeRemovedObj;
-
-         if(processedObjs.indexOf(name) >= 0) {
-            continue;
-         }
-
-         if(!gassembly.containsAssembly(name)) {
-            continue;
-         }
-
-         gassembly.removeAssembly(name);
-
-         if(processedObjs.indexOf(name) < 0) {
-            processedObjs.add(name);
-            changed = true;
-         }
-      }
-
-      if(!changed) {
-         return;
-      }
-
-      String[] children = gassembly.getAssemblies();
-
-      if(children == null || children.length <= 1) {
-         ContainerVSAssembly container = (ContainerVSAssembly)
-            gassembly.getContainer();
-
-         // if a group container is in a tab, and it's removed when
-         // only one child is left, replace the group container in
-         // the tab with the only child
-         if(container instanceof TabVSAssembly &&
-            children != null && children.length == 1)
-         {
-            TabVSAssembly tab = (TabVSAssembly) container;
-            String[] tabchildren = container.getAssemblies();
-
-            for(int i = 0; i < tabchildren.length; i++) {
-               if(gassembly.getName().equals(tabchildren[i])) {
-                  if(tabchildren[i].equals(tab.getSelected())) {
-                     tab.setSelectedValue(children[0]);
-                  }
-
-                  tabchildren[i] = children[0];
-               }
-            }
-
-            tab.setAssemblies(tabchildren);
-         }
-
-         updateZIndex(vs, gassembly);
-         removeVSAssembly(rvs, uri, gassembly, dispatcher, false, true);
-      }
-      else {
-         // should not update child position
-         Point p = gassembly.getPixelOffset();
-         p.move(0, gassembly.getPixelSize().height);
-         gassembly.setAssemblies(new String[]{});
-         gassembly.setPixelOffset(p);
-         gassembly.setAssemblies(children);
-
-         for(String childName : children) {
-            if(needRefreshObjs.indexOf(childName) < 0) {
-               needRefreshObjs.add(childName);
-            }
-         }
-      }
-   }
-
-   /**
-    * When an assembly has been moved, check if any lines point to it and make sure
-    * the line endpoints are updated.
-    */
-   public void updateAnchoredLines(RuntimeViewsheet rvs, List<String> assemblies,
-                                   CommandDispatcher dispatcher)
-      throws Exception
-   {
-      Viewsheet viewsheet = rvs.getViewsheet();
-      //get all the line assemblies in the viewsheet
-      List<LineVSAssembly> lines = Arrays.stream(viewsheet.getAssemblies())
-         .filter(LineVSAssembly.class::isInstance)
-         .map(LineVSAssembly.class::cast)
-         .collect(Collectors.toList());
-
-      for(LineVSAssembly line: lines) {
-         updateAnchoredLinePosition(line, viewsheet, rvs, assemblies, dispatcher);
-      }
-   }
-
-   private void updateAnchoredLinePosition(LineVSAssembly line, Viewsheet viewsheet,
-                                           RuntimeViewsheet rvs,
-                                           List<String> assemblies,
-                                           CommandDispatcher dispatcher)
-      throws Exception
-   {
-      LineVSAssemblyInfo lineAssemblyInfo = (LineVSAssemblyInfo) line.getInfo();
-      line.updateAnchor(viewsheet);
-
-      //change endPos of the line
-      if(assemblies.contains(lineAssemblyInfo.getEndAnchorID())) {
-         Point currEndPos = line.getAnchorPos(viewsheet, lineAssemblyInfo,
-                                              lineAssemblyInfo.getEndAnchorID(),
-                                              lineAssemblyInfo.getEndAnchorPos());
-         line.setEndPos(currEndPos);
-      }
-
-      // change startPos of the line
-      if(assemblies.contains(lineAssemblyInfo.getStartAnchorID())) {
-         Point currStartPos = line.getAnchorPos(viewsheet, lineAssemblyInfo,
-                                                lineAssemblyInfo.getStartAnchorID(),
-                                                lineAssemblyInfo.getStartAnchorPos());
-         line.setStartPos(currStartPos);
-      }
-
-      refreshVSAssembly(rvs, line, dispatcher);
-   }
-
    /**
     * Dispatch event to trigger ViewsheetScope script execution.
     * @param event event provide event source, type and other properties.
@@ -3908,7 +2884,7 @@ public class PlaceholderService {
                VSAssembly assembly = vs.getAssembly(name);
 
                try {
-                  refreshTextParameters(rvs, assembly);
+                  parameterService.refreshTextParameters(rvs, assembly);
                   RefreshVSObjectCommand command = new RefreshVSObjectCommand();
                   command.setInfo(objectModelService.createModel(assembly, rvs));
                   command.setWizardTemporary(assembly.isWizardTemporary());
@@ -3923,107 +2899,6 @@ public class PlaceholderService {
       }
 
       vsscope.removeVariable("event");
-   }
-
-   // Copied from GetComponentEvent
-   public String[] getChildNodes(Assembly assembly) {
-      String[] childNodes = null;
-      int type = assembly.getAssemblyType();
-
-      if(type == Viewsheet.CHART_ASSET) {
-         childNodes = new String[]{"Title", "X Axis Title" , "Y Axis Title",
-                                   "Secondary X Axis Title", "Secondary Y Axis Title",
-                                   "Color Legend Axis Title", "Shape Legend Axis Title",
-                                   "Size Legend Axis Title"};
-      }
-      else if(type == Viewsheet.CROSSTAB_ASSET) {
-         CrosstabVSAssembly crossTab = (CrosstabVSAssembly) assembly;
-         DataRef[] rows = null;
-         DataRef[] cols = null;
-         DataRef[] aggs = null;
-         List<String> list = new ArrayList<>();
-         list.add("Title");
-         list.add("Grand Total");
-         list.add("Group Total");
-
-         if(crossTab.getVSCrosstabInfo() != null) {
-            rows = crossTab.getVSCrosstabInfo().getRuntimeRowHeaders();
-            cols = crossTab.getVSCrosstabInfo().getRuntimeColHeaders();
-            aggs = crossTab.getVSCrosstabInfo().getRuntimeAggregates();
-         }
-
-         for(int j = 0; rows != null && j < rows.length; j++) {
-            list.add(rows[j].getName());
-         }
-
-         if(aggs != null && (aggs.length > 1 ||
-            cols == null || cols.length == 0 ||
-            rows == null || rows.length == 0))
-         {
-            for(DataRef agg : aggs) {
-               VSAggregateRef vref = (VSAggregateRef) agg;
-               String field = agg.getName();
-
-               if(vref.getCalculator() != null) {
-                  field = vref.getFullName(field, null, vref.getCalculator());
-               }
-
-               list.add(field);
-            }
-         }
-
-         childNodes = new String[list.size()];
-         list.toArray(childNodes);
-      }
-      else if(type == Viewsheet.FORMULA_TABLE_ASSET) {
-         TableLens lens = ((CalcTableVSAssembly) assembly).getBaseTable();
-         TableDataDescriptor desc =
-            lens != null ? lens.getDescriptor() : null;
-         List<String> list = new ArrayList<>();
-
-         for(int row = 0; desc != null && row < lens.getHeaderRowCount() && lens.moreRows(row);
-             row++)
-         {
-            for(int col = 0; col < lens.getColCount(); col++) {
-               TableDataPath path = desc.getCellDataPath(row, col);
-
-               if(path.getType() == TableDataPath.HEADER || row == 0) {
-                  String object = (String) lens.getObject(row, col);
-
-                  if(object != null && !object.startsWith("=")) {
-                     list.add(object);
-                  }
-               }
-            }
-         }
-
-         list.add("Title");
-         childNodes = new String[list.size()];
-         list.toArray(childNodes);
-      }
-      else if(type == Viewsheet.CHECKBOX_ASSET ||
-         type == Viewsheet.RADIOBUTTON_ASSET ||
-         type == Viewsheet.TABLE_VIEW_ASSET)
-      {
-         String[] title = new String[]{"Title"};
-         String[] columns = null;
-
-         if(type == Viewsheet.TABLE_VIEW_ASSET) {
-            ColumnSelection sel = ((TableVSAssembly) assembly).getColumnSelection();
-            columns = sel != null ? sel.stream().map(DataRef::getName).toArray(String[]::new) : null;
-         }
-
-         childNodes = (String[]) Tool.mergeArray(title, columns);
-      }
-      else if(type == Viewsheet.CALENDAR_ASSET ||
-         type == Viewsheet.SELECTION_TREE_ASSET ||
-         type == Viewsheet.SELECTION_LIST_ASSET ||
-         type == Viewsheet.CURRENTSELECTION_ASSET)
-      {
-         childNodes = new String[]{"Title"};
-      }
-
-      return childNodes;
    }
 
    private boolean shouldApplyTheSelection(boolean canApplySelectFirst, VSAssembly assembly) {
@@ -4062,34 +2937,16 @@ public class PlaceholderService {
       return false;
    }
 
-   /**
-    * Returns the parameters that will be prompted on viewsheet open
-    */
-   private List<UserVariable> getPromptParameters(Viewsheet sheet, ViewsheetSandbox box,
-                                                  VariableTable initvars)
-      throws Exception
-   {
-      List<UserVariable> vars = new ArrayList<>();
-      VSEventUtil.refreshParameters(viewsheetService, box, sheet, false, initvars, vars);
-      Set<String> disabledVars = sheet.getDisabledVariables();
-      Set<String> inputAssemblyNames = Arrays.stream(sheet.getAssemblies(true, true))
-         .filter((assembly) -> assembly instanceof InputVSAssembly)
-         .map(Assembly::getName)
-         .collect(Collectors.toSet());
-      vars.removeIf(var -> disabledVars.contains(var.getName()) ||
-         inputAssemblyNames.contains(var.getName()));
-      return vars;
-   }
-
    private final VSObjectModelFactoryService objectModelService;
-   private final SimpMessagingTemplate messagingTemplate;
    private final ViewsheetService viewsheetService;
-   private static final Logger LOG = LoggerFactory.getLogger(PlaceholderService.class);
+   private final VSLayoutService vsLayoutService;
+   private final ParameterService parameterService;
+   private static final Logger LOG = LoggerFactory.getLogger(CoreLifecycleService.class);
 
    /**
     * Comparator for sorting tabs before other assemblies but after annotations
     */
-   private static final class TabAnnotationComparator extends AnnotationComparator {
+   protected static final class TabAnnotationComparator extends AnnotationComparator {
       TabAnnotationComparator() {
          super(true);
          this.asc = true;

@@ -50,13 +50,15 @@ import java.util.stream.Collectors;
 @Service
 public class VSSelectionService {
    @Autowired
-   public VSSelectionService(PlaceholderService placeholderService,
+   public VSSelectionService(CoreLifecycleService coreLifecycleService,
                              ViewsheetService viewsheetService,
-                             MaxModeAssemblyService maxModeAssemblyService)
+                             MaxModeAssemblyService maxModeAssemblyService,
+                             SharedFilterService sharedFilterService)
    {
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.maxModeAssemblyService = maxModeAssemblyService;
+      this.sharedFilterService = sharedFilterService;
    }
 
    public Context createContext(String runtimeId, Principal principal,
@@ -373,17 +375,17 @@ public class VSSelectionService {
       // visibility may change. (62311)
       if(!assembly.isVisible() && assembly.getContainer() instanceof TabVSAssembly) {
          Viewsheet viewsheet = context.rvs().getViewsheet();
-         placeholderService.refreshVSAssembly(context.rvs(), assembly.getContainer(),
-                                              context.dispatcher());
+         coreLifecycleService.refreshVSAssembly(context.rvs(), assembly.getContainer(),
+                                                context.dispatcher());
 
          for(String child : ((TabVSAssembly) assembly.getContainer()).getAbsoluteAssemblies()) {
             VSAssembly childAssembly = viewsheet.getAssembly(child);
 
             if(assembly.isEmbedded() && childAssembly != null) {
-               placeholderService.addDeleteVSObject(context.rvs(), childAssembly, context.dispatcher());
+               coreLifecycleService.addDeleteVSObject(context.rvs(), childAssembly, context.dispatcher());
             }
             else {
-               placeholderService.refreshVSAssembly(context.rvs(), child, context.dispatcher());
+               coreLifecycleService.refreshVSAssembly(context.rvs(), child, context.dispatcher());
             }
          }
       }
@@ -407,7 +409,7 @@ public class VSSelectionService {
          final CommandDispatcher dispatcher = context.dispatcher();
          final String linkUri = context.linkUri();
          final ChangedAssemblyList clist =
-            placeholderService.createList(true, dispatcher, rvs, linkUri);
+            coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
          box.processChange(assemblyName, VSAssembly.NONE_CHANGED, clist);
       }
       finally {
@@ -445,7 +447,7 @@ public class VSSelectionService {
          final CommandDispatcher dispatcher = context.dispatcher();
          final String linkUri = context.linkUri();
          final ChangedAssemblyList clist =
-            placeholderService.createList(true, dispatcher, rvs, linkUri);
+            coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
          box.processChange(assemblyName, VSAssembly.NONE_CHANGED, clist);
       }
       finally {
@@ -561,13 +563,13 @@ public class VSSelectionService {
                   null, dispatcher, linkUri);
             }
 
-            placeholderService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, false);
+            coreLifecycleService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, false);
          }
       }
 
       // Iterate over all assemblies and for add to view list if they have
       // hyperlinks that "send selection parameters"
-      placeholderService.executeInfluencedHyperlinkAssemblies(
+      coreLifecycleService.executeInfluencedHyperlinkAssemblies(
          rvs.getViewsheet(), dispatcher, rvs, linkUri, Collections.singletonList(table));
    }
 
@@ -758,7 +760,7 @@ public class VSSelectionService {
       final Principal principal = context.principal();
       final CommandDispatcher dispatcher = context.dispatcher();
       final String linkUri = context.linkUri();
-      ChangedAssemblyList clist = placeholderService.createList(true, dispatcher, rvs, linkUri);
+      ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
 
       if(box == null) {
@@ -771,7 +773,7 @@ public class VSSelectionService {
 
       try {
          box.processChange(assembly.getAbsoluteName(), hint, clist);
-         placeholderService.processExtSharedFilters(assembly, hint, rvs, principal, dispatcher);
+         sharedFilterService.processExtSharedFilters(assembly, hint, rvs, principal, dispatcher);
       }
       finally {
          scope.removeVariable("event");
@@ -783,8 +785,8 @@ public class VSSelectionService {
          eventSourceAssembly = rvs.getViewsheet().getAssembly(eventSource);
       }
 
-      placeholderService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher,
-         true);
+      coreLifecycleService.execute(rvs, assembly.getName(), linkUri, clist, dispatcher,
+                                   true);
 
       // Bug #59654, reapply scale to vs assemblies after changing a selection value
       if(rvs.getViewsheet().getViewsheetInfo().isScaleToScreen() &&
@@ -795,18 +797,18 @@ public class VSSelectionService {
          if(scaleSize instanceof Dimension && ((Dimension) scaleSize).width > 0 &&
             ((Dimension) scaleSize).height > 0)
          {
-            this.placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri,
-                                                     ((Dimension) scaleSize).width,
-                                                     ((Dimension) scaleSize).height,
-                                                     false, null, dispatcher,
-                                                     false, false, false, clist);
+            this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri,
+                                                       ((Dimension) scaleSize).width,
+                                                       ((Dimension) scaleSize).height,
+                                                       false, null, dispatcher,
+                                                       false, false, false, clist);
          }
       }
 
       List<VSAssembly> tassemblies = VSUtil.getSharedVSAssemblies(rvs.getViewsheet(), assembly);
 
       for(VSAssembly tassembly : tassemblies) {
-         placeholderService.refreshVSObject(tassembly, rvs, null, box, dispatcher);
+         coreLifecycleService.refreshVSObject(tassembly, rvs, null, box, dispatcher);
       }
    }
 
@@ -1656,7 +1658,8 @@ public class VSSelectionService {
       }
    }
 
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final MaxModeAssemblyService maxModeAssemblyService;
+   private final SharedFilterService sharedFilterService;
 }

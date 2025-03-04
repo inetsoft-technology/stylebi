@@ -26,7 +26,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 
@@ -44,13 +44,13 @@ public class GroupingService {
    /**
     * Creates a new instance of <tt>GroupingService</tt>.
     *
-    * @param placeholderService service for general viewsheet actions.
+    * @param coreLifecycleService service for general viewsheet actions.
     */
    @Autowired
-   public GroupingService(PlaceholderService placeholderService,
+   public GroupingService(CoreLifecycleService coreLifecycleService,
                           VSLayoutService vsLayoutService)
    {
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.vsLayoutService = vsLayoutService;
    }
 
@@ -89,8 +89,8 @@ public class GroupingService {
 
             dispatcher.sendCommand(command);
 
-            placeholderService.execute(rvs, container.getAbsoluteName(), linkUri,
-                                       VSAssembly.VIEW_CHANGED, dispatcher);
+            coreLifecycleService.execute(rvs, container.getAbsoluteName(), linkUri,
+                                         VSAssembly.VIEW_CHANGED, dispatcher);
          }
          else {
             if(target instanceof CurrentSelectionVSAssembly && object != null) {
@@ -123,8 +123,8 @@ public class GroupingService {
                ((CurrentSelectionVSAssembly) objectContainer)
                   .removeAssembly(object.getAbsoluteName());
 
-               placeholderService.execute(rvs, objectContainer.getAbsoluteName(), linkUri,
-                                          VSAssembly.VIEW_CHANGED, dispatcher);
+               coreLifecycleService.execute(rvs, objectContainer.getAbsoluteName(), linkUri,
+                                            VSAssembly.VIEW_CHANGED, dispatcher);
             }
 
             VSAssemblyInfo containerInfo = (VSAssemblyInfo) container.getInfo();
@@ -161,14 +161,14 @@ public class GroupingService {
                objectInfo.setLayoutSize(new Dimension(size.width, objSize.height));
             }
 
-            placeholderService.execute(rvs, container.getAbsoluteName(), linkUri,
-                                       VSAssembly.VIEW_CHANGED, dispatcher);
+            coreLifecycleService.execute(rvs, container.getAbsoluteName(), linkUri,
+                                         VSAssembly.VIEW_CHANGED, dispatcher);
          }
 
          // visibility of container changed in tab, need to refresh tab and its children. (62228)
          if(targetContainer instanceof TabVSAssembly && !ovisible && target.isVisible()) {
-            placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher, false,
-                                                false, false, new ChangedAssemblyList());
+            coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher, false,
+                                                  false, false, new ChangedAssemblyList());
          }
       }
       else {
@@ -189,8 +189,8 @@ public class GroupingService {
 
                dispatcher.sendCommand(command);
 
-               placeholderService.execute(rvs, container.getAbsoluteName(), linkUri,
-                                          VSAssembly.VIEW_CHANGED, dispatcher);
+               coreLifecycleService.execute(rvs, container.getAbsoluteName(), linkUri,
+                                            VSAssembly.VIEW_CHANGED, dispatcher);
             }
             else {
                String[] assemblies = container.getAssemblies();
@@ -202,8 +202,8 @@ public class GroupingService {
                if(objectContainer instanceof TabVSAssembly) {
                   ((TabVSAssembly) objectContainer).removeAssembly(object.getAbsoluteName());
 
-                  placeholderService.execute(rvs, objectContainer.getAbsoluteName(), linkUri,
-                                             VSAssembly.VIEW_CHANGED, dispatcher);
+                  coreLifecycleService.execute(rvs, objectContainer.getAbsoluteName(), linkUri,
+                                               VSAssembly.VIEW_CHANGED, dispatcher);
                }
 
                VSAssemblyInfo info = (VSAssemblyInfo) container.getInfo();
@@ -227,8 +227,8 @@ public class GroupingService {
                object.setPixelOffset(objectPos);
                objectInfo.setZIndex(container.getZIndex());
 
-               placeholderService.execute(rvs, container.getAbsoluteName(), linkUri,
-                                          VSAssembly.VIEW_CHANGED, dispatcher);
+               coreLifecycleService.execute(rvs, container.getAbsoluteName(), linkUri,
+                                            VSAssembly.VIEW_CHANGED, dispatcher);
             }
          }
          else if(object instanceof TabVSAssembly) {
@@ -261,8 +261,8 @@ public class GroupingService {
             target.setPixelOffset(targetPos);
             targetInfo.setZIndex(container.getZIndex());
 
-            placeholderService.execute(rvs, container.getAbsoluteName(), linkUri,
-                                       VSAssembly.VIEW_CHANGED, dispatcher);
+            coreLifecycleService.execute(rvs, container.getAbsoluteName(), linkUri,
+                                         VSAssembly.VIEW_CHANGED, dispatcher);
          }
          else {
             VSAssemblyInfo info = (VSAssemblyInfo) target.getInfo();
@@ -314,9 +314,9 @@ public class GroupingService {
                targetInfo.setLayoutPosition(objectPos);
             }
 
-            placeholderService.addDeleteVSObject(rvs, targetTab, dispatcher);
-            placeholderService.execute(rvs, targetTab.getAbsoluteName(), linkUri,
-                                       VSAssembly.VIEW_CHANGED, dispatcher);
+            coreLifecycleService.addDeleteVSObject(rvs, targetTab, dispatcher);
+            coreLifecycleService.execute(rvs, targetTab.getAbsoluteName(), linkUri,
+                                         VSAssembly.VIEW_CHANGED, dispatcher);
          }
       }
 
@@ -380,6 +380,6 @@ public class GroupingService {
       viewsheet.removeAssembly(object.getName());
    }
 
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSLayoutService vsLayoutService;
 }

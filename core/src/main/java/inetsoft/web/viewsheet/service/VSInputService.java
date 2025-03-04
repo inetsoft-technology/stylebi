@@ -59,11 +59,11 @@ import java.util.regex.Pattern;
 public class VSInputService {
    @Autowired
    public VSInputService(
-      VSObjectService vsObjectService, PlaceholderService placeholderService,
+      VSObjectService vsObjectService, CoreLifecycleService coreLifecycleService,
       ViewsheetService viewsheetService, RuntimeViewsheetRef runtimeViewsheetRef)
    {
       this.vsObjectService = vsObjectService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
    }
@@ -199,7 +199,7 @@ public class VSInputService {
 
       if(info instanceof SliderVSAssemblyInfo) {
          hint0 = info.setSelectedObject(obj);
-         placeholderService.refreshVSAssembly(rvs, info.getAbsoluteName(), dispatcher);
+         coreLifecycleService.refreshVSAssembly(rvs, info.getAbsoluteName(), dispatcher);
       }
       else if(info instanceof SpinnerVSAssemblyInfo) {
          hint0 = info.setSelectedObject(obj);
@@ -249,7 +249,7 @@ public class VSInputService {
       }
 
       if(info.getWriteBackValue()) {
-         ViewsheetSandbox baseBox = placeholderService.getSandbox(box, assemblyName);
+         ViewsheetSandbox baseBox = coreLifecycleService.getSandbox(box, assemblyName);
          String tableName = VSUtil.stripOuter(info.getTableName());
 
          baseBox.writeBackFormDataDirectly(viewsheetService.getAssetRepository(),
@@ -368,7 +368,7 @@ public class VSInputService {
 
       if(wsOutputDataChanged) {
          wbox.setIgnoreFiltering(false);
-         placeholderService.refreshEmbeddedViewsheet(rvs, linkUri, dispatcher);
+         coreLifecycleService.refreshEmbeddedViewsheet(rvs, linkUri, dispatcher);
          box.resetRuntime();
          // @by stephenwebster, For Bug #6575
          // refreshViewsheet() already calls reset() making this call redundant
@@ -376,7 +376,7 @@ public class VSInputService {
          // I double checked bug1391802567612 and it seems like it
          // is working as expected
          // box.reset(clist);
-         placeholderService.refreshViewsheet(
+         coreLifecycleService.refreshViewsheet(
             rvs, rvs.getID(), linkUri, dispatcher, false, true, true, clist);
       }
 
@@ -475,7 +475,7 @@ public class VSInputService {
          for(Assembly assembly : vs.getAssemblies()) {
             if(assembly instanceof InputVSAssembly) {
                box.executeView(assembly.getAbsoluteName(), true);
-               placeholderService.refreshVSAssembly(rvs, (VSAssembly) assembly, dispatcher);
+               coreLifecycleService.refreshVSAssembly(rvs, (VSAssembly) assembly, dispatcher);
             }
          }
       }
@@ -1345,7 +1345,7 @@ public class VSInputService {
    }
 
    private final VSObjectService vsObjectService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private static final Logger LOG = LoggerFactory.getLogger(VSInputService.class);

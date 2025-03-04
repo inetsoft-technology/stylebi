@@ -31,7 +31,7 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.event.table.SortColumnEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,7 +55,7 @@ class BaseTableSortColumnControllerTest {
    @BeforeEach
    void setup() throws Exception {
       controller = new BaseTableSortColumnController(
-         runtimeViewsheetRef, placeholderService, viewsheetService, bindingFactory);
+         runtimeViewsheetRef, coreLifecycleService, viewsheetService, bindingFactory);
    }
 
    // Bug #17147 Create new sort info when sort event multi flag is false
@@ -101,7 +101,8 @@ class BaseTableSortColumnControllerTest {
    }
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock ViewsheetService viewsheetService;
    @Mock VSBindingService bindingFactory;
    @Mock RuntimeViewsheet rvs;

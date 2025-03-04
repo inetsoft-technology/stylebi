@@ -49,11 +49,11 @@ public class VSDataTipController {
    @Autowired
    public VSDataTipController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
    }
 
@@ -156,9 +156,9 @@ public class VSDataTipController {
       // change it to true so data tip will show up
       applyAll(tip, vsobj -> {
             try {
-               placeholderService.execute(rvs, vsobj.getAbsoluteName(), linkUri, hint, dispatcher);
+               coreLifecycleService.execute(rvs, vsobj.getAbsoluteName(), linkUri, hint, dispatcher);
                vsobj.getInfo().setVisible(conds != null);
-               placeholderService.refreshVSAssembly(rvs, vsobj, dispatcher);
+               coreLifecycleService.refreshVSAssembly(rvs, vsobj, dispatcher);
                return true;
             }
             catch(MessageException ex) {
@@ -301,7 +301,7 @@ public class VSDataTipController {
       return false;
    }
 
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
 }

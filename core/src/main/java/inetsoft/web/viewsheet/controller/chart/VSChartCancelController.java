@@ -35,10 +35,10 @@ import java.security.Principal;
 public class VSChartCancelController extends VSChartController<CancelEvent> {
    @Autowired
    public VSChartCancelController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                  PlaceholderService placeholderService,
+                                  CoreLifecycleService coreLifecycleService,
                                   ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
    }
 
    @Override

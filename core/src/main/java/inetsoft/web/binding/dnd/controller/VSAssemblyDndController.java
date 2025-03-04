@@ -34,7 +34,7 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.security.Principal;
@@ -60,13 +60,13 @@ public class VSAssemblyDndController {
       VSAssemblyInfoHandler assemblyInfoHandler,
       VSObjectModelFactoryService objectModelService,
       ViewsheetService viewsheetService,
-      PlaceholderService placeholderService)
+      CoreLifecycleService coreLifecycleService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.bfactory = bfactory;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    protected void changeSource(VSAssembly assembly, String table, int sourceType) {
@@ -172,7 +172,7 @@ public class VSAssemblyDndController {
          createDndCommands(rvs, assembly, dispatcher, event, linkUri);
       }
       catch(ConfirmException ex) {
-         if(!placeholderService.waitForMV(ex, rvs, dispatcher)) {
+         if(!coreLifecycleService.waitForMV(ex, rvs, dispatcher)) {
             throw ex;
          }
       }
@@ -185,12 +185,12 @@ public class VSAssemblyDndController {
       final BindingModel binding = bfactory.createModel(assembly);
       final SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
       dispatcher.sendCommand(bcommand);
-      placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
    }
 
    private final VSBindingService bfactory;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
 }

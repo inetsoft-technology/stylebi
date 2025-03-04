@@ -59,7 +59,6 @@ public class VSTextController {
       VSObjectPropertyService vsObjectPropertyService,
       ViewsheetService viewsheetService,
       VSObjectModelFactoryService objectModelService,
-      PlaceholderService placeholderService,
       VSLayoutService vsLayoutService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
@@ -67,7 +66,6 @@ public class VSTextController {
       this.viewsheetService = viewsheetService;
       this.objectModelService = objectModelService;
       this.vsLayoutService = vsLayoutService;
-      this.placeholderService = placeholderService;
    }
 
    /**
@@ -132,7 +130,7 @@ public class VSTextController {
                command.setRegion(region);
                dispatcher.sendCommand(command);
                this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-               placeholderService.makeUndoable(parentRvs, dispatcher,
+               vsLayoutService.makeUndoable(parentRvs, dispatcher,
                   this.runtimeViewsheetRef.getFocusedLayoutName());
             });
    }
@@ -142,7 +140,6 @@ public class VSTextController {
    private final ViewsheetService viewsheetService;
    private final VSLayoutService vsLayoutService;
    private final VSObjectModelFactoryService objectModelService;
-   private final PlaceholderService placeholderService;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(VSTextController.class);

@@ -66,13 +66,13 @@ public class ComposerAdhocFilterController {
    @Autowired
    public ComposerAdhocFilterController(ViewsheetService viewsheetService,
                                         RuntimeViewsheetRef runtimeViewsheetRef,
-                                        PlaceholderService placeholderService,
+                                        CoreLifecycleService coreLifecycleService,
                                         VSTableService vsTableService,
                                         GroupingService groupingService)
    {
       this.viewsheetService = viewsheetService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.vsTableService = vsTableService;
       this.groupingService = groupingService;
    }
@@ -349,10 +349,10 @@ public class ComposerAdhocFilterController {
 
          filter.getVSAssemblyInfo().setPixelSize(filterSize);
          filter.setZIndex(assembly.getZIndex() + 1000);
-         placeholderService.execute(rvs, container.getAbsoluteName(), linkUri,
-                                    VSAssembly.VIEW_CHANGED, dispatcher);
-         placeholderService.execute(rvs, filter.getAbsoluteName(), linkUri,
-                                    VSAssembly.VIEW_CHANGED, dispatcher);
+         coreLifecycleService.execute(rvs, container.getAbsoluteName(), linkUri,
+                                      VSAssembly.VIEW_CHANGED, dispatcher);
+         coreLifecycleService.execute(rvs, filter.getAbsoluteName(), linkUri,
+                                      VSAssembly.VIEW_CHANGED, dispatcher);
          return;
       }
 
@@ -472,7 +472,7 @@ public class ComposerAdhocFilterController {
       }
 
       vs.addAssembly(vsassembly);
-      placeholderService.addDeleteVSObject(rvs, vsassembly, dispatcher);
+      coreLifecycleService.addDeleteVSObject(rvs, vsassembly, dispatcher);
    }
 
    /**
@@ -505,7 +505,7 @@ public class ComposerAdhocFilterController {
          containerName = (String) list.getAhFilterProperty().get("_container");
 
          if(list.getSelectedObjects().isEmpty() && info.isCreatedByAdhoc()) {
-            placeholderService.removeVSAssembly(rvs, linkUri, list, dispatcher, false, false);
+            coreLifecycleService.removeVSAssembly(rvs, linkUri, list, dispatcher, false, false);
             return;
          }
          else {
@@ -524,7 +524,7 @@ public class ComposerAdhocFilterController {
             final SelectionValue end = slist.getSelectionValue(slist.getSelectionValueCount() - 1);
 
             if(start.isSelected() && end.isSelected() && info.isCreatedByAdhoc()) {
-               placeholderService.removeVSAssembly(rvs, linkUri, slider, dispatcher, false, false);
+               coreLifecycleService.removeVSAssembly(rvs, linkUri, slider, dispatcher, false, false);
                return;
             }
             else {
@@ -951,7 +951,7 @@ public class ComposerAdhocFilterController {
 
    private final ViewsheetService viewsheetService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSTableService vsTableService;
    private final GroupingService groupingService;
 }

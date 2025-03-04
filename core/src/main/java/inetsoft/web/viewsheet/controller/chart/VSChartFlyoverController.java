@@ -45,10 +45,10 @@ import java.util.ArrayList;
 public class VSChartFlyoverController extends VSChartController<VSChartFlyoverEvent> {
    @Autowired
    public VSChartFlyoverController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                   PlaceholderService placeholderService,
+                                   CoreLifecycleService coreLifecycleService,
                                    ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
    }
 
 

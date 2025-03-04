@@ -64,7 +64,7 @@ public class VSWizardObjectController {
                                    ViewsheetService viewsheetService,
                                    WizardVSObjectService objectService,
                                    VSWizardObjectHandler objectHandler,
-                                   PlaceholderService placeholderService,
+                                   CoreLifecycleService coreLifecycleService,
                                    VSAssemblyInfoHandler assemblyHandler,
                                    VSWizardBindingHandler bindingHandler,
                                    WizardViewsheetService wizardVSService,
@@ -81,7 +81,7 @@ public class VSWizardObjectController {
       this.syncTableHandler = syncTableHandler;
       this.viewsheetService = viewsheetService;
       this.syncChartHandler = syncChartHandler;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.syncCrosstabHandler = syncCrosstabHandler;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.temporaryInfoService = temporaryInfoService;
@@ -316,7 +316,7 @@ public class VSWizardObjectController {
       if(rarr.length > 0) {
          ChangedAssemblyList clist = new ChangedAssemblyList();
          box.reset(null, rarr, clist, false, false, null);
-         placeholderService.execute(rvs, fname, uri, clist, dispatcher, false);
+         coreLifecycleService.execute(rvs, fname, uri, clist, dispatcher, false);
       }
 
       // reprocess associated assemblies
@@ -325,7 +325,7 @@ public class VSWizardObjectController {
             int hint = VSAssembly.OUTPUT_DATA_CHANGED;
 
             for(SelectionVSAssembly relatedSelection : relatedSelections) {
-               placeholderService.execute(
+               coreLifecycleService.execute(
                   rvs, relatedSelection.getAbsoluteName(), uri, hint, dispatcher);
             }
          }
@@ -610,7 +610,7 @@ public class VSWizardObjectController {
    private final ViewsheetService viewsheetService;
    private final WizardVSObjectService objectService;
    private final VSWizardObjectHandler objectHandler;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSWizardBindingHandler bindingHandler;
    private final WizardViewsheetService wizardVSService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;

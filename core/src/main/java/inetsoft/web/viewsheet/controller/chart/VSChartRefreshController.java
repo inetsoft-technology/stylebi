@@ -41,12 +41,12 @@ import java.security.Principal;
 public class VSChartRefreshController extends VSChartController<VSChartRefreshEvent> {
    @Autowired
    public VSChartRefreshController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                   PlaceholderService placeholderService,
+                                   CoreLifecycleService coreLifecycleService,
                                    VSObjectModelFactoryService objectModelService,
                                    ViewsheetService viewsheetService,
                                    VSRefreshController vsRefreshController)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
       this.objectModelService = objectModelService;
       this.vsRefreshController = vsRefreshController;
    }

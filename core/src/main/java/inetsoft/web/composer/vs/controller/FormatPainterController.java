@@ -83,7 +83,7 @@ public class FormatPainterController {
     */
    @Autowired
    public FormatPainterController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                  PlaceholderService placeholderService,
+                                  CoreLifecycleService coreLifecycleService,
                                   ChartRegionHandler regionHandler,
                                   ViewsheetService viewsheetService,
                                   VSObjectModelFactoryService objectModelService,
@@ -91,7 +91,7 @@ public class FormatPainterController {
                                   VSLayoutService vsLayoutService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.regionHandler = regionHandler;
       this.viewsheetService = viewsheetService;
       this.objectModelService = objectModelService;
@@ -488,7 +488,7 @@ public class FormatPainterController {
       String[] objects;
       boolean vs = (event.getObjects() == null || event.getObjects().length == 0) &&
          (event.getCharts() == null || event.getCharts().length == 0);
-      ChangedAssemblyList clist = placeholderService.createList(false, commandDispatcher,
+      ChangedAssemblyList clist = coreLifecycleService.createList(false, commandDispatcher,
                                                                 rvs, linkUri);
 
       if(vs) {
@@ -617,23 +617,23 @@ public class FormatPainterController {
                commandDispatcher.sendCommand(command);
             }
             else if(vs) {
-               this.placeholderService.setViewsheetInfo(rvs, linkUri, commandDispatcher);
+               this.coreLifecycleService.setViewsheetInfo(rvs, linkUri, commandDispatcher);
 
                // refresh vs when css class/id changed to update the format of all assemblies
                if(event.getOrigFormat() != null && event.getFormat() != null &&
                   (!Tool.equals(event.getOrigFormat().getCssClass(), event.getFormat().getCssClass()) ||
                      !Tool.equals(event.getOrigFormat().getCssID(), event.getFormat().getCssID())))
                {
-                  this.placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri,
+                  this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri,
                                                            commandDispatcher, false, false,
                                                            true, clist);
                }
             }
             else {
-               this.placeholderService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
+               this.coreLifecycleService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
                                                commandDispatcher);
-               this.placeholderService.refreshVSAssembly(rvs, assembly, commandDispatcher);
-               this.placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher);
+               this.coreLifecycleService.refreshVSAssembly(rvs, assembly, commandDispatcher);
+               this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher);
             }
          }
 
@@ -701,10 +701,10 @@ public class FormatPainterController {
                box.reset(clist);
             }
 
-            this.placeholderService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
+            this.coreLifecycleService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
                                             commandDispatcher);
-            this.placeholderService.refreshVSAssembly(rvs, assembly, commandDispatcher);
-            this.placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher);
+            this.coreLifecycleService.refreshVSAssembly(rvs, assembly, commandDispatcher);
+            this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher);
 
             BindingModel binding = bindingService.createModel(assembly);
             SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
@@ -2127,7 +2127,7 @@ public class FormatPainterController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ChartRegionHandler regionHandler;
    private final ViewsheetService viewsheetService;
    private final VSObjectModelFactoryService objectModelService;

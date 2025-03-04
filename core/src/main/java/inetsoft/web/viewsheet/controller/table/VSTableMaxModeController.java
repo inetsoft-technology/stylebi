@@ -43,11 +43,11 @@ public class VSTableMaxModeController {
    @Autowired
    public VSTableMaxModeController(ViewsheetService viewsheetService,
                                 RuntimeViewsheetRef runtimeViewsheetRef,
-                                PlaceholderService placeholderService)
+                                CoreLifecycleService coreLifecycleService)
    {
       this.viewsheetService = viewsheetService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    @Undoable
@@ -96,13 +96,13 @@ public class VSTableMaxModeController {
          }
       }
 
-      final ChangedAssemblyList clist = placeholderService.createList(true, dispatcher, rvs,
-         linkUri);
+      final ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs,
+                                                                        linkUri);
 
       tableAssembly.setLastStartRow(0);
-      placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, event.width(), event.height(), false,
-         null,false, dispatcher, false, false, true, clist,
-         null, null, false, false, false, true);
+      coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, event.width(), event.height(), false,
+                                            null, false, dispatcher, false, false, true, clist,
+                                            null, null, false, false, false, true);
    }
 
    /**
@@ -114,6 +114,6 @@ public class VSTableMaxModeController {
 
    private ViewsheetService viewsheetService;
    private RuntimeViewsheetRef runtimeViewsheetRef;
-   private PlaceholderService placeholderService;
+   private CoreLifecycleService coreLifecycleService;
 
 }

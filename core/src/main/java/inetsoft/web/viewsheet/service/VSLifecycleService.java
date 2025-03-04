@@ -58,15 +58,19 @@ import java.util.*;
 public class VSLifecycleService {
    @Autowired
    public VSLifecycleService(ViewsheetService viewsheetService, AssetRepository assetRepository,
-                             PlaceholderService placeholderService,
+                             CoreLifecycleService coreLifecycleService,
                              VSBookmarkService vsBookmarkService,
-                             DataRefModelFactoryService dataRefModelFactoryService)
+                             DataRefModelFactoryService dataRefModelFactoryService,
+                             VSCompositionService vsCompositionService,
+                             ParameterService parameterService)
    {
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.vsBookmarkService = vsBookmarkService;
       this.dataRefModelFactoryService = dataRefModelFactoryService;
+      this.vsCompositionService = vsCompositionService;
+      this.parameterService = parameterService;
    }
 
    public String openViewsheet(OpenViewsheetEvent event, Principal principal, String linkUri)
@@ -263,7 +267,7 @@ public class VSLifecycleService {
          }
       }
 
-      VariableTable variables = placeholderService.readParameters(parameters);
+      VariableTable variables = parameterService.readParameters(parameters);
 
       try {
          // only set this property for viewer, will apply relevant layout
@@ -280,13 +284,13 @@ public class VSLifecycleService {
                   event.getWidth() + ", mobile=" + event.isMobile());
          }
 
-         runtimeId = placeholderService.openViewsheet(
+         runtimeId = coreLifecycleService.openViewsheet(
             viewsheetService, event, principal, linkUri, event.getEmbeddedViewsheetId(),
             entry, dispatcher, runtimeViewsheetRef, runtimeViewsheetManager, viewer,
             event.getDrillFrom(), variables, event.getFullScreenId(), execSessionId);
          RuntimeViewsheet rvs = viewsheetService.getViewsheet(runtimeId, principal);
-         placeholderService.setExportType(rvs, dispatcher);
-         placeholderService.setPermission(rvs, principal, dispatcher);
+         coreLifecycleService.setExportType(rvs, dispatcher);
+         coreLifecycleService.setPermission(rvs, principal, dispatcher);
 
          if(event.getBookmarkName() != null && event.getBookmarkUser() != null) {
             IdentityID bookmarkUser = IdentityID.getIdentityIDFromKey(event.getBookmarkUser());
@@ -360,7 +364,7 @@ public class VSLifecycleService {
 
             // fix z-index. flash may use a different z-index structure so we should eliminate
             // duplicate values (which may happen for group containers).
-            placeholderService.shrinkZIndex(vs, dispatcher);
+            vsCompositionService.shrinkZIndex(vs, dispatcher);
          }
 
          execTimestamp = new Date(System.currentTimeMillis());
@@ -407,7 +411,7 @@ public class VSLifecycleService {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(rid, principal);
 
       if(rvs == null) {
-         placeholderService.sendMessage(
+         coreLifecycleService.sendMessage(
             "Viewsheet " + rid + " was expired", MessageCommand.Type.INFO, dispatcher);
          return;
       }
@@ -421,13 +425,13 @@ public class VSLifecycleService {
       }
 
       dispatcher.sendCommand(null, new SetRuntimeIdCommand(rid));
-      placeholderService.setExportType(rvs, dispatcher);
-      placeholderService.setPermission(rvs, principal, dispatcher);
-      placeholderService.setComposedDashboard(rvs, dispatcher);
+      coreLifecycleService.setExportType(rvs, dispatcher);
+      coreLifecycleService.setPermission(rvs, principal, dispatcher);
+      coreLifecycleService.setComposedDashboard(rvs, dispatcher);
       vsBookmarkService.processBookmark(rid, rvs, linkUri, principal, event.getBookmarkName(),
                                         IdentityID.getIdentityIDFromKey(event.getBookmarkUser()),
                                         event, dispatcher);
-      ChangedAssemblyList clist = placeholderService.createList(
+      ChangedAssemblyList clist = coreLifecycleService.createList(
          true, event, dispatcher, rvs, linkUri);
 
       // optimization, call resetRuntime() explicitly instead of passing true to
@@ -435,7 +439,7 @@ public class VSLifecycleService {
       // would be updated causing cached tablelens to be invalidated after binding change
       rvs.resetRuntime();
 
-      placeholderService.refreshViewsheet(
+      coreLifecycleService.refreshViewsheet(
          rvs, rid, linkUri, event.getWidth(), event.getHeight(), event.isMobile(),
          event.getUserAgent(), dispatcher, true, false, false, clist,
          event.isManualRefresh(), false);
@@ -538,8 +542,10 @@ public class VSLifecycleService {
 
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSBookmarkService vsBookmarkService;
    private final DataRefModelFactoryService dataRefModelFactoryService;
+   private final VSCompositionService vsCompositionService;
+   private final ParameterService parameterService;
    private static final Logger LOG = LoggerFactory.getLogger(VSLifecycleService.class);
 }

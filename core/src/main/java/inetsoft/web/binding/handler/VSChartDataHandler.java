@@ -52,7 +52,6 @@ import inetsoft.web.binding.model.ValueLabelListModel;
 import inetsoft.web.binding.model.ValueLabelModel;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -87,12 +86,10 @@ public class VSChartDataHandler {
 
    @Autowired
    public VSChartDataHandler(VSChartHandler chartHandler,
-      VSAssemblyInfoHandler assemblyInfoHandler,
-      PlaceholderService placeholderService)
+      VSAssemblyInfoHandler assemblyInfoHandler)
    {
       this.chartHandler = chartHandler;
       this.assemblyInfoHandler = assemblyInfoHandler;
-      this.placeholderService = placeholderService;
    }
 
    /**
@@ -1301,5 +1298,4 @@ public class VSChartDataHandler {
 
    private final VSChartHandler chartHandler;
    private VSAssemblyInfoHandler assemblyInfoHandler;
-   private final PlaceholderService placeholderService;
 }

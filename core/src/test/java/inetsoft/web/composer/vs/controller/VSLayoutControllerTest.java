@@ -28,7 +28,7 @@ import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,7 +48,7 @@ class VSLayoutControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = new VSLayoutController(runtimeViewsheetRef, placeholderService,
+      controller = new VSLayoutController(runtimeViewsheetRef, coreLifecycleService,
                                           viewsheetService, objectModelService,
                                           vsLayoutService, vsObjectTreeService);
    }
@@ -83,7 +83,8 @@ class VSLayoutControllerTest {
    }
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock ViewsheetService viewsheetService;
    @Mock RuntimeViewsheet rvs;
    @Mock Viewsheet viewsheet;

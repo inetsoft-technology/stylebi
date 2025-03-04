@@ -69,10 +69,10 @@ public class VSCalcTableDndController extends VSAssemblyDndController {
                                    VSCalcTableBindingHandler calcTableHandler,
                                    VSObjectModelFactoryService objectModelService,
                                    ViewsheetService viewsheetService,
-                                   PlaceholderService placeholderService)
+                                   CoreLifecycleService coreLifecycleService)
    {
       super(runtimeViewsheetRef, bfactory, assemblyInfoHandler, objectModelService,
-            viewsheetService, placeholderService);
+            viewsheetService, coreLifecycleService);
       this.calcTableHandler = calcTableHandler;
       this.tableLayoutController = tableLayoutController;
    }

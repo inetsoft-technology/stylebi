@@ -27,7 +27,6 @@ import inetsoft.uql.erm.AttributeRef;
 import inetsoft.uql.erm.DataRef;
 import inetsoft.uql.schema.XSchema;
 import inetsoft.uql.viewsheet.*;
-import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.LayoutOptionDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeNode;
 import inetsoft.web.composer.vs.VSObjectTreeService;
@@ -70,18 +69,14 @@ public class LayoutOptionDialogController {
                                        VSObjectTreeService vsObjectTreeService,
                                        ViewsheetService engine,
                                        VSTableService vsTableService,
-                                       PlaceholderService placeholderService,
-                                       VSAssemblyInfoHandler infoHandler,
-                                       ViewsheetService viewsheetService)
+                                       CoreLifecycleService coreLifecycleService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.groupingService = groupingService;
       this.vsObjectTreeService = vsObjectTreeService;
       this.engine = engine;
       this.vsTableService = vsTableService;
-      this.placeholderService = placeholderService;
-      this.infoHandler = infoHandler;
-      this.viewsheetService = viewsheetService;
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    /**
@@ -122,7 +117,7 @@ public class LayoutOptionDialogController {
             rvs.initViewsheet(assembly, false);
 
             object = assembly;
-            placeholderService.addDeleteVSObject(rvs, object, dispatcher);
+            coreLifecycleService.addDeleteVSObject(rvs, object, dispatcher);
          }
          else if("column".equalsIgnoreCase(model.getObject())) {
             object = getNewSelectionAssemblyFromBindings(model.getColumns(), rvs, principal);
@@ -242,7 +237,5 @@ public class LayoutOptionDialogController {
    private final VSObjectTreeService vsObjectTreeService;
    private final ViewsheetService engine;
    private final VSTableService vsTableService;
-   private final PlaceholderService placeholderService;
-   private final VSAssemblyInfoHandler infoHandler;
-   private final ViewsheetService viewsheetService;
+   private final CoreLifecycleService coreLifecycleService;
 }

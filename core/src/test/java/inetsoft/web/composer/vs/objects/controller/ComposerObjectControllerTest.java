@@ -45,11 +45,12 @@ class ComposerObjectControllerTest {
    void setup() throws Exception {
       controller = new ComposerObjectController(runtimeViewsheetRef,
                                                 vsObjectTreeService,
-                                                placeholderService,
+                                                coreLifecycleService,
                                                 engine,
                                                 assemblyHandler,
                                                 objectModelService,
-                                                vsObjectService);
+                                                vsObjectService,
+                                                vsCompositionService);
    }
 
    @Test
@@ -65,7 +66,8 @@ class ComposerObjectControllerTest {
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
    @Mock VSObjectTreeService vsObjectTreeService;
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock ViewsheetService engine;
    @Mock RuntimeViewsheet rvs;
    @Mock Viewsheet viewsheet;
@@ -76,6 +78,7 @@ class ComposerObjectControllerTest {
    @Mock VSAssemblyInfoHandler assemblyHandler;
    @Mock VSObjectModelFactoryService objectModelService;
    @Mock VSObjectService vsObjectService;
+   @Mock VSCompositionService vsCompositionService;
 
    private ComposerObjectController controller;
 }

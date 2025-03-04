@@ -55,11 +55,11 @@ public abstract class BaseTableDrillController<T extends BaseTableEvent> extends
 
    public BaseTableDrillController(CrosstabDrillHandler crosstabDrillHandler,
                                    RuntimeViewsheetRef runtimeViewsheetRef,
-                                   PlaceholderService placeholderService,
+                                   CoreLifecycleService coreLifecycleService,
                                    ViewsheetService viewsheetService,
                                    VSBindingService bindingFactory)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
 
       this.bindingFactory = bindingFactory;
       this.crosstabDrillHandler = crosstabDrillHandler;

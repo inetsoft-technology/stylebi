@@ -63,14 +63,14 @@ public class VSLayoutController {
     */
    @Autowired
    public VSLayoutController(RuntimeViewsheetRef runtimeViewsheetRef,
-                             PlaceholderService placeholderService,
+                             CoreLifecycleService coreLifecycleService,
                              ViewsheetService viewsheetService,
                              VSObjectModelFactoryService objectModelService,
                              VSLayoutService vsLayoutService,
                              VSObjectTreeService vsObjectTreeService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.objectModelService = objectModelService;
       this.vsLayoutService = vsLayoutService;
@@ -104,7 +104,7 @@ public class VSLayoutController {
       if(catalog.getString("Master").equals(layoutName)) {
          ChangeCurrentLayoutCommand command = new ChangeCurrentLayoutCommand(null);
          dispatcher.sendCommand(command);
-         placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+         coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
       }
       else {
          // Clone rvs so that we do not change state of Master rvs when creating layouts
@@ -303,7 +303,7 @@ public class VSLayoutController {
             vsLayoutService.getVSAssemblyLayouts(abstractLayout, event.region());
          refreshLayoutObjects(rvs, refreshLayouts, dispatcher, event.region());
          this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-         placeholderService.makeUndoable(parentRvs, dispatcher,
+         vsLayoutService.makeUndoable(parentRvs, dispatcher,
                                          this.runtimeViewsheetRef.getFocusedLayoutName());
       }
    }
@@ -415,7 +415,7 @@ public class VSLayoutController {
       refreshLayoutObjects(rvs, refreshLayouts, dispatcher, event.getRegion());
       loadTableData(rvs, newLayouts.keySet(), dispatcher);
       runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-      placeholderService.makeUndoable(
+      vsLayoutService.makeUndoable(
          parentRvs, dispatcher, runtimeViewsheetRef.getFocusedLayoutName());
    }
 
@@ -538,7 +538,7 @@ public class VSLayoutController {
          .build();
       commandDispatcher.sendCommand(command);
       this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-      placeholderService.makeUndoable(rvs, commandDispatcher, this.runtimeViewsheetRef.getFocusedLayoutName());
+      vsLayoutService.makeUndoable(rvs, commandDispatcher, this.runtimeViewsheetRef.getFocusedLayoutName());
    }
 
    /**
@@ -623,7 +623,7 @@ public class VSLayoutController {
             command.setRegion(region);
             commandDispatcher.sendCommand(command);
             this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-            placeholderService.makeUndoable(parentRvs, commandDispatcher, this.runtimeViewsheetRef.getFocusedLayoutName());
+            vsLayoutService.makeUndoable(parentRvs, commandDispatcher, this.runtimeViewsheetRef.getFocusedLayoutName());
          });
    }
 
@@ -774,7 +774,7 @@ public class VSLayoutController {
             command.setRegion(region);
             commandDispatcher.sendCommand(command);
             this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-            placeholderService.makeUndoable(parentRvs, commandDispatcher, this.runtimeViewsheetRef.getFocusedLayoutName());
+            vsLayoutService.makeUndoable(parentRvs, commandDispatcher, this.runtimeViewsheetRef.getFocusedLayoutName());
          });
    }
 
@@ -805,7 +805,7 @@ public class VSLayoutController {
       if(assemblyLayout.isPresent()) {
          assemblyLayout.get().setTableLayout(model.tableLayout());
          this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-         placeholderService.makeUndoable(parentRvs, commandDispatcher,
+         vsLayoutService.makeUndoable(parentRvs, commandDispatcher,
             this.runtimeViewsheetRef.getFocusedLayoutName());
       }
    }
@@ -881,7 +881,7 @@ public class VSLayoutController {
 
    public static final int VIEWSHEETLAYOUT = 4;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final VSObjectModelFactoryService objectModelService;
    private final VSLayoutService vsLayoutService;

@@ -26,7 +26,7 @@ import inetsoft.web.viewsheet.controller.table.BaseTableController;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
@@ -48,9 +48,9 @@ public class VSViewController {
     */
    @Autowired
    public VSViewController(
-      RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService holder, VSObjectModelFactoryService objectModelService,
-      ViewsheetService viewsheetService)
+           RuntimeViewsheetRef runtimeViewsheetRef,
+           CoreLifecycleService holder, VSObjectModelFactoryService objectModelService,
+           ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.holder = holder;
@@ -86,7 +86,7 @@ public class VSViewController {
       }
    }
 
-   private final PlaceholderService holder;
+   private final CoreLifecycleService holder;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSObjectModelFactoryService objectModelService;
    private final ViewsheetService viewsheetService;

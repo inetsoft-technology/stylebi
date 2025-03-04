@@ -53,10 +53,10 @@ import java.security.Principal;
 public class VSChartBrushController extends VSChartController<VSChartBrushEvent> {
    @Autowired
    public VSChartBrushController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                 PlaceholderService placeholderService,
+                                 CoreLifecycleService coreLifecycleService,
                                  ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
    }
 
    /**

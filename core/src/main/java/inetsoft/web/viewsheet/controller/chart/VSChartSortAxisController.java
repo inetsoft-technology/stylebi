@@ -43,11 +43,11 @@ import java.util.ArrayList;
 public class VSChartSortAxisController extends VSChartController<VSChartSortAxisEvent> {
    @Autowired
    public VSChartSortAxisController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                    PlaceholderService placeholderService,
+                                    CoreLifecycleService coreLifecycleService,
                                     VSBindingService bindingFactory,
                                     ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
       this.bindingFactory = bindingFactory;
    }
 

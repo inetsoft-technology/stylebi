@@ -32,7 +32,7 @@ import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.util.Tool;
 import inetsoft.web.viewsheet.command.RemoveVSObjectCommand;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.vswizard.model.VSWizardConstants;
 import inetsoft.web.vswizard.model.recommender.VSTemporaryInfo;
 import inetsoft.web.vswizard.recommender.WizardRecommenderUtil;
@@ -53,7 +53,7 @@ public class VSWizardObjectHandler {
    @Autowired
    public VSWizardObjectHandler(SyncInfoHandler syncInfoHandler,
                                 ViewsheetService viewsheetService,
-                                PlaceholderService placeholderService,
+                                CoreLifecycleService coreLifecycleService,
                                 VSWizardBindingHandler bindingHandler,
                                 WizardViewsheetService wizardVSService,
                                 VSWizardTemporaryInfoService temporaryInfoService)
@@ -62,7 +62,7 @@ public class VSWizardObjectHandler {
       this.syncInfoHandler = syncInfoHandler;
       this.wizardVSService = wizardVSService;
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.temporaryInfoService = temporaryInfoService;
    }
 
@@ -244,7 +244,7 @@ public class VSWizardObjectHandler {
 
       if(original != null && !Tool.equals(newName, original.getAbsoluteName())) {
          if(vs.containsAssembly(original)) {
-            placeholderService.removeVSAssembly(rvs, linkUri, original, dispatcher, true, true);
+            coreLifecycleService.removeVSAssembly(rvs, linkUri, original, dispatcher, true, true);
          }
 
          RemoveVSObjectCommand command = new RemoveVSObjectCommand();
@@ -531,7 +531,7 @@ public class VSWizardObjectHandler {
 
    private final SyncInfoHandler syncInfoHandler;
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSWizardBindingHandler bindingHandler;
    private final WizardViewsheetService wizardVSService;
    private final VSWizardTemporaryInfoService temporaryInfoService;

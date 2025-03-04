@@ -45,17 +45,17 @@ public class ComposerRangeSliderController {
    /**
     * Creates a new instance of <tt>ComposerRangeSliderController</tt>.
     *  @param runtimeViewsheetRef the runtime viewsheet reference
-    * @param placeholderService the placeholder service
+    * @param coreLifecycleService the placeholder service
     * @param viewsheetService
     */
    @Autowired
    public ComposerRangeSliderController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
    }
 
@@ -115,12 +115,12 @@ public class ComposerRangeSliderController {
       info.setEditable(assembly.isEditable());
       VSEventUtil.copyFormat(assembly, newAssembly);
       initCellFormat(newAssembly);
-      placeholderService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, false);
+      coreLifecycleService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, false);
       containerAssembly.setAssemblies(assemblies);
       viewsheet.addAssembly(newAssembly);
-      placeholderService.addDeleteVSObject(rvs, newAssembly, dispatcher);
-      placeholderService.execute(rvs, name, linkUri, VSAssembly.VIEW_CHANGED, dispatcher);
-      placeholderService.refreshVSAssembly(rvs, containerAssembly.getName(), dispatcher, true);
+      coreLifecycleService.addDeleteVSObject(rvs, newAssembly, dispatcher);
+      coreLifecycleService.execute(rvs, name, linkUri, VSAssembly.VIEW_CHANGED, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, containerAssembly.getName(), dispatcher, true);
    }
 
    /**
@@ -170,7 +170,7 @@ public class ComposerRangeSliderController {
       VSEventUtil.copyFormat(cellFmt.getUserDefinedFormat(), objfmt, false);
    }
 
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
 }

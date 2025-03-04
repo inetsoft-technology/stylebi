@@ -72,10 +72,10 @@ import java.util.stream.IntStream;
 public class VSChartShowDetailsController extends VSChartController<VSChartShowDetailsEvent> {
    @Autowired
    public VSChartShowDetailsController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                       PlaceholderService placeholderService,
+                                       CoreLifecycleService coreLifecycleService,
                                        ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
    }
 
    @LoadingMask

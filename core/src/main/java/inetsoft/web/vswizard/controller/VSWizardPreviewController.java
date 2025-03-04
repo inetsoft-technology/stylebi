@@ -45,13 +45,13 @@ public class VSWizardPreviewController {
    public VSWizardPreviewController(ViewsheetService viewsheetService,
                                     VSWizardBindingHandler bindingHandler,
                                     RuntimeViewsheetRef runtimeViewsheetRef,
-                                    PlaceholderService placeholderService,
+                                    CoreLifecycleService coreLifecycleService,
                                     VSWizardTemporaryInfoService temporaryInfoService)
    {
       this.bindingHandler = bindingHandler;
       this.viewsheetService = viewsheetService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.temporaryInfoService = temporaryInfoService;
    }
 
@@ -93,13 +93,13 @@ public class VSWizardPreviewController {
 
       if(rmodel != null && latestAssembly != null) {
          bindingHandler.fixTempAssemblySize(latestAssembly.getVSAssemblyInfo(), rvs);
-         placeholderService.refreshVSAssembly(rvs, latestAssembly, dispatcher);
+         coreLifecycleService.refreshVSAssembly(rvs, latestAssembly, dispatcher);
       }
    }
 
    private final ViewsheetService viewsheetService;
    private final VSWizardBindingHandler bindingHandler;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSWizardTemporaryInfoService temporaryInfoService;
 }

@@ -50,20 +50,15 @@ public class HideColumnsDialogController {
     * Creates a new instance of <tt>HideColumnsDialogController</tt>.
     *
     * @param runtimeViewsheetRef RuntimeViewsheetRef instance
-    * @param placeholderService  PlaceholderService instance
     * @param viewsheetService    Viewsheet engine
     */
    @Autowired
    public HideColumnsDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                      PlaceholderService placeholderService,
                                       ViewsheetService viewsheetService,
-                                      VSInputService vsInputService,
                                       VSAssemblyInfoHandler assemblyInfoHandler)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
       this.viewsheetService = viewsheetService;
-      this.vsInputService = vsInputService;
       this.assemblyInfoHandler = assemblyInfoHandler;
    }
 
@@ -180,8 +175,6 @@ public class HideColumnsDialogController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
    private final ViewsheetService viewsheetService;
-   private final VSInputService vsInputService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
 }

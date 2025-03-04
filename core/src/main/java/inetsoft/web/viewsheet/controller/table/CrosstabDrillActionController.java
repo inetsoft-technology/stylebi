@@ -44,13 +44,13 @@ public class CrosstabDrillActionController extends BaseTableDrillController<Base
    @Autowired
    public CrosstabDrillActionController(CrosstabDrillHandler crosstabDrillHandler,
                                         RuntimeViewsheetRef runtimeViewsheetRef,
-                                        PlaceholderService placeholderService,
+                                        CoreLifecycleService coreLifecycleService,
                                         ViewsheetService viewsheetService,
                                         VSBindingService bindingFactory,
                                         VSDrillHandler vsDrillHandler)
    {
-      super(crosstabDrillHandler, runtimeViewsheetRef, placeholderService,
-         viewsheetService, bindingFactory);
+      super(crosstabDrillHandler, runtimeViewsheetRef, coreLifecycleService,
+            viewsheetService, bindingFactory);
 
       this.vsDrillHandler = vsDrillHandler;
    }

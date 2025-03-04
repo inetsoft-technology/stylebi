@@ -48,13 +48,13 @@ public class UndoRedoController {
     */
    @Autowired
    public UndoRedoController(RuntimeViewsheetRef runtimeViewsheetRef,
-                             PlaceholderService placeholderService,
+                             CoreLifecycleService coreLifecycleService,
                              VSObjectTreeService vsObjectTreeService,
                              VSAssemblyInfoHandler infoHandler, ViewsheetService viewsheetService,
                              WizardViewsheetService wizardViewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.vsObjectTreeService = vsObjectTreeService;
       this.infoHandler = infoHandler;
       this.viewsheetService = viewsheetService;
@@ -83,12 +83,12 @@ public class UndoRedoController {
             RuntimeViewsheet rvs = (RuntimeViewsheet) rs;
             Viewsheet ovs = rvs.getViewsheet().clone();
             ChangedAssemblyList clist =
-               this.placeholderService.createList(true, dispatcher, rvs, linkUri);
+               this.coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
             boolean undone = rvs.undo(clist);
 
             if(undone) {
                Viewsheet nvs = rvs.getViewsheet().clone();
-               placeholderService.checkAndRemoveAssemblies(ovs, nvs, dispatcher);
+               coreLifecycleService.checkAndRemoveAssemblies(ovs, nvs, dispatcher);
                updateViewsheet(rvs, linkUri, clist, dispatcher);
 
                if(rvs.isWizardViewsheet()) {
@@ -134,12 +134,12 @@ public class UndoRedoController {
             RuntimeViewsheet rvs = (RuntimeViewsheet) rs;
             Viewsheet ovs = (Viewsheet) rvs.getViewsheet().clone();
             ChangedAssemblyList clist =
-               this.placeholderService.createList(true, dispatcher, rvs, linkUri);
+               this.coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
             boolean redone = rvs.redo(clist);
 
             if(redone) {
                Viewsheet nvs = (Viewsheet) rvs.getViewsheet().clone();
-               placeholderService.checkAndRemoveAssemblies(ovs, nvs, dispatcher);
+               coreLifecycleService.checkAndRemoveAssemblies(ovs, nvs, dispatcher);
                updateViewsheet(rvs, linkUri, clist, dispatcher);
 
                if(rvs.isWizardViewsheet()) {
@@ -166,7 +166,7 @@ public class UndoRedoController {
    private void updateViewsheet(RuntimeViewsheet rvs, String linkUri, ChangedAssemblyList clist,
                                 CommandDispatcher dispatcher) throws Exception
    {
-      this.placeholderService.refreshViewsheet(
+      this.coreLifecycleService.refreshViewsheet(
          rvs, rvs.getID(), linkUri, dispatcher, false, false, true, clist);
 
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
@@ -189,7 +189,7 @@ public class UndoRedoController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSAssemblyInfoHandler infoHandler;
    private final ViewsheetService viewsheetService;

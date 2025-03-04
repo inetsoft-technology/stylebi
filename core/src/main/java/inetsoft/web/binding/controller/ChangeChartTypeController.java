@@ -69,7 +69,7 @@ public class ChangeChartTypeController {
    @Autowired
    public ChangeChartTypeController(
       VSBindingService bindingFactory,
-      RuntimeViewsheetRef runtimeViewsheetRef, PlaceholderService placeholderService,
+      RuntimeViewsheetRef runtimeViewsheetRef, CoreLifecycleService coreLifecycleService,
       ChartRefModelFactoryService chartRefService,
       ChangeSeparateStatusController changeSeparateController,
       VSAssemblyInfoHandler assemblyInfoHandler, VSChartHandler chartHandler,
@@ -78,7 +78,7 @@ public class ChangeChartTypeController {
    {
       this.bindingFactory = bindingFactory;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.chartRefService = chartRefService;
       this.changeSeparateController = changeSeparateController;
       this.assemblyInfoHandler = assemblyInfoHandler;
@@ -219,9 +219,9 @@ public class ChangeChartTypeController {
       }
 
       try {
-         ChangedAssemblyList clist = placeholderService.createList(true, dispatcher, rvs, linkUri);
+         ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
          box.processChange(name, hint, clist);
-         placeholderService.execute(rvs, name, linkUri, clist, dispatcher, true);
+         coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
          assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
       }
       finally {
@@ -305,7 +305,7 @@ public class ChangeChartTypeController {
 
    private final VSBindingService bindingFactory;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ChartRefModelFactoryService chartRefService;
    private final ChangeSeparateStatusController changeSeparateController;
    private final VSAssemblyInfoHandler assemblyInfoHandler;

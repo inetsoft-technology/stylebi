@@ -56,14 +56,14 @@ public class TabPropertyDialogController {
       VSObjectPropertyService vsObjectPropertyService,
       RuntimeViewsheetRef runtimeViewsheetRef,
       VSObjectTreeService vsObjectTreeService,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       VSDialogService dialogService,
       ViewsheetService viewsheetService)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.vsObjectTreeService = vsObjectTreeService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.dialogService = dialogService;
       this.viewsheetService = viewsheetService;
    }
@@ -192,9 +192,9 @@ public class TabPropertyDialogController {
          dialogService.setContainerPosition(tabAssemblyInfo, sizePositionPaneModel,
                                             tabAssembly.getAssemblies(), vs);
 
-         ChangedAssemblyList clist = this.placeholderService.createList(false,
+         ChangedAssemblyList clist = this.coreLifecycleService.createList(false,
             commandDispatcher, viewsheet, linkUri);
-         this.placeholderService.layoutViewsheet(viewsheet, viewsheet.getID(), linkUri,
+         this.coreLifecycleService.layoutViewsheet(viewsheet, viewsheet.getID(), linkUri,
             commandDispatcher, tabAssembly.getAbsoluteName(), clist);
       }
 
@@ -224,7 +224,7 @@ public class TabPropertyDialogController {
    private final VSObjectPropertyService vsObjectPropertyService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSObjectTreeService vsObjectTreeService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSDialogService dialogService;
    private final ViewsheetService viewsheetService;
 }

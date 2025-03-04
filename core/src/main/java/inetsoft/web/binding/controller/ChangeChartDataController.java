@@ -56,13 +56,13 @@ public class ChangeChartDataController {
    @Autowired
    public ChangeChartDataController(
       VSBindingService bindingFactory,
-      RuntimeViewsheetRef runtimeViewsheetRef, PlaceholderService placeholderService,
+      RuntimeViewsheetRef runtimeViewsheetRef, CoreLifecycleService coreLifecycleService,
       VSAssemblyInfoHandler assemblyInfoHandler, VSChartHandler chartHandler,
       VSChartDataHandler chartDataHandler, ViewsheetService viewsheetService)
    {
       this.bindingFactory = bindingFactory;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.chartHandler = chartHandler;
       this.chartDataHandler = chartDataHandler;
@@ -135,7 +135,7 @@ public class ChangeChartDataController {
 
       pro.fixMapFrame(ocinfo, ncinfo);
       pro.fixNamedGroup(ocinfo, ncinfo);
-      placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
       hint = hint | chartHandler.createCommands(oinfo, ninfoCopy);
 
       boolean dchanged = (hint & VSAssembly.INPUT_DATA_CHANGED) ==
@@ -152,9 +152,9 @@ public class ChangeChartDataController {
 
       try {
          ChangedAssemblyList clist =
-            placeholderService.createList(true, dispatcher, rvs, linkUri);
+            coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
          box.processChange(name, hint, clist);
-         placeholderService.execute(rvs, name, linkUri, clist, dispatcher, true);
+         coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
          assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
          //processTableChange(oinfo, ninfo, rvs, this, command);
       }
@@ -169,7 +169,7 @@ public class ChangeChartDataController {
 
    private final VSBindingService bindingFactory;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final VSChartHandler chartHandler;
    private final VSChartDataHandler chartDataHandler;

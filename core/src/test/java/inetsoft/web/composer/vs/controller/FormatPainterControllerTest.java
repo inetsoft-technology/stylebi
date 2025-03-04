@@ -33,7 +33,7 @@ import inetsoft.web.viewsheet.command.ViewsheetCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.model.VSObjectModelFactoryService;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -53,7 +53,7 @@ class FormatPainterControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = spy(new FormatPainterController(runtimeViewsheetRef, placeholderService,
+      controller = spy(new FormatPainterController(runtimeViewsheetRef, coreLifecycleService,
                                                    chartRegionHandler, viewsheetEngine,
                                                    objectModelService, bindingService,
                                                    vsLayoutService));
@@ -154,7 +154,8 @@ class FormatPainterControllerTest {
 
    @Captor ArgumentCaptor<SetCurrentFormatCommand> argCaptor;
    @Mock ViewsheetEngine viewsheetEngine;
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock ChartRegionHandler chartRegionHandler;
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
    @Mock VSObjectModelFactoryService objectModelService;

@@ -52,11 +52,11 @@ public class ImportXLSController {
    @Autowired
    public ImportXLSController(RuntimeViewsheetRef runtimeViewsheetRef,
                               ViewsheetService viewsheetService,
-                              PlaceholderService placeholderService)
+                              CoreLifecycleService coreLifecycleService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    /**
@@ -107,7 +107,7 @@ public class ImportXLSController {
 
       if(!excelFile.exists()) {
          String msg = catalog.getString("Upload Timeout");
-         this.placeholderService
+         this.coreLifecycleService
             .sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
          return;
       }
@@ -123,12 +123,12 @@ public class ImportXLSController {
 
       try {
          ImportXLSService.getInstance().updateViewsheet(
-            excelFile, type, rvs, linkUri, dispatcher, placeholderService, catalog, assemblies,
+            excelFile, type, rvs, linkUri, dispatcher, coreLifecycleService, catalog, assemblies,
             notInRange);
       }
       catch(FileNotFoundException e) {
          String msg = catalog.getString("vs.import.excel.unavailable");
-         placeholderService.sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
+         coreLifecycleService.sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
          return;
       }
 
@@ -151,12 +151,12 @@ public class ImportXLSController {
          }
 
          msg = catalog.getString(message, msg);
-         this.placeholderService.sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
+         this.coreLifecycleService.sendMessage(msg, MessageCommand.Type.WARNING, dispatcher);
       }
    }
 
    private final Catalog catalog = Catalog.getCatalog();
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
 }

@@ -71,12 +71,12 @@ public class ComposerBindingController {
     * Creates a new instance of <tt>ComposerBindingController</tt>.
     *  @param runtimeViewsheetRef reference to the runtime viewsheet associated with the
     *                            WebSocket session.
-    * @param placeholderService  general viewsheet actions service.
+    * @param coreLifecycleService  general viewsheet actions service.
     * @param groupingService     service for grouping objects.
     */
    @Autowired
    public ComposerBindingController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                    PlaceholderService placeholderService,
+                                    CoreLifecycleService coreLifecycleService,
                                     GroupingService groupingService,
                                     ViewsheetService engine,
                                     VSObjectTreeService vsObjectTreeService,
@@ -86,7 +86,7 @@ public class ComposerBindingController {
                                     AnalyticAssistant analyticAssistant)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.groupingService = groupingService;
       this.engine = engine;
       this.vsObjectTreeService = vsObjectTreeService;
@@ -154,15 +154,15 @@ public class ComposerBindingController {
          }
 
          viewsheet.addAssembly(newAssembly);
-         placeholderService.addDeleteVSObject(rvs, newAssembly, dispatcher);
+         coreLifecycleService.addDeleteVSObject(rvs, newAssembly, dispatcher);
 
          AssemblyEntry assemblyEntry = newAssembly != null ? newAssembly.getAssemblyEntry() : null;
          AssemblyRef[] vrefs = viewsheet.getViewDependings(assemblyEntry);
 
          if(vrefs != null) {
             for(AssemblyRef aref : vrefs) {
-               placeholderService.refreshVSAssembly(rvs, aref.getEntry().getAbsoluteName(),
-                                                    dispatcher);
+               coreLifecycleService.refreshVSAssembly(rvs, aref.getEntry().getAbsoluteName(),
+                                                      dispatcher);
             }
          }
 
@@ -175,7 +175,7 @@ public class ComposerBindingController {
                rvs, newAssembly.getAbsoluteName(), 0, 0, 100, linkUri, dispatcher);
          }
 
-         placeholderService.addDeleteVSObject(rvs, newAssembly, dispatcher);
+         coreLifecycleService.addDeleteVSObject(rvs, newAssembly, dispatcher);
          assemblyHandler.getGrayedOutFields(rvs, dispatcher);
          VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
          PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
@@ -186,7 +186,7 @@ public class ComposerBindingController {
       if(name != null) {
          assemblyHandler.getGrayedOutFields(rvs, dispatcher);
          int hint = VSAssembly.INPUT_DATA_CHANGED | VSAssembly.BINDING_CHANGED;
-         placeholderService.execute(rvs, name, linkUri, hint, dispatcher);
+         coreLifecycleService.execute(rvs, name, linkUri, hint, dispatcher);
       }
    }
 
@@ -1104,7 +1104,7 @@ public class ComposerBindingController {
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final GroupingService groupingService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService engine;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSTrapService trapService;

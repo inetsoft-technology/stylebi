@@ -49,13 +49,13 @@ import java.util.List;
 public class VSChartDrillActionController extends VSChartController<VSChartDrillActionEvent> {
    @Autowired
    public VSChartDrillActionController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                       PlaceholderService placeholderService,
+                                       CoreLifecycleService coreLifecycleService,
                                        ViewsheetService viewsheetService,
                                        VSChartDataHandler dataHandler,
                                        VSChartDrillHandler chartDrillHandler,
                                        VSDrillHandler vsDrillHandler)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
 
       this.chartDrillHandler = chartDrillHandler;
       this.vsDrillHandler = vsDrillHandler;

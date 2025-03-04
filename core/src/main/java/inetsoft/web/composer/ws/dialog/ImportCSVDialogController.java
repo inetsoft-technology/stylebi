@@ -38,6 +38,7 @@ import inetsoft.util.*;
 import inetsoft.util.log.LogLevel;
 import inetsoft.web.composer.model.ws.ImportCSVDialogModel;
 import inetsoft.web.composer.model.ws.ImportCSVDialogModelValidator;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.ws.WorksheetController;
 import inetsoft.web.composer.ws.assembly.WorksheetEventUtil;
 import inetsoft.web.composer.ws.command.ForceNotCloseWorksheetCommand;
@@ -46,7 +47,6 @@ import inetsoft.web.messaging.MessageContextHolder;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.model.table.BaseTableCellModel;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
@@ -72,8 +72,8 @@ import java.util.*;
  */
 @Controller
 public class ImportCSVDialogController extends WorksheetController {
-   public ImportCSVDialogController(PlaceholderService placeholderService) {
-      this.placeholderService = placeholderService;
+   public ImportCSVDialogController(VSLayoutService vsLayoutService) {
+      this.vsLayoutService = vsLayoutService;
    }
 
    private static String getLimitMessage(boolean colLimit, boolean textLimit) {
@@ -248,7 +248,7 @@ public class ImportCSVDialogController extends WorksheetController {
          try {
             importCSV(model, csvTemp, rws, dispatcher, principal);
             MessageContextHolder.setMessageAttributes(messageContext);
-            placeholderService.makeUndoable(rws, commandDispatcher, null);
+            vsLayoutService.makeUndoable(rws, commandDispatcher, null);
          }
          catch(Exception ex) {
             // ignore exception if ws is disposed.
@@ -1207,7 +1207,7 @@ public class ImportCSVDialogController extends WorksheetController {
       return spec;
    }
 
-   private final PlaceholderService placeholderService;
+   private final VSLayoutService vsLayoutService;
 
    private static final Logger LOG = LoggerFactory.getLogger(ImportCSVDialogController.class);
 }

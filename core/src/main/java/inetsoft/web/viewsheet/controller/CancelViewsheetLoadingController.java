@@ -37,10 +37,10 @@ import java.security.Principal;
 public class CancelViewsheetLoadingController {
    @Autowired
    public CancelViewsheetLoadingController(ViewsheetService viewsheetService,
-                                           PlaceholderService placeholderService)
+                                           CoreLifecycleService coreLifecycleService)
    {
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    @LoadingMask
@@ -58,8 +58,8 @@ public class CancelViewsheetLoadingController {
 
       if(event.isMeta() && !vs.getViewsheetInfo().isMetadata()) {
          vs.getViewsheetInfo().setMetadata(true);
-         placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
-                                             false, true, true, new ChangedAssemblyList());
+         coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
+                                               false, true, true, new ChangedAssemblyList());
       }
 
       if(event.isIniting() && event.isPreview()) {
@@ -71,5 +71,5 @@ public class CancelViewsheetLoadingController {
    }
 
    private ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
 }

@@ -49,10 +49,10 @@ import java.security.Principal;
 public class VSChartZoomController extends VSChartController<VSChartZoomEvent> {
    @Autowired
    public VSChartZoomController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                PlaceholderService placeholderService,
+                                CoreLifecycleService coreLifecycleService,
                                 ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
    }
 
    /**

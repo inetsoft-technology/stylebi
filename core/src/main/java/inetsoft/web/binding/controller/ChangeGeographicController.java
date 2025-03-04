@@ -74,7 +74,7 @@ public class ChangeGeographicController {
    public ChangeGeographicController(
       VSBindingService bindingFactory,
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       VSBindingTreeController bindingTreeController,
       VSAssemblyInfoHandler assemblyInfoHandler,
       VSChartHandler chartHandler,
@@ -85,7 +85,7 @@ public class ChangeGeographicController {
    {
       this.bindingFactory = bindingFactory;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.bindingTreeController = bindingTreeController;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.chartHandler = chartHandler;
@@ -172,7 +172,7 @@ public class ChangeGeographicController {
       // refresh map
       chart.setVSAssemblyInfo(ninfo);
       box.updateAssembly(chart.getAbsoluteName());
-      placeholderService.refreshVSAssembly(rvs, chart, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, chart, dispatcher);
       ninfo = (ChartVSAssemblyInfo) chart.getVSAssemblyInfo();
       cinfo = ninfo.getVSChartInfo();
 
@@ -220,10 +220,10 @@ public class ChangeGeographicController {
 
          try {
             ChangedAssemblyList clist =
-               placeholderService.createList(true, dispatcher, rvs, linkUri);
+               coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
 
             box.processChange(name, hint, clist);
-            placeholderService.execute(rvs, name, linkUri, clist, dispatcher, true);
+            coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
             assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
             //processTableChange(oinfo, ninfo, rvs, this, dispatcher);
          }
@@ -306,7 +306,7 @@ public class ChangeGeographicController {
    private final VSBindingService bindingFactory;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSChartBindingFactory vsChartBindingFactory;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSBindingTreeController bindingTreeController;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final VSChartHandler chartHandler;

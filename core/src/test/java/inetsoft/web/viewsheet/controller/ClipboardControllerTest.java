@@ -30,7 +30,7 @@ import inetsoft.web.composer.vs.objects.controller.ClipboardController;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,7 +52,7 @@ class ClipboardControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = new ClipboardController(runtimeViewsheetRef, placeholderService,
+      controller = new ClipboardController(runtimeViewsheetRef, coreLifecycleService,
                                            vsObjectTreeService, viewsheetService, assemblyHandler,
                                            vsObjectPropertyService);
    }
@@ -82,7 +82,7 @@ class ClipboardControllerTest {
 
       controller.pasteObject(0, 0, null, commandDispatcher, headerAccessor, linkUri);
 
-      verify(placeholderService, times(2))
+      verify(coreLifecycleService, times(2))
          .addDeleteVSObject(any(RuntimeViewsheet.class), argCaptor.capture(),
                             any(CommandDispatcher.class));
 
@@ -100,7 +100,8 @@ class ClipboardControllerTest {
    @Captor
    ArgumentCaptor<VSAssembly> argCaptor;
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock VSObjectTreeService vsObjectTreeService;
    @Mock ViewsheetService viewsheetService;
    @Mock ClipboardService clipboardService;

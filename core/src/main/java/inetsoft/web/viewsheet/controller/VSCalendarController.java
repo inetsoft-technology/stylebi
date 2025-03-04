@@ -56,18 +56,18 @@ public class VSCalendarController {
    /**
     * Creates a new instance of <tt>VSCalendarController</tt>.
     * @param runtimeViewsheetRef the runtime viewsheet reference.
-    * @param placeholderService  the placeholder service.
+    * @param coreLifecycleService  the placeholder service.
     * @param viewsheetService
     */
    @Autowired
    public VSCalendarController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       VSObjectPropertyService vsObjectPropertyService,
       ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.viewsheetService = viewsheetService;
    }
@@ -256,9 +256,9 @@ public class VSCalendarController {
          if(scaleSize instanceof Dimension && ((Dimension) scaleSize).width > 0 &&
             ((Dimension) scaleSize).height > 0)
          {
-            ChangedAssemblyList clist = placeholderService.createList(true, dispatcher, rvs, linkUri);
-            this.placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, ((Dimension) scaleSize).width,
-               ((Dimension) scaleSize).height, false, null, dispatcher, false, false, true, clist);
+            ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
+            this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, ((Dimension) scaleSize).width,
+                                                       ((Dimension) scaleSize).height, false, null, dispatcher, false, false, true, clist);
          }
       }
    }
@@ -335,13 +335,13 @@ public class VSCalendarController {
          commandDispatcher.sendCommand(messageCommand);
       }
 
-      ChangedAssemblyList clist = this.placeholderService.createList(true, commandDispatcher,
-                                                                     rvs, linkUri);
+      ChangedAssemblyList clist = this.coreLifecycleService.createList(true, commandDispatcher,
+                                                                       rvs, linkUri);
       box.processChange(calendarAssembly.getAbsoluteName(), hint, clist);
       // Iterate over all assemblies and add to view list if they have
       // hyperlinks that "send selection parameters"
-      this.placeholderService.executeInfluencedHyperlinkAssemblies(vs, commandDispatcher,
-                                                                   rvs, linkUri, null);
+      this.coreLifecycleService.executeInfluencedHyperlinkAssemblies(vs, commandDispatcher,
+                                                                     rvs, linkUri, null);
 
       boolean refresh = true;
 
@@ -360,13 +360,13 @@ public class VSCalendarController {
       // to a block, then processChange doesn't call execute. Therefore
       // call it here. In cases where a selection list is also bound,
       // then the following isn't needed. This could be improved.
-      this.placeholderService.execute(rvs, calendarAssembly.getAbsoluteName(),
-         linkUri, clist, commandDispatcher, true);
+      this.coreLifecycleService.execute(rvs, calendarAssembly.getAbsoluteName(),
+                                        linkUri, clist, commandDispatcher, true);
 
       if(refresh) {
-         this.placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher);
-         placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher, false,
-                                             true, true, clist);
+         this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher);
+         coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher, false,
+                                               true, true, clist);
       }
    }
 
@@ -430,7 +430,7 @@ public class VSCalendarController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSObjectPropertyService vsObjectPropertyService;
    private final ViewsheetService viewsheetService;
 }
