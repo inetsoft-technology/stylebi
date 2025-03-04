@@ -667,7 +667,11 @@ public class ScheduleService {
             .forEach(u -> allUsers.put(u, securityProvider.getUser(u)));
 
          allowedUsers = allUsers.values().stream()
-            .map(User::getIdentityID)
+            .map(user -> {
+               IdentityID identityID = user.getIdentityID();
+               identityID.setName(user.getAlias() != null ? user.getAlias() : user.getName());
+               return identityID;
+            })
             .filter(u -> securityProvider.checkPermission(
                principal, ResourceType.SECURITY_USER, u.convertToKey(), ResourceAction.ADMIN))
             .sorted()
