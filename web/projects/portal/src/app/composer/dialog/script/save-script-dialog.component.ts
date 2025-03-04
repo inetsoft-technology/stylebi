@@ -69,8 +69,7 @@ export class SaveScriptDialog implements OnInit {
       this.form = new UntypedFormGroup({
          name: new UntypedFormControl(this.model.name, [
             Validators.required,
-            FormValidators.assetEntryBannedCharacters,
-            FormValidators.assetNameStartWithCharDigit])});
+            FormValidators.invalidJSFunctionName])});
 
       this.form.get("name").valueChanges.subscribe((val) => {
          if(this.model.name != val) {

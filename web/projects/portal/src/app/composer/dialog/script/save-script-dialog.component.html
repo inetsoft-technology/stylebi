@@ -31,16 +31,9 @@
                         class="invalid-feedback">
                               _#(viewer.nameValid)
                            </span>
-                  <span *ngIf="form.controls['name'].errors && ! form.controls['name']
-                              .errors['assetNameStartWithCharDigit'] &&
-                              form.controls['name'].errors['assetEntryBannedCharacters']" class="invalid-feedback">
-                              _#(composer.sheet.checkSpeChar)
-                           </span>
-                  <span
-                     *ngIf="form.controls['name'].errors && form.controls['name']
-                              .errors['assetNameStartWithCharDigit']"
-                     class="invalid-feedback">
-                              _#(asset.tree.checkStart)
+                  <span *ngIf="form.controls['name'].errors && !form.controls['name'].errors['required'] &&
+                              form.controls['name'].errors['invalidJSFunctionName']" class="invalid-feedback">
+                              _#(common.sree.internal.invalidCharInName)
                            </span>
                </div>
             </div>
