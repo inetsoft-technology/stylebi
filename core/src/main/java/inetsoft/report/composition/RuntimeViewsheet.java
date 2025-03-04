@@ -225,6 +225,14 @@ public class RuntimeViewsheet extends RuntimeSheet {
    }
 
    /**
+    * Reload the bookmark from the storage so that it contains the most recent data
+    * @param owner bookmark owner
+    */
+   public void reloadVSBookmark(IdentityID owner) {
+      getVSBookmark(owner.convertToKey());
+   }
+
+   /**
     * Set the asset entry.
     * @param entry the specified asset entry.
     */
