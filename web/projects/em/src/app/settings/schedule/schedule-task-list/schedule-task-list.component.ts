@@ -303,7 +303,7 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
    newTask(): void {
       // http REST requests use URI and a body object with data
       this.http.post(NEW_TASKS_URI, this.currentFolder).subscribe(
-         (model: ScheduleTaskDialogModel) => this.navigateToTaskEditor(model.name, model.taskDefaultTime),
+         (model: ScheduleTaskDialogModel) => this.navigateToTaskEditor(model.name),
          (error) => {
             let message = error?.error?.type == "SecurityException" ? error.error.message : "Failed to get schedule task model";
             this.dialog.open(MessageDialog, this.setConfigs(`_#(js:Error)`,
@@ -498,11 +498,11 @@ export class ScheduleTaskListComponent implements OnInit, AfterViewInit, OnDestr
       this.dataSource.filter = filter.trim().toLowerCase();
    }
 
-   private navigateToTaskEditor(name: string, taskDefaultTime: boolean = true): void {
+   private navigateToTaskEditor(name: string): void {
       let path = !!this.selectedNodes && this.selectedNodes.length != 0 ?
          this.selectedNodes[0].data.path : "/";
       this.router.navigate(["/settings/schedule/tasks", name],
-         {queryParams: {taskDefaultTime: taskDefaultTime, path: path}});
+         {queryParams: {path: path}});
    }
 
    getEditorQueryParams(): any {

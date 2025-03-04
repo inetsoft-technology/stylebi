@@ -101,8 +101,6 @@ public class ScheduleTaskService {
       }
 
       String taskName = catalog.getString("newTaskName") + duplicateNameIndex;
-      String defaultTimeProp = SreeEnv.getProperty("schedule.condition.taskDefaultTime");
-      boolean taskDefaultTime = !"false".equals(defaultTimeProp);
 
       if(model instanceof TimeConditionModel) {
          if(((TimeConditionModel) model).type() == TimeCondition.AT &&
@@ -164,15 +162,14 @@ public class ScheduleTaskService {
          }
       }
 
-      return getDialogModel(taskId, principal, taskDefaultTime, em);
+      return getDialogModel(taskId, principal, em);
    }
 
    /**
     * Method for getting a schedule task model
     * @param taskName   URL Decoded task Name
     */
-   public ScheduleTaskDialogModel getDialogModel(String taskName, Principal principal,
-                                                 boolean taskDefaultTime, boolean em)
+   public ScheduleTaskDialogModel getDialogModel(String taskName, Principal principal, boolean em)
       throws Exception
    {
       taskName = Tool.byteDecode(taskName);
@@ -189,22 +186,21 @@ public class ScheduleTaskService {
 
       int index = taskName.indexOf(":");
       String label = index != -1 ? taskName.substring(index + 1) : taskName;
-      return createTaskDialogModel(taskName, label, taskDefaultTime, zoneName, principal, em);
+      return createTaskDialogModel(taskName, label, zoneName, principal, em);
    }
 
    /**
     * Method for getting a schedule task model
     * @param taskName   URL Decoded task Name
     */
-   public ScheduleTaskDialogModel getDialogModel(String taskName, Principal principal,
-                                                 boolean taskDefaultTime)
+   public ScheduleTaskDialogModel getDialogModel(String taskName, Principal principal)
       throws Exception
    {
-      return getDialogModel(taskName, principal, taskDefaultTime, false);
+      return getDialogModel(taskName, principal, false);
    }
 
    private ScheduleTaskDialogModel createTaskDialogModel(String taskName, String label,
-                                                         boolean taskDefaultTime, String zoneName,
+                                                         String zoneName,
                                                          Principal principal, boolean em)
       throws Exception
    {
@@ -223,6 +219,8 @@ public class ScheduleTaskService {
          Tool.equals(OrganizationManager.getInstance().getCurrentOrgID(), userOrgId)) && securityProvider.checkPermission(
       principal, ResourceType.SCHEDULE_OPTION, "timeRange", ResourceAction.READ);
       List<TimeZoneModel> timeZoneOptions = TimeZoneModel.getTimeZoneOptions();
+      String defaultTimeProp = SreeEnv.getProperty("schedule.condition.taskDefaultTime");
+      boolean taskDefaultTime = !"false".equals(defaultTimeProp);
 
       return ScheduleTaskDialogModel.builder()
          .name(taskName)
@@ -516,7 +514,7 @@ public class ScheduleTaskService {
          }
       }
 
-      return getDialogModel(taskName, principal, true, em);
+      return getDialogModel(taskName, principal, em);
    }
 
 
