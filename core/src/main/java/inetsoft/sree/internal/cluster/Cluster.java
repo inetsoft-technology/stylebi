@@ -186,6 +186,16 @@ public interface Cluster extends AutoCloseable {
     */
    void unlockWrite(String name);
 
+   default <K, V> Cache <K, V> getCache(String name) {
+      return getCache(name, false);
+   }
+
+   default <K, V> Cache <K, V> getCache(String name, boolean replicated) {
+      return getCache(name, false, null);
+   }
+
+   <K, V> Cache<K, V> getCache(String name, boolean replicated, ExpiryPolicy expiryPolicy);
+
    /**
     * Gets the named cache. The cache will be partitioned and use the default expiry policy.
     *
