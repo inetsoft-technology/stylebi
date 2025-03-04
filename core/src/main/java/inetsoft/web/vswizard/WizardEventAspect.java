@@ -29,7 +29,7 @@ import inetsoft.util.script.ScriptException;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -59,11 +59,11 @@ public class WizardEventAspect {
    @Autowired
    public WizardEventAspect(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
    }
 
@@ -124,7 +124,7 @@ public class WizardEventAspect {
                }
                else if(!mvHandled) {
                   commandDispatcher.ifPresent(dispatcher -> {
-                     placeholderService.waitForMV(e, null, dispatcher);
+                     coreLifecycleService.waitForMV(e, null, dispatcher);
                   });
                   mvHandled = true;
                }
@@ -179,7 +179,7 @@ public class WizardEventAspect {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private static final Logger LOG = LoggerFactory.getLogger(WizardEventAspect.class);
 }

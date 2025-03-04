@@ -40,10 +40,10 @@ public class VSChartMoveLegendController
    extends VSChartController<VSChartLegendRelocateEvent> {
    @Autowired
    public VSChartMoveLegendController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                      PlaceholderService placeholderService,
+                                      CoreLifecycleService coreLifecycleService,
                                       ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
    }
 
    /**

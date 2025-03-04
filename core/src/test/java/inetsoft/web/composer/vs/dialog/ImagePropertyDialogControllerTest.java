@@ -33,6 +33,7 @@ import inetsoft.uql.viewsheet.internal.VSAssemblyInfo;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.ImagePropertyDialogModel;
 import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -64,14 +65,16 @@ class ImagePropertyDialogControllerTest {
    @BeforeEach
    void setup() throws Exception {
       trapService = new VSTrapService();
-      placeholderService = new PlaceholderService(objectModelService, messagingTemplate,
-                                                  viewsheetEngine);
+      coreLifecycleService = new CoreLifecycleService(objectModelService, viewsheetEngine,
+                                                  vsLayoutService, parameterService);
       temporaryInfoService = new VSWizardTemporaryInfoService(viewsheetService);
-      vsObjectPropertyService = spy(new VSObjectPropertyService(placeholderService,
+      vsObjectPropertyService = spy(new VSObjectPropertyService(coreLifecycleService,
                                                                 vsInputService,
                                                                 vsObjectTreeService,
                                                                 infoHandler, viewsheetEngine,
-                                                                temporaryInfoService));
+                                                                temporaryInfoService,
+                                                                vsCompositionService,
+                                                                sharedFilterService));
       controller = new ImagePropertyDialogController(vsObjectPropertyService,
                                                      vsOutputService, runtimeViewsheetRef,
                                                      viewsheetEngine,
@@ -131,8 +134,12 @@ class ImagePropertyDialogControllerTest {
    @Mock SimpMessagingTemplate messagingTemplate;
    @Mock VSWizardTemporaryInfoService temporaryInfoService;
    @Mock ViewsheetService viewsheetService;
+   @Mock VSLayoutService vsLayoutService;
+   @Mock ParameterService parameterService;
+   @Mock VSCompositionService vsCompositionService;
+   @Mock SharedFilterService sharedFilterService;
 
-   private PlaceholderService placeholderService;
+   private CoreLifecycleService coreLifecycleService;
    @Mock VSInputService vsInputService;
    private VSObjectPropertyService vsObjectPropertyService;
    private ImagePropertyDialogController controller;

@@ -44,11 +44,11 @@ public class VSTabController {
    @Autowired
    public VSTabController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
    }
 
@@ -75,11 +75,11 @@ public class VSTabController {
       if(tassembly != null) {
          ((TabVSAssemblyInfo) tassembly.getVSAssemblyInfo()).setSelectedValue(compName);
          ((TabVSAssemblyInfo) tassembly.getVSAssemblyInfo()).setSelected(null);
-         placeholderService.execute(rvs, name, linkUri, VSAssembly.VIEW_CHANGED, dispatcher);
+         coreLifecycleService.execute(rvs, name, linkUri, VSAssembly.VIEW_CHANGED, dispatcher);
       }
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
 }

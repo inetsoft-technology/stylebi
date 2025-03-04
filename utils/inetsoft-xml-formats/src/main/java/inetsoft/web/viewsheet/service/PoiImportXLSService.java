@@ -51,7 +51,7 @@ public class PoiImportXLSService implements ImportXLSService {
 
    @Override
    public void updateViewsheet(File excelFile, String type, RuntimeViewsheet rvs, String linkUri,
-                               CommandDispatcher dispatcher, PlaceholderService placeholderService,
+                               CommandDispatcher dispatcher, CoreLifecycleService coreLifecycleService,
                                Catalog catalog, List<String> assemblies, Set<String> notInRange)
       throws Exception
    {
@@ -77,7 +77,7 @@ public class PoiImportXLSService implements ImportXLSService {
 
       Viewsheet vs = rvs.getViewsheet();
       ViewsheetSandbox box = rvs.getViewsheetSandbox();
-      updateViewsheet(rvs, vs, box, assemblies, linkUri, dispatcher, placeholderService,
+      updateViewsheet(rvs, vs, box, assemblies, linkUri, dispatcher, coreLifecycleService,
                       sheet, bSheet, sheetNames, bSheetNames, notInRange);
    }
 
@@ -86,7 +86,7 @@ public class PoiImportXLSService implements ImportXLSService {
     */
    private void updateViewsheet(RuntimeViewsheet rvs, Viewsheet vs, ViewsheetSandbox box,
                                 List<String> assemblies, String linkUri,
-                                CommandDispatcher dispatcher, PlaceholderService placeholderService,
+                                CommandDispatcher dispatcher, CoreLifecycleService coreLifecycleService,
                                 Sheet sheet, Sheet bSheet, Map<String, Name> sheetNames,
                                 Map<String, Name> bSheetNames, Set<String> notInRange)
       throws Exception
@@ -97,7 +97,7 @@ public class PoiImportXLSService implements ImportXLSService {
       for(Assembly assembly : vsAssemblies) {
          if(assembly instanceof Viewsheet) {
             updateViewsheet(rvs, (Viewsheet) assembly, box, assemblies, linkUri, dispatcher,
-                            placeholderService, sheet, bSheet, sheetNames, bSheetNames, notInRange);
+                    coreLifecycleService, sheet, bSheet, sheetNames, bSheetNames, notInRange);
             continue;
          }
 
@@ -169,7 +169,7 @@ public class PoiImportXLSService implements ImportXLSService {
                BaseTableLoadDataController.loadTableData(rvs, name, 0, 0,
                                                          table.getRowCount(), linkUri,
                                                          dispatcher);
-               placeholderService.refreshVSAssembly(rvs, vsAssembly.getAbsoluteName(), dispatcher);
+               coreLifecycleService.refreshVSAssembly(rvs, vsAssembly.getAbsoluteName(), dispatcher);
 
                // TODO Refresh scripts
 //               for(int r = 1; r < table.getRowCount(); r ++) {
@@ -190,7 +190,7 @@ public class PoiImportXLSService implements ImportXLSService {
       }
 
       if(reset) {
-         placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+         coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
       }
    }
 

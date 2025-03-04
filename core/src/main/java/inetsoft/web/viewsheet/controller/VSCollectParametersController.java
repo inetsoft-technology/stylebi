@@ -61,12 +61,12 @@ public class VSCollectParametersController {
     */
    @Autowired
    public VSCollectParametersController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                        PlaceholderService placeholderService,
+                                        CoreLifecycleService coreLifecycleService,
                                         ViewsheetService viewsheetService,
                                         AssetRepository assetRepository)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.assetRepository = assetRepository;
    }
@@ -103,8 +103,8 @@ public class VSCollectParametersController {
          fillVariableTable(event.variables(), vtable, user, vsName);
       }
       catch(Exception ex) {
-         this.placeholderService.sendMessage(ex.toString(), MessageCommand.Type.ERROR,
-                                             dispatcher);
+         this.coreLifecycleService.sendMessage(ex.toString(), MessageCommand.Type.ERROR,
+                                               dispatcher);
 
          return;
       }
@@ -148,10 +148,10 @@ public class VSCollectParametersController {
       try {
          VSUtil.OPEN_VIEWSHEET.set(event.openVS());
          ChangedAssemblyList clist =
-            this.placeholderService.createList(false, dispatcher, rvs, linkUri);
+            this.coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
          rvs.getViewsheetSandbox().clearInit();
-         this.placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, width, height, false,
-            null, dispatcher, false, true, true, clist);
+         this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, width, height, false,
+                                                    null, dispatcher, false, true, true, clist);
       }
       finally {
          VSUtil.OPEN_VIEWSHEET.remove();
@@ -319,7 +319,7 @@ public class VSCollectParametersController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final AssetRepository assetRepository;
 

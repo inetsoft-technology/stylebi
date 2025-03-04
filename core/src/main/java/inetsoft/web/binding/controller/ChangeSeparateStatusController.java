@@ -53,12 +53,12 @@ public class ChangeSeparateStatusController {
    public ChangeSeparateStatusController(
       VSBindingService bindingFactory,
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       VSChartHandler chartHandler, ViewsheetService viewsheetService)
    {
       this.bindingFactory = bindingFactory;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.chartHandler = chartHandler;
       this.viewsheetService = viewsheetService;
    }
@@ -121,17 +121,17 @@ public class ChangeSeparateStatusController {
 
          try {
             ChangedAssemblyList clist =
-               placeholderService.createList(true, dispatcher, rvs, linkUri);
+               coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
             box.processChange(name, hint, clist);
-            placeholderService.execute(rvs, name, linkUri, clist, dispatcher, true);
+            coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
          }
          finally {
             vs.setBrush(table, null);
          }
 
-         //refreshVSAssembly should to be executed after placeholderService.execute()
+         //refreshVSAssembly should to be executed after coreLifecycleService.execute()
          //or refresh error image.
-         placeholderService.refreshVSAssembly(rvs, chart, dispatcher);
+         coreLifecycleService.refreshVSAssembly(rvs, chart, dispatcher);
          BindingModel binding = bindingFactory.createModel(chart);
          SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
          dispatcher.sendCommand(bcommand);
@@ -143,7 +143,7 @@ public class ChangeSeparateStatusController {
 
    private final VSBindingService bindingFactory;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSChartHandler chartHandler;
    private final ViewsheetService viewsheetService;
    private static final Logger LOG =

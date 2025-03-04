@@ -64,13 +64,13 @@ public class ChangeChartAestheticController {
    @Autowired
    public ChangeChartAestheticController(
       VSBindingService bindingFactory,
-      RuntimeViewsheetRef runtimeViewsheetRef, PlaceholderService placeholderService,
+      RuntimeViewsheetRef runtimeViewsheetRef, CoreLifecycleService coreLifecycleService,
       VSAssemblyInfoHandler assemblyInfoHandler, VSChartHandler chartHandler,
       ViewsheetService viewsheetService)
    {
       this.bindingFactory = bindingFactory;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.chartHandler = chartHandler;
       this.viewsheetService = viewsheetService;
@@ -145,9 +145,9 @@ public class ChangeChartAestheticController {
 
          try {
             ChangedAssemblyList clist =
-               placeholderService.createList(true, dispatcher, rvs, linkUri);
+               coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
             box.processChange(name, hint, clist);
-            placeholderService.execute(rvs, name, linkUri, clist, dispatcher, true);
+            coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
             assemblyInfoHandler.checkTrap(oinfo, ninfo, obinding, dispatcher, rvs);
          }
          finally {
@@ -209,7 +209,7 @@ public class ChangeChartAestheticController {
 
    private final VSBindingService bindingFactory;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final VSChartHandler chartHandler;
    private final ViewsheetService viewsheetService;

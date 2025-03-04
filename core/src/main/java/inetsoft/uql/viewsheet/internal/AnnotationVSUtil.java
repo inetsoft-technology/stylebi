@@ -55,7 +55,7 @@ import inetsoft.web.binding.dnd.TableTransfer;
 import inetsoft.web.binding.event.VSDndEvent;
 import inetsoft.web.viewsheet.event.ViewsheetEvent;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.jsoup.Jsoup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -909,7 +909,7 @@ public final class AnnotationVSUtil {
    public static void resetDataAnnotation(RuntimeViewsheet rvs, VSAssembly assembly,
                                           DataSet chart, ChartArea area,
                                           CommandDispatcher dispatcher,
-                                          PlaceholderService placeholderService,
+                                          CoreLifecycleService coreLifecycleService,
                                           boolean maxMode, boolean checkMaxOrTip)
       throws Exception
    {
@@ -947,14 +947,14 @@ public final class AnnotationVSUtil {
                if(!Tool.equals(visible && cinfo.isEnabled(), ainfo.isVisible()))
                {
                   resetAnnotation(
-                     (AnnotationVSAssembly) annotation, rvs, dispatcher, placeholderService,
+                     (AnnotationVSAssembly) annotation, rvs, dispatcher, coreLifecycleService,
                      visible && cinfo.isEnabled(), box);
                }
                else if(Tool.equals(maxMode || rvs.isTipView(cname) ||
                                       rvs.isPopComponent(cname), ainfo.isVisible()) && checkMaxOrTip)
                {
                   resetAnnotation(
-                     (AnnotationVSAssembly) annotation, rvs, dispatcher, placeholderService, !maxMode &&
+                     (AnnotationVSAssembly) annotation, rvs, dispatcher, coreLifecycleService, !maxMode &&
                      !rvs.isTipView(cname) && !rvs.isPopComponent(cname), box);
                }
             }
@@ -991,10 +991,10 @@ public final class AnnotationVSUtil {
 
                // @by skyf, when chart refreshed, we should also refresh
                // its related annotation assemblies for re-position.
-               if(placeholderService != null) {
-                  placeholderService.refreshVSObject(annotation, rvs, null, box, dispatcher);
-                  placeholderService.refreshVSObject(lineAssembly, rvs, null, box, dispatcher);
-                  placeholderService.refreshVSObject(rectAssembly, rvs, null, box, dispatcher);
+               if(coreLifecycleService != null) {
+                  coreLifecycleService.refreshVSObject(annotation, rvs, null, box, dispatcher);
+                  coreLifecycleService.refreshVSObject(lineAssembly, rvs, null, box, dispatcher);
+                  coreLifecycleService.refreshVSObject(rectAssembly, rvs, null, box, dispatcher);
                }
             }
          }
@@ -1715,7 +1715,7 @@ public final class AnnotationVSUtil {
     */
    public static void refreshAllAnnotations(RuntimeViewsheet rvs, VSAssembly assembly,
                                             CommandDispatcher dispatcher,
-                                            PlaceholderService placeholderService)
+                                            CoreLifecycleService coreLifecycleService)
       throws Exception
    {
       Viewsheet vs =  rvs.getViewsheet();
@@ -1730,7 +1730,7 @@ public final class AnnotationVSUtil {
 
          for(int i = 0; i < list.size(); i++) {
             VSAssembly child = (VSAssembly) list.get(i);
-            refreshAnnotations(rvs, vs, child, dispatcher, placeholderService);
+            refreshAnnotations(rvs, vs, child, dispatcher, coreLifecycleService);
          }
       }
       else if(assembly instanceof Viewsheet) {
@@ -1739,11 +1739,11 @@ public final class AnnotationVSUtil {
 
          for(int i = 0; i < objList.size(); i++) {
             VSAssembly sassembly = (VSAssembly) objList.get(i);
-            refreshAnnotations(rvs, vs, sassembly, dispatcher, placeholderService);
+            refreshAnnotations(rvs, vs, sassembly, dispatcher, coreLifecycleService);
          }
       }
       else {
-         refreshAnnotations(rvs, vs, assembly, dispatcher, placeholderService);
+         refreshAnnotations(rvs, vs, assembly, dispatcher, coreLifecycleService);
       }
    }
 
@@ -1753,7 +1753,7 @@ public final class AnnotationVSUtil {
    public static void refreshAnnotations(RuntimeViewsheet rvs, Viewsheet vs,
                                          VSAssembly assembly,
                                          CommandDispatcher dispatcher,
-                                         PlaceholderService placeholderService)
+                                         CoreLifecycleService coreLifecycleService)
       throws Exception
    {
       VSAssemblyInfo info = VSEventUtil.getAssemblyInfo(rvs, assembly);
@@ -1787,7 +1787,7 @@ public final class AnnotationVSUtil {
                }
 
                resetDataAnnotation(
-                  rvs, assembly, data, area, dispatcher, placeholderService, false,
+                  rvs, assembly, data, area, dispatcher, coreLifecycleService, false,
                   false);
             }
             catch(Exception ex) {
@@ -1828,10 +1828,10 @@ public final class AnnotationVSUtil {
                         final VSAssembly parentAssembly =
                            (VSAssembly) vs.getAssembly(annotationParent);
                         resetAnnotation(
-                           annotation, rvs, dispatcher, placeholderService, true, box);
+                           annotation, rvs, dispatcher, coreLifecycleService, true, box);
 
-                        if(placeholderService != null) {
-                           placeholderService.refreshVSObject(
+                        if(coreLifecycleService != null) {
+                           coreLifecycleService.refreshVSObject(
                                    parentAssembly, rvs, null, box, dispatcher);
                         }
                      }
@@ -1840,7 +1840,7 @@ public final class AnnotationVSUtil {
                         ainfo.setCol(-1);
 
                         resetAnnotation(
-                           annotation, rvs, dispatcher, placeholderService, false, box);
+                           annotation, rvs, dispatcher, coreLifecycleService, false, box);
                      }
                   }
                   else {
@@ -1848,14 +1848,14 @@ public final class AnnotationVSUtil {
                      ainfo.setCol(-1);
 
                      resetAnnotation(
-                        annotation, rvs, dispatcher, placeholderService, false, box);
+                        annotation, rvs, dispatcher, coreLifecycleService, false, box);
                   }
                }
                else if(!Tool.equals(visible && info.isEnabled(),
                                     ainfo.isVisible()))
                {
                   resetAnnotation(
-                     annotation, rvs, dispatcher, placeholderService,
+                     annotation, rvs, dispatcher, coreLifecycleService,
                      visible && info.isEnabled(), box);
                }
             }
@@ -1868,7 +1868,7 @@ public final class AnnotationVSUtil {
     */
    public static void resetAnnotation(AnnotationVSAssembly annotation, RuntimeViewsheet rvs,
                                       CommandDispatcher dispatcher,
-                                      PlaceholderService placeholderService, boolean vis,
+                                      CoreLifecycleService coreLifecycleService, boolean vis,
                                       ViewsheetSandbox box)
    {
       Viewsheet vs = rvs.getViewsheet();
@@ -1876,8 +1876,8 @@ public final class AnnotationVSUtil {
       boolean oldVisible = ainfo.isVisible();
       ainfo.setVisible(vis);
 
-      if(placeholderService != null) {
-         placeholderService.refreshVSObject(annotation, rvs, null, box, dispatcher);
+      if(coreLifecycleService != null) {
+         coreLifecycleService.refreshVSObject(annotation, rvs, null, box, dispatcher);
       }
 
       String line = ainfo.getLine();
@@ -1887,8 +1887,8 @@ public final class AnnotationVSUtil {
          VSAssemblyInfo linfo = (VSAssemblyInfo) lass.getInfo();
          linfo.setVisible(vis);
 
-         if(placeholderService != null) {
-            placeholderService.refreshVSObject(lass, rvs, null, box, dispatcher);
+         if(coreLifecycleService != null) {
+            coreLifecycleService.refreshVSObject(lass, rvs, null, box, dispatcher);
          }
       }
 
@@ -1899,8 +1899,8 @@ public final class AnnotationVSUtil {
          VSAssemblyInfo rinfo = (VSAssemblyInfo) rass.getInfo();
          rinfo.setVisible(vis);
 
-         if(placeholderService != null) {
-            placeholderService.refreshVSObject(rass, rvs, null, box, dispatcher);
+         if(coreLifecycleService != null) {
+            coreLifecycleService.refreshVSObject(rass, rvs, null, box, dispatcher);
          }
       }
    }

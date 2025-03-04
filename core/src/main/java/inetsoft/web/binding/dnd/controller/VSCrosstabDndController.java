@@ -44,7 +44,6 @@ import inetsoft.web.binding.dnd.TableTransfer;
 import inetsoft.web.binding.event.VSDndEvent;
 import inetsoft.web.binding.handler.*;
 import inetsoft.web.binding.model.SourceInfo;
-import inetsoft.web.binding.model.table.CellBindingInfo;
 import inetsoft.web.binding.service.*;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.viewsheet.LoadingMask;
@@ -78,12 +77,12 @@ public class VSCrosstabDndController extends VSAssemblyDndController {
                                   VSCrosstabBindingHandler crosstabHandler,
                                   VSObjectModelFactoryService objectModelService,
                                   ViewsheetService viewsheetService,
-                                  PlaceholderService placeholderService,
+                                  CoreLifecycleService coreLifecycleService,
                                   ConvertTableRefService convertTableRefService,
                                   VSBindingTreeService bindingTreeService)
    {
       super(runtimeViewsheetRef, bfactory, assemblyInfoHandler, objectModelService,
-            viewsheetService, placeholderService);
+            viewsheetService, coreLifecycleService);
       this.crosstabHandler = crosstabHandler;
       this.convertTableRefService = convertTableRefService;
       this.bindingTreeService = bindingTreeService;

@@ -29,6 +29,7 @@ import inetsoft.web.binding.model.*;
 import inetsoft.web.binding.service.DataRefModelFactory;
 import inetsoft.web.binding.service.DataRefModelFactoryService;
 import inetsoft.web.composer.vs.VSObjectTreeService;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.service.LicenseService;
 import inetsoft.web.viewsheet.controller.OpenViewsheetController;
 import inetsoft.web.viewsheet.controller.ViewsheetController;
@@ -56,7 +57,7 @@ public class ControllersExtension extends MockMessageExtension {
       vsLifecycleService = null;
       runtimeViewsheetManager = null;
       objectModelFactoryService = null;
-      placeholderService = null;
+      coreLifecycleService = null;
       viewsheetController = null;
       objectTreeService = null;
       securityEngine = null;
@@ -117,13 +118,18 @@ public class ControllersExtension extends MockMessageExtension {
          new VSChartModel.VSChartModelFactory()
       );
       objectModelFactoryService = new VSObjectModelFactoryService(modelFactories);
-      placeholderService =
-         new PlaceholderService(objectModelFactoryService, getMessagingTemplate(), viewsheetService);
+      VSLayoutService vsLayoutService = new VSLayoutService(objectModelFactoryService);
+      ParameterService parameterService = new ParameterService(viewsheetService);
+      coreLifecycleService =
+         new CoreLifecycleService(objectModelFactoryService, viewsheetService,
+                                  vsLayoutService, parameterService);
       assetRepository = (AssetRepository) SUtil.getRepletRepository();
       objectTreeService = new VSObjectTreeService(objectModelFactoryService);
       securityEngine = SecurityEngine.getSecurity();
+      sharedFilterService = new SharedFilterService(getMessagingTemplate(), viewsheetService);
 
-      objectService = new VSObjectService(placeholderService, viewsheetService, securityEngine);
+      objectService = new VSObjectService(coreLifecycleService, viewsheetService, securityEngine,
+                                          sharedFilterService);
       bookmarkService = new VSBookmarkService(objectService);
       List<DataRefModelFactory<?, ?>> dataRefModelFactories = Arrays.asList(
          new AggregateRefModel.AggregateRefModelFactory(),
@@ -142,9 +148,10 @@ public class ControllersExtension extends MockMessageExtension {
          new NumericRangeRefModel.NumericRangeRefModelFactory()
       );
       dataRefModelFactoryService = new DataRefModelFactoryService(dataRefModelFactories);
+      vsCompositionService = new VSCompositionService();
       vsLifecycleService = new VSLifecycleService(
-         viewsheetService, assetRepository, placeholderService, bookmarkService,
-         dataRefModelFactoryService);
+         viewsheetService, assetRepository, coreLifecycleService, bookmarkService,
+         dataRefModelFactoryService, vsCompositionService, parameterService);
       viewsheetController = new ViewsheetController(
          runtimeViewsheetRef, runtimeViewsheetManager, vsLifecycleService);
       licenseService = new LicenseService();
@@ -152,10 +159,10 @@ public class ControllersExtension extends MockMessageExtension {
          runtimeViewsheetRef, runtimeViewsheetManager, objectTreeService, viewsheetService,
          vsLifecycleService, licenseService);
       baseTableLoadDataController =
-         new BaseTableLoadDataController(runtimeViewsheetRef, placeholderService, viewsheetService);
-      selectionService = new VSSelectionService(placeholderService, viewsheetService,
-         maxModeAssemblyService);
-      maxModeAssemblyService = new MaxModeAssemblyService(placeholderService);
+         new BaseTableLoadDataController(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
+      selectionService = new VSSelectionService(coreLifecycleService, viewsheetService,
+                                                maxModeAssemblyService, sharedFilterService);
+      maxModeAssemblyService = new MaxModeAssemblyService(coreLifecycleService);
    }
 
    @Override
@@ -179,8 +186,8 @@ public class ControllersExtension extends MockMessageExtension {
       return objectModelFactoryService;
    }
 
-   public PlaceholderService getPlaceholderService() {
-      return placeholderService;
+   public CoreLifecycleService getCoreLifecycleService() {
+      return coreLifecycleService;
    }
 
    public ViewsheetController getViewsheetController() {
@@ -223,6 +230,18 @@ public class ControllersExtension extends MockMessageExtension {
       return selectionService;
    }
 
+   public SharedFilterService getSharedFilterService() {
+      return sharedFilterService;
+   }
+
+   public VSCompositionService getVsCompositionService() {
+      return vsCompositionService;
+   }
+
+   public ParameterService getParameterService() {
+      return parameterService;
+   }
+
    private String runtimeId;
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private ViewsheetService viewsheetService;
@@ -230,7 +249,7 @@ public class ControllersExtension extends MockMessageExtension {
    private VSLifecycleService vsLifecycleService;
    private RuntimeViewsheetManager runtimeViewsheetManager;
    private VSObjectModelFactoryService objectModelFactoryService;
-   private PlaceholderService placeholderService;
+   private CoreLifecycleService coreLifecycleService;
    private ViewsheetController viewsheetController;
    private VSObjectTreeService objectTreeService;
    private SecurityEngine securityEngine;
@@ -243,4 +262,7 @@ public class ControllersExtension extends MockMessageExtension {
    private LicenseService licenseService;
    private VSSelectionService selectionService;
    private MaxModeAssemblyService maxModeAssemblyService;
+   private SharedFilterService sharedFilterService;
+   private VSCompositionService vsCompositionService;
+   private ParameterService parameterService;
 }

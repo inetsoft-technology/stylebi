@@ -38,9 +38,10 @@ class VSAnnotationToggleControllerTest {
    @BeforeEach
    void setUp() throws Exception {
       runtimeViewsheetRef = mock(RuntimeViewsheetRef.class);
-      placeholderService = mock(PlaceholderService.class);
+      coreLifecycleService = mock(CoreLifecycleService.class);
       viewsheetService = mock(ViewsheetService.class);
       securityEngine = mock(SecurityEngine.class);
+      sharedFilterService = mock(SharedFilterService.class);
 
       principal = mock(Principal.class);
       dispatcher = mock(CommandDispatcher.class);
@@ -48,9 +49,10 @@ class VSAnnotationToggleControllerTest {
       viewsheet = mock(Viewsheet.class);
 
       // mock service
-      service = new VSObjectService(placeholderService,
+      service = new VSObjectService(coreLifecycleService,
                                     viewsheetService,
-                                    securityEngine);
+                                    securityEngine,
+                                    sharedFilterService);
 
       // stub method calls
       when(viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal)).thenReturn(rvs);
@@ -61,7 +63,7 @@ class VSAnnotationToggleControllerTest {
    void tearDown() {
       runtimeViewsheetRef = null;
       viewsheet = null;
-      placeholderService = null;
+      coreLifecycleService = null;
       viewsheetService = null;
       securityEngine = null;
       principal = null;
@@ -89,11 +91,12 @@ class VSAnnotationToggleControllerTest {
 
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private Viewsheet viewsheet;
-   private PlaceholderService placeholderService;
+   private CoreLifecycleService coreLifecycleService;
    private ViewsheetService viewsheetService;
    private SecurityEngine securityEngine;
    private Principal principal;
    private CommandDispatcher dispatcher;
    private RuntimeViewsheet rvs;
    private VSObjectService service;
+   private SharedFilterService sharedFilterService;
 }

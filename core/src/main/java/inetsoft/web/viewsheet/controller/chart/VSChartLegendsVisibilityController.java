@@ -46,12 +46,12 @@ public class VSChartLegendsVisibilityController
 {
    @Autowired
    public VSChartLegendsVisibilityController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                             PlaceholderService placeholderService,
+                                             CoreLifecycleService coreLifecycleService,
                                              VSObjectPropertyService vsObjectPropertyService,
                                              ViewsheetService viewsheetService,
                                              VSWizardTemporaryInfoService temporaryInfoService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.temporaryInfoService = temporaryInfoService;
    }

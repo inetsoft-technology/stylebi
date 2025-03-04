@@ -31,7 +31,7 @@ import inetsoft.web.binding.service.VSBindingService;
 import inetsoft.web.viewsheet.model.DrillFilterAction;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,13 +46,13 @@ public class VSDrillHandler {
    @Autowired
    public VSDrillHandler(List<DrillHandler> drillHandlers,
                          ViewsheetService viewsheetService,
-                         PlaceholderService placeholderService,
+                         CoreLifecycleService coreLifecycleService,
                          RuntimeViewsheetRef runtimeViewsheetRef,
                          VSBindingService bfactory)
    {
       this.drillHandlers = drillHandlers;
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.bfactory = bfactory;
    }
@@ -207,8 +207,8 @@ public class VSDrillHandler {
       throws Exception
    {
       final ChangedAssemblyList clist =
-         placeholderService.createList(true, dispatcher, rvs, linkUri);
-      placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
+         coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
+      coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
          false, false, true, clist);
    }
 
@@ -226,7 +226,7 @@ public class VSDrillHandler {
 
    private final List<DrillHandler> drillHandlers;
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSBindingService bfactory;
 

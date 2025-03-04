@@ -65,13 +65,13 @@ public class ChangeChartRefController {
    @Autowired
    public ChangeChartRefController(
       VSBindingService bindingFactory,
-      RuntimeViewsheetRef runtimeViewsheetRef, PlaceholderService placeholderService,
+      RuntimeViewsheetRef runtimeViewsheetRef, CoreLifecycleService coreLifecycleService,
       VSAssemblyInfoHandler assemblyInfoHandler, VSChartHandler chartHandler,
       VSChartDataHandler chartDataHandler, ViewsheetService viewsheetService)
    {
       this.bindingFactory = bindingFactory;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.chartHandler = chartHandler;
       this.chartDataHandler = chartDataHandler;
@@ -145,7 +145,7 @@ public class ChangeChartRefController {
 
          try {
             ChangedAssemblyList clist =
-               placeholderService.createList(true, dispatcher, rvs, linkUri);
+               coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
             box.updateAssembly(name);
             // update chart type after refreshing runtime refs.
             ncinfo.updateChartType(!ncinfo.isMultiStyles());
@@ -160,12 +160,12 @@ public class ChangeChartRefController {
 
             // fix Bug #10599, refresh before executing will cause the chart paint
             // before chart data is reexecuted, and what's more,
-            // placeholderService.execute will refresh the assembly after
+            // coreLifecycleService.execute will refresh the assembly after
             // refreshing the data.
-            // placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+            // coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
             box.processChange(name, hint, clist);
             refreshDrillFilter(assembly, ocinfo, ncinfo);
-            placeholderService.execute(rvs, name, linkUri, clist, dispatcher, true);
+            coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
             assemblyInfoHandler.checkTrap(oinfo, info, obinding, dispatcher, rvs);
             assemblyInfoHandler.getGrayedOutFields(rvs, dispatcher);
          }
@@ -301,7 +301,7 @@ public class ChangeChartRefController {
 
    private final VSBindingService bindingFactory;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final VSChartHandler chartHandler;
    private final VSChartDataHandler chartDataHandler;

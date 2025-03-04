@@ -83,7 +83,7 @@ public class ComposerVSTableController {
    @Autowired
    public ComposerVSTableController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       VSObjectTreeService vsObjectTreeService,
       VSObjectModelFactoryService objectModelService,
       VSBindingService bfactory,
@@ -93,7 +93,7 @@ public class ComposerVSTableController {
       VSAssemblyInfoHandler vsAssemblyInfoHandler)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.vsObjectTreeService = vsObjectTreeService;
       this.objectModelService = objectModelService;
       this.bfactory = bfactory;
@@ -227,10 +227,10 @@ public class ComposerVSTableController {
          }
 
          int hint = assembly.setVSAssemblyInfo(info);
-         ChangedAssemblyList clist = placeholderService.createList(false, dispatcher, rvs, linkUri);
+         ChangedAssemblyList clist = coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
          box.processChange(event.getName(), hint, clist);
-         placeholderService.execute(rvs, event.getName(), linkUri, clist, dispatcher, true);
-         placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+         coreLifecycleService.execute(rvs, event.getName(), linkUri, clist, dispatcher, true);
+         coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
       }
       finally {
          box.unlockWrite();
@@ -365,8 +365,8 @@ public class ComposerVSTableController {
          dispatcher.sendCommand(command);
       }
 
-      this.placeholderService.execute(rvs, table.getAbsoluteName(), linkUri, hint, dispatcher);
-      this.placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+      this.coreLifecycleService.execute(rvs, table.getAbsoluteName(), linkUri, hint, dispatcher);
+      this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
    }
 
    /**
@@ -426,10 +426,10 @@ public class ComposerVSTableController {
 
          int hint = table.setColumnSelection(columns);
          ChangedAssemblyList clist =
-            placeholderService.createList(false, dispatcher, rvs, linkUri);
+            coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
          box.processChange(event.getName(), hint, clist);
-         placeholderService.execute(rvs, event.getName(), linkUri, clist, dispatcher, true);
-         placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+         coreLifecycleService.execute(rvs, event.getName(), linkUri, clist, dispatcher, true);
+         coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
 
          BindingModel binding = bfactory.createModel(table);
          SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
@@ -490,10 +490,10 @@ public class ComposerVSTableController {
       }
 
       int hint = 0;
-      ChangedAssemblyList clist = placeholderService.createList(false, dispatcher, rvs, linkUri);
+      ChangedAssemblyList clist = coreLifecycleService.createList(false, dispatcher, rvs, linkUri);
       box.processChange(event.getName(), hint, clist);
-      placeholderService.execute(rvs, event.getName(), linkUri, clist, dispatcher, true);
-      placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+      coreLifecycleService.execute(rvs, event.getName(), linkUri, clist, dispatcher, true);
+      coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
 
       BindingModel binding = bfactory.createModel(table);
       SetVSBindingModelCommand bcommand = new SetVSBindingModelCommand(binding);
@@ -604,7 +604,7 @@ public class ComposerVSTableController {
       rvs.getViewsheetSandbox().resetDataMap(table.getAbsoluteName());
       BaseTableController.loadTableData(rvs, table.getAbsoluteName(), 0, 0, 100, "",
                                         dispatcher);
-      placeholderService.refreshVSAssembly(rvs, table, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, table, dispatcher);
    }
 
    /**
@@ -1020,9 +1020,9 @@ public class ComposerVSTableController {
       }
 
       // 8. execute the viewsheet
-      this.placeholderService.execute(rvs, oname, linkUri, hint, dispatcher);
+      this.coreLifecycleService.execute(rvs, oname, linkUri, hint, dispatcher);
       // don't change table size after conversion
-      //this.placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+      //this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
 
       if(freehandInfo instanceof BaseAnnotationVSAssemblyInfo) {
          LOG.warn("The table type is changed, its annotation will be lost");
@@ -1365,13 +1365,13 @@ public class ComposerVSTableController {
    {
       Viewsheet vs = rvs.getViewsheet();
       TableDataVSAssembly table = (TableDataVSAssembly) vs.getAssembly(tableName);
-      placeholderService.refreshVSAssembly(rvs, table, dispatcher);
-      placeholderService.execute(rvs, tableName, linkUri, hint, dispatcher);
-      placeholderService.loadTableLens(rvs, tableName, linkUri, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, table, dispatcher);
+      coreLifecycleService.execute(rvs, tableName, linkUri, hint, dispatcher);
+      coreLifecycleService.loadTableLens(rvs, tableName, linkUri, dispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSObjectModelFactoryService objectModelService;
    private final VSBindingService bfactory;

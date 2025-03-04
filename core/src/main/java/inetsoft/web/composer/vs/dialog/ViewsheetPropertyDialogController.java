@@ -43,6 +43,7 @@ import inetsoft.uql.viewsheet.graph.*;
 import inetsoft.uql.viewsheet.internal.*;
 import inetsoft.uql.viewsheet.vslayout.*;
 import inetsoft.util.*;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.TreeNodeModel;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
@@ -75,16 +76,18 @@ public class ViewsheetPropertyDialogController {
     */
    @Autowired
    public ViewsheetPropertyDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                            PlaceholderService placeholderService,
+                                            CoreLifecycleService coreLifecycleService,
                                             ViewsheetService viewsheetService,
                                             VSLayoutService layoutService,
-                                            ViewsheetSettingsService viewsheetSettingsService)
+                                            ViewsheetSettingsService viewsheetSettingsService,
+                                            VSAssemblyInfoHandler vsAssemblyInfoHandler)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.layoutService = layoutService;
       this.viewsheetSettingsService = viewsheetSettingsService;
+      this.vsAssemblyInfoHandler = vsAssemblyInfoHandler;
    }
 
    /**
@@ -498,7 +501,7 @@ public class ViewsheetPropertyDialogController {
 
       try {
          ChangedAssemblyList clist =
-            this.placeholderService.createList(false, commandDispatcher, rvs, linkUri);
+            this.coreLifecycleService.createList(false, commandDispatcher, rvs, linkUri);
 
          int width = value.preview() && info.isScaleToScreen() ? value.width() : 0;
          int height = value.preview() && info.isScaleToScreen() ? value.height() : 0;
@@ -511,12 +514,12 @@ public class ViewsheetPropertyDialogController {
             commandDispatcher.sendCommand(new ClearScrollCommand());
          }
 
-         this.placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, width, height,
-            false, null, commandDispatcher, false, true, true, clist);
+         this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, width, height,
+                                                    false, null, commandDispatcher, false, true, true, clist);
       }
       // TODO the confirm exception stuff should be replaced b/c it depends on the old event API
       catch(ConfirmException e) {
-         if(!this.placeholderService.waitForMV(e, rvs, commandDispatcher)) {
+         if(!this.coreLifecycleService.waitForMV(e, rvs, commandDispatcher)) {
             throw e;
          }
       }
@@ -1322,7 +1325,7 @@ public class ViewsheetPropertyDialogController {
             continue;
          }
 
-         String[] children = placeholderService.getChildNodes(assembly);
+         String[] children = vsAssemblyInfoHandler.getLocalizationComponents(assembly);
          List<TreeNodeModel> nodeChildren = new ArrayList<>();
 
          if(children != null) {
@@ -1554,10 +1557,11 @@ public class ViewsheetPropertyDialogController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final VSLayoutService layoutService;
    private final ViewsheetSettingsService viewsheetSettingsService;
+   private final VSAssemblyInfoHandler vsAssemblyInfoHandler;
 
    private static final double RATIO_INCH_MM = 25.4;
    private static final double RATIO_INCH_POINT = 72;

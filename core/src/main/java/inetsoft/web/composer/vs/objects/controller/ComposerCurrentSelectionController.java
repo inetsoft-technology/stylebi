@@ -26,7 +26,7 @@ import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
 import org.springframework.messaging.handler.annotation.MessageMapping;
@@ -43,17 +43,17 @@ public class ComposerCurrentSelectionController {
    /**
     * Creates a new instance of <tt>ComposerCurrentSelectionController</tt>.
     *  @param runtimeViewsheetRef the runtime viewsheet reference
-    * @param placeholderService the placeholder service
+    * @param coreLifecycleService the placeholder service
     * @param viewsheetService
     */
    @Autowired
    public ComposerCurrentSelectionController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
    }
 
@@ -95,10 +95,10 @@ public class ComposerCurrentSelectionController {
 
       CurrentSelectionVSAssembly containerAssembly = (CurrentSelectionVSAssembly) assembly;
       ((CurrentSelectionVSAssemblyInfo) containerAssembly.getInfo()).setTitleRatio(ratio);
-      placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
    }
 
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
 }

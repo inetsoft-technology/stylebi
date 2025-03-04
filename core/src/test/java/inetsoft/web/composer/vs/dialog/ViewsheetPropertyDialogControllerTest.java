@@ -24,11 +24,12 @@ import inetsoft.test.SreeHome;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.ViewsheetInfo;
 import inetsoft.uql.viewsheet.vslayout.*;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.model.vs.*;
 import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,8 +53,8 @@ public class ViewsheetPropertyDialogControllerTest {
    @BeforeEach
    public void setup() throws Exception {
       controller = new ViewsheetPropertyDialogController(
-         runtimeViewsheetRef, placeholderService, viewsheetService,
-         layoutService, viewsheetSettingsService);
+         runtimeViewsheetRef, coreLifecycleService, viewsheetService,
+         layoutService, viewsheetSettingsService, vsAssemblyInfoHandler);
    }
 
    // Bug #16756 Update layout info if it has same id as incoming layout
@@ -107,12 +108,14 @@ public class ViewsheetPropertyDialogControllerTest {
    @Mock ViewsheetService viewsheetService;
    @Mock ViewsheetSettingsService viewsheetSettingsService;
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock VSLayoutService layoutService;
    @Mock RuntimeViewsheet rvs;
    @Mock Viewsheet viewsheet;
    @Mock ViewsheetSandbox viewsheetSandbox;
    @Mock CommandDispatcher commandDispatcher;
+   @Mock VSAssemblyInfoHandler vsAssemblyInfoHandler;
 
    private ViewsheetPropertyDialogController controller;
 }

@@ -55,13 +55,13 @@ public class GroupContainerPropertyDialogController {
    public GroupContainerPropertyDialogController(VSObjectPropertyService vsObjectPropertyService,
                                                  RuntimeViewsheetRef runtimeViewsheetRef,
                                                  ViewsheetService viewsheetService,
-                                                 PlaceholderService placeholderService,
+                                                 CoreLifecycleService coreLifecycleService,
                                                  VSDialogService dialogService)
    {
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.dialogService = dialogService;
    }
 
@@ -231,8 +231,8 @@ public class GroupContainerPropertyDialogController {
          dialogService.setContainerPosition(info, sizePositionPaneModel,
                                             imageAssembly.getAssemblies(), vs);
 
-         ChangedAssemblyList clist = this.placeholderService.createList(false, commandDispatcher, rvs, linkUri);
-         this.placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher,
+         ChangedAssemblyList clist = this.coreLifecycleService.createList(false, commandDispatcher, rvs, linkUri);
+         this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher,
                                                  imageAssembly.getAbsoluteName(), clist);
       }
 
@@ -246,6 +246,6 @@ public class GroupContainerPropertyDialogController {
    private final VSObjectPropertyService vsObjectPropertyService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSDialogService dialogService;
 }

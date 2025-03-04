@@ -75,10 +75,10 @@ public class VSChartDndController extends VSAssemblyDndController {
       VSChartBindingHandler chartHandler,
       VSObjectModelFactoryService objectModelService,
       ViewsheetService viewsheetService,
-      PlaceholderService placeholderService)
+      CoreLifecycleService coreLifecycleService)
    {
       super(runtimeViewsheetRef, bfactory, assemblyInfoHandler, objectModelService,
-            viewsheetService, placeholderService);
+            viewsheetService, coreLifecycleService);
       this.chartHandler = chartHandler;
       this.dataHandler = dataHandler;
    }

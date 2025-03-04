@@ -51,12 +51,12 @@ import java.util.*;
 public class OnClickController {
    @Autowired
    public OnClickController(RuntimeViewsheetRef runtimeViewsheetRef,
-                            PlaceholderService placeholderService,
+                            CoreLifecycleService coreLifecycleService,
                             VSInputService inputService,
                             ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.inputService = inputService;
    }
@@ -230,8 +230,8 @@ public class OnClickController {
       }
 
       Set<AssemblyRef> set = new HashSet<>();
-      ChangedAssemblyList clist = this.placeholderService.createList(true, dispatcher,
-                                                                     rvs, linkUri);
+      ChangedAssemblyList clist = this.coreLifecycleService.createList(true, dispatcher,
+                                                                       rvs, linkUri);
 
       VSUtil.getReferencedAssets(script, set,
                                  name.contains(".") ? box0.getViewsheet() : vs, assembly);
@@ -297,12 +297,12 @@ public class OnClickController {
          if(assembly instanceof SubmitVSAssembly &&
             ((SubmitVSAssemblyInfo) assembly.getInfo()).isRefresh())
          {
-            this.placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
-               false, true, true, clist, true);
+            this.coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
+                                                       false, true, true, clist, true);
          }
          else {
             box.processChange(name, VSAssembly.INPUT_DATA_CHANGED, clist);
-            placeholderService.execute(rvs, name, linkUri, clist, dispatcher, true);
+            coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
          }
       }
       finally {
@@ -376,7 +376,7 @@ public class OnClickController {
 
       VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
       box.clearGraph(name);
-      placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
    }
 
    /**
@@ -395,7 +395,7 @@ public class OnClickController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final VSInputService inputService;
 

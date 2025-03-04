@@ -29,8 +29,8 @@ import java.awt.*;
 
 @Service
 public class MaxModeAssemblyService {
-   public MaxModeAssemblyService(PlaceholderService placeholderService) {
-      this.placeholderService = placeholderService;
+   public MaxModeAssemblyService(CoreLifecycleService coreLifecycleService) {
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    public void toggleMaxMode(RuntimeViewsheet rvs, String assemblyName, Dimension maxSize,
@@ -81,13 +81,13 @@ public class MaxModeAssemblyService {
          }
       }
 
-      final ChangedAssemblyList clist = placeholderService.createList(
+      final ChangedAssemblyList clist = coreLifecycleService.createList(
          true, dispatcher, rvs, linkUri);
 
-      placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, 0, 0,
-         false, null, false, dispatcher, false,
-         false, true, clist, null, null, false,
-         false, false, true);
+      coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, 0, 0,
+                                            false, null, false, dispatcher, false,
+                                            false, true, clist, null, null, false,
+                                            false, false, true);
 
       if(ass.getVSAssemblyInfo() instanceof SelectionBaseVSAssemblyInfo &&
          ((SelectionBaseVSAssemblyInfo) ass.getVSAssemblyInfo()).isAdhocFilter())
@@ -95,10 +95,10 @@ public class MaxModeAssemblyService {
          SelectionBaseVSAssemblyInfo selectionBaseInfo =
             (SelectionBaseVSAssemblyInfo)ass.getVSAssemblyInfo();
          selectionBaseInfo.setShowType(oldShowTypeValue);
-         placeholderService.refreshVSAssembly(rvs, assemblyName, dispatcher);
+         coreLifecycleService.refreshVSAssembly(rvs, assemblyName, dispatcher);
       }
 
    }
 
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
 }

@@ -33,12 +33,13 @@ import inetsoft.util.*;
 import inetsoft.util.audit.ActionRecord;
 import inetsoft.util.audit.Audit;
 import inetsoft.util.script.ScriptException;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.composer.ws.event.WSAssemblyEvent;
 import inetsoft.web.viewsheet.command.*;
 import inetsoft.web.viewsheet.event.VSRefreshEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import jakarta.annotation.PreDestroy;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -80,12 +81,14 @@ public class EventAspect {
    @Autowired
    public EventAspect(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
-      ViewsheetService viewsheetService)
+      CoreLifecycleService coreLifecycleService,
+      ViewsheetService viewsheetService,
+      VSLayoutService vsLayoutService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
+      this.vsLayoutService = vsLayoutService;
    }
 
    @PreDestroy
@@ -117,7 +120,7 @@ public class EventAspect {
 
       RuntimeSheet rs = viewsheetService.getSheet(id, principal);
       this.runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
-      this.placeholderService.makeUndoable(rs, commandDispatcher, null);
+      this.vsLayoutService.makeUndoable(rs, commandDispatcher, null);
    }
 
    @Before("@annotation(InitWSExecution) && within(inetsoft.web..*)")
@@ -203,8 +206,8 @@ public class EventAspect {
 
                if(textVSAssembly != null) {
                   vs.adjustWarningTextPosition();
-                  placeholderService.addDeleteVSObject(rvs, textVSAssembly, commandDispatcher.get());
-                  placeholderService.refreshVSAssembly(rvs, textVSAssembly, commandDispatcher.get());
+                  coreLifecycleService.addDeleteVSObject(rvs, textVSAssembly, commandDispatcher.get());
+                  coreLifecycleService.refreshVSAssembly(rvs, textVSAssembly, commandDispatcher.get());
                }
             }
          }
@@ -424,7 +427,7 @@ public class EventAspect {
                      sendMessage(e, MessageCommand.Type.CONFIRM, dispatcher);
                   }
                   else if(!mvHandled) {
-                     placeholderService.waitForMV(e, null, dispatcher);
+                     coreLifecycleService.waitForMV(e, null, dispatcher);
                      mvHandled = true;
                   }
                }
@@ -647,8 +650,9 @@ public class EventAspect {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
+   private final VSLayoutService vsLayoutService;
    private final Timer timer = new Timer();
    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
    private String orgId;

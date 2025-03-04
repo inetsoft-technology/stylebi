@@ -18,7 +18,6 @@
 package inetsoft.web.composer.vs.dialog;
 
 import inetsoft.analytic.composition.ViewsheetService;
-import inetsoft.analytic.composition.event.VSEventUtil;
 import inetsoft.graph.data.BoxDataSet;
 import inetsoft.graph.data.SumDataSet;
 import inetsoft.graph.internal.GTool;
@@ -50,6 +49,7 @@ import inetsoft.web.composer.vs.objects.controller.VSObjectPropertyService;
 import inetsoft.web.composer.vs.objects.controller.VSTrapService;
 import inetsoft.web.factory.RemainingPath;
 import inetsoft.web.portal.controller.RepositoryTreeService;
+import inetsoft.web.service.HighlightService;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
@@ -75,23 +75,24 @@ public class HyperlinkDialogController {
     * Creates a new instance of <tt>HyperlinkDialogController</tt>.
     *
     * @param runtimeViewsheetRef     RuntimeViewsheetRef instance
-    * @param placeholderService      PlaceholderService instance
+    * @param coreLifecycleService      CoreLifecycleService instance
     * @param vsObjectPropertyService VSObjectPropertyService instance
     */
    @Autowired
    public HyperlinkDialogController(
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       VSObjectPropertyService vsObjectPropertyService,
       ViewsheetService viewsheetService,
       DataRefModelFactoryService dataRefModelService,
       VSTrapService trapService,
       AssetRepository assetRepository,
       RepositoryTreeService repositoryTreeService,
-      VSAssemblyInfoHandler assemblyInfoHandler)
+      VSAssemblyInfoHandler assemblyInfoHandler,
+      HighlightService highlightService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.vsObjectPropertyService = vsObjectPropertyService;
       this.viewsheetService = viewsheetService;
       this.dataRefModelService = dataRefModelService;
@@ -99,6 +100,7 @@ public class HyperlinkDialogController {
       this.assetRepository = assetRepository;
       this.repositoryTreeService = repositoryTreeService;
       this.assemblyInfoHandler = assemblyInfoHandler;
+      this.highlightService = highlightService;
    }
 
    /**
@@ -393,7 +395,7 @@ public class HyperlinkDialogController {
 
          int hint = assembly.setVSAssemblyInfo(info);
 
-         this.placeholderService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
+         this.coreLifecycleService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
                                          dispatcher);
       }
       else if(assembly instanceof ChartVSAssembly) {
@@ -447,7 +449,7 @@ public class HyperlinkDialogController {
          info.setHyperlinkValue(hyperlink);
          int hint = assembly.setVSAssemblyInfo(info);
 
-         this.placeholderService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
+         this.coreLifecycleService.execute(rvs, assembly.getAbsoluteName(), linkUri, hint,
                                          dispatcher);
       }
    }
@@ -475,7 +477,7 @@ public class HyperlinkDialogController {
          }
       }
 
-      List<DataRef> refs = this.placeholderService.getRefsForVSAssembly(
+      List<DataRef> refs = this.highlightService.getRefsForVSAssembly(
          rvs, assembly, row, col, dpath, colName, false, true);
 
       if(assembly instanceof ChartVSAssembly) {
@@ -917,7 +919,7 @@ public class HyperlinkDialogController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSObjectPropertyService vsObjectPropertyService;
    private final ViewsheetService viewsheetService;
    private final VSTrapService trapService;
@@ -926,4 +928,5 @@ public class HyperlinkDialogController {
    private final AssetRepository assetRepository;
    private final int NONE = 9;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
+   private final HighlightService highlightService;
 }

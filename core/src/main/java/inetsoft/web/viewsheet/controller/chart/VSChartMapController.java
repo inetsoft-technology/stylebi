@@ -37,7 +37,7 @@ import inetsoft.web.viewsheet.event.chart.VSMapPanEvent;
 import inetsoft.web.viewsheet.event.chart.VSMapZoomEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,11 +55,11 @@ import java.security.Principal;
 public class VSChartMapController {
    @Autowired
    public VSChartMapController(RuntimeViewsheetRef runtimeViewsheetRef,
-                               PlaceholderService placeholderService,
+                               CoreLifecycleService coreLifecycleService,
                                ViewsheetService viewsheetService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
    }
 
@@ -174,7 +174,7 @@ public class VSChartMapController {
          assembly.getChartInfo().setRTChartDescriptor(null);
          box.clearGraph(chartName);
 
-         placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+         coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
       }
       catch(Exception ex) {
          dispatcher.sendCommand(chartName, new ClearMapPanCommand());
@@ -203,7 +203,7 @@ public class VSChartMapController {
 
       clearPanZoom(plot);
       box.clearGraph(event.getChartName());
-      placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
    }
 
    private static void clearPanZoom(PlotDescriptor plot) {
@@ -214,7 +214,7 @@ public class VSChartMapController {
    }
 
    private RuntimeViewsheetRef runtimeViewsheetRef;
-   private PlaceholderService placeholderService;
+   private CoreLifecycleService coreLifecycleService;
    private ViewsheetService viewsheetService;
    private static final Logger LOG = LoggerFactory.getLogger(VSChartMapController.class);
 }

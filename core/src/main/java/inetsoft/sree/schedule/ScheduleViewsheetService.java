@@ -26,14 +26,14 @@ import inetsoft.uql.VariableTable;
 import inetsoft.uql.asset.AssetEntry;
 import inetsoft.uql.util.XSessionService;
 import inetsoft.util.*;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.event.OpenViewsheetEvent;
 import inetsoft.web.viewsheet.model.*;
 import inetsoft.web.viewsheet.model.annotation.VSAnnotationModel;
 import inetsoft.web.viewsheet.model.calendar.VSCalendarModel;
 import inetsoft.web.viewsheet.model.chart.VSChartModel;
 import inetsoft.web.viewsheet.model.table.*;
-import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,13 +51,13 @@ public class ScheduleViewsheetService {
 
    public ScheduleViewsheetService() {
       this.engine = ViewsheetEngine.getViewsheetEngine();
-      this.placeholderService = createPlaceholderService();
+      this.coreLifecycleService = createCoreLifecycleService();
    }
 
    /**
     * Only for use within the scheduler
     */
-   private PlaceholderService createPlaceholderService() {
+   private CoreLifecycleService createCoreLifecycleService() {
       List<VSObjectModelFactory<?, ?>> modelFactories = Arrays.asList(
          new VSAnnotationModel.VSAnnotationModelFactory(),
          new VSCalcTableModel.VSCalcTableModelFactory(),
@@ -94,7 +94,10 @@ public class ScheduleViewsheetService {
       );
       VSObjectModelFactoryService objectModelFactoryService =
          new VSObjectModelFactoryService(modelFactories);
-      return new PlaceholderService(objectModelFactoryService, null, engine);
+      VSLayoutService vsLayoutService = new VSLayoutService(objectModelFactoryService);
+      ParameterService parameterService = new ParameterService(engine);
+      return new CoreLifecycleService(objectModelFactoryService, engine, vsLayoutService,
+                                      parameterService);
    }
 
    public String openViewsheet(AssetEntry entry, RepletRequest repletRequest, Principal principal)
@@ -109,7 +112,7 @@ public class ScheduleViewsheetService {
       String execSessionId =
          XSessionService.createSessionID(XSessionService.EXPORE_VIEW, entry.getName());
 
-      return CommandDispatcher.withDummyDispatcher(principal, d -> placeholderService.openViewsheet(
+      return CommandDispatcher.withDummyDispatcher(principal, d -> coreLifecycleService.openViewsheet(
          engine, openViewsheetEvent, principal, null, null, entry, d, null,
          null, true, openViewsheetEvent.getDrillFrom(), vt,
          openViewsheetEvent.getFullScreenId(), execSessionId));
@@ -145,6 +148,6 @@ public class ScheduleViewsheetService {
    }
 
    private final ViewsheetService engine;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final static Logger LOG = LoggerFactory.getLogger(ScheduleViewsheetService.class);
 }

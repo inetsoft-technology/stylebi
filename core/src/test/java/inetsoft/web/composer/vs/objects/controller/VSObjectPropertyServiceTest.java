@@ -23,8 +23,7 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.vs.VSObjectTreeService;
-import inetsoft.web.viewsheet.service.PlaceholderService;
-import inetsoft.web.viewsheet.service.VSInputService;
+import inetsoft.web.viewsheet.service.*;
 import inetsoft.web.vswizard.service.VSWizardTemporaryInfoService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,11 +41,13 @@ class VSObjectPropertyServiceTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = new VSObjectPropertyService(placeholderService,
+      controller = new VSObjectPropertyService(coreLifecycleService,
                                                vsInputService,
                                                vsObjectTreeService,
                                                infoHandler, viewsheetEngine,
-                                               temporaryInfoService);
+                                               temporaryInfoService,
+                                               vsCompositionService,
+                                               sharedFilterService);
    }
 
    @Test
@@ -67,13 +68,16 @@ class VSObjectPropertyServiceTest {
       assertEquals(popComponents[0], selectionListAssemblyName);
    }
 
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock VSInputService vsInputService;
    @Mock VSObjectTreeService vsObjectTreeService;
    @Mock VSAssemblyInfoHandler infoHandler;
    @Mock ViewsheetEngine viewsheetEngine;
    @Mock Viewsheet viewsheet;
    @Mock VSWizardTemporaryInfoService temporaryInfoService;
+   @Mock VSCompositionService vsCompositionService;
+   @Mock SharedFilterService sharedFilterService;
 
    private VSObjectPropertyService controller;
 }

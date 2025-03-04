@@ -50,10 +50,10 @@ import java.util.Map;
 public class BaseTableFlyoverController extends BaseTableController<FlyoverEvent> {
    @Autowired
    public BaseTableFlyoverController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                     PlaceholderService placeholderService,
+                                     CoreLifecycleService coreLifecycleService,
                                      ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
    }
 
    @Override
@@ -274,8 +274,8 @@ public class BaseTableFlyoverController extends BaseTableController<FlyoverEvent
          int hint = hints.remove(0);
 
          if(hint != VSAssembly.NONE_CHANGED) {
-            placeholderService.execute(rvs, tip.getAbsoluteName(), linkUri, hint, dispatcher);
-            placeholderService.refreshVSAssembly(rvs, view, dispatcher);
+            coreLifecycleService.execute(rvs, tip.getAbsoluteName(), linkUri, hint, dispatcher);
+            coreLifecycleService.refreshVSAssembly(rvs, view, dispatcher);
          }
          // @by ankitmathur, For bug1432218253134, We need to clear the
          // Pre-Runtime Condition List of the base assembly shared between

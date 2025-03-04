@@ -24,9 +24,9 @@ import inetsoft.uql.asset.Assembly;
 import inetsoft.uql.viewsheet.*;
 import inetsoft.web.composer.vs.VSObjectTreeService;
 import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
+import inetsoft.web.composer.vs.controller.VSLayoutService;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
-import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,9 +47,10 @@ class ComposerGroupControllerTest {
 
    @BeforeEach
    void setup() throws Exception {
-      controller = new ComposerGroupController(runtimeViewsheetRef, placeholderService,
+      controller = new ComposerGroupController(runtimeViewsheetRef, coreLifecycleService,
                                                viewsheetService, vsObjectTreeService,
-                                               vsObjectPropertyService);
+                                               vsObjectPropertyService, vsCompositionService,
+                                               vsLayoutService);
       assemblies[0] = tab;
       assemblies[1] = image;
       assemblies[2] = calendar;
@@ -94,19 +95,22 @@ class ComposerGroupControllerTest {
    void linkUriNotNull() throws Exception {
       when(viewsheet.getAssembly("group")).thenReturn(group);
       controller.ungroup("group", "linkUri", principal, commandDispatcher);
-      verify(placeholderService).removeVSAssembly(any(RuntimeViewsheet.class),
-                                                  eq("linkUri"),
-                                                  any(VSAssembly.class),
-                                                  any(CommandDispatcher.class),
-                                                  anyBoolean(),
-                                                  anyBoolean());
+      verify(coreLifecycleService).removeVSAssembly(any(RuntimeViewsheet.class),
+                                                    eq("linkUri"),
+                                                    any(VSAssembly.class),
+                                                    any(CommandDispatcher.class),
+                                                    anyBoolean(),
+                                                    anyBoolean());
    }
 
    @Mock RuntimeViewsheetRef runtimeViewsheetRef;
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock ViewsheetService viewsheetService;
    @Mock VSObjectTreeService vsObjectTreeService;
    @Mock VSObjectPropertyService vsObjectPropertyService;
+   @Mock VSCompositionService vsCompositionService;
+   @Mock VSLayoutService vsLayoutService;
    @Mock Viewsheet viewsheet;
    @Mock TabVSAssembly tab;
    @Mock ImageVSAssembly image;

@@ -36,7 +36,7 @@ import inetsoft.web.composer.vs.command.PopulateVSObjectTreeCommand;
 import inetsoft.web.composer.vs.objects.event.ChangeVSObjectBindingEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,7 +61,7 @@ class ComposerBindingControllerTest {
    @BeforeEach
    void setup() throws Exception {
       controller = spy(new ComposerBindingController(runtimeViewsheetRef,
-                                                     placeholderService,
+              coreLifecycleService,
                                                      groupingService,
                                                      viewsheetEngine,
                                                      vsObjectTreeService,
@@ -194,7 +194,7 @@ class ComposerBindingControllerTest {
 
       controller.changeBinding(eventModel, null, dispatcher, "");
 
-      verify(placeholderService)
+      verify(coreLifecycleService)
          .execute(eq(rvs), anyString(), eq(""), anyInt(), eq(dispatcher));
    }
 
@@ -203,7 +203,8 @@ class ComposerBindingControllerTest {
    @Mock CommandDispatcher dispatcher;
    @Mock RuntimeViewsheet rvs;
    @Mock Viewsheet viewsheet;
-   @Mock PlaceholderService placeholderService;
+   @Mock
+   CoreLifecycleService coreLifecycleService;
    @Mock VSTableService vsTableService;
    @Mock GroupingService groupingService;
    @Mock VSObjectTreeService vsObjectTreeService;

@@ -43,11 +43,11 @@ import java.util.stream.Stream;
 public class VSChartAxesVisibilityController extends VSChartController<VSChartAxesVisibilityEvent> {
    @Autowired
    public VSChartAxesVisibilityController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                          PlaceholderService placeholderService,
+                                          CoreLifecycleService coreLifecycleService,
                                           VSObjectPropertyService vsObjectPropertyService,
                                           ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
       this.vsObjectPropertyService = vsObjectPropertyService;
    }
 

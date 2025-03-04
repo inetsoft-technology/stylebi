@@ -59,11 +59,11 @@ public class ComposerVSSelectionListController {
    @Autowired
    public ComposerVSSelectionListController(RuntimeViewsheetRef runtimeViewsheetRef,
                                             ViewsheetService viewsheetService,
-                                            PlaceholderService placeholderService)
+                                            CoreLifecycleService coreLifecycleService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    /**
@@ -100,7 +100,7 @@ public class ComposerVSSelectionListController {
          assert assembly instanceof SelectionListVSAssembly;
          SelectionListVSAssemblyInfo info = (SelectionListVSAssemblyInfo) assembly.getVSAssemblyInfo();
          info.setColumnCount(count);
-         placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+         coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
       }
       finally {
          box.unlockRead();
@@ -137,7 +137,7 @@ public class ComposerVSSelectionListController {
       SelectionBaseVSAssemblyInfo info = (SelectionBaseVSAssemblyInfo) assembly.getVSAssemblyInfo();
       info.setCellHeight(cellHeight);
 
-      placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
    }
 
    /**
@@ -169,7 +169,7 @@ public class ComposerVSSelectionListController {
       info.setMeasureSize(event.getTextWidth());
       info.setBarSize(event.getBarWidth());
 
-      placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
    }
 
    /**
@@ -220,7 +220,7 @@ public class ComposerVSSelectionListController {
       }
 
       int hint = assembly.setVSAssemblyInfo(info);
-      placeholderService.execute(rvs, name, linkUri, hint, dispatcher);
+      coreLifecycleService.execute(rvs, name, linkUri, hint, dispatcher);
    }
 
    /**
@@ -272,12 +272,12 @@ public class ComposerVSSelectionListController {
       final String[] assemblies = containerAssembly.getAssemblies();
       final VSAssembly newTimeSliderAssembly = createTimeSliderVSAssembly(viewsheet, assembly);
       VSEventUtil.copyFormat(assembly, newTimeSliderAssembly);
-      placeholderService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, false);
+      coreLifecycleService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, false);
       containerAssembly.setAssemblies(assemblies);
       viewsheet.addAssembly(newTimeSliderAssembly);
-      placeholderService.addDeleteVSObject(rvs, newTimeSliderAssembly, dispatcher);
-      placeholderService.refreshVSAssembly(rvs, containerAssembly.getName(), dispatcher, true);
-      placeholderService.execute(rvs, name, linkUri, VSAssembly.VIEW_CHANGED, dispatcher);
+      coreLifecycleService.addDeleteVSObject(rvs, newTimeSliderAssembly, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, containerAssembly.getName(), dispatcher, true);
+      coreLifecycleService.execute(rvs, name, linkUri, VSAssembly.VIEW_CHANGED, dispatcher);
    }
 
    /**
@@ -367,7 +367,7 @@ public class ComposerVSSelectionListController {
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(ComposerVSSelectionListController.class);

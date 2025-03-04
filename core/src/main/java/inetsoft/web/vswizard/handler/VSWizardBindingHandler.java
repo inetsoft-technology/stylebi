@@ -61,7 +61,7 @@ import inetsoft.web.viewsheet.controller.table.BaseTableController;
 import inetsoft.web.viewsheet.event.ViewsheetEvent;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import inetsoft.web.vswizard.command.*;
 import inetsoft.web.vswizard.model.*;
 import inetsoft.web.vswizard.model.recommender.*;
@@ -94,7 +94,7 @@ public class VSWizardBindingHandler {
                                  SyncInfoHandler syncInfoHandler,
                                  ViewsheetService viewsheetService,
                                  VSChartDataHandler chartDataHandler,
-                                 PlaceholderService placeholderService,
+                                 CoreLifecycleService coreLifecycleService,
                                  RuntimeViewsheetRef runtimeViewsheetRef,
                                  ChartRefModelFactoryService chartService,
                                  DataRefModelFactoryService dataRefService,
@@ -109,7 +109,7 @@ public class VSWizardBindingHandler {
       this.syncInfoHandler = syncInfoHandler;
       this.viewsheetService = viewsheetService;
       this.chartDataHandler = chartDataHandler;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.temporaryInfoService = temporaryInfoService;
    }
@@ -383,7 +383,7 @@ public class VSWizardBindingHandler {
             VSEventUtil.clearScale(vs);
          }
 
-         this.placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+         this.coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
 
          if(assembly instanceof TableDataVSAssembly) {
             BaseTableController.loadTableData(
@@ -392,7 +392,7 @@ public class VSWizardBindingHandler {
       }
       else {
          updateFormats(tempInfo, assembly, rvs, dispatcher, linkUri);
-         this.placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+         this.coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
       }
 
       clearDefaultFormat(tempInfo.getFormatMap());
@@ -1748,8 +1748,8 @@ public class VSWizardBindingHandler {
          || assembly instanceof OutputVSAssembly
          || assembly instanceof SelectionVSAssembly)
       {
-         this.placeholderService.execute(rvs, assembly.getAbsoluteName(), linkUri,
-            VSAssembly.VIEW_CHANGED, dispatcher);
+         this.coreLifecycleService.execute(rvs, assembly.getAbsoluteName(), linkUri,
+                                           VSAssembly.VIEW_CHANGED, dispatcher);
       }
    }
 
@@ -2629,7 +2629,7 @@ public class VSWizardBindingHandler {
    private final SyncInfoHandler syncInfoHandler;
    private final ViewsheetService viewsheetService;
    private final VSChartDataHandler chartDataHandler;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ChartRefModelFactoryService chartService;
    private final DataRefModelFactoryService dataRefService;

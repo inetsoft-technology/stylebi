@@ -40,10 +40,10 @@ import java.security.Principal;
 public class VSChartResizeLegendController extends VSChartController<VSChartLegendResizeEvent> {
    @Autowired
    public VSChartResizeLegendController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                        PlaceholderService placeholderService,
+                                        CoreLifecycleService coreLifecycleService,
                                         ViewsheetService viewsheetService)
    {
-      super(runtimeViewsheetRef, placeholderService, viewsheetService);
+      super(runtimeViewsheetRef, coreLifecycleService, viewsheetService);
    }
 
    /**

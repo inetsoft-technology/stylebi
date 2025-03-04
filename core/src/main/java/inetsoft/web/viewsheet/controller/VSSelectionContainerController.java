@@ -54,7 +54,7 @@ public class VSSelectionContainerController {
     */
    @Autowired
    public VSSelectionContainerController(RuntimeViewsheetRef runtimeViewsheetRef,
-                                         PlaceholderService placeholderService,
+                                         CoreLifecycleService coreLifecycleService,
                                          VSSelectionContainerService vsSelectionContainerService,
                                          VSObjectModelFactoryService objectModelService,
                                          ViewsheetService viewsheetService,
@@ -62,7 +62,7 @@ public class VSSelectionContainerController {
                                          VSAssemblyInfoHandler assemblyInfoHandler)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.vsSelectionContainerService = vsSelectionContainerService;
       this.objectModelService = objectModelService;
       this.viewsheetService = viewsheetService;
@@ -121,7 +121,7 @@ public class VSSelectionContainerController {
       containerAssembly.update(event.getFromIndex(), event.getToIndex(),
                                event.isCurrentSelection());
 
-      placeholderService.refreshVSAssembly(rvs, containerAssembly, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, containerAssembly, dispatcher);
    }
 
    /**
@@ -151,7 +151,7 @@ public class VSSelectionContainerController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSSelectionContainerService vsSelectionContainerService;
    private final VSObjectModelFactoryService objectModelService;
    private final ViewsheetService viewsheetService;

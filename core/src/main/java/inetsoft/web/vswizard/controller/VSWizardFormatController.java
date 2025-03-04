@@ -48,13 +48,11 @@ public class VSWizardFormatController {
    public VSWizardFormatController(ViewsheetService viewsheetService,
                                    RuntimeViewsheetRef runtimeViewsheetRef,
                                    VSWizardBindingHandler bindingHandler,
-                                   PlaceholderService placeholderService,
                                    VSWizardTemporaryInfoService temporaryInfoService)
    {
       this.viewsheetService = viewsheetService;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.bindingHandler = bindingHandler;
-      this.placeholderService = placeholderService;
       this.temporaryInfoService = temporaryInfoService;
    }
 
@@ -126,7 +124,6 @@ public class VSWizardFormatController {
    private final ViewsheetService viewsheetService;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final VSWizardBindingHandler bindingHandler;
-   private final PlaceholderService placeholderService;
    private final VSWizardTemporaryInfoService temporaryInfoService;
 
    private static final Logger LOGGER = LoggerFactory.getLogger(VSWizardFormatController.class);

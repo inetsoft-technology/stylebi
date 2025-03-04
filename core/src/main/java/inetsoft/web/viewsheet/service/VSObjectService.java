@@ -40,13 +40,15 @@ import java.util.*;
 @Service
 public class VSObjectService {
    @Autowired
-   public VSObjectService(PlaceholderService placeholderService,
+   public VSObjectService(CoreLifecycleService coreLifecycleService,
                           ViewsheetService viewsheetService,
-                          SecurityEngine securityEngine)
+                          SecurityEngine securityEngine,
+                          SharedFilterService sharedFilterService)
    {
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.securityEngine = securityEngine;
+      this.sharedFilterService = sharedFilterService;
    }
 
    public boolean isSecurityEnabled() {
@@ -80,7 +82,7 @@ public class VSObjectService {
                                  final VSAssembly assembly,
                                  final CommandDispatcher dispatcher) throws Exception
    {
-      placeholderService.addDeleteVSObject(rvs, assembly, dispatcher);
+      coreLifecycleService.addDeleteVSObject(rvs, assembly, dispatcher);
    }
 
    /**
@@ -97,7 +99,7 @@ public class VSObjectService {
                        final int hint,
                        final CommandDispatcher dispatcher) throws Exception
    {
-      placeholderService.execute(rvs, name, linkUri, hint, dispatcher);
+      coreLifecycleService.execute(rvs, name, linkUri, hint, dispatcher);
    }
 
 
@@ -117,7 +119,7 @@ public class VSObjectService {
                        final CommandDispatcher dispatcher,
                        final boolean included) throws Exception
    {
-      placeholderService.execute(rvs, name, linkUri, clist, dispatcher, included);
+      coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, included);
    }
 
    /**
@@ -131,7 +133,7 @@ public class VSObjectService {
                                final String linkUri,
                                final CommandDispatcher dispatcher) throws Exception
    {
-      placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+      coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
    }
 
    /**
@@ -145,8 +147,8 @@ public class VSObjectService {
                                 final String linkUri,
                                 final CommandDispatcher dispatcher) throws Exception
    {
-      ChangedAssemblyList clist = placeholderService.createList(true, dispatcher, rvs, linkUri);
-      placeholderService.refreshViewsheet(
+      ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
+      coreLifecycleService.refreshViewsheet(
          rvs, rvs.getID(), linkUri, width, height, false, null, dispatcher, false, true, true,
          clist);
    }
@@ -162,9 +164,9 @@ public class VSObjectService {
                                 final String linkUri,
                                 final CommandDispatcher dispatcher) throws Exception
    {
-      ChangedAssemblyList clist = placeholderService.createList(true, dispatcher, rvs, linkUri);
-      placeholderService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
-                                          false, true, true, clist);
+      ChangedAssemblyList clist = coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
+      coreLifecycleService.refreshViewsheet(rvs, rvs.getID(), linkUri, dispatcher,
+                                            false, true, true, clist);
    }
 
    /**
@@ -175,8 +177,8 @@ public class VSObjectService {
                                 boolean component, boolean reset,
                                 ChangedAssemblyList clist) throws Exception
    {
-      placeholderService.refreshViewsheet(rvs, id, linkUri, dispatcher, initing, component,
-                                          reset, clist);
+      coreLifecycleService.refreshViewsheet(rvs, id, linkUri, dispatcher, initing, component,
+                                            reset, clist);
    }
 
    /**
@@ -189,9 +191,9 @@ public class VSObjectService {
                                 ChangedAssemblyList clist, Set<String> copiedSelections,
                                 VariableTable initvars) throws Exception
    {
-      placeholderService.refreshViewsheet(rvs, id, linkUri, width, height, mobile,
-         userAgent, false, dispatcher, initing, component, reset, clist,
-         copiedSelections, initvars, false, false);
+      coreLifecycleService.refreshViewsheet(rvs, id, linkUri, width, height, mobile,
+                                            userAgent, false, dispatcher, initing, component, reset, clist,
+                                            copiedSelections, initvars, false, false);
    }
 
    /**
@@ -205,7 +207,7 @@ public class VSObjectService {
                                  final VSAssembly assembly,
                                  final CommandDispatcher dispatcher) throws Exception
    {
-      placeholderService.refreshVSAssembly(rvs, assembly, dispatcher);
+      coreLifecycleService.refreshVSAssembly(rvs, assembly, dispatcher);
    }
 
    /**
@@ -221,7 +223,7 @@ public class VSObjectService {
                                 final String linkUri,
                                 final CommandDispatcher dispatcher) throws Exception
    {
-      placeholderService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, true);
+      coreLifecycleService.removeVSAssembly(rvs, linkUri, assembly, dispatcher, false, true);
    }
 
    /**
@@ -234,7 +236,7 @@ public class VSObjectService {
                                 final String linkUri,
                                 final CommandDispatcher dispatcher)
    {
-      placeholderService.setViewsheetInfo(rvs, linkUri, dispatcher);
+      coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
    }
 
    /**
@@ -244,7 +246,7 @@ public class VSObjectService {
                                          CommandDispatcher dispatcher,
                                          RuntimeViewsheet rvs, String uri)
    {
-      return placeholderService.createList(breakable, dispatcher, rvs, uri);
+      return coreLifecycleService.createList(breakable, dispatcher, rvs, uri);
    }
 
    /**
@@ -255,7 +257,7 @@ public class VSObjectService {
                                          CommandDispatcher dispatcher,
                                          RuntimeViewsheet rvs, String uri)
    {
-      return placeholderService.createList(breakable, event, dispatcher, rvs, uri);
+      return coreLifecycleService.createList(breakable, event, dispatcher, rvs, uri);
    }
 
 
@@ -266,7 +268,7 @@ public class VSObjectService {
                                        final CommandDispatcher dispatcher)
       throws Exception
    {
-      placeholderService.processExtSharedFilters(assembly, hint, rvs, principal, dispatcher);
+      sharedFilterService.processExtSharedFilters(assembly, hint, rvs, principal, dispatcher);
    }
 
    /**
@@ -354,7 +356,8 @@ public class VSObjectService {
       MAGIC_NUMBERS.add(TIFF2);
    }
 
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final SecurityEngine securityEngine;
+   private final SharedFilterService sharedFilterService;
 }

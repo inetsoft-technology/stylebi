@@ -22,12 +22,12 @@ import inetsoft.report.composition.RuntimeViewsheet;
 import inetsoft.uql.viewsheet.LineVSAssembly;
 import inetsoft.uql.viewsheet.Viewsheet;
 import inetsoft.uql.viewsheet.internal.LineVSAssemblyInfo;
+import inetsoft.web.binding.handler.VSAssemblyInfoHandler;
 import inetsoft.web.composer.vs.objects.event.ResizeVSLineEvent;
 import inetsoft.web.viewsheet.LoadingMask;
 import inetsoft.web.viewsheet.Undoable;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,11 +57,11 @@ public class VSLineController {
    public VSLineController(
       RuntimeViewsheetRef runtimeViewsheetRef,
       ViewsheetService viewsheetService,
-      PlaceholderService placeholderService)
+      VSAssemblyInfoHandler vsAssemblyInfoHandler)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.vsAssemblyInfoHandler = vsAssemblyInfoHandler;
    }
 
    /**
@@ -116,12 +116,12 @@ public class VSLineController {
       }
 
       List<String> assemblyName = Stream.of(event.getName()).collect(Collectors.toList());
-      placeholderService.updateAnchoredLines(rvs, assemblyName, dispatcher);
+      vsAssemblyInfoHandler.updateAnchoredLines(rvs, assemblyName, dispatcher);
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final VSAssemblyInfoHandler vsAssemblyInfoHandler;
 
    private static final Logger LOG =
       LoggerFactory.getLogger(VSLineController.class);

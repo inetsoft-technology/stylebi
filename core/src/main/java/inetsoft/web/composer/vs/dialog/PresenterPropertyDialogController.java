@@ -66,18 +66,18 @@ public class PresenterPropertyDialogController {
     * Creates a new instance of <tt>PresenterPropertyDialogController</tt>.
     * @param runtimeViewsheetRef RuntimeViewsheetRef instance
     * @param viewsheetService    the engine to get runtime viewsheets
-    * @param placeholderService  service for commands/processing
+    * @param coreLifecycleService  service for commands/processing
     */
    @Autowired
    public PresenterPropertyDialogController(RuntimeViewsheetRef runtimeViewsheetRef,
                                             ViewsheetService viewsheetService,
-                                            PlaceholderService placeholderService,
+                                            CoreLifecycleService coreLifecycleService,
                                             VSObjectModelFactoryService objectModelService,
                                             VSLayoutService vsLayoutService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.viewsheetService = viewsheetService;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.objectModelService = objectModelService;
       this.vsLayoutService = vsLayoutService;
    }
@@ -342,7 +342,7 @@ public class PresenterPropertyDialogController {
          commandDispatcher.sendCommand(command);
       }
       else {
-         placeholderService.execute(rvs, assembly.getName(), linkUri, hint, commandDispatcher);
+         coreLifecycleService.execute(rvs, assembly.getName(), linkUri, hint, commandDispatcher);
       }
    }
 
@@ -507,7 +507,7 @@ public class PresenterPropertyDialogController {
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final ViewsheetService viewsheetService;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSObjectModelFactoryService objectModelService;
    private final VSLayoutService vsLayoutService;
 }

@@ -74,21 +74,23 @@ public class ComposerViewsheetController {
    @Autowired
    public ComposerViewsheetController(RuntimeViewsheetRef runtimeViewsheetRef,
                                       RuntimeViewsheetManager runtimeViewsheetManager,
-                                      PlaceholderService placeholderService,
+                                      CoreLifecycleService coreLifecycleService,
                                       ViewsheetService viewsheetService,
                                       VSObjectTreeService vsObjectTreeService,
                                       VSRefreshController refreshController,
                                       VSLayoutService vsLayoutService,
-                                      VSObjectModelFactoryService objectModelService)
+                                      VSObjectModelFactoryService objectModelService,
+                                      VSCompositionService vsCompositionService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
       this.runtimeViewsheetManager = runtimeViewsheetManager;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.viewsheetService = viewsheetService;
       this.vsObjectTreeService = vsObjectTreeService;
       this.refreshController = refreshController;
       this.vsLayoutService = vsLayoutService;
       this.objectModelService = objectModelService;
+      this.vsCompositionService = vsCompositionService;
    }
 
    /**
@@ -117,15 +119,15 @@ public class ComposerViewsheetController {
       runtimeViewsheetRef.setRuntimeId(runtimeId);
       runtimeViewsheetManager.sheetOpened(runtimeId);
       commandDispatcher.sendCommand(runtimeIdCommand);
-      placeholderService.setViewsheetInfo(rvs, linkUri, commandDispatcher);
+      coreLifecycleService.setViewsheetInfo(rvs, linkUri, commandDispatcher);
 
       ChangedAssemblyList clist =
-         placeholderService.createList(true, event, commandDispatcher, rvs, linkUri);
+         coreLifecycleService.createList(true, event, commandDispatcher, rvs, linkUri);
 
-      placeholderService.refreshViewsheet(rvs, entry.toIdentifier(), linkUri,
-                                          event.getWidth(), event.getHeight(),
-                                          event.isMobile(), event.getUserAgent(),
-                                          commandDispatcher, true, false, false, clist);
+      coreLifecycleService.refreshViewsheet(rvs, entry.toIdentifier(), linkUri,
+                                            event.getWidth(), event.getHeight(),
+                                            event.isMobile(), event.getUserAgent(),
+                                            commandDispatcher, true, false, false, clist);
       VSObjectTreeNode tree = vsObjectTreeService.getObjectTree(rvs);
       PopulateVSObjectTreeCommand treeCommand = new PopulateVSObjectTreeCommand(tree);
       commandDispatcher.sendCommand(treeCommand);
@@ -195,7 +197,7 @@ public class ComposerViewsheetController {
             .id(entry.toIdentifier())
             .build();
          dispatcher.sendCommand(command);
-         placeholderService.setViewsheetInfo(rvs, linkUri, dispatcher);
+         coreLifecycleService.setViewsheetInfo(rvs, linkUri, dispatcher);
          return true;
       }
       catch(Exception ex) {
@@ -331,7 +333,7 @@ public class ComposerViewsheetController {
          command.setRuntimeId(id);
          dispatcher.sendCommand(command);
 
-         ChangedAssemblyList clist = placeholderService.createList(
+         ChangedAssemblyList clist = coreLifecycleService.createList(
             true, event, dispatcher, rvs2, linkUri);
          ViewsheetSandbox box = rvs2.getViewsheetSandbox();
          AssetQuerySandbox qbox = box.getAssetQuerySandbox();
@@ -341,22 +343,22 @@ public class ComposerViewsheetController {
          }
 
          if(!box.isCancelled(execTimestamp.getTime())) {
-            placeholderService.refreshViewsheet(rvs2, rvs2.getEntry().toIdentifier(),
-               linkUri, event.getWidth(), event.getHeight(), event.isMobile(),
-               event.getUserAgent(), dispatcher, true, false, true, clist);
+            coreLifecycleService.refreshViewsheet(rvs2, rvs2.getEntry().toIdentifier(),
+                                                  linkUri, event.getWidth(), event.getHeight(), event.isMobile(),
+                                                  event.getUserAgent(), dispatcher, true, false, true, clist);
             TextVSAssembly textVSAssembly = rvs2.getViewsheet() == null ?
                null : rvs2.getViewsheet().getWarningTextAssembly(false);
 
             if(textVSAssembly != null) {
                rvs.getViewsheet().adjustWarningTextPosition();
-               placeholderService.addDeleteVSObject(rvs2, textVSAssembly, dispatcher);
-               placeholderService.refreshVSAssembly(rvs2, textVSAssembly, dispatcher);
+               coreLifecycleService.addDeleteVSObject(rvs2, textVSAssembly, dispatcher);
+               coreLifecycleService.refreshVSAssembly(rvs2, textVSAssembly, dispatcher);
             }
          }
 
-         placeholderService.shrinkZIndex(rvs2.getViewsheet(), dispatcher);
-         placeholderService.setPermission(rvs2, principal, dispatcher);
-         placeholderService.setExportType(rvs2, dispatcher);
+         vsCompositionService.shrinkZIndex(rvs2.getViewsheet(), dispatcher);
+         coreLifecycleService.setPermission(rvs2, principal, dispatcher);
+         coreLifecycleService.setExportType(rvs2, dispatcher);
          execTimestamp = new java.sql.Date(System.currentTimeMillis());
          executionRecord.setExecTimestamp(execTimestamp);
          executionRecord.setExecStatus(ExecutionRecord.EXEC_STATUS_SUCCESS);
@@ -421,12 +423,12 @@ public class ComposerViewsheetController {
             AnnotationVSUtil.removeUselessAssemblies(viewsheet.getAssemblies(),
                                                      newPreviewVS.getAssemblies(),
                                                      commandDispatcher);
-            ChangedAssemblyList clist = placeholderService.createList(
+            ChangedAssemblyList clist = coreLifecycleService.createList(
                true, event, commandDispatcher, rvs, linkUri);
-            placeholderService.refreshViewsheet(rvs, id, linkUri, event.getWidth(),
-                                                event.getHeight(), event.isMobile(),
-                                                event.getUserAgent(), commandDispatcher, false,
-                                                false, true, clist);
+            coreLifecycleService.refreshViewsheet(rvs, id, linkUri, event.getWidth(),
+                                                  event.getHeight(), event.isMobile(),
+                                                  event.getUserAgent(), commandDispatcher, false,
+                                                  false, true, clist);
          }
 
          runtimeViewsheetRef.setLastModified(System.currentTimeMillis());
@@ -449,10 +451,10 @@ public class ComposerViewsheetController {
    {
       RuntimeViewsheet rvs = viewsheetService.getViewsheet(
          runtimeViewsheetRef.getRuntimeId(), principal);
-      ChangedAssemblyList clist = placeholderService.createList(
+      ChangedAssemblyList clist = coreLifecycleService.createList(
          true, event, dispatcher, rvs, linkUri);
 
-      placeholderService.refreshViewsheet(
+      coreLifecycleService.refreshViewsheet(
          rvs, rvs.getEntry().toIdentifier(), linkUri, event.getWidth(),
          event.getHeight(), event.isMobile(), event.getUserAgent(), dispatcher,
          false, false, true, clist);
@@ -679,10 +681,11 @@ public class ComposerViewsheetController {
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
    private final RuntimeViewsheetManager runtimeViewsheetManager;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final ViewsheetService viewsheetService;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSRefreshController refreshController;
    private final VSLayoutService vsLayoutService;
    private final VSObjectModelFactoryService objectModelService;
+   private final VSCompositionService vsCompositionService;
 }

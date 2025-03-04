@@ -32,7 +32,7 @@ import inetsoft.web.viewsheet.command.ExpiredSheetCommand;
 import inetsoft.web.viewsheet.command.MessageCommand;
 import inetsoft.web.viewsheet.model.RuntimeViewsheetRef;
 import inetsoft.web.viewsheet.service.CommandDispatcher;
-import inetsoft.web.viewsheet.service.PlaceholderService;
+import inetsoft.web.viewsheet.service.CoreLifecycleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -138,7 +138,7 @@ public class ComposerControllerErrorHandler {
       RuntimeViewsheet rvs =
          viewsheetService.getViewsheet(runtimeViewsheetRef.getRuntimeId(), principal);
 
-      if(!placeholderService.waitForMV(e, rvs, dispatcher)) {
+      if(!coreLifecycleService.waitForMV(e, rvs, dispatcher)) {
          sendMessageCommand(e, dispatcher, MessageCommand.Type.CONFIRM);
          throw e;
       }
@@ -222,8 +222,8 @@ public class ComposerControllerErrorHandler {
    }
 
    @Autowired
-   public void setPlaceholderService(PlaceholderService placeholderService) {
-      this.placeholderService = placeholderService;
+   public void setCoreLifecycleService(CoreLifecycleService coreLifecycleService) {
+      this.coreLifecycleService = coreLifecycleService;
    }
 
    @Autowired
@@ -233,7 +233,7 @@ public class ComposerControllerErrorHandler {
 
    private RuntimeViewsheetRef runtimeViewsheetRef;
    private ViewsheetService viewsheetService;
-   private PlaceholderService placeholderService;
+   private CoreLifecycleService coreLifecycleService;
    private NotificationService notificationService;
    private static final Logger LOG = LoggerFactory.getLogger(ComposerControllerErrorHandler.class);
 }

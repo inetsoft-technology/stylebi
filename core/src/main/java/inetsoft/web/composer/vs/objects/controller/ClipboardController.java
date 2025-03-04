@@ -68,14 +68,14 @@ public class ClipboardController {
     */
    @Autowired
    public ClipboardController(RuntimeViewsheetRef runtimeViewsheetRef,
-                              PlaceholderService placeholderService,
+                              CoreLifecycleService coreLifecycleService,
                               VSObjectTreeService vsObjectTreeService,
                               ViewsheetService viewsheetService,
                               VSAssemblyInfoHandler assemblyHandler,
                               VSObjectPropertyService vsObjectPropertyService)
    {
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.vsObjectTreeService = vsObjectTreeService;
       this.viewsheetService = viewsheetService;
       this.assemblyHandler = assemblyHandler;
@@ -144,8 +144,8 @@ public class ClipboardController {
             .filter(a -> a instanceof VSAssembly)
             .toArray(VSAssembly[]::new);
 
-         placeholderService.removeVSAssemblies(rvs, linkUri, dispatcher, false, true, true,
-                                               vsAssemblies);
+         coreLifecycleService.removeVSAssemblies(rvs, linkUri, dispatcher, false, true, true,
+                                                 vsAssemblies);
 
          if(oldAssemblies.stream().anyMatch(a -> a instanceof TableVSAssembly)) {
             assemblyHandler.getGrayedOutFields(rvs, dispatcher);
@@ -358,7 +358,7 @@ public class ClipboardController {
                }
 
                if(containerInvolved == null) {
-                  placeholderService.addDeleteVSObject(rvs, vsAssembly, dispatcher);
+                  coreLifecycleService.addDeleteVSObject(rvs, vsAssembly, dispatcher);
                }
 
                if(vsAssembly instanceof ContainerVSAssembly) {
@@ -373,12 +373,12 @@ public class ClipboardController {
                   // another container, it would already be sent to client by the parent
                   // container logic, and we send it again to update the child list
                   if(containerInvolved != null) {
-                     placeholderService.addDeleteVSObject(rvs, vsAssembly, dispatcher);
+                     coreLifecycleService.addDeleteVSObject(rvs, vsAssembly, dispatcher);
                   }
 
                   for(VSAssembly child : children) {
-                     placeholderService.addDeleteVSObject(rvs, child, dispatcher);
-                     placeholderService.loadTableLens(rvs, child.getAbsoluteName(), null, dispatcher);
+                     coreLifecycleService.addDeleteVSObject(rvs, child, dispatcher);
+                     coreLifecycleService.loadTableLens(rvs, child.getAbsoluteName(), null, dispatcher);
                   }
                }
 
@@ -392,14 +392,14 @@ public class ClipboardController {
                      .collect(Collectors.toList());
 
                   for(TableDataVSAssembly table: tables) {
-                     placeholderService
+                     coreLifecycleService
                         .loadTableLens(rvs, table.getAbsoluteName(), null, dispatcher);
                   }
                }
 
                if(vsAssembly instanceof ChartVSAssembly) {
-                  placeholderService.execute(rvs, vsAssembly.getAbsoluteName(), linkUri,
-                                             VSAssembly.VIEW_CHANGED, dispatcher);
+                  coreLifecycleService.execute(rvs, vsAssembly.getAbsoluteName(), linkUri,
+                                               VSAssembly.VIEW_CHANGED, dispatcher);
                }
 
                List<String> assemblyNames = assemblies.stream()
@@ -407,16 +407,16 @@ public class ClipboardController {
                   .collect(Collectors.toList());
 
                // load data
-               placeholderService.loadTableLens(rvs, vsAssembly.getAbsoluteName(), null,
-                                                     dispatcher);
-               placeholderService.updateAnchoredLines(rvs, assemblyNames, dispatcher);
+               coreLifecycleService.loadTableLens(rvs, vsAssembly.getAbsoluteName(), null,
+                                                  dispatcher);
+               assemblyHandler.updateAnchoredLines(rvs, assemblyNames, dispatcher);
             }
 
             AssemblyRef[] vrefs = viewsheet.getViewDependings(assembly.getAssemblyEntry());
 
             if(vrefs != null) {
                for(AssemblyRef aref: vrefs) {
-                  placeholderService.refreshVSAssembly(rvs, aref.getEntry().getAbsoluteName(), dispatcher);
+                  coreLifecycleService.refreshVSAssembly(rvs, aref.getEntry().getAbsoluteName(), dispatcher);
                }
             }
          }
@@ -650,7 +650,7 @@ public class ClipboardController {
    }
 
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSObjectTreeService vsObjectTreeService;
    private final ViewsheetService viewsheetService;
    private final VSAssemblyInfoHandler assemblyHandler;

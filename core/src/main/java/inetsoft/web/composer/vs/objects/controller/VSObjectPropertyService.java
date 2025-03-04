@@ -76,24 +76,28 @@ public class VSObjectPropertyService {
    /**
     * Creates a new instance of <tt>VSObjectPropertyController</tt>.
     *
-    * @param placeholderService PlaceholderService instance
+    * @param coreLifecycleService CoreLifecycleService instance
     * @param viewsheetService
     */
    @Autowired
    public VSObjectPropertyService(
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       VSInputService vsInputService,
       VSObjectTreeService vsObjectTreeService,
       VSAssemblyInfoHandler infoHander,
       ViewsheetService viewsheetService,
-      VSWizardTemporaryInfoService temporaryInfoService)
+      VSWizardTemporaryInfoService temporaryInfoService,
+      VSCompositionService vsCompositionService,
+      SharedFilterService sharedFilterService)
    {
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.vsInputService = vsInputService;
       this.vsObjectTreeService = vsObjectTreeService;
       this.infoHander = infoHander;
       this.viewsheetService = viewsheetService;
       this.temporaryInfoService = temporaryInfoService;
+      this.vsCompositionService = vsCompositionService;
+      this.sharedFilterService = sharedFilterService;
    }
 
    public void editObjectProperty(RuntimeViewsheet rvs, VSAssemblyInfo info, String oldName,
@@ -133,8 +137,8 @@ public class VSObjectPropertyService {
             AssemblyInfo ainfo = assembly.getInfo();
 
             if(ainfo instanceof TipVSAssemblyInfo) {
-               this.placeholderService.refreshVSAssembly(rvs, ainfo.getAbsoluteName(),
-                                                         commandDispatcher);
+               this.coreLifecycleService.refreshVSAssembly(rvs, ainfo.getAbsoluteName(),
+                                                           commandDispatcher);
             }
          }
 
@@ -144,7 +148,7 @@ public class VSObjectPropertyService {
       if(checkTipDependency(vs, info, new HashMap<>()) ||
          checkPopDependency(vs, info, new HashMap<>()))
       {
-         this.placeholderService.sendMessage(
+         this.coreLifecycleService.sendMessage(
             Catalog.getCatalog().getString("common.dependencyCycle"),
             MessageCommand.Type.ERROR, commandDispatcher);
          return;
@@ -160,7 +164,7 @@ public class VSObjectPropertyService {
       VSAssembly vsAssembly = vs.getAssembly(oldName);
 
       if(vsAssembly == null) {
-         this.placeholderService.sendMessage(
+         this.coreLifecycleService.sendMessage(
             Catalog.getCatalog().getString("viewer.viewsheet.editPropertyFailed"),
             MessageCommand.Type.ERROR, commandDispatcher);
          return;
@@ -191,7 +195,7 @@ public class VSObjectPropertyService {
             }
          }
          catch(Exception ex) {
-            this.placeholderService.sendMessage(
+            this.coreLifecycleService.sendMessage(
                Catalog.getCatalog().getString("viewer.viewsheet.scriptFailed",
                ex.getMessage()), MessageCommand.Type.CONFIRM, commandDispatcher);
             return;
@@ -206,7 +210,7 @@ public class VSObjectPropertyService {
          VSAssembly container = vsAssembly.getContainer();
 
          if(!renameAssembly(oldName, newName, container, rvs, commandDispatcher)) {
-            this.placeholderService.sendMessage(
+            this.coreLifecycleService.sendMessage(
                Catalog.getCatalog().getString("common.renameViewsheetFailed"),
                MessageCommand.Type.OK, commandDispatcher);
             return;
@@ -232,8 +236,8 @@ public class VSObjectPropertyService {
       //embedded viewsheet
       if(!(vsAssembly instanceof AbstractVSAssembly)) {
          vsAssembly.setVSAssemblyInfo(info);
-         this.placeholderService.refreshVSAssembly(rvs, vsAssembly.getAbsoluteName(),
-                                                   commandDispatcher, true);
+         this.coreLifecycleService.refreshVSAssembly(rvs, vsAssembly.getAbsoluteName(),
+                                                     commandDispatcher, true);
          return;
       }
 
@@ -412,7 +416,7 @@ public class VSObjectPropertyService {
             nde.getPlotDescriptor().isValuesVisible())
          {
             box.updateAssembly(assembly.getAbsoluteName());
-            this.placeholderService.refreshVSAssembly(rvs, assembly, commandDispatcher);
+            this.coreLifecycleService.refreshVSAssembly(rvs, assembly, commandDispatcher);
          }
       }
 
@@ -424,8 +428,8 @@ public class VSObjectPropertyService {
          }
       }
 
-      ChangedAssemblyList clist = this.placeholderService.createList(true, commandDispatcher,
-                                                                     rvs, linkUri);
+      ChangedAssemblyList clist = this.coreLifecycleService.createList(true, commandDispatcher,
+                                                                       rvs, linkUri);
       clist.setObjectPropertyChanged(true);
 
       try {
@@ -452,7 +456,7 @@ public class VSObjectPropertyService {
 
          // Propagate Calendar Period change
          if(assembly instanceof CalendarVSAssembly) {
-            this.placeholderService.processExtSharedFilters(
+            this.sharedFilterService.processExtSharedFilters(
                assembly, hint, rvs, user, commandDispatcher);
          }
 
@@ -462,7 +466,7 @@ public class VSObjectPropertyService {
             processCrosstab(assembly, oinfo, propertyChanged);
          }
 
-         this.placeholderService.execute(rvs, name, linkUri, clist, commandDispatcher, true);
+         this.coreLifecycleService.execute(rvs, name, linkUri, clist, commandDispatcher, true);
 
          // if not property change, then need runtime fields to sync path, so need to do sync
          // logic after execute assembly, and reload tablelens to get right tablelens.
@@ -499,8 +503,8 @@ public class VSObjectPropertyService {
          // Don't pop up a blank message dialog client side for a null pointer exception or other
          // RuntimeException that has a null message
          if(ex.getMessage() != null) {
-            this.placeholderService.sendMessage(ex.getMessage(), MessageCommand.Type.WARNING,
-                                                commandDispatcher);
+            this.coreLifecycleService.sendMessage(ex.getMessage(), MessageCommand.Type.WARNING,
+                                                  commandDispatcher);
          }
       }
 
@@ -523,8 +527,8 @@ public class VSObjectPropertyService {
                      msg = Catalog.getCatalog().getString("Script failed") + msg;
                   }
 
-                  this.placeholderService.sendMessage(msg, MessageCommand.Type.ERROR,
-                                                      commandDispatcher);
+                  this.coreLifecycleService.sendMessage(msg, MessageCommand.Type.ERROR,
+                                                        commandDispatcher);
                }
             }
          }
@@ -578,7 +582,7 @@ public class VSObjectPropertyService {
          Assembly[] arr = new Assembly[list.size()];
          list.toArray(arr);
          box.reset(null, arr, clist, false, false, null);
-         this.placeholderService.execute(rvs, name, linkUri, clist, commandDispatcher, false);
+         this.coreLifecycleService.execute(rvs, name, linkUri, clist, commandDispatcher, false);
       }
 
       //TODO re-create fixTipOrPopAssemblies
@@ -593,8 +597,8 @@ public class VSObjectPropertyService {
             AssemblyEntry entry = refs[i].getEntry();
 
             if(entry.isVSAssembly()) {
-               this.placeholderService.refreshVSAssembly(rvs, entry.getAbsoluteName(),
-                                             commandDispatcher);
+               this.coreLifecycleService.refreshVSAssembly(rvs, entry.getAbsoluteName(),
+                                                           commandDispatcher);
             }
          }
 
@@ -605,8 +609,8 @@ public class VSObjectPropertyService {
 
             if(entry.isVSAssembly()) {
                box.executeView(entry.getAbsoluteName(), true);
-               this.placeholderService.refreshVSAssembly(rvs, entry.getAbsoluteName(),
-                                             commandDispatcher);
+               this.coreLifecycleService.refreshVSAssembly(rvs, entry.getAbsoluteName(),
+                                                           commandDispatcher);
             }
          }
 
@@ -615,17 +619,16 @@ public class VSObjectPropertyService {
       else {
          // refresh assembly anyway, some types of modification will not cause
          // vspane refresh, in this case, assembly can't be updated
-         this.placeholderService.refreshVSAssembly(rvs, info.getAbsoluteName2(), commandDispatcher);
+         this.coreLifecycleService.refreshVSAssembly(rvs, info.getAbsoluteName2(), commandDispatcher);
       }
 
       refreshTipAndPopAssembly(rvs, assembly, commandDispatcher);
-
-      this.placeholderService.fixContainerProperties(rvs, oinfo, info, commandDispatcher);
+      fixContainerProperties(rvs, oinfo, info, commandDispatcher);
 
       // handle when change VSTab visible property, should refresh the
       // embedded viewsheet
       if(assembly instanceof TabVSAssembly && (hint & VSAssembly.VIEW_CHANGED) != 0) {
-         this.placeholderService.addDeleteEmbeddedViewsheet(rvs, commandDispatcher);
+         addDeleteEmbeddedViewsheet(rvs, commandDispatcher);
       }
 
       infoHander.getGrayedOutFields(rvs, commandDispatcher);
@@ -646,7 +649,7 @@ public class VSObjectPropertyService {
          commandDispatcher.sendCommand(assembly.getAbsoluteName(), expandTreeNodesCommand);
       }
 
-      this.placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher);
+      this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, commandDispatcher);
       processChartHighlight(assembly);
       processListInput(rvs, assembly, oassembly, commandDispatcher);
       //TODO re-create processRefresh, optimization for charts
@@ -666,11 +669,11 @@ public class VSObjectPropertyService {
          String[] flyoverViews = tipAssemblyInfo.getFlyoverViews();
 
          if(tipView != null) {
-            this.placeholderService.refreshVSAssembly(rvs, tipView, dispatcher);
+            this.coreLifecycleService.refreshVSAssembly(rvs, tipView, dispatcher);
          }
          else if(flyoverViews != null && flyoverViews.length > 0) {
             for(String flyoverView : flyoverViews) {
-               this.placeholderService.refreshVSAssembly(rvs, flyoverView, dispatcher);
+               this.coreLifecycleService.refreshVSAssembly(rvs, flyoverView, dispatcher);
             }
          }
       }
@@ -679,7 +682,7 @@ public class VSObjectPropertyService {
          String popComponent = popVSAssemblyInfo.getPopComponent();
 
          if(popComponent != null) {
-            this.placeholderService.refreshVSAssembly(rvs, popComponent, dispatcher);
+            this.coreLifecycleService.refreshVSAssembly(rvs, popComponent, dispatcher);
          }
       }
    }
@@ -716,7 +719,7 @@ public class VSObjectPropertyService {
       if(vs != null && !StringUtils.isEmpty(tableName) &&
          vs.getAssembly(tableName) instanceof TableVSAssembly)
       {
-         this.placeholderService.refreshVSAssembly(rvs, tableName, commandDispatcher);
+         this.coreLifecycleService.refreshVSAssembly(rvs, tableName, commandDispatcher);
       }
    }
 
@@ -758,7 +761,7 @@ public class VSObjectPropertyService {
 
          if(changeBindSource) {
             String bindAbsoluteName = ((VSAssembly) assembly0).getVSAssemblyInfo().getAbsoluteName();
-            this.placeholderService.refreshVSAssembly(rvs, bindAbsoluteName, commandDispatcher);
+            this.coreLifecycleService.refreshVSAssembly(rvs, bindAbsoluteName, commandDispatcher);
          }
       }
    }
@@ -778,9 +781,9 @@ public class VSObjectPropertyService {
          }
       }
       catch(Exception ex) {
-         this.placeholderService.sendMessage(Catalog.getCatalog().getString(
+         this.coreLifecycleService.sendMessage(Catalog.getCatalog().getString(
             "common.dataFormatErrorParam", ex.getMessage()),
-            MessageCommand.Type.ERROR, commandDispatcher);
+                                               MessageCommand.Type.ERROR, commandDispatcher);
          return false;
       }
 
@@ -956,7 +959,7 @@ public class VSObjectPropertyService {
          String[] views = tipInfo.getFlyoverViews();
 
          if(newName.equals(tipInfo.getTipView()) || Tool.contains(views, newName)) {
-            this.placeholderService.refreshVSAssembly(rvs, info.getAbsoluteName(), commandDispatcher);
+            this.coreLifecycleService.refreshVSAssembly(rvs, info.getAbsoluteName(), commandDispatcher);
          }
       }
    }
@@ -1011,9 +1014,9 @@ public class VSObjectPropertyService {
             if(tip != null && !Tool.equals(nconds, tip.getTipConditionList())) {
                int hint = VSAssembly.INPUT_DATA_CHANGED;
                tip.setTipConditionList(nconds);
-               this.placeholderService.execute(rvs, tip.getAbsoluteName(),
-                                               linkUri, hint, commandDispatcher);
-               this.placeholderService.refreshVSAssembly(rvs, view, commandDispatcher);
+               this.coreLifecycleService.execute(rvs, tip.getAbsoluteName(),
+                                                 linkUri, hint, commandDispatcher);
+               this.coreLifecycleService.refreshVSAssembly(rvs, view, commandDispatcher);
             }
          }
       }
@@ -1735,7 +1738,7 @@ public class VSObjectPropertyService {
          newAssembly = VSEventUtil.createVSAssembly(rvs, Viewsheet.TABLE_VIEW_ASSET);
 
          if(newAssembly == null) {
-            this.placeholderService.sendMessage(
+            this.coreLifecycleService.sendMessage(
                Catalog.getCatalog().getString(
                   "viewer.viewsheet.convertTableFailed", "embedded table",
                   "simple table"), MessageCommand.Type.ERROR, dispatcher);
@@ -1751,7 +1754,7 @@ public class VSObjectPropertyService {
          newAssembly = VSEventUtil.createVSAssembly(rvs, Viewsheet.EMBEDDEDTABLE_VIEW_ASSET);
 
          if(newAssembly == null) {
-            this.placeholderService.sendMessage(
+            this.coreLifecycleService.sendMessage(
                Catalog.getCatalog().getString(
                   "viewer.viewsheet.convertTableFailed", "simple table",
                   "embedded table"), MessageCommand.Type.ERROR, dispatcher);
@@ -1808,10 +1811,10 @@ public class VSObjectPropertyService {
          ((TabVSAssembly) container).setSelectedValue(oname);
       }
 
-      this.placeholderService.refreshVSAssembly(rvs, oname, dispatcher, true);
-      this.placeholderService.execute(rvs, oname, linkUri, hint, dispatcher);
-      this.placeholderService.loadTableLens(rvs, oname, linkUri, dispatcher);
-      this.placeholderService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
+      this.coreLifecycleService.refreshVSAssembly(rvs, oname, dispatcher, true);
+      this.coreLifecycleService.execute(rvs, oname, linkUri, hint, dispatcher);
+      this.coreLifecycleService.loadTableLens(rvs, oname, linkUri, dispatcher);
+      this.coreLifecycleService.layoutViewsheet(rvs, rvs.getID(), linkUri, dispatcher);
 
       return true;
    }
@@ -1851,8 +1854,8 @@ public class VSObjectPropertyService {
                vs.addAssembly(tab);
             }
 
-            placeholderService.execute(rvs, tab.getAbsoluteName(), null,
-                                       VSAssembly.VIEW_CHANGED, dispatcher);
+            coreLifecycleService.execute(rvs, tab.getAbsoluteName(), null,
+                                         VSAssembly.VIEW_CHANGED, dispatcher);
          }
       }
       // keep the convert assembly in tab
@@ -1869,7 +1872,7 @@ public class VSObjectPropertyService {
 
          tab.setAssemblies(assemblies);
 
-         placeholderService.execute(rvs, tname, null, VSAssembly.VIEW_CHANGED, dispatcher);
+         coreLifecycleService.execute(rvs, tname, null, VSAssembly.VIEW_CHANGED, dispatcher);
          // remove assembly
          removeVSAssembly(rvs, assembly, dispatcher);
       }
@@ -1889,10 +1892,10 @@ public class VSObjectPropertyService {
       throws Exception
    {
       final String name = assembly.getAbsoluteName();
-      placeholderService.removeObjectFromContainer(rvs, null, name,
-                                                   dispatcher, new String[] {name},
-                                                   new ArrayList<>(), new ArrayList<>());
-      placeholderService.removeVSAssembly(rvs, null, assembly, dispatcher, false, true);
+      removeObjectFromContainer(rvs, null, name,
+                                dispatcher, new String[]{ name },
+                                new ArrayList<>(), new ArrayList<>());
+      coreLifecycleService.removeVSAssembly(rvs, null, assembly, dispatcher, false, true);
    }
 
    /**
@@ -1965,12 +1968,185 @@ public class VSObjectPropertyService {
       return false;
    }
 
-   private final PlaceholderService placeholderService;
+   private void fixContainerProperties(RuntimeViewsheet rvs, VSAssemblyInfo oldInfo,
+                                      VSAssemblyInfo newInfo, CommandDispatcher commandDispatcher)
+      throws Exception
+   {
+      if(oldInfo.isPrimary() != newInfo.isPrimary()) {
+         setAssemblyPrimary(rvs, newInfo.getName(), newInfo.isPrimary(),
+                                               commandDispatcher);
+      }
+   }
+
+   private void setAssemblyPrimary(RuntimeViewsheet rvs, String name, boolean primary,
+                                  CommandDispatcher commandDispatcher) throws Exception
+   {
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         return;
+      }
+
+      VSAssembly as = (VSAssembly) vs.getAssembly(name);
+      VSAssembly cass = as.getContainer();
+
+      as.setPrimary(primary);
+
+      // force components in tab/current selection to have
+      // same primary setting as the tab/current selection
+      // all container display same, see bug1255069279490
+      if(cass instanceof ContainerVSAssembly) {
+         cass.setPrimary(as.isPrimary());
+         as = cass;
+         coreLifecycleService.refreshVSAssembly(rvs, cass.getName(), commandDispatcher);
+      }
+
+      if(as instanceof ContainerVSAssembly) {
+         Viewsheet vs2 = as.getViewsheet();
+         String[] children = ((ContainerVSAssembly) as).getAssemblies();
+
+         for(String childName : children) {
+            VSAssembly as2 = (VSAssembly) vs2.getAssembly(childName);
+            as2.setPrimary(as.isPrimary());
+            coreLifecycleService.refreshVSAssembly(rvs, childName, commandDispatcher);
+         }
+      }
+
+      coreLifecycleService.refreshVSAssembly(rvs, name, commandDispatcher);
+   }
+
+
+   private void addDeleteEmbeddedViewsheet(RuntimeViewsheet rvs,
+                                          CommandDispatcher commandDispatcher)
+      throws Exception
+   {
+      List<Assembly> assemblies = new ArrayList<>();
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         return;
+      }
+
+      VSEventUtil.listEmbeddedAssemblies(vs, assemblies);
+
+      for(Assembly assembly: assemblies) {
+         coreLifecycleService.addDeleteVSObject(rvs, (VSAssembly) assembly, commandDispatcher);
+      }
+   }
+
+   /**
+    * Remove object from container.
+    */
+   private void removeObjectFromContainer(RuntimeViewsheet rvs, String uri,
+                                         String name, CommandDispatcher dispatcher,
+                                         String[] toBeRemovedObjs, List<String> processedObjs,
+                                         List<String> needRefreshObjs)
+      throws Exception
+   {
+      if(processedObjs.indexOf(name) >= 0) {
+         return;
+      }
+
+      Viewsheet vs = rvs.getViewsheet();
+
+      if(vs == null) {
+         return;
+      }
+
+      VSAssembly assembly = (VSAssembly) vs.getAssembly(name);
+
+      if(assembly == null) {
+         return;
+      }
+
+      VSAssembly cassembly = assembly.getContainer();
+
+      if(!(cassembly instanceof GroupContainerVSAssembly)) {
+         return;
+      }
+
+      GroupContainerVSAssembly gassembly = (GroupContainerVSAssembly) cassembly;
+      boolean changed = false;
+
+      for(String toBeRemovedObj : toBeRemovedObjs) {
+         name = toBeRemovedObj;
+
+         if(processedObjs.indexOf(name) >= 0) {
+            continue;
+         }
+
+         if(!gassembly.containsAssembly(name)) {
+            continue;
+         }
+
+         gassembly.removeAssembly(name);
+
+         if(processedObjs.indexOf(name) < 0) {
+            processedObjs.add(name);
+            changed = true;
+         }
+      }
+
+      if(!changed) {
+         return;
+      }
+
+      String[] children = gassembly.getAssemblies();
+
+      if(children == null || children.length <= 1) {
+         ContainerVSAssembly container = (ContainerVSAssembly)
+            gassembly.getContainer();
+
+         // if a group container is in a tab, and it's removed when
+         // only one child is left, replace the group container in
+         // the tab with the only child
+         if(container instanceof TabVSAssembly &&
+            children != null && children.length == 1)
+         {
+            TabVSAssembly tab = (TabVSAssembly) container;
+            String[] tabchildren = container.getAssemblies();
+
+            for(int i = 0; i < tabchildren.length; i++) {
+               if(gassembly.getName().equals(tabchildren[i])) {
+                  if(tabchildren[i].equals(tab.getSelected())) {
+                     tab.setSelectedValue(children[0]);
+                  }
+
+                  tabchildren[i] = children[0];
+               }
+            }
+
+            tab.setAssemblies(tabchildren);
+         }
+
+         vsCompositionService.updateZIndex(vs, gassembly);
+         coreLifecycleService.removeVSAssembly(rvs, uri, gassembly, dispatcher, false, true);
+      }
+      else {
+         // should not update child position
+         Point p = gassembly.getPixelOffset();
+         p.move(0, gassembly.getPixelSize().height);
+         gassembly.setAssemblies(new String[]{});
+         gassembly.setPixelOffset(p);
+         gassembly.setAssemblies(children);
+
+         for(String childName : children) {
+            if(needRefreshObjs.indexOf(childName) < 0) {
+               needRefreshObjs.add(childName);
+            }
+         }
+      }
+   }
+
+
+   private final CoreLifecycleService coreLifecycleService;
    private final VSInputService vsInputService;
    private final VSObjectTreeService vsObjectTreeService;
    private final VSAssemblyInfoHandler infoHander;
    private final ViewsheetService viewsheetService;
    private final VSWizardTemporaryInfoService temporaryInfoService;
+   private final VSCompositionService vsCompositionService;
+   private final SharedFilterService sharedFilterService;
    private final static String VIEWSHEET_FLAG = Catalog.getCatalog().getString("Current viewsheet");
 
    private final Logger LOG = LoggerFactory.getLogger(VSObjectPropertyService.class);

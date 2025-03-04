@@ -80,7 +80,7 @@ public class ConvertChartRefController {
    public ConvertChartRefController(
       VSBindingService bindingFactory,
       RuntimeViewsheetRef runtimeViewsheetRef,
-      PlaceholderService placeholderService,
+      CoreLifecycleService coreLifecycleService,
       VSBindingTreeController bindingTreeController,
       VSAssemblyInfoHandler assemblyInfoHandler,
       VSChartHandler chartHandler,
@@ -89,7 +89,7 @@ public class ConvertChartRefController {
    {
       this.bindingFactory = bindingFactory;
       this.runtimeViewsheetRef = runtimeViewsheetRef;
-      this.placeholderService = placeholderService;
+      this.coreLifecycleService = coreLifecycleService;
       this.bindingTreeController = bindingTreeController;
       this.assemblyInfoHandler = assemblyInfoHandler;
       this.chartHandler = chartHandler;
@@ -231,9 +231,9 @@ public class ConvertChartRefController {
 
             try {
                ChangedAssemblyList clist =
-                  placeholderService.createList(true, dispatcher, rvs, linkUri);
+                  coreLifecycleService.createList(true, dispatcher, rvs, linkUri);
                box.processChange(name, hint, clist);
-               placeholderService.execute(rvs, name, linkUri, clist, dispatcher, true);
+               coreLifecycleService.execute(rvs, name, linkUri, clist, dispatcher, true);
             }
             finally {
                vs.setBrush(table, null);
@@ -259,7 +259,7 @@ public class ConvertChartRefController {
 
    private final VSBindingService bindingFactory;
    private final RuntimeViewsheetRef runtimeViewsheetRef;
-   private final PlaceholderService placeholderService;
+   private final CoreLifecycleService coreLifecycleService;
    private final VSBindingTreeController bindingTreeController;
    private final VSAssemblyInfoHandler assemblyInfoHandler;
    private final VSChartHandler chartHandler;
