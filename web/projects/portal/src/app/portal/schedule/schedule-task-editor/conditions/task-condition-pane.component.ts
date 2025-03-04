@@ -1158,7 +1158,7 @@ export class TaskConditionPane implements OnInit, OnChanges {
       this.setLocalTimeZone(this.timeCondition.timeZone);
       this.localTimeZoneOffset = this.timeZoneService.calculateTimezoneOffset(this.localTimeZoneId);
       const serverTZ: string = LocalStorage.getItem(TZ_STORAGE_KEY);
-      this.changeServerTimeZone(serverTZ ? serverTZ == "true" : true);
+      this.changeServerTimeZone(serverTZ ? serverTZ == "true" : false);
 
       if(!edit || !this.timeCondition?.timeZone || this.serverTimeZone) {
          this.timeZoneName = this.serverTimeZone ? this.timeZone :
