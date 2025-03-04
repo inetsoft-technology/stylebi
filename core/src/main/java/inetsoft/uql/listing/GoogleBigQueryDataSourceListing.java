@@ -32,6 +32,7 @@ public class GoogleBigQueryDataSourceListing extends DataSourceListing {
       ds.setName(getAvailableName());
       ds.setURL("jdbc:bigquery://<host>:<port>;ProjectId=<Project>;OAuthType=<AuthValue>;");
       ds.setDriver("com.simba.googlebigquery.jdbc42.Driver");
+      ds.setCloudHosted(true);
 
       return ds;
    }

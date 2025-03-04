@@ -32,6 +32,7 @@ public class AmazonEMRDataSourceListing extends DataSourceListing {
       ds.setName(getAvailableName());
       ds.setURL("jdbc:hive2://<hostname>:<port>/<db>");
       ds.setDriver("com.amazon.hive.jdbc41.HS2Driver");
+      ds.setCloudHosted(true);
 
       return ds;
    }
