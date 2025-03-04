@@ -262,13 +262,10 @@ public class WebConfig implements WebMvcConfigurer, ApplicationContextAware {
          // WebSphere strips the trailing slash
          UrlPathHelper helper = new UrlPathHelper();
          helper.setAlwaysUseFullPath(true);
-         helper.setRemoveSemicolonContent(false);
          configurer.setUrlPathHelper(helper);
       }
       else if(configurer.getUrlPathHelper() == null) {
-         UrlPathHelper helper = new UrlPathHelper();
-         helper.setRemoveSemicolonContent(false);
-         configurer.setUrlPathHelper(helper);
+         configurer.setUrlPathHelper(new UrlPathHelper());
       }
 
       // need for cjk chars on uri path. (58590)
