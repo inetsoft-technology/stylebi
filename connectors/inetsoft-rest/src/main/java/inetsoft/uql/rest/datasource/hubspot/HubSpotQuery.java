@@ -25,7 +25,12 @@ import inetsoft.sree.SreeEnv;
 import java.util.Map;
 
 @View(vertical = true, value = {
-   @View1("endpoint"),
+   @View1(value = "endpoint", affectedViews = {
+      "hasNextParamValue",
+      "pageOffsetParamToReadValue",
+      "pageOffsetParamToWriteValue",
+      "paginationType"
+   }),
    @View1(type = ViewType.PANEL, align = ViewAlign.LEFT, visibleMethod = "isCustomEndpoint",
       elements = {
          @View2(value = "templateEndpt"),
@@ -121,6 +126,7 @@ public class HubSpotQuery extends EndpointJsonQuery<HubSpotEndpoint> {
             .maxResultsPerPageParam(PaginationParamType.QUERY, "count")
             .maxResultsPerPage(100)
             .recordCountPath(getRecordCountPath(endpoint))
+            .baseRecordLength(0)
             .build();
       }
       else if(endpoint.getPageType() == 3) {
@@ -187,7 +193,7 @@ public class HubSpotQuery extends EndpointJsonQuery<HubSpotEndpoint> {
 
    private String getRecordCountPath(HubSpotEndpoint endpoint) {
       String suffix = endpoint.getSuffix();
-      String result = "$.result.length()";
+      String result = "$.results.length()";
 
       if(suffix.startsWith("/contacts") && suffix.contains("/lists"))
       {
