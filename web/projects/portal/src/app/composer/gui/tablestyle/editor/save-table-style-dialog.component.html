@@ -33,8 +33,8 @@
                            </span>
                   <span *ngIf="form.controls['name'].errors && ! form.controls['name']
                               .errors['assetNameStartWithCharDigit'] &&
-                              form.controls['name'].errors['assetEntryBannedCharacters']" class="invalid-feedback">
-                              _#(composer.sheet.checkSpeChar)
+                              form.controls['name'].errors['containsSpecialCharsForName']" class="invalid-feedback">
+                              _#(common.sree.internal.invalidCharInName)
                            </span>
                   <span
                      *ngIf="form.controls['name'].errors && form.controls['name']

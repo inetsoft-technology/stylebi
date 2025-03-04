@@ -65,7 +65,7 @@ export class SaveTableStyleDialog implements OnInit {
       this.form = new UntypedFormGroup({
          name: new UntypedFormControl(this.model.name, [
             Validators.required,
-            FormValidators.assetEntryBannedCharacters,
+            FormValidators.isValidReportName,
             FormValidators.assetNameStartWithCharDigit
          ])});
 
