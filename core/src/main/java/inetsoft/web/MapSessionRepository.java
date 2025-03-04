@@ -302,38 +302,11 @@ public class MapSessionRepository implements SessionRepository<MapSession>,
    }
 
    /**
-    * Attempt to read webapp.session-config.session-timeout from WEB-INF/web.xml.
-    * If reading this property fails for any reason, returns null.
+    * Gets the HTTP session timeout in seconds.
     *
     * @return the timeout in seconds.
     */
    private int getSessionTimeout() {
-      final String webXmlPath = this.servletContext.getRealPath("/WEB-INF/web.xml");
-
-      if(webXmlPath != null) {
-         final File webXmlFile = new File(webXmlPath);
-
-         if(webXmlFile.exists()) {
-            final XPath xpath = XPathFactory.newInstance().newXPath();
-
-            try(InputStream input = new FileInputStream(webXmlFile)) {
-               final Document document = Tool.parseXML(input);
-               final String xmlPath = "/web-app/session-config/session-timeout/text()";
-               final Double timeout =
-                  (Double) xpath.evaluate(xmlPath, document, XPathConstants.NUMBER);
-
-               if(timeout != null && !Double.isNaN(timeout)) {
-                  int value = (int) TimeUnit.MINUTES.toSeconds(timeout.longValue());
-                  SreeEnv.setProperty("http.session.timeout", Integer.toString(value));
-                  return value;
-               }
-            }
-            catch(Exception e) {
-               LOG.error("Failed to read session-timeout from web.xml", e);
-            }
-         }
-      }
-
       String property = SreeEnv.getProperty("http.session.timeout");
 
       if(StringUtils.hasText(property)) {
