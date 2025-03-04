@@ -769,9 +769,6 @@ public abstract class AbstractRestDataSource<SELF extends AbstractRestDataSource
             flagsSet.addAll(Arrays.asList(getOauthFlags().split(" ")));
          }
 
-         LOG.debug("Current Access Token " + getAccessToken());
-         LOG.debug("Current Refresh Token " + getRefreshToken());
-
          Tokens tokens = AuthorizationClient.refresh(getServiceName(),
                                                      getRefreshToken(), getClientId(), getClientSecret(), getTokenUri(), flagsSet,
                                                      useBasicAuth, null);
