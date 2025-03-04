@@ -90,9 +90,7 @@ export class ScheduleTaskEditorComponent implements OnInit {
       ).subscribe(
          (model: ScheduleTaskDialogModel) => {
             this.model = model;
-            let param = GuiTool.getQueryParameters().get("taskDefaultTime");
-            model.taskDefaultTime = param[0] !== "false";
-            param = GuiTool.getQueryParameters().get("path");
+            let param = GuiTool.getQueryParameters().get("path");
             this.returnPath = param && param.length > 0 ? param[0] : null;
             param = GuiTool.getQueryParameters().get("newTask");
             this.newTask = param[0] == "true";
@@ -101,6 +99,13 @@ export class ScheduleTaskEditorComponent implements OnInit {
             this.model.timeZoneOptions = this.timeZoneService.updateTimeZoneOptions(
                this.model.timeZoneOptions, this.model.taskConditionPaneModel.conditions);
             this.originalModel = Tool.clone(model);
+
+            if(this.newTask) {
+               this.model.taskConditionPaneModel.taskDefaultTime = this.model.taskDefaultTime;
+            }
+            else {
+               this.model.taskConditionPaneModel.taskDefaultTime = true;
+            }
          },
          (error) => {
             if(error.statusText && error.statusText.toLowerCase() == "forbidden" ||

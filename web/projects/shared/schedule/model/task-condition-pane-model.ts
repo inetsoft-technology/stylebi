@@ -27,4 +27,5 @@ export interface TaskConditionPaneModel {
    allTasks: NameLabelTuple[];
    timeZoneOffset?: number;
    serverTimeZoneId?: string;
+   taskDefaultTime?: boolean;
 }
