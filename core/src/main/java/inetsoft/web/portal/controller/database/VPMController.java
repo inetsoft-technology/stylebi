@@ -594,7 +594,9 @@ public class VPMController {
                continue;
             }
 
-            usersData.add(new DataItem(user.name, user.name));
+            String alias = SUtil.getUserAlias(new IdentityID(user.name,
+               OrganizationManager.getInstance().getCurrentOrgID()));
+            usersData.add(new DataItem(alias, user.name));
          }
       }
 

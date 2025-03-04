@@ -299,7 +299,8 @@ public class DataSourceService {
                result.setCreatedBy(user.getAlias() == null ? user.getName() : user.getAlias());
             }
             else {
-               result.setCreatedBy(entry.getCreatedUsername());
+               result.setCreatedBy(SUtil.getUserAlias(new IdentityID(entry.getCreatedUsername(),
+                  OrganizationManager.getInstance().getCurrentOrgID())));
             }
          }
 
