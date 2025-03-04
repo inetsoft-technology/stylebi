@@ -752,13 +752,8 @@ public class RuntimeViewsheet extends RuntimeSheet {
     * @return <tt>true</tt> if contains it, <tt>false</tt> otherwise.
     */
    public boolean containsBookmark(String name, IdentityID user) {
-      if(getUserBookmark(user) == null) {
-         return false;
-      }
-
-      VSBookmark bookmark = getUserBookmark(user);
-
-      return bookmark.containsBookmark(name);
+      VSBookmark bookmark = getVSBookmark(user.convertToKey());
+      return bookmark != null && bookmark.containsBookmark(name);
    }
 
    /**
