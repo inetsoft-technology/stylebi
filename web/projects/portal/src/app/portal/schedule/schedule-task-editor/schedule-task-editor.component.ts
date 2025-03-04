@@ -103,7 +103,9 @@ export class ScheduleTaskEditorComponent implements OnInit {
             this.originalModel = Tool.clone(model);
          },
          (error) => {
-            if(error.statusText && error.statusText.toLowerCase() == "forbidden") {
+            if(error.statusText && error.statusText.toLowerCase() == "forbidden" ||
+               error.status == 403)
+            {
                ComponentTool.showMessageDialog(
                   this.modalService, "_#(js:Error)",
                   "You have no schedule permission, please contact administrator");
