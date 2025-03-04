@@ -152,7 +152,8 @@ public class QuickbooksReportsDataSource
       try {
          QuickbooksReportsDataSource ds = (QuickbooksReportsDataSource) obj;
 
-         return Objects.equals(companyId, ds.companyId) && production == ds.production;
+         return Objects.equals(companyId, ds.companyId) && production == ds.production &&
+            super.equals(obj);
       }
       catch(Exception ex) {
          return false;
