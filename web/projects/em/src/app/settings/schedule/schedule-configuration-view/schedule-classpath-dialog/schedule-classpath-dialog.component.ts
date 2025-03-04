@@ -21,6 +21,8 @@ import { MatSnackBar, MatSnackBarConfig } from "@angular/material/snack-bar";
 import { Tool } from "../../../../../../../shared/util/tool";
 import { EditClasspathTextDialogComponent } from "./edit-classpath-text-dialog/edit-classpath-text-dialog.component";
 
+const PATH_ITEM_HEIGHT: number = 41;
+
 @Component({
   selector: "em-schedule-classpath-dialog",
   templateUrl: "./schedule-classpath-dialog.component.html",
@@ -148,10 +150,9 @@ export class ScheduleClasspathDialogComponent implements OnInit {
       this.selectedIndex = this.classpath.length - 1;
       this.editingPath = "";
       this.editing = true;
-      let pathItemHeight = 35;
 
       setTimeout(() => {
-        this.scrollViewport.nativeElement.scrollTop = this.classpath.length * pathItemHeight;
+        this.scrollViewport.nativeElement.scrollTop = this.classpath.length * PATH_ITEM_HEIGHT;
       }, 0);
     }
   }
@@ -191,18 +192,17 @@ export class ScheduleClasspathDialogComponent implements OnInit {
 
   private autoScroll() {
     if(this.scrollViewport && this.scrollViewport.nativeElement) {
-      let pathItemHeight = 41;
       let scrollElement = this.scrollViewport.nativeElement;
       let scrollTop = scrollElement.scrollTop;
-      let pathItemOffset = (this.selectedIndex + 1) * pathItemHeight;
+      let pathItemOffset = (this.selectedIndex + 1) * PATH_ITEM_HEIGHT;
       let height = this.scrollViewport.nativeElement.getBoundingClientRect().height;
       let newScrollTop = scrollTop;
 
       if(pathItemOffset - scrollTop > height) {
         newScrollTop = pathItemOffset - height;
       }
-      else if(pathItemOffset - pathItemHeight < scrollTop) {
-        newScrollTop = pathItemOffset - pathItemHeight;
+      else if(pathItemOffset - PATH_ITEM_HEIGHT < scrollTop) {
+        newScrollTop = pathItemOffset - PATH_ITEM_HEIGHT;
       }
 
       if(scrollTop != newScrollTop) {
